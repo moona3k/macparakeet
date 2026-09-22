@@ -6,6 +6,7 @@ public enum LLMError: Error, LocalizedError, Sendable {
     case authenticationFailed(String?)
     case rateLimited
     case modelNotFound(String)
+    case invalidModelOverride(model: String, provider: LLMProviderID, reason: String)
     case contextTooLong
     case formatterTruncated
     case formatterEmptyResponse
@@ -29,6 +30,8 @@ public enum LLMError: Error, LocalizedError, Sendable {
             return "Rate limited by provider. Please wait and try again."
         case .modelNotFound(let model):
             return "Model not found: \(model)"
+        case .invalidModelOverride(let model, let provider, let reason):
+            return "Model override '\(model)' is not valid for \(provider.descriptor.displayName): \(reason) Choose a compatible model in the Prompt settings."
         case .contextTooLong:
             return "Text exceeds the model's context limit."
         case .formatterTruncated:

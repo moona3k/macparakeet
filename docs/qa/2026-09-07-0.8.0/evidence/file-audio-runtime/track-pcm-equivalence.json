@@ -1,0 +1,20 @@
+[
+  {
+    "audioOrdinalZeroBased": 0,
+    "containerStreamIndex": 1,
+    "reference": "en_us_0000.wav",
+    "equalPCMBytes": true,
+    "sampleCount": 168960,
+    "referencePCM_SHA256": "3f4a596a69474e5e9336fc22f87bfa9a876b9f145da56f641bfd8b26d5f74029",
+    "embeddedPCM_SHA256": "3f4a596a69474e5e9336fc22f87bfa9a876b9f145da56f641bfd8b26d5f74029"
+  },
+  {
+    "audioOrdinalZeroBased": 1,
+    "containerStreamIndex": 2,
+    "reference": "ja_jp_0000.wav",
+    "equalPCMBytes": true,
+    "sampleCount": 167040,
+    "referencePCM_SHA256": "7eafd8517298b7ad9d096362fd1931ff533081f1986a5af6061651a13fd0122c",
+    "embeddedPCM_SHA256": "7eafd8517298b7ad9d096362fd1931ff533081f1986a5af6061651a13fd0122c"
+  }
+]

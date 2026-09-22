@@ -7,11 +7,24 @@ import SwiftUI
 /// Supports drag-selection across the entire transcript with colored speaker headers.
 /// Uses incremental suffix updates so live transcript changes don't rebuild the full document.
 struct TranscriptTextView: NSViewRepresentable {
+    private static let fallbackLayoutSize = CGSize(width: 360, height: 160)
+
     let lines: [MeetingRecordingPreviewLine]
     let autoScroll: Bool
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
+    }
+
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        nsView: NSScrollView,
+        context: Context
+    ) -> CGSize {
+        CGSize(
+            width: proposal.width ?? max(nsView.bounds.width, Self.fallbackLayoutSize.width),
+            height: proposal.height ?? max(nsView.bounds.height, Self.fallbackLayoutSize.height)
+        )
     }
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -25,7 +38,25 @@ struct TranscriptTextView: NSViewRepresentable {
         textView.isAutomaticLinkDetectionEnabled = false
         textView.isAutomaticDataDetectionEnabled = false
         textView.textContainer?.lineFragmentPadding = 0
+        textView.minSize = NSSize(width: 0, height: Self.fallbackLayoutSize.height)
+        textView.maxSize = NSSize(
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
         textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.containerSize = NSSize(
+            width: Self.fallbackLayoutSize.width,
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        textView.frame = NSRect(
+            x: 0,
+            y: 0,
+            width: Self.fallbackLayoutSize.width,
+            height: Self.fallbackLayoutSize.height
+        )
 
         let scrollView = NSScrollView()
         scrollView.documentView = textView
@@ -166,6 +197,7 @@ struct TranscriptTextView: NSViewRepresentable {
 
             let textPara = NSMutableParagraphStyle()
             textPara.lineSpacing = 2
+            textPara.paragraphSpacing = 8
             textPara.firstLineHeadIndent = 11
             textPara.headIndent = 11
 

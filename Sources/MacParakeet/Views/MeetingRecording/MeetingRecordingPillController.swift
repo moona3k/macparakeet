@@ -42,20 +42,17 @@ private class PillMenuDelegate: NSObject {
     let onOpen: () -> Void
     let onCancel: () -> Void
     let onPauseToggle: () -> Void
-    let onStopTranscription: () -> Void
 
     init(
         onStop: @escaping () -> Void,
         onOpen: @escaping () -> Void,
         onCancel: @escaping () -> Void,
-        onPauseToggle: @escaping () -> Void,
-        onStopTranscription: @escaping () -> Void = {}
+        onPauseToggle: @escaping () -> Void
     ) {
         self.onStop = onStop
         self.onOpen = onOpen
         self.onCancel = onCancel
         self.onPauseToggle = onPauseToggle
-        self.onStopTranscription = onStopTranscription
     }
 
     @objc func menuAction(_ sender: NSMenuItem) {
@@ -64,7 +61,6 @@ private class PillMenuDelegate: NSObject {
         case "open": onOpen()
         case "cancel": onCancel()
         case "pauseToggle": onPauseToggle()
-        case "stopTranscription": onStopTranscription()
         default: break
         }
     }
@@ -73,6 +69,7 @@ private class PillMenuDelegate: NSObject {
 @MainActor
 final class MeetingRecordingPillController {
     private var panel: NSPanel?
+    private var preservedFrameForNextShow: NSRect?
     private weak var pillView: MeetingRecordingAppKitPillView?
     private let pillViewModel: MeetingRecordingPillViewModel
     var onClick: (() -> Void)?
@@ -80,9 +77,7 @@ final class MeetingRecordingPillController {
     var onOpenApp: (() -> Void)?
     var onCancelRecording: (() -> Void)?
     var onPauseToggle: (() -> Void)?
-    /// Opens the stop-transcription confirmation (issue #487). Offered from
-    /// the context menu while the post-stop final transcription is running.
-    var onStopTranscription: (() -> Void)?
+    var isVisible: Bool { panel != nil }
 
     init(viewModel: MeetingRecordingPillViewModel) {
         self.pillViewModel = viewModel
@@ -91,6 +86,9 @@ final class MeetingRecordingPillController {
     func show() {
         if let panel {
             panel.orderFront(nil)
+            // Back-to-back recordings can reuse the saved-completion pill; push
+            // the fresh state now instead of waiting for the 1 s view tick.
+            pillView?.refresh()
             return
         }
 
@@ -132,7 +130,10 @@ final class MeetingRecordingPillController {
         panel.isMovableByWindowBackground = true
         panel.contentView = contentView
 
-        if let screen = NSScreen.main {
+        if let preservedFrame = preservedFrameForNextShow {
+            panel.setFrame(preservedFrame, display: false)
+            preservedFrameForNextShow = nil
+        } else if let screen = NSScreen.main {
             let frame = screen.visibleFrame
             let x = frame.maxX - panelWidth
             let y = frame.midY - panelHeight / 2
@@ -143,7 +144,14 @@ final class MeetingRecordingPillController {
         self.panel = panel
     }
 
-    func hide() {
+    func hide(preserveFrameForNextShow: Bool = false) {
+        if preserveFrameForNextShow {
+            if let frame = panel?.frame {
+                preservedFrameForNextShow = frame
+            }
+        } else {
+            preservedFrameForNextShow = nil
+        }
         panel?.orderOut(nil)
         panel = nil
         pillView = nil
@@ -170,7 +178,7 @@ final class MeetingRecordingPillController {
         // The menu must read honestly in every pill face: the recording menu's
         // items (pause, End & Transcribe, Discard) are silent no-ops once the
         // flow has moved past recording, so post-stop states get their own
-        // menus (issue #487).
+        // menus.
         switch pillViewModel.state {
         case .completing, .transcribing:
             showTranscribingContextMenu(with: event, for: contentView)
@@ -178,7 +186,7 @@ final class MeetingRecordingPillController {
         case .completed, .error, .idle:
             showInertContextMenu(with: event, for: contentView)
             return
-        case .recording, .paused:
+        case .starting, .recording, .paused:
             break
         }
 
@@ -206,7 +214,10 @@ final class MeetingRecordingPillController {
         // completing); a paused recording is still "the leaf, dormant".
         let isPaused = pillViewModel.isPaused
         let elapsed = pillViewModel.formattedElapsed
-        let headerTitle = isPaused ? "Paused — \(elapsed)" : "Listening — \(elapsed)"
+        let headerTitle =
+            pillViewModel.state == .starting
+            ? "Starting audio capture…"
+            : (isPaused ? "Paused — \(elapsed)" : "Listening — \(elapsed)")
         let headerSymbol = "leaf"
         let headerItem = NSMenuItem(title: headerTitle, action: nil, keyEquivalent: "")
         headerItem.isEnabled = false
@@ -228,7 +239,9 @@ final class MeetingRecordingPillController {
             )
             pauseItem.representedObject = "pauseToggle"
             pauseItem.target = delegate
-            if let pauseImage = NSImage(systemSymbolName: isPaused ? "play.fill" : "pause.fill", accessibilityDescription: nil) {
+            if let pauseImage = NSImage(
+                systemSymbolName: isPaused ? "play.fill" : "pause.fill", accessibilityDescription: nil)
+            {
                 pauseItem.image = pauseImage.withSymbolConfiguration(.init(pointSize: 13, weight: .medium))
                 pauseItem.image?.isTemplate = true
             }
@@ -236,7 +249,8 @@ final class MeetingRecordingPillController {
         }
 
         // End & Transcribe — the flower completes its cycle
-        let stopItem = NSMenuItem(title: "End & Transcribe", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
+        let stopItem = NSMenuItem(
+            title: "End & Transcribe", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
         stopItem.representedObject = "stop"
         stopItem.target = delegate
         if let stopImage = NSImage(systemSymbolName: "leaf.fill", accessibilityDescription: nil) {
@@ -245,7 +259,8 @@ final class MeetingRecordingPillController {
         }
         menu.addItem(stopItem)
 
-        let openItem = NSMenuItem(title: "Open MacParakeet", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
+        let openItem = NSMenuItem(
+            title: "Open MacParakeet", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
         openItem.representedObject = "open"
         openItem.target = delegate
         if let openImage = NSImage(systemSymbolName: "bird", accessibilityDescription: nil) {
@@ -257,7 +272,8 @@ final class MeetingRecordingPillController {
         menu.addItem(.separator())
 
         // Discard — destructive, red
-        let cancelItem = NSMenuItem(title: "Discard Recording", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
+        let cancelItem = NSMenuItem(
+            title: "Discard Recording", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
         cancelItem.representedObject = "cancel"
         cancelItem.target = delegate
         cancelItem.attributedTitle = NSAttributedString(
@@ -277,11 +293,9 @@ final class MeetingRecordingPillController {
         NSMenu.popUpContextMenu(menu, with: event, for: contentView)
     }
 
-    /// Context menu while the final transcription is running (issue #487):
-    /// honest header, Open, and a gated "Stop Transcribing…" that opens the
-    /// keep/delete confirmation. The item stays visible-but-disabled during
-    /// the brief window where the recording is still being finalized so the
-    /// affordance is discoverable the moment it becomes safe.
+    /// Context menu shown during the brief transcribing pill state: an honest
+    /// header plus Open. Final transcription now runs in the background queue
+    /// after the durable stop boundary, so there is no in-flight abort action.
     private func showTranscribingContextMenu(with event: NSEvent, for contentView: NSView) {
         let menu = NSMenu()
         menu.autoenablesItems = false
@@ -292,10 +306,7 @@ final class MeetingRecordingPillController {
                 Task { @MainActor [weak self] in self?.onOpenApp?() }
             },
             onCancel: {},
-            onPauseToggle: {},
-            onStopTranscription: { [weak self] in
-                Task { @MainActor [weak self] in self?.onStopTranscription?() }
-            }
+            onPauseToggle: {}
         )
 
         let headerItem = NSMenuItem(title: "Transcribing meeting", action: nil, keyEquivalent: "")
@@ -308,7 +319,8 @@ final class MeetingRecordingPillController {
 
         menu.addItem(.separator())
 
-        let openItem = NSMenuItem(title: "Open MacParakeet", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
+        let openItem = NSMenuItem(
+            title: "Open MacParakeet", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
         openItem.representedObject = "open"
         openItem.target = delegate
         openItem.isEnabled = true
@@ -317,18 +329,6 @@ final class MeetingRecordingPillController {
             openItem.image?.isTemplate = true
         }
         menu.addItem(openItem)
-
-        menu.addItem(.separator())
-
-        let stopItem = NSMenuItem(title: "Stop Transcribing…", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
-        stopItem.representedObject = "stopTranscription"
-        stopItem.target = delegate
-        stopItem.isEnabled = pillViewModel.canAbortTranscription
-        if let stopImage = NSImage(systemSymbolName: "stop.circle", accessibilityDescription: nil) {
-            stopItem.image = stopImage.withSymbolConfiguration(.init(pointSize: 13, weight: .medium))
-            stopItem.image?.isTemplate = true
-        }
-        menu.addItem(stopItem)
 
         objc_setAssociatedObject(menu, "delegate", delegate, .OBJC_ASSOCIATION_RETAIN)
         NSMenu.popUpContextMenu(menu, with: event, for: contentView)
@@ -364,7 +364,8 @@ final class MeetingRecordingPillController {
 
         menu.addItem(.separator())
 
-        let openItem = NSMenuItem(title: "Open MacParakeet", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
+        let openItem = NSMenuItem(
+            title: "Open MacParakeet", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")
         openItem.representedObject = "open"
         openItem.target = delegate
         openItem.isEnabled = true
@@ -621,6 +622,11 @@ private final class MeetingRecordingAppKitPillView: NSView {
             resize.duration = reduceMotion ? 0.4 : 0.85
             resize.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             backgroundLayer.add(resize, forKey: "containerResize")
+        } else {
+            // Snap: drop any in-flight collapse resize so a back-to-back
+            // recording that starts mid-collapse doesn't keep shrinking to a
+            // circle before settling on the oval.
+            backgroundLayer.removeAnimation(forKey: "containerResize")
         }
         backgroundLayer.path = newPath
     }
@@ -728,9 +734,23 @@ private final class MeetingRecordingAppKitPillView: NSView {
 
         renderedState = state
         renderedReduceMotion = reduceMotion
+        setAccessibilityLabel(state == .starting ? "Starting meeting audio capture" : nil)
 
         switch state {
+        case .starting:
+            completionCallbackScheduled = false
+            pauseLayer.isHidden = true
+            iconView.alphaValue = 0.45
+            setCompactIcon(false)
+            applyContainer(compact: false, animated: false)
+            iconView.update(isAnimating: false, audioLevel: 0)
         case .recording:
+            // Re-arm the one-shot collapse callback for a fresh recording cycle.
+            // A back-to-back meeting can reuse this pill view if the previous
+            // saved-completion celebration hasn't torn it down yet; without this
+            // reset, the next `.completing` would skip the collapse and the pill
+            // would hang (its `onCompletionAnimationFinished` never fires).
+            completionCallbackScheduled = false
             pauseLayer.isHidden = true
             iconView.alphaValue = 1.0
             setCompactIcon(false)
@@ -756,7 +776,10 @@ private final class MeetingRecordingAppKitPillView: NSView {
             iconView.alphaValue = 1.0
             setCompactIcon(true)
             applyContainer(compact: true, animated: false)
-            iconView.showSpinner(animated: !reduceMotion)
+            // The post-collapse "saving" state: the Metatron's Cube blooms and
+            // holds (CA-driven) until the recording is durably queued, when the
+            // coordinator advances to `.completed` and the cube resolves to the check.
+            iconView.showMetatron(animated: !reduceMotion)
         case .completed:
             pauseLayer.isHidden = true
             iconView.alphaValue = 1.0

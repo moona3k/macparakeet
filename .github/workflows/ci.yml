@@ -2,15 +2,17 @@ name: CI
 
 on:
   push:
+    # PRs validate feature branches; avoid a second full run for the same update.
+    branches: [main]
+    # Keep tag validation when restricting branch pushes.
+    tags: ["**"]
     paths-ignore:
       - "docs/**"
-      - "spec/**"
-      - "**/*.md"
+      - "plans/**"
   pull_request:
     paths-ignore:
       - "docs/**"
-      - "spec/**"
-      - "**/*.md"
+      - "plans/**"
   workflow_dispatch:
 
 concurrency:
@@ -20,7 +22,10 @@ concurrency:
 jobs:
   swift-test:
     runs-on: macos-14
-    timeout-minutes: 45
+    # Leave time for tests after the release, bundle, and concurrency builds.
+    # Voice-profile sources pushed a clean Release compile past the old 15/60
+    # minute step/job caps (pre-#1044 Release builds already took ~14.5 min).
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -43,6 +48,35 @@ jobs:
           set -o pipefail
           ./scripts/check-readme-references.sh 2>&1 | tee .ci-logs/check-readme-references.log
 
+      - name: Check Telemetry Allowlist
+        timeout-minutes: 2
+        env:
+          # PAT with read access to the private macparakeet-website repo, so
+          # the script's `gh`/`curl` fallback can fetch the allowlist in CI. If
+          # this secret is unset the script SKIPS (exit 0) rather than failing.
+          GH_TOKEN: ${{ secrets.WEBSITE_REPO_TOKEN }}
+        run: |
+          mkdir -p .ci-logs
+          set -o pipefail
+          ./scripts/ci/check-telemetry-allowlist.sh 2>&1 | tee .ci-logs/check-telemetry-allowlist.log
+
+      - name: Meeting Echo Packaging Fixtures
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          mkdir -p .ci-logs
+          for fixture in test_macho_min_version test_prepare_meeting_echo_assets test_verify_meeting_echo_assets; do
+            bash "scripts/dist/${fixture}.sh" 2>&1 | tee ".ci-logs/${fixture}.log"
+          done
+
+      - name: Swift Format Lint (informational)
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          mkdir -p .ci-logs
+          set -o pipefail
+          xcrun swift-format lint --recursive --configuration .swift-format Sources Tests 2>&1 | tee .ci-logs/swift-format-lint.log
+
       - name: Cache SwiftPM Dependencies
         uses: actions/cache@v5
         with:
@@ -55,16 +89,43 @@ jobs:
             ${{ runner.os }}-spm-
 
       - name: Swift Build (Release)
-        timeout-minutes: 15
+        timeout-minutes: 25
         run: |
           mkdir -p .ci-logs
           set -o pipefail
           swift build -c release 2>&1 | tee .ci-logs/swift-build-release.log
 
-      - name: Release Bundle Smoke
-        timeout-minutes: 15
+      - name: CLI Contract Smoke
+        timeout-minutes: 2
         env:
-          BUILD_SYSTEM: swiftpm
+          MACPARAKEET_TELEMETRY: "0"
+        run: |
+          mkdir -p .ci-logs
+          set -o pipefail
+          .build/release/macparakeet-cli --help > .ci-logs/cli-help.txt
+          .build/release/macparakeet-cli spec --json > .ci-logs/cli-spec.json
+          python3 -m json.tool .ci-logs/cli-spec.json > /dev/null
+          python3 - <<'PY'
+          import json
+
+          with open(".ci-logs/cli-spec.json", encoding="utf-8") as f:
+              spec = json.load(f)
+
+          commands = {
+              tuple(command["path"]): command
+              for command in spec["commands"]
+          }
+          export = commands[("meetings", "export")]
+          if export["jsonMode"] != "--stdout --format json":
+              raise SystemExit(
+                  f"Unexpected meetings export jsonMode: {export['jsonMode']!r}"
+              )
+          PY
+
+      - name: Release Bundle Smoke
+        timeout-minutes: 25
+        env:
+          BUILD_SYSTEM: xcodebuild
           BUNDLE_YTDLP: "0"
           BUNDLE_NODE: "0"
           FFMPEG_PATH: /usr/bin/true
@@ -74,6 +135,18 @@ jobs:
           mkdir -p .ci-logs
           set -o pipefail
           ./scripts/dist/build_app_bundle.sh 2>&1 | tee .ci-logs/release-bundle-smoke.log
+          swift - dist/MacParakeet.app/Contents/Resources/SwiftStreamingMarkdown_SwiftStreamingMarkdown.bundle <<'SWIFT'
+          import AppKit
+          guard let bundle = Bundle(path: CommandLine.arguments[1]),
+                bundle.bundleIdentifier != nil,
+                bundle.url(forResource: "Assets", withExtension: "car") != nil,
+                NSColor(named: "Colors/Copilot/Theme/Foreground/Primary/450", bundle: bundle) != nil,
+                bundle.image(forResource: "Copy") != nil,
+                bundle.image(forResource: "downloadArrow") != nil else {
+              fatalError("Packaged Markdown colors and action icons must resolve without build-directory resources")
+          }
+          print("Packaged Markdown assets resolve")
+          SWIFT
 
       - name: Swift Concurrency Safety
         timeout-minutes: 15
@@ -96,7 +169,7 @@ jobs:
           swift build --build-path .build-swift6-no-whisper -Xswiftc -swift-version -Xswiftc 6 2>&1 | tee .ci-logs/swift-6-language-mode.log
 
       - name: Swift Test
-        timeout-minutes: 20
+        timeout-minutes: 25
         run: |
           mkdir -p .ci-logs
           set -o pipefail

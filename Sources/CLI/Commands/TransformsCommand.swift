@@ -20,6 +20,7 @@ struct TransformsCommand: AsyncParsableCommand {
             RunSubcommand.self,
             CreateSubcommand.self,
             DeleteSubcommand.self,
+            RestoreDefaultsSubcommand.self,
             HistorySubcommand.self,
         ],
         defaultSubcommand: ListSubcommand.self
@@ -158,14 +159,23 @@ extension TransformsCommand {
                     throw CLIInputError.empty
                 }
 
-                let execution = try llm.buildExecutionContext()
+                var effectiveLLM = llm
+                if let modelOverride = transform.modelOverride {
+                    effectiveLLM.model = modelOverride
+                }
+                let execution = try effectiveLLM.buildExecutionContext()
                 let service = LLMService(
                     client: execution.client,
                     contextResolver: StaticLLMExecutionContextResolver(context: execution.context)
                 )
 
                 if json {
-                    let result = try await service.transformDetailed(text: text, prompt: transform.content)
+                    let result = try await service.transformDetailed(
+                        text: text,
+                        prompt: transform.content,
+                        inferenceSettings: transform.inferenceSettings,
+                        modelOverride: transform.modelOverride
+                    )
                     try saveCLITransformHistory(
                         repo: historyRepo,
                         transform: transform,
@@ -179,7 +189,12 @@ extension TransformsCommand {
                 } else if stream {
                     let startedAt = Date()
                     var output = ""
-                    let tokenStream = service.transformStream(text: text, prompt: transform.content)
+                    let tokenStream = service.transformStream(
+                        text: text,
+                        prompt: transform.content,
+                        inferenceSettings: transform.inferenceSettings,
+                        modelOverride: transform.modelOverride
+                    )
                     for try await token in tokenStream {
                         output += token
                         print(token, terminator: "")
@@ -196,7 +211,12 @@ extension TransformsCommand {
                         totalElapsedMs: elapsedMs
                     )
                 } else {
-                    let result = try await service.transformDetailed(text: text, prompt: transform.content)
+                    let result = try await service.transformDetailed(
+                        text: text,
+                        prompt: transform.content,
+                        inferenceSettings: transform.inferenceSettings,
+                        modelOverride: transform.modelOverride
+                    )
                     try saveCLITransformHistory(
                         repo: historyRepo,
                         transform: transform,
@@ -262,12 +282,13 @@ extension TransformsCommand {
                 if let p = prompt {
                     body = p
                 } else if let path = fromFile {
-                    body = try String(contentsOfFile: path, encoding: .utf8)
+                    body = try String(contentsOfFile: expandTilde(path), encoding: .utf8)
                 } else {
                     throw ValidationError("Provide a prompt body via --prompt or --from-file.")
                 }
 
                 let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                let transformID = UUID()
 
                 let existing = try repo.fetchAll()
                 if existing.contains(where: { $0.name.caseInsensitiveCompare(trimmedName) == .orderedSame }) {
@@ -285,12 +306,7 @@ extension TransformsCommand {
                     guard !parsed.isMacOSDeadKey else {
                         throw CLITransformsError.shortcutMacOSDeadKey
                     }
-                    if let duplicate = existing.first(where: { prompt in
-                        guard prompt.category == .transform,
-                              let shortcut = prompt.shortcut
-                        else { return false }
-                        return shortcutsMatch(shortcut, parsed)
-                    }) {
+                    if let duplicate = transformShortcutConflict(for: parsed, excluding: transformID, in: existing) {
                         throw CLITransformsError.duplicateShortcut(
                             parsed.displayString,
                             duplicate.name
@@ -307,7 +323,7 @@ extension TransformsCommand {
 
                 let now = Date()
                 let transform = Prompt(
-                    id: UUID(),
+                    id: transformID,
                     name: trimmedName,
                     content: body,
                     category: .transform,
@@ -342,7 +358,7 @@ extension TransformsCommand {
     struct DeleteSubcommand: ParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "delete",
-            abstract: "Delete a custom Transform. Built-ins are protected."
+            abstract: "Soft-delete a Transform. Built-ins and custom Transforms use the same lifecycle."
         )
 
         @Argument(help: "Transform ID, ID prefix, or name.")
@@ -361,11 +377,7 @@ extension TransformsCommand {
                 let repo = PromptRepository(dbQueue: db.dbQueue)
                 let transform = try findTransform(idOrName: idOrName, repo: repo)
 
-                if transform.isBuiltIn {
-                    throw CLITransformsError.deleteBuiltIn(transform.name)
-                }
-
-                let deleted = try repo.delete(id: transform.id)
+                let deleted = try PromptEditingService(dbQueue: db.dbQueue).softDelete(id: transform.id)
                 guard deleted else {
                     throw CLITransformsError.notFound(idOrName)
                 }
@@ -375,6 +387,69 @@ extension TransformsCommand {
                     try printJSON(DeleteResult(deleted: true, id: transform.id.uuidString, name: transform.name))
                 } else {
                     print("Deleted Transform \(transform.id.uuidString.prefix(8))  \(transform.name)")
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Restore Defaults
+
+extension TransformsCommand {
+    struct RestoreDefaultsSubcommand: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "restore-defaults",
+            abstract: "Restore built-in Transform defaults."
+        )
+
+        @Option(name: .long, help: "Reset one built-in Transform by ID, ID prefix, or name. Omit to re-show hidden built-ins and re-seed missing built-ins without overwriting edits.")
+        var transform: String?
+
+        @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+        var json: Bool = false
+
+        @Option(help: "Path to SQLite database file (defaults to the app database).")
+        var database: String?
+
+        func run() throws {
+            try emitJSONOrRethrow(json: json) {
+                try AppPaths.ensureDirectories()
+                let db = try DatabaseManager(path: resolvedDatabasePath(database))
+                let repo = PromptRepository(dbQueue: db.dbQueue)
+
+                if let transform {
+                    let current = try findTransform(
+                        idOrName: transform,
+                        repo: repo,
+                        includeHidden: true
+                    )
+                    guard current.isBuiltIn else {
+                        throw ValidationError("'\(current.name)' is not a built-in Transform; nothing to restore.")
+                    }
+                    let restored = try restoreBuiltInTransform(current, repo: repo)
+                    let result = TransformRestoreResult(
+                        ok: true,
+                        restoredCount: 1,
+                        transforms: [TransformDTO(prompt: restored)],
+                        clearedShortcuts: []
+                    )
+                    if json {
+                        try printJSON(result)
+                    } else {
+                        print("Restored Transform '\(restored.name)' to built-in defaults.")
+                    }
+                } else {
+                    let result = try restoreMissingBuiltInTransforms(repo: repo)
+                    if json {
+                        try printJSON(result)
+                    } else if result.restoredCount == 0 {
+                        print("No missing or hidden built-in Transforms to restore.")
+                    } else {
+                        print("Restored \(result.restoredCount) missing or hidden built-in Transform(s).")
+                        if !result.clearedShortcuts.isEmpty {
+                            print("Cleared conflicting default shortcut(s): \(result.clearedShortcuts.joined(separator: ", "))")
+                        }
+                    }
                 }
             }
         }
@@ -704,6 +779,122 @@ struct TransformHistoryClearResult: Encodable {
     }
 }
 
+struct TransformRestoreResult: Encodable {
+    let ok: Bool
+    let restoredCount: Int
+    let transforms: [TransformDTO]
+    let clearedShortcuts: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case ok
+        case restoredCount = "restored_count"
+        case transforms
+        case clearedShortcuts = "cleared_shortcuts"
+    }
+}
+
+private func restoreBuiltInTransform(_ transform: Prompt, repo: PromptRepository) throws -> Prompt {
+    guard var canonical = Prompt.builtInPrompts()
+        .first(where: { $0.id == transform.id && $0.category == .transform })
+    else {
+        throw CLITransformsError.notFound(transform.name)
+    }
+
+    try validateCanonicalTransformShortcut(canonical, excluding: transform.id, repo: repo)
+
+    canonical.createdAt = transform.createdAt
+    canonical.updatedAt = Date()
+    try repo.save(canonical)
+    return canonical
+}
+
+private func restoreMissingBuiltInTransforms(repo: PromptRepository) throws -> TransformRestoreResult {
+    var persisted = try repo.fetchAll()
+    var restored: [Prompt] = []
+    var clearedShortcuts: [String] = []
+
+    for var canonical in Prompt.builtInPrompts().filter({ $0.category == .transform }) {
+        if let index = persisted.firstIndex(where: { $0.id == canonical.id }) {
+            guard !persisted[index].isVisible else { continue }
+
+            var existing = persisted[index]
+            existing.isVisible = true
+            clearDefaultTransformShortcutIfNeeded(
+                prompt: &existing,
+                persisted: persisted,
+                clearedShortcuts: &clearedShortcuts
+            )
+            existing.updatedAt = Date()
+            try repo.save(existing)
+            persisted[index] = existing
+            restored.append(existing)
+            continue
+        }
+
+        clearDefaultTransformShortcutIfNeeded(
+            prompt: &canonical,
+            persisted: persisted,
+            clearedShortcuts: &clearedShortcuts
+        )
+        canonical.updatedAt = Date()
+        try repo.save(canonical)
+        restored.append(canonical)
+        persisted.append(canonical)
+    }
+
+    return TransformRestoreResult(
+        ok: true,
+        restoredCount: restored.count,
+        transforms: restored.map(TransformDTO.init(prompt:)),
+        clearedShortcuts: clearedShortcuts
+    )
+}
+
+private func clearDefaultTransformShortcutIfNeeded(
+    prompt: inout Prompt,
+    persisted: [Prompt],
+    clearedShortcuts: inout [String]
+) {
+    guard let shortcut = prompt.shortcut else { return }
+    if let duplicate = transformShortcutConflict(for: shortcut, excluding: prompt.id, in: persisted) {
+        prompt.keyboardShortcut = nil
+        clearedShortcuts.append("\(prompt.name) (\(shortcut.displayString), used by \(duplicate.name))")
+    } else if let appConflict = appHotkeyCollision(for: shortcut) {
+        prompt.keyboardShortcut = nil
+        clearedShortcuts.append("\(prompt.name) (\(shortcut.displayString), \(appConflict.description))")
+    }
+}
+
+private func validateCanonicalTransformShortcut(
+    _ canonical: Prompt,
+    excluding id: UUID,
+    repo: PromptRepository
+) throws {
+    guard let shortcut = canonical.shortcut else { return }
+    let persisted = try repo.fetchAll()
+    if let duplicate = transformShortcutConflict(for: shortcut, excluding: id, in: persisted) {
+        throw CLITransformsError.duplicateShortcut(shortcut.displayString, duplicate.name)
+    }
+    if let appHotkeyConflict = appHotkeyCollision(for: shortcut) {
+        throw appHotkeyConflict
+    }
+}
+
+private func transformShortcutConflict(
+    for shortcut: KeyboardShortcut,
+    excluding promptID: UUID,
+    in prompts: [Prompt]
+) -> Prompt? {
+    prompts.first { candidate in
+        guard candidate.id != promptID,
+              candidate.category == .transform,
+              candidate.isVisible,
+              let existing = candidate.shortcut
+        else { return false }
+        return shortcutsMatch(existing, shortcut)
+    }
+}
+
 enum CLITransformHistoryError: Error, CustomStringConvertible, LocalizedError {
     case notFound(String)
     case ambiguous(String, [String])
@@ -740,9 +931,17 @@ enum CLITransformHistoryError: Error, CustomStringConvertible, LocalizedError {
 
 private let transformIDPrefixMinimumLength = 4
 
-private func findTransform(idOrName: String, repo: PromptRepository) throws -> Prompt {
+private func findTransform(
+    idOrName: String,
+    repo: PromptRepository,
+    includeHidden: Bool = false
+) throws -> Prompt {
     let query = idOrName.trimmingCharacters(in: .whitespacesAndNewlines)
-    let all = try repo.fetchVisible(category: .transform)
+    let all = if includeHidden {
+        try repo.fetchAll().filter { $0.category == .transform }
+    } else {
+        try repo.fetchVisible(category: .transform)
+    }
     // Exact UUID match
     if let uuid = UUID(uuidString: query), let match = all.first(where: { $0.id == uuid }) {
         return match
@@ -794,6 +993,9 @@ struct TransformDTO: Encodable {
     let shortcut: String?
     let isBuiltIn: Bool
     let prompt: String
+    let inferenceSettings: PromptInferenceSettings?
+    let activeVersionId: UUID?
+    let modelOverride: String?
     let createdAt: Date
     let updatedAt: Date
 
@@ -803,6 +1005,9 @@ struct TransformDTO: Encodable {
         case shortcut
         case isBuiltIn = "is_built_in"
         case prompt
+        case inferenceSettings
+        case activeVersionId
+        case modelOverride
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -813,6 +1018,9 @@ struct TransformDTO: Encodable {
         self.shortcut = prompt.shortcut?.displayString
         self.isBuiltIn = prompt.isBuiltIn
         self.prompt = prompt.content
+        self.inferenceSettings = prompt.inferenceSettings
+        self.activeVersionId = prompt.activeVersionId
+        self.modelOverride = prompt.modelOverride
         self.createdAt = prompt.createdAt
         self.updatedAt = prompt.updatedAt
     }

@@ -3,6 +3,12 @@
 > Status: IMPLEMENTED
 > Date: 2026-04-24
 > Related: ADR-014 (meeting recording via ScreenCaptureKit system audio), ADR-016 (centralized STT runtime + scheduler)
+> Current implementation note (2026-09-07): the failure description in Context
+> records the pre-ADR writer. Current capture uses fragmented `AVAssetWriter`
+> source files and protective locks. The [recovery/retention contract](../contracts/meeting-recovery-retention.md)
+> governs active-writer ownership, settlement and discard safety; the
+> [artifact contract](../contracts/meeting-artifacts-v1.md) governs current filenames
+> and metadata. A lock is not by itself proof of an abandoned recording.
 
 ## Context
 
@@ -14,13 +20,13 @@ edge-case crash. The current `MeetingAudioStorageWriter`
 uses `AVAudioFile`, which writes audio bytes incrementally but only
 flushes the MP4 container's `moov` atom in `deinit` (when the
 writer is set to nil during `finalize()`). Without the `moov` atom,
-the resulting `microphone.m4a` and `system.m4a` are typically
+the resulting `microphone-raw.m4a` and `system-raw.m4a` are typically
 unplayable — every byte of audio is on disk, but no decoder can
 locate samples without the index.
 
 Compounding the problem, three other artifacts only land on a clean
 stop: `meeting-recording-metadata.json` (source-alignment offsets and captured
-speech engine), `meeting.m4a` (the
+speech engine), `meeting-playback.m4a` (the
 mixed file FFmpeg produces from the two source files), and the full
 post-stop transcription pass. So a crash mid-recording silently
 loses the entire session — audio, alignment, and transcript — even
@@ -64,8 +70,8 @@ early-stage choice when 30-second clips were the model.
 
 ### 1. Replace `AVAudioFile` with `AVAssetWriter` configured for fragmented MP4
 
-`MeetingAudioStorageWriter` will use one `AVAssetWriter` per source
-(microphone + system), each configured with:
+`MeetingAudioStorageWriter` will use one `AVAssetWriter` per selected source
+(microphone and/or system), each configured with:
 
 ```swift
 writer.movieFragmentInterval = CMTime(value: 1, timescale: 1)          // 1 s steady-state
@@ -132,12 +138,14 @@ the session folder before any audio is captured:
 
 On `stopRecording()` (success path), the marker is rewritten to
 `state: "awaitingTranscription"` after the writers have been
-finalized, `meeting-recording-metadata.json` is on disk, and `meeting.m4a` has been
+finalized, `meeting-recording-metadata.json` is on disk, and `meeting-playback.m4a` has been
 mixed. The marker is **atomically deleted** only after the post-stop
-`Transcription` row has been saved. This keeps the audio recoverable
-if the app crashes in the clean-stop window between mixing and
-transcription persistence. On capture or mix failure, the marker
-stays in place and the session is treated as recoverable.
+`Transcription` row has been completed. The stopped-session path first saves a
+processing Library row, then queues final transcription; the lock stays in
+place while that row is awaiting transcription. This keeps the audio
+recoverable if the app crashes in the clean-stop window between mixing and
+transcription completion. On capture or mix failure, the marker stays in place
+and the session is treated as recoverable.
 `cancelRecording()` deletes the marker and the session folder because
 user-initiated cancel is not a crash.
 
@@ -148,32 +156,79 @@ walks `meeting-recordings/` looking for any folder that contains
 sessions are presented as a list). Accepting runs the standard
 post-stop pipeline:
 
-1. Truncate-repair the fragmented `microphone.m4a` and `system.m4a`
-   (no-op for fragmented MP4 — they're already valid up to the last
-   fragment; just verify with `AVAsset.tracks` loadability).
-2. Synthesize `meeting-recording-metadata.json` from the audio file durations
-   (`startOffsetMs = 0` for both since we don't have the original
-   alignment; acceptable degradation — user knows recording was recovered).
-   Use the speech engine captured in `recording.lock`, defaulting to Parakeet
-   for legacy lock files that predate ADR-021.
+1. Truncate-repair the fragmented selected-source audio files
+   (`microphone-raw.m4a`, `system-raw.m4a`, or both depending on source mode; no-op
+   for fragmented MP4 — they're already valid up to the last fragment; just
+   verify with `AVAsset.tracks` loadability).
+2. Reconcile `meeting-recording-metadata.json` against surviving source media.
+   Preserve existing host times/start offsets and real written duration where
+   known; only missing alignment defaults to zero offset. Refresh playable
+   timeline duration and drop tracks whose media cannot be recovered. Preserve
+   a prior capture report's elapsed/interruption history and, in the
+   release-readiness candidate, its `silent` source verdicts; unavailable or
+   interrupted media still takes precedence over silence.
+   Use the final-transcription route captured by schema v2 when the
+   `speechEngine` field is present. For schema v1 locks, whose `speechEngine`
+   belonged to the former shared route, and schema v2 locks missing the field,
+   use the current resolved Final Transcription selection.
 3. Run `MeetingTranscriptFinalizer.finalize` via `STTScheduler` as a
    normal background job (recovery transcription is just another
-   meeting-finalize task per ADR-016's slot model).
-4. Persist as a `Transcription` record with a `recoveredFromCrash:
+   meeting-finalize task per ADR-016's slot model), updating an existing
+   incomplete Library row for the mixed audio when one already exists.
+4. Persist/update the `Transcription` record with a `recoveredFromCrash:
    true` flag (new column or boolean in metadata).
 5. Delete `recording.lock` after successful save.
+
+The marker deletion step is owned by `MeetingRecordingSettlement`, which
+re-fetches the saved row and removes the lock only after verifying a completed
+meeting `Transcription` for that artifact folder. See the lock deletion
+authority rule in
+[`spec/contracts/meeting-recovery-retention.md`](../contracts/meeting-recovery-retention.md#lock-deletion-authority).
 
 Declining the prompt **keeps** the lock file and audio — the user
 can retry recovery later from a Settings affordance ("Pending
 recovery: 1 partial recording").
 
+Startup also reconciles processing meeting rows left behind by an interrupted
+finalization. That reconciliation must distinguish a stale row from work owned
+by another live MacParakeet process: a readable lock at the row's artifact
+folder with a live PID protects the row, even when the new process has no local
+queue entry for it. An unowned processing row may move to a retryable error
+only through an atomic compare-and-set from `processing`, so a concurrent
+successful finalization cannot be overwritten. Retry and recovery first claim
+the folder by rewriting the lock with their PID and a unique optional
+`finalizationLeaseId`. A present but unreadable lock (corrupt or zero-byte) is treated as
+dead evidence so Retry is not bricked. A future-schema lock whose
+peeked PID is still alive is left alone. Claiming
+and reconciliation share a per-folder advisory mutex; only one can win, and
+failed finalization restores the prior lock only if the same lease still owns
+it.
+
+**Release-readiness candidate amendment (2026-09-04):** Writer-finalization
+timeouts are bounded for the caller, not destructive cancellation. One
+aggregate five-second deadline settles once; a source with written frames
+that does not finish fails the stop while retaining its files and lock.
+AVAssetWriter keeps ownership until its callbacks return, guarded by
+`MeetingAudioWriterFinalizationRegistry`. Same-process recovery/discard must
+not race that writer; a process restart releases ownership if callbacks never
+return. Never cancel the writer as a timeout workaround. This behavior is
+development work, not evidence of a shipped or hardware-verified fix.
+
 ### 3. Schema version on the lock file
 
-The lock file embeds `schemaVersion: 1` and a small state enum
-(`recording` or `awaitingTranscription`) so future format changes
-(new fields, different paths) can be migrated without breaking
-existing in-flight recordings on a user's machine across an app
-update.
+The original lock file embedded `schemaVersion: 1`; schema v2 distinguishes an
+independently captured meeting speech-engine route from the former shared route
+written by v1. Readers continue to accept supported older versions so an
+in-flight recording remains recoverable across an app update, while newer
+unknown versions are skipped rather than misinterpreted. Both versions use the
+same small state enum (`recording` or `awaitingTranscription`).
+
+The current lock-file, recovery-discovery, active-session refusal, and
+retention-sweep safety contract is maintained in
+[`spec/contracts/meeting-recovery-retention.md`](../contracts/meeting-recovery-retention.md).
+In particular, automatic destructive sweeps treat any file named
+`recording.lock` as protective, even when the file is corrupt, zero-byte, or a
+future schema.
 
 ### 4. Phased rollout
 
@@ -205,7 +260,7 @@ source = ~1.4 GB per meeting. Too much disk for a free local app
 where users may record many meetings.
 
 **Periodic finalize-and-rotate (chunked AVAudioFile).** Every N
-minutes, finalize the current `microphone.m4a` and start a new one
+minutes, finalize the current `microphone-raw.m4a` and start a new one
 (`microphone-002.m4a`, etc.). Rejected: many small files per
 session, complex re-merge logic on stop, race conditions on the
 rotation boundary, and `AVAudioFile.deinit` is the only flush
@@ -256,7 +311,7 @@ user can tell the difference at a glance.
   schema-version handling.
 - Integration: kill -9 mid-recording test (run a recording in a
   child process, kill it after 5 s, assert the resulting
-  `microphone.m4a` is loadable as `AVAsset` and contains at least
+  `microphone-raw.m4a` is loadable as `AVAsset` and contains at least
   4 s of audio).
 - Integration: launch-time recovery scan finds N crashed sessions,
   recovers them via the standard pipeline, deletes lock files.

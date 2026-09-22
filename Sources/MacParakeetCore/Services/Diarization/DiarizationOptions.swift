@@ -12,6 +12,17 @@ public struct DiarizationOptions: Sendable, Equatable {
     public func validate() throws {
         try speakerCountHint?.validate()
     }
+
+    /// Current diarizer call shape. Exact and range hints map onto
+    /// `SpeakerDiarizationConstraint`; an empty hint stays unconstrained.
+    public var speakerConstraint: SpeakerDiarizationConstraint? {
+        guard let hint = speakerCountHint else { return nil }
+        if let exact = hint.exact {
+            return .exact(exact)
+        }
+        guard hint.minimum != nil || hint.maximum != nil else { return nil }
+        return .range(min: hint.minimum, max: hint.maximum)
+    }
 }
 
 public struct SpeakerCountHint: Sendable, Codable, Equatable {

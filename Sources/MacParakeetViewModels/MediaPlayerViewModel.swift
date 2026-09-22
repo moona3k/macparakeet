@@ -259,7 +259,7 @@ public final class MediaPlayerViewModel {
         playerState = .loading
         loadingElapsed = 0
         startLoadingTimer()
-        logger.info("Loading media: mode=\(String(describing: mode), privacy: .public), source=\(transcription.sourceURL ?? transcription.filePath ?? "none", privacy: .private)")
+        logger.info("Loading media: mode=\(String(describing: mode), privacy: .public), sourceType=\(transcription.sourceType.rawValue, privacy: .public)")
 
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -313,6 +313,14 @@ public final class MediaPlayerViewModel {
     /// Load subtitle cues from word timestamps for overlay display.
     public func loadSubtitleCues(from words: [WordTimestamp]) {
         subtitleCues = ExportService().buildSubtitleCues(from: words)
+        lastCueIndex = -1
+        currentSubtitleText = nil
+    }
+
+    /// Uses corrected segment envelopes when timed text was edited, while
+    /// retaining word-level cues for untouched automatic text.
+    public func loadSubtitleCues(from transcription: Transcription) {
+        subtitleCues = ExportService().buildSubtitleCues(from: transcription)
         lastCueIndex = -1
         currentSubtitleText = nil
     }
@@ -371,7 +379,7 @@ public final class MediaPlayerViewModel {
 
         let start = ContinuousClock.now
         do {
-            logger.info("Extracting stream URL via yt-dlp for source=\(sourceURL, privacy: .private)")
+            logger.info("Extracting stream URL via yt-dlp")
             let streamURL = try await videoStreamService.streamURL(for: sourceURL)
             let extractionTime = ContinuousClock.now - start
             logger.info("Stream URL extracted in \(extractionTime)")

@@ -3,6 +3,13 @@ import XCTest
 
 final class AudioFileConverterTests: XCTestCase {
 
+    func testSingleInputMeetingNormalizationSelectsFirstAudioAndDisablesVideo() {
+        let args = AudioFileConverter().ffmpegMixArguments(
+            inputPaths: ["/tmp/meeting.mov"], outputPath: "/tmp/system-raw.m4a")
+        XCTAssertTrue(args.contains("-vn"))
+        XCTAssertTrue(zip(args, args.dropFirst()).contains { $0 == "-map" && $1 == "0:a:0" })
+    }
+
     func testSupportedAudioExtensions() {
         XCTAssertTrue(AudioFileConverter.isSupported(extension: "mp3"))
         XCTAssertTrue(AudioFileConverter.isSupported(extension: "wav"))
@@ -49,13 +56,30 @@ final class AudioFileConverterTests: XCTestCase {
         XCTAssertTrue(args.contains("pcm_f32le"))
         XCTAssertTrue(args.contains("-y"))
         XCTAssertTrue(args.contains("/tmp/output.wav"))
+        XCTAssertFalse(args.contains("-map"))
+    }
+
+    func testFFmpegArgumentsMapExplicitAudioTrackOrdinal() {
+        let converter = AudioFileConverter()
+
+        let args = converter.ffmpegArguments(
+            inputPath: "/tmp/input.mkv",
+            outputPath: "/tmp/output.wav",
+            audioTrackOrdinal: 1
+        )
+
+        guard let mapIndex = args.firstIndex(of: "-map") else {
+            return XCTFail("Missing explicit audio-track map")
+        }
+        XCTAssertEqual(args[mapIndex + 1], "0:a:1")
+        XCTAssertLessThan(mapIndex, try XCTUnwrap(args.firstIndex(of: "-ar")))
     }
 
     func testFFmpegMixArgumentsPreserveStereoForMicAndSystem() {
         let converter = AudioFileConverter()
         let args = converter.ffmpegMixArguments(
-            inputPaths: ["/tmp/mic.m4a", "/tmp/system.m4a"],
-            outputPath: "/tmp/meeting.m4a"
+            inputPaths: ["/tmp/mic.m4a", "/tmp/system-raw.m4a"],
+            outputPath: "/tmp/meeting-playback.m4a"
         )
 
         XCTAssertTrue(args.contains("-filter_complex"))
@@ -89,8 +113,8 @@ final class AudioFileConverterTests: XCTestCase {
         )
 
         let args = converter.ffmpegMixArguments(
-            inputPaths: ["/tmp/mic.m4a", "/tmp/system.m4a"],
-            outputPath: "/tmp/meeting.m4a",
+            inputPaths: ["/tmp/mic.m4a", "/tmp/system-raw.m4a"],
+            outputPath: "/tmp/meeting-playback.m4a",
             sourceAlignment: alignment
         )
 
@@ -103,8 +127,8 @@ final class AudioFileConverterTests: XCTestCase {
     func testFFmpegMixArgumentsKeepLongestDualSourceDuration() {
         let converter = AudioFileConverter()
         let args = converter.ffmpegMixArguments(
-            inputPaths: ["/tmp/mic.m4a", "/tmp/system.m4a"],
-            outputPath: "/tmp/meeting.m4a"
+            inputPaths: ["/tmp/mic.m4a", "/tmp/system-raw.m4a"],
+            outputPath: "/tmp/meeting-playback.m4a"
         )
 
         guard let filterFlagIndex = args.firstIndex(of: "-filter_complex") else {

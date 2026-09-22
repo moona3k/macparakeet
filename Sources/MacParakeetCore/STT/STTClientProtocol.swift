@@ -69,6 +69,26 @@ public protocol SpeechEngineRoutedTranscribing: STTTranscribing {
     ) async throws -> STTResult
 }
 
+public struct SpeechEngineTelemetryAttribution: Equatable, Sendable {
+    public let speechEngine: SpeechEnginePreference
+    public let engineVariant: String?
+    public let language: String?
+
+    public init(
+        speechEngine: SpeechEnginePreference,
+        engineVariant: String?,
+        language: String?
+    ) {
+        self.speechEngine = speechEngine
+        self.engineVariant = engineVariant
+        self.language = language
+    }
+}
+
+public protocol SpeechEngineTelemetryAttributing: Sendable {
+    func currentSpeechEngineTelemetryAttribution() async -> SpeechEngineTelemetryAttribution?
+}
+
 public protocol STTRuntimeManaging: Sendable {
     func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws
     func backgroundWarmUp() async
@@ -77,6 +97,17 @@ public protocol STTRuntimeManaging: Sendable {
     func isReady() async -> Bool
     func clearModelCache() async
     func shutdown() async
+}
+
+/// Prepares and queries a specific routed engine without changing the live
+/// dictation selection. Meeting capture uses this after the dictation and
+/// meetings/transcriptions routes diverge.
+public protocol SpeechEngineRoutedWarmUpManaging: Sendable {
+    func warmUp(
+        speechEngine: SpeechEngineSelection,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws
+    func isReady(speechEngine: SpeechEngineSelection) async -> Bool
 }
 
 public typealias STTManaging = STTTranscribing & STTRuntimeManaging
@@ -88,9 +119,9 @@ public protocol SpeechEngineSwitching: Sendable {
         _ preference: SpeechEnginePreference,
         onProgress: (@Sendable (String) -> Void)?
     ) async throws
-    /// Switches the active Parakeet build (multilingual `v3` ↔ English-only
-    /// `v2`). Like an engine switch, this may download the target and reloads
-    /// the runtime when Parakeet is active; see
+    /// Switches the active Parakeet build (`v3`, `v2`, or `unified`). Like an
+    /// engine switch, this may download the target and reloads the runtime when
+    /// Parakeet is active; see
     /// ``STTRuntime/setParakeetModelVariant(_:onProgress:)``.
     func setParakeetModelVariant(
         _ variant: ParakeetModelVariant,

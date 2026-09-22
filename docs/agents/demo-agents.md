@@ -1,6 +1,8 @@
 # Demo Agents — Landscape & The MacParakeet Recipe
 
-> Status: **ACTIVE** — last updated 2026-05-03
+> Status: **DATED RESEARCH SNAPSHOT** — last updated 2026-05-03. Product names,
+> availability, prices, rankings, and model capabilities below are not current
+> authority; reverify them before choosing or purchasing a tool.
 
 ## Why this doc
 

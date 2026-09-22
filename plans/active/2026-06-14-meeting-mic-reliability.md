@@ -1,12 +1,19 @@
 # Meeting capture reliability — mic-health watchdog + post-stop coverage repair
 
-**Status:** IN PROGRESS — Phase A implemented 2026-06-14 (detection-only mic-health telemetry); warning UI and coverage repair remain unimplemented.
+**Status:** PARTIAL — current source implements the metadata-only monitor, direct callback/configuration/typed-system recovery, actionable-only warnings, and durable frame-derived capture reports. Routine source-health decoration stays hidden. The release-readiness candidate adds written-signal `silent` reporting/recovery preservation and bounded writer finalization. VAD transcript-gap repair remains proposed; real hardware QA is not established by this status.
 **Date:** 2026-06-14
 **ADRs:** ADR-025 (meeting capture reliability), ADR-014 (meeting recording), ADR-015 (concurrent dictation/meeting), ADR-016 (centralized STT runtime + two-slot scheduler), ADR-019 (crash-resilient meeting recording)
 **Requirements:** REQ-MEET-017 (mic-health watchdog) — Phase A implemented; REQ-MEET-018 (post-stop coverage-based transcript repair) — proposed
-**Sibling work:** `plans/active/2026-05-dictation-stall-integration-tests.md`, `plans/active/2026-06-onboarding-stall-watchdog-test.md` — this is the meeting-side counterpart to the dictation silent-stall hardening; stay consistent, don't duplicate.
+**Sibling work:** `plans/active/2026-05-dictation-stall-integration-tests.md`, `plans/completed/2026-06-onboarding-stall-watchdog-test.md` — this is the meeting-side counterpart to the dictation silent-stall hardening; stay consistent, don't duplicate.
 
-## What this plan closes out
+**Reconciliation (2026-09-04):** The rationale and phased instructions below
+are the original planning snapshot. In particular, “live preview = final” is
+obsolete: current finalization re-transcribes durable source files through the
+background queue. Direct source-callback recovery is also implemented.
+Do not build this plan's old repair topology without first narrowing the
+remaining problem against [ADR-025](../../spec/adr/025-meeting-capture-reliability.md).
+
+## Original problem statement (historical)
 
 ADR-019 made the meeting *bytes* crash-resilient (fragmented MP4 + lock-file recovery), but two silent correctness gaps remain that ADR-025 specs:
 
@@ -46,7 +53,7 @@ This plan implements ADR-025's two halves — a mic-health watchdog (REQ-MEET-01
 
 ## REQ-MEET-013 reconciliation (read before Phase C)
 
-REQ-MEET-013 says VAD-guided live chunking leaves "final post-stop transcription … unchanged." That refers to **how an individual chunk is transcribed** — unchanged whether VAD live chunking is on or off. This plan does **not** touch per-chunk STT, the chunker, or the assembler. It **adds a completeness-repair stage** that re-runs STT **only for speech the live path missed**. For a healthy meeting (coverage high → Accept) the repair stage is a no-op and the final transcript is byte-identical to today's. When Phase C lands, the coordinator narrows REQ-MEET-013's wording in `spec/kernel/requirements.yaml` accordingly (this plan does not edit `requirements.yaml`).
+REQ-MEET-013 says VAD-guided live chunking leaves "final post-stop transcription … unchanged." That refers to **how an individual chunk is transcribed** — unchanged whether VAD live chunking is on or off. This plan does **not** touch per-chunk STT, the chunker, or the assembler. It **adds a completeness-repair stage** that re-runs STT **only for speech the live path missed**. For a healthy meeting (coverage high → Accept) the repair stage is a no-op and the final transcript is byte-identical to today's. When Phase C lands, narrow that old REQ framing in ADR-025 and the narrative specs; the legacy requirements index is archived and no longer updated.
 
 ## Phased rollout
 
@@ -144,7 +151,8 @@ The completeness-repair stage. Pure planner + offline VAD + selective re-transcr
 - [ ] Full-fallback tier handles systemic failure; crash-recovered sessions get coverage repair
 - [ ] Original live transcript + retained `.m4a` never destroyed by repair
 - [ ] Both telemetry events mirrored in `macparakeet-website/functions/api/telemetry.ts` and deployed before flag-on
-- [x] REQ-MEET-017 Phase A status updated by the coordinator; REQ-MEET-013 narrowing and REQ-MEET-018 status remain for Phase C
+- [x] ADR/spec status updated for Phase A; coverage-repair wording remains for
+  Phase C
 - [x] `swift test` exits 0; docs/spec progress updated (`spec/README.md`, `spec/02-features.md`)
 - [ ] Plan archived to `plans/completed/` on completion
 

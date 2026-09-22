@@ -1,0 +1,399 @@
+# MacParakeet Legacy Requirements (Historical)
+# Retired feature/status index retained only so old plans, ADRs, audits, and
+# commits remain understandable. Do not add or update REQ IDs for normal work;
+# use specs, tests, code search, and git history instead.
+# Format: REQ-{area}-{number}: {description}
+#
+# Areas:
+#   DICT  - Dictation (system-wide voice input)
+#   TRANS - File transcription
+#   STT   - Speech-to-text engine
+#   UI    - User interface
+#   DATA  - Database and data model
+#   PIPE  - Text processing pipeline
+#   EXP   - Export formats
+#   YT    - YouTube integration
+#   DIAR  - Speaker diarization
+#   LLM   - LLM provider integration
+#   PLAY  - Video/audio playback
+#   LIB   - Transcription library
+#   MEET  - Meeting recording
+#   CAL   - Calendar auto-start
+#   ONB   - First-run onboarding
+#   CLI   - Public command-line surface
+#   XFORM - System-wide selected-text Transforms
+
+# --- v0.1 Core MVP ---
+
+REQ-DICT-001:
+  description: System-wide dictation via configurable hotkey
+  version: v0.1
+  status: implemented
+
+REQ-DICT-002:
+  description: Hands-free tap-to-toggle and hold-to-talk shortcuts, allowing exact shared triggers and blocking non-identical overlaps
+  version: v0.1
+  status: implemented
+
+REQ-DICT-003:
+  description: Auto-paste transcribed text with clipboard save/restore by default, plus opt-in clipboard retention for manual paste fallback
+  version: v0.1
+  status: implemented
+
+REQ-TRANS-001:
+  description: Drag-drop audio/video file transcription
+  version: v0.1
+  status: implemented
+
+REQ-UI-001:
+  description: Compact dark pill overlay with recording timer and waveform
+  version: v0.1
+  status: implemented
+
+REQ-UI-002:
+  description: Persistent idle pill (always-visible, click-to-dictate)
+  version: v0.1
+  status: implemented
+
+REQ-UI-003:
+  description: Menu bar app with main window and sidebar navigation
+  version: v0.1
+  status: implemented
+
+REQ-DATA-001:
+  description: Dictation history with date-grouped search, multi-select cleanup, and audio playback
+  version: v0.1
+  status: implemented
+
+REQ-DATA-002:
+  description: SQLite database via GRDB for dictations and transcriptions
+  version: v0.1
+  status: implemented
+
+REQ-STT-001:
+  description: Parakeet TDT 0.6B via FluidAudio CoreML on ANE, with multilingual v3 as the default build and English-only v2 as an opt-in Parakeet model
+  version: v0.1
+  status: implemented
+
+REQ-EXP-001:
+  description: Basic export (TXT, Markdown, SRT, VTT, copy to clipboard)
+  version: v0.1
+  status: implemented
+
+# --- v0.2 Clean Pipeline ---
+
+REQ-PIPE-001:
+  description: Deterministic text processing pipeline (filler removal, custom words, snippets)
+  version: v0.2
+  status: implemented
+
+REQ-PIPE-002:
+  description: Custom words and snippets management UI
+  version: v0.2
+  status: implemented
+
+REQ-PIPE-003:
+  description: Custom-word (Vocabulary) corrections also apply to finalized meeting transcripts — both the plain text and the word-timestamp tokens that drive the speaker-segmented view and SRT/VTT/speaker-paragraph exports — always-on and independent of the dictation Raw/Clean processing mode. Only the custom-word step is reused; filler removal, snippet expansion, and insertion styling stay dictation-only so the verbatim meeting record is preserved.
+  version: v0.6
+  status: implemented
+
+# --- v0.3 YouTube & Export ---
+
+REQ-YT-001:
+  description: Video/podcast URL transcription via yt-dlp (any media URL — YouTube, X, Vimeo, TikTok, Instagram, Facebook, Apple Podcasts, and other yt-dlp sites; no platform allowlist; host recognition drives the platform glyph/label only)
+  version: v0.3
+  status: implemented
+
+REQ-EXP-002:
+  description: Full export formats (DOCX, PDF, JSON)
+  version: v0.3
+  status: implemented
+
+# --- v0.4 Polish & Launch ---
+
+REQ-DIAR-001:
+  description: Speaker diarization via FluidAudio offline pipeline
+  version: v0.4
+  status: implemented
+
+REQ-DICT-004:
+  description: Custom hotkey support (any single key, modifier+key chords, and modifier-only chords)
+  version: v0.4
+  status: implemented
+
+REQ-LLM-001:
+  description: LLM provider integration (cloud API keys, summary + chat)
+  version: v0.4
+  status: implemented
+
+REQ-LLM-002:
+  description: CLI LLM commands support structured JSON envelope output with provider, model, usage, stop reason, and latency metadata
+  version: cli-1.2.0
+  status: implemented
+
+REQ-LLM-003:
+  description: Persisted LLM operations record local metadata-only run rows with source links, provider/model, status, latency, token usage when available, and no prompt/input/output content duplication
+  version: v0.18
+  status: implemented
+
+REQ-LLM-004:
+  description: Dictation AI Formatter supports local exact-app and app-category prompt profiles, built-in category smart defaults (readable in Settings even when the master switch is off, toggleable via a master switch and per-category switches), fallback prompt routing, and local-only routing provenance surfaced in dictation History
+  version: v0.6
+  # Code-complete and QA'd, but AppFeatures.aiFormatterProfilesEnabled was gated
+  # back to false on 2026-06-14 to hold the feature out of v0.6.23; ships in a
+  # later tag when the flag is flipped on again.
+  status: implemented
+
+REQ-LLM-005:
+  description: AI Formatter routing is per-surface — independent "Use for transcripts" (file/URL/meeting, default on) and "Use for dictation" (default off) Settings toggles ANDed with provider availability — and the transcription formatter skips inputs over a length cap instead of stalling finalization for the full provider timeout
+  version: v0.6
+  status: implemented
+
+# --- v0.5 Data & Reliability ---
+
+REQ-DICT-005:
+  description: Private dictation mode (hidden flag, excluded from history)
+  version: v0.5
+  status: implemented
+
+REQ-DICT-006:
+  description: First dictation after cold speech-engine load shows a graceful processing caption while launch pre-warm reduces normal exposure
+  version: v0.6
+  status: implemented
+
+REQ-DICT-007:
+  description: Opt-in display-only live dictation transcript preview renders a stable rolling readout of in-progress text above the dictation pill while speaking, decoupled from the paste (final text always comes from the stop-time transcription path); the raw preview stream is stabilized into a monotonic append-only readout (LiveTranscriptStabilizer commits the settled body and holds the last few words as a volatile hypothesis) and rendered bottom-anchored with older lines fading out at the top edge (no mid-word truncation); Parakeet v2/v3 use a single-flight tail-window batch preview, Parakeet Unified and both Nemotron builds use native live partials, Whisper is default-off; gated by AppFeatures.liveDictationStreamingEnabled (enabled on main, not yet in a tagged release), toggle and preview text size in Settings -> Capture -> Dictation
+  version: v0.7
+  status: implemented
+
+REQ-DATA-003:
+  description: Multi-conversation chat per transcription
+  version: v0.5
+  status: implemented
+
+REQ-YT-002:
+  description: YouTube video metadata (thumbnail, channel name, description)
+  version: v0.5
+  status: implemented
+
+REQ-TRANS-003:
+  description: Local media imports preserve embedded title, author, artwork, and duration metadata for library display
+  version: v0.5
+  status: implemented
+
+REQ-DATA-004:
+  description: Transcription favorites with library filtering
+  version: v0.5
+  status: implemented
+
+# --- v0.5 Video Player & UI Revamp ---
+
+REQ-PLAY-001:
+  description: HLS streaming for YouTube video playback
+  version: v0.5
+  status: implemented
+
+REQ-PLAY-002:
+  description: Audio scrubber bar for audio-only files
+  version: v0.5
+  status: implemented
+
+REQ-PLAY-003:
+  description: Synced transcript highlighting with clickable timestamp seeking
+  version: v0.5
+  status: implemented
+
+REQ-UI-004:
+  description: Split-pane detail view (video left, content right)
+  version: v0.5
+  status: implemented
+
+REQ-LIB-001:
+  description: Transcription library with thumbnail grid, filters, search
+  version: v0.5
+  status: implemented
+
+REQ-UI-005:
+  description: Two side-by-side input cards on home page
+  version: v0.5
+  status: implemented
+
+# --- v0.6 Playback ---
+
+REQ-PLAY-004:
+  description: Variable playback speed for audio and video transcript review
+  version: v0.6
+  status: implemented
+
+# --- v0.6 Meeting Recording Hardening ---
+
+REQ-MEET-001:
+  description: Meeting live mic processing captures raw mic audio by default while preserving paired mic/system frame alignment and retaining explicit VPIO plumbing
+  version: v0.6
+  status: implemented
+
+REQ-MEET-002:
+  description: Meeting stream joiner provides bounded-lag pairing with overflow diagnostics and sync observability for long sessions
+  version: v0.6
+  status: implemented
+
+REQ-MEET-003:
+  description: Meetings empty state includes one-line headphones guidance for cleaner speaker separation
+  version: v0.6
+  status: implemented
+
+REQ-MEET-004:
+  description: Meeting final artifact preserves dual-source separation as stereo when both mic and system tracks exist
+  version: v0.6
+  status: implemented
+
+REQ-MEET-005:
+  description: Interrupted or not-yet-transcribed meeting recordings are detected by lock file and recoverable on launch or later from Settings
+  version: v0.6
+  status: implemented
+
+REQ-MEET-006:
+  description: Meeting source audio is written as fragmented MP4 so crash-interrupted recordings remain playable up to the last fragment
+  version: v0.6
+  status: implemented
+
+REQ-MEET-008:
+  description: Meeting recording panel provides Notes, Transcript, and Ask tabs with Notes as default, plain tab labels, and a streaming-only Ask indicator
+  version: v0.6
+  status: implemented
+
+REQ-MEET-009:
+  description: User-authored meeting notes persist through crash recovery, final transcription metadata, notes.md sidecar export, LLM chat context, and custom prompt template substitution without shipping the reverted built-in memo-steered prompt
+  version: v0.6
+  status: implemented
+
+REQ-MEET-010:
+  description: Live meeting Ask quick prompts are user-customizable, persisted in quick_prompts, and exposed through the Ask Prompts sheet plus CLI import/export
+  version: v0.6
+  status: implemented
+
+REQ-MEET-011:
+  description: An in-flight meeting recording can be paused and resumed without ending the session; resumed audio appends gap-free into the same .m4a file and the persisted durationSeconds excludes paused time
+  version: v0.6
+  status: implemented
+
+REQ-MEET-012:
+  description: A finalized meeting's source audio file is reachable from the GUI via "Show in Finder" and "Save Audio As…" actions in both the Library Meetings list row context menu and the meeting detail-view action bar
+  version: v0.6
+  status: implemented
+
+REQ-MEET-013:
+  description: Meeting live-preview chunking can use Silero VAD speech boundaries for cached-model Parakeet sessions when AppFeatures.meetingVadLiveChunkingEnabled is true, while non-Parakeet, uncached-model, feature-off, and VAD-error paths fall back to the original fixed 5s / 1s chunker and final post-stop transcription remains unchanged
+  version: v0.6
+  status: implemented
+
+REQ-MEET-014:
+  description: An in-flight post-stop meeting transcription can be stopped from the Transcribe-tab tile and the floating pill menu, with a confirmation offering to keep the recorded audio (cancelled Library row plus recovery lock stay retryable) or delete the recording entirely (session folder, lock, and transcription rows removed)
+  version: v0.6
+  status: implemented
+
+# --- v0.6 Multilingual Speech Recognition ---
+
+REQ-STT-002:
+  description: Nemotron Beta and WhisperKit are available as optional local speech recognition engines while Parakeet remains the default family; Parakeet exposes v3/v2 model selection without changing the local-first STT boundary; dictation on both Nemotron builds (multilingual and English) streams live partial text to the overlay and uses the streamed final transcript, falling back to recorded-file transcription when the live session cannot start, fails, drops samples, or finishes empty (Nemotron file/meeting jobs run batch-at-stop)
+  version: v0.6
+  status: implemented
+
+REQ-STT-003:
+  description: GUI speech recognition settings persist the selected engine, Parakeet model variant, Nemotron language, and Whisper default language, and refuse unsafe switches while speech work or a meeting session is active
+  version: v0.6
+  status: implemented
+
+REQ-STT-004:
+  description: Nemotron exposes multilingual-1120ms (default) and english-1120ms (Nemotron Speech Streaming EN 0.6B, English-only Beta) builds as a persisted per-engine model selection across Settings and CLI (models select/download/delete/status, transcribe --nemotron-model, config nemotron-model); the English build ignores language hints and the fresh-install default engine remains Parakeet v3
+  # tagged v0.6 per the REQ-LLM-004 precedent (untagged-on-main work kept at
+  # v0.6); owner may re-tag to v0.7 if v0.6 is judged closed
+  version: v0.6
+  status: implemented
+
+REQ-TRANS-002:
+  description: CLI file and URL transcription support per-invocation Parakeet, Nemotron, or Whisper engine selection, per-invocation Parakeet model overrides, persisted Parakeet/Nemotron/Whisper defaults via config/models, optional Nemotron/Whisper language hints, and additive detected-language output
+  version: cli-2.5.0
+  status: implemented
+
+REQ-MEET-007:
+  description: Meeting recordings capture the active speech engine and Nemotron/Whisper language at recording start for live preview, metadata, crash recovery, and final transcription
+  version: v0.6
+  status: implemented
+
+# --- v0.6 Transforms ---
+
+REQ-XFORM-001:
+  description: Productized Transforms rewrite selected text anywhere on macOS through saved Prompt rows, global hotkeys, AX-first capture, clipboard fallback, and the configured LLM provider
+  version: v0.6
+  status: implemented
+
+REQ-XFORM-002:
+  description: Completed Transform runs can be stored locally with input/output/source-app/timing history, and the CLI can list, show, delete, and clear that history
+  version: v0.6
+  status: implemented
+
+# --- v0.6 Calendar Auto-Start (ADR-017) ---
+
+REQ-CAL-001:
+  description: Calendar auto-start monitors EventKit calendars via adaptive polling and, per a user-selected mode (off/notify/auto-start, default off and strictly opt-in), notifies of upcoming meetings and/or auto-starts meeting recording with a pre-meeting countdown; RSVP-declined and zero-duration events are excluded and the whole surface is gated by Calendar permission and AppFeatures.calendarEnabled. Calendar-driven auto-stop was removed (ADR-017 amendment, 2026-05); the replacement is ADR-023 activity-based auto-stop, implemented separately behind a default-off flag
+  version: v0.6
+  status: implemented
+
+REQ-CAL-002:
+  description: Calendar settings and first-use connection surfaces let users grant Calendar access, choose the auto-start mode and lead time, and include specific calendars; the Meetings workspace Upcoming section additionally lets users connect Calendar inline (request access when not determined, deep-link to System Settings when blocked) and exposes inline mode (off/reminders/auto-start) and event-filter controls plus an Upcoming preview that mirrors the auto-start candidate rules (calendar rows appear in Settings search only when enabled, and the CLI exposes upcoming calendar events for headless verification)
+  version: v0.6
+  status: implemented
+
+# --- v0.6 Onboarding ---
+
+REQ-ONB-001:
+  description: Dictation-first 6-step onboarding (Welcome → Microphone → Accessibility → Hotkey → Speech Model → Ready); Meeting Recording and Calendar are opt-in, self-prompting on first use
+  version: v0.6
+  status: implemented
+
+# --- v0.6 Batch Transcription & Completion Notification ---
+
+REQ-TRANS-004:
+  description: Local audio/video files can be transcribed in batch (multi-select file picker, folder selection, and multi-file drag-drop, recursively expanded and capped at 200 with the dropped count surfaced); the queue drains sequentially on the shared file-transcription path with no added parallelism, each result lands in the Library as it finishes, a failed file never aborts the batch, and Cancel all stops the run. YouTube transcription stays single-URL.
+  version: v0.6
+  status: implemented
+
+REQ-UI-006:
+  description: A file, media URL, podcast, or batch transcription completing plays a chime and, when MacParakeet is in the background, posts a notification banner; both are governed by one Settings toggle (default on) and the banner reuses the .alert-only authorization while the chime is delivered via SoundManager (backgrounded-safe, respects the system sound preference)
+  version: v0.6
+  status: implemented
+
+# --- CLI Public Surface ---
+
+REQ-CLI-001:
+  description: CLI transcription telemetry emits a privacy-safe cli_operation event, honors explicit env/CI/UserDefaults opt-out controls, and exposes config get/set/list for the persisted telemetry preference
+  version: cli-1.3.0
+  status: implemented
+
+REQ-CLI-002:
+  description: CLI transcribe accepts multiple inputs (files, folders, podcast links, and media URLs supported by yt-dlp) and an --output-dir, writing one transcript file per input; single-input stdout behavior is preserved exactly, directories expand to their supported files, and the batch continues on per-file errors then exits non-zero with a summary if any failed
+  version: cli-2.5.0
+  status: implemented
+
+# --- v0.7 Meeting Reliability & Detection ---
+
+REQ-MEET-015:
+  description: Activity-based meeting auto-stop ends an active recording when the meeting actually ends — sustained dual-channel (mic + system) silence as the primary engine-agnostic signal, recognized meeting-app termination as a fast path — always behind a veto-able pre-stop countdown that runs the normal finalize/transcribe path (never silently truncates), opt-in and default off via AppFeatures.meetingAutoStopEnabled; never calendar/clock-driven (supersedes the withdrawn ADR-017 calendar auto-stop, ADR-023)
+  version: v0.7
+  status: implemented
+
+REQ-MEET-016:
+  description: Activity-based meeting detection recognizes an unscheduled live meeting from metadata-only on-device signals (per-process CoreAudio audio attribution, CoreMediaIO camera activity, recognized conferencing-app/URL registry) fused so camera alone never triggers, with self-attribution exclusion and a stabilization + decline-cooldown prompt state machine, and offers to record (opt-in auto-start as a separate mode); Phases A+B implement the default-off process-audio attribution collector, CoreMediaIO camera activity collector, shared signal snapshot, trust-tiered app registry, detection mode, and pure detector tests while coordinator/UI wiring, prompt telemetry, and auto-stop attribution remain deferred; opt-in, default off, metadata-only/local-first, gated by AppFeatures.meetingActivityDetectionEnabled (ADR-024)
+  version: v0.7
+  status: implemented
+
+REQ-MEET-017:
+  description: Meeting mic-health watchdog treats the system-audio stream as the liveness oracle and detects a stalled, all-zero, or missing microphone (three signatures) after a short confirmation window, emitting privacy-safe telemetry once per confirmed stall behind AppFeatures.meetingCaptureReliabilityEnabled; warning UI and auto-recovery remain deferred behind confirmed field signatures (ADR-025 Phase A)
+  version: v0.7
+  status: implemented
+
+REQ-MEET-018:
+  description: Post-stop meeting transcript coverage repair runs an offline VAD pass over the retained audio, measures live-transcript speech coverage, and re-transcribes only missed speech regions on the ADR-016 background slot (accept → selective-repair → full-fallback ladder), adding a completeness stage without changing per-chunk transcription (refines REQ-MEET-013, ADR-025)
+  version: v0.7
+  status: proposed

@@ -1,0 +1,16 @@
+--prepared:<QA>/package-runtime/dmg-readonly-v52tmqn4/MacParakeet.app/Contents/MacOS/macparakeet-cli
+--validated:<QA>/package-runtime/dmg-readonly-v52tmqn4/MacParakeet.app/Contents/MacOS/macparakeet-cli
+--prepared:<QA>/package-runtime/dmg-readonly-v52tmqn4/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/.
+--prepared:<QA>/package-runtime/dmg-readonly-v52tmqn4/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate
+--validated:<QA>/package-runtime/dmg-readonly-v52tmqn4/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate
+--prepared:<QA>/package-runtime/dmg-readonly-v52tmqn4/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app
+--validated:<QA>/package-runtime/dmg-readonly-v52tmqn4/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app
+--prepared:<QA>/package-runtime/dmg-readonly-v52tmqn4/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Downloader.xpc
+--validated:<QA>/package-runtime/dmg-readonly-v52tmqn4/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Downloader.xpc
+--prepared:<QA>/package-runtime/dmg-readonly-v52tmqn4/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc
+--validated:<QA>/package-runtime/dmg-readonly-v52tmqn4/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc
+--validated:<QA>/package-runtime/dmg-readonly-v52tmqn4/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/.
+--prepared:<QA>/package-runtime/dmg-readonly-v52tmqn4/MacParakeet.app/Contents/Frameworks/liblocalvqe.dylib
+--validated:<QA>/package-runtime/dmg-readonly-v52tmqn4/MacParakeet.app/Contents/Frameworks/liblocalvqe.dylib
+<QA>/package-runtime/dmg-readonly-v52tmqn4/MacParakeet.app: valid on disk
+<QA>/package-runtime/dmg-readonly-v52tmqn4/MacParakeet.app: satisfies its Designated Requirement

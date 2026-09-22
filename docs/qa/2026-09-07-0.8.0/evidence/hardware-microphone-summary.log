@@ -1,0 +1,26 @@
+Raw log SHA256: 6bcffaacdace6fe8d6f9c6155b4c9008661cd677f8e81c22ddc39fc4b7fb7334
+Test Suite 'Selected tests' started at 2026-09-07 16:20:03.032.
+Test Suite 'MacParakeetPackageTests.xctest' started at 2026-09-07 16:20:03.033.
+Test Suite 'MicrophoneEngineRealPlatformTests' started at 2026-09-07 16:20:03.033.
+Test Case '-[MacParakeetTests.MicrophoneEngineRealPlatformTests testColdStartDeliversBuffers]' passed (0.375 seconds).
+Test Case '-[MacParakeetTests.MicrophoneEngineRealPlatformTests testConcurrentVPIODeliversBuffersToLateNonVPIOSubscriber]' passed (0.984 seconds).
+Test Case '-[MacParakeetTests.MicrophoneEngineRealPlatformTests testConfigurationChangeDuringDeviceSetupKeepsPreparedEngine]' passed (0.094 seconds).
+<qa-worktree>/Tests/MacParakeetTests/Audio/MicrophoneEngineRealPlatformTests.swift:452: -[MacParakeetTests.MicrophoneEngineRealPlatformTests testDefaultInputSwitchWhileSharedStreamRunningKeepsDeliveringBuffers] : Test skipped - Set MACPARAKEET_HAL_MUTATION_TESTS=1 to run default-input mutation.
+Test Case '-[MacParakeetTests.MicrophoneEngineRealPlatformTests testDefaultInputSwitchWhileSharedStreamRunningKeepsDeliveringBuffers]' skipped (0.105 seconds).
+Test Case '-[MacParakeetTests.MicrophoneEngineRealPlatformTests testDeferredVPIOPromotionDeliversBuffersAfterRawSubscriberLeaves]' passed (1.308 seconds).
+Test Case '-[MacParakeetTests.MicrophoneEngineRealPlatformTests testDelayedUnchangedConfigurationChangeKeepsPreparedEngine]' passed (0.082 seconds).
+<qa-worktree>/Tests/MacParakeetTests/Audio/MicrophoneEngineRealPlatformTests.swift:530: -[MacParakeetTests.MicrophoneEngineRealPlatformTests testIdleGapDeliversBuffers] : Test skipped - Set MACPARAKEET_SLOW_HARDWARE_TESTS=1 to run the 3-minute idle-gap test.
+Test Case '-[MacParakeetTests.MicrophoneEngineRealPlatformTests testIdleGapDeliversBuffers]' skipped (0.000 seconds).
+Test Case '-[MacParakeetTests.MicrophoneEngineRealPlatformTests testPostCycleDeliversBuffers]' passed (0.699 seconds).
+Test Case '-[MacParakeetTests.MicrophoneEngineRealPlatformTests testPostVPIODeliversBuffers]' passed (1.186 seconds).
+Test Case '-[MacParakeetTests.MicrophoneEngineRealPlatformTests testPreparedStartDeliversBuffers]' passed (0.292 seconds).
+Test Case '-[MacParakeetTests.MicrophoneEngineRealPlatformTests testPreparedStartWithDifferentBufferSizeFallsBackCleanly]' passed (0.389 seconds).
+<qa-worktree>/Tests/MacParakeetTests/Audio/MicrophoneEngineRealPlatformTests.swift:405: -[MacParakeetTests.MicrophoneEngineRealPlatformTests testStressFiftySharedStreamCycles] : Test skipped - Set MACPARAKEET_STRESS_HARDWARE_TESTS=1 to run long shared-stream stress.
+Test Case '-[MacParakeetTests.MicrophoneEngineRealPlatformTests testStressFiftySharedStreamCycles]' skipped (0.000 seconds).
+Test Case '-[MacParakeetTests.MicrophoneEngineRealPlatformTests testStressTenCycles]' passed (3.543 seconds).
+Test Suite 'MicrophoneEngineRealPlatformTests' passed at 2026-09-07 16:20:12.094.
+	 Executed 13 tests, with 3 tests skipped and 0 failures (0 unexpected) in 9.059 (9.061) seconds
+Test Suite 'MacParakeetPackageTests.xctest' passed at 2026-09-07 16:20:12.094.
+	 Executed 13 tests, with 3 tests skipped and 0 failures (0 unexpected) in 9.059 (9.061) seconds
+Test Suite 'Selected tests' passed at 2026-09-07 16:20:12.095.
+	 Executed 13 tests, with 3 tests skipped and 0 failures (0 unexpected) in 9.059 (9.062) seconds

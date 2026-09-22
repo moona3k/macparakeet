@@ -9,7 +9,9 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
     private func makeViewModel(functionName: String = #function) -> SettingsViewModel {
         let suiteName = "AppHotkeyCoordinatorTests.\(functionName).\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        addTeardownBlock {
+            UserDefaults(suiteName: suiteName)?.removePersistentDomain(forName: suiteName)
+        }
         return SettingsViewModel(defaults: defaults)
     }
 
@@ -117,7 +119,11 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             plan,
             AppHotkeyCoordinator.DictationHotkeyPlan(
                 specs: [
-                    .init(trigger: .fn, gestureMode: .doubleTapAndHold),
+                    .init(
+                        trigger: .fn,
+                        gestureMode: .doubleTapAndHold,
+                        holdToTalkStopTailMs: AppHotkeyCoordinator.holdToTalkStopTailMs
+                    )
                 ],
                 conflict: nil
             )
@@ -135,7 +141,11 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             plan,
             AppHotkeyCoordinator.DictationHotkeyPlan(
                 specs: [
-                    .init(trigger: rightCommand, gestureMode: .doubleTapAndHold),
+                    .init(
+                        trigger: rightCommand,
+                        gestureMode: .doubleTapAndHold,
+                        holdToTalkStopTailMs: AppHotkeyCoordinator.holdToTalkStopTailMs
+                    )
                 ],
                 conflict: nil
             )
@@ -153,7 +163,11 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             AppHotkeyCoordinator.DictationHotkeyPlan(
                 specs: [
                     .init(trigger: .control, gestureMode: .singleTapToggle),
-                    .init(trigger: .option, gestureMode: .holdOnly),
+                    .init(
+                        trigger: .option,
+                        gestureMode: .holdOnly,
+                        holdToTalkStopTailMs: AppHotkeyCoordinator.holdToTalkStopTailMs
+                    ),
                 ],
                 conflict: nil
             )
@@ -170,7 +184,11 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             plan,
             AppHotkeyCoordinator.DictationHotkeyPlan(
                 specs: [
-                    .init(trigger: .defaultDictation, gestureMode: .doubleTapAndHold),
+                    .init(
+                        trigger: .defaultDictation,
+                        gestureMode: .doubleTapAndHold,
+                        holdToTalkStopTailMs: AppHotkeyCoordinator.holdToTalkStopTailMs
+                    )
                 ],
                 conflict: nil
             )
@@ -188,7 +206,8 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             .init(
                 trigger: .defaultPushToTalk,
                 gestureMode: .holdOnly,
-                startupDebounceMs: FnKeyStateMachine.defaultStartupDebounceMs
+                startupDebounceMs: FnKeyStateMachine.defaultStartupDebounceMs,
+                holdToTalkStopTailMs: AppHotkeyCoordinator.holdToTalkStopTailMs
             )
         )
     }
@@ -219,7 +238,11 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             ),
             AppHotkeyCoordinator.DictationHotkeyPlan(
                 specs: [
-                    .init(trigger: .option, gestureMode: .holdOnly),
+                    .init(
+                        trigger: .option,
+                        gestureMode: .holdOnly,
+                        holdToTalkStopTailMs: AppHotkeyCoordinator.holdToTalkStopTailMs
+                    )
                 ],
                 conflict: nil
             )

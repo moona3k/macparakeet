@@ -1,0 +1,41 @@
+{
+  "createdAt" : "2026-09-07T22:01:48Z",
+  "derivedSnippet" : "インターネットで敵体的環境コースについて検索すると、おそらく現地企業の住所が出てくるでしょう.",
+  "derivedTitle" : "インターネットで敵体的環境コースについて検索すると、おそらく現地企業の住所が出てくるでしょう",
+  "durationMs" : 10440,
+  "engine" : "nemotron",
+  "engineVariant" : "multilingual-1120ms",
+  "fileName" : "ja_jp_0000.wav",
+  "filePath" : "<PUBLIC_CORPUS>\/fleurs-data\/ja_jp\/ja_jp_0000.wav",
+  "fileSizeBytes" : 334124,
+  "id" : "30368EE6-4C31-4D42-9DC2-B58B70C02027",
+  "isFavorite" : false,
+  "isTranscriptEdited" : false,
+  "language" : "ja",
+  "rawTranscript" : "インターネットで敵体的環境コースについて検索すると、おそらく現地企業の住所が出てくるでしょう.",
+  "recoveredFromCrash" : false,
+  "sourceType" : "file",
+  "status" : "completed",
+  "transcriptSegments" : [
+    {
+      "endMs" : 8400,
+      "id" : "7877E2EE-5592-4C3F-9B97-117EA22DFBE2",
+      "speakerLabel" : "Unknown Speaker",
+      "startMs" : 2240,
+      "text" : "インターネットで敵体的環境コースについて検索すると、おそらく現地企業の住所が出てくるでしょう",
+      "wordRange" : {
+        "endIndexExclusive" : 1,
+        "startIndex" : 0
+      }
+    }
+  ],
+  "updatedAt" : "2026-09-07T22:01:49Z",
+  "wordTimestamps" : [
+    {
+      "confidence" : 1,
+      "endMs" : 8400,
+      "startMs" : 2240,
+      "word" : "インターネットで敵体的環境コースについて検索すると、おそらく現地企業の住所が出てくるでしょう"
+    }
+  ]
+}

@@ -1,0 +1,151 @@
+{
+  "curated_at_utc": "2026-09-07T23:24:02.797111+00:00",
+  "scope": "Historical frozen report interface validation; not current product release certification.",
+  "privacy": "Nine headless page screenshots individually inspected. Only report text and already approved synthetic/public GUI fixtures are visible. No desktop, browser chrome, personal file dialogs, pasteboard data, profiles, raw DOM, or private audio included. Text records replace machine-specific paths with stable placeholders. Assertion verdicts and source artifact hashes are preserved.",
+  "path_placeholders": {
+    "<REPORT_DIR>": "release QA report directory",
+    "<QA_WORKTREE>": "owning QA checkout",
+    "<BROWSER_EVIDENCE>": "owned temporary browser evidence root",
+    "<QA_RUN>": "owned temporary release QA run root"
+  },
+  "files": [
+    {
+      "path": "run-02/overview-1440.png",
+      "source_sha256": "5a1a23d05236c6ed64e14645b1a3dfa7685654f9a97f85e8406aa0a2979e5f8d",
+      "curated_sha256": "5a1a23d05236c6ed64e14645b1a3dfa7685654f9a97f85e8406aa0a2979e5f8d",
+      "bytes": 145891,
+      "transformation": "None; inspected original headless screenshot copied unchanged."
+    },
+    {
+      "path": "run-02/overview-390.png",
+      "source_sha256": "834e2f23e492c6312fd2a00a89c2b7e2d4944a435a2e99d7ba60dbebf7e1ac51",
+      "curated_sha256": "834e2f23e492c6312fd2a00a89c2b7e2d4944a435a2e99d7ba60dbebf7e1ac51",
+      "bytes": 70967,
+      "transformation": "None; inspected original headless screenshot copied unchanged."
+    },
+    {
+      "path": "run-02/overview-320.png",
+      "source_sha256": "b9067fac053c4aa4d1f49937f77c8a12aec92f141d9e1fc06240580c6cae5237",
+      "curated_sha256": "b9067fac053c4aa4d1f49937f77c8a12aec92f141d9e1fc06240580c6cae5237",
+      "bytes": 65145,
+      "transformation": "None; inspected original headless screenshot copied unchanged."
+    },
+    {
+      "path": "run-02/saved-snapshot-consistent.png",
+      "source_sha256": "5a1a23d05236c6ed64e14645b1a3dfa7685654f9a97f85e8406aa0a2979e5f8d",
+      "curated_sha256": "5a1a23d05236c6ed64e14645b1a3dfa7685654f9a97f85e8406aa0a2979e5f8d",
+      "bytes": 145891,
+      "transformation": "None; inspected original headless screenshot copied unchanged."
+    },
+    {
+      "path": "run-01/mobile-overview.png",
+      "source_sha256": "c407b18d6b403626c8a69de1d12cf3d94400ac9ceee9dbeaafde4f16e8161b14",
+      "curated_sha256": "c407b18d6b403626c8a69de1d12cf3d94400ac9ceee9dbeaafde4f16e8161b14",
+      "bytes": 71129,
+      "transformation": "None; inspected original headless screenshot copied unchanged."
+    },
+    {
+      "path": "run-01/saved-snapshot.png",
+      "source_sha256": "a50b31d1186d82fef8b6a0f2b4d82113e4f78a460c48bd77140a8ba99b921de1",
+      "curated_sha256": "a50b31d1186d82fef8b6a0f2b4d82113e4f78a460c48bd77140a8ba99b921de1",
+      "bytes": 146088,
+      "transformation": "None; inspected original headless screenshot copied unchanged."
+    },
+    {
+      "path": "run-01/mobile-detail.png",
+      "source_sha256": "469a2b4b651729a767a37edd77d311c159b9814f36e5580e5d67e4203c855842",
+      "curated_sha256": "469a2b4b651729a767a37edd77d311c159b9814f36e5580e5d67e4203c855842",
+      "bytes": 77057,
+      "transformation": "None; inspected original headless screenshot copied unchanged."
+    },
+    {
+      "path": "run-01/desktop-gallery.png",
+      "source_sha256": "eb87b3457c427ab15d2ce08c6dff72970f7c124d3fb5331c128020a4b367974d",
+      "curated_sha256": "eb87b3457c427ab15d2ce08c6dff72970f7c124d3fb5331c128020a4b367974d",
+      "bytes": 204789,
+      "transformation": "None; inspected original headless screenshot copied unchanged."
+    },
+    {
+      "path": "run-01/mobile-gallery.png",
+      "source_sha256": "1b5d3f99e4b8798f5eef4aaf7230c779cca5bbb294bc27862e1a486d76d621eb",
+      "curated_sha256": "1b5d3f99e4b8798f5eef4aaf7230c779cca5bbb294bc27862e1a486d76d621eb",
+      "bytes": 71737,
+      "transformation": "None; inspected original headless screenshot copied unchanged."
+    },
+    {
+      "path": "run-01/results.json",
+      "source_sha256": "a45d8d08a7f73df104b6c64a18cb21d05fed0df19f44736fe376a02f4844bad7",
+      "curated_sha256": "98bd003906572ef34dd31005a889f345697e789611e186a7dfac39b071f0afb9",
+      "bytes": 271838,
+      "transformation": "Machine-specific path substitutions only."
+    },
+    {
+      "path": "run-02/results.json",
+      "source_sha256": "3f61d41f94b91857ad92b612a8068141c71305e727b43573f1d6b74e190e10b6",
+      "curated_sha256": "26b5d54eca7ddc456e49d9daee6089e95bc151b465138c368858f5db3d7e3a5b",
+      "bytes": 132249,
+      "transformation": "Machine-specific path substitutions only."
+    },
+    {
+      "path": "run-01.log",
+      "source_sha256": "756a8eeb9cd2f1bc6cdbfe3ccf42373a7eac263457cbae86a1d1daba608d1497",
+      "curated_sha256": "167ed65a9a2eeec868ed2ddc2d355e8669866450aad70edf0fbba0abd2d5e173",
+      "bytes": 4064,
+      "transformation": "Machine-specific path substitutions only."
+    },
+    {
+      "path": "run-02.log",
+      "source_sha256": "9362d0b5bd4d8b411a16349df77c426bcc034b65445c7271b3d7e4f446daf151",
+      "curated_sha256": "9362d0b5bd4d8b411a16349df77c426bcc034b65445c7271b3d7e4f446daf151",
+      "bytes": 1164,
+      "transformation": "None; unchanged."
+    },
+    {
+      "path": "layout-probe.json",
+      "source_sha256": "f19897026f9cda2ddc8a970b8df178059f3380a2ab9103d46428370c517af9c9",
+      "curated_sha256": "f19897026f9cda2ddc8a970b8df178059f3380a2ab9103d46428370c517af9c9",
+      "bytes": 769,
+      "transformation": "None; unchanged."
+    },
+    {
+      "path": "cleanup.json",
+      "source_sha256": "7a6e1c1ec49a701fdd5ace0e4c4f300975bb2fe0a1c9a7d8b6e372f5c43b878b",
+      "curated_sha256": "7a6e1c1ec49a701fdd5ace0e4c4f300975bb2fe0a1c9a7d8b6e372f5c43b878b",
+      "bytes": 46,
+      "transformation": "None; unchanged."
+    },
+    {
+      "path": "report-fixes.json",
+      "source_sha256": "36f1db8db5cbe7a8bfe74df0aedffb35cdd387ba5401da9ea695dd1f7e37a6b4",
+      "curated_sha256": "38f359a27ef49592f6754313e6947ff9834e467f923d1e920f626ab2dae5da37",
+      "bytes": 22015,
+      "transformation": "Original receipt plus exact patch stored as a JSON string; patch hash recorded. This avoids changing whitespace in the patch."
+    },
+    {
+      "path": "verify_report.py",
+      "source_sha256": "a7e70a37013333c27170ec4e7bd92c19a1f7a01be52fedb9814b5a1b9513ef57",
+      "curated_sha256": "e694458343b9b376371526c0d6b1468d12c9c1521f57fe3d95155fa477af8fc3",
+      "bytes": 13132,
+      "transformation": "Path-only portability adaptation and output-location reporting; recorded runs used original scripts. Copied runner syntax checked, not re-executed during curation."
+    },
+    {
+      "path": "retest_fixes.py",
+      "source_sha256": "a273b9ff91e66be39a4f41f71c6875956ce38951fd20d1a0c9f828026c84e59f",
+      "curated_sha256": "9ef6dd24b36396dc3b4673da71964805ecf632b42770911e66a78e0042aecfd3",
+      "bytes": 5052,
+      "transformation": "Path-only portability adaptation and output-location reporting; recorded runs used original scripts. Copied runner syntax checked, not re-executed during curation."
+    },
+    {
+      "path": "later-data-sync.json",
+      "curated_sha256": "3b2b2ae2914c1da72f25f65b13806ca3a871713d29c8d4575317d726178fc61a",
+      "bytes": 546,
+      "transformation": "New curation receipt; no raw runtime result replaced."
+    },
+    {
+      "path": "review-path-redactions.json",
+      "curated_sha256": "9003cd7b62047c274b0799aeb5db8e49be8070379d32ff0ddd7be624657536b6",
+      "bytes": 2978,
+      "transformation": "New curation receipt; no raw runtime result replaced."
+    }
+  ]
+}

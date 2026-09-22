@@ -1,0 +1,59 @@
+[
+  {
+    "name": "dmg-attach-readonly-canonical",
+    "argv": [
+      "hdiutil",
+      "attach",
+      "<REPO>/dist/MacParakeet.dmg",
+      "-readonly",
+      "-nobrowse",
+      "-mountpoint",
+      "<QA>/package-runtime/dmg-readonly-v52tmqn4",
+      "-plist"
+    ],
+    "started_at_utc": "2026-09-07T23:36:39.355291+00:00",
+    "elapsed_seconds": 0.211,
+    "exit_code": 0,
+    "log": "dmg-attach-readonly-canonical.log"
+  },
+  {
+    "name": "mounted-app-strict-signature",
+    "argv": [
+      "codesign",
+      "--verify",
+      "--deep",
+      "--strict",
+      "--verbose=2",
+      "<QA>/package-runtime/dmg-readonly-v52tmqn4/MacParakeet.app"
+    ],
+    "started_at_utc": "2026-09-07T23:36:40.005495+00:00",
+    "elapsed_seconds": 0.274,
+    "exit_code": 0,
+    "log": "mounted-app-strict-signature.log"
+  },
+  {
+    "name": "mounted-app-staple-validation",
+    "argv": [
+      "xcrun",
+      "stapler",
+      "validate",
+      "<QA>/package-runtime/dmg-readonly-v52tmqn4/MacParakeet.app"
+    ],
+    "started_at_utc": "2026-09-07T23:36:40.279819+00:00",
+    "elapsed_seconds": 0.225,
+    "exit_code": 0,
+    "log": "mounted-app-staple-validation.log"
+  },
+  {
+    "name": "dmg-detach-owned-canonical-mount",
+    "argv": [
+      "hdiutil",
+      "detach",
+      "<QA>/package-runtime/dmg-readonly-v52tmqn4"
+    ],
+    "started_at_utc": "2026-09-07T23:36:40.505482+00:00",
+    "elapsed_seconds": 0.106,
+    "exit_code": 0,
+    "log": "dmg-detach-owned-canonical-mount.log"
+  }
+]

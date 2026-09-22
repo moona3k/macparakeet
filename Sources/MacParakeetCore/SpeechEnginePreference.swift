@@ -4,15 +4,32 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     case parakeet
     case nemotron
     case whisper
+    /// Cohere Transcribe (03-2026) via FluidAudio's `CoherePipeline`, on-device
+    /// Core ML. A batch, dictation-oriented engine (no live partials, no word
+    /// timestamps); see ``CohereTranscribeEngine``.
+    case cohere
 
     public static let defaultsKey = "speechRecognitionEngine"
+    /// Optional final engine for file/media transcription and newly started
+    /// meetings after recording stops.
+    ///
+    /// This is intentionally separate from ``defaultsKey``, which remains the
+    /// live-speech engine. When this key has never been written we inherit the
+    /// live choice so upgrades preserve the pre-split behavior.
+    public static let transcriptionDefaultsKey = "transcriptionSpeechRecognitionEngine"
+    private static let materializedFinalOverrideMigrationKey =
+        "didMigrateMaterializedFinalTranscriptionOverride"
     public static let parakeetModelVariantKey = "parakeetModelVariant"
     public static let nemotronModelVariantKey = "nemotronModelVariant"
     public static let nemotronDefaultLanguageKey = "nemotronDefaultLanguage"
     public static let whisperDefaultLanguageKey = "whisperDefaultLanguage"
     public static let whisperModelVariantKey = "whisperModelVariant"
+    /// Cohere has no auto language detection — the user picks one of its 14
+    /// supported languages (default English). Stored as a primary subtag ("en",
+    /// "fr", …); the engine maps it to `CohereAsrConfig.Language`.
+    public static let cohereDefaultLanguageKey = "cohereDefaultLanguage"
 
-    /// New users stay on the multilingual `v3` build — it "works for everyone".
+    /// New users stay on the `v3` build for the default local coverage lane.
     /// `v2` (English-only) is surfaced as a clearly-labeled opt-in.
     public static let defaultParakeetModelVariant: ParakeetModelVariant = .v3
 
@@ -24,7 +41,7 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     /// ("Setup needed", minutes) from a warm one ("Downloaded", seconds).
     public static let whisperOptimizedVariantsKey = "whisperOptimizedVariants"
 
-    public static let defaultWhisperModelVariant = "large-v3-v20240930_turbo_632MB"
+    public static let defaultWhisperModelVariant = WhisperModelVariant.largeV3Turbo632MB.rawValue
     public static let defaultNemotronModelVariant: NemotronModelVariant = .multilingual1120
 
     public var displayName: String {
@@ -35,6 +52,8 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
             "Nemotron"
         case .whisper:
             "Whisper"
+        case .cohere:
+            "Cohere"
         }
     }
 
@@ -45,6 +64,8 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
         case .nemotron:
             .whisper
         case .whisper:
+            .parakeet
+        case .cohere:
             .parakeet
         }
     }
@@ -61,6 +82,79 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
         defaults.set(rawValue, forKey: Self.defaultsKey)
     }
 
+    /// Engine for latency-sensitive speech: dictation and meeting live preview.
+    /// Kept as a semantic alias for ``current(defaults:)`` so existing callers
+    /// and persisted defaults remain source- and data-compatible.
+    public static func liveSpeech(defaults: UserDefaults = .standard) -> SpeechEnginePreference {
+        current(defaults: defaults)
+    }
+
+    public static func transcription(defaults: UserDefaults = .standard) -> SpeechEnginePreference {
+        guard let rawValue = defaults.string(forKey: transcriptionDefaultsKey),
+            let preference = SpeechEnginePreference(rawValue: rawValue)
+        else {
+            return current(defaults: defaults)
+        }
+        return preference
+    }
+
+    /// Engine for authoritative post-meeting and file/media transcription.
+    /// Without an explicit override this follows the live-speech engine.
+    public static func finalTranscription(
+        defaults: UserDefaults = .standard
+    ) -> SpeechEnginePreference {
+        transcription(defaults: defaults)
+    }
+
+    /// Key presence is the durable override signal. An explicit override equal
+    /// to the current live engine remains enabled so a later live-engine change
+    /// does not silently move the final route.
+    public static func hasFinalTranscriptionOverride(
+        defaults: UserDefaults = .standard
+    ) -> Bool {
+        guard let rawValue = defaults.string(forKey: transcriptionDefaultsKey) else {
+            return false
+        }
+        return SpeechEnginePreference(rawValue: rawValue) != nil
+    }
+
+    /// Saves an explicit final route, or clears it to restore inheritance from
+    /// live speech. Model-download validation remains the Settings owner's job.
+    public static func saveFinalTranscriptionOverride(
+        _ preference: SpeechEnginePreference?,
+        defaults: UserDefaults = .standard
+    ) {
+        guard let preference else {
+            defaults.removeObject(forKey: transcriptionDefaultsKey)
+            return
+        }
+        preference.saveForTranscriptions(to: defaults)
+    }
+
+    /// Repairs the brief pre-live/final Settings behavior that wrote an
+    /// inherited value into the second key merely by opening Settings. Before
+    /// this migration, an equal-valued key could not express independent user
+    /// intent, so removing it preserves the old behavior. The completion flag
+    /// ensures a deliberate equal-valued override created afterward survives.
+    public static func migrateMaterializedFinalTranscriptionOverrideIfNeeded(
+        defaults: UserDefaults = .standard
+    ) {
+        guard !defaults.bool(forKey: materializedFinalOverrideMigrationKey) else { return }
+        defer { defaults.set(true, forKey: materializedFinalOverrideMigrationKey) }
+
+        guard let rawValue = defaults.string(forKey: transcriptionDefaultsKey),
+            let persistedFinal = SpeechEnginePreference(rawValue: rawValue),
+            persistedFinal == liveSpeech(defaults: defaults)
+        else {
+            return
+        }
+        defaults.removeObject(forKey: transcriptionDefaultsKey)
+    }
+
+    public func saveForTranscriptions(to defaults: UserDefaults = .standard) {
+        defaults.set(rawValue, forKey: Self.transcriptionDefaultsKey)
+    }
+
     public static func whisperDefaultLanguage(defaults: UserDefaults = .standard) -> String? {
         normalizeLanguage(defaults.string(forKey: whisperDefaultLanguageKey))
     }
@@ -71,6 +165,41 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
             return
         }
         defaults.set(normalized, forKey: whisperDefaultLanguageKey)
+    }
+
+    /// The persisted Cohere dictation language, as a primary subtag ("en",
+    /// "fr", …). `nil` means none chosen yet → the engine defaults to English.
+    public static func cohereDefaultLanguage(defaults: UserDefaults = .standard) -> String? {
+        normalizeCohereLanguage(defaults.string(forKey: cohereDefaultLanguageKey))
+    }
+
+    public static func saveCohereDefaultLanguage(_ language: String?, defaults: UserDefaults = .standard) {
+        guard let normalized = normalizeCohereLanguage(language) else {
+            defaults.removeObject(forKey: cohereDefaultLanguageKey)
+            return
+        }
+        defaults.set(normalized, forKey: cohereDefaultLanguageKey)
+    }
+
+    /// Cohere language codes are simple supported primary subtags ("en", "zh").
+    /// Fold any BCP-47-ish input down to its lowercased primary subtag and drop
+    /// unsupported values so manual defaults edits cannot leak stale picker
+    /// state into the runtime.
+    public static func normalizeCohereLanguage(_ language: String?) -> String? {
+        guard let language else { return nil }
+        let trimmed = language.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmed.isEmpty, trimmed != "auto" else { return nil }
+        let primary = trimmed.replacingOccurrences(of: "_", with: "-")
+            .split(separator: "-").first.map(String.init) ?? trimmed
+        guard primary.allSatisfy(\.isLetter) else { return nil }
+        // `supportedLanguages` (from `CohereAsrConfig.Language`) is the sole
+        // authority for valid codes. Don't pre-filter on subtag length: a future
+        // ISO 639-2/3 entry (e.g. a 3-letter `yue`) would otherwise be dropped
+        // before this membership check ever runs.
+        guard CohereTranscribeEngine.supportedLanguages.contains(where: { $0.code == primary }) else {
+            return nil
+        }
+        return primary
     }
 
     public static func nemotronDefaultLanguage(defaults: UserDefaults = .standard) -> String? {
@@ -215,13 +344,7 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     }
 
     public static func normalizeModelVariant(_ variant: String?) -> String? {
-        guard let variant else { return nil }
-        let trimmed = variant.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        let withoutPrefix = trimmed.hasPrefix("whisper-")
-            ? String(trimmed.dropFirst("whisper-".count))
-            : trimmed
-        return canonicalizeTurboSuffix(withoutPrefix)
+        WhisperModelVariant.normalize(variant)?.rawValue
     }
 
     /// Whisper "turbo" variants ship with both hyphen and underscore spellings
@@ -229,7 +352,7 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     /// one model resolves to a single id everywhere — on-disk folder lookup, the
     /// stored preference, and optimized-flag tracking — instead of the mark-side
     /// (engine) and query-side (UI) ids drifting apart.
-    private static func canonicalizeTurboSuffix(_ variant: String) -> String {
+    fileprivate static func canonicalizeTurboSuffix(_ variant: String) -> String {
         if variant.hasSuffix("-turbo") {
             return String(variant.dropLast("-turbo".count)) + "_turbo"
         }
@@ -286,26 +409,90 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     }
 }
 
-/// Which Parakeet TDT 0.6B build powers on-device transcription.
+/// The closed set of WhisperKit models surfaced by MacParakeet.
 ///
-/// FluidAudio ships two peer Parakeet TDT 0.6B bundles. `v3` is multilingual
-/// (English + 24 other European languages) and is the default; `v2` is an
-/// English-only build that runs a touch faster on English and — crucially —
-/// cannot mis-detect English speech as another language, which `v3`'s
-/// auto-detection occasionally does (issues #311, #398).
+/// Keep this list as the single source of truth for persisted Whisper variant
+/// validation, CLI model ids, Settings copy, and the STT capability registry.
+public enum WhisperModelVariant: String, CaseIterable, Codable, Sendable {
+    case largeV3Turbo632MB = "large-v3-v20240930_turbo_632MB"
+
+    public var displayName: String {
+        switch self {
+        case .largeV3Turbo632MB:
+            "Large v3 Turbo"
+        }
+    }
+
+    public var modelName: String {
+        switch self {
+        case .largeV3Turbo632MB:
+            "Whisper Large v3 Turbo"
+        }
+    }
+
+    public var approximateDownloadSize: String {
+        switch self {
+        case .largeV3Turbo632MB:
+            "632 MB"
+        }
+    }
+
+    public var modelID: String {
+        "whisper-\(rawValue.replacingOccurrences(of: "_turbo_", with: "-turbo-").replacingOccurrences(of: "_", with: "-"))"
+    }
+
+    public static func normalize(_ variant: String?) -> WhisperModelVariant? {
+        guard let variant else { return nil }
+        let trimmed = variant.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let lowered = trimmed.lowercased()
+        let withoutPrefix = lowered.hasPrefix("whisper-")
+            ? String(lowered.dropFirst("whisper-".count))
+            : lowered
+        let canonical = SpeechEnginePreference.canonicalizeTurboSuffix(withoutPrefix)
+        return allCases.first {
+            $0.rawValue.caseInsensitiveCompare(canonical) == .orderedSame
+                || $0.modelID.caseInsensitiveCompare(trimmed) == .orderedSame
+        }
+    }
+}
+
+/// Which Parakeet build powers on-device transcription.
+///
+/// FluidAudio ships two peer Parakeet TDT 0.6B bundles plus the newer Parakeet
+/// Unified build. `v3` is multilingual (English + 24 other European languages)
+/// and is the default; `v2` is an English-only TDT build that runs a touch
+/// faster on English and — crucially — cannot mis-detect English speech as
+/// another language, which `v3`'s auto-detection occasionally does (issues
+/// #311, #398). `unified` is English-only NVIDIA Parakeet Unified EN 0.6B,
+/// a *different* runtime (its own CoreML chain, no `AsrModelVersion`) with
+/// strong English readability plus punctuation/capitalization (issue #520).
 ///
 /// The FluidAudio `AsrModelVersion` bridge lives in the STT layer
 /// (`ParakeetModelVariant+ASR.swift`) so this preference type stays
-/// Foundation-only and decoupled from CoreML.
+/// Foundation-only and decoupled from CoreML. `unified` has no `AsrModelVersion`
+/// — see ``usesUnifiedEngine``.
 public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
     case v3
     case v2
+    /// Optional Oruk adaptation, loaded explicitly from its own pinned Core ML archive.
+    case orukeet
+    /// NVIDIA Parakeet Unified EN 0.6B (`parakeet-unified-en-0.6b`). English-only
+    /// Unified-FastConformer-RNNT — a *different* FluidAudio runtime from the TDT
+    /// v2/v3 builds (its own preprocessor/encoder/decoder chain, no
+    /// `AsrModelVersion`), so it is routed to ``ParakeetUnifiedEngine`` instead
+    /// of the shared `AsrManager`. It adds punctuation/capitalization and
+    /// token-derived word timings through FluidAudio's streaming manager.
+    case unified
 
     /// Short label for the variant's language posture.
     public var displayName: String {
         switch self {
         case .v3: "Multilingual"
         case .v2: "English only"
+        case .unified: "English (Unified)"
+        case .orukeet: "Orukeet (preview)"
         }
     }
 
@@ -314,6 +501,8 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
         switch self {
         case .v3: "Parakeet TDT 0.6B v3"
         case .v2: "Parakeet TDT 0.6B v2"
+        case .unified: "Parakeet Unified 0.6B"
+        case .orukeet: "Orukeet"
         }
     }
 
@@ -321,23 +510,42 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
     public var coverageSummary: String {
         switch self {
         case .v3:
-            "English plus 24 European languages. Best for mixed or non-English speech."
+            "Fast local default for English and supported European languages. Includes word timestamps."
         case .v2:
-            "English only. A touch faster, and never mis-hears English as another language."
+            "English-only option for stable meetings and exports. Includes word timestamps."
+        case .unified:
+            "Readable English with live preview. Includes word timestamps for exports."
+        case .orukeet:
+            "Oruk's Parakeet v3 adaptation for 25 languages. Local Core ML preview, licensed CC BY-SA 4.0."
         }
     }
 
-    /// Approximate on-disk download footprint. Both builds land near ~465 MB
-    /// (v3 int8 encoder ≈ 461 MB measured; v2 ≈ 465 MB). Kept deliberately
-    /// rounded so the copy doesn't read as falsely precise.
-    public var approximateDownloadSize: String { "~465 MB" }
+    /// Approximate on-disk download footprint. The TDT builds land near ~465 MB
+    /// (v3 int8 encoder ≈ 461 MB measured; v2 ≈ 465 MB); Unified's int8
+    /// streaming bundle is roughly in the same tier. Kept deliberately rounded
+    /// so the copy doesn't read as falsely precise.
+    public var approximateDownloadSize: String {
+        switch self {
+        case .v3, .v2: "~465 MB"
+        case .unified: "~565 MB"
+        case .orukeet: "445 MiB"
+        }
+    }
 
-    public var isEnglishOnly: Bool { self == .v2 }
+    public var isEnglishOnly: Bool { self == .v2 || self == .unified }
+
+    /// Whether this variant is served by ``ParakeetUnifiedEngine`` (its own
+    /// FluidAudio runtime) rather than the shared TDT `AsrManager`. The STT
+    /// runtime branches on this before touching the `AsrModelVersion`-keyed
+    /// path; it is the single predicate every TDT-only site guards on.
+    public var usesUnifiedEngine: Bool { self == .unified }
 
     public var alternative: ParakeetModelVariant {
         switch self {
         case .v3: .v2
         case .v2: .v3
+        case .unified: .v2
+        case .orukeet: .v3
         }
     }
 }
@@ -376,9 +584,9 @@ public enum NemotronModelVariant: String, CaseIterable, Codable, Sendable {
     public var coverageSummary: String {
         switch self {
         case .multilingual1120:
-            "Fast multilingual streaming model."
+            "Beta multilingual live preview. Broader coverage, quality varies by language."
         case .english1120:
-            "English only. Strong research-benchmarked accuracy."
+            "Beta English live preview. Quality is still being validated."
         }
     }
 
@@ -421,11 +629,38 @@ public struct SpeechEngineSelection: Codable, Equatable, Sendable {
             SpeechEnginePreference.normalizeNemotronLanguage(language)
         case .whisper:
             SpeechEnginePreference.normalizeLanguage(language)
+        case .cohere:
+            // Cohere uses simple language subtags ("en", "fr", …); the engine
+            // maps the primary subtag to a supported language (English default).
+            SpeechEnginePreference.normalizeCohereLanguage(language)
         }
     }
 
     public static func current(defaults: UserDefaults = .standard) -> SpeechEngineSelection {
         let engine = SpeechEnginePreference.current(defaults: defaults)
+        return selection(for: engine, defaults: defaults)
+    }
+
+    public static func liveSpeech(defaults: UserDefaults = .standard) -> SpeechEngineSelection {
+        current(defaults: defaults)
+    }
+
+    /// Selection for file/media transcription and meetings. Missing persisted
+    /// state inherits the dictation selection for a backward-compatible upgrade.
+    public static func transcription(defaults: UserDefaults = .standard) -> SpeechEngineSelection {
+        selection(for: SpeechEnginePreference.transcription(defaults: defaults), defaults: defaults)
+    }
+
+    public static func finalTranscription(
+        defaults: UserDefaults = .standard
+    ) -> SpeechEngineSelection {
+        transcription(defaults: defaults)
+    }
+
+    private static func selection(
+        for engine: SpeechEnginePreference,
+        defaults: UserDefaults
+    ) -> SpeechEngineSelection {
         let language: String? = switch engine {
         case .parakeet:
             nil
@@ -433,17 +668,72 @@ public struct SpeechEngineSelection: Codable, Equatable, Sendable {
             SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
         case .whisper:
             SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults)
+        case .cohere:
+            SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults)
         }
         return SpeechEngineSelection(engine: engine, language: language)
+    }
+}
+
+/// Immutable routing captured when a meeting starts. Preview is best-effort
+/// and may be unavailable; final is always the authoritative durable-audio
+/// transcription route.
+public struct MeetingSpeechPlan: Codable, Equatable, Sendable {
+    public let preview: SpeechEngineSelection?
+    public let final: SpeechEngineSelection
+
+    public init(preview: SpeechEngineSelection?, final: SpeechEngineSelection) {
+        self.preview = preview
+        self.final = final
+    }
+
+    public static func resolve(
+        live: SpeechEngineSelection,
+        final: SpeechEngineSelection,
+        liveCapabilities: SpeechEngineCapabilities?,
+        liveTranscriptionEnabled: Bool = true
+    ) -> MeetingSpeechPlan {
+        let canPreview =
+            liveTranscriptionEnabled
+            && (liveCapabilities.map {
+                $0.key.engine == live.engine && $0.supportsMeetingLivePreview
+            } ?? false)
+        return MeetingSpeechPlan(preview: canPreview ? live : nil, final: final)
+    }
+}
+
+public struct SpeechEngineCapabilitySelection: Equatable, Sendable {
+    public let selection: SpeechEngineSelection
+    public let capabilities: SpeechEngineCapabilities
+
+    public init(selection: SpeechEngineSelection, capabilities: SpeechEngineCapabilities) {
+        precondition(
+            selection.engine == capabilities.key.engine,
+            "SpeechEngineCapabilitySelection engine mismatch: \(selection.engine.rawValue) != \(capabilities.key.engine.rawValue)"
+        )
+        self.selection = selection
+        self.capabilities = capabilities
     }
 }
 
 public struct SpeechEngineLease: Equatable, Sendable {
     public let id: UUID
     public let selection: SpeechEngineSelection
+    public let capabilities: SpeechEngineCapabilities?
 
-    public init(id: UUID = UUID(), selection: SpeechEngineSelection) {
+    public init(
+        id: UUID = UUID(),
+        selection: SpeechEngineSelection,
+        capabilities: SpeechEngineCapabilities? = nil
+    ) {
+        if let capabilities {
+            precondition(
+                selection.engine == capabilities.key.engine,
+                "SpeechEngineLease engine mismatch: \(selection.engine.rawValue) != \(capabilities.key.engine.rawValue)"
+            )
+        }
         self.id = id
         self.selection = selection
+        self.capabilities = capabilities
     }
 }

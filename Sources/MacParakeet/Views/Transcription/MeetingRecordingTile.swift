@@ -11,7 +11,7 @@ import SwiftUI
 /// Stop symmetric tap targets so users learn one rule.
 struct MeetingRecordingTile: View {
     enum PermissionState: Equatable {
-        case ready(capturesMicrophone: Bool)
+        case ready(sourceMode: MeetingAudioSourceMode)
         case missing(microphone: Bool, screenRecording: Bool)
 
         init(
@@ -20,11 +20,11 @@ struct MeetingRecordingTile: View {
             sourceMode: MeetingAudioSourceMode
         ) {
             let needsMicrophone = sourceMode.capturesMicrophone && !microphoneGranted
-            let needsScreenRecording = !screenRecordingGranted
+            let needsScreenRecording = sourceMode.capturesSystemAudio && !screenRecordingGranted
             if needsMicrophone || needsScreenRecording {
                 self = .missing(microphone: needsMicrophone, screenRecording: needsScreenRecording)
             } else {
-                self = .ready(capturesMicrophone: sourceMode.capturesMicrophone)
+                self = .ready(sourceMode: sourceMode)
             }
         }
 
@@ -46,10 +46,15 @@ struct MeetingRecordingTile: View {
 
         var detail: String {
             switch self {
-            case .ready(let capturesMicrophone):
-                return capturesMicrophone
-                    ? "Transcribes the whole conversation, privately on your Mac."
-                    : "Transcribes the call audio, privately on your Mac."
+            case .ready(let sourceMode):
+                switch sourceMode {
+                case .microphoneAndSystem:
+                    return "Transcribes your voice and call audio, privately on your Mac."
+                case .microphoneOnly:
+                    return "Transcribes microphone audio only, privately on your Mac."
+                case .systemOnly:
+                    return "Transcribes system audio only, privately on your Mac."
+                }
             case .missing(let microphone, let screenRecording):
                 switch (microphone, screenRecording) {
                 case (true, true):
@@ -66,7 +71,7 @@ struct MeetingRecordingTile: View {
     }
 
     @Bindable var viewModel: MeetingRecordingPillViewModel
-    var permissionState: PermissionState = .ready(capturesMicrophone: true)
+    var permissionState: PermissionState = .ready(sourceMode: .microphoneAndSystem)
     var onTap: () -> Void
     /// Optional pause/resume handler. When `nil` the tile renders no pause
     /// control — keeps existing call sites unchanged.
@@ -122,6 +127,8 @@ struct MeetingRecordingTile: View {
         switch viewModel.state {
         case .idle:
             idleContent
+        case .starting:
+            startingContent
         case .recording, .paused:
             recordingContent
         case .completing, .transcribing:
@@ -130,6 +137,23 @@ struct MeetingRecordingTile: View {
             completedContent
         case .error(let message):
             errorContent(message: message)
+        }
+    }
+
+    private var startingContent: some View {
+        HStack(spacing: DesignSystem.Spacing.md) {
+            ParakeetSpinner(.inline, tint: DesignSystem.Colors.textTertiary)
+                .frame(width: 64)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Starting…")
+                    .font(DesignSystem.Typography.sectionTitle)
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                Text("Preparing audio capture.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+            }
+            Spacer()
+            stopButton
         }
     }
 
@@ -150,6 +174,8 @@ struct MeetingRecordingTile: View {
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
                     .lineLimit(2)
+                audioSavedConfirmationBadge
+                backgroundTranscriptionBadge
             }
 
             Spacer()
@@ -199,9 +225,17 @@ struct MeetingRecordingTile: View {
                         .font(DesignSystem.Typography.sectionTitle)
                         .foregroundStyle(DesignSystem.Colors.textPrimary)
                 }
-                Text(viewModel.formattedElapsed)
-                    .font(.system(size: 15, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                HStack(spacing: 8) {
+                    Text(viewModel.formattedElapsed)
+                        .font(.system(size: 15, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+
+                    if let warning = visibleSourceHealthWarning {
+                        MeetingSourceHealthInlineBadge(chip: warning)
+                    }
+                }
+                audioSavedConfirmationBadge
+                backgroundTranscriptionBadge
             }
 
             Spacer()
@@ -213,6 +247,40 @@ struct MeetingRecordingTile: View {
                 stopButton
             }
         }
+    }
+
+    @ViewBuilder
+    private var audioSavedConfirmationBadge: some View {
+        if viewModel.showsAudioSavedConfirmation {
+            Label("Audio saved", systemImage: "checkmark.circle.fill")
+                .font(DesignSystem.Typography.micro.weight(.medium))
+                .foregroundStyle(DesignSystem.Colors.successGreen)
+                .lineLimit(1)
+                .transition(.opacity)
+                .accessibilityLabel("Audio saved")
+        }
+    }
+
+    @ViewBuilder
+    private var backgroundTranscriptionBadge: some View {
+        if viewModel.backgroundTranscriptionCount > 0 {
+            HStack(spacing: 5) {
+                ParakeetSpinner(.inline)
+                    .scaleEffect(0.55)
+                    .frame(width: 12, height: 12)
+                Text(backgroundTranscriptionText)
+                    .font(DesignSystem.Typography.micro)
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    .lineLimit(1)
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .accessibilityLabel(backgroundTranscriptionText)
+        }
+    }
+
+    private var backgroundTranscriptionText: String {
+        let count = viewModel.backgroundTranscriptionCount
+        return count == 1 ? "Finishing 1 meeting" : "Finishing \(count) meetings"
     }
 
     private var transcribingContent: some View {
@@ -236,15 +304,6 @@ struct MeetingRecordingTile: View {
             }
 
             Spacer()
-
-            // Mid-flight escape hatch (issue #487). Appears once the recording
-            // is finalized on disk and the abort path is safe; opens the
-            // Keep Audio / Delete Recording confirmation.
-            if viewModel.canAbortTranscription, viewModel.onAbortTranscription != nil {
-                StopTranscribingButton {
-                    viewModel.onAbortTranscription?()
-                }
-            }
         }
     }
 
@@ -264,7 +323,7 @@ struct MeetingRecordingTile: View {
                 Text("Saved to Library")
                     .font(DesignSystem.Typography.sectionTitle)
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
-                Text("Your meeting is ready.")
+                Text("Audio saved")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
                     .lineLimit(1)
@@ -329,10 +388,12 @@ struct MeetingRecordingTile: View {
         switch viewModel.state {
         case .idle:
             return permissionState.isReady ? "Record meeting" : "\(permissionState.title): \(permissionState.detail)"
+        case .starting:
+            return "Starting meeting audio capture"
         case .recording:
-            return "Recording meeting, \(viewModel.formattedElapsed) elapsed"
+            return "Recording meeting, \(viewModel.formattedElapsed) elapsed\(sourceHealthAccessibilitySuffix)"
         case .paused:
-            return "Meeting recording paused, \(viewModel.formattedElapsed) elapsed"
+            return "Meeting recording paused, \(viewModel.formattedElapsed) elapsed\(sourceHealthAccessibilitySuffix)"
         case .completing, .transcribing:
             return "Transcribing meeting"
         case .completed:
@@ -346,6 +407,14 @@ struct MeetingRecordingTile: View {
         // Tile body is informational; Start / Stop buttons carry the
         // action hints themselves.
         ""
+    }
+
+    private var sourceHealthAccessibilitySuffix: String {
+        visibleSourceHealthWarning.map { ", \($0.label)" } ?? ""
+    }
+
+    var visibleSourceHealthWarning: MeetingSourceHealthChip? {
+        viewModel.mirroredVisibleSourceHealthWarning
     }
 }
 
@@ -399,9 +468,10 @@ private struct StartRecordingButton: View {
             if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
         }
         .accessibilityLabel(permissionState.isReady ? "Start recording" : "Enable meeting recording")
-        .accessibilityHint(permissionState.isReady
-            ? "Captures system audio and microphone, then transcribes locally."
-            : "Opens the required macOS permission flow before recording.")
+        .accessibilityHint(
+            permissionState.isReady
+                ? "Captures system audio and microphone, then transcribes locally."
+                : "Opens the required macOS permission flow before recording.")
     }
 }
 
@@ -448,9 +518,11 @@ private struct TilePauseResumeButton: View {
             .padding(.vertical, 7)
             .background(
                 Capsule()
-                    .fill(isHovered
-                        ? DesignSystem.Colors.warningAmber.opacity(0.12)
-                        : DesignSystem.Colors.surfaceElevated.opacity(0.7))
+                    .fill(
+                        isHovered
+                            ? DesignSystem.Colors.warningAmber.opacity(0.12)
+                            : DesignSystem.Colors.surfaceElevated.opacity(0.7)
+                    )
                     .overlay(
                         Capsule()
                             .stroke(
@@ -473,60 +545,6 @@ private struct TilePauseResumeButton: View {
                 : "Pause recording — audio resumes when you click play"
         )
         .accessibilityLabel(isPaused ? "Resume recording" : "Pause recording")
-    }
-}
-
-// MARK: - Stop Transcribing button (issue #487)
-
-/// Capsule button shown while the post-stop final transcription runs. Neutral
-/// at rest (the tile's spinner row shouldn't shout), red on hover to declare
-/// that it halts the work in progress. No inline countdown confirm — the
-/// click opens a dialog where keep/delete is decided, so a second inline
-/// confirmation step would just stack ceremony.
-private struct StopTranscribingButton: View {
-    var onTap: () -> Void
-
-    @State private var isHovered = false
-
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 6) {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(isHovered ? Color.white : DesignSystem.Colors.textSecondary)
-                    .frame(width: 8, height: 8)
-                Text("Stop")
-                    .font(DesignSystem.Typography.caption.weight(.semibold))
-            }
-            .foregroundStyle(isHovered ? Color.white : DesignSystem.Colors.textSecondary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background(
-                Capsule()
-                    .fill(isHovered
-                        ? DesignSystem.Colors.errorRed
-                        : DesignSystem.Colors.surfaceElevated.opacity(0.7))
-                    .overlay(
-                        Capsule()
-                            .stroke(
-                                isHovered
-                                    ? DesignSystem.Colors.errorRed
-                                    : DesignSystem.Colors.border.opacity(0.7),
-                                lineWidth: 0.6
-                            )
-                    )
-            )
-            .scaleEffect(isHovered ? 1.03 : 1.0)
-            .animation(.easeOut(duration: 0.15), value: isHovered)
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            isHovered = hovering
-            if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-        }
-        .help("Stop transcribing — keep or delete the recording")
-        .accessibilityLabel("Stop transcribing")
-        .accessibilityHint("Asks whether to keep the recorded audio or delete the recording.")
-        .transition(.opacity)
     }
 }
 

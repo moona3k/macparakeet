@@ -21,6 +21,390 @@ import XCTest
 /// returns.
 final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
 
+    func testDefaultInputChangeBurstSchedulesOneBoundedDelivery() {
+        var coalescer = DefaultInputChangeBurstCoalescer()
+        let generation = coalescer.generation
+
+        XCTAssertTrue(coalescer.observeChange(generation: generation))
+        for _ in 1..<100 {
+            XCTAssertFalse(coalescer.observeChange(generation: generation))
+        }
+
+        XCTAssertEqual(coalescer.takePendingCount(generation: generation), 100)
+        XCTAssertNil(coalescer.takePendingCount(generation: generation))
+        XCTAssertTrue(coalescer.observeChange(generation: generation))
+    }
+
+    func testRetiredDefaultInputListenerAndDeliveryCannotConsumeReplacementBurst() {
+        var coalescer = DefaultInputChangeBurstCoalescer()
+        let retired = coalescer.generation
+        XCTAssertTrue(coalescer.observeChange(generation: retired))
+
+        coalescer.invalidate()
+        XCTAssertFalse(coalescer.observeChange(generation: retired))
+        XCTAssertNil(coalescer.takePendingCount(generation: retired))
+
+        let replacement = coalescer.generation
+        XCTAssertTrue(coalescer.observeChange(generation: replacement))
+        XCTAssertFalse(coalescer.observeChange(generation: retired))
+        XCTAssertNil(coalescer.takePendingCount(generation: retired))
+        XCTAssertFalse(coalescer.observeChange(generation: replacement))
+        XCTAssertEqual(coalescer.takePendingCount(generation: replacement), 2)
+        XCTAssertNil(coalescer.takePendingCount(generation: replacement))
+    }
+
+    /// Device selection and `AVAudioEngine.prepare()` can enqueue their own
+    /// configuration notification after preparation has already been marked.
+    /// When the resolved route and input format are unchanged, that delayed
+    /// setup echo must leave the prepared engine reusable instead of starting
+    /// the discard -> route-notification -> reprepare loop from issue #928.
+    func testDelayedConfigurationChangeWithUnchangedRouteKeepsPreparedEngine() throws {
+        let attempt = MeetingInputDeviceAttempt(source: .builtIn, deviceID: 10)
+        let startedEngine = OSAllocatedUnfairLock<AVAudioEngine?>(initialState: nil)
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: { [attempt] },
+            inputDeviceSetter: { _, _ in true },
+            bluetoothInputState: { _ in false },
+            engineStarter: { engine, _, _, tapHandler in
+                startedEngine.withLock { $0 = engine }
+                tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
+            }
+        )
+        defer { platform.stopEngine() }
+
+        platform.prepare(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+        let before = platform.preparedEngineStateForTesting
+        XCTAssertTrue(before.prepared)
+
+        NotificationCenter.default.post(
+            name: .AVAudioEngineConfigurationChange,
+            object: before.engine
+        )
+        _ = platform.isEngineRunning  // flush the queued observer handling
+
+        let after = platform.preparedEngineStateForTesting
+        XCTAssertTrue(
+            after.prepared,
+            "an unchanged delayed setup notification must not discard preparation"
+        )
+        XCTAssertTrue(
+            before.engine === after.engine,
+            "an unchanged delayed setup notification must retain the prepared engine"
+        )
+
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+        XCTAssertTrue(
+            startedEngine.withLock { $0 } === before.engine,
+            "the next capture must use the prepared engine instead of reconfiguring a fresh one"
+        )
+    }
+
+    func testPreparedConfigurationChangeWithDifferentRouteDiscardsAndNotifies() throws {
+        let originalAttempt = MeetingInputDeviceAttempt.implicitSystemDefault(
+            resolvedDeviceID: 10
+        )
+        let changedAttempt = MeetingInputDeviceAttempt.implicitSystemDefault(
+            resolvedDeviceID: 20
+        )
+        let route = OSAllocatedUnfairLock(initialState: [originalAttempt])
+        let routeChange = expectation(description: "route consumers are notified")
+        let token = NotificationCenter.default.addObserver(
+            forName: .macParakeetMicrophoneSelectionDidChange,
+            object: nil,
+            queue: nil
+        ) { _ in
+            routeChange.fulfill()
+        }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: { route.withLock { $0 } },
+            inputDeviceSetter: { _, _ in true },
+            bluetoothInputState: { _ in false },
+            engineStarter: { _, _, _, _ in }
+        )
+        defer { platform.stopEngine() }
+
+        platform.prepare(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+        let before = platform.preparedEngineStateForTesting
+        XCTAssertTrue(before.prepared)
+
+        route.withLock { $0 = [changedAttempt] }
+        NotificationCenter.default.post(
+            name: .AVAudioEngineConfigurationChange,
+            object: before.engine
+        )
+        _ = platform.isEngineRunning
+
+        wait(for: [routeChange], timeout: 0.5)
+        let after = platform.preparedEngineStateForTesting
+        XCTAssertFalse(after.prepared)
+        XCTAssertFalse(before.engine === after.engine)
+    }
+
+    func testRunningConfigurationChangeNotifiesInputRouteConsumers() throws {
+        let routeChange = expectation(description: "route consumers are notified")
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
+        let token = NotificationCenter.default.addObserver(
+            forName: .macParakeetMicrophoneSelectionDidChange,
+            object: nil,
+            queue: nil
+        ) { _ in
+            routeChange.fulfill()
+        }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            recoveryRetryDelays: [],
+            engineStarter: { _, _, _, tapHandler in
+                tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
+            }
+        )
+        defer { platform.stopEngine() }
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+
+        NotificationCenter.default.post(
+            name: .AVAudioEngineConfigurationChange,
+            object: platform.preparedEngineStateForTesting.engine
+        )
+
+        wait(for: [routeChange], timeout: 0.5)
+    }
+
+    // MARK: - Running-engine self-emitted change absorption (issue #1102)
+
+    /// A running engine self-emits a configuration change as it selects and
+    /// prepares its own input device (pronounced on macOS 27). When the engine
+    /// is still running and the resolved route + negotiated format are unchanged
+    /// on a positively non-Bluetooth input, the platform must NOT re-broadcast
+    /// it as a mic-selection change — doing so drives the warm-capture rebuild
+    /// loop in issue #1102 (and needlessly rebuilds the engine).
+    func testRunningConfigurationChangeWithUnchangedRouteIsAbsorbed() throws {
+        let attempt = MeetingInputDeviceAttempt(source: .builtIn, deviceID: 10)
+        let notPosted = expectation(description: "unchanged running route must not notify")
+        notPosted.isInverted = true
+        let token = NotificationCenter.default.addObserver(
+            forName: .macParakeetMicrophoneSelectionDidChange,
+            object: nil,
+            queue: nil
+        ) { _ in notPosted.fulfill() }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        let starterCalls = OSAllocatedUnfairLock(initialState: 0)
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: { [attempt] },
+            inputDeviceSetter: { _, _ in true },
+            recoveryRetryDelays: [],
+            bluetoothInputState: { _ in false },
+            engineRunningProbe: { _ in true },
+            engineStarter: { engine, _, _, tapHandler in
+                starterCalls.withLock { $0 += 1 }
+                guard let buffer = makeLiveInputFormatBuffer(for: engine) else { return }
+                tapHandler(buffer, AVAudioTime(hostTime: 1))
+            }
+        )
+        defer { platform.stopEngine() }
+        try platform.configureAndStart(vpioEnabled: false, bufferSize: 256, tapHandler: { _, _ in })
+        XCTAssertEqual(starterCalls.withLock { $0 }, 1)
+
+        NotificationCenter.default.post(
+            name: .AVAudioEngineConfigurationChange,
+            object: platform.preparedEngineStateForTesting.engine
+        )
+        _ = platform.isEngineRunning  // flush the queued observer handling
+
+        wait(for: [notPosted], timeout: 0.3)
+        XCTAssertEqual(
+            starterCalls.withLock { $0 },
+            1,
+            "an unchanged running configuration change must not rebuild the engine"
+        )
+        XCTAssertTrue(platform.isEngineRunning)
+    }
+
+    /// A real route change on a running engine must still re-broadcast so
+    /// warm-capture eligibility is re-evaluated (issue #481/#796).
+    func testRunningConfigurationChangeWithChangedRouteNotifies() throws {
+        let originalAttempt = MeetingInputDeviceAttempt(source: .builtIn, deviceID: 10)
+        let changedAttempt = MeetingInputDeviceAttempt(source: .builtIn, deviceID: 20)
+        let route = OSAllocatedUnfairLock(initialState: [originalAttempt])
+        let posted = expectation(description: "changed running route notifies")
+        let token = NotificationCenter.default.addObserver(
+            forName: .macParakeetMicrophoneSelectionDidChange,
+            object: nil,
+            queue: nil
+        ) { _ in posted.fulfill() }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: { route.withLock { $0 } },
+            inputDeviceSetter: { _, _ in true },
+            recoveryRetryDelays: [],
+            bluetoothInputState: { _ in false },
+            engineRunningProbe: { _ in true },
+            engineStarter: { engine, _, _, tapHandler in
+                guard let buffer = makeLiveInputFormatBuffer(for: engine) else { return }
+                tapHandler(buffer, AVAudioTime(hostTime: 1))
+            }
+        )
+        defer { platform.stopEngine() }
+        try platform.configureAndStart(vpioEnabled: false, bufferSize: 256, tapHandler: { _, _ in })
+
+        // Only the route differs from the committed snapshot; format is live.
+        route.withLock { $0 = [changedAttempt] }
+        NotificationCenter.default.post(
+            name: .AVAudioEngineConfigurationChange,
+            object: platform.preparedEngineStateForTesting.engine
+        )
+
+        wait(for: [posted], timeout: 0.5)
+    }
+
+    /// A real input-format change on a running engine (same route) must still
+    /// re-broadcast so consumers re-evaluate (#796 preservation).
+    func testRunningConfigurationChangeWithChangedFormatNotifies() throws {
+        let attempt = MeetingInputDeviceAttempt(source: .builtIn, deviceID: 10)
+        let posted = expectation(description: "changed format notifies")
+        let token = NotificationCenter.default.addObserver(
+            forName: .macParakeetMicrophoneSelectionDidChange,
+            object: nil,
+            queue: nil
+        ) { _ in posted.fulfill() }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: { [attempt] },
+            inputDeviceSetter: { _, _ in true },
+            recoveryRetryDelays: [],
+            bluetoothInputState: { _ in false },
+            engineRunningProbe: { _ in true },
+            engineStarter: { engine, _, _, tapHandler in
+                // Commit a first buffer whose format differs from the engine's
+                // live input-node format, so the observer's format read differs
+                // from the committed snapshot — the shape of a real format
+                // change, which must still post.
+                let live = engine.inputNode.outputFormat(forBus: 0)
+                let differentRate = live.sampleRate == 16_000 ? 48_000.0 : 16_000.0
+                let channels = live.channelCount == 0 ? 1 : live.channelCount
+                guard
+                    let format = AVAudioFormat(
+                        standardFormatWithSampleRate: differentRate,
+                        channels: channels
+                    ),
+                    let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 32)
+                else { return }
+                buffer.frameLength = 32
+                buffer.floatChannelData?[0][0] = 0.001
+                tapHandler(buffer, AVAudioTime(hostTime: 1))
+            }
+        )
+        defer { platform.stopEngine() }
+        try platform.configureAndStart(vpioEnabled: false, bufferSize: 256, tapHandler: { _, _ in })
+
+        NotificationCenter.default.post(
+            name: .AVAudioEngineConfigurationChange,
+            object: platform.preparedEngineStateForTesting.engine
+        )
+
+        wait(for: [posted], timeout: 0.5)
+    }
+
+    /// A Bluetooth (or unresolved) running route must never be absorbed: a
+    /// transport/profile flip can hide behind a stable device ID, so the post
+    /// that re-evaluates warm-capture eligibility must still fire (#862/#481).
+    func testRunningConfigurationChangeOnBluetoothRouteNotifies() throws {
+        let attempt = MeetingInputDeviceAttempt(source: .builtIn, deviceID: 10)
+        let posted = expectation(description: "bluetooth running route still notifies")
+        let token = NotificationCenter.default.addObserver(
+            forName: .macParakeetMicrophoneSelectionDidChange,
+            object: nil,
+            queue: nil
+        ) { _ in posted.fulfill() }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: { [attempt] },
+            inputDeviceSetter: { _, _ in true },
+            recoveryRetryDelays: [],
+            bluetoothInputState: { _ in true },
+            engineRunningProbe: { _ in true },
+            engineStarter: { engine, _, _, tapHandler in
+                // Live format + unchanged route: only the Bluetooth flag
+                // separates this from the absorbed case.
+                guard let buffer = makeLiveInputFormatBuffer(for: engine) else { return }
+                tapHandler(buffer, AVAudioTime(hostTime: 1))
+            }
+        )
+        defer { platform.stopEngine() }
+        try platform.configureAndStart(vpioEnabled: false, bufferSize: 256, tapHandler: { _, _ in })
+
+        NotificationCenter.default.post(
+            name: .AVAudioEngineConfigurationChange,
+            object: platform.preparedEngineStateForTesting.engine
+        )
+
+        wait(for: [posted], timeout: 0.5)
+    }
+
+    /// A route that was non-Bluetooth at commit but reports Bluetooth at
+    /// observation time (transport flip behind a stable device ID/format) must
+    /// still post: Bluetooth safety is evaluated live from the committed
+    /// attempt, not cached at commit (mirrors the `prepared` branch, #862).
+    func testRunningConfigurationChangeOnRouteThatBecameBluetoothNotifies() throws {
+        let attempt = MeetingInputDeviceAttempt(source: .builtIn, deviceID: 10)
+        let bluetooth = OSAllocatedUnfairLock(initialState: false)
+        let posted = expectation(
+            description: "a route that became Bluetooth after commit still notifies"
+        )
+        let token = NotificationCenter.default.addObserver(
+            forName: .macParakeetMicrophoneSelectionDidChange,
+            object: nil,
+            queue: nil
+        ) { _ in posted.fulfill() }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: { [attempt] },
+            inputDeviceSetter: { _, _ in true },
+            recoveryRetryDelays: [],
+            bluetoothInputState: { _ in bluetooth.withLock { $0 } },
+            engineRunningProbe: { _ in true },
+            engineStarter: { engine, _, _, tapHandler in
+                guard let buffer = makeLiveInputFormatBuffer(for: engine) else { return }
+                tapHandler(buffer, AVAudioTime(hostTime: 1))
+            }
+        )
+        defer { platform.stopEngine() }
+        try platform.configureAndStart(vpioEnabled: false, bufferSize: 256, tapHandler: { _, _ in })
+
+        // Committed while non-Bluetooth; the same device ID/format now flips to
+        // Bluetooth. A cached safety flag would wrongly absorb this.
+        bluetooth.withLock { $0 = true }
+        NotificationCenter.default.post(
+            name: .AVAudioEngineConfigurationChange,
+            object: platform.preparedEngineStateForTesting.engine
+        )
+
+        wait(for: [posted], timeout: 0.5)
+    }
+
     // MARK: - Test 1
 
     /// Starting the engine and then posting a configuration-change notification
@@ -33,15 +417,17 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
         let vpioLock = OSAllocatedUnfairLock(initialState: [Bool]())
         let bufferSizeLock = OSAllocatedUnfairLock(initialState: [AVAudioFrameCount]())
         let recoveryExpectation = expectation(description: "engineStarter invoked for recovery")
+        let recoveryBuffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
 
         let platform = AVAudioEngineMicrophonePlatform(
-            engineStarter: { engine, vpio, bufferSize, _ in
+            engineStarter: { engine, vpio, bufferSize, tapHandler in
                 let engines = enginesLock.withLock { engines -> [AVAudioEngine] in
                     engines.append(engine)
                     return engines
                 }
                 vpioLock.withLock { arr in arr.append(vpio) }
                 bufferSizeLock.withLock { arr in arr.append(bufferSize) }
+                tapHandler(recoveryBuffer.buffer, AVAudioTime(hostTime: UInt64(engines.count)))
                 if engines.count == 2 {
                     recoveryExpectation.fulfill()
                 }
@@ -102,10 +488,12 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
     func testConfigurationChangeAfterStopEngineDoesNotRestart() throws {
         // Arrange: count starter invocations.
         let invocationLock = OSAllocatedUnfairLock(initialState: 0)
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
 
         let platform = AVAudioEngineMicrophonePlatform(
-            engineStarter: { _, _, _, _ in
+            engineStarter: { _, _, _, tapHandler in
                 invocationLock.withLock { count in count += 1 }
+                tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
             }
         )
 
@@ -141,39 +529,59 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
 
     // MARK: - Test 3
 
-    /// When the recovery attempt itself throws, the platform is left with
-    /// `running == false`. A subsequent notification post must NOT trigger
-    /// another attempt (no retry loop), and exactly 2 starter invocations
-    /// occur in total.
-    func testFailedRecoveryLeavesEngineStopped() throws {
+    /// A transient configuration-change recovery failure must not permanently
+    /// kill a live capture. The platform retries with a fresh engine and the
+    /// original start parameters, then returns to running once the route has
+    /// settled.
+    func testFailedRecoveryRetriesAndEventuallyRestartsEngine() throws {
         // Arrange: capture engine instances and count invocations.
         let enginesLock = OSAllocatedUnfairLock(initialState: [AVAudioEngine]())
         let invocationLock = OSAllocatedUnfairLock(initialState: 0)
+        let routeSnapshotCount = OSAllocatedUnfairLock(initialState: 0)
+        let vpioLock = OSAllocatedUnfairLock(initialState: [Bool]())
+        let bufferSizeLock = OSAllocatedUnfairLock(initialState: [AVAudioFrameCount]())
 
         let firstStartExpectation = expectation(description: "first engineStarter call succeeds")
         let recoveryAttemptExpectation = expectation(description: "second engineStarter call (recovery throws)")
-        // Inverted: must NOT be fulfilled by a third call.
-        let noThirdCallExpectation = expectation(description: "third engineStarter call must not happen")
-        noThirdCallExpectation.isInverted = true
+        let retryExpectation = expectation(description: "third engineStarter call succeeds")
+        let unexpectedExtraRetry = expectation(description: "ready recovery does not retry again")
+        unexpectedExtraRetry.isInverted = true
+        let unexpectedStop = expectation(description: "ready recovery is not terminally stopped")
+        unexpectedStop.isInverted = true
+        let recoveryBuffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
 
         let platform = AVAudioEngineMicrophonePlatform(
-            engineStarter: { engine, _, _, _ in
+            deviceAttemptsBuilder: {
+                routeSnapshotCount.withLock { $0 += 1 }
+                return []
+            },
+            recoveryRetryDelays: [0],
+            engineStarter: { engine, vpio, bufferSize, tapHandler in
                 let count = invocationLock.withLock { c -> Int in
                     c += 1
                     return c
                 }
                 enginesLock.withLock { arr in arr.append(engine) }
+                vpioLock.withLock { $0.append(vpio) }
+                bufferSizeLock.withLock { $0.append(bufferSize) }
                 switch count {
                 case 1:
+                    tapHandler(recoveryBuffer.buffer, AVAudioTime(hostTime: 1))
                     firstStartExpectation.fulfill()
                 case 2:
                     recoveryAttemptExpectation.fulfill()
                     throw AVAudioEngineMicrophonePlatformError.noDeviceAvailable
+                case 3:
+                    tapHandler(recoveryBuffer.buffer, AVAudioTime(hostTime: 1))
+                    retryExpectation.fulfill()
                 default:
-                    noThirdCallExpectation.fulfill()
+                    unexpectedExtraRetry.fulfill()
                 }
             }
         )
+        platform.setUnexpectedStopHandler {
+            unexpectedStop.fulfill()
+        }
         defer { platform.stopEngine() }
 
         // Act: first start succeeds.
@@ -187,28 +595,978 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
             name: .AVAudioEngineConfigurationChange,
             object: firstEngine
         )
-        wait(for: [recoveryAttemptExpectation], timeout: 2.0)
+        wait(for: [recoveryAttemptExpectation, retryExpectation], timeout: 2.0)
+        wait(for: [unexpectedExtraRetry, unexpectedStop], timeout: 0.08)
 
-        // Platform must be stopped (recovery failed).
-        XCTAssertFalse(platform.isEngineRunning, "failed recovery must leave platform stopped")
-        XCTAssertEqual(invocationLock.withLock { c in c }, 2, "exactly 2 starter invocations total")
+        XCTAssertTrue(platform.isEngineRunning, "a transient recovery failure must not kill capture")
+        XCTAssertEqual(invocationLock.withLock { c in c }, 3, "initial start + failed recovery + retry")
 
-        // Post again — running == false so gate 1 suppresses any further attempt.
-        // The previously-registered observer was also removed when tearDownLocked
-        // ran during the failed recovery, so the production object-match gate
-        // additionally suppresses it.
+        let engines = enginesLock.withLock { arr in arr }
+        XCTAssertEqual(engines.count, 3)
+        guard engines.count == 3 else { return }
+        XCTAssertFalse(engines[0] === engines[1])
+        XCTAssertFalse(engines[1] === engines[2])
+        XCTAssertEqual(vpioLock.withLock { $0 }, [false, false, false])
+        XCTAssertEqual(bufferSizeLock.withLock { $0 }, [256, 256, 256])
+        XCTAssertEqual(
+            routeSnapshotCount.withLock { $0 },
+            3,
+            "every attempt must resolve the current input route again"
+        )
+    }
+
+    // MARK: - Test 4
+
+    /// Explicit Stop owns cancellation even while the physical engine is down
+    /// between recovery attempts. A queued retry must never resurrect capture.
+    func testStopEngineCancelsPendingRecoveryRetry() throws {
+        let invocationLock = OSAllocatedUnfairLock(initialState: 0)
+        let enginesLock = OSAllocatedUnfairLock(initialState: [AVAudioEngine]())
+        let failedRecoveryExpectation = expectation(description: "immediate recovery fails")
+        let unexpectedRetryExpectation = expectation(description: "cancelled retry must not run")
+        unexpectedRetryExpectation.isInverted = true
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            recoveryRetryDelays: [0.2],
+            engineStarter: { engine, _, _, tapHandler in
+                let count = invocationLock.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
+                enginesLock.withLock { $0.append(engine) }
+                if count == 1 {
+                    tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
+                }
+                if count == 2 {
+                    failedRecoveryExpectation.fulfill()
+                    throw AVAudioEngineMicrophonePlatformError.noDeviceAvailable
+                }
+                if count > 2 {
+                    unexpectedRetryExpectation.fulfill()
+                }
+            }
+        )
+
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+        let firstEngine = enginesLock.withLock { $0[0] }
         NotificationCenter.default.post(
             name: .AVAudioEngineConfigurationChange,
             object: firstEngine
         )
-        // Flush the queue by reading isEngineRunning (queue.sync).
-        _ = platform.isEngineRunning
-        // Short wait for the inverted expectation to confirm no third call.
-        wait(for: [noThirdCallExpectation], timeout: 0.3)
+        wait(for: [failedRecoveryExpectation], timeout: 1.0)
+
+        platform.stopEngine()
+        wait(for: [unexpectedRetryExpectation], timeout: 0.3)
+
+        XCTAssertFalse(platform.isEngineRunning)
+        XCTAssertEqual(invocationLock.withLock { $0 }, 2)
+    }
+
+    // MARK: - Test 5
+
+    /// A burst of stale notifications for the same failed engine coalesces via
+    /// engine identity: replacing it once must not start parallel episodes.
+    func testConfigurationChangeBurstDoesNotCreateRestartStorm() throws {
+        let invocationLock = OSAllocatedUnfairLock(initialState: 0)
+        let enginesLock = OSAllocatedUnfairLock(initialState: [AVAudioEngine]())
+        let recoveryExpectation = expectation(description: "one recovery")
+        let unexpectedExtraRecovery = expectation(description: "no extra recovery")
+        unexpectedExtraRecovery.isInverted = true
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            recoveryRetryDelays: [0],
+            engineStarter: { engine, _, _, tapHandler in
+                let count = invocationLock.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
+                enginesLock.withLock { $0.append(engine) }
+                tapHandler(buffer.buffer, AVAudioTime(hostTime: UInt64(count)))
+                if count == 2 {
+                    recoveryExpectation.fulfill()
+                } else if count > 2 {
+                    unexpectedExtraRecovery.fulfill()
+                }
+            }
+        )
+        defer { platform.stopEngine() }
+
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+        let firstEngine = enginesLock.withLock { $0[0] }
+        for _ in 0..<5 {
+            NotificationCenter.default.post(
+                name: .AVAudioEngineConfigurationChange,
+                object: firstEngine
+            )
+        }
+
+        wait(for: [recoveryExpectation, unexpectedExtraRecovery], timeout: 1)
+        XCTAssertTrue(platform.isEngineRunning)
+        XCTAssertEqual(invocationLock.withLock { $0 }, 2)
+    }
+
+    // MARK: - Test 6
+
+    /// Once the bounded retry schedule is exhausted, ownership receives one
+    /// terminal callback so it can invalidate subscriptions and surface the
+    /// interruption instead of retaining a logically running ghost stream.
+    func testRecoveryExhaustionReportsUnexpectedStopOnce() throws {
+        let invocationLock = OSAllocatedUnfairLock(initialState: 0)
+        let enginesLock = OSAllocatedUnfairLock(initialState: [AVAudioEngine]())
+        let unexpectedStopCount = OSAllocatedUnfairLock(initialState: 0)
+        let unexpectedStopExpectation = expectation(description: "unexpected stop reported")
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            recoveryRetryDelays: [0, 0],
+            engineStarter: { engine, _, _, tapHandler in
+                let count = invocationLock.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
+                enginesLock.withLock { $0.append(engine) }
+                guard count == 1 else {
+                    throw AVAudioEngineMicrophonePlatformError.noDeviceAvailable
+                }
+                tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
+            }
+        )
+        platform.setUnexpectedStopHandler {
+            unexpectedStopCount.withLock { $0 += 1 }
+            unexpectedStopExpectation.fulfill()
+        }
+        defer { platform.stopEngine() }
+
+        try platform.configureAndStart(
+            vpioEnabled: true,
+            bufferSize: 512,
+            tapHandler: { _, _ in }
+        )
+        let firstEngine = enginesLock.withLock { $0[0] }
+        NotificationCenter.default.post(
+            name: .AVAudioEngineConfigurationChange,
+            object: firstEngine
+        )
+
+        wait(for: [unexpectedStopExpectation], timeout: 1.0)
+        XCTAssertFalse(platform.isEngineRunning)
         XCTAssertEqual(
-            invocationLock.withLock { c in c },
+            invocationLock.withLock { $0 },
+            4,
+            "initial start + immediate recovery + two scheduled retries"
+        )
+        XCTAssertEqual(unexpectedStopCount.withLock { $0 }, 1)
+    }
+
+    func testRecoveryStartWithoutFirstBufferRetriesFreshEngine() throws {
+        let invocationLock = OSAllocatedUnfairLock(initialState: 0)
+        let enginesLock = OSAllocatedUnfairLock(initialState: [AVAudioEngine]())
+        let retryExpectation = expectation(description: "silent replacement is retired and retried")
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            recoveryRetryDelays: [0],
+            engineStarter: { engine, _, _, tapHandler in
+                let count = invocationLock.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
+                enginesLock.withLock { $0.append(engine) }
+                if count == 1 || count == 3 {
+                    tapHandler(buffer.buffer, AVAudioTime(hostTime: UInt64(count)))
+                }
+                if count == 3 {
+                    retryExpectation.fulfill()
+                }
+            }
+        )
+        defer { platform.stopEngine() }
+
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+        let firstEngine = enginesLock.withLock { $0[0] }
+        NotificationCenter.default.post(
+            name: .AVAudioEngineConfigurationChange,
+            object: firstEngine
+        )
+
+        wait(for: [retryExpectation], timeout: 1.0)
+
+        let engines = enginesLock.withLock { $0 }
+        XCTAssertEqual(engines.count, 3, "initial start + silent replacement + retry")
+        XCTAssertFalse(engines[1] === engines[2], "the retry must use a fresh engine")
+    }
+
+    func testRecoveryStartWithoutFirstBufferEventuallyReportsUnexpectedStop() throws {
+        let invocationLock = OSAllocatedUnfairLock(initialState: 0)
+        let enginesLock = OSAllocatedUnfairLock(initialState: [AVAudioEngine]())
+        let unexpectedStopExpectation = expectation(description: "silent recovery exhausts")
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            recoveryRetryDelays: [],
+            engineStarter: { engine, _, _, tapHandler in
+                let count = invocationLock.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
+                enginesLock.withLock { $0.append(engine) }
+                if count == 1 {
+                    tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
+                }
+            }
+        )
+        platform.setUnexpectedStopHandler {
+            unexpectedStopExpectation.fulfill()
+        }
+        defer { platform.stopEngine() }
+
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+        let firstEngine = enginesLock.withLock { $0[0] }
+        NotificationCenter.default.post(
+            name: .AVAudioEngineConfigurationChange,
+            object: firstEngine
+        )
+
+        wait(for: [unexpectedStopExpectation], timeout: 1.0)
+
+        XCTAssertFalse(platform.isEngineRunning)
+        XCTAssertEqual(invocationLock.withLock { $0 }, 2, "initial start + one silent recovery")
+    }
+
+    func testStopEngineCancelsSilentRecoveryReadinessTimeout() throws {
+        let invocationLock = OSAllocatedUnfairLock(initialState: 0)
+        let enginesLock = OSAllocatedUnfairLock(initialState: [AVAudioEngine]())
+        let silentRecoveryStarted = expectation(description: "silent recovery starts")
+        let unexpectedRetry = expectation(description: "stop prevents readiness retry")
+        unexpectedRetry.isInverted = true
+        let unexpectedStop = expectation(description: "stop is not terminal engine death")
+        unexpectedStop.isInverted = true
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            recoveryRetryDelays: [0],
+            startupReadinessTimeout: 5,
+            engineStarter: { engine, _, _, tapHandler in
+                let count = invocationLock.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
+                enginesLock.withLock { $0.append(engine) }
+                if count == 1 {
+                    tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
+                } else if count == 2 {
+                    silentRecoveryStarted.fulfill()
+                } else if count > 2 {
+                    unexpectedRetry.fulfill()
+                }
+            }
+        )
+        platform.setUnexpectedStopHandler {
+            unexpectedStop.fulfill()
+        }
+
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+        let firstEngine = enginesLock.withLock { $0[0] }
+        NotificationCenter.default.post(
+            name: .AVAudioEngineConfigurationChange,
+            object: firstEngine
+        )
+        wait(for: [silentRecoveryStarted], timeout: 1.0)
+
+        let stopStartedAt = ContinuousClock.now
+        platform.stopEngine()
+        let stopDuration = stopStartedAt.duration(to: .now)
+        wait(for: [unexpectedRetry, unexpectedStop], timeout: 0.15)
+
+        XCTAssertLessThan(
+            stopDuration,
+            .seconds(1),
+            "stop must cancel the readiness wait instead of blocking for its five-second timeout"
+        )
+        XCTAssertFalse(platform.isEngineRunning)
+        XCTAssertEqual(invocationLock.withLock { $0 }, 2)
+    }
+
+    func testConfigurationChangesDuringRecoveryDoNotReplenishRetryBudget() throws {
+        let invocationLock = OSAllocatedUnfairLock(initialState: 0)
+        let enginesLock = OSAllocatedUnfairLock(initialState: [AVAudioEngine]())
+        let secondAttempt = expectation(description: "immediate recovery attempt")
+        let thirdAttempt = expectation(description: "first scheduled retry")
+        let fourthAttempt = expectation(description: "second scheduled retry")
+        let unexpectedFifthAttempt = expectation(description: "retry budget must remain bounded")
+        unexpectedFifthAttempt.isInverted = true
+        let exhausted = expectation(description: "bounded recovery exhausts")
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            recoveryRetryDelays: [0, 0],
+            engineStarter: { engine, _, _, tapHandler in
+                let count = invocationLock.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
+                enginesLock.withLock { $0.append(engine) }
+                switch count {
+                case 1:
+                    tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
+                case 2:
+                    secondAttempt.fulfill()
+                    tapHandler(buffer.buffer, AVAudioTime(hostTime: 2))
+                    NotificationCenter.default.post(
+                        name: .AVAudioEngineConfigurationChange,
+                        object: engine
+                    )
+                case 3:
+                    thirdAttempt.fulfill()
+                    tapHandler(buffer.buffer, AVAudioTime(hostTime: 3))
+                    NotificationCenter.default.post(
+                        name: .AVAudioEngineConfigurationChange,
+                        object: engine
+                    )
+                case 4:
+                    fourthAttempt.fulfill()
+                    tapHandler(buffer.buffer, AVAudioTime(hostTime: 4))
+                    NotificationCenter.default.post(
+                        name: .AVAudioEngineConfigurationChange,
+                        object: engine
+                    )
+                case 5...:
+                    unexpectedFifthAttempt.fulfill()
+                default:
+                    break
+                }
+            }
+        )
+        platform.setUnexpectedStopHandler {
+            exhausted.fulfill()
+        }
+        defer { platform.stopEngine() }
+
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+
+        let firstEngine = enginesLock.withLock { $0[0] }
+        NotificationCenter.default.post(
+            name: .AVAudioEngineConfigurationChange,
+            object: firstEngine
+        )
+        wait(
+            for: [secondAttempt, thirdAttempt, fourthAttempt, exhausted, unexpectedFifthAttempt],
+            timeout: 1
+        )
+
+        XCTAssertFalse(platform.isEngineRunning)
+        XCTAssertEqual(invocationLock.withLock { $0 }, 4)
+    }
+
+    /// A route change can leave AVAudioEngine claiming it is running after a
+    /// few tap callbacks, while no further audio arrives. Recover that stalled
+    /// callback stream on a fresh engine even without another configuration
+    /// notification.
+    func testCallbackStallAfterFirstBufferRestartsFreshEngine() throws {
+        let invocationLock = OSAllocatedUnfairLock(initialState: 0)
+        let enginesLock = OSAllocatedUnfairLock(initialState: [AVAudioEngine]())
+        let recoveryExpectation = expectation(description: "callback stall starts recovery")
+        let recoveryBuffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            recoveryRetryDelays: [],
+            callbackStallTimeout: 0.02,
+            callbackStallCheckInterval: 0.005,
+            engineStarter: { engine, _, _, tapHandler in
+                let invocation = invocationLock.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
+                enginesLock.withLock { $0.append(engine) }
+                tapHandler(recoveryBuffer.buffer, AVAudioTime(hostTime: UInt64(invocation)))
+                if invocation == 2 {
+                    recoveryExpectation.fulfill()
+                }
+            }
+        )
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+
+        wait(for: [recoveryExpectation], timeout: 1)
+        XCTAssertTrue(platform.isEngineRunning)
+        platform.stopEngine()
+
+        let engines = enginesLock.withLock { $0 }
+        XCTAssertEqual(engines.count, 2, "initial start + callback-stall recovery")
+        guard engines.count == 2 else { return }
+        XCTAssertFalse(engines[0] === engines[1], "recovery must rebuild the engine")
+    }
+
+    func testContinuousCallbackActivityDoesNotRecoverPastStallTimeout() throws {
+        let invocationLock = OSAllocatedUnfairLock(initialState: 0)
+        let unexpectedRecovery = expectation(description: "callback activity remains healthy")
+        unexpectedRecovery.isInverted = true
+        let tapHandlerLock = OSAllocatedUnfairLock<
+            (@Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void)?
+        >(initialState: nil)
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            callbackStallTimeout: 1,
+            callbackStallCheckInterval: 0.02,
+            engineStarter: { _, _, _, tapHandler in
+                let invocation = invocationLock.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
+                tapHandlerLock.withLock { $0 = tapHandler }
+                tapHandler(buffer.buffer, AVAudioTime(hostTime: UInt64(invocation)))
+                if invocation == 2 {
+                    unexpectedRecovery.fulfill()
+                }
+            }
+        )
+        defer { platform.stopEngine() }
+
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+
+        let installedTapHandler = try XCTUnwrap(tapHandlerLock.withLock { $0 })
+        for callback in 2...150 {
+            Thread.sleep(forTimeInterval: 0.01)
+            installedTapHandler(
+                buffer.buffer,
+                AVAudioTime(hostTime: UInt64(callback))
+            )
+        }
+
+        wait(for: [unexpectedRecovery], timeout: 0.01)
+        XCTAssertTrue(platform.isEngineRunning)
+        XCTAssertEqual(invocationLock.withLock { $0 }, 1)
+    }
+
+    func testStopEngineCancelsCallbackStallDetection() throws {
+        let invocationLock = OSAllocatedUnfairLock(initialState: 0)
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            callbackStallTimeout: 0.02,
+            callbackStallCheckInterval: 0.005,
+            engineStarter: { _, _, _, tapHandler in
+                invocationLock.withLock { $0 += 1 }
+                tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
+            }
+        )
+
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+        platform.stopEngine()
+        Thread.sleep(forTimeInterval: 0.05)
+
+        XCTAssertFalse(platform.isEngineRunning)
+        XCTAssertEqual(invocationLock.withLock { $0 }, 1)
+    }
+
+    func testCallbackStallRecoveryFailureReportsUnexpectedStop() throws {
+        let invocationLock = OSAllocatedUnfairLock(initialState: 0)
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
+        let unexpectedStop = expectation(description: "failed callback-stall recovery is terminal")
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            recoveryRetryDelays: [],
+            callbackStallTimeout: 0.02,
+            callbackStallCheckInterval: 0.005,
+            engineStarter: { _, _, _, tapHandler in
+                let invocation = invocationLock.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
+                guard invocation == 1 else {
+                    throw AVAudioEngineMicrophonePlatformError.noDeviceAvailable
+                }
+                tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
+            }
+        )
+        platform.setUnexpectedStopHandler {
+            unexpectedStop.fulfill()
+        }
+        defer { platform.stopEngine() }
+
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+
+        wait(for: [unexpectedStop], timeout: 1)
+        XCTAssertFalse(platform.isEngineRunning)
+        XCTAssertEqual(invocationLock.withLock { $0 }, 2)
+    }
+
+    func testEstablishedBluetoothRouteSurvivesSixtySecondsOfSilence() throws {
+        for attempt in [
+            MeetingInputDeviceAttempt(source: .selected(uid: "bluetooth"), deviceID: 10),
+            .implicitSystemDefault(resolvedDeviceID: 10),
+        ] {
+            let starts = OSAllocatedUnfairLock(initialState: 0)
+            let deaths = OSAllocatedUnfairLock(initialState: 0)
+            let deliveries = OSAllocatedUnfairLock(initialState: 0)
+            let clock = OSAllocatedUnfairLock(initialState: UInt64(0))
+            let currentTap = OSAllocatedUnfairLock<
+                (@Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void)?
+            >(initialState: nil)
+            let zero = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer(nonZero: false))
+            let signal = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer(nonZero: true))
+            let platform = AVAudioEngineMicrophonePlatform(
+                deviceAttemptsBuilder: { [attempt] },
+                inputDeviceSetter: { _, _ in true },
+                recoveryRetryDelays: [],
+                startupReadinessTimeout: 0,
+                bluetoothInputState: { _ in true },
+                callbackUptimeProvider: { clock.withLock { $0 } },
+                callbackStallCheckInterval: 0,
+                engineStarter: { _, _, _, tap in
+                    starts.withLock { $0 += 1 }
+                    currentTap.withLock { $0 = tap }
+                    tap(signal.buffer, AVAudioTime(hostTime: 1))
+                }
+            )
+            platform.setUnexpectedStopHandler { deaths.withLock { $0 += 1 } }
+            defer { platform.stopEngine() }
+            try platform.configureAndStart(vpioEnabled: false, bufferSize: 256) { _, _ in
+                deliveries.withLock { $0 += 1 }
+            }
+            let tap = try XCTUnwrap(currentTap.withLock { $0 })
+            for second in 1...60 {
+                clock.withLock { $0 = UInt64(second) * 1_000_000_000 }
+                tap(zero.buffer, AVAudioTime(hostTime: UInt64(second + 1)))
+                platform.checkCallbackLivenessNowForTesting()
+            }
+            tap(signal.buffer, AVAudioTime(hostTime: 62))
+            XCTAssertTrue(platform.isEngineRunning)
+            XCTAssertEqual(starts.withLock { $0 }, 1, "Silence must not recreate the engine")
+            XCTAssertEqual(deaths.withLock { $0 }, 0)
+            XCTAssertEqual(deliveries.withLock { $0 }, 62)
+        }
+    }
+
+    func testBluetoothSilencePreservesBothSharedSubscribersAndFrameDelivery() async throws {
+        let clock = OSAllocatedUnfairLock(initialState: UInt64(0))
+        let starts = OSAllocatedUnfairLock(initialState: 0)
+        let tap = OSAllocatedUnfairLock<(@Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void)?>(initialState: nil)
+        let firstFrames = OSAllocatedUnfairLock(initialState: UInt64(0))
+        let secondFrames = OSAllocatedUnfairLock(initialState: UInt64(0))
+        let deaths = OSAllocatedUnfairLock(initialState: 0)
+        let signal = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer(nonZero: true))
+        let silence = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer(nonZero: false))
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: { [.implicitSystemDefault(resolvedDeviceID: 10)] },
+            recoveryRetryDelays: [],
+            bluetoothInputState: { _ in true },
+            callbackUptimeProvider: { clock.withLock { $0 } },
+            callbackStallCheckInterval: 0,
+            engineStarter: { _, _, _, handler in
+                starts.withLock { $0 += 1 }
+                tap.withLock { $0 = handler }
+                handler(signal.buffer, AVAudioTime(hostTime: 1))
+            }
+        )
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 256)
+        let first = try await stream.subscribe(
+            wantsVPIO: false,
+            onEngineDeath: {
+                deaths.withLock { $0 += 1 }
+            }
+        ) { buffer, _ in firstFrames.withLock { $0 += UInt64(buffer.frameLength) } }
+        let second = try await stream.subscribe(
+            wantsVPIO: false,
+            onEngineDeath: {
+                deaths.withLock { $0 += 1 }
+            }
+        ) { buffer, _ in secondFrames.withLock { $0 += UInt64(buffer.frameLength) } }
+        let firstBaseline = firstFrames.withLock { $0 }
+        let secondBaseline = secondFrames.withLock { $0 }
+        let handler = try XCTUnwrap(tap.withLock { $0 })
+        for second in 1...60 {
+            clock.withLock { $0 = UInt64(second) * 1_000_000_000 }
+            handler(silence.buffer, AVAudioTime(hostTime: UInt64(second)))
+            platform.checkCallbackLivenessNowForTesting()
+        }
+        handler(signal.buffer, AVAudioTime(hostTime: 61))
+        let expectedFrames = UInt64(silence.buffer.frameLength) * 60 + UInt64(signal.buffer.frameLength)
+        XCTAssertEqual(firstFrames.withLock { $0 } - firstBaseline, expectedFrames)
+        XCTAssertEqual(secondFrames.withLock { $0 } - secondBaseline, expectedFrames)
+        XCTAssertEqual(stream.diagnostics.subscriberCount, 2)
+        XCTAssertTrue(stream.diagnostics.engineRunning)
+        XCTAssertEqual(starts.withLock { $0 }, 1)
+        XCTAssertEqual(deaths.withLock { $0 }, 0)
+        await stream.unsubscribe(first)
+        await stream.unsubscribe(second)
+    }
+
+    func testSustainedEmptyCallbacksRecoverThroughFallbackRoute() throws {
+        let invocationCount = OSAllocatedUnfairLock(initialState: 0)
+        let deliveredBufferCount = OSAllocatedUnfairLock(initialState: 0)
+        let currentDeviceID = OSAllocatedUnfairLock<AudioDeviceID?>(initialState: nil)
+        let uptimeNanoseconds = OSAllocatedUnfairLock<UInt64>(initialState: 0)
+        let initialTapHandler = OSAllocatedUnfairLock<
+            (@Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void)?
+        >(initialState: nil)
+        let zeroBuffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer(nonZero: false))
+        let emptyBuffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer(nonZero: false))
+        emptyBuffer.buffer.frameLength = 0
+        let signalBuffer = UncheckedSendableAudioPCMBuffer(
+            makeRecoveryTestBuffer(nonZero: true)
+        )
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: {
+                [
+                    MeetingInputDeviceAttempt(
+                        source: .selected(uid: "bluetooth"),
+                        deviceID: 10
+                    ),
+                    MeetingInputDeviceAttempt(source: .builtIn, deviceID: 20),
+                ]
+            },
+            inputDeviceSetter: { deviceID, _ in
+                currentDeviceID.withLock { $0 = deviceID }
+                return true
+            },
+            recoveryRetryDelays: [],
+            startupReadinessTimeout: 0,
+            bluetoothInputState: { $0 == 10 },
+            callbackUptimeProvider: { uptimeNanoseconds.withLock { $0 } },
+            callbackStallTimeout: 1,
+            invalidBufferTimeout: 0.02,
+            callbackStallCheckInterval: 0,
+            engineStarter: { _, _, _, tapHandler in
+                let invocation = invocationCount.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
+                let deviceID = currentDeviceID.withLock { $0 }
+                switch (invocation, deviceID) {
+                case (1, 10):
+                    initialTapHandler.withLock { $0 = tapHandler }
+                    tapHandler(signalBuffer.buffer, AVAudioTime(hostTime: 1))
+                case (2, 10):
+                    tapHandler(zeroBuffer.buffer, AVAudioTime(hostTime: 2))
+                case (3, 20):
+                    tapHandler(zeroBuffer.buffer, AVAudioTime(hostTime: 3))
+                default:
+                    XCTFail("Unexpected start attempt \(invocation) for device \(String(describing: deviceID))")
+                }
+            }
+        )
+        defer { platform.stopEngine() }
+
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in
+                deliveredBufferCount.withLock { $0 += 1 }
+            }
+        )
+        let tapHandler = try XCTUnwrap(initialTapHandler.withLock { $0 })
+
+        for hostTime in 2...12 {
+            uptimeNanoseconds.withLock { $0 = UInt64(hostTime) * 5_000_000 }
+            tapHandler(emptyBuffer.buffer, AVAudioTime(hostTime: UInt64(hostTime)))
+        }
+        platform.checkCallbackLivenessNowForTesting()
+
+        XCTAssertTrue(platform.isEngineRunning)
+        XCTAssertEqual(invocationCount.withLock { $0 }, 3)
+        XCTAssertEqual(
+            deliveredBufferCount.withLock { $0 },
             2,
-            "still exactly 2 invocations after second notification"
+            "Empty callbacks and Bluetooth startup silence must not reach consumers"
+        )
+        XCTAssertEqual(
+            platform.lastSucceededAttempt,
+            MeetingInputDeviceAttempt(source: .builtIn, deviceID: 20)
         )
     }
+
+    /// A replacement's first usable buffer is only readiness, not proof that
+    /// the route has recovered durably. Repeated short-lived starts must consume
+    /// one bounded episode instead of resetting the budget forever.
+    func testRepeatedOneBufferThenEmptyCallbacksExhaustsSingleRecoveryEpisode() throws {
+        let invocationCount = OSAllocatedUnfairLock(initialState: 0)
+        let currentTapHandler = OSAllocatedUnfairLock<
+            (@Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void)?
+        >(initialState: nil)
+        let uptimeNanoseconds = OSAllocatedUnfairLock<UInt64>(initialState: 0)
+        let unexpectedStop = expectation(description: "unstable recovery is exhausted")
+        let emptyBuffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer(nonZero: false))
+        emptyBuffer.buffer.frameLength = 0
+        let signalBuffer = UncheckedSendableAudioPCMBuffer(
+            makeRecoveryTestBuffer(nonZero: true)
+        )
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: {
+                [MeetingInputDeviceAttempt(source: .selected(uid: "bluetooth"), deviceID: 10)]
+            },
+            inputDeviceSetter: { _, _ in true },
+            recoveryRetryDelays: [],
+            startupReadinessTimeout: 0,
+            bluetoothInputState: { $0 == 10 },
+            callbackUptimeProvider: { uptimeNanoseconds.withLock { $0 } },
+            callbackStallTimeout: 1,
+            invalidBufferTimeout: 0.02,
+            callbackStallCheckInterval: 0,
+            engineStarter: { _, _, _, tapHandler in
+                let invocation = invocationCount.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
+                currentTapHandler.withLock { $0 = tapHandler }
+                tapHandler(signalBuffer.buffer, AVAudioTime(hostTime: UInt64(invocation)))
+            }
+        )
+        platform.setUnexpectedStopHandler {
+            unexpectedStop.fulfill()
+        }
+        defer { platform.stopEngine() }
+
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+
+        for cycle in 0..<2 {
+            let tapHandler = try XCTUnwrap(currentTapHandler.withLock { $0 })
+            let base = UInt64(cycle) * 50_000_000
+            uptimeNanoseconds.withLock { $0 = base + 5_000_000 }
+            tapHandler(emptyBuffer.buffer, AVAudioTime(hostTime: base + 1))
+            uptimeNanoseconds.withLock { $0 = base + 30_000_000 }
+            tapHandler(emptyBuffer.buffer, AVAudioTime(hostTime: base + 2))
+            platform.checkCallbackLivenessNowForTesting()
+        }
+
+        wait(for: [unexpectedStop], timeout: 1)
+        XCTAssertFalse(platform.isEngineRunning)
+        XCTAssertEqual(
+            invocationCount.withLock { $0 },
+            2,
+            "the replacement may start once, but its short-lived success must not create a new episode"
+        )
+    }
+
+    func testSilentHealthyRecoveryCompletesProbationBeforeLaterFailureStartsNewEpisode() throws {
+        let invocationCount = OSAllocatedUnfairLock(initialState: 0)
+        let currentTapHandler = OSAllocatedUnfairLock<
+            (@Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void)?
+        >(initialState: nil)
+        let uptimeNanoseconds = OSAllocatedUnfairLock<UInt64>(initialState: 0)
+        let unexpectedStop = expectation(description: "healthy recovery keeps future budget")
+        unexpectedStop.isInverted = true
+        let zeroBuffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer(nonZero: false))
+        let emptyBuffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer(nonZero: false))
+        emptyBuffer.buffer.frameLength = 0
+        let signalBuffer = UncheckedSendableAudioPCMBuffer(
+            makeRecoveryTestBuffer(nonZero: true)
+        )
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: {
+                [MeetingInputDeviceAttempt(source: .selected(uid: "bluetooth"), deviceID: 10)]
+            },
+            inputDeviceSetter: { _, _ in true },
+            recoveryRetryDelays: [],
+            startupReadinessTimeout: 0,
+            bluetoothInputState: { $0 == 10 },
+            callbackUptimeProvider: { uptimeNanoseconds.withLock { $0 } },
+            callbackStallTimeout: 1,
+            invalidBufferTimeout: 0.02,
+            callbackStallCheckInterval: 0,
+            engineStarter: { _, _, _, tapHandler in
+                let invocation = invocationCount.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
+                currentTapHandler.withLock { $0 = tapHandler }
+                tapHandler(signalBuffer.buffer, AVAudioTime(hostTime: UInt64(invocation)))
+            }
+        )
+        platform.setUnexpectedStopHandler {
+            unexpectedStop.fulfill()
+        }
+        defer { platform.stopEngine() }
+
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+
+        let firstTapHandler = try XCTUnwrap(currentTapHandler.withLock { $0 })
+        uptimeNanoseconds.withLock { $0 = 5_000_000 }
+        firstTapHandler(emptyBuffer.buffer, AVAudioTime(hostTime: 1))
+        uptimeNanoseconds.withLock { $0 = 30_000_000 }
+        firstTapHandler(emptyBuffer.buffer, AVAudioTime(hostTime: 2))
+        platform.checkCallbackLivenessNowForTesting()
+        XCTAssertEqual(invocationCount.withLock { $0 }, 2)
+
+        let recoveredTapHandler = try XCTUnwrap(currentTapHandler.withLock { $0 })
+        uptimeNanoseconds.withLock { $0 = 500_000_000 }
+        recoveredTapHandler(zeroBuffer.buffer, AVAudioTime(hostTime: 3))
+        platform.checkCallbackLivenessNowForTesting()
+        uptimeNanoseconds.withLock { $0 = 1_100_000_000 }
+        recoveredTapHandler(zeroBuffer.buffer, AVAudioTime(hostTime: 4))
+        platform.checkCallbackLivenessNowForTesting()
+
+        uptimeNanoseconds.withLock { $0 = 1_105_000_000 }
+        recoveredTapHandler(emptyBuffer.buffer, AVAudioTime(hostTime: 5))
+        uptimeNanoseconds.withLock { $0 = 1_130_000_000 }
+        recoveredTapHandler(emptyBuffer.buffer, AVAudioTime(hostTime: 6))
+        platform.checkCallbackLivenessNowForTesting()
+
+        wait(for: [unexpectedStop], timeout: 0.05)
+        XCTAssertTrue(platform.isEngineRunning)
+        XCTAssertEqual(
+            invocationCount.withLock { $0 },
+            3,
+            "a replacement that survived probation must earn a fresh future episode"
+        )
+    }
+
+    /// Recovery keeps the same one-per-configure Bluetooth retry as initial
+    /// startup. Otherwise a working built-in fallback can end the recovery
+    /// episode before System Default receives its fresh-engine attempt.
+    func testRecoveryRetriesImplicitBluetoothDefaultBeforeBuiltIn() throws {
+        let routeBuildCount = OSAllocatedUnfairLock(initialState: 0)
+        let invocationCount = OSAllocatedUnfairLock(initialState: 0)
+        let explicitlySetDeviceIDs = OSAllocatedUnfairLock(initialState: [AudioDeviceID]())
+        let engines = OSAllocatedUnfairLock(initialState: [AVAudioEngine]())
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer(nonZero: true))
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: {
+                routeBuildCount.withLock { $0 += 1 }
+                return [
+                    .implicitSystemDefault(resolvedDeviceID: 10),
+                    MeetingInputDeviceAttempt(source: .builtIn, deviceID: 20),
+                ]
+            },
+            inputDeviceSetter: { deviceID, _ in
+                explicitlySetDeviceIDs.withLock { $0.append(deviceID) }
+                return true
+            },
+            recoveryRetryDelays: [],
+            startupReadinessTimeout: 0,
+            bluetoothInputState: { $0 == 10 },
+            callbackStallCheckInterval: 0,
+            engineStarter: { engine, _, _, tapHandler in
+                let invocation = invocationCount.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
+                engines.withLock { $0.append(engine) }
+                // Invocation 2 is the first recovery attempt on the Bluetooth
+                // implicit default: it starts but never delivers a buffer.
+                // The refreshed implicit attempt (invocation 3) succeeds.
+                if invocation != 2 {
+                    tapHandler(buffer.buffer, AVAudioTime(hostTime: UInt64(invocation)))
+                }
+            }
+        )
+        defer { platform.stopEngine() }
+
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+        XCTAssertEqual(invocationCount.withLock { $0 }, 1)
+        XCTAssertEqual(
+            platform.lastSucceededAttempt,
+            .implicitSystemDefault(resolvedDeviceID: 10)
+        )
+
+        let firstEngine = engines.withLock { $0 }[0]
+        NotificationCenter.default.post(
+            name: .AVAudioEngineConfigurationChange,
+            object: firstEngine
+        )
+        _ = platform.isEngineRunning  // flush the queued observer handling
+
+        XCTAssertTrue(platform.isEngineRunning)
+        XCTAssertEqual(
+            invocationCount.withLock { $0 },
+            3,
+            "recovery must give the refreshed implicit default a fresh engine"
+        )
+        XCTAssertEqual(
+            routeBuildCount.withLock { $0 },
+            4,
+            "initial start, signal-policy refresh, recovery snapshot, then retry snapshot"
+        )
+        XCTAssertEqual(
+            explicitlySetDeviceIDs.withLock { $0 },
+            [],
+            "the refreshed System Default retry must remain implicit"
+        )
+        XCTAssertEqual(
+            platform.lastSucceededAttempt,
+            .implicitSystemDefault(resolvedDeviceID: 10)
+        )
+        let capturedEngines = engines.withLock { $0 }
+        XCTAssertFalse(capturedEngines[1] === capturedEngines[2])
+    }
+}
+
+/// A nonzero buffer in the engine's own input-node format, so the committed
+/// snapshot (captured from the tap) matches the observer's `inputFormat()` read
+/// exactly as in production. Tests that must post for a reason other than
+/// format (route, Bluetooth) use this so they cannot pass on a format mismatch.
+private func makeLiveInputFormatBuffer(for engine: AVAudioEngine) -> AVAudioPCMBuffer? {
+    let format = engine.inputNode.outputFormat(forBus: 0)
+    guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 32) else { return nil }
+    buffer.frameLength = 32
+    buffer.floatChannelData?[0][0] = 0.001
+    return buffer
+}
+
+private func makeRecoveryTestBuffer(nonZero: Bool = true) -> AVAudioPCMBuffer {
+    let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
+    let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 32)!
+    buffer.frameLength = 32
+    if nonZero {
+        buffer.floatChannelData?[0][0] = 0.001
+    }
+    return buffer
 }

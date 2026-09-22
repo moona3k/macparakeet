@@ -1,6 +1,7 @@
 # QA Agents — Landscape & Plays
 
-> Status: **ACTIVE** — last updated 2026-05-03
+> Status: **DATED RESEARCH SNAPSHOT** — last updated 2026-05-03. Reverify tool
+> availability, maturity, platform support, and pricing before adoption.
 
 ## Why this doc
 

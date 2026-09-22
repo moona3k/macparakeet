@@ -343,11 +343,11 @@ struct LiveAskPaneView: View {
                 .disabled(!viewModel.canSendMessage)
                 .onSubmit { send() }
                 .background(
-                    RoundedRectangle(cornerRadius: 14)
+                    RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
                         .fill(DesignSystem.Colors.surfaceElevated)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14)
+                    RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
                         .strokeBorder(DesignSystem.Colors.border.opacity(0.3), lineWidth: 1)
                 )
 
@@ -685,11 +685,9 @@ private struct AssistantTurnView: View {
                         .accessibilityElement()
                         .accessibilityLabel("Thinking")
                 } else {
-                    // Reuse the canonical NSTextView-based renderer used
-                    // elsewhere (post-meeting Chat tab, PromptResults).
-                    // Markdown, headings, code blocks, lists, and proper text
-                    // selection — for free.
-                    MarkdownContentView(content)
+                    // Reuse the canonical renderer used elsewhere
+                    // (post-meeting Chat tab and Prompt Results).
+                    MarkdownContentView(content, isStreaming: isStreaming)
                         .fixedSize(horizontal: false, vertical: true)
                         .transition(.opacity)
                 }

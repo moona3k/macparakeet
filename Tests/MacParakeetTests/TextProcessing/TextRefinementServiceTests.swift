@@ -5,7 +5,7 @@ final class TextRefinementServiceTests: XCTestCase {
     func testCleanModeReturnsDeterministicText() async {
         let service = TextRefinementService()
         let result = await service.refine(
-            rawText: "um hello world",
+            rawText: "uh hello world",
             mode: .clean,
             customWords: [],
             snippets: []
@@ -102,5 +102,25 @@ final class TextRefinementServiceTests: XCTestCase {
         )
         XCTAssertEqual(result.text, "hello world")
         XCTAssertEqual(result.path, .deterministic)
+    }
+
+    func testCleanModeStripsUmByDefaultAndPreservesWhenDisabled() async {
+        let service = TextRefinementService()
+        let stripped = await service.refine(
+            rawText: "I um think we should ship it",
+            mode: .clean,
+            customWords: [],
+            snippets: []
+        )
+        XCTAssertEqual(stripped.text, "I think we should ship it")
+
+        let preserved = await service.refine(
+            rawText: "um, dois, três",
+            mode: .clean,
+            customWords: [],
+            snippets: [],
+            removeUmFiller: false
+        )
+        XCTAssertEqual(preserved.text, "Um, dois, três")
     }
 }

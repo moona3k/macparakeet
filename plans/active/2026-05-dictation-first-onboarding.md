@@ -18,7 +18,7 @@
 - **Priority**: **P1** — highest-leverage activation lever in the backlog
 - **Effort**: Part A = **S–M** (subtraction + switch fixes + tests) · Part B = **M** (warm-up state machine)
 - **Risk**: Part A = **LOW** (pure removal, no new control flow) · Part B = **MED** (perturbs the warm-up machinery)
-- **Depends on**: Part A — none. Part B — *soft*: land `plans/active/2026-06-onboarding-stall-watchdog-test.md` first so the warm-up path Part B perturbs has test coverage under it.
+- **Depends on**: Part A — none. Part B — *soft*, satisfied by `plans/completed/2026-06-onboarding-stall-watchdog-test.md`, which landed before the warm-up timing change.
 - **Category**: direction / activation
 - **Planned at**: commit `237bb8ae1`, 2026-06-13 (refreshed to executor-grade from the 2026-05-29 design)
 - **ADR**: amends ADR-005 (onboarding first-run)
@@ -139,8 +139,9 @@ Convention to match: `@MainActor @Observable` ViewModels; telemetry via
 - `Sources/MacParakeet/Views/Onboarding/OnboardingFlowView.swift`
 - `Sources/MacParakeetCore/AppFeatures.swift` (doc-comments only)
 - `Tests/MacParakeetTests/ViewModels/OnboardingViewModelTests.swift`
-- Docs on completion: `spec/adr/005-onboarding-first-run.md`, `spec/02-features.md`,
-  `spec/README.md`, optional `spec/kernel/requirements.yaml` (`REQ-ONB-001`).
+- Docs on completion: `spec/adr/005-onboarding-first-run.md`,
+  `spec/02-features.md`, and `spec/README.md`. Old `REQ-*` references are
+  historical only; do not update the retired requirements index.
 
 **In scope (Part B, separate commit):** the four bounded warm-up guards in Design §5,
 in the same two source files + the test file.
@@ -406,5 +407,5 @@ firm new-user floor (sessions ≠ users; multi-release days inflate launches).
 - Part B interacts with the warm-up state machine covered by
   `2026-06-onboarding-stall-watchdog-test.md` — run/extend those tests if you
   touch the watchdog arming.
-- On completion: ADR-005 amendment, spec progress, `REQ-ONB-001` (+ traceability),
-  then archive this plan to `plans/completed/`.
+- On completion: ADR-005 amendment and spec progress, then archive this plan to
+  `plans/completed/`.

@@ -149,14 +149,20 @@ final class DictationOverlayController: DictationOverlayControlling {
         }
 
         let panelWidth = bounds.width
-        let pillWidth: CGFloat = 210 // approximate pill content width
+        // Dictation persistent recording: 7pt side inset + 22 cancel + 12 + 36
+        // timer + 12 + 64 waveform + 12 + 23 stop + 7 ≈ 195. Must stay in sync
+        // with `DictationOverlayView` recording padding or hover zones drift.
+        // Command persistent recording is a wider text card; this 195/36 math
+        // is the same pre-existing approximation (was 210/45) and is not
+        // claimed to fit that layout.
+        let pillWidth: CGFloat = 195
         let pillLeft = (panelWidth - pillWidth) / 2
         let pillRight = pillLeft + pillWidth
 
         let x = point.x
-        if x >= pillLeft && x < pillLeft + 45 {
+        if x >= pillLeft && x < pillLeft + 36 {
             overlayViewModel.hoverTooltip = "Cancel (Esc)"
-        } else if x > pillRight - 45 && x <= pillRight {
+        } else if x > pillRight - 36 && x <= pillRight {
             if overlayViewModel.sessionKind == .command {
                 overlayViewModel.hoverTooltip = "Stop & apply (Fn+Control)"
             } else {
@@ -207,6 +213,11 @@ final class DictationOverlayViewModel {
     enum ProcessingLoadCaption: Equatable {
         case preparing
         case preparingExtended
+        /// Cohere's one-time, per-launch Core ML graph specialization (~2 min on
+        /// the GPU path). Shown when a dictation is triggered before the launch
+        /// warm-up has finished, so the wait reads as setup, not a hang.
+        case optimizing
+        case optimizingExtended
         case failed
     }
 
@@ -232,6 +243,7 @@ final class DictationOverlayViewModel {
 
     /// Cancel countdown value (separate from state enum to avoid view reconstruction jank).
     var cancelTimeRemaining: Double = 5.0
+    var cancelCountdownDuration: Double = 5.0
 
     private var timerTask: Task<Void, Never>?
     private var busyMessageTask: Task<Void, Never>?

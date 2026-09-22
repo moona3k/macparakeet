@@ -4,6 +4,106 @@ import XCTest
 @testable import MacParakeetCore
 
 final class TranscribeCommandTests: XCTestCase {
+    private enum OutputTeardownError: Error, Equatable {
+        case run
+        case restore
+    }
+
+    func testAudioTrackOptionIsOneBasedAndResolvesToAudioOrdinal() throws {
+        let command = try TranscribeCommand.parse(["episode.mkv", "--audio-track", "2"])
+
+        XCTAssertEqual(command.audioTrack, 2)
+        XCTAssertEqual(TranscribeCommand.zeroBasedAudioTrackOrdinal(command.audioTrack), 1)
+    }
+
+    func testAudioTrackOptionRejectsZero() {
+        XCTAssertThrowsError(
+            try TranscribeCommand.parse(["episode.mkv", "--audio-track", "0"])
+        ) { error in
+            XCTAssertTrue(String(describing: error).contains("at least 1"))
+        }
+    }
+
+    func testAudioTrackOptionRejectsDownloadedMediaAndPodcastInputs() {
+        XCTAssertThrowsError(
+            try TranscribeCommand.parse([
+                "https://example.com/episode.mp4", "--audio-track", "2",
+            ])
+        ) { error in
+            XCTAssertTrue(String(describing: error).contains("local files"))
+        }
+
+        XCTAssertThrowsError(
+            try TranscribeCommand.parse([
+                "--podcast", "The Daily", "--audio-track", "2",
+            ])
+        ) { error in
+            XCTAssertTrue(String(describing: error).contains("local files"))
+        }
+    }
+
+    func testAudioTrackValidationRejectsMissingOrdinal() {
+        let tracks = [
+            AudioTrackDescriptor(ordinal: 0, streamIndex: 1),
+            AudioTrackDescriptor(ordinal: 1, streamIndex: 2),
+        ]
+
+        XCTAssertNoThrow(
+            try TranscribeCommand.validateAudioTrackOrdinal(
+                1,
+                tracks: tracks,
+                fileName: "episode.mkv"
+            )
+        )
+        XCTAssertThrowsError(
+            try TranscribeCommand.validateAudioTrackOrdinal(
+                2,
+                tracks: tracks,
+                fileName: "episode.mkv"
+            )
+        ) { error in
+            let message = String(describing: error)
+            XCTAssertTrue(message.contains("--audio-track 3"))
+            XCTAssertTrue(message.contains("2 audio tracks"))
+        }
+    }
+
+    func testOutputEmissionAfterNativeTeardownSurfacesRunErrorBeforeRestoreError() {
+        var ignoredRestoreErrors: [OutputTeardownError] = []
+        XCTAssertThrowsError(
+            try TranscribeCommand.outputEmissionAfterNativeTeardown(
+                runResult: Result<String, Error>.failure(OutputTeardownError.run),
+                restoreResult: .failure(OutputTeardownError.restore),
+                warnOnIgnoredRestoreFailure: { error in
+                    if let error = error as? OutputTeardownError {
+                        ignoredRestoreErrors.append(error)
+                    }
+                }
+            )
+        ) { error in
+            XCTAssertEqual(error as? OutputTeardownError, .run)
+        }
+        XCTAssertEqual(ignoredRestoreErrors, [.restore])
+    }
+
+    func testOutputEmissionAfterNativeTeardownSurfacesRestoreErrorWhenRunSucceeds() {
+        var ignoredRestoreErrors: [OutputTeardownError] = []
+        XCTAssertThrowsError(
+            try TranscribeCommand.outputEmissionAfterNativeTeardown(
+                runResult: Result<String, Error>.success("payload"),
+                restoreResult: .failure(OutputTeardownError.restore),
+                warnOnIgnoredRestoreFailure: { error in
+                    if let error = error as? OutputTeardownError {
+                        ignoredRestoreErrors.append(error)
+                    }
+                }
+            )
+        ) { error in
+            XCTAssertEqual(error as? OutputTeardownError, .restore)
+        }
+        XCTAssertTrue(ignoredRestoreErrors.isEmpty)
+    }
+
     func testResolveProcessingModeUsesRawForAppDefaultWhenUnset() {
         let mode = TranscribeCommand.resolveProcessingMode(.appDefault, storedMode: nil)
         XCTAssertEqual(mode, .raw)
@@ -43,6 +143,11 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(
             TranscribeCommand.resolveParakeetModelVariant(.v3, storedVariant: .v2),
             .v3
+        )
+        // Unified (issue #520) is selectable per-call via --parakeet-model unified.
+        XCTAssertEqual(
+            TranscribeCommand.resolveParakeetModelVariant(.unified, storedVariant: .v3),
+            .unified
         )
     }
 
@@ -170,6 +275,136 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(selection.language, "en-US")
     }
 
+    func testResolveSpeechEngineUsesStoredCohereLanguageForAppDefault() {
+        // Cohere has no auto-detect and its engine defaults to English, so an
+        // app-default run with no explicit --language must carry the stored
+        // Cohere picker language, not silently fall back to English.
+        let selection = TranscribeCommand.resolveSpeechEngine(
+            .appDefault,
+            storedEngine: SpeechEnginePreference.cohere.rawValue,
+            storedLanguage: "ko",
+            storedNemotronLanguage: "en_US",
+            storedCohereLanguage: "fr",
+            explicitLanguage: nil,
+            physicalMemoryBytes: 32 * 1024 * 1024 * 1024
+        )
+
+        XCTAssertEqual(selection.engine, .cohere)
+        XCTAssertEqual(selection.language, "fr")
+    }
+
+    func testResolveSpeechEngineFallsBackFromStoredCohereBelowMemoryFloor() {
+        let selection = TranscribeCommand.resolveSpeechEngine(
+            .appDefault,
+            storedEngine: SpeechEnginePreference.cohere.rawValue,
+            storedLanguage: "ko",
+            storedCohereLanguage: "fr",
+            explicitLanguage: nil,
+            physicalMemoryBytes: 8 * 1024 * 1024 * 1024
+        )
+
+        XCTAssertEqual(selection, SpeechEngineSelection(engine: .parakeet))
+        XCTAssertTrue(
+            TranscribeCommand.shouldFallbackCohereAppDefaultToParakeet(
+                requestedEngine: .appDefault,
+                storedEngine: SpeechEnginePreference.cohere.rawValue,
+                physicalMemoryBytes: 8 * 1024 * 1024 * 1024
+            )
+        )
+    }
+
+    func testResolveSpeechEngineExplicitLanguageOverridesStoredCohereLanguage() {
+        let selection = TranscribeCommand.resolveSpeechEngine(
+            .appDefault,
+            storedEngine: SpeechEnginePreference.cohere.rawValue,
+            storedLanguage: "ko",
+            storedCohereLanguage: "fr",
+            explicitLanguage: "ja",
+            physicalMemoryBytes: 32 * 1024 * 1024 * 1024
+        )
+
+        XCTAssertEqual(selection.engine, .cohere)
+        XCTAssertEqual(selection.language, "ja")
+    }
+
+    func testResolveSpeechEngineExplicitCohereUsesExplicitOrStoredCohereLanguage() {
+        let storedSelection = TranscribeCommand.resolveSpeechEngine(
+            .cohere,
+            storedEngine: SpeechEnginePreference.whisper.rawValue,
+            storedLanguage: "ko",
+            storedCohereLanguage: "zh",
+            explicitLanguage: nil,
+            physicalMemoryBytes: 32 * 1024 * 1024 * 1024
+        )
+        XCTAssertEqual(storedSelection.engine, .cohere)
+        XCTAssertEqual(storedSelection.language, "zh")
+
+        let explicitSelection = TranscribeCommand.resolveSpeechEngine(
+            .cohere,
+            storedEngine: SpeechEnginePreference.whisper.rawValue,
+            storedLanguage: "ko",
+            storedCohereLanguage: "zh",
+            explicitLanguage: "ja",
+            physicalMemoryBytes: 32 * 1024 * 1024 * 1024
+        )
+        XCTAssertEqual(explicitSelection.engine, .cohere)
+        XCTAssertEqual(explicitSelection.language, "ja")
+    }
+
+    func testValidateSpeechEngineMemoryRequirementRejectsExplicitCohereBelowFloor() {
+        let selection = SpeechEngineSelection(engine: .cohere)
+
+        XCTAssertThrowsError(
+            try TranscribeCommand.validateSpeechEngineMemoryRequirement(
+                selection,
+                physicalMemoryBytes: 8 * 1024 * 1024 * 1024
+            )
+        ) { error in
+            XCTAssertTrue(error is ValidationError)
+            XCTAssertTrue(String(describing: error).contains("16 GB"), String(describing: error))
+        }
+    }
+
+    func testValidateCohereLanguageOverrideRejectsExplicitAuto() {
+        let selection = TranscribeCommand.resolveSpeechEngine(
+            .cohere,
+            storedEngine: SpeechEnginePreference.parakeet.rawValue,
+            storedLanguage: nil,
+            storedCohereLanguage: "fr",
+            explicitLanguage: "auto",
+            physicalMemoryBytes: 32 * 1024 * 1024 * 1024
+        )
+
+        XCTAssertThrowsError(try TranscribeCommand.validateCohereLanguageOverride("auto", speechEngine: selection)) { error in
+            let message = String(describing: error)
+            let supportedCodes = SpeechEngineCapabilityRegistry.capabilities(for: .cohere)
+                .supportedLanguages.supportedLanguageCodes ?? []
+            let supported = supportedCodes.joined(separator: ", ")
+            XCTAssertTrue(message.contains("Cohere has no auto-detect"), message)
+            XCTAssertFalse(supportedCodes.isEmpty)
+            XCTAssertTrue(message.contains(supported), message)
+        }
+    }
+
+    func testValidateCohereLanguageOverrideAllowsSupportedExplicitCode() throws {
+        let selection = TranscribeCommand.resolveSpeechEngine(
+            .cohere,
+            storedEngine: SpeechEnginePreference.parakeet.rawValue,
+            storedLanguage: nil,
+            storedCohereLanguage: "fr",
+            explicitLanguage: "zh_CN",
+            physicalMemoryBytes: 32 * 1024 * 1024 * 1024
+        )
+
+        try TranscribeCommand.validateCohereLanguageOverride("zh_CN", speechEngine: selection)
+        XCTAssertEqual(selection.language, "zh")
+    }
+
+    func testNemotronLanguageOverridePolicyReadsCapabilityRegistry() {
+        XCTAssertTrue(TranscribeCommand.nemotronIgnoresLanguageOverride(.english1120))
+        XCTAssertFalse(TranscribeCommand.nemotronIgnoresLanguageOverride(.multilingual1120))
+    }
+
     func testResolveSpeechEngineExplicitNemotronUsesExplicitLanguage() {
         let selection = TranscribeCommand.resolveSpeechEngine(
             .nemotron,
@@ -196,7 +431,8 @@ final class TranscribeCommandTests: XCTestCase {
 
     func testResolveSpeakerDetectionUsesStoredDefaultWhenRequested() {
         XCTAssertTrue(TranscribeCommand.resolveSpeakerDetection(.appDefault, storedEnabled: true, noDiarize: false))
-        XCTAssertFalse(TranscribeCommand.resolveSpeakerDetection(.appDefault, storedEnabled: nil, noDiarize: false))
+        XCTAssertTrue(TranscribeCommand.resolveSpeakerDetection(.appDefault, storedEnabled: nil, noDiarize: false))
+        XCTAssertFalse(TranscribeCommand.resolveSpeakerDetection(.appDefault, storedEnabled: false, noDiarize: false))
     }
 
     func testResolveSpeakerDetectionRespectsExplicitAndLegacyDisableFlag() {
@@ -296,6 +532,17 @@ final class TranscribeCommandTests: XCTestCase {
 
         XCTAssertEqual(command.engine, .nemotron)
         XCTAssertEqual(command.language, "en-US")
+    }
+
+    func testParsesCohereEngineAndLanguage() throws {
+        let command = try TranscribeCommand.parse([
+            "sample.wav",
+            "--engine", "cohere",
+            "--language", "ja",
+        ])
+
+        XCTAssertEqual(command.engine, .cohere)
+        XCTAssertEqual(command.language, "ja")
     }
 
     func testParsesAppDefaultEngineAndSpeakerDetection() throws {
@@ -699,7 +946,7 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(TranscribeCommand.sanitizedBasename("Q3 2026 review.final"), "Q3 2026 review.final")
     }
 
-    func testWriteOutputWritesTranscriptAndAvoidsOverwrite() throws {
+    func testWriteOutputWritesTranscriptAndAvoidsOverwrite() async throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("cli-write-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -711,16 +958,16 @@ final class TranscribeCommandTests: XCTestCase {
             status: .completed
         )
 
-        let first = try TranscribeCommand.writeOutput(transcription, to: dir, format: .transcript)
+        let first = try await TranscribeCommand.writeOutput(transcription, to: dir, format: .transcript)
         XCTAssertEqual(first.lastPathComponent, "lecture01.txt")
         XCTAssertEqual(try String(contentsOf: first, encoding: .utf8), "hello world")
 
         // A second write of the same name must not clobber the first.
-        let second = try TranscribeCommand.writeOutput(transcription, to: dir, format: .transcript)
+        let second = try await TranscribeCommand.writeOutput(transcription, to: dir, format: .transcript)
         XCTAssertEqual(second.lastPathComponent, "lecture01-2.txt")
     }
 
-    func testWriteOutputJSONIsParseable() throws {
+    func testWriteOutputJSONIsParseable() async throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("cli-write-json-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -728,13 +975,126 @@ final class TranscribeCommandTests: XCTestCase {
 
         let transcription = Transcription(
             fileName: "clip.mp3",
+            audioTrackOrdinal: 1,
             rawTranscript: "hi",
             status: .completed
         )
-        let url = try TranscribeCommand.writeOutput(transcription, to: dir, format: .json)
+        let url = try await TranscribeCommand.writeOutput(transcription, to: dir, format: .json)
         XCTAssertEqual(url.pathExtension, "json")
         let object = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
         XCTAssertNotNil(object)
+        XCTAssertEqual(object?["audioTrackOrdinal"] as? Int, 1)
+    }
+
+    func testFileExtensionMapsEachFormat() {
+        XCTAssertEqual(TranscribeCommand.fileExtension(for: .text), "txt")
+        XCTAssertEqual(TranscribeCommand.fileExtension(for: .transcript), "txt")
+        XCTAssertEqual(TranscribeCommand.fileExtension(for: .json), "json")
+        XCTAssertEqual(TranscribeCommand.fileExtension(for: .srt), "srt")
+        XCTAssertEqual(TranscribeCommand.fileExtension(for: .vtt), "vtt")
+        XCTAssertEqual(TranscribeCommand.fileExtension(for: .dapt), "dapt.xml")
+    }
+
+    func testParsesStructuredFormats() throws {
+        XCTAssertEqual(try TranscribeCommand.parse(["clip.mp3", "--format", "vtt"]).format, .vtt)
+        XCTAssertEqual(try TranscribeCommand.parse(["clip.mp3", "--format", "srt"]).format, .srt)
+        XCTAssertEqual(try TranscribeCommand.parse(["clip.mp3", "--format", "dapt"]).format, .dapt)
+    }
+
+    /// Structured `transcribe --format` outputs must use the same renderer as
+    /// `export <id> --format` so the two public paths stay byte-identical.
+    @MainActor
+    func testFormattedStringMatchesExportServiceRenderer() {
+        let words = [
+            WordTimestamp(word: "hello", startMs: 0, endMs: 400, confidence: 0.9, speakerId: "S1"),
+            WordTimestamp(word: "world", startMs: 400, endMs: 900, confidence: 0.95, speakerId: "S1"),
+        ]
+        let transcription = Transcription(
+            fileName: "clip.mp3",
+            durationMs: 900,
+            rawTranscript: "hello world",
+            wordTimestamps: words,
+            speakers: [SpeakerInfo(id: "S1", label: "Speaker 1")],
+            status: .completed
+        )
+        let exporter = ExportService()
+
+        let vtt = TranscribeCommand.formattedString(for: transcription, format: .vtt)
+        XCTAssertEqual(vtt, exporter.formatVTT(transcription: transcription))
+        XCTAssertTrue(vtt.hasPrefix("WEBVTT"))
+
+        let srt = TranscribeCommand.formattedString(for: transcription, format: .srt)
+        XCTAssertEqual(srt, exporter.formatSRT(transcription: transcription))
+
+        let dapt = TranscribeCommand.formattedString(for: transcription, format: .dapt)
+        XCTAssertEqual(dapt, exporter.formatDAPT(transcription: transcription))
+        XCTAssertTrue(dapt.contains("daptm:scriptType=\"originalTranscript\""))
+
+        // Other formats render through the text/json paths, so the shared
+        // renderer returns an empty body for them.
+        XCTAssertEqual(TranscribeCommand.formattedString(for: transcription, format: .text), "")
+        XCTAssertEqual(TranscribeCommand.formattedString(for: transcription, format: .json), "")
+    }
+
+    func testWriteOutputWritesVTTFile() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cli-write-vtt-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let transcription = Transcription(
+            fileName: "clip.mp3",
+            durationMs: 900,
+            rawTranscript: "hello world",
+            wordTimestamps: [
+                WordTimestamp(word: "hello", startMs: 0, endMs: 400, confidence: 0.9, speakerId: nil),
+                WordTimestamp(word: "world", startMs: 400, endMs: 900, confidence: 0.95, speakerId: nil),
+            ],
+            status: .completed
+        )
+        let url = try await TranscribeCommand.writeOutput(transcription, to: dir, format: .vtt)
+        XCTAssertEqual(url.lastPathComponent, "clip.vtt")
+        let contents = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertTrue(contents.hasPrefix("WEBVTT"), "VTT file should start with the WEBVTT header")
+        XCTAssertTrue(contents.contains("hello"))
+    }
+
+    func testWriteOutputWritesDAPTFile() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cli-write-dapt-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let transcription = Transcription(
+            fileName: "clip.mp3",
+            rawTranscript: "Structured transcript.",
+            language: "en",
+            status: .completed
+        )
+        let url = try await TranscribeCommand.writeOutput(transcription, to: dir, format: .dapt)
+
+        XCTAssertEqual(url.lastPathComponent, "clip.dapt.xml")
+        let contents = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertTrue(contents.contains("daptm:scriptType=\"originalTranscript\""))
+    }
+
+    func testWriteOutputPreservesDAPTCompoundExtensionOnCollision() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cli-write-dapt-collision-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let transcription = Transcription(
+            fileName: "clip.mp3",
+            rawTranscript: "Structured transcript.",
+            status: .completed
+        )
+
+        let firstURL = try await TranscribeCommand.writeOutput(transcription, to: dir, format: .dapt)
+        let secondURL = try await TranscribeCommand.writeOutput(transcription, to: dir, format: .dapt)
+
+        XCTAssertEqual(firstURL.lastPathComponent, "clip.dapt.xml")
+        XCTAssertEqual(secondURL.lastPathComponent, "clip-2.dapt.xml")
     }
 
     func testWriteDiarizationReportWritesParseableJSON() throws {

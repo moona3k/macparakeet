@@ -1,17 +1,31 @@
 import Foundation
 
 /// Routes LLM requests to the appropriate client based on provider ID.
-/// HTTP-based providers go to `LLMClient`; `.localCLI` goes to `LocalCLILLMClient`.
+/// HTTP-based providers go to `LLMClient`; `.localCLI` goes to
+/// `LocalCLILLMClient`; `.inProcessLocal` goes to `InProcessLLMClient`.
 public final class RoutingLLMClient: LLMClientProtocol, Sendable {
-    private let httpClient: LLMClient
-    private let cliClient: LocalCLILLMClient
+    private let httpClient: any LLMClientProtocol
+    private let cliClient: any LLMClientProtocol
+    private let inProcessClient: any LLMClientProtocol
 
     public init(
-        httpClient: LLMClient = LLMClient(),
-        cliClient: LocalCLILLMClient = LocalCLILLMClient()
+        httpClient: any LLMClientProtocol = LLMClient(),
+        cliClient: any LLMClientProtocol = LocalCLILLMClient(),
+        inProcessClient: any LLMClientProtocol = InProcessLLMClient()
     ) {
         self.httpClient = httpClient
         self.cliClient = cliClient
+        self.inProcessClient = inProcessClient
+    }
+
+    public var supportsInProcessLocalLLM: Bool {
+        inProcessClient.supportsInProcessLocalLLM
+    }
+
+    public func structuredOutputCapability(
+        context: LLMExecutionContext
+    ) -> LLMStructuredOutputCapability {
+        client(for: context).structuredOutputCapability(context: context)
     }
 
     public func chatCompletion(
@@ -30,6 +44,18 @@ public final class RoutingLLMClient: LLMClientProtocol, Sendable {
         client(for: context).chatCompletionStream(messages: messages, context: context, options: options)
     }
 
+    public func chatCompletionDetailedStream(
+        messages: [ChatMessage],
+        context: LLMExecutionContext,
+        options: ChatCompletionOptions
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error> {
+        client(for: context).chatCompletionDetailedStream(
+            messages: messages,
+            context: context,
+            options: options
+        )
+    }
+
     public func testConnection(context: LLMExecutionContext) async throws {
         try await client(for: context).testConnection(context: context)
     }
@@ -38,7 +64,19 @@ public final class RoutingLLMClient: LLMClientProtocol, Sendable {
         try await client(for: context).listModels(context: context)
     }
 
-    private func client(for context: LLMExecutionContext) -> LLMClientProtocol {
-        context.providerConfig.id == .localCLI ? cliClient : httpClient
+    public func withInProcessLocalModelRemoval(_ operation: @Sendable () async throws -> Void) async throws {
+        try await inProcessClient.withInProcessLocalModelRemoval(operation)
+    }
+
+    private func client(for context: LLMExecutionContext) -> any LLMClientProtocol {
+        switch context.providerConfig.id {
+        case .localCLI:
+            return cliClient
+        case .inProcessLocal:
+            return inProcessClient
+        case .anthropic, .openai, .openaiCompatible, .gemini, .openrouter, .moonshot, .deepseek, .qwen, .zai, .minimax,
+            .ollama, .lmstudio:
+            return httpClient
+        }
     }
 }

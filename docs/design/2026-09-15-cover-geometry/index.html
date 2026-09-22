@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cover geometry v2 — MacParakeet</title>
+  <style>
+    :root {
+      --ink: #e6e8e8;
+      --muted: #8b9294;
+      --subtle: #6d7477;
+      --bg: #121516;
+      --window: #1c2123;
+      --panel: #252a2c;
+      --line: rgba(235, 239, 239, .1);
+      --hair: rgba(235, 239, 239, .06);
+      --sage: #7ea89a;
+      --card: 240px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
+    .app { display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
+    aside {
+      padding: 22px 18px 32px;
+      border-right: 1px solid var(--hair);
+      background: var(--window);
+    }
+    h1 { font-size: 15px; font-weight: 600; margin: 0 0 6px; letter-spacing: -.02em; }
+    .lede { color: var(--muted); margin: 0 0 22px; }
+    .dirs { display: grid; gap: 6px; }
+    .dirs button {
+      text-align: left;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--ink);
+      border-radius: 10px;
+      padding: 9px 10px;
+      cursor: pointer;
+    }
+    .dirs button:hover { background: var(--panel); }
+    .dirs button.on { background: var(--panel); border-color: var(--line); }
+    .dirs b { display: block; font-size: 13px; }
+    .dirs span { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+    .note {
+      margin-top: 22px;
+      padding-top: 16px;
+      border-top: 1px solid var(--hair);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .note strong { color: var(--ink); font-weight: 600; }
+    main { padding: 22px 24px 40px; }
+    .toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px; flex-wrap: wrap;
+      margin-bottom: 16px; color: var(--muted);
+    }
+    .toolbar button, .toolbar input {
+      background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+      border-radius: 8px; padding: 6px 10px;
+    }
+    .toolbar input { width: 88px; }
+    .sizes { display: flex; gap: 6px; align-items: center; }
+    .sizes button.on { border-color: var(--sage); color: var(--ink); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(var(--card), 1fr));
+      gap: 14px;
+    }
+    .card {
+      position: relative;
+      background: #15191b;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--hair);
+    }
+    .card canvas { display: block; width: 100%; height: auto; }
+    .meta {
+      position: absolute;
+      inset: auto 0 0 0;
+      padding: 28px 10px 10px;
+      background: linear-gradient(transparent, rgba(8,10,11,.9));
+      color: #f2f4f4;
+      font-size: 12.5px;
+      font-weight: 600;
+      letter-spacing: -.01em;
+    }
+    .badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      margin-bottom: 4px;
+      font-size: 10px; font-weight: 500; color: #c9d0d0;
+    }
+    .badge i { width: 7px; height: 7px; border-radius: 50%; background: #e07a52; }
+    .dur {
+      position: absolute; right: 10px; top: 8px;
+      font-size: 10px; font-weight: 600; color: #e8ecec;
+      text-shadow: 0 1px 8px #000;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <h1>Cover geometry v2</h1>
+      <p class="lede">Same library, five recipes. Judge the grid, not a hero.</p>
+      <div class="dirs" id="dirs"></div>
+      <p class="note" id="note"></p>
+    </aside>
+    <main>
+      <div class="toolbar">
+        <div>
+          Seed
+          <button type="button" id="prev">Prev</button>
+          <input id="seed" value="1046">
+          <button type="button" id="next">Next</button>
+          <button type="button" id="rand">Random</button>
+        </div>
+        <div class="sizes" id="sizes">
+          Scale
+          <button type="button" data-scale="0.86">Comfortable</button>
+          <button type="button" data-scale="0.76">Present</button>
+          <button type="button" data-scale="0.68">Subtle</button>
+        </div>
+        <div id="label"></div>
+      </div>
+      <div class="grid" id="grid"></div>
+    </main>
+  </div>
+  <script>
+    const DIRS = [
+      { id: "now", title: "Current canopy", blurb: "Control. Gold nucleus + teal/plum split. Weak limbs.",
+        note: "This is the shipping Recursive Canopy. The gold point is a second brand. Teal and plum split the wall. Structure is too thin at card size." },
+      { id: "mineral", title: "Night canopy", blurb: "Keep the tree. One night, no gold, thicker ink.",
+        note: "Same branching identity, locked background, one mineral hue ±12°. Drop the accent pigment on limbs. Stronger roots so the silhouette survives overlays." },
+      { id: "seed", title: "Seed of Life", blurb: "Seven equal circles. Seed lights which rings bloom.",
+        note: "Same small figure, stronger mineral ink. Lit rings read as the same color, just denser — not gold, not white chalk." },
+      { id: "merkaba", title: "Quiet star", blurb: "Two triangles + inner circle. Rhymes with the recording pill.",
+        note: "Biggest silhouette change. Rotation and openness come from the UUID. Quiet inner circle instead of a gold bead. Best if you want the library to feel ceremonial." },
+      { id: "hex", title: "Hex bloom", blurb: "Seed of Life, then short branches from a few vertices.",
+        note: "Hybrid if you still want trees. The hex is the shared grammar; 2–4 vertices grow a two-generation fork. No second hue." }
+    ];
+
+    const TITLES = [
+      "Weekly research sync", "Hardware capture notes", "Library review",
+      "Design critique", "Standup", "Pairing session",
+      "Release checklist", "Calendar skip review", "Speaker labels",
+      "AEC measurement", "Prompt library", "CLI contract",
+      "Onboarding pass", "Export formats", "Voiceprints gated",
+      "Transforms polish", "Notes autosave", "Follow-up context"
+    ];
+    const DURS = ["2:14","32:30","27:34","41:58","13:24","28:45","1:01:52","1:04:01","1:14:50","43:58","1:32:37","51:09","36:45","0:21","0:04","1:17:57","1:00:14","1:43:09"];
+
+    const NIGHT = "#14191b";
+    const INK = [126, 168, 154];
+
+    let direction = "seed";
+    let baseSeed = 1046;
+    let scale = 0.76;
+
+    function splitmix(seed) {
+      let s = seed >>> 0;
+      return function () {
+        s = (s + 0x9E3779B9) >>> 0;
+        let z = s;
+        z = Math.imul(z ^ (z >>> 16), 0x85EBCA6B);
+        z = Math.imul(z ^ (z >>> 13), 0xC2B2AE35);
+        return ((z ^ (z >>> 16)) >>> 0) / 4294967296;
+      };
+    }
+    function mix(id, n) {
+      return ((id * 2654435761) ^ (n * 1597334677) ^ (baseSeed * 2246822519)) >>> 0;
+    }
+    function rgb(c, a) { return `rgba(${c[0]},${c[1]},${c[2]},${a})`; }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+
+    function palettes(rng) {
+      const families = [
+        { bg: [16,32,37], field: [24,81,88], branch: [67,166,165], accent: [228,164,96], line: [183,216,205] },
+        { bg: [21,34,29], field: [49,93,72], branch: [121,180,141], accent: [219,165,100], line: [195,213,162] },
+        { bg: [33,25,37], field: [99,62,96], branch: [173,117,162], accent: [226,161,113], line: [214,180,202] }
+      ];
+      return families[Math.floor(rng() * 3)];
+    }
+
+    function addLimb(limbs, start, angle, length, width, depth, rng, max) {
+      if (limbs.length >= max || depth > 4 || length < 0.012) return;
+      const bend = (rng() - 0.5) * (0.36 + depth * 0.08);
+      const endA = angle + bend;
+      const end = { x: start.x + Math.cos(endA) * length, y: start.y + Math.sin(endA) * length * (16 / 9) };
+      const ctrlA = angle + bend * 0.35;
+      const ctrl = { x: start.x + Math.cos(ctrlA) * length * 0.53, y: start.y + Math.sin(ctrlA) * length * 0.53 * (16 / 9) };
+      limbs.push({ start, ctrl, end, w0: width, w1: width * (0.34 + rng() * 0.14), depth, kind: (depth + Math.floor(rng() * 3)) % 3, op: 0.82 - depth * 0.10 });
+      if (depth >= 4) return;
+      const kids = depth === 0 ? 2 : (rng() < 0.83 ? 2 : 1);
+      for (let i = 0; i < kids; i++) {
+        const side = kids === 1 ? (rng() - 0.5) : (i === 0 ? -1 : 1);
+        addLimb(limbs, end, endA + side * (0.32 + rng() * 0.28), length * (0.55 + rng() * 0.08), width * (0.54 + rng() * 0.08), depth + 1, rng, max);
+      }
+    }
+
+    function drawLimb(ctx, w, h, limb, color, line, strong) {
+      const p = (pt) => [pt.x * w, pt.y * h];
+      const [sx, sy] = p(limb.start);
+      const [cx, cy] = p(limb.ctrl);
+      const [ex, ey] = p(limb.end);
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.quadraticCurveTo(cx, cy, ex, ey);
+      const lw = Math.max(strong ? 1.8 : 0.7, Math.min(w, h) * limb.w0 * (strong ? 1.35 : 0.55));
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = strong ? Math.min(1, limb.op + 0.12) : limb.op * 0.72;
+      ctx.lineWidth = lw;
+      ctx.lineCap = "round";
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      if (line) {
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.quadraticCurveTo(cx, cy, ex, ey);
+        ctx.strokeStyle = line;
+        ctx.globalAlpha = 0.22 + limb.op * 0.2;
+        ctx.lineWidth = Math.max(0.4, lw * 0.18);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    function canopy(ctx, w, h, rng, mode) {
+      const pal = mode === "now" ? palettes(rng) : null;
+      const bg = mode === "now" ? pal.bg : [20, 25, 27];
+      ctx.fillStyle = rgb(bg, 1);
+      ctx.fillRect(0, 0, w, h);
+      const hueShift = (rng() - 0.5) * 18;
+      const ink = mode === "now" ? pal.branch : [
+        clamp(INK[0] + hueShift * 0.4, 110, 150),
+        clamp(INK[1] + hueShift * 0.15, 150, 180),
+        clamp(INK[2] - hueShift * 0.2, 140, 170)
+      ];
+      const field = mode === "now" ? pal.field : [38, 58, 54];
+      const g = ctx.createLinearGradient(0, h, w, 0);
+      g.addColorStop(0, rgb(field, 0.5));
+      g.addColorStop(1, rgb(bg, 0.1));
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+
+      const focal = { x: 0.43 + rng() * 0.14, y: 0.42 + rng() * 0.16 };
+      const limbs = [];
+      const n = 5 + Math.floor(rng() * 2);
+      const phase = rng() * Math.PI * 2;
+      const len = mode === "now" ? 0.155 : 0.22;
+      const wid = mode === "now" ? 0.032 : 0.046;
+      for (let i = 0; i < n; i++) {
+        const angle = phase + (i / n) * Math.PI * 2 + (rng() - 0.5) * 0.30;
+        addLimb(limbs, focal, angle, len + rng() * 0.055, wid + rng() * 0.016, 0, rng, 192);
+      }
+      limbs.sort((a, b) => b.depth - a.depth);
+      for (const limb of limbs) {
+        let c = ink;
+        if (mode === "now") {
+          c = limb.kind === 0 ? pal.field : limb.kind === 1 ? pal.branch : pal.accent;
+        }
+        drawLimb(ctx, w, h, limb, rgb(c, 1), mode === "now" ? rgb(pal.line, 1) : rgb([210, 224, 218], 0.35), mode !== "now");
+      }
+      const fx = focal.x * w, fy = focal.y * h;
+      const r = Math.min(w, h) * (mode === "now" ? 0.055 : 0.03);
+      const aura = ctx.createRadialGradient(fx, fy, 0, fx, fy, r * 2.5);
+      if (mode === "now") {
+        aura.addColorStop(0, rgb(pal.accent, 0.42));
+        aura.addColorStop(1, rgb(pal.accent, 0));
+        ctx.fillStyle = aura;
+        ctx.beginPath(); ctx.arc(fx, fy, r * 2.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = rgb(pal.accent, 0.92);
+        ctx.beginPath(); ctx.arc(fx, fy, r * 0.28, 0, Math.PI * 2); ctx.fill();
+      } else {
+        aura.addColorStop(0, rgb(ink, 0.22));
+        aura.addColorStop(1, rgb(ink, 0));
+        ctx.fillStyle = aura;
+        ctx.beginPath(); ctx.arc(fx, fy, r * 2.2, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+    function circle(ctx, x, y, r) {
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+    }
+
+    function seedOfLife(ctx, w, h, rng, grow) {
+      ctx.fillStyle = NIGHT;
+      ctx.fillRect(0, 0, w, h);
+      const fog = ctx.createRadialGradient(w * 0.5, h * 0.40, 6, w * 0.5, h * 0.40, w * 0.46);
+      fog.addColorStop(0, rgb(INK, 0.14));
+      fog.addColorStop(1, "transparent");
+      ctx.fillStyle = fog;
+      ctx.fillRect(0, 0, w, h);
+
+      const cx = w * (0.5 + (rng() - 0.5) * 0.02);
+      const cy = h * (0.40 + (rng() - 0.5) * 0.02);
+      const r = Math.min(w, h) * (0.168 + rng() * 0.012) * scale;
+      const rot = rng() * Math.PI / 3;
+      const lit = Math.floor(rng() * 7);
+      const lit2 = Math.floor(rng() * 7);
+      const centers = [{ x: cx, y: cy }];
+      for (let i = 0; i < 6; i++) {
+        const a = rot + i * Math.PI / 3;
+        centers.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r });
+      }
+      const pale = [186, 214, 204];
+      centers.forEach((c, i) => {
+        const emphasis = i === lit || i === lit2;
+        circle(ctx, c.x, c.y, r);
+        ctx.fillStyle = rgb(INK, emphasis ? 0.16 : 0.06);
+        ctx.fill();
+        circle(ctx, c.x, c.y, r);
+        ctx.strokeStyle = rgb(emphasis ? pale : INK, emphasis ? 0.82 : 0.48);
+        ctx.lineWidth = emphasis ? 1.45 : 1.1;
+        ctx.stroke();
+      });
+      circle(ctx, cx, cy, Math.max(1.3, r * 0.06));
+      ctx.fillStyle = rgb(pale, 0.72);
+      ctx.fill();
+
+      if (grow) {
+        const count = 2 + Math.floor(rng() * 3);
+        for (let k = 0; k < count; k++) {
+          const i = 1 + Math.floor(rng() * 6);
+          const origin = centers[i];
+          const outward = Math.atan2(origin.y - cy, origin.x - cx);
+          hexBranch(ctx, origin, outward, r * 0.55, 2, rng);
+        }
+      }
+    }
+
+    function hexBranch(ctx, start, angle, length, depth, rng) {
+      if (depth < 0 || length < 6) return;
+      const bend = (rng() - 0.5) * 0.4;
+      const a = angle + bend;
+      const end = { x: start.x + Math.cos(a) * length, y: start.y + Math.sin(a) * length };
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.strokeStyle = rgb([214, 228, 222], 0.28 + depth * 0.12);
+      ctx.lineWidth = Math.max(0.8, depth * 1.1);
+      ctx.lineCap = "round";
+      ctx.stroke();
+      hexBranch(ctx, end, a - 0.42, length * 0.58, depth - 1, rng);
+      hexBranch(ctx, end, a + 0.42, length * 0.58, depth - 1, rng);
+    }
+
+    function merkaba(ctx, w, h, rng) {
+      ctx.fillStyle = NIGHT;
+      ctx.fillRect(0, 0, w, h);
+      const cx = w * (0.5 + (rng() - 0.5) * 0.04);
+      const cy = h * (0.44 + (rng() - 0.5) * 0.04);
+      const s = Math.min(w, h) * (0.34 + rng() * 0.05) * scale;
+      const rot = rng() * Math.PI;
+      const open = 0.82 + rng() * 0.12;
+      function tri(offset, sign) {
+        ctx.beginPath();
+        for (let i = 0; i < 3; i++) {
+          const a = rot + offset + i * (Math.PI * 2 / 3);
+          const x = cx + Math.cos(a) * s * open;
+          const y = cy + Math.sin(a) * s * open * 0.92;
+          i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+        }
+        ctx.closePath();
+        ctx.fillStyle = rgb(INK, 0.08 + sign * 0.03);
+        ctx.fill();
+        ctx.strokeStyle = rgb([214, 228, 222], 0.62);
+        ctx.lineWidth = 1.35;
+        ctx.stroke();
+      }
+      tri(0, 1);
+      tri(Math.PI / 3, 0);
+      circle(ctx, cx, cy, s * 0.36);
+      ctx.strokeStyle = rgb(INK, 0.28);
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      circle(ctx, cx, cy, s * 0.04);
+      ctx.fillStyle = rgb([214, 228, 222], 0.5);
+      ctx.fill();
+    }
+
+    function paint(canvas, index) {
+      const rng = splitmix(mix(index + 1, 17));
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width, h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      if (direction === "now") canopy(ctx, w, h, rng, "now");
+      else if (direction === "mineral") canopy(ctx, w, h, rng, "mineral");
+      else if (direction === "seed") seedOfLife(ctx, w, h, rng, false);
+      else if (direction === "merkaba") merkaba(ctx, w, h, rng);
+      else seedOfLife(ctx, w, h, rng, true);
+    }
+
+    function render() {
+      document.getElementById("seed").value = String(baseSeed);
+      document.getElementById("label").textContent = DIRS.find(d => d.id === direction).title;
+      document.getElementById("note").innerHTML = DIRS.find(d => d.id === direction).note;
+      document.querySelectorAll(".dirs button").forEach(b => b.classList.toggle("on", b.dataset.id === direction));
+      const grid = document.getElementById("grid");
+      grid.innerHTML = "";
+      for (let i = 0; i < 18; i++) {
+        const card = document.createElement("article");
+        card.className = "card";
+        const canvas = document.createElement("canvas");
+        canvas.width = 480;
+        canvas.height = 270;
+        paint(canvas, i);
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        meta.innerHTML = `<span class="dur">${DURS[i]}</span><div class="badge"><i></i> Meeting</div><div>${TITLES[i]}</div>`;
+        card.append(canvas, meta);
+        grid.append(card);
+      }
+    }
+
+    const dirs = document.getElementById("dirs");
+    DIRS.forEach(d => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.dataset.id = d.id;
+      b.innerHTML = `<b>${d.title}</b><span>${d.blurb}</span>`;
+      b.onclick = () => { direction = d.id; render(); };
+      dirs.append(b);
+    });
+    document.getElementById("prev").onclick = () => { baseSeed = Math.max(1, baseSeed - 18); render(); };
+    document.getElementById("next").onclick = () => { baseSeed += 18; render(); };
+    document.getElementById("rand").onclick = () => { baseSeed = 1 + Math.floor(Math.random() * 90000); render(); };
+    document.getElementById("seed").onchange = (e) => { baseSeed = parseInt(e.target.value, 10) || 1; render(); };
+    document.querySelectorAll("#sizes button").forEach(b => {
+      b.onclick = () => { scale = parseFloat(b.dataset.scale); render(); };
+    });
+    const paintGrid = render;
+    render = function () {
+      document.querySelectorAll("#sizes button").forEach(b => {
+        b.classList.toggle("on", parseFloat(b.dataset.scale) === scale);
+      });
+      paintGrid();
+    };
+    render();
+  </script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 # MacParakeet UI Inspiration
 
-> Status: **ACTIVE**
+> Status: **DESIGN REFERENCE** — May 2026 research and proposed polish
+> directions, not a current implementation inventory or release backlog.
 > Last researched: 2026-05-15
 > Purpose: Convert strong open-source app references into practical MacParakeet
 > UI direction, especially for Transcribe, Library, and transcript review.
@@ -17,7 +18,7 @@ This document is a product/design map for future polish work.
 For the deeper repo-by-repo evidence behind these recommendations, see
 [`docs/research/open-source-ui-reference-audit-2026-05.md`](research/open-source-ui-reference-audit-2026-05.md).
 
-## Current Priority
+## Priorities at the May 2026 Review
 
 1. **Transcribe** needs to feel more like a confident capture hub.
 2. **Library** needs stronger browsing, filtering, and source-aware density.

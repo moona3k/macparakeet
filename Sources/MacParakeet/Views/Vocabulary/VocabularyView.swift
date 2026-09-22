@@ -44,7 +44,10 @@ struct VocabularyView: View {
         .sheet(isPresented: $showCustomWords) {
             settingsViewModel.refreshStats()
         } content: {
-            CustomWordsView(viewModel: customWordsViewModel)
+            CustomWordsView(
+                viewModel: customWordsViewModel,
+                recognitionStatus: settingsViewModel.customVocabularyRecognitionStatus
+            )
                 .frame(width: 640, height: 560)
         }
         .sheet(isPresented: $showTextSnippets) {
@@ -121,20 +124,14 @@ struct VocabularyView: View {
 
                 dividerLine
 
-                pipelineStep(
-                    number: 1,
-                    title: "Remove fillers",
-                    detail: "um, uh, umm, uhh",
-                    actionTitle: nil,
-                    action: nil
-                )
+                fillerRemovalRow
 
                 dividerLine
 
                 pipelineStep(
                     number: 2,
                     title: "Fix words",
-                    detail: "\(settingsViewModel.customWordCount) custom correction\(settingsViewModel.customWordCount == 1 ? "" : "s")",
+                    detail: "\(customWordCountLabel) · \(settingsViewModel.customVocabularyRecognitionStatus.title)",
                     actionTitle: "Manage words",
                     action: {
                         customWordsViewModel.loadWords()
@@ -167,6 +164,44 @@ struct VocabularyView: View {
             }
             .padding(.top, 2)
         }
+    }
+
+    private var customWordCountLabel: String {
+        "\(settingsViewModel.customWordCount) custom correction\(settingsViewModel.customWordCount == 1 ? "" : "s")"
+    }
+
+    private var fillerRemovalRow: some View {
+        HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+            Text("1")
+                .font(DesignSystem.Typography.caption.weight(.semibold))
+                .foregroundStyle(DesignSystem.Colors.accent)
+                .frame(width: 24, height: 24)
+                .background(
+                    Circle()
+                        .fill(DesignSystem.Colors.accent.opacity(0.12))
+                )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Remove fillers")
+                    .font(DesignSystem.Typography.body)
+                Text(settingsViewModel.removeUmFiller ? "uh, um, umm, uhh" : "uh, umm, uhh")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                Text("Turn off if you dictate Portuguese or German, where um is a real word.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: DesignSystem.Spacing.md)
+
+            Toggle("Also remove “um”", isOn: $settingsViewModel.removeUmFiller)
+                .parakeetSwitch()
+                .fixedSize()
+        }
+        .padding(.horizontal, DesignSystem.Spacing.lg)
+        .padding(.vertical, DesignSystem.Spacing.md)
+        .accessibilityElement(children: .contain)
     }
 
     private var insertionStyleRow: some View {
@@ -235,17 +270,24 @@ struct VocabularyView: View {
                 }
 
                 if settingsViewModel.voiceReturnEnabled {
-                    VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                        Text("Trigger phrase")
+                    VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                        Text("Trigger phrases")
                             .font(DesignSystem.Typography.caption)
                             .foregroundStyle(.secondary)
-                        ParakeetTextField(placeholder: "press return", text: $settingsViewModel.voiceReturnTrigger)
-                            .frame(maxWidth: 250)
-                        if settingsViewModel.voiceReturnTrigger.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            Text("Enter a trigger phrase to activate Voice Return.")
+
+                        if settingsViewModel.voiceReturnTriggers.isEmpty {
+                            Text("Add at least one trigger phrase to activate Voice Return.")
                                 .font(DesignSystem.Typography.micro)
                                 .foregroundStyle(DesignSystem.Colors.warningAmber)
+                        } else {
+                            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                                ForEach(Array(settingsViewModel.voiceReturnTriggers.enumerated()), id: \.element) { index, trigger in
+                                    voiceReturnTriggerRow(trigger: trigger, index: index)
+                                }
+                            }
                         }
+
+                        voiceReturnAddRow
                     }
 
                     VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
@@ -253,15 +295,18 @@ struct VocabularyView: View {
                             Image(systemName: "info.circle")
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(.secondary)
-                            Text("Say your exact trigger phrase at the end of a dictation to simulate a Return keypress. The trigger must be the last words spoken — if it appears mid-sentence, it's pasted as normal text.")
+                            Text("Say any listed phrase at the end of a dictation to simulate a Return keypress. The trigger must be the last words spoken — if it appears mid-sentence, it's pasted as normal text.")
                                 .font(DesignSystem.Typography.caption)
                                 .foregroundStyle(.secondary)
                         }
 
-                        let trigger = settingsViewModel.voiceReturnTrigger.isEmpty ? "press return" : settingsViewModel.voiceReturnTrigger
+                        let trigger = settingsViewModel.voiceReturnExampleTrigger
                         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
                             exampleRow(input: "git status \(trigger)", result: "Pastes \"git status\" + presses ⏎", fires: true)
                             exampleRow(input: "\(trigger)", result: "Just presses ⏎ (nothing to paste)", fires: true)
+                            if let secondaryTrigger = settingsViewModel.voiceReturnTriggers.dropFirst().first {
+                                exampleRow(input: "git status \(secondaryTrigger)", result: "Also presses ⏎", fires: true)
+                            }
                             exampleRow(input: "the \(trigger) was broken", result: "Pastes as-is — trigger is mid-sentence", fires: false)
                             exampleRow(input: "git status", result: "Pastes as-is — no trigger spoken", fires: false)
                         }
@@ -269,6 +314,68 @@ struct VocabularyView: View {
                     }
 
                 }
+            }
+        }
+    }
+
+    private func voiceReturnTriggerRow(trigger: String, index: Int) -> some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            Image(systemName: "return")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+            Text(trigger)
+                .font(DesignSystem.Typography.caption.monospaced())
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: DesignSystem.Spacing.sm)
+            DeleteIconButton(
+                helpText: settingsViewModel.voiceReturnTriggers.count > 1
+                    ? "Remove trigger phrase"
+                    : "Voice Return needs at least one trigger phrase",
+                accessibilityName: "Remove \(trigger)"
+            ) {
+                settingsViewModel.deleteVoiceReturnTrigger(at: index)
+            }
+            .disabled(settingsViewModel.voiceReturnTriggers.count <= 1)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: 360)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .fill(DesignSystem.Colors.surfaceElevated)
+        )
+    }
+
+    private var voiceReturnAddRow: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                ParakeetTextField(
+                    placeholder: "Add phrase",
+                    text: $settingsViewModel.voiceReturnNewTrigger,
+                    onSubmit: { settingsViewModel.addVoiceReturnTrigger() }
+                )
+                .frame(maxWidth: 250)
+
+                Button {
+                    settingsViewModel.addVoiceReturnTrigger()
+                } label: {
+                    Label("Add", systemImage: "plus")
+                }
+                .parakeetAction(.secondary)
+                .disabled(
+                    settingsViewModel.voiceReturnNewTrigger
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .isEmpty
+                )
+            }
+
+            if let message = settingsViewModel.voiceReturnErrorMessage {
+                Text(message)
+                    .font(DesignSystem.Typography.micro)
+                    .foregroundStyle(DesignSystem.Colors.warningAmber)
             }
         }
     }

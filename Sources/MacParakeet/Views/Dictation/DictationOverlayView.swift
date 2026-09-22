@@ -210,6 +210,36 @@ private struct NoSpeechLightDrift: View {
     }
 }
 
+/// Side inset for the dictation capsule. Persistent recording and cancelled/Undo
+/// match the 7pt vertical pad so end controls sit in the hemispheres.
+/// Hold-to-talk keeps the wider 16pt cluster; command recording stays a card.
+enum DictationOverlayChrome {
+    static let compactSideInset: CGFloat = 7
+    static let wideSideInset: CGFloat = 16
+    static let iconSideInset: CGFloat = 10
+
+    static func horizontalPadding(
+        state: DictationOverlayViewModel.OverlayState,
+        sessionKind: DictationOverlayViewModel.SessionKind,
+        recordingMode: FnKeyStateMachine.RecordingMode,
+        isReady: Bool,
+        isIconOnly: Bool,
+        isNoSpeechExpanded: Bool
+    ) -> CGFloat {
+        if isReady { return compactSideInset }
+        if isIconOnly || isNoSpeechExpanded { return iconSideInset }
+        switch state {
+        case .cancelled:
+            return compactSideInset
+        case .recording:
+            guard sessionKind != .command else { return wideSideInset }
+            return recordingMode == .holdToTalk ? wideSideInset : compactSideInset
+        default:
+            return wideSideInset
+        }
+    }
+}
+
 /// The dictation overlay — compact dark capsule during dictation, wider card for errors.
 struct DictationOverlayView: View {
     @Bindable var viewModel: DictationOverlayViewModel
@@ -220,6 +250,11 @@ struct DictationOverlayView: View {
     /// to `true` after a short delay so the pill blooms horizontally as the leaf
     /// + "more audio please" label fade in. Reset whenever the pill state changes.
     @State private var noSpeechExpanded: Bool = false
+
+    /// Natural (unclamped) height of the live-transcript text, measured off the
+    /// rendered `Text`. Lets the readout card hug short content instead of
+    /// stranding the first words at the bottom of a fixed three-line box.
+    @State private var liveTranscriptContentHeight: CGFloat = 0
 
     /// Align tooltip above the hovered button: leading for cancel, trailing for stop.
     private var tooltipAlignment: Alignment {
@@ -310,12 +345,20 @@ struct DictationOverlayView: View {
             // smaller and lighter than the 46×46 processing / noSpeech
             // circles, reinforcing that `.ready` is a brief, poised pause
             // rather than active work.
-            let horizontalPadding: CGFloat = {
-                if isReady { return 7 }
-                if isIconOnly { return 10 }
-                if isNoSpeechExpanded { return 10 }
-                return 16
-            }()
+            //
+            // Persistent dictation recording and cancelled/Undo use the same
+            // 7pt side inset as the vertical padding so end controls sit in
+            // the capsule hemispheres. Hold-to-talk has no end circles and
+            // looked right at 16pt, so it stays wide. Command recording
+            // keeps 16pt — it's a text card.
+            let horizontalPadding = DictationOverlayChrome.horizontalPadding(
+                state: viewModel.state,
+                sessionKind: viewModel.sessionKind,
+                recordingMode: viewModel.recordingMode,
+                isReady: isReady,
+                isIconOnly: isIconOnly,
+                isNoSpeechExpanded: isNoSpeechExpanded
+            )
             let verticalPadding: CGFloat = {
                 if isReady { return 7 }
                 if isIconOnly { return 10 }
@@ -436,33 +479,36 @@ struct DictationOverlayView: View {
         viewModel.hoverTooltip?.contains("Stop") == true
     }
 
+    /// The visible slice of the (already stabilized) live transcript: a generous
+    /// word-bounded tail — enough to overflow the bottom-anchored readout so the
+    /// top fade always has a line to dissolve, and never cut mid-word. The
+    /// stabilizer upstream guarantees the body does not churn, so this can stay a
+    /// plain tail; the readout shows the most recent lines and fades the rest.
     private var liveTranscriptPreview: String? {
         guard case .recording = viewModel.state else { return nil }
         guard viewModel.sessionKind == .dictation else { return nil }
-        // Normalize only the visible tail: the transcript can reach thousands
-        // of characters in a long dictation and this recomputes per redraw.
-        // A leading partial word is fine — the head is truncated anyway.
-        let compact = viewModel.liveTranscript
-            .suffix(360)
-            .split(whereSeparator: \.isWhitespace)
-            .joined(separator: " ")
-        guard !compact.isEmpty else { return nil }
-        if compact.count <= 180 { return compact }
-        return String(compact.suffix(180))
+        let tail = Self.wordBoundedSuffix(
+            of: viewModel.liveTranscript,
+            maxCharacters: Self.liveTranscriptPreviewCharacterBudget
+        )
+        let words = tail.split(whereSeparator: \.isWhitespace)
+        guard !words.isEmpty else { return nil }
+        return words.suffix(Self.liveTranscriptPreviewWordLimit).joined(separator: " ")
     }
 
     /// Visual metrics for the live preview, keyed off the user's size choice.
     /// Width stays fixed (the floating panel is 300pt wide and the shadow must
-    /// not clip); only the type scale, line spacing, and vertical breathing room
-    /// grow with size.
-    private var previewMetrics: (font: CGFloat, lineSpacing: CGFloat, verticalPadding: CGFloat, minHeight: CGFloat) {
+    /// not clip); the type scale, line spacing, vertical breathing room, and the
+    /// readout viewport height grow with size. `visibleHeight` is sized for
+    /// roughly three lines so older lines have room to rise and fade at the top.
+    private var previewMetrics: (font: CGFloat, lineSpacing: CGFloat, verticalPadding: CGFloat, visibleHeight: CGFloat) {
         switch viewModel.previewTextSize {
         case .small:
-            return (13, 1, 8, 30)
+            return (13, 1, 8, 50)
         case .medium:
-            return (16, 2, 9, 34)
+            return (16, 2, 9, 62)
         case .large:
-            return (19, 3, 11, 40)
+            return (19, 3, 11, 76)
         }
     }
 
@@ -470,33 +516,121 @@ struct DictationOverlayView: View {
     private var liveTranscriptPreviewPanel: some View {
         if let liveTranscriptPreview {
             let metrics = previewMetrics
+            // Content-hugging, bottom-anchored rolling readout. A short
+            // transcript shows in a snug card (height == its own text) so the
+            // first few words never sit stranded at the bottom of a tall empty
+            // box; once the text grows past ~three lines the card caps at
+            // `visibleHeight`, scrolls to keep the newest line pinned, and fades
+            // older lines at the top. The whole stack is bottom-anchored, so the
+            // animated height change reads as the card growing upward while the
+            // newest line stays put. Display-only — never steals events from the
+            // pill below.
+            let measured = liveTranscriptContentHeight
+            let viewportHeight = min(
+                measured > 0 ? measured : metrics.font * 1.4,
+                metrics.visibleHeight
+            )
+            let isOverflowing = measured > metrics.visibleHeight + 1
+            // Bottom-anchored clipped readout — deliberately NOT a ScrollView.
+            // The text is measured at its natural height, then clipped to
+            // `viewportHeight` with bottom alignment: the newest line stays
+            // pinned to the bottom while older lines slide up and past the top
+            // edge. A ScrollView scrolled to its bottom can strand short text
+            // against the bottom of an over-tall viewport — and because its
+            // scroll offset is independent state, it "doesn't recover." A fixed
+            // bottom-aligned frame is a pure function of (content, viewport) and
+            // cannot reach that stuck state.
             Text(liveTranscriptPreview)
                 .font(.system(size: metrics.font, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.92))
-                .lineLimit(2)
                 .lineSpacing(metrics.lineSpacing)
-                .truncationMode(.head)
                 .multilineTextAlignment(.leading)
+                // Pin the width and force full vertical height *before* measuring
+                // so the text wraps at 252 and reports its true multi-line height.
+                // (Without this the text would lay out on one infinite-width line
+                // and the viewport frame below would simply truncate it.)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(width: 252, alignment: .leading)
-                .frame(minHeight: metrics.minHeight, alignment: .leading)
-                .padding(.horizontal, 12)
-                .padding(.vertical, metrics.verticalPadding)
+                // Measure the text's natural (unclamped) height so the card can
+                // hug it; the reported height is independent of the clamped
+                // viewport below, so there is no layout feedback loop.
                 .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(DesignSystem.Colors.pillBackground.opacity(0.86))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .strokeBorder(DesignSystem.Colors.pillBorder.opacity(0.42), lineWidth: 0.5)
+                    GeometryReader { geo in
+                        Color.clear.preference(
+                            key: LiveTranscriptHeightKey.self,
+                            value: geo.size.height
                         )
-                        .shadow(color: .black.opacity(0.24), radius: 8, y: 3)
+                    }
                 )
-                .accessibilityLabel(liveTranscriptPreview)
-                .padding(.bottom, 2)
-                // Smoothly grow/shrink the card when the size changes live
-                // (Settings picker) instead of snapping between presets.
-                .animation(.easeInOut(duration: 0.2), value: viewModel.previewTextSize)
-                .transition(.move(edge: .bottom).combined(with: .opacity).animation(.easeInOut(duration: 0.16)))
+                .frame(width: 252, height: viewportHeight, alignment: .bottom)
+                .clipped()
+                .onPreferenceChange(LiveTranscriptHeightKey.self) { height in
+                    liveTranscriptContentHeight = height
+                }
+                .mask(
+                    LinearGradient(
+                        stops: [
+                            // Fade the top edge only once the text overflows the
+                            // cap, so a snug one- or two-line readout never dims
+                            // its own first line.
+                            .init(color: isOverflowing ? .clear : .black, location: 0),
+                            .init(color: .black, location: 0.22),
+                            .init(color: .black, location: 1)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+            .padding(.horizontal, 12)
+            .padding(.vertical, metrics.verticalPadding)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(DesignSystem.Colors.pillBackground.opacity(0.86))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(DesignSystem.Colors.pillBorder.opacity(0.42), lineWidth: 0.5)
+                    )
+                    .shadow(color: .black.opacity(0.24), radius: 8, y: 3)
+            )
+            .allowsHitTesting(false)
+            .accessibilityLabel(liveTranscriptPreview)
+            // Drop the measured height when the readout leaves the screen so the
+            // next dictation starts snug from one line rather than inheriting the
+            // previous session's tall viewport (which would strand the first
+            // words at the bottom for a frame).
+            .onDisappear { liveTranscriptContentHeight = 0 }
+            .padding(.bottom, 2)
+            // Grow/shrink the card smoothly as lines arrive (or the size
+            // changes live in Settings) instead of snapping between heights.
+            .animation(.easeInOut(duration: 0.18), value: viewportHeight)
+            .animation(.easeInOut(duration: 0.2), value: viewModel.previewTextSize)
+            .transition(.move(edge: .bottom).combined(with: .opacity).animation(.easeInOut(duration: 0.16)))
         }
+    }
+
+    private static let liveTranscriptPreviewWordLimit = 45
+    private static let liveTranscriptPreviewCharacterBudget = 1_200
+
+    /// Carries the live-transcript text's natural height up to the panel so the
+    /// readout card can hug short content and cap tall content.
+    private struct LiveTranscriptHeightKey: PreferenceKey {
+        static let defaultValue: CGFloat = 0
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+            value = max(value, nextValue())
+        }
+    }
+
+    private static func wordBoundedSuffix(of text: String, maxCharacters: Int) -> Substring {
+        guard maxCharacters > 0 else { return text[text.endIndex...] }
+        guard let start = text.index(text.endIndex, offsetBy: -maxCharacters, limitedBy: text.startIndex) else {
+            return text[...]
+        }
+        guard start != text.startIndex else { return text[...] }
+
+        let rawTail = text[start...]
+        guard rawTail.first?.isWhitespace != true else { return rawTail }
+        guard let firstWhitespace = rawTail.firstIndex(where: \.isWhitespace) else { return rawTail }
+        return rawTail[firstWhitespace...]
     }
 
     private var recordingContent: some View {
@@ -577,7 +711,13 @@ struct DictationOverlayView: View {
                     .frame(width: 24, height: 24)
 
                 Circle()
-                    .trim(from: 0, to: CGFloat(viewModel.cancelTimeRemaining / 5.0))
+                    .trim(
+                        from: 0,
+                        to: CGFloat(
+                            viewModel.cancelTimeRemaining
+                                / (viewModel.cancelCountdownDuration > 0 ? viewModel.cancelCountdownDuration : 1.0)
+                        )
+                    )
                     .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
                     .frame(width: 24, height: 24)
                     .rotationEffect(.degrees(-90))
@@ -741,6 +881,15 @@ struct DictationOverlayView: View {
     private func errorInfo(_ message: String) -> (title: String, subtitle: String) {
         let lower = message.lowercased()
 
+        if lower.contains("permission") || lower.contains("access") {
+            if lower.contains("copied to clipboard") || lower.contains("cmd+v") {
+                return ("Permission Required", "Copied to clipboard. Enable Accessibility or press Cmd+V now.")
+            }
+            return ("Permission Required", "Grant access in System Settings > Privacy & Security.")
+        }
+        if lower.contains("microphone") || lower.contains("audio input") {
+            return ("Microphone Unavailable", "Check your mic connection or select a different input.")
+        }
         if lower.contains("stt") || lower.contains("speech engine") || lower.contains("engine")
             || lower.contains("model not loaded")
             || lower.contains("failed to start") {
@@ -749,15 +898,6 @@ struct DictationOverlayView: View {
         if lower.contains("couldn't hear") || lower.contains("empty")
             || lower.contains("too short") || lower.contains("insufficient") {
             return ("No Speech Detected", "Try speaking louder or holding a bit longer.")
-        }
-        if lower.contains("microphone") || lower.contains("audio input") {
-            return ("Microphone Unavailable", "Check your mic connection or select a different input.")
-        }
-        if lower.contains("permission") || lower.contains("access") {
-            if lower.contains("copied to clipboard") || lower.contains("cmd+v") {
-                return ("Permission Required", "Copied to clipboard. Enable Accessibility or press Cmd+V now.")
-            }
-            return ("Permission Required", "Grant access in System Settings > Privacy & Security.")
         }
         if lower.contains("copied to clipboard") || lower.contains("cmd+v") {
             return ("Copied to Clipboard", "Auto-paste wasn't available. Press Cmd+V where you want the text.")

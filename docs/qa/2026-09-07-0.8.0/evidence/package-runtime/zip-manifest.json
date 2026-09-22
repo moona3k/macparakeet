@@ -1,0 +1,26 @@
+{
+  "recorded_at_utc": "2026-09-07T23:32:53.727760+00:00",
+  "source_head": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3",
+  "path": "<REPO>/dist/MacParakeet.app.zip",
+  "size_bytes": 156945557,
+  "sha256": "e67736b71c162e05c6adb6967175a5b4cb18cb321c926fe4d3832aa4d7e523ad",
+  "app_metadata": {
+    "CFBundleIdentifier": "com.macparakeet.MacParakeet",
+    "CFBundleShortVersionString": "0.8.0",
+    "CFBundleVersion": "20260907232424",
+    "MacParakeetBuildDateUTC": "2026-09-07T23:24:24Z",
+    "MacParakeetBuildSource": "release-080-qa-notes",
+    "MacParakeetGitCommit": "250bbe2994a4"
+  },
+  "archive_metadata": {
+    "CFBundleIdentifier": "com.macparakeet.MacParakeet",
+    "CFBundleShortVersionString": "0.8.0",
+    "CFBundleVersion": "20260907232424",
+    "MacParakeetBuildDateUTC": "2026-09-07T23:24:24Z",
+    "MacParakeetBuildSource": "release-080-qa-notes",
+    "MacParakeetGitCommit": "250bbe2994a4"
+  },
+  "same_metadata": true,
+  "notary_submission_id": "52abbad6-6f63-49a6-a3de-4fd7f7ba2cb3",
+  "artifact_preservation": "Read-only identity snapshot; original ZIP left in place. No copy or move."
+}

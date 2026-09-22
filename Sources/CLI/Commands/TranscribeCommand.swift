@@ -25,6 +25,9 @@ enum TranscribeOutputFormat: String, ExpressibleByArgument, CaseIterable, Sendab
     case text
     case transcript
     case json
+    case srt
+    case vtt
+    case dapt
 }
 
 enum TranscribeSpeechEngine: String, ExpressibleByArgument, CaseIterable, Sendable {
@@ -32,12 +35,15 @@ enum TranscribeSpeechEngine: String, ExpressibleByArgument, CaseIterable, Sendab
     case parakeet
     case nemotron
     case whisper
+    case cohere
 }
 
 enum TranscribeParakeetModel: String, ExpressibleByArgument, CaseIterable, Sendable {
     case appDefault = "app-default"
     case v3
     case v2
+    case unified
+    case orukeet
 }
 
 enum TranscribeNemotronModel: String, ExpressibleByArgument, CaseIterable, Sendable {
@@ -55,6 +61,11 @@ enum SpeakerDetectionOption: String, ExpressibleByArgument, CaseIterable, Sendab
 struct ResolvedSpeakerDetection: Equatable, Sendable {
     let enabled: Bool
     let constraint: SpeakerDiarizationConstraint?
+}
+
+private enum TranscribeStdoutEmission {
+    case none
+    case transcription(Transcription, TranscribeOutputFormat)
 }
 
 struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
@@ -76,28 +87,34 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     @Argument(help: "One or more audio/video file paths, folders, YouTube URLs, Apple Podcasts URLs, or HTTP(S) media URLs supported by yt-dlp. Multiple inputs (or --output-dir) transcribe in sequence, writing one file each.")
     var inputs: [String] = []
 
+    @Option(
+        name: .customLong("audio-track"),
+        help: "1-based embedded audio track to transcribe from local files or folders. Omit for automatic selection."
+    )
+    var audioTrack: Int?
+
     @Option(name: .long, help: "Freetext podcast search: find a show + episode on Apple Podcasts and transcribe it. Example: --podcast \"Lex Fridman episode 400\". Episode number/title hints select the episode; otherwise the latest is used. Ignores positional inputs.")
     var podcast: String?
 
     @Option(name: .long, help: "Directory to write one transcript per input. Implies batch mode; created if missing. When omitted with multiple inputs, the current directory is used.")
     var outputDir: String?
 
-    @Option(name: .shortAndLong, help: "Output format: text, transcript, json.")
+    @Option(name: .shortAndLong, help: "Output format: text, transcript, json, srt, vtt, dapt. srt/vtt emit timed subtitles; dapt emits a structured W3C original transcript. Pair with --output-dir to write one file per input.")
     var format: TranscribeOutputFormat = .text
 
     @Option(help: "Processing mode: raw, clean, app-default.")
     var mode: TranscribeMode = .appDefault
 
-    @Option(help: "Speech engine: app-default, parakeet, nemotron, whisper. Default: parakeet; app-default follows the saved GUI preference.")
+    @Option(help: "Speech engine: app-default, parakeet, nemotron, whisper, cohere. Parakeet is the local default; app-default follows the saved GUI preference.")
     var engine: TranscribeSpeechEngine = .parakeet
 
-    @Option(help: "Language hint for Whisper or Nemotron, such as ko, en, or en-US. Parakeet and the English-only Nemotron build ignore this flag.")
+    @Option(help: "Language hint for Nemotron, Whisper, or Cohere, such as ko, en, or en-US. Cohere requires a supported language; Parakeet and the English-only Nemotron build ignore this flag.")
     var language: String?
 
-    @Option(name: .long, help: "Parakeet build: app-default, v3 (multilingual), v2 (English-only). app-default follows the saved preference; ignored for Nemotron and Whisper.")
+    @Option(name: .long, help: "Parakeet build: app-default, v3 (English + supported European languages), v2 (English word timestamps), unified (readable English with word timestamps), orukeet (multilingual preview). app-default follows the saved preference; ignored for Nemotron, Cohere, and Whisper.")
     var parakeetModel: TranscribeParakeetModel = .appDefault
 
-    @Option(name: .long, help: "Nemotron build: app-default, multilingual-1120ms, english-1120ms (English-only Beta). app-default follows the saved preference; ignored for Parakeet and Whisper. The English build ignores --language.")
+    @Option(name: .long, help: "Nemotron Beta build: app-default, multilingual-1120ms, english-1120ms. app-default follows the saved preference; ignored for Parakeet, Cohere, and Whisper. The English build ignores --language.")
     var nemotronModel: TranscribeNemotronModel = .appDefault
 
     @Option(help: "Downloaded media retention: app-default, keep, delete.")
@@ -171,6 +188,13 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         if mediaAudioQuality != nil && legacyYouTubeAudioQuality != nil {
             throw ValidationError("--media-audio-quality and --youtube-audio-quality cannot be combined.")
         }
+        if let audioTrack, audioTrack < 1 {
+            throw ValidationError("--audio-track must be at least 1.")
+        }
+        if audioTrack != nil,
+           normalizedPodcastQuery != nil || inputs.contains(where: Self.isDownloadableURLInput) {
+            throw ValidationError("--audio-track is supported only for local files and folders.")
+        }
         try Self.validateSpeakerConstraintOptions(
             speakerDetection: speakerDetection,
             noDiarize: noDiarize,
@@ -215,13 +239,20 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         storedEngine: String?,
         storedLanguage: String?,
         storedNemotronLanguage: String? = nil,
-        explicitLanguage: String?
+        storedCohereLanguage: String? = nil,
+        explicitLanguage: String?,
+        physicalMemoryBytes: UInt64 = ProcessInfo.processInfo.physicalMemory
     ) -> SpeechEngineSelection {
         let preference: SpeechEnginePreference
         let language: String?
         switch engine {
         case .appDefault:
-            preference = SpeechEnginePreference(rawValue: storedEngine ?? "") ?? .parakeet
+            let storedPreference = SpeechEnginePreference(rawValue: storedEngine ?? "") ?? .parakeet
+            preference = shouldFallbackCohereAppDefaultToParakeet(
+                requestedEngine: engine,
+                storedEngine: storedEngine,
+                physicalMemoryBytes: physicalMemoryBytes
+            ) ? .parakeet : storedPreference
             language = switch preference {
             case .parakeet:
                 nil
@@ -229,6 +260,8 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 explicitLanguage ?? storedNemotronLanguage
             case .whisper:
                 explicitLanguage ?? storedLanguage
+            case .cohere:
+                explicitLanguage ?? storedCohereLanguage
             }
         case .parakeet:
             preference = .parakeet
@@ -239,8 +272,59 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         case .whisper:
             preference = .whisper
             language = explicitLanguage
+        case .cohere:
+            preference = .cohere
+            language = explicitLanguage ?? storedCohereLanguage
         }
         return SpeechEngineSelection(engine: preference, language: language)
+    }
+
+    static func shouldFallbackCohereAppDefaultToParakeet(
+        requestedEngine: TranscribeSpeechEngine,
+        storedEngine: String?,
+        physicalMemoryBytes: UInt64 = ProcessInfo.processInfo.physicalMemory
+    ) -> Bool {
+        guard requestedEngine == .appDefault,
+              SpeechEnginePreference(rawValue: storedEngine ?? "") == .cohere else {
+            return false
+        }
+        let status = SpeechEngineCapabilityRegistry.memoryRequirementStatus(
+            for: .cohere,
+            physicalMemoryBytes: physicalMemoryBytes
+        )
+        return !status.isSatisfied
+    }
+
+    static func validateSpeechEngineMemoryRequirement(
+        _ speechEngine: SpeechEngineSelection,
+        physicalMemoryBytes: UInt64 = ProcessInfo.processInfo.physicalMemory
+    ) throws {
+        try validateCLISpeechEngineMemoryRequirement(
+            for: speechEngine.engine,
+            physicalMemoryBytes: physicalMemoryBytes
+        )
+    }
+
+    static func validateCohereLanguageOverride(
+        _ explicitLanguage: String?,
+        speechEngine: SpeechEngineSelection
+    ) throws {
+        guard speechEngine.engine == .cohere, let explicitLanguage else { return }
+        let languagePolicy = SpeechEngineCapabilityRegistry.capabilities(for: .cohere).supportedLanguages
+        let supportedLanguageCodes = languagePolicy.supportedLanguageCodes ?? []
+        guard let normalizedLanguage = SpeechEnginePreference.normalizeCohereLanguage(explicitLanguage),
+              supportedLanguageCodes.contains(normalizedLanguage) else {
+            let supported = supportedLanguageCodes.joined(separator: ", ")
+            throw ValidationError(
+                "Invalid value for --language with Cohere: '\(explicitLanguage)'. "
+                    + "Cohere has no auto-detect; use one of: \(supported)."
+            )
+        }
+    }
+
+    static func nemotronIgnoresLanguageOverride(_ variant: NemotronModelVariant) -> Bool {
+        SpeechEngineCapabilityRegistry.capabilities(for: .nemotron(variant))
+            .supportedLanguages.mode == .fixed
     }
 
     static func resolveParakeetModelVariant(
@@ -254,6 +338,10 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
             return .v3
         case .v2:
             return .v2
+        case .unified:
+            return .unified
+        case .orukeet:
+            return .orukeet
         }
     }
 
@@ -306,7 +394,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         switch option {
         case .appDefault:
             return ResolvedSpeakerDetection(
-                enabled: forceDiarization || constraint != nil || (storedEnabled ?? false),
+                enabled: forceDiarization || constraint != nil || (storedEnabled ?? UserDefaultsAppRuntimePreferences.defaultSpeakerDiarizationEnabled),
                 constraint: constraint
             )
         case .on:
@@ -374,7 +462,10 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         for speakerDetection: ResolvedSpeakerDetection
     ) -> DiarizationService? {
         guard speakerDetection.enabled else { return nil }
-        return DiarizationService()
+        guard let constraint = speakerDetection.constraint else {
+            return DiarizationService()
+        }
+        return DiarizationService(speakerConstraint: constraint)
     }
 
     static func diarizationOptions(
@@ -383,11 +474,36 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         guard speakerDetection.enabled, let constraint = speakerDetection.constraint else {
             return .default
         }
-        return DiarizationOptions(speakerCountHint: constraint.speakerCountHint)
+        switch constraint {
+        case .exact(let count):
+            return DiarizationOptions(speakerCountHint: SpeakerCountHint(exact: count))
+        case .range(let minimum, let maximum):
+            return DiarizationOptions(speakerCountHint: SpeakerCountHint(minimum: minimum, maximum: maximum))
+        }
     }
 
     static func localFileURL(for input: String) -> URL {
         URL(fileURLWithPath: expandTilde(input))
+    }
+
+    static func zeroBasedAudioTrackOrdinal(_ audioTrack: Int?) -> Int? {
+        audioTrack.map { $0 - 1 }
+    }
+
+    static func validateAudioTrackOrdinal(
+        _ ordinal: Int,
+        tracks: [AudioTrackDescriptor],
+        fileName: String
+    ) throws {
+        guard tracks.contains(where: { $0.ordinal == ordinal }) else {
+            if tracks.isEmpty {
+                throw ValidationError("\(fileName) has no audio tracks.")
+            }
+            throw ValidationError(
+                "--audio-track \(ordinal + 1) is unavailable for \(fileName) "
+                    + "(\(tracks.count) audio tracks)."
+            )
+        }
     }
 
     static func telemetryInputKind(for input: String) -> ObservabilityInputKind {
@@ -431,32 +547,60 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         let reportPath = resolvedDiarizationReportPath
         let writeToFiles = podcastQuery == nil && (resolvedInputs.count > 1 || outputDir != nil)
 
+        var stdoutRedirection: StandardOutputRedirection?
         var sttClient: STTClient?
         var nemotronEngine: NemotronEngine?
         var nemotronEnglishEngine: NemotronEnglishEngine?
         var whisperEngine: WhisperEngine?
-        let runResult: Result<Void, Error>
+        var cohereEngine: CohereTranscribeEngine?
+        let runResult: Result<TranscribeStdoutEmission, Error>
         do {
+            stdoutRedirection = try StandardOutputRedirection()
+            if reportPath != nil && writeToFiles {
+                throw ValidationError(
+                    "--diarization-report is only supported for a single fresh transcription, not batch or --output-dir mode."
+                )
+            }
             guard podcastQuery != nil || !resolvedInputs.isEmpty else {
                 throw ValidationError("No transcribable inputs found — pass a file/URL, or use --podcast \"<search query>\".")
-            }
-            if reportPath != nil && writeToFiles {
-                throw ValidationError("--diarization-report can only be used with a single fresh transcription, not batch/output-dir mode.")
             }
             try AppPaths.ensureDirectories()
             let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
             let transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
+            let segmentRepo = SegmentRepository(dbQueue: dbManager.dbQueue)
             let customWordRepo = CustomWordRepository(dbQueue: dbManager.dbQueue)
             let snippetRepo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
             let promptResultRepo = PromptResultRepository(dbQueue: dbManager.dbQueue)
             let defaults = macParakeetAppDefaults()
+            let storedSpeechEngine = defaults.string(forKey: SpeechEnginePreference.defaultsKey)
+            let physicalMemoryBytes = ProcessInfo.processInfo.physicalMemory
             let speechEngine = Self.resolveSpeechEngine(
                 self.engine,
-                storedEngine: defaults.string(forKey: SpeechEnginePreference.defaultsKey),
+                storedEngine: storedSpeechEngine,
                 storedLanguage: SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults),
                 storedNemotronLanguage: SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults),
-                explicitLanguage: self.language
+                storedCohereLanguage: SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults),
+                explicitLanguage: self.language,
+                physicalMemoryBytes: physicalMemoryBytes
             )
+            if Self.shouldFallbackCohereAppDefaultToParakeet(
+                requestedEngine: self.engine,
+                storedEngine: storedSpeechEngine,
+                physicalMemoryBytes: physicalMemoryBytes
+            ) {
+                let status = SpeechEngineCapabilityRegistry.memoryRequirementStatus(
+                    for: .cohere,
+                    physicalMemoryBytes: physicalMemoryBytes
+                )
+                printErr(
+                    "\(status.insufficientMemoryMessage ?? "Cohere Transcribe cannot run on this Mac because it does not meet the memory requirement.") Using Parakeet for this transcription."
+                )
+            }
+            try Self.validateSpeechEngineMemoryRequirement(
+                speechEngine,
+                physicalMemoryBytes: physicalMemoryBytes
+            )
+            try Self.validateCohereLanguageOverride(self.language, speechEngine: speechEngine)
             let resolvedSpeakerDetection = Self.resolveSpeakerDetection(
                 self.speakerDetection,
                 storedEnabled: defaults.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool,
@@ -495,8 +639,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                     storedVariant: SpeechEnginePreference.parakeetModelVariant(defaults: defaults)
                 )
                 let createdSTTClient = STTClient(
-                    modelVersion: parakeetVariant.asrModelVersion,
-                    defaults: defaults
+                    parakeetModelVariant: parakeetVariant,
+                    defaults: defaults,
+                    customWordRepository: customWordRepo
                 )
                 sttClient = createdSTTClient
                 sttTranscriber = createdSTTClient
@@ -505,7 +650,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                     self.nemotronModel,
                     storedVariant: SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
                 )
-                if nemotronVariant.isEnglishOnly {
+                if Self.nemotronIgnoresLanguageOverride(nemotronVariant) {
                     if language != nil {
                         printErr("Note: --language is ignored by the English-only Nemotron build.")
                     }
@@ -521,6 +666,15 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 let createdWhisperEngine = WhisperEngine(language: speechEngine.language)
                 whisperEngine = createdWhisperEngine
                 sttTranscriber = createdWhisperEngine
+            case .cohere:
+                // Thread the resolved language into the engine — the no-`language:`
+                // transcribe path the CLI uses otherwise falls back to English.
+                let createdCohereEngine = CohereTranscribeEngine(
+                    computePolicy: CohereTranscribeEngine.ComputePolicy.current(defaults: defaults),
+                    defaultLanguageCode: speechEngine.language
+                )
+                cohereEngine = createdCohereEngine
+                sttTranscriber = createdCohereEngine
             }
             let audioProcessor = AudioProcessor()
             let youtubeDownloader = YouTubeDownloader(audioQuality: {
@@ -538,6 +692,10 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 audioProcessor: audioProcessor,
                 sttTranscriber: sttTranscriber,
                 transcriptionRepo: transcriptionRepo,
+                segmentRepo: segmentRepo,
+                knowledgeLayerMutator: KnowledgeLayerMutationService(
+                    dbQueue: dbManager.dbQueue
+                ),
                 promptResultRepo: promptResultRepo,
                 entitlements: entitlementsService,
                 customWordRepo: customWordRepo,
@@ -545,60 +703,62 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 processingMode: {
                     processingMode
                 },
+                removeUmFiller: {
+                    UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: defaults)
+                },
                 shouldKeepDownloadedAudio: {
                     shouldKeepDownloadedAudio
                 },
                 shouldDiarize: { resolvedSpeakerDetection.enabled },
+                shouldDiarizeMeetings: { resolvedSpeakerDetection.enabled },
                 youtubeDownloader: youtubeDownloader,
                 podcastResolver: PodcastEpisodeResolver(),
                 podcastSearchResolver: PodcastQueryResolver(),
                 podcastAudioFetcher: PodcastAudioDownloader(),
-                diarizationService: diarizationService
+                diarizationService: diarizationService,
+                meetingArtifactStore: MeetingArtifactStore(
+                    speakerAttributionReader: SpeakerAttributionReadService(dbQueue: dbManager.dbQueue)
+                )
             )
 
+            var stdoutEmission: TranscribeStdoutEmission = .none
             if let podcastQuery {
-                let result = try await transcribePodcastQuery(
-                    query: podcastQuery,
-                    service: service,
-                    options: runOptions
-                )
+                let result = try await withStandardOutputRedirectedToStandardError {
+                    try await transcribePodcastQuery(
+                        query: podcastQuery,
+                        service: service,
+                        options: runOptions
+                    )
+                }
                 try writeDiarizationReportIfRequested(result)
                 if let outputDir {
                     let dir = try Self.prepareOutputDir(outputDir)
-                    let url = try Self.writeOutput(result.transcription, to: dir, format: format)
+                    let url = try await Self.writeOutput(result.transcription, to: dir, format: format)
                     printErr("  \u{2192} \(url.path)")
                 } else {
-                    switch format {
-                    case .json: try printJSON(result.transcription)
-                    case .transcript: printTranscript(result.transcription)
-                    case .text: printText(result.transcription)
-                    }
+                    stdoutEmission = .transcription(result.transcription, format)
                 }
             } else if writeToFiles {
-                try await runBatch(
-                    inputs: resolvedInputs,
-                    service: service,
-                    speechEngine: speechEngine,
-                    options: runOptions
-                )
-            } else {
-                let result = try await transcribeOne(
-                    input: resolvedInputs[0],
-                    service: service,
-                    speechEngine: speechEngine,
-                    options: runOptions
-                )
-                try writeDiarizationReportIfRequested(result)
-                switch format {
-                case .json:
-                    try printJSON(result.transcription)
-                case .transcript:
-                    printTranscript(result.transcription)
-                case .text:
-                    printText(result.transcription)
+                try await withStandardOutputRedirectedToStandardError {
+                    try await runBatch(
+                        inputs: resolvedInputs,
+                        service: service,
+                        speechEngine: speechEngine
+                    )
                 }
+            } else {
+                let result = try await withStandardOutputRedirectedToStandardError {
+                    try await transcribeOne(
+                        input: resolvedInputs[0],
+                        service: service,
+                        speechEngine: speechEngine,
+                        options: runOptions
+                    )
+                }
+                try writeDiarizationReportIfRequested(result)
+                stdoutEmission = .transcription(result.transcription, format)
             }
-            runResult = .success(())
+            runResult = .success(stdoutEmission)
         } catch {
             runResult = .failure(error)
         }
@@ -607,8 +767,57 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         await nemotronEngine?.unload()
         await nemotronEnglishEngine?.unload()
         await whisperEngine?.unload()
-        try emitJSONOrRethrow(json: format == .json) {
-            try runResult.get()
+        await cohereEngine?.unload()
+
+        let restoreResult: Result<Void, Error> = Result {
+            try stdoutRedirection?.restore()
+        }
+        try await emitJSONOrRethrow(json: format == .json) {
+            let emission = try Self.outputEmissionAfterNativeTeardown(
+                runResult: runResult,
+                restoreResult: restoreResult,
+                warnOnIgnoredRestoreFailure: { error in
+                    printErr("Warning: failed to restore stdout after transcribe failure: \(error.localizedDescription)")
+                }
+            )
+            try await emitStdout(emission)
+        }
+    }
+
+    static func outputEmissionAfterNativeTeardown<Emission>(
+        runResult: Result<Emission, Error>,
+        restoreResult: Result<Void, Error>,
+        warnOnIgnoredRestoreFailure: ((Error) -> Void)? = nil
+    ) throws -> Emission {
+        switch (runResult, restoreResult) {
+        case (.success(let emission), .success):
+            return emission
+        case (.success, .failure(let restoreError)):
+            throw restoreError
+        case (.failure(let runError), .success):
+            throw runError
+        case (.failure(let runError), .failure(let restoreError)):
+            warnOnIgnoredRestoreFailure?(restoreError)
+            throw runError
+        }
+    }
+
+    private func emitStdout(_ emission: TranscribeStdoutEmission) async throws {
+        switch emission {
+        case .none:
+            return
+        case .transcription(let result, let outputFormat):
+            switch outputFormat {
+            case .json:
+                try printJSON(result)
+            case .transcript:
+                printTranscript(result)
+            case .text:
+                printText(result)
+            case .srt, .vtt, .dapt:
+                print(await Self.formattedString(for: result, format: outputFormat), terminator: "")
+            }
+            printSaveHintIfSaved(result, format: outputFormat)
         }
     }
 
@@ -621,8 +830,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     private func runBatch(
         inputs: [String],
         service: TranscriptionService,
-        speechEngine: SpeechEngineSelection,
-        options: TranscriptionRunOptions
+        speechEngine: SpeechEngineSelection
     ) async throws {
         let dir = try Self.prepareOutputDir(outputDir)
         var ok = 0
@@ -633,10 +841,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 let result = try await transcribeOne(
                     input: input,
                     service: service,
-                    speechEngine: speechEngine,
-                    options: options
-                )
-                let url = try Self.writeOutput(result.transcription, to: dir, format: format)
+                    speechEngine: speechEngine
+                ).transcription
+                let url = try await Self.writeOutput(result, to: dir, format: format)
                 printErr("  \u{2192} \(url.path)")
                 ok += 1
             } catch {
@@ -660,7 +867,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         input: String,
         service: TranscriptionService,
         speechEngine: SpeechEngineSelection,
-        options: TranscriptionRunOptions
+        options: TranscriptionRunOptions = .default
     ) async throws -> TranscriptionRunResult {
         let lastProgressLine = OSAllocatedUnfairLock(initialState: "")
         @Sendable func printProgressLine(_ line: String) {
@@ -675,6 +882,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
             switch progress {
             case .converting: printProgressLine("Converting audio...")
             case .downloading(let pct): printProgressLine("Downloading audio... \(pct)%")
+            case .preparingSpeechModel: printProgressLine("Preparing speech model...")
             case .transcribing(let pct): printProgressLine("Transcribing... \(pct)%")
             case .identifyingSpeakers: printProgressLine("Identifying speakers...")
             case .finalizing: printProgressLine("Finalizing...")
@@ -704,7 +912,32 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         guard AudioFileConverter.supportedExtensions.contains(ext) else {
             throw CLIError.unsupportedFormat(ext)
         }
+        let audioTrackOrdinal = Self.zeroBasedAudioTrackOrdinal(audioTrack)
+        if let audioTrackOrdinal {
+            let tracks = try await service.audioTracks(in: url)
+            try Self.validateAudioTrackOrdinal(
+                audioTrackOrdinal,
+                tracks: tracks,
+                fileName: url.lastPathComponent
+            )
+        }
         printErr("Transcribing \(url.lastPathComponent) with \(speechEngine.engine.rawValue)...")
+        if let audioTrackOrdinal {
+            if noHistory {
+                return try await service.transcribeTransient(
+                    fileURL: url,
+                    audioTrackOrdinal: audioTrackOrdinal,
+                    options: options,
+                    onProgress: progressHandler
+                )
+            }
+            return try await service.transcribe(
+                fileURL: url,
+                audioTrackOrdinal: audioTrackOrdinal,
+                options: options,
+                onProgress: progressHandler
+            )
+        }
         if noHistory {
             return try await service.transcribeTransient(
                 fileURL: url,
@@ -724,7 +957,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     private func transcribePodcastQuery(
         query: String,
         service: TranscriptionService,
-        options: TranscriptionRunOptions
+        options: TranscriptionRunOptions = .default
     ) async throws -> TranscriptionRunResult {
         let lastProgressLine = OSAllocatedUnfairLock(initialState: "")
         let progressHandler: @Sendable (TranscriptionProgress) -> Void = { progress in
@@ -732,6 +965,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
             switch progress {
             case .converting: line = "Converting audio..."
             case .downloading(let pct): line = "Fetching episode... \(pct)%"
+            case .preparingSpeechModel: line = "Preparing speech model..."
             case .transcribing(let pct): line = "Transcribing... \(pct)%"
             case .identifyingSpeakers: line = "Identifying speakers..."
             case .finalizing: line = "Finalizing..."
@@ -756,6 +990,30 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
             options: options,
             onProgress: progressHandler
         )
+    }
+
+    private func writeDiarizationReportIfRequested(_ result: TranscriptionRunResult) throws {
+        guard let reportPath = resolvedDiarizationReportPath else { return }
+        guard let report = result.diarizationQualityReport else {
+            throw CLIError.diarizationReportUnavailable
+        }
+        let url = try Self.writeDiarizationReport(report, to: reportPath)
+        printErr("  \u{2192} diarization report: \(url.path)")
+    }
+
+    static func writeDiarizationReport(_ report: DiarizationQualityReport, to path: String) throws -> URL {
+        let trimmedPath = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPath.isEmpty else {
+            throw ValidationError("--diarization-report requires a non-empty path.")
+        }
+        let url = URL(fileURLWithPath: expandTilde(trimmedPath))
+        let directory = url.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(report)
+        try data.write(to: url, options: .atomic)
+        return url
     }
 
     /// Expand folder arguments into their supported audio files and
@@ -807,13 +1065,37 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         return String(trimmed[..<queryOrFragmentIndex])
     }
 
+    /// File extension for a written transcript, keyed by output format.
+    static func fileExtension(for format: TranscribeOutputFormat) -> String {
+        switch format {
+        case .json: return "json"
+        case .srt: return "srt"
+        case .vtt: return "vtt"
+        case .dapt: return "dapt.xml"
+        case .text, .transcript: return "txt"
+        }
+    }
+
+    /// Render SRT, VTT, and DAPT using the same `ExportService` implementation
+    /// as the `export` command and GUI, keeping public output paths identical.
+    @MainActor
+    static func formattedString(for t: Transcription, format: TranscribeOutputFormat) -> String {
+        let exporter = ExportService()
+        switch format {
+        case .srt: return exporter.formatSRT(transcription: t)
+        case .vtt: return exporter.formatVTT(transcription: t)
+        case .dapt: return exporter.formatDAPT(transcription: t)
+        case .text, .transcript, .json: return ""
+        }
+    }
+
     /// Write one transcript file for `t` into `dir`, named after the source and
-    /// suffixed by format (`.json` for json, `.txt` otherwise). Never
+    /// suffixed by format (`.json`/`.srt`/`.vtt`/`.dapt.xml`, else `.txt`). Never
     /// overwrites — collisions get a `-2`, `-3`, … suffix.
-    static func writeOutput(_ t: Transcription, to dir: URL, format: TranscribeOutputFormat) throws -> URL {
-        let ext = format == .json ? "json" : "txt"
+    static func writeOutput(_ t: Transcription, to dir: URL, format: TranscribeOutputFormat) async throws -> URL {
+        let ext = fileExtension(for: format)
         let base = sanitizedBasename(t.fileName)
-        let url = uniqueURL(dir.appendingPathComponent(base).appendingPathExtension(ext))
+        let url = uniqueURL(in: dir, base: base, fileExtension: ext)
         let contents: String
         switch format {
         case .json:
@@ -825,6 +1107,8 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
             contents = transcriptOutput(for: t)
         case .text:
             contents = plainTextOutput(for: t)
+        case .srt, .vtt, .dapt:
+            contents = await formattedString(for: t, format: format)
         }
         try Data(contents.utf8).write(to: url)
         return url
@@ -846,42 +1130,16 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         return safe.isEmpty ? "transcript" : safe
     }
 
-    static func uniqueURL(_ url: URL) -> URL {
+    static func uniqueURL(in directory: URL, base: String, fileExtension: String) -> URL {
         let fm = FileManager.default
+        let url = directory.appendingPathComponent("\(base).\(fileExtension)")
         guard fm.fileExists(atPath: url.path) else { return url }
-        let dir = url.deletingLastPathComponent()
-        let stem = url.deletingPathExtension().lastPathComponent
-        let ext = url.pathExtension
         var n = 2
         while true {
-            let candidate = dir.appendingPathComponent("\(stem)-\(n)").appendingPathExtension(ext)
+            let candidate = directory.appendingPathComponent("\(base)-\(n).\(fileExtension)")
             if !fm.fileExists(atPath: candidate.path) { return candidate }
             n += 1
         }
-    }
-
-    private func writeDiarizationReportIfRequested(_ result: TranscriptionRunResult) throws {
-        guard let reportPath = resolvedDiarizationReportPath else { return }
-        guard let report = result.diarizationQualityReport else {
-            throw CLIError.diarizationReportUnavailable
-        }
-        let url = try Self.writeDiarizationReport(report, to: reportPath)
-        printErr("  \u{2192} diarization report: \(url.path)")
-    }
-
-    static func writeDiarizationReport(_ report: DiarizationQualityReport, to path: String) throws -> URL {
-        let trimmedPath = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedPath.isEmpty else {
-            throw ValidationError("--diarization-report requires a non-empty path.")
-        }
-        let url = URL(fileURLWithPath: expandTilde(trimmedPath))
-        let directory = url.deletingLastPathComponent()
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let data = try encoder.encode(report)
-        try data.write(to: url, options: .atomic)
-        return url
     }
 
     /// String form of the verbose `--format text` output, for file writing.
@@ -954,6 +1212,22 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         let serviceName = Bundle.main.bundleIdentifier ?? "com.macparakeet"
         let store = KeychainKeyValueStore(service: serviceName)
         return EntitlementsService(config: config, store: store, api: LemonSqueezyLicenseAPI())
+    }
+
+    /// After a single transcription has been printed to stdout, point the user
+    /// at the saved library record and how to turn it into a file. This closes
+    /// the gap behind discussion #596: `transcribe` saves to history by default,
+    /// but nothing previously signposted the record or the `export` step.
+    /// Written to stderr so it never pollutes stdout (text, or a piped `> out`).
+    /// Skipped for `--no-history` (nothing was saved) and for `json`/`srt`/`vtt`,
+    /// where the user already requested machine/file output and the hint would
+    /// be noise.
+    private func printSaveHintIfSaved(_ t: Transcription, format: TranscribeOutputFormat) {
+        guard !noHistory, format == .text || format == .transcript else { return }
+        printErr("")
+        printErr("Saved to your library (id \(t.id.uuidString)).")
+        printErr("Turn it into a file: macparakeet-cli export \(t.id.uuidString) --format vtt"
+            + "   (or srt, dapt, txt, markdown, json)")
     }
 
     private func printText(_ t: Transcription) {

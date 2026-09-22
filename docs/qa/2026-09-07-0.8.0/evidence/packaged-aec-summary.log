@@ -1,0 +1,17 @@
+Raw log SHA256: 66e5b93b0e5576d7c571b8ee9e0f0abb5a141684f38736e0686112bacf53720c
+Test Suite 'Selected tests' started at 2026-09-07 16:03:14.723.
+Test Suite 'MacParakeetPackageTests.xctest' started at 2026-09-07 16:03:14.724.
+Test Suite 'MeetingAecRenderThroughputTests' started at 2026-09-07 16:03:14.724.
+Test Case '-[MacParakeetTests.MeetingAecRenderThroughputTests testLocalVQECleanedMicRenderThroughput]' started.
+Test Case '-[MacParakeetTests.MeetingAecRenderThroughputTests testLocalVQECleanedMicRenderThroughput]' passed (9.128 seconds).
+Test Suite 'MeetingAecRenderThroughputTests' passed at 2026-09-07 16:03:23.852.
+	 Executed 1 test, with 0 failures (0 unexpected) in 9.128 (9.128) seconds
+Test Suite 'MeetingEchoSuppressionRuntimeTests' started at 2026-09-07 16:03:23.852.
+Test Case '-[MacParakeetTests.MeetingEchoSuppressionRuntimeTests testRealLocalVQERuntimeLoadsWhenTestAssetsAreProvided]' passed (0.013 seconds).
+Test Suite 'MeetingEchoSuppressionRuntimeTests' passed at 2026-09-07 16:03:23.865.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.013 (0.013) seconds
+Test Suite 'MacParakeetPackageTests.xctest' passed at 2026-09-07 16:03:23.865.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 9.140 (9.141) seconds
+Test Suite 'Selected tests' passed at 2026-09-07 16:03:23.865.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 9.140 (9.142) seconds
+[AEC-THROUGHPUT] LocalVQE cleaned-mic conditioning: audio 60.0s elapsed 5.426s throughput 11.06x failures 0

@@ -1,0 +1,33 @@
+[1/1] Compiling plugin GenerateManual
+[2/2] Compiling plugin GenerateDoccReference
+Building for debugging...
+[2/11] Write sources
+[4/11] Write swift-version--58304C5D6DBC2206.txt
+[6/10] Compiling MacParakeet TranscriptResultView.swift
+[7/10] Emitting module MacParakeet
+[7/12] Write Objects.LinkFileList
+[8/12] Linking MacParakeet
+[9/12] Applying MacParakeet
+[11/14] Emitting module MacParakeetTests
+[12/14] Compiling MacParakeetTests MeetingRecordingRecoveryServiceTests.swift
+[12/14] Write Objects.LinkFileList
+[13/14] Linking MacParakeetPackageTests
+Build complete! (33.18s)
+Test Suite 'Selected tests' started at 2026-09-07 15:35:45.797.
+Test Suite 'MacParakeetPackageTests.xctest' started at 2026-09-07 15:35:45.798.
+Test Suite 'MeetingRecordingRecoveryServiceTests' started at 2026-09-07 15:35:45.798.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardRestoresMissingLockAfterPartialFolderRemovalAndCanRetry]' started.
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift:915: error: -[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardRestoresMissingLockAfterPartialFolderRemovalAndCanRetry] : XCTAssertEqual failed: ("nil") is not equal to ("Optional(MacParakeetCore.MeetingRecordingLockFile(schemaVersion: 2, sessionId: F7734D04-C8DA-4577-A81B-A72C64E1ABD2, startedAt: 2023-11-14 22:13:20 +0000, pid: 42, displayName: "Recovered Team Sync", state: MacParakeetCore.MeetingRecordingLockState.awaitingTranscription, finalizationLeaseId: nil, speechEngine: MacParakeetCore.SpeechEngineSelection(engine: MacParakeetCore.SpeechEnginePreference.parakeet, language: nil), speechEngineWasCaptured: true, startContext: nil, calendarEventSnapshot: nil, notes: nil, folderURL: Optional(file:///var/folders/45/cgw5knls45nb1qk8678yhg240000gp/T/MeetingRecordingRecoveryServiceTests-5CC99891-2B3A-4946-90A3-B7A1E1300F6D/F7734D04-C8DA-4577-A81B-A72C64E1ABD2/)))")
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift:917: error: -[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardRestoresMissingLockAfterPartialFolderRemovalAndCanRetry] : XCTAssertEqual failed: ("[]") is not equal to ("[F7734D04-C8DA-4577-A81B-A72C64E1ABD2]")
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingLockFileStore.swift:374: error: -[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardRestoresMissingLockAfterPartialFolderRemovalAndCanRetry] : failed: caught error: "missingLock"
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardRestoresMissingLockAfterPartialFolderRemovalAndCanRetry]' failed (1.010 seconds).
+Test Suite 'MeetingRecordingRecoveryServiceTests' failed at 2026-09-07 15:35:46.809.
+	 Executed 1 test, with 3 failures (1 unexpected) in 1.010 (1.010) seconds
+Test Suite 'MacParakeetPackageTests.xctest' failed at 2026-09-07 15:35:46.809.
+	 Executed 1 test, with 3 failures (1 unexpected) in 1.010 (1.011) seconds
+Test Suite 'Selected tests' failed at 2026-09-07 15:35:46.809.
+	 Executed 1 test, with 3 failures (1 unexpected) in 1.010 (1.011) seconds
+◇ Test run started.
+↳ Testing Library Version: 1743
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.

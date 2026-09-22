@@ -3,49 +3,109 @@ import Foundation
 /// Resolves the on-disk audio file for a finalized meeting recording and
 /// suggests an export-friendly filename.
 ///
-/// Meeting transcriptions store the mixed-track `meeting.m4a` path in
+/// Meeting transcriptions store the playback/export `meeting-playback.m4a` path in
 /// `Transcription.filePath`. The file itself lives at
-/// `~/Library/Application Support/MacParakeet/meeting-recordings/<sessionUUID>/meeting.m4a`
+/// `~/Library/Application Support/MacParakeet/meeting-recordings/<sessionUUID>/meeting-playback.m4a`
 /// (see `MeetingAudioStorageWriter`).
 ///
 /// This helper is the single seam between UI surfaces ("Show in Finder",
 /// "Save Audio As…") and that on-disk layout, so future changes to the
 /// folder structure only ripple through one file.
 public enum MeetingAudioFile {
+    public enum State: Equatable, Sendable {
+        case notMeeting
+        case saved
+        case removed
+        case missing
+    }
 
     // MARK: - URL resolution
 
-    /// Returns the mixed-track audio URL for a meeting transcription, or
+    /// Returns the playback/export audio URL for a meeting transcription, or
     /// `nil` for non-meeting sources or transcriptions without a stored
     /// file path. Does NOT check on-disk existence; call
     /// `isAvailable(for:)` when that matters.
     public static func mixedAudioURL(for transcription: Transcription) -> URL? {
         guard transcription.sourceType == .meeting else { return nil }
         guard let path = transcription.filePath,
-              !path.trimmingCharacters(in: .whitespaces).isEmpty else {
+            !path.trimmingCharacters(in: .whitespaces).isEmpty
+        else {
             return nil
         }
         return URL(fileURLWithPath: path)
     }
 
-    /// Whether the mixed-track audio file is reachable on disk. Returns
-    /// false for non-meeting transcriptions or when the recorded file is
-    /// missing (deleted, moved, or recovery still in progress).
-    ///
-    /// **Status-agnostic by design.** Returns true for `.processing`,
-    /// `.error`, or `.cancelled` meetings as long as the file is on
-    /// disk. The audio is written incrementally as fragmented MP4 (see
-    /// ADR-019), so a user looking at a failed-transcription row can
-    /// still grab the captured audio. Don't add a status gate here
-    /// without an explicit product reason.
+    /// Whether meeting audio is reachable on disk. Returns false for
+    /// non-meeting rows and missing audio files.
     public static func isAvailable(
         for transcription: Transcription,
         fileManager: FileManager = .default
     ) -> Bool {
-        guard let url = mixedAudioURL(for: transcription) else { return false }
+        state(for: transcription, fileManager: fileManager) == .saved
+    }
+
+    /// Whether saved meeting audio can be removed without breaking active
+    /// meeting finalization. Processing rows may expose saved audio for playback,
+    /// export, and retry-source visibility, but the audio remains owned by the
+    /// finalization queue until the row reaches a terminal state.
+    public static func isRemovable(
+        for transcription: Transcription,
+        fileManager: FileManager = .default
+    ) -> Bool {
+        isRemovable(
+            for: transcription,
+            state: state(for: transcription, fileManager: fileManager),
+            fileManager: fileManager
+        )
+    }
+
+    /// Whether a caller can detach the meeting audio for an already-resolved
+    /// audio state. Use this overload when UI code already computed `state`.
+    public static func isRemovable(
+        for transcription: Transcription,
+        state: State,
+        fileManager: FileManager = .default
+    ) -> Bool {
+        guard state == .saved else { return false }
+        guard !isFinalizationInProgress(for: transcription, fileManager: fileManager) else { return false }
+        return true
+    }
+
+    /// Whether meeting audio is still owned by an active finalization or
+    /// recovery lock and should not be detached yet.
+    public static func isFinalizationInProgress(
+        for transcription: Transcription,
+        fileManager: FileManager = .default
+    ) -> Bool {
+        guard transcription.sourceType == .meeting else { return false }
+        if transcription.status == .processing { return true }
+        guard let folderURL = MeetingArtifactStore.sessionFolderURL(for: transcription)?.standardizedFileURL else {
+            return false
+        }
+        let lockURL = MeetingRecordingLockFileStore.lockFileURL(for: folderURL)
+        return fileManager.fileExists(atPath: lockURL.path)
+    }
+
+    /// User-facing availability state for a meeting's stored audio.
+    ///
+    /// `removed` means the DB no longer points at meeting audio, usually
+    /// because the user chose audio-only cleanup or a retention policy removed
+    /// it after final transcription. `missing` means the DB still points at a
+    /// path, but that path is no longer a file on disk.
+    public static func state(
+        for transcription: Transcription,
+        fileManager: FileManager = .default
+    ) -> State {
+        guard transcription.sourceType == .meeting else {
+            return .notMeeting
+        }
+        guard let url = mixedAudioURL(for: transcription) else { return .removed }
         var isDirectory: ObjCBool = false
         let exists = fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory)
-        return exists && !isDirectory.boolValue
+        if exists && !isDirectory.boolValue {
+            return .saved
+        }
+        return .missing
     }
 
     // MARK: - Safe copy
@@ -55,7 +115,7 @@ public enum MeetingAudioFile {
     ///
     /// 1. **No source destruction on same-file save.** A user can pick
     ///    the meeting's own folder in "Save Audio As…" and confirm an
-    ///    overwrite of `meeting.m4a`. A pre-delete-then-copy approach
+    ///    overwrite of `meeting-playback.m4a`. A pre-delete-then-copy approach
     ///    would erase the only source file and then fail the copy.
     ///    Here we detect identical paths and no-op.
     /// 2. **No mid-copy corruption.** Large meetings can be hundreds of
@@ -107,7 +167,8 @@ public enum MeetingAudioFile {
     ///   name (`"Meeting May 11, 2026 at 1:32 PM"`); appending another
     ///   date would just create noise.
     public static func suggestedExportStem(for transcription: Transcription) -> String {
-        let derived = transcription.derivedTitle?
+        let derived =
+            transcription.derivedTitle?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !derived.isEmpty {
             let datePart = isoDateFormatter.string(from: transcription.createdAt)
@@ -146,14 +207,16 @@ public enum MeetingAudioFile {
         var disallowed = CharacterSet(charactersIn: "/:\\\"")
         disallowed.formUnion(.controlCharacters)
 
-        let cleaned = input
+        let cleaned =
+            input
             .components(separatedBy: disallowed)
             .joined(separator: " ")
             .components(separatedBy: .whitespacesAndNewlines)
             .filter { !$0.isEmpty }
             .joined(separator: " ")
 
-        let capped = cleaned.count <= maxStemLength
+        let capped =
+            cleaned.count <= maxStemLength
             ? cleaned
             : String(cleaned.prefix(maxStemLength))
                 .trimmingCharacters(in: .whitespacesAndNewlines)

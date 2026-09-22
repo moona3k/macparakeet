@@ -3,20 +3,75 @@ import MacParakeetCore
 import OSLog
 import SwiftUI
 
+/// A persisted user-driven meeting rename that other loaded view models can apply in place.
+public struct MeetingRename: Equatable, Sendable {
+    public let id: UUID
+    public let title: String
+
+    public init(id: UUID, title: String) {
+        self.id = id
+        self.title = title
+    }
+}
+
 @MainActor
 @Observable
 public final class TranscriptionViewModel {
+    public struct AudioTrackSelectionRequest: Identifiable, Equatable, Sendable {
+        public let id: UUID
+        public let fileName: String
+        public let fileCount: Int
+        public let tracks: [AudioTrackDescriptor]
+
+        public var isBatch: Bool { fileCount > 1 }
+    }
+
     public struct RetranscriptionEngineOption: Equatable, Sendable {
+        public struct Choice: Identifiable, Equatable, Sendable {
+            public let selection: SpeechEngineSelection
+            public let capabilities: SpeechEngineCapabilities
+            public let isPrimary: Bool
+            public let isAvailable: Bool
+            public let unavailableReason: String?
+            public let advisory: String?
+
+            public var id: String {
+                "\(selection.engine.rawValue)-\(selection.language ?? "none")"
+            }
+        }
+
         public let primaryEngine: SpeechEngineSelection
-        public let alternativeEngine: SpeechEngineSelection
-        public let isAlternativeAvailable: Bool
-        public let unavailableReason: String?
+        public let choices: [Choice]
         /// Persisted Nemotron build a Nemotron rerun would load (STTRuntime
         /// resolves the persisted variant at run start).
         public let nemotronVariant: NemotronModelVariant
+        /// Persisted Parakeet build a Parakeet rerun would load. Drives the
+        /// engine card's subtitle so it reflects the actual v3/v2/Unified
+        /// posture (e.g. Unified is English-only and emits word timestamps)
+        /// rather than always advertising the multilingual v3 build.
+        public let parakeetVariant: ParakeetModelVariant
+        /// Whether `primaryEngine` reflects the engine that actually produced
+        /// this transcript (a captured meeting engine, or the engine recorded on
+        /// the row) rather than a fall-back to the user's current default. The
+        /// menu badges the primary "Original" when this is `true` and "Current"
+        /// when it is `false` (legacy rows predating engine attribution), and
+        /// only the latter reruns through the plain current-settings path.
+        public let primaryReflectsTranscriptEngine: Bool
 
         public var title: String {
-            "Try with \(alternativeEngine.engine.displayName)"
+            "Retranscribe with speech engine"
+        }
+
+        public var firstTimestampCapableChoice: Choice? {
+            choices.first { choice in
+                choice.isAvailable && choice.capabilities.providesWordTimestamps
+            }
+        }
+
+        public func producesWordTimestamps(_ selection: SpeechEngineSelection) -> Bool {
+            choices
+                .first { $0.selection.engine == selection.engine }?
+                .capabilities.providesWordTimestamps ?? false
         }
     }
 
@@ -30,6 +85,7 @@ public final class TranscriptionViewModel {
         case preparing
         case downloading
         case converting
+        case preparingSpeechModel
         case transcribing
         case identifyingSpeakers
         case finalizing
@@ -37,6 +93,7 @@ public final class TranscriptionViewModel {
 
     public enum TranscriptTab: Hashable, Sendable {
         case transcript
+        case notes
         case result(id: UUID)
         case generation(id: UUID)
         case chat
@@ -50,16 +107,60 @@ public final class TranscriptionViewModel {
     }
 
     public var transcriptions: [Transcription] = []
+    /// Monotonic identity for the selected transcript snapshot. Views use this
+    /// to reject asynchronous derivations that finished after a same-row edit,
+    /// retranscription, refresh, or metadata update.
+    public private(set) var currentTranscriptionRevision: UInt64 = 0
     public var currentTranscription: Transcription? {
         didSet {
+            currentTranscriptionRevision &+= 1
             let transcriptionChanged = oldValue?.id != currentTranscription?.id
             if transcriptionChanged {
+                if let previousID = oldValue?.id {
+                    clearMeetingNotesError(for: previousID)
+                }
                 selectedTab = .transcript
             }
             if transcriptionChanged || currentTranscription == nil {
                 hasConversations = false
             }
             refreshPromptResultStatus()
+            // Attribution belongs to a selected snapshot, including updates of
+            // the same row when a queued meeting finishes transcription.
+            speakerAttributionLoadToken = nil
+            // Notes and title updates do not change speaker evidence. Keep
+            // the displayed projection stable while refreshing its DB state.
+            let sameSpeakerSource =
+                currentTranscription != nil
+                && oldValue?.id == currentTranscription?.id
+                && oldValue?.status == currentTranscription?.status
+                && oldValue?.sourceType == currentTranscription?.sourceType
+                && oldValue?.wordTimestamps == currentTranscription?.wordTimestamps
+                && oldValue?.transcriptSegments == currentTranscription?.transcriptSegments
+                && oldValue?.speakers == currentTranscription?.speakers
+                && oldValue?.diarizationSegments == currentTranscription?.diarizationSegments
+            if !sameSpeakerSource {
+                speakerAttributionTranscriptionID = nil
+                speakerAttribution = nil
+                speakerCorrectionsApplied = false
+                canUndoSpeakerCorrection = false
+                canRedoSpeakerCorrection = false
+                // An offer belongs to one version of the diarization, not to a
+                // transcription id: re-transcribing reloads the same row in
+                // place, and `speakerId` is positional, so a surviving offer
+                // could name a different person's voice.
+                dismissVoiceEnrollment()
+                voiceEnrollmentMessage = nil
+                voiceSuggestions = []
+                voiceSuggestionsLoadToken &+= 1
+                voiceHoldersLoadToken &+= 1
+                enrolledVoicesLoadToken &+= 1
+                enrolledVoices = []
+                voiceHolders = [:]
+            }
+            if let currentTranscription {
+                loadSpeakerAttribution(for: currentTranscription)
+            }
         }
     }
     public var pendingDeleteTranscription: Transcription?
@@ -73,6 +174,9 @@ public final class TranscriptionViewModel {
     /// The error-banner headline. Mutated only via `setError`/`clearError` so it
     /// can never drift out of sync with `errorDetail`.
     public private(set) var errorMessage: String?
+    private var currentErrorID = UUID()
+    private var meetingNotesErrorID: UUID?
+    private var meetingNotesErrorMeetingID: UUID?
     /// Rich, copyable diagnostic for the most recent URL-download failure: the
     /// terse `errorMessage` headline plus the source link and environment. Only
     /// ever shown/copied on explicit user action (the banner's copy button), so —
@@ -80,12 +184,19 @@ public final class TranscriptionViewModel {
     /// URL. `nil` for non-URL failures, where the copy button falls back to
     /// `errorMessage`.
     public private(set) var errorDetail: String?
+    /// A derived-artifact failure never rolls back saved meeting notes. Warnings
+    /// are retained per meeting until a later ordered refresh succeeds.
+    public var meetingNotesArtifactWarning: String? {
+        guard let id = currentTranscription?.id else { return nil }
+        return meetingNotesArtifactWarnings[id]
+    }
 
     /// Sets the error-banner state. Headline and its optional rich diagnostic are
     /// updated together, so a diagnostic built for one failure can never linger
     /// under a later, unrelated error — the single choke point that keeps the two
     /// in sync (the copy button reads `errorDetail ?? errorMessage`).
     public func setError(message: String?, detail: String? = nil) {
+        currentErrorID = UUID()
         errorMessage = message
         errorDetail = detail
     }
@@ -95,6 +206,8 @@ public final class TranscriptionViewModel {
         setError(message: nil)
     }
     public private(set) var transcribingFileName: String = ""
+    public private(set) var isInspectingAudioTracks = false
+    public private(set) var pendingAudioTrackSelection: AudioTrackSelectionRequest?
     public var isDragging = false
     public var urlInput: String = ""
     public var hasPromptResultTabs: Bool = false
@@ -104,6 +217,8 @@ public final class TranscriptionViewModel {
     public var selectedTab: TranscriptTab = .transcript
 
     public var onTranscribingChanged: ((Bool) -> Void)?
+    /// Fired only after a meeting rename is persisted.
+    public var onMeetingRenamed: ((MeetingRename) -> Void)?
 
     /// Fired once when a single transcription, or a whole batch, finishes and
     /// the user's completion-notification setting is on. The app layer plays
@@ -123,6 +238,9 @@ public final class TranscriptionViewModel {
     public private(set) var batchFailedCount = 0
     private var batchQueue: [URL] = []
     private var batchSource: TelemetryTranscriptionSource = .file
+    private var batchAudioTrackOrdinal: Int?
+    private var batchMultiTrackFilePaths: Set<String> = []
+    private var batchAudioTrackPreflightFailedPaths: Set<String> = []
 
     /// One-line batch status for the global progress bar / batch card,
     /// e.g. "Transcribing 7 of 40" or "Transcribing 7 of 40 · 1 failed".
@@ -142,11 +260,62 @@ public final class TranscriptionViewModel {
     public var hasConversations: Bool = false
 
     public var showTabs: Bool {
-        llmAvailable
+        currentTranscription?.sourceType == .meeting
+            || llmAvailable
             || hasPromptResultTabs
             || hasConversations
     }
     public private(set) var isConfigured = false
+    public private(set) var speakerAttribution: EffectiveSpeakerAttribution?
+    public private(set) var speakerCorrectionsApplied = false
+    public private(set) var canUndoSpeakerCorrection = false
+    public private(set) var canRedoSpeakerCorrection = false
+    public private(set) var isApplyingSpeakerCorrection = false
+
+    private struct EffectiveTranscriptionCacheKey: Equatable {
+        let transcriptionRevision: UInt64
+        let attributionTranscriptionID: UUID?
+        let attributionFingerprint: TranscriptFingerprint?
+        let correctionRevision: Int?
+        let correctionsApplied: Bool
+    }
+
+    @ObservationIgnored
+    private var effectiveTranscriptionCache:
+        (
+            key: EffectiveTranscriptionCacheKey,
+            value: Transcription?
+        )?
+
+    public var effectiveCurrentTranscription: Transcription? {
+        let key = EffectiveTranscriptionCacheKey(
+            transcriptionRevision: currentTranscriptionRevision,
+            attributionTranscriptionID: speakerAttributionTranscriptionID,
+            attributionFingerprint: speakerAttribution?.fingerprint,
+            correctionRevision: speakerAttribution?.correctionRevision,
+            correctionsApplied: speakerCorrectionsApplied
+        )
+        if let effectiveTranscriptionCache, effectiveTranscriptionCache.key == key {
+            return effectiveTranscriptionCache.value
+        }
+
+        let value: Transcription?
+        if let currentTranscription,
+            speakerAttributionTranscriptionID == currentTranscription.id,
+            let speakerAttribution
+        {
+            value =
+                SpeakerAttributionProjection(
+                    automaticTranscription: currentTranscription,
+                    attribution: speakerAttribution,
+                    correctionsApplied: speakerCorrectionsApplied
+                ).effectiveTranscription
+        } else {
+            value = currentTranscription
+        }
+        effectiveTranscriptionCache = (key, value)
+        return value
+    }
 
     public func handlePromptResultDeleted(_ deletedID: UUID) {
         guard case .result(let selectedID) = selectedTab, selectedID == deletedID else { return }
@@ -159,40 +328,76 @@ public final class TranscriptionViewModel {
     }
 
     private var transcriptionService: TranscriptionServiceProtocol?
+    private var audioTrackService: AudioTrackSelectingTranscriptionService?
     private var transcriptionRepo: TranscriptionRepositoryProtocol?
     private var promptResultRepo: PromptResultRepositoryProtocol?
+    private var speakerAttributionReader: SpeakerAttributionReading?
+    private var speakerCorrectionService: SpeakerCorrectionServicing?
+    private var speakerVoiceprints: SpeakerVoiceprintServicing?
+    private var speakerAttributionLoadToken: UUID?
+    private var speakerAttributionTranscriptionID: UUID?
     private var transcriptionTask: Task<Void, Never>?
     private var activeTranscriptionTaskID: UUID?
+    private var audioTrackPreflightID: UUID?
+    private var pendingAudioTrackFiles: [URL] = []
+    private var pendingAudioTrackSource: TelemetryTranscriptionSource = .file
+    private var pendingAudioTrackExpansion: AudioFileEnumerator.Result?
+    private var pendingMultiTrackFilePaths: Set<String> = []
+    private var pendingAudioTrackPreflightFailedPaths: Set<String> = []
     private var activeProgressSpeechEngine: SpeechEngineSelection?
     private var activeProgressWhisperVariant: String?
     private var activeProgressNemotronVariant: NemotronModelVariant?
     private var activeDropRequestID: UUID?
+    private var speakerRenameGenerations: [UUID: Int] = [:]
+    private var speakerRenameArtifactRefreshTasks: [UUID: Task<Void, Never>] = [:]
+    private var speakerRenameArtifactRefreshTokens: [UUID: UUID] = [:]
+    private var speakerRenameArtifactRefreshRequestedGenerations: [UUID: Int] = [:]
+    private var speakerRenameArtifactRefreshCompletedGenerations: [UUID: Int] = [:]
+    private var meetingArtifactRefreshTasks: [UUID: (token: UUID, task: Task<Bool, Never>)] = [:]
+    private var meetingNotesSaveTask: Task<Bool, Never>?
+    // Queue-tail identity includes artifact retries; error ownership belongs
+    // only to note writes so an artifact retry cannot suppress their failures.
+    private var meetingNotesSaveToken: UUID?
+    private var meetingNotesSaveRequestTokens: [UUID: UUID] = [:]
+    private var meetingNotesArtifactWarnings: [UUID: String] = [:]
     private var dropPendingCount = 0
     private var dropCollectedURLs: [URL] = []
     private static let configurationError = "Transcription services are unavailable. Please try again."
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "TranscriptionViewModel")
     private let defaults: UserDefaults
+    private var speakerAttributionLoadTask: Task<Bool, Never>?
+    private let meetingArtifactStore: MeetingArtifactStoring
     private let isWhisperModelDownloaded: () -> Bool
     private let isNemotronModelDownloaded: () -> Bool
+    private let isCohereModelDownloaded: () -> Bool
     public var promptResultsViewModel: PromptResultsViewModel?
 
     public init(
         defaults: UserDefaults = .standard,
+        meetingArtifactStore: MeetingArtifactStoring = MeetingArtifactStore(),
         isWhisperModelDownloaded: (() -> Bool)? = nil,
-        isNemotronModelDownloaded: (() -> Bool)? = nil
+        isNemotronModelDownloaded: (() -> Bool)? = nil,
+        isCohereModelDownloaded: (() -> Bool)? = nil
     ) {
         self.defaults = defaults
-        self.isWhisperModelDownloaded = isWhisperModelDownloaded ?? {
-            WhisperEngine.isModelDownloaded(
-                model: SpeechEnginePreference.whisperModelVariant(defaults: defaults)
-            )
-        }
-        self.isNemotronModelDownloaded = isNemotronModelDownloaded ?? {
-            STTClient.isNemotronModelCached(
-                modelVariant: SpeechEnginePreference.nemotronModelVariant(defaults: defaults),
-                language: SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
-            )
-        }
+        self.meetingArtifactStore = meetingArtifactStore
+        self.isWhisperModelDownloaded =
+            isWhisperModelDownloaded ?? {
+                WhisperEngine.isModelDownloaded(
+                    model: SpeechEnginePreference.whisperModelVariant(defaults: defaults)
+                )
+            }
+        self.isNemotronModelDownloaded =
+            isNemotronModelDownloaded ?? {
+                STTClient.isNemotronModelCached(
+                    modelVariant: SpeechEnginePreference.nemotronModelVariant(defaults: defaults),
+                    language: SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
+                )
+            }
+        self.isCohereModelDownloaded =
+            isCohereModelDownloaded ?? {
+                CohereTranscribeEngine.isModelCached()
+            }
     }
 
     private func aiContextText(for transcription: Transcription) -> String {
@@ -205,18 +410,31 @@ public final class TranscriptionViewModel {
     public func configure(
         transcriptionService: TranscriptionServiceProtocol,
         transcriptionRepo: TranscriptionRepositoryProtocol,
+        audioTrackService: AudioTrackSelectingTranscriptionService? = nil,
         llmService: LLMServiceProtocol? = nil,
         promptResultRepo: PromptResultRepositoryProtocol? = nil,
-        promptResultsViewModel: PromptResultsViewModel? = nil
+        promptResultsViewModel: PromptResultsViewModel? = nil,
+        speakerAttributionReader: SpeakerAttributionReading? = nil,
+        speakerCorrectionService: SpeakerCorrectionServicing? = nil,
+        speakerVoiceprints: SpeakerVoiceprintServicing? = nil
     ) {
         self.transcriptionService = transcriptionService
+        self.audioTrackService =
+            audioTrackService
+            ?? (transcriptionService as? any AudioTrackSelectingTranscriptionService)
         self.transcriptionRepo = transcriptionRepo
         self.llmAvailable = llmService != nil
         self.promptResultRepo = promptResultRepo
         self.promptResultsViewModel = promptResultsViewModel
+        self.speakerAttributionReader = speakerAttributionReader
+        self.speakerCorrectionService = speakerCorrectionService
+        self.speakerVoiceprints = speakerVoiceprints
         isConfigured = true
         clearError()
         loadTranscriptions()
+        if let currentTranscription {
+            loadSpeakerAttribution(for: currentTranscription)
+        }
     }
 
     public func loadTranscriptions() {
@@ -228,14 +446,36 @@ public final class TranscriptionViewModel {
         do {
             transcriptions = try repo.fetchAll(limit: 50)
         } catch {
-            logger.error("Failed to load transcriptions: \(error.localizedDescription, privacy: .public)")
+            logger.error(
+                "Failed to load transcriptions error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
+            )
             transcriptions = []
         }
     }
 
     public func transcribeFile(url: URL, source: TelemetryTranscriptionSource = .file) {
-        guard let service = transcriptionService else {
+        guard transcriptionService != nil else {
             reportMissingConfiguration("transcriptionService", action: "transcribeFile")
+            return
+        }
+        if audioTrackService != nil {
+            startAudioTrackPreflight(
+                files: [url],
+                source: source,
+                expansion: AudioFileEnumerator.Result(files: [url], droppedCount: 0)
+            )
+        } else {
+            startTranscribingFile(url: url, source: source, audioTrackOrdinal: nil)
+        }
+    }
+
+    private func startTranscribingFile(
+        url: URL,
+        source: TelemetryTranscriptionSource,
+        audioTrackOrdinal: Int?
+    ) {
+        guard let service = transcriptionService else {
+            reportMissingConfiguration("transcriptionService", action: "startTranscribingFile")
             return
         }
         let taskID = beginNewTranscription(source: .localFile, fileName: url.lastPathComponent)
@@ -243,10 +483,30 @@ public final class TranscriptionViewModel {
         transcriptionTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                let result = try await service.transcribe(fileURL: url, source: source) { [weak self] progress in
+                let progressHandler: @Sendable (TranscriptionProgress) -> Void = { [weak self] progress in
                     Task { @MainActor [weak self] in
                         self?.updateProgress(with: progress, taskID: taskID)
                     }
+                }
+                let result: Transcription
+                if let audioTrackOrdinal {
+                    guard let audioTrackService else {
+                        throw AudioProcessorError.conversionFailed(
+                            "Audio-track selection is unavailable for this transcription service."
+                        )
+                    }
+                    result = try await audioTrackService.transcribe(
+                        fileURL: url,
+                        source: source,
+                        audioTrackOrdinal: audioTrackOrdinal,
+                        onProgress: progressHandler
+                    )
+                } else {
+                    result = try await service.transcribe(
+                        fileURL: url,
+                        source: source,
+                        onProgress: progressHandler
+                    )
                 }
                 completeSuccessfulTranscription(taskID: taskID, result: result)
             } catch is CancellationError {
@@ -258,17 +518,21 @@ public final class TranscriptionViewModel {
     }
 
     /// Entry point for one-or-many local files (drag-drop, Browse, menu-bar
-    /// open). Folders are expanded recursively; a single resolved file routes
-    /// through the unchanged `transcribeFile` path, two or more start a
-    /// sequential batch. Returns `true` when at least one supported file was
-    /// accepted (so the drop handler knows whether to dismiss the drop UI).
+    /// open). Folders are expanded recursively; a single resolved file follows
+    /// the single-job path, while two or more start a sequential batch. Returns
+    /// `true` when at least one supported file was accepted (so the drop handler
+    /// knows whether to dismiss the drop UI).
     @discardableResult
     public func transcribeFiles(urls: [URL], source: TelemetryTranscriptionSource = .file) -> Bool {
         guard transcriptionService != nil else {
             reportMissingConfiguration("transcriptionService", action: "transcribeFiles")
             return false
         }
-        guard !isTranscribing, !isBatchActive else { return false }
+        guard !isTranscribing,
+            !isBatchActive,
+            !isInspectingAudioTracks,
+            pendingAudioTrackSelection == nil
+        else { return false }
         let expansion = AudioFileEnumerator.expand(urls: urls)
         let files = expansion.files
         guard !files.isEmpty else {
@@ -276,32 +540,196 @@ public final class TranscriptionViewModel {
             return false
         }
 
-        if files.count == 1 {
-            transcribeFile(url: files[0], source: source)
-            return true
-        }
-
-        batchSource = source
-        batchTotalCount = files.count
-        batchCompletedCount = 0
-        batchFailedCount = 0
-        batchQueue = Array(files.dropFirst())
-        isBatchActive = true
-        transcribeFile(url: files[0], source: source)
-        // `transcribeFile` clears `errorMessage`; surface any cap overflow after
-        // it so the dropped-file count is never lost silently.
-        if expansion.truncated {
-            let dropped = expansion.stoppedEarly
-                ? "at least \(expansion.droppedCount)"
-                : "\(expansion.droppedCount)"
-            setError(message: "Queued the first \(files.count) files; "
-                + "\(dropped) more were skipped "
-                + "(\(AudioFileEnumerator.defaultMaxFiles)-file limit).")
+        if audioTrackService != nil {
+            startAudioTrackPreflight(files: files, source: source, expansion: expansion)
+        } else {
+            startResolvedFiles(
+                files,
+                source: source,
+                audioTrackOrdinal: nil,
+                multiTrackFilePaths: [],
+                expansion: expansion
+            )
         }
         return true
     }
 
+    public func selectAudioTrack(ordinal: Int) {
+        guard let request = pendingAudioTrackSelection,
+            request.tracks.contains(where: { $0.ordinal == ordinal }),
+            !pendingAudioTrackFiles.isEmpty
+        else {
+            return
+        }
+
+        let files = pendingAudioTrackFiles
+        let source = pendingAudioTrackSource
+        let expansion = pendingAudioTrackExpansion
+        let multiTrackFilePaths = pendingMultiTrackFilePaths
+        let preflightFailedFilePaths = pendingAudioTrackPreflightFailedPaths
+        clearPendingAudioTrackSelection()
+        startResolvedFiles(
+            files,
+            source: source,
+            audioTrackOrdinal: ordinal,
+            multiTrackFilePaths: multiTrackFilePaths,
+            preflightFailedFilePaths: preflightFailedFilePaths,
+            expansion: expansion
+        )
+    }
+
+    public func cancelAudioTrackSelection() {
+        clearPendingAudioTrackSelection()
+    }
+
+    private func startAudioTrackPreflight(
+        files: [URL],
+        source: TelemetryTranscriptionSource,
+        expansion: AudioFileEnumerator.Result
+    ) {
+        guard let audioTrackService else {
+            startResolvedFiles(
+                files,
+                source: source,
+                audioTrackOrdinal: nil,
+                multiTrackFilePaths: [],
+                expansion: expansion
+            )
+            return
+        }
+
+        transcriptionTask?.cancel()
+        let preflightID = UUID()
+        audioTrackPreflightID = preflightID
+        isInspectingAudioTracks = true
+        clearPendingAudioTrackSelection()
+        clearError()
+
+        transcriptionTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                var firstMultiTrackFile: (url: URL, tracks: [AudioTrackDescriptor])?
+                var multiTrackFilePaths: Set<String> = []
+                var preflightFailedFilePaths: Set<String> = []
+                for file in files {
+                    try Task.checkCancellation()
+                    do {
+                        let tracks = try await audioTrackService.audioTracks(in: file)
+                        guard !tracks.isEmpty else {
+                            throw AudioProcessorError.conversionFailed(
+                                "No audio tracks were found in \(file.lastPathComponent)."
+                            )
+                        }
+                        if firstMultiTrackFile == nil, tracks.count > 1 {
+                            firstMultiTrackFile = (file, tracks)
+                        }
+                        if tracks.count > 1 {
+                            multiTrackFilePaths.insert(file.standardizedFileURL.path)
+                        }
+                    } catch is CancellationError {
+                        throw CancellationError()
+                    } catch {
+                        guard files.count > 1 else { throw error }
+                        preflightFailedFilePaths.insert(file.standardizedFileURL.path)
+                        logger.error(
+                            "Batch audio-track discovery failed error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
+                        )
+                    }
+                }
+
+                guard audioTrackPreflightID == preflightID else { return }
+                transcriptionTask = nil
+                audioTrackPreflightID = nil
+                isInspectingAudioTracks = false
+
+                if let multiTrack = firstMultiTrackFile {
+                    pendingAudioTrackFiles = files
+                    pendingAudioTrackSource = source
+                    pendingAudioTrackExpansion = expansion
+                    pendingMultiTrackFilePaths = multiTrackFilePaths
+                    pendingAudioTrackPreflightFailedPaths = preflightFailedFilePaths
+                    pendingAudioTrackSelection = AudioTrackSelectionRequest(
+                        id: UUID(),
+                        fileName: multiTrack.url.lastPathComponent,
+                        fileCount: files.count,
+                        tracks: multiTrack.tracks
+                    )
+                } else {
+                    startResolvedFiles(
+                        files,
+                        source: source,
+                        audioTrackOrdinal: nil,
+                        multiTrackFilePaths: [],
+                        preflightFailedFilePaths: preflightFailedFilePaths,
+                        expansion: expansion
+                    )
+                }
+            } catch is CancellationError {
+                guard audioTrackPreflightID == preflightID else { return }
+                transcriptionTask = nil
+                audioTrackPreflightID = nil
+                isInspectingAudioTracks = false
+            } catch {
+                guard audioTrackPreflightID == preflightID else { return }
+                transcriptionTask = nil
+                audioTrackPreflightID = nil
+                isInspectingAudioTracks = false
+                setError(message: error.localizedDescription)
+            }
+        }
+    }
+
+    private func startResolvedFiles(
+        _ files: [URL],
+        source: TelemetryTranscriptionSource,
+        audioTrackOrdinal: Int?,
+        multiTrackFilePaths: Set<String>,
+        preflightFailedFilePaths: Set<String> = [],
+        expansion: AudioFileEnumerator.Result?
+    ) {
+        guard let first = files.first else { return }
+        let firstAudioTrackOrdinal =
+            multiTrackFilePaths.contains(first.standardizedFileURL.path)
+            ? audioTrackOrdinal
+            : nil
+
+        if files.count == 1 {
+            startTranscribingFile(url: first, source: source, audioTrackOrdinal: firstAudioTrackOrdinal)
+        } else {
+            batchSource = source
+            batchAudioTrackOrdinal = audioTrackOrdinal
+            batchMultiTrackFilePaths = multiTrackFilePaths
+            batchAudioTrackPreflightFailedPaths = preflightFailedFilePaths
+            batchTotalCount = files.count
+            batchCompletedCount = 0
+            batchFailedCount = 0
+            batchQueue = files
+            isBatchActive = true
+            advanceBatch()
+        }
+
+        if let expansion, expansion.truncated {
+            let dropped =
+                expansion.stoppedEarly
+                ? "at least \(expansion.droppedCount)"
+                : "\(expansion.droppedCount)"
+            setError(
+                message: "Queued the first \(files.count) files; "
+                    + "\(dropped) more were skipped "
+                    + "(\(AudioFileEnumerator.defaultMaxFiles)-file limit).")
+        }
+    }
+
+    private func clearPendingAudioTrackSelection() {
+        pendingAudioTrackSelection = nil
+        pendingAudioTrackFiles.removeAll()
+        pendingAudioTrackExpansion = nil
+        pendingMultiTrackFilePaths.removeAll()
+        pendingAudioTrackPreflightFailedPaths.removeAll()
+    }
+
     public func transcribeURL() {
+        guard !isInspectingAudioTracks, pendingAudioTrackSelection == nil else { return }
         guard let service = transcriptionService else {
             reportMissingConfiguration("transcriptionService", action: "transcribeURL")
             return
@@ -335,7 +763,8 @@ public final class TranscriptionViewModel {
             guard MediaPlatform.isTranscribable(url) else { return }
             source = .youtubeURL
             if let platform = MediaPlatform.recognize(url) {
-                placeholderName = platform.isAudioFirst ? "\(platform.displayName) audio" : "\(platform.displayName) video"
+                placeholderName =
+                    platform.isAudioFirst ? "\(platform.displayName) audio" : "\(platform.displayName) video"
             } else {
                 placeholderName = "Video"
             }
@@ -411,50 +840,117 @@ public final class TranscriptionViewModel {
 
     public func retranscriptionEngineOption(for original: Transcription) -> RetranscriptionEngineOption? {
         guard let filePath = original.filePath,
-              FileManager.default.fileExists(atPath: filePath) else {
+            FileManager.default.fileExists(atPath: filePath)
+        else {
             return nil
         }
 
+        // The primary card should name the engine that actually produced this
+        // transcript, not the user's current default — otherwise a Cohere or
+        // Whisper transcript would surface "Parakeet" as its primary. Meetings
+        // carry the captured selection; file/URL transcripts carry the engine on
+        // the row (since the engine-attribution migration). Rows predating
+        // attribution have no engine and fall back to the current final route.
         let primaryEngine: SpeechEngineSelection
+        let primaryReflectsTranscriptEngine: Bool
         if original.sourceType == .meeting,
-           let archivedRecording = archivedMeetingRecording(
-               for: original,
-               mixedAudioURL: URL(fileURLWithPath: filePath),
-               logFailure: false
-           ),
-           archivedRecording.speechEngineWasCaptured {
+            let archivedRecording = archivedMeetingRecording(
+                for: original,
+                mixedAudioURL: URL(fileURLWithPath: filePath),
+                logFailure: false
+            ),
+            archivedRecording.speechEngineWasCaptured
+        {
             primaryEngine = archivedRecording.speechEngine
+            primaryReflectsTranscriptEngine = true
+        } else if let recordedEngine = original.engine.flatMap(SpeechEnginePreference.init(rawValue:)) {
+            primaryEngine = SpeechEngineSelection(engine: recordedEngine, language: original.language)
+            primaryReflectsTranscriptEngine = true
         } else {
-            primaryEngine = SpeechEngineSelection.current(defaults: defaults)
+            primaryEngine = SpeechEngineSelection.finalTranscription(defaults: defaults)
+            primaryReflectsTranscriptEngine = false
         }
 
-        let alternativePreference = retranscriptionAlternativePreference(for: primaryEngine.engine)
-        let alternativeEngine = SpeechEngineSelection(
-            engine: alternativePreference,
-            language: Self.retranscriptionLanguage(for: alternativePreference, defaults: defaults)
-        )
-        let unavailableReason: String?
-        if alternativePreference == .nemotron && !isNemotronModelDownloaded() {
-            unavailableReason = "Download the Nemotron model in Settings before trying Nemotron."
-        } else if alternativePreference == .whisper && !isWhisperModelDownloaded() {
-            unavailableReason = "Download the Whisper model in Settings before trying Whisper."
-        } else {
-            unavailableReason = nil
+        let parakeetVariant = SpeechEnginePreference.parakeetModelVariant(defaults: defaults)
+        let nemotronVariant = SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
+        let whisperVariant = SpeechEnginePreference.whisperModelVariant(defaults: defaults)
+
+        let choices = retranscriptionEngineOrder(primary: primaryEngine.engine).map { engine in
+            let selection = SpeechEngineSelection(
+                engine: engine,
+                language: Self.retranscriptionLanguage(for: engine, defaults: defaults)
+            )
+            guard
+                let capabilities = SpeechEngineCapabilityRegistry.capabilities(
+                    for: engine,
+                    parakeetModelVariant: parakeetVariant,
+                    nemotronModelVariant: nemotronVariant,
+                    whisperModelVariant: whisperVariant
+                )
+            else {
+                preconditionFailure("Missing SpeechEngineCapabilities row for \(engine.rawValue)")
+            }
+            let unavailableReason = retranscriptionUnavailableReason(for: engine)
+            return RetranscriptionEngineOption.Choice(
+                selection: engine == primaryEngine.engine ? primaryEngine : selection,
+                capabilities: capabilities,
+                isPrimary: engine == primaryEngine.engine,
+                isAvailable: unavailableReason == nil,
+                unavailableReason: unavailableReason,
+                advisory: retranscriptionAdvisory(for: engine, unavailableReason: unavailableReason)
+            )
         }
 
         return RetranscriptionEngineOption(
             primaryEngine: primaryEngine,
-            alternativeEngine: alternativeEngine,
-            isAlternativeAvailable: unavailableReason == nil,
-            unavailableReason: unavailableReason,
-            nemotronVariant: SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
+            choices: choices,
+            nemotronVariant: nemotronVariant,
+            parakeetVariant: parakeetVariant,
+            primaryReflectsTranscriptEngine: primaryReflectsTranscriptEngine
         )
     }
 
-    private func retranscriptionAlternativePreference(
-        for primaryEngine: SpeechEnginePreference
-    ) -> SpeechEnginePreference {
-        return primaryEngine.alternative
+    private func retranscriptionEngineOrder(primary: SpeechEnginePreference) -> [SpeechEnginePreference] {
+        // Gate Cohere on its feature flag, consistent with the settings engine
+        // picker — when the flag is off, Cohere must not leak in as a
+        // retranscription choice.
+        let defaultOrder: [SpeechEnginePreference] =
+            AppFeatures.cohereEngineEnabled
+            ? [.parakeet, .nemotron, .whisper, .cohere]
+            : [.parakeet, .nemotron, .whisper]
+        return [primary] + defaultOrder.filter { $0 != primary }
+    }
+
+    private func retranscriptionUnavailableReason(for engine: SpeechEnginePreference) -> String? {
+        switch engine {
+        case .parakeet:
+            return nil
+        case .nemotron:
+            return isNemotronModelDownloaded()
+                ? nil
+                : "Download the Nemotron model in Settings before trying Nemotron."
+        case .whisper:
+            return isWhisperModelDownloaded()
+                ? nil
+                : "Download the Whisper model in Settings before trying Whisper."
+        case .cohere:
+            return isCohereModelDownloaded()
+                ? nil
+                : "Download Cohere Transcribe in Settings before trying Cohere."
+        }
+    }
+
+    private func retranscriptionAdvisory(
+        for engine: SpeechEnginePreference,
+        unavailableReason: String?
+    ) -> String? {
+        guard engine == .whisper,
+            unavailableReason == nil,
+            SpeechEnginePreference.isColdSwitch(to: .whisper, defaults: defaults)
+        else {
+            return nil
+        }
+        return "First run may spend a few minutes preparing this Whisper model."
     }
 
     private static func retranscriptionLanguage(
@@ -468,16 +964,26 @@ public final class TranscriptionViewModel {
             return SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults)
         case .whisper:
             return SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults)
+        case .cohere:
+            // Cohere has no auto-detect and its engine defaults to English, so a
+            // retranscription must carry the user's chosen language explicitly,
+            // exactly as Nemotron/Whisper do above.
+            return SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults)
         }
     }
 
-    public func retranscribe(_ original: Transcription, speechEngineOverride: SpeechEngineSelection? = nil) {
+    public func retranscribe(
+        _ original: Transcription,
+        speechEngineOverride: SpeechEngineSelection? = nil,
+        speakerSelection: RetranscriptionSpeakerSelection? = nil
+    ) {
         guard let service = transcriptionService else {
             reportMissingConfiguration("transcriptionService", action: "retranscribe")
             return
         }
         guard let filePath = original.filePath,
-              FileManager.default.fileExists(atPath: filePath) else { return }
+            FileManager.default.fileExists(atPath: filePath)
+        else { return }
 
         let url = URL(fileURLWithPath: filePath)
         let taskID = beginNewTranscription(
@@ -486,16 +992,17 @@ public final class TranscriptionViewModel {
             clearCurrent: true,
             speechEngine: speechEngineOverride
         )
-        let retranscriptionSource: TelemetryTranscriptionSource = switch original.sourceType {
-        case .file:
-            .file
-        case .youtube:
-            .youtube
-        case .podcast:
-            .podcast
-        case .meeting:
-            .meeting
-        }
+        let retranscriptionSource: TelemetryTranscriptionSource =
+            switch original.sourceType {
+            case .file:
+                .file
+            case .youtube:
+                .youtube
+            case .podcast:
+                .podcast
+            case .meeting:
+                .meeting
+            }
 
         transcriptionTask = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -507,21 +1014,43 @@ public final class TranscriptionViewModel {
                 }
                 let result: Transcription
                 if original.sourceType == .meeting,
-                   let meetingRecording = archivedMeetingRecording(for: original, mixedAudioURL: url) {
-                    result = try await service.retranscribeMeeting(
-                        existing: original,
-                        recording: meetingRecording,
-                        speechEngineOverride: speechEngineOverride,
-                        onProgress: progressHandler
-                    )
+                    let meetingRecording = archivedMeetingRecording(for: original, mixedAudioURL: url)
+                {
+                    if let speakerSelection, meetingRecording.sourceAlignment.system != nil {
+                        result = try await service.retranscribeMeeting(
+                            existing: original,
+                            recording: meetingRecording,
+                            speechEngineOverride: speechEngineOverride,
+                            speakerSelection: speakerSelection,
+                            onProgress: progressHandler
+                        )
+                    } else {
+                        result = try await service.retranscribeMeeting(
+                            existing: original,
+                            recording: meetingRecording,
+                            speechEngineOverride: speechEngineOverride,
+                            onProgress: progressHandler
+                        )
+                    }
                 } else {
-                    result = try await service.retranscribe(
-                        existing: original,
-                        fileURL: url,
-                        source: retranscriptionSource,
-                        speechEngineOverride: speechEngineOverride,
-                        onProgress: progressHandler
-                    )
+                    if let speakerSelection, original.sourceType != .meeting {
+                        result = try await service.retranscribe(
+                            existing: original,
+                            fileURL: url,
+                            source: retranscriptionSource,
+                            speechEngineOverride: speechEngineOverride,
+                            speakerSelection: speakerSelection,
+                            onProgress: progressHandler
+                        )
+                    } else {
+                        result = try await service.retranscribe(
+                            existing: original,
+                            fileURL: url,
+                            source: retranscriptionSource,
+                            speechEngineOverride: speechEngineOverride,
+                            onProgress: progressHandler
+                        )
+                    }
                 }
                 var updatedResult = result
                 // Preserve row identity and user-owned metadata so retranscription updates
@@ -540,11 +1069,20 @@ public final class TranscriptionViewModel {
                 updatedResult.userNotes = original.userNotes
                 updatedResult.updatedAt = Date()
                 do {
-                    try transcriptionRepo?.save(updatedResult)
+                    if let transcriptionRepo {
+                        updatedResult = try transcriptionRepo.savePreservingUserMetadata(
+                            updatedResult, originalFileName: original.fileName
+                        )
+                    }
+                    promptResultsViewModel?.generateKnowledgeCard(
+                        transcriptionId: updatedResult.id
+                    )
                     // Skip auto-run prompts on retranscribe — they would duplicate the existing tabs.
                     completeSuccessfulTranscription(taskID: taskID, result: updatedResult, runAutoPrompts: false)
                 } catch {
-                    logger.error("Failed to save transcription result error=\(error.localizedDescription, privacy: .public)")
+                    logger.error(
+                        "Failed to save transcription result error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
+                    )
                     completeFailedTranscription(taskID: taskID, error: error)
                 }
             } catch is CancellationError {
@@ -553,6 +1091,21 @@ public final class TranscriptionViewModel {
                 completeFailedTranscription(taskID: taskID, error: error)
             }
         }
+    }
+
+    /// Whether the retranscription UI can safely offer a per-run speaker count.
+    /// Archived meetings require their retained isolated system track; applying
+    /// a remote-speaker count to the mixed-audio fallback would include `Me` and
+    /// change the option's meaning.
+    public nonisolated func canConfigureSpeakersForRetranscription(_ original: Transcription) -> Bool {
+        guard original.sourceType == .meeting else { return true }
+        guard let filePath = original.filePath else { return false }
+        return
+            (try? MeetingRecordingOutput.loadArchived(
+                displayName: original.fileName,
+                mixedAudioURL: URL(fileURLWithPath: filePath),
+                durationSeconds: Double(original.durationMs ?? 0) / 1000.0
+            ))?.sourceAlignment.system != nil
     }
 
     private func archivedMeetingRecording(
@@ -579,6 +1132,11 @@ public final class TranscriptionViewModel {
 
     public func cancelTranscription() {
         transcriptionTask?.cancel()
+        if isInspectingAudioTracks {
+            audioTrackPreflightID = nil
+            transcriptionTask = nil
+            isInspectingAudioTracks = false
+        }
     }
 
     /// Cancel an in-progress batch deterministically: drop everything still
@@ -600,17 +1158,26 @@ public final class TranscriptionViewModel {
     }
 
     /// Submit the next queued file, or finish the batch when the queue drains.
-    /// Called only from the completion funnels, where `transcriptionTask` is
-    /// already nil — so `transcribeFile` → `beginNewTranscription`'s
-    /// `cancel()` is a no-op and never aborts the next file.
+    /// Preflight failures are counted and skipped here so one unreadable file
+    /// does not prevent the rest of the batch from reaching transcription.
     private func advanceBatch() {
         guard isBatchActive else { return }
-        if batchQueue.isEmpty {
-            finishBatch()
-        } else {
+        while !batchQueue.isEmpty {
             let next = batchQueue.removeFirst()
-            transcribeFile(url: next, source: batchSource)
+            if batchAudioTrackPreflightFailedPaths.remove(next.standardizedFileURL.path) != nil {
+                batchFailedCount += 1
+                continue
+            }
+            startTranscribingFile(
+                url: next,
+                source: batchSource,
+                audioTrackOrdinal: batchMultiTrackFilePaths.contains(next.standardizedFileURL.path)
+                    ? batchAudioTrackOrdinal
+                    : nil
+            )
+            return
         }
+        finishBatch()
     }
 
     private func finishBatch() {
@@ -629,6 +1196,9 @@ public final class TranscriptionViewModel {
         batchCompletedCount = 0
         batchFailedCount = 0
         batchQueue.removeAll()
+        batchAudioTrackOrdinal = nil
+        batchMultiTrackFilePaths.removeAll()
+        batchAudioTrackPreflightFailedPaths.removeAll()
     }
 
     private func emitCompletionSignal(_ content: TranscriptionCompletionNotifier.Content?) {
@@ -658,8 +1228,7 @@ public final class TranscriptionViewModel {
         }
 
         do {
-            try TranscriptionDeletionCleanup.removeOwnedAssets(for: transcription)
-            let deleted = try repo.delete(id: transcription.id)
+            let deleted = try TranscriptionDeletionCoordinator.delete(transcription, repository: repo)
             guard deleted else { return }
             Telemetry.send(.transcriptionDeleted)
             if currentTranscription?.id == transcription.id {
@@ -691,17 +1260,24 @@ public final class TranscriptionViewModel {
                 setError(message: TranscriptionAssetCleanup.unmanagedMeetingAudioMessage)
                 return
             }
+            let artifactFolderPath = MeetingArtifactStore.sessionFolderURL(for: transcription)?.standardizedFileURL.path
             if let current = currentTranscription, current.id == transcription.id {
                 var updated = current
+                updated.meetingArtifactFolderPath = updated.meetingArtifactFolderPath ?? artifactFolderPath
                 updated.filePath = nil
                 currentTranscription = updated
             }
             if let index = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
+                transcriptions[index].meetingArtifactFolderPath =
+                    transcriptions[index].meetingArtifactFolderPath
+                    ?? artifactFolderPath
                 transcriptions[index].filePath = nil
             }
             if clearExistingErrorOnSuccess {
                 clearError()
             }
+        } catch TranscriptionAssetCleanupError.meetingAudioFinalizationInProgress {
+            setError(message: TranscriptionAssetCleanup.meetingAudioFinalizationInProgressMessage)
         } catch {
             logger.error("Failed to delete meeting audio: \(error.localizedDescription, privacy: .private)")
             setError(message: "Failed to delete meeting audio: \(error.localizedDescription)")
@@ -720,12 +1296,14 @@ public final class TranscriptionViewModel {
 
         let taskID = UUID()
         activeTranscriptionTaskID = taskID
-        let progressSpeechEngine = speechEngine ?? SpeechEngineSelection.current(defaults: defaults)
+        let progressSpeechEngine = speechEngine ?? SpeechEngineSelection.finalTranscription(defaults: defaults)
         activeProgressSpeechEngine = progressSpeechEngine
-        activeProgressWhisperVariant = progressSpeechEngine.engine == .whisper
+        activeProgressWhisperVariant =
+            progressSpeechEngine.engine == .whisper
             ? SpeechEnginePreference.whisperModelVariant(defaults: defaults)
             : nil
-        activeProgressNemotronVariant = progressSpeechEngine.engine == .nemotron
+        activeProgressNemotronVariant =
+            progressSpeechEngine.engine == .nemotron
             ? SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
             : nil
         transcribingFileName = fileName
@@ -781,9 +1359,30 @@ public final class TranscriptionViewModel {
     }
 
     private func autoSaveIfEnabled(_ transcription: Transcription) {
-        let service = AutoSaveService()
         let scope: AutoSaveScope = transcription.sourceType == .meeting ? .meeting : .transcription
-        service.saveIfEnabled(transcription, scope: scope)
+        let result = AutoSaveService(defaults: defaults).saveIfEnabled(transcription, scope: scope)
+        guard scope == .meeting else { return }
+
+        let warning: String
+        switch result {
+        case .folderUnavailable:
+            warning =
+                "Meeting saved in MacParakeet, but the selected auto-save folder is unavailable. Choose another folder in Settings."
+        case .failed:
+            warning =
+                "Meeting saved in MacParakeet, but it couldn't be saved to the selected folder. Check the folder in Settings and try again."
+        case .disabled, .saved:
+            return
+        }
+
+        if let existingMessage = errorMessage {
+            setError(
+                message: "\(existingMessage)\n\n\(warning)",
+                detail: errorDetail.map { "\($0)\n\n\(warning)" }
+            )
+        } else {
+            setError(message: warning)
+        }
     }
 
     private func applyMeetingAudioRetentionIfNeeded(_ transcription: Transcription) {
@@ -810,7 +1409,9 @@ public final class TranscriptionViewModel {
         do {
             try repo.updateFilePath(id: transcriptionID, filePath: newFilePath)
         } catch {
-            logger.error("transcription_file_path_update_failed id=\(transcriptionID, privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
+            logger.error(
+                "transcription_file_path_update_failed id=\(transcriptionID, privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
+            )
             throw error
         }
         if let sourceFileToCleanup, sourceFileToCleanup != newFilePath {
@@ -838,18 +1439,19 @@ public final class TranscriptionViewModel {
         _ transcription: Transcription,
         autoSave: Bool,
         runAutoPrompts: Bool,
-        applyMeetingRetention: Bool = true
+        applyMeetingRetention: Bool = true,
+        selectTranscription: Bool = true
     ) {
-        currentTranscription = transcription
+        if selectTranscription || currentTranscription?.id == transcription.id {
+            currentTranscription = transcription
+        }
         loadTranscriptions()
         if autoSave {
             autoSaveIfEnabled(transcription)
-            // `applyMeetingRetention` lets a caller opt a meeting out of the
-            // keep-meeting-audio policy. Crash-recovered meetings pass `false`:
-            // the recovery dialog already offered Discard (delete) vs Recover
-            // (keep), so a user who chose Recover has explicitly opted to keep
-            // this audio — the global toggle must not silently override that
-            // per-session choice.
+            // Crash-recovered meetings pass `false` so recovery can turn the
+            // interrupted audio into a transcript before immediate-delete
+            // retention runs. Once the recovery lock is gone, scheduled
+            // retention applies normally.
             if applyMeetingRetention {
                 applyMeetingAudioRetentionIfNeeded(transcription)
             }
@@ -859,7 +1461,9 @@ public final class TranscriptionViewModel {
         promptResultsViewModel?.autoGeneratePromptResults(
             transcript: text,
             transcriptionId: transcription.id,
-            sourceType: transcription.sourceType
+            sourceType: transcription.sourceType,
+            meetingTypeId: transcription.meetingTypeId,
+            runInBackground: !selectTranscription
         )
     }
 
@@ -882,14 +1486,18 @@ public final class TranscriptionViewModel {
             // A failed file never aborts the batch — it bumps the failure count
             // (surfaced in the status line + completion banner) and advances.
             batchFailedCount += 1
-            logger.error("Batch file transcription failed error=\(error.localizedDescription, privacy: .public)")
+            logger.error(
+                "Batch file transcription failed error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
+            )
             loadTranscriptions()
             advanceBatch()
         } else {
             let message = error.localizedDescription
-            setError(message: message, detail: failedURL.map {
-                Self.urlFailureDiagnostic(message: message, url: $0, platform: MediaPlatform.recognize($0))
-            })
+            setError(
+                message: message,
+                detail: failedURL.map {
+                    Self.urlFailureDiagnostic(message: message, url: $0, platform: MediaPlatform.recognize($0))
+                })
             loadTranscriptions()
         }
     }
@@ -964,10 +1572,14 @@ public final class TranscriptionViewModel {
         self.transcriptionProgress = progress.fraction
         self.progressPhase = phase
         self.progressHeadline = Self.headline(for: phase)
-        let speechEngine = activeProgressSpeechEngine ?? SpeechEngineSelection.current(defaults: defaults)
-        let whisperVariant = activeProgressWhisperVariant
+        let speechEngine =
+            activeProgressSpeechEngine
+            ?? SpeechEngineSelection.finalTranscription(defaults: defaults)
+        let whisperVariant =
+            activeProgressWhisperVariant
             ?? SpeechEnginePreference.whisperModelVariant(defaults: defaults)
-        let nemotronVariant = activeProgressNemotronVariant
+        let nemotronVariant =
+            activeProgressNemotronVariant
             ?? SpeechEnginePreference.nemotronModelVariant(defaults: defaults)
         self.progressSubline = Self.subline(
             for: phase,
@@ -982,6 +1594,7 @@ public final class TranscriptionViewModel {
         switch progress {
         case .converting: return .converting
         case .downloading: return .downloading
+        case .preparingSpeechModel: return .preparingSpeechModel
         case .transcribing: return .transcribing
         case .identifyingSpeakers: return .identifyingSpeakers
         case .finalizing: return .finalizing
@@ -994,6 +1607,8 @@ public final class TranscriptionViewModel {
             return "Converting audio..."
         case .downloading(let percent):
             return "Downloading audio... \(percent)%"
+        case .preparingSpeechModel:
+            return "Preparing speech model..."
         case .transcribing(let percent):
             return "Transcribing... \(percent)%"
         case .identifyingSpeakers:
@@ -1011,6 +1626,8 @@ public final class TranscriptionViewModel {
             return "Fetching source audio"
         case .converting:
             return "Normalizing audio stream"
+        case .preparingSpeechModel:
+            return "Preparing speech model"
         case .transcribing:
             return "Running speech recognition"
         case .identifyingSpeakers:
@@ -1037,6 +1654,10 @@ public final class TranscriptionViewModel {
             case .localFile:
                 return nil
             }
+        case .preparingSpeechModel:
+            return engine == .whisper
+                ? "First use may take several minutes while Core ML optimizes Whisper."
+                : nil
         case .transcribing:
             switch engine {
             case .parakeet:
@@ -1048,20 +1669,33 @@ public final class TranscriptionViewModel {
             case .whisper:
                 let friendly = SpeechEnginePreference.friendlyVariantName(whisperVariant)
                 return "Whisper \(friendly) \u{00B7} Local Core ML"
+            case .cohere:
+                return "Cohere Transcribe \u{00B7} Local Core ML"
             }
         case .identifyingSpeakers:
-            return "May take several minutes per hour of audio. Speaker labels are approximate \u{2014} click to rename."
+            return
+                "May take several minutes per hour of audio. Speaker labels are approximate \u{2014} click to rename."
         default:
             return nil
         }
     }
 
+    /// Refreshes prompt-result tab chrome for the already-selected row.
+    ///
+    /// Library and Meetings already hand a fully decoded `Transcription`.
+    /// Re-fetching the row here would JSON-decode word timestamps on the
+    /// main actor before the detail view's first frame.
     public func loadPersistedContent() {
-        if let id = currentTranscription?.id,
-           let fresh = try? transcriptionRepo?.fetch(id: id) {
-            currentTranscription = fresh
-        }
         refreshPromptResultStatus()
+    }
+
+    public func refreshCurrentTranscriptionIfMatching(id: UUID) {
+        guard currentTranscription?.id == id,
+            let fresh = try? transcriptionRepo?.fetch(id: id)
+        else {
+            return
+        }
+        currentTranscription = fresh
     }
 
     public func updateConversationStatus(id: UUID, hasConversations: Bool) {
@@ -1075,9 +1709,212 @@ public final class TranscriptionViewModel {
 
     // MARK: - Transcript Editing
 
+    private enum MeetingNotesReadError: Error {
+        case repositoryUnavailable
+    }
+
+    /// A missing row means the meeting was deleted, including by another
+    /// process. Throwing reads must never be treated as permission to discard
+    /// a pending draft during navigation or application termination.
+    public func isMeetingDeleted(id: UUID) async throws -> Bool {
+        guard let repo = transcriptionRepo else {
+            throw MeetingNotesReadError.repositoryUnavailable
+        }
+        return try await Task.detached(priority: .utility) {
+            try repo.fetch(id: id) == nil
+        }.value
+    }
+
+    /// Persists the current saved meeting's notes. SQLite remains canonical;
+    /// meeting artifacts are refreshed after the committed row has been
+    /// synchronized into both detail and list state. Saves are serialized so
+    /// an older artifact refresh can never overwrite a newer notes value.
+    @discardableResult
+    public func updateCurrentMeetingNotes(to newText: String) async -> Bool {
+        guard let transcription = currentTranscription,
+            transcription.sourceType == .meeting
+        else { return false }
+        return await updateMeetingNotes(for: transcription, to: newText)
+    }
+
+    /// Persists notes for the captured meeting even if navigation changes the
+    /// current selection while an autosave is pending.
+    @discardableResult
+    public func updateMeetingNotes(
+        for transcription: Transcription,
+        to newText: String,
+        refreshArtifacts: Bool = true
+    ) async -> Bool {
+        guard transcription.sourceType == .meeting else { return false }
+        guard let repo = transcriptionRepo else {
+            reportMissingConfiguration("transcriptionRepo", action: "updateMeetingNotes")
+            return false
+        }
+
+        let normalizedNotes =
+            newText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? nil
+            : newText
+        let previousTask = meetingNotesSaveTask
+        let token = UUID()
+        meetingNotesSaveToken = token
+        meetingNotesSaveRequestTokens[transcription.id] = token
+        let operation = Task { @MainActor [weak self, previousTask, repo, transcription, normalizedNotes] in
+            _ = await previousTask?.value
+            guard let self else { return false }
+            self.clearMeetingNotesError(for: transcription.id)
+            do {
+                let persistence = try await Task.detached(priority: .utility) {
+                    let updated = try repo.updateUserNotes(
+                        id: transcription.id,
+                        userNotes: normalizedNotes
+                    )
+                    guard updated else { return (updated: false, fetched: nil as Transcription?) }
+                    // The write is canonical. A follow-up read failure must not
+                    // misreport a committed note as an unsuccessful save.
+                    return (updated: true, fetched: try? repo.fetch(id: transcription.id))
+                }.value
+                guard persistence.updated else {
+                    if self.currentTranscription?.id == transcription.id,
+                        self.meetingNotesSaveRequestTokens[transcription.id] == token
+                    {
+                        self.setMeetingNotesError(
+                            message: "This meeting no longer exists and its notes could not be saved.",
+                            meetingID: transcription.id)
+                    }
+                    return false
+                }
+                guard let committed = persistence.fetched else {
+                    // The write succeeded. Only patch notes in current UI snapshots:
+                    // the editor's captured row can predate a rename, favorite or chat edit.
+                    let committedAt = Date()
+                    if self.currentTranscription?.id == transcription.id {
+                        self.currentTranscription?.userNotes = normalizedNotes
+                        if let updatedAt = self.currentTranscription?.updatedAt {
+                            self.currentTranscription?.updatedAt = max(updatedAt, committedAt)
+                        }
+                    }
+                    if let index = self.transcriptions.firstIndex(where: { $0.id == transcription.id }) {
+                        self.transcriptions[index].userNotes = normalizedNotes
+                        self.transcriptions[index].updatedAt = max(self.transcriptions[index].updatedAt, committedAt)
+                    }
+                    // Without an authoritative snapshot, leave existing artifacts intact.
+                    if refreshArtifacts {
+                        self.meetingNotesArtifactWarnings[transcription.id] =
+                            "Notes were saved, but the meeting files could not be refreshed."
+                    }
+                    return true
+                }
+                if self.currentTranscription?.id == committed.id {
+                    self.currentTranscription = committed
+                }
+                if let index = self.transcriptions.firstIndex(where: { $0.id == committed.id }) {
+                    self.transcriptions[index] = committed
+                }
+
+                if refreshArtifacts {
+                    let refreshed = await self.refreshMeetingArtifacts(transcription: committed)
+                    self.meetingNotesArtifactWarnings[committed.id] =
+                        refreshed
+                        ? nil
+                        : "Notes were saved, but the meeting files could not be refreshed."
+                }
+                return true
+            } catch {
+                self.logger.error(
+                    "Failed to persist meeting notes error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
+                )
+                if self.currentTranscription?.id == transcription.id,
+                    self.meetingNotesSaveRequestTokens[transcription.id] == token
+                {
+                    self.setMeetingNotesError(
+                        message: "Failed to save meeting notes: \(error.localizedDescription)",
+                        meetingID: transcription.id)
+                }
+                return false
+            }
+        }
+        meetingNotesSaveTask = operation
+        let saved = await operation.value
+        if meetingNotesSaveToken == token {
+            meetingNotesSaveTask = nil
+            meetingNotesSaveToken = nil
+        }
+        if meetingNotesSaveRequestTokens[transcription.id] == token {
+            meetingNotesSaveRequestTokens[transcription.id] = nil
+        }
+        return saved
+    }
+
+    private func setMeetingNotesError(message: String, meetingID: UUID) {
+        setError(message: message)
+        meetingNotesErrorID = currentErrorID
+        meetingNotesErrorMeetingID = meetingID
+    }
+
+    private func clearMeetingNotesError(for meetingID: UUID) {
+        guard meetingNotesErrorMeetingID == meetingID else { return }
+        if meetingNotesErrorID == currentErrorID {
+            clearError()
+        }
+        meetingNotesErrorID = nil
+        meetingNotesErrorMeetingID = nil
+    }
+
+    public func retryCurrentMeetingNotesArtifactRefresh() async {
+        guard let meetingID = currentTranscription?.id else { return }
+        await refreshMeetingNotesArtifacts(for: meetingID)
+    }
+
+    /// Refresh derived files at an explicit editor flush, after debounced DB saves.
+    public func refreshMeetingNotesArtifacts(for meetingID: UUID) async {
+        guard let repo = transcriptionRepo else { return }
+        let previousTask = meetingNotesSaveTask
+        let token = UUID()
+        meetingNotesSaveToken = token
+        let operation = Task { @MainActor [weak self, previousTask, repo] in
+            _ = await previousTask?.value
+            guard let self else { return false }
+            do {
+                let fetched = try await Task.detached(priority: .utility) {
+                    try repo.fetch(id: meetingID)
+                }.value
+                guard let persisted = fetched,
+                    persisted.sourceType == .meeting
+                else {
+                    self.meetingNotesArtifactWarnings[meetingID] = nil
+                    return false
+                }
+                let refreshed = await self.refreshMeetingArtifacts(transcription: persisted)
+                self.meetingNotesArtifactWarnings[persisted.id] =
+                    refreshed
+                    ? nil
+                    : "Notes were saved, but the meeting files could not be refreshed."
+                return refreshed
+            } catch {
+                self.logger.warning(
+                    "Failed to retry meeting artifact refresh error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
+                )
+                self.meetingNotesArtifactWarnings[meetingID] =
+                    "Notes were saved, but the meeting files could not be refreshed."
+                return false
+            }
+        }
+        meetingNotesSaveTask = operation
+        _ = await operation.value
+        if meetingNotesSaveToken == token {
+            meetingNotesSaveTask = nil
+            meetingNotesSaveToken = nil
+        }
+    }
+
     @discardableResult
     public func updateCurrentTranscriptText(to newText: String) -> Bool {
         guard var transcription = currentTranscription else { return false }
+        guard !transcription.hasWordTimestamps || transcription.isTranscriptEdited else {
+            setError(message: "Edit timed transcripts one line at a time.")
+            return false
+        }
         guard let repo = transcriptionRepo else {
             reportMissingConfiguration("transcriptionRepo", action: "updateCurrentTranscriptText")
             return false
@@ -1100,7 +1937,9 @@ public final class TranscriptionViewModel {
             }
             return true
         } catch {
-            logger.error("Failed to persist transcript edit error=\(error.localizedDescription, privacy: .public)")
+            logger.error(
+                "Failed to persist transcript edit error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
+            )
             return false
         }
     }
@@ -1108,7 +1947,7 @@ public final class TranscriptionViewModel {
     @discardableResult
     public func revertCurrentTranscriptToOriginal() -> Bool {
         guard var transcription = currentTranscription,
-              transcription.cleanTranscript != nil
+            transcription.cleanTranscript != nil
         else { return false }
         guard let repo = transcriptionRepo else {
             reportMissingConfiguration("transcriptionRepo", action: "revertCurrentTranscriptToOriginal")
@@ -1127,46 +1966,1197 @@ public final class TranscriptionViewModel {
             }
             return true
         } catch {
-            logger.error("Failed to persist transcript revert error=\(error.localizedDescription, privacy: .public)")
+            logger.error(
+                "Failed to persist transcript revert error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
+            )
             return false
         }
     }
 
-    // MARK: - Speaker Rename
+    // MARK: - Speaker Corrections
 
-    public func renameSpeaker(id speakerId: String, to newLabel: String) {
-        guard var transcription = currentTranscription,
-              var speakers = transcription.speakers else { return }
-        guard let index = speakers.firstIndex(where: { $0.id == speakerId }) else { return }
-        let trimmed = newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, speakers[index].label != trimmed else { return }
-        speakers[index].label = trimmed
-        speakers[index].labelSource = .user
-        transcription.speakers = speakers
-        currentTranscription = transcription
-        do {
-            try transcriptionRepo?.updateSpeakers(id: transcription.id, speakers: speakers)
-        } catch {
-            logger.error("Failed to persist speaker rename error=\(error.localizedDescription, privacy: .public)")
+    /// A notes flush may publish a new row before its correction read finishes.
+    /// AI actions must await that exact read instead of accepting a nil revision.
+    public func waitForCurrentSpeakerAttribution() async -> Bool {
+        let revision = currentTranscriptionRevision
+        let token = speakerAttributionLoadToken
+        let loaded = await speakerAttributionLoadTask?.value ?? (speakerAttribution != nil)
+        return loaded && speakerAttributionLoadToken == token
+            && currentTranscriptionRevision == revision
+            && speakerAttribution != nil
+            && speakerAttributionTranscriptionID == currentTranscription?.id
+    }
+
+    /// Output actions must not use the automatic display fallback while the
+    /// selected snapshot's persisted corrections are still loading.
+    public func currentTranscriptionForSpeakerOutput() async -> Transcription? {
+        guard !isApplyingSpeakerCorrection,
+            await waitForCurrentSpeakerAttribution(),
+            !isApplyingSpeakerCorrection
+        else { return nil }
+        return effectiveCurrentTranscription
+    }
+
+    public func loadSpeakerAttribution(for transcription: Transcription) {
+        let token = UUID()
+        speakerAttributionLoadToken = token
+        let transcriptionID = transcription.id
+        let selectedRevision = currentTranscriptionRevision
+        let reader = speakerAttributionReader
+        speakerAttributionLoadTask = Task { [weak self, reader] in
+            do {
+                let projection = try await Task.detached(priority: .userInitiated) {
+                    if let reader {
+                        return try reader.resolve(transcription: transcription)
+                    }
+                    return SpeakerAttributionProjection(
+                        automaticTranscription: transcription,
+                        attribution: SpeakerAttributionResolver.resolve(transcription: transcription),
+                        correctionsApplied: false
+                    )
+                }.value
+                guard let self,
+                    self.speakerAttributionLoadToken == token,
+                    self.currentTranscriptionRevision == selectedRevision,
+                    self.currentTranscription?.id == transcriptionID
+                else { return false }
+                self.speakerAttribution = projection.attribution
+                self.speakerAttributionTranscriptionID = transcriptionID
+                self.speakerCorrectionsApplied = projection.correctionsApplied
+                self.canUndoSpeakerCorrection = projection.canUndo
+                self.canRedoSpeakerCorrection = projection.canRedo
+                // Both belong to this fingerprint, which is only known once the
+                // attribution has loaded: names the matcher proposed, and the
+                // enrollment a name applied in an earlier session never got.
+                self.loadVoiceSuggestions(
+                    transcriptionID: transcriptionID,
+                    fingerprint: projection.attribution.fingerprint
+                )
+                self.loadEnrolledVoices()
+                self.loadVoiceHolders(
+                    transcriptionID: transcriptionID,
+                    fingerprint: projection.attribution.fingerprint
+                )
+                if let current = self.currentTranscription, current.id == transcriptionID {
+                    self.reofferVoiceEnrollment(for: current)
+                }
+                return true
+            } catch {
+                guard let self,
+                    self.speakerAttributionLoadToken == token,
+                    self.currentTranscriptionRevision == selectedRevision
+                else { return false }
+                self.setError(message: "Couldn't load speaker corrections.")
+                self.logger.error(
+                    "speaker_correction_load_failed error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
+                )
+                return false
+            }
         }
     }
 
+    private struct SpeakerCorrectionSubmission: Sendable {
+        let transcriptionID: UUID
+        let service: SpeakerCorrectionServicing
+        let attribution: EffectiveSpeakerAttribution
+        let selectedRevision: UInt64
+    }
+
+    /// Returns `false` when the correction was refused because speaker changes
+    /// are still loading or saving, so the caller can keep its pending input
+    /// and retry once `isApplyingSpeakerCorrection` clears.
+    ///
+    /// `onCommitted` reports what the scheduled write actually did. The `Bool`
+    /// this returns only says the command was accepted for writing; callers
+    /// whose own work depends on the label landing must wait for the callback.
+    @discardableResult
+    public func applySpeakerCorrection(
+        _ command: SpeakerCorrectionCommand,
+        onCommitted: (@MainActor @Sendable (Bool) -> Void)? = nil
+    ) -> Bool {
+        // No transcript or no correction service means there is nothing to
+        // write and nothing to retry, so the command counts as accepted.
+        guard currentTranscription?.id != nil, speakerCorrectionService != nil else { return true }
+        guard let submission = beginSpeakerCorrectionSubmission() else { return false }
+        Task { [weak self] in
+            let committed = await self?.persistSpeakerCorrection(command, submission: submission) ?? false
+            await MainActor.run { onCommitted?(committed) }
+        }
+        return true
+    }
+
+    /// Applies a correction and returns only after the journal write succeeds
+    /// or fails. Editors await this method so dismissal follows persistence.
+    @discardableResult
+    public func applySpeakerCorrectionAndWait(_ command: SpeakerCorrectionCommand) async -> Bool {
+        guard let submission = beginSpeakerCorrectionSubmission() else { return false }
+        return await persistSpeakerCorrection(command, submission: submission)
+    }
+
+    private func beginSpeakerCorrectionSubmission() -> SpeakerCorrectionSubmission? {
+        guard let transcriptionID = currentTranscription?.id,
+            let speakerCorrectionService
+        else {
+            return nil
+        }
+        guard let attribution = speakerAttribution, !isApplyingSpeakerCorrection else {
+            setError(message: "Speaker changes are still loading or saving. Please try again.")
+            return nil
+        }
+        isApplyingSpeakerCorrection = true
+        return SpeakerCorrectionSubmission(
+            transcriptionID: transcriptionID,
+            service: speakerCorrectionService,
+            attribution: attribution,
+            selectedRevision: currentTranscriptionRevision
+        )
+    }
+
+    private func persistSpeakerCorrection(
+        _ command: SpeakerCorrectionCommand,
+        submission: SpeakerCorrectionSubmission
+    ) async -> Bool {
+        do {
+            let result = try await submission.service.apply(
+                transcriptionId: submission.transcriptionID,
+                command: command,
+                expectedFingerprint: submission.attribution.fingerprint,
+                expectedRevision: submission.attribution.correctionRevision
+            )
+            publishSpeakerCorrectionResult(
+                result,
+                transcriptionID: submission.transcriptionID,
+                selectedRevision: submission.selectedRevision
+            )
+            return true
+        } catch {
+            handleSpeakerCorrectionFailure(error, transcriptionID: submission.transcriptionID)
+            return false
+        }
+    }
+
+    public func undoSpeakerCorrection() {
+        performSpeakerHistoryAction(isUndo: true)
+    }
+
+    public func redoSpeakerCorrection() {
+        performSpeakerHistoryAction(isUndo: false)
+    }
+
+    private func performSpeakerHistoryAction(isUndo: Bool) {
+        guard let transcriptionID = currentTranscription?.id,
+            let speakerCorrectionService
+        else { return }
+        guard let attribution = speakerAttribution, !isApplyingSpeakerCorrection,
+            !isApplyingVoiceIdentity
+        else {
+            setError(message: "Speaker changes are still loading or saving. Please try again.")
+            return
+        }
+        isApplyingSpeakerCorrection = true
+        let selectedRevision = currentTranscriptionRevision
+        Task { [weak self, speakerCorrectionService] in
+            do {
+                let result: SpeakerCorrectionResult
+                if isUndo {
+                    result = try await speakerCorrectionService.undo(
+                        transcriptionId: transcriptionID,
+                        expectedFingerprint: attribution.fingerprint,
+                        expectedRevision: attribution.correctionRevision
+                    )
+                } else {
+                    result = try await speakerCorrectionService.redo(
+                        transcriptionId: transcriptionID,
+                        expectedFingerprint: attribution.fingerprint,
+                        expectedRevision: attribution.correctionRevision
+                    )
+                }
+                self?.publishSpeakerCorrectionResult(
+                    result, transcriptionID: transcriptionID, selectedRevision: selectedRevision
+                )
+            } catch {
+                self?.handleSpeakerCorrectionFailure(error, transcriptionID: transcriptionID)
+            }
+        }
+    }
+
+    private func publishSpeakerCorrectionResult(
+        _ result: SpeakerCorrectionResult,
+        transcriptionID: UUID,
+        selectedRevision: UInt64
+    ) {
+        isApplyingSpeakerCorrection = false
+        if currentTranscription?.id == transcriptionID {
+            dismissVoiceEnrollment()
+            if currentTranscriptionRevision == selectedRevision {
+                // A committed correction is newer than the read that initiated it.
+                speakerAttributionLoadToken = UUID()
+                speakerAttributionLoadTask = nil
+                speakerAttribution = result.attribution
+                speakerAttributionTranscriptionID = transcriptionID
+                speakerCorrectionsApplied = result.canUndo
+                canUndoSpeakerCorrection = result.canUndo
+                canRedoSpeakerCorrection = result.canRedo
+            } else if let currentTranscription {
+                // The selected row changed while the mutation was committing.
+                // Resolve its latest snapshot instead of restoring the old words.
+                loadSpeakerAttribution(for: currentTranscription)
+            }
+        }
+        // Artifact refresh generations are local monotonic tokens, independent
+        // of correction revisions (which restart after retranscription).
+        let artifactGeneration = (speakerRenameGenerations[transcriptionID] ?? 0) + 1
+        speakerRenameGenerations[transcriptionID] = artifactGeneration
+        enqueueMeetingArtifactRefresh(
+            transcriptionID: transcriptionID,
+            generation: artifactGeneration
+        )
+    }
+
+    private func handleSpeakerCorrectionFailure(_ error: Error, transcriptionID: UUID) {
+        isApplyingSpeakerCorrection = false
+        guard currentTranscription?.id == transcriptionID else { return }
+        if error as? SpeakerCorrectionServiceError == .conflict,
+            let transcription = currentTranscription,
+            transcription.id == transcriptionID
+        {
+            loadSpeakerAttribution(for: transcription)
+            setError(message: "Speaker changes were updated elsewhere. Review and try again.")
+        } else {
+            setError(message: "Couldn't save speaker changes. Nothing was changed.")
+        }
+        logger.error(
+            "speaker_correction_failed error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
+        )
+    }
+
+    // MARK: - Speaker Rename
+
+    /// An offer to remember the voice just named. Held only while the user has
+    /// not answered; nothing is stored until they accept.
+    public struct PendingVoiceEnrollment: Sendable, Equatable {
+        public let speakerId: String
+        public let displayName: String
+        public let transcriptionId: UUID
+        public let fingerprint: TranscriptFingerprint
+        let correctionRevision: Int
+    }
+
+    /// The outcome of an answered offer. Typed because the same surface reports
+    /// successes and failures, and a failure rendered with a success icon is
+    /// worse than no feedback.
+    public struct VoiceProfileMessage: Sendable, Equatable {
+        public enum Kind: Sendable, Equatable {
+            case success
+            case failure
+        }
+
+        public let text: String
+        public let kind: Kind
+        /// Whose answer this reports. Carried by the message rather than held
+        /// beside it: two answers can be in flight at once, and the later one
+        /// would otherwise decide where the earlier one's outcome is shown.
+        /// `nil` renders at the top of the transcript.
+        public let speakerId: String?
+    }
+
+    /// What the user is being offered, or the outcome of what they accepted.
+    ///
+    /// `internal(set)` so tests can stage a stale offer and prove the
+    /// confirmation guard holds; views only read it.
+    public internal(set) var pendingVoiceEnrollment: PendingVoiceEnrollment?
+    public private(set) var voiceEnrollmentMessage: VoiceProfileMessage?
+    /// A second name already owns this voice, so accepting would merge two
+    /// people. The user has to say which it is.
+    public private(set) var voiceEnrollmentConflict: PendingVoiceEnrollment?
+
+    /// Names the matcher proposed for this version of the transcript, awaiting
+    /// an answer. Never applied on their own.
+    public internal(set) var voiceSuggestions: [SpeakerVoiceprintSuggestion] = []
+
+    /// Voices already enrolled, offered as names the user can pick for a
+    /// speaker the matcher did not recognise. Empty whenever the feature is
+    /// off — the service is `nil` then — so the menu hides itself.
+    public internal(set) var enrolledVoices: [EnrolledVoice] = []
+
+    /// Which speaker already holds each voice in this version of the
+    /// transcript. Unlike `enrolledVoices`, this belongs to one transcript, so
+    /// it carries that scope's guards.
+    public internal(set) var voiceHolders: [UUID: String] = [:]
+
+    /// The voices still worth offering here: everything enrolled, minus every
+    /// voice already placed in this transcript. `assign` refuses a voice another
+    /// speaker holds, and a speaker offered the voice it already carries is
+    /// offered a decision that has been made — both read as a menu that does
+    /// nothing.
+    public var assignableVoices: [EnrolledVoice] {
+        enrolledVoices.filter { voiceHolders[$0.profile.id] == nil }
+    }
+
+    private var voiceEnrollmentLoadToken = 0
+    public private(set) var isApplyingVoiceIdentity = false
+
+    public func dismissVoiceEnrollment() {
+        voiceEnrollmentLoadToken &+= 1
+        pendingVoiceEnrollment = nil
+        voiceEnrollmentConflict = nil
+    }
+
+    /// Rises with every load, so a slower earlier one cannot overwrite what a
+    /// later one published — or republish an offer answered in between. The id
+    /// and fingerprint both match in that case, so they cannot catch it.
+    private var voiceSuggestionsLoadToken = 0
+
+    private func loadVoiceSuggestions(transcriptionID: UUID, fingerprint: TranscriptFingerprint) {
+        guard currentTranscription?.sourceType == .meeting, !isApplyingVoiceIdentity,
+            let speakerVoiceprints
+        else { return }
+        voiceSuggestionsLoadToken &+= 1
+        let token = voiceSuggestionsLoadToken
+        Task { [weak self] in
+            let offers = try? await speakerVoiceprints.pendingSuggestions(
+                transcriptionId: transcriptionID, fingerprint: fingerprint
+            )
+            await MainActor.run {
+                // Both, because neither alone is enough: the fingerprint covers
+                // re-transcribing the same row, while the id covers two
+                // recordings whose words happen to hash alike — the fingerprint
+                // has no transcription in it.
+                guard self?.voiceSuggestionsLoadToken == token,
+                    self?.currentTranscription?.id == transcriptionID,
+                    self?.speakerAttribution?.fingerprint == fingerprint
+                else { return }
+                self?.voiceSuggestions = offers ?? []
+            }
+        }
+    }
+
+    /// Not scoped to a transcript — a voice belongs to the library, not to one
+    /// recording — so the token alone guards it: a slower earlier read must not
+    /// overwrite the list an assignment just refreshed.
+    private var enrolledVoicesLoadToken = 0
+
+    /// Scoped to a transcript, so it needs what `loadVoiceSuggestions` needs:
+    /// a token against a slower earlier read, and both identifiers against a
+    /// transcript that moved underneath it.
+    private var voiceHoldersLoadToken = 0
+
+    private func loadVoiceHolders(
+        transcriptionID: UUID, fingerprint: TranscriptFingerprint
+    ) {
+        guard currentTranscription?.sourceType == .meeting, let speakerVoiceprints else { return }
+        voiceHoldersLoadToken &+= 1
+        let token = voiceHoldersLoadToken
+        Task { [weak self] in
+            let holders = try? await speakerVoiceprints.confirmedVoiceHolders(
+                transcriptionId: transcriptionID, fingerprint: fingerprint
+            )
+            await MainActor.run {
+                guard self?.voiceHoldersLoadToken == token,
+                    self?.currentTranscription?.id == transcriptionID,
+                    self?.speakerAttribution?.fingerprint == fingerprint
+                else { return }
+                self?.voiceHolders = holders ?? [:]
+            }
+        }
+    }
+
+    private func loadEnrolledVoices() {
+        guard currentTranscription?.sourceType == .meeting, let speakerVoiceprints else { return }
+        enrolledVoicesLoadToken &+= 1
+        let token = enrolledVoicesLoadToken
+        Task { [weak self] in
+            let voices = try? await speakerVoiceprints.recognitionVoices()
+            await MainActor.run {
+                guard self?.enrolledVoicesLoadToken == token else { return }
+                self?.enrolledVoices = voices ?? []
+            }
+        }
+    }
+
+    /// The manual counterpart of `confirmVoiceSuggestion`, for a speaker the
+    /// matcher never proposed a name for. It keeps that method's order for the
+    /// same reason: the label goes through the correction layer first, and the
+    /// link is written only once that label is committed.
+    public func assignKnownVoice(profileId: UUID, toSpeakerId speakerId: String) {
+        guard currentTranscription?.sourceType == .meeting,
+            !isApplyingVoiceIdentity,
+            let speakerVoiceprints,
+            let transcriptionId = currentTranscription?.id,
+            let attribution = speakerAttribution,
+            enrolledVoices.contains(where: { $0.profile.id == profileId }),
+            !AudioSource.isMeetingCaptureTrack(speakerId)
+        else { return }
+        let selectedRevision = currentTranscriptionRevision
+        let fingerprint = attribution.fingerprint
+        isApplyingVoiceIdentity = true
+        Task { [weak self] in
+            guard let self else { return }
+            defer { self.isApplyingVoiceIdentity = false }
+            var renamed = false
+            do {
+                let validation = try await speakerVoiceprints.validateAssignment(
+                    profileId: profileId, toSpeakerId: speakerId,
+                    transcriptionId: transcriptionId, fingerprint: fingerprint
+                )
+                guard self.currentTranscriptionRevision == selectedRevision,
+                    self.speakerAttribution == attribution
+                else { return }
+                guard case .assigned(let profile) = validation else {
+                    self.publish(
+                        validation,
+                        named: self.enrolledVoices.first { $0.id == profileId }?.profile.displayName ?? "This voice",
+                        for: speakerId)
+                    return
+                }
+                guard await self.renameForVoiceIdentity(speakerId: speakerId, name: profile.displayName) else { return }
+                renamed = true
+                guard
+                    self.voiceIdentityLabelStillMatches(
+                        speakerId: speakerId, name: profile.displayName,
+                        transcriptionId: transcriptionId, fingerprint: fingerprint
+                    )
+                else {
+                    self.reportVoiceIdentityAbandoned(named: profile.displayName, speakerId: speakerId)
+                    return
+                }
+                let outcome = try await speakerVoiceprints.assign(
+                    profileId: profileId, toSpeakerId: speakerId,
+                    transcriptionId: transcriptionId, fingerprint: fingerprint
+                )
+                guard self.currentTranscription?.id == transcriptionId,
+                    self.speakerAttribution?.fingerprint == fingerprint
+                else { return }
+                self.publish(outcome, named: profile.displayName, for: speakerId, renamed: true)
+            } catch {
+                guard self.currentTranscription?.id == transcriptionId,
+                    self.speakerAttribution?.fingerprint == fingerprint
+                else { return }
+                let displayName =
+                    self.enrolledVoices.first { $0.id == profileId }?.profile.displayName ?? "This speaker"
+                self.voiceEnrollmentMessage = .init(
+                    text: renamed
+                        ? "\(displayName) is on the transcript, but the voice was not recorded. Choose the name again to retry."
+                        : "Could not record that voice.",
+                    kind: .failure, speakerId: speakerId
+                )
+            }
+        }
+    }
+
+    /// The legacy rename path and the correction journal both report when the
+    /// label is durable. Voice learning must wait for that result.
+    private func renameForVoiceIdentity(speakerId: String, name: String) async -> Bool {
+        await withCheckedContinuation { continuation in
+            let accepted = renameSpeaker(id: speakerId, to: name, offersEnrollment: false) {
+                continuation.resume(returning: $0)
+            }
+            if !accepted { continuation.resume(returning: false) }
+        }
+    }
+
+    /// Preflight and rename are not a reservation. Undo or another rename can
+    /// land in the gap before the profile write; learning then would attach a
+    /// trusted name to a speaker the transcript no longer shows.
+    private func voiceIdentityLabelStillMatches(
+        speakerId: String, name: String,
+        transcriptionId: UUID, fingerprint: TranscriptFingerprint
+    ) -> Bool {
+        guard currentTranscription?.id == transcriptionId else { return false }
+        let stored = currentTranscription?.speakers?.first(where: { $0.id == speakerId })?.label
+        // Legacy rename mutates the row and clears attribution while it reloads.
+        // The stored label is the claim we just committed.
+        if stored == name { return true }
+        return speakerAttribution?.fingerprint == fingerprint
+            && speakerAttribution?.speakers.first(where: { $0.id == speakerId })?.label == name
+    }
+
+    private func reportVoiceIdentityAbandoned(named displayName: String, speakerId: String) {
+        voiceEnrollmentMessage = .init(
+            text: "The speaker name changed before \(displayName)'s voice could be recorded.",
+            kind: .failure,
+            speakerId: speakerId
+        )
+    }
+
+    private func recordVoiceHolder(profileId: UUID, speakerId: String) {
+        voiceHoldersLoadToken &+= 1
+        voiceSuggestionsLoadToken &+= 1
+        voiceHolders = voiceHolders.filter { $0.value != speakerId }
+        voiceHolders[profileId] = speakerId
+        voiceSuggestions.removeAll { $0.speakerId == speakerId || $0.profileId == profileId }
+    }
+
+    /// Reports profile validation or persistence without promising that a
+    /// rejected identity changed the transcript.
+    private func publish(
+        _ outcome: SpeakerManualAssignment, named displayName: String, for speakerId: String,
+        renamed: Bool = false
+    ) {
+        switch outcome {
+        case .assigned(let profile):
+            // An offer for this speaker is now answered by a stronger signal
+            // than the one it was asking about.
+            recordVoiceHolder(profileId: profile.id, speakerId: speakerId)
+            loadEnrolledVoices()
+            // Recorded here rather than re-read: the menu must stop offering
+            // this voice on the next open, not one round trip later.
+            // Said even though the label may not have moved: naming a speaker
+            // who already carried that name still records the decision, and
+            // without this the menu would look like it did nothing.
+            voiceEnrollmentMessage = .init(
+                text: "This speaker is recorded as \(displayName).", kind: .success,
+                speakerId: speakerId
+            )
+        case .profileAlreadyUsed(let holderId):
+            let holder = speakerAttribution?.speakers.first { $0.id == holderId }?.label ?? holderId
+            voiceEnrollmentMessage = .init(
+                text: renamed
+                    ? "\(displayName) is on the transcript, but \(holder) already holds that voice. Undo the rename if this is wrong."
+                    : "\(holder) is already \(displayName) in this transcript, so the voice was not recorded.",
+                kind: .failure,
+                speakerId: speakerId
+            )
+        case .unknownProfile:
+            voiceEnrollmentMessage = .init(
+                text: "\(displayName)'s voice is no longer stored.", kind: .failure,
+                speakerId: speakerId
+            )
+        case .unsupportedSpeaker:
+            break
+        }
+    }
+
+    /// Applies the name through the correction layer first, then records the
+    /// answer. That order matters: a crash between the two leaves a correct
+    /// label and a profile that did not learn, rather than a profile taught by
+    /// an answer the transcript never shows.
+    public func confirmVoiceSuggestion(_ suggestion: SpeakerVoiceprintSuggestion) {
+        guard currentTranscription?.sourceType == .meeting,
+            !isApplyingVoiceIdentity,
+            let speakerVoiceprints,
+            let transcriptionId = currentTranscription?.id,
+            let attribution = speakerAttribution,
+            voiceSuggestions.contains(suggestion),
+            !AudioSource.isMeetingCaptureTrack(suggestion.speakerId)
+        else { return }
+        let selectedRevision = currentTranscriptionRevision
+        let fingerprint = attribution.fingerprint
+        isApplyingVoiceIdentity = true
+        Task { [weak self] in
+            guard let self else { return }
+            defer { self.isApplyingVoiceIdentity = false }
+            var renamed = false
+            do {
+                let validation = try await speakerVoiceprints.validateAssignment(
+                    profileId: suggestion.profileId, toSpeakerId: suggestion.speakerId,
+                    transcriptionId: transcriptionId, fingerprint: fingerprint
+                )
+                guard self.currentTranscriptionRevision == selectedRevision,
+                    self.speakerAttribution == attribution,
+                    self.voiceSuggestions.contains(suggestion)
+                else { return }
+                guard case .assigned(let profile) = validation else {
+                    self.publish(validation, named: suggestion.displayName, for: suggestion.speakerId)
+                    return
+                }
+                guard await self.renameForVoiceIdentity(speakerId: suggestion.speakerId, name: profile.displayName)
+                else { return }
+                renamed = true
+                guard
+                    self.voiceIdentityLabelStillMatches(
+                        speakerId: suggestion.speakerId, name: profile.displayName,
+                        transcriptionId: transcriptionId, fingerprint: fingerprint
+                    )
+                else {
+                    self.reportVoiceIdentityAbandoned(named: profile.displayName, speakerId: suggestion.speakerId)
+                    return
+                }
+                self.voiceSuggestionsLoadToken &+= 1
+                self.voiceSuggestions.removeAll { $0.speakerId == suggestion.speakerId }
+                try await speakerVoiceprints.confirm(
+                    suggestion, transcriptionId: transcriptionId, fingerprint: fingerprint
+                )
+                guard self.currentTranscription?.id == transcriptionId,
+                    self.speakerAttribution?.fingerprint == fingerprint
+                else { return }
+                self.recordVoiceHolder(profileId: suggestion.profileId, speakerId: suggestion.speakerId)
+            } catch {
+                guard self.currentTranscription?.id == transcriptionId,
+                    self.speakerAttribution?.fingerprint == fingerprint
+                else { return }
+                self.voiceEnrollmentMessage = .init(
+                    text: renamed
+                        ? "\(suggestion.displayName) is on the transcript, but the voice was not recorded. Choose the name again to retry."
+                        : "Could not record that confirmation.",
+                    kind: .failure,
+                    speakerId: suggestion.speakerId
+                )
+            }
+        }
+    }
+
+    public func dismissVoiceSuggestion(_ suggestion: SpeakerVoiceprintSuggestion) {
+        guard currentTranscription?.sourceType == .meeting,
+            !isApplyingVoiceIdentity, voiceSuggestions.contains(suggestion),
+            let speakerVoiceprints,
+            let transcriptionId = currentTranscription?.id,
+            let fingerprint = speakerAttribution?.fingerprint
+        else { return }
+        voiceSuggestionsLoadToken &+= 1
+        voiceSuggestions.removeAll { $0.speakerId == suggestion.speakerId }
+        isApplyingVoiceIdentity = true
+
+        Task { [weak self] in
+            defer { self?.isApplyingVoiceIdentity = false }
+            do {
+                try await speakerVoiceprints.dismiss(
+                    suggestion, transcriptionId: transcriptionId, fingerprint: fingerprint
+                )
+            } catch {
+                // A swallowed failure hides the refusal rather than honouring
+                // it: the banner would come back on the next visit with no
+                // explanation. Put it back, and say so.
+                await MainActor.run {
+                    guard self?.currentTranscription?.id == transcriptionId,
+                        self?.speakerAttribution?.fingerprint == fingerprint
+                    else { return }
+                    if self?.voiceSuggestions.contains(suggestion) == false {
+                        self?.voiceSuggestions.append(suggestion)
+                    }
+                    self?.voiceEnrollmentMessage = .init(
+                        text: "Could not record that answer.", kind: .failure,
+                        speakerId: suggestion.speakerId
+                    )
+                }
+            }
+        }
+    }
+
+    public func clearVoiceEnrollmentMessage() {
+        voiceEnrollmentMessage = nil
+    }
+
+    /// Re-offers enrollment when a transcript opens.
+    ///
+    /// Without this the flywheel depends on the user staying in the window that
+    /// follows a rename: a speaker is renamed once, so after a relaunch there
+    /// is no second rename to trigger the offer, and the retained voice expires
+    /// unused. Only speakers the user has actually named are considered, and
+    /// only while a candidate is still available — the same conditions the
+    /// rename path applies.
+    func reofferVoiceEnrollment(for transcription: Transcription) {
+        guard transcription.sourceType == .meeting, !isApplyingVoiceIdentity, let speakerVoiceprints,
+            pendingVoiceEnrollment == nil,
+            voiceEnrollmentConflict == nil,
+            let fingerprint = speakerAttribution?.fingerprint,
+            let speakers = effectiveCurrentTranscription?.speakers ?? transcription.speakers
+        else { return }
+
+        // A speaker still carrying its positional label was never named, so
+        // there is nothing to remember it as.
+        let named = speakers.filter {
+            !$0.carriesAutomaticLabel && !AudioSource.isMeetingCaptureTrack($0.id)
+        }
+        guard !named.isEmpty else { return }
+        let transcriptionId = transcription.id
+        let token = voiceEnrollmentLoadToken
+        let revision = speakerAttribution?.correctionRevision ?? 0
+
+        Task { [weak self] in
+            for speaker in named {
+                let observation = try? await speakerVoiceprints.enrollmentCandidate(
+                    transcriptionId: transcriptionId,
+                    speakerId: speaker.id,
+                    fingerprint: fingerprint
+                )
+                guard observation != nil else { continue }
+                let published = await MainActor.run { [weak self] () -> Bool in
+                    guard let self,
+                        self.currentTranscription?.id == transcriptionId,
+                        self.speakerAttribution?.fingerprint == fingerprint,
+                        self.pendingVoiceEnrollment == nil,
+                        self.voiceEnrollmentConflict == nil,
+                        self.voiceEnrollmentLoadToken == token,
+                        self.speakerAttribution?.correctionRevision == revision,
+                        self.speakerAttribution?.speakers.first(where: { $0.id == speaker.id })?.label == speaker.label
+                    else { return false }
+                    self.pendingVoiceEnrollment = PendingVoiceEnrollment(
+                        speakerId: speaker.id,
+                        displayName: speaker.label,
+                        transcriptionId: transcriptionId,
+                        fingerprint: fingerprint,
+                        correctionRevision: revision
+                    )
+                    return true
+                }
+                // One at a time: several banners at once would be a queue to
+                // clear rather than a question to answer.
+                if published { return }
+            }
+        }
+    }
+
+    /// Offers to remember the voice, but only once the store confirms a
+    /// candidate still exists for this speaker — otherwise the prompt would
+    /// promise something enrollment would then refuse. Silent when the feature
+    /// is off, the window has lapsed, or the speaker spoke too briefly.
+    /// `transcriptionId` and `fingerprint` are the ones the rename was made
+    /// against, passed in rather than read here: the caller may be a callback
+    /// that lands after the user moved on, and reading the current values
+    /// would offer the new transcript.s positional speaker under the old name.
+    private func offerVoiceEnrollment(
+        speakerId: String,
+        displayName: String,
+        transcriptionId: UUID,
+        fingerprint: TranscriptFingerprint
+    ) {
+        guard currentTranscription?.sourceType == .meeting, let speakerVoiceprints,
+            currentTranscription?.id == transcriptionId,
+            speakerAttribution?.fingerprint == fingerprint,
+            let revision = speakerAttribution?.correctionRevision,
+            !AudioSource.isMeetingCaptureTrack(speakerId)
+        else { return }
+        let token = voiceEnrollmentLoadToken
+
+        Task { [weak self] in
+            let observation = try? await speakerVoiceprints.enrollmentCandidate(
+                transcriptionId: transcriptionId,
+                speakerId: speakerId,
+                fingerprint: fingerprint
+            )
+            guard observation != nil else { return }
+            await MainActor.run {
+                // Both: a same-row re-diarization keeps the id and changes the
+                // fingerprint, and this offer names a positional speaker.
+                guard self?.currentTranscription?.id == transcriptionId,
+                    self?.speakerAttribution?.fingerprint == fingerprint,
+                    self?.voiceEnrollmentLoadToken == token,
+                    self?.speakerAttribution?.correctionRevision == revision,
+                    self?.speakerAttribution?.speakers.first(where: { $0.id == speakerId })?.label == displayName
+                else { return }
+                self?.pendingVoiceEnrollment = PendingVoiceEnrollment(
+                    speakerId: speakerId,
+                    displayName: displayName,
+                    transcriptionId: transcriptionId,
+                    fingerprint: fingerprint,
+                    correctionRevision: revision
+                )
+            }
+        }
+    }
+
+    /// Accepts the offer. `allowMerge` is the answer to a name conflict, so it
+    /// is false on the first attempt and true only when the user has said the
+    /// two voices are the same person.
+    public func confirmVoiceEnrollment(allowMerge: Bool = false) {
+        guard currentTranscription?.sourceType == .meeting, !isApplyingVoiceIdentity,
+            let offer = allowMerge ? voiceEnrollmentConflict : pendingVoiceEnrollment,
+            let speakerVoiceprints,
+            !AudioSource.isMeetingCaptureTrack(offer.speakerId)
+        else { return }
+        // Re-checked here rather than trusted from the offer: this is a public
+        // value an unrelated caller could resubmit, and enrollment is a write
+        // the user cannot take back. The fingerprint, not the transcription id
+        // — the same row re-transcribed keeps its id and changes its speakers.
+        guard currentTranscription?.id == offer.transcriptionId,
+            speakerAttribution?.fingerprint == offer.fingerprint,
+            speakerAttribution?.correctionRevision == offer.correctionRevision,
+            speakerAttribution?.speakers.first(where: { $0.id == offer.speakerId })?.label == offer.displayName
+        else {
+            dismissVoiceEnrollment()
+            return
+        }
+        dismissVoiceEnrollment()
+        isApplyingVoiceIdentity = true
+
+        Task { [weak self] in
+            defer { self?.isApplyingVoiceIdentity = false }
+            do {
+                let outcome = try await speakerVoiceprints.enrollCandidate(
+                    displayName: offer.displayName,
+                    speakerId: offer.speakerId,
+                    transcriptionId: offer.transcriptionId,
+                    fingerprint: offer.fingerprint,
+                    allowMergeIntoExistingName: allowMerge
+                )
+                await MainActor.run { self?.publish(outcome, for: offer) }
+            } catch {
+                await MainActor.run {
+                    // Scoped to the offer, not the current selection: this
+                    // message answers an action taken on that transcript.
+                    guard self?.currentTranscription?.id == offer.transcriptionId,
+                        self?.speakerAttribution?.fingerprint == offer.fingerprint
+                    else { return }
+                    self?.voiceEnrollmentMessage = .init(
+                        text: "Could not remember this voice.", kind: .failure,
+                        speakerId: offer.speakerId
+                    )
+                }
+            }
+        }
+    }
+
+    /// The write already happened; this only decides whether to say so here.
+    /// After navigation or a re-diarization the answer belongs to a transcript
+    /// the user is no longer looking at, and a conflict banner shown there
+    /// would name a speaker that no longer exists.
+    private func publish(_ outcome: SpeakerProfileEnrollment, for offer: PendingVoiceEnrollment) {
+        guard currentTranscription?.id == offer.transcriptionId,
+            speakerAttribution?.fingerprint == offer.fingerprint,
+            speakerAttribution?.correctionRevision == offer.correctionRevision,
+            speakerAttribution?.speakers.first(where: { $0.id == offer.speakerId })?.label == offer.displayName
+        else { return }
+        switch outcome {
+        case .created, .addedExemplar:
+            voiceEnrollmentMessage = .init(
+                text: "\(offer.displayName)'s voice will be suggested in later meetings.",
+                kind: .success, speakerId: offer.speakerId
+            )
+        case .alreadySampled:
+            voiceEnrollmentMessage = .init(
+                text: "\(offer.displayName) already has a sample from this recording.",
+                kind: .success, speakerId: offer.speakerId
+            )
+        case .needsDisambiguation:
+            // Deliberately not phrased as an error: the likeliest cause is two
+            // people who share a first name, which is not a mistake.
+            voiceEnrollmentConflict = offer
+        case .rejectedTooShort:
+            voiceEnrollmentMessage = .init(
+                text: "Not enough speech from \(offer.displayName) to remember their voice.",
+                kind: .failure, speakerId: offer.speakerId
+            )
+        case .rejectedProfileFull:
+            voiceEnrollmentMessage = .init(
+                text: "\(offer.displayName) already has the maximum number of voice samples.",
+                kind: .failure, speakerId: offer.speakerId
+            )
+        case .candidateUnavailable:
+            voiceEnrollmentMessage = .init(
+                text: "This voice sample is no longer available.", kind: .failure, speakerId: offer.speakerId
+            )
+        case .rejectedEmptyName:
+            voiceEnrollmentMessage = nil
+        }
+    }
+
+    /// Returns `false` only when the rename must be retried later because
+    /// speaker corrections are still loading or saving.
+    ///
+    /// `offersEnrollment` is false when the name came from a suggestion the
+    /// user just confirmed: that voice is already matched and recorded.
+    @discardableResult
+    public func renameSpeaker(
+        id speakerId: String,
+        to newLabel: String,
+        offersEnrollment: Bool = true,
+        onCommitted: (@MainActor @Sendable (Bool) -> Void)? = nil
+    ) -> Bool {
+        let trimmed = newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            onCommitted?(true)
+            return true
+        }
+        if speakerCorrectionService != nil,
+            currentTranscription?.status == .completed,
+            !(currentTranscription?.wordTimestamps ?? []).isEmpty,
+            !(currentTranscription?.transcriptSegments ?? []).isEmpty
+        {
+            // An unchanged label is not a rename. The correction service would
+            // still insert a row and advance the revision, and the success
+            // callback would then offer to remember a voice for a name the
+            // user did not actually type.
+            if let current = speakerAttribution?.speakers.first(where: { $0.id == speakerId }),
+                current.label == trimmed
+            {
+                onCommitted?(true)
+                return true
+            }
+            // Loading correction history must never enable a legacy write to
+            // the automatic baseline: that would bypass undo and active edits.
+            guard speakerAttribution != nil else {
+                setError(message: "Speaker corrections are loading. Try the rename again in a moment.")
+                return false
+            }
+            clearError()
+            // Captured before the write is scheduled, because the callback can
+            // land after the user has moved on: the offer must belong to the
+            // transcript that was renamed, not to whichever one is open when
+            // the write finishes.
+            let renamedTranscriptionId = currentTranscription?.id
+            let renamedFingerprint = speakerAttribution?.fingerprint
+            // Offered only once the label is committed. `applySpeakerCorrection`
+            // returns as soon as the write is scheduled, and that write can
+            // still be refused for a stale revision — an offer accepted after
+            // that would store a voice under a name the transcript never kept.
+            return applySpeakerCorrection(
+                .rename(speakerID: speakerId, label: trimmed),
+                onCommitted: { [weak self] committed in
+                    onCommitted?(committed)
+                    // Only after the label lands, and never on the confirmation
+                    // path: that voice is already matched, and the answer is
+                    // recorded by the caller.
+                    guard committed,
+                        offersEnrollment,
+                        let renamedTranscriptionId,
+                        let renamedFingerprint
+                    else { return }
+                    self?.offerVoiceEnrollment(
+                        speakerId: speakerId,
+                        displayName: trimmed,
+                        transcriptionId: renamedTranscriptionId,
+                        fingerprint: renamedFingerprint
+                    )
+                }
+            )
+        }
+        // Legacy path, for transcripts the correction layer cannot own. Its
+        // no-ops still report: a caller waiting on the callback would otherwise
+        // hang, and `confirmVoiceSuggestion` would drop a suggestion it never
+        // recorded.
+        guard var transcription = currentTranscription,
+            var speakers = transcription.speakers
+        else {
+            onCommitted?(true)
+            return true
+        }
+        guard let index = speakers.firstIndex(where: { $0.id == speakerId }) else {
+            onCommitted?(true)
+            return true
+        }
+        guard !trimmed.isEmpty, speakers[index].label != trimmed else {
+            onCommitted?(true)
+            return true
+        }
+        let previousCurrentSpeakers = speakers
+        let previousCurrentSegments = transcription.transcriptSegments
+        let previousCurrentUpdatedAt = transcription.updatedAt
+        let transcriptionIndex = transcriptions.firstIndex(where: { $0.id == transcription.id })
+        let previousListSpeakers = transcriptionIndex.flatMap { transcriptions[$0].speakers }
+        let previousListSegments = transcriptionIndex.flatMap { transcriptions[$0].transcriptSegments }
+        let previousListUpdatedAt = transcriptionIndex.map { transcriptions[$0].updatedAt }
+        let renameGeneration = (speakerRenameGenerations[transcription.id] ?? 0) + 1
+        speakerRenameGenerations[transcription.id] = renameGeneration
+        speakers[index].label = trimmed
+        transcription.speakers = speakers
+        transcription.transcriptSegments = TranscriptSegmentRecord.updatingSpeakerLabels(
+            in: transcription.transcriptSegments,
+            using: speakers
+        )
+        transcription.updatedAt = Date()
+        currentTranscription = transcription
+        if let transcriptionIndex {
+            transcriptions[transcriptionIndex].speakers = speakers
+            transcriptions[transcriptionIndex].transcriptSegments = transcription.transcriptSegments
+            transcriptions[transcriptionIndex].updatedAt = transcription.updatedAt
+        }
+        guard let transcriptionRepo else {
+            onCommitted?(true)
+            return true
+        }
+        let transcriptionID = transcription.id
+        Task {
+            [
+                weak self,
+                transcriptionRepo,
+                transcriptionID,
+                speakers,
+                previousCurrentSpeakers,
+                previousCurrentSegments,
+                previousCurrentUpdatedAt,
+                previousListSpeakers,
+                previousListSegments,
+                previousListUpdatedAt,
+                renameGeneration
+            ] in
+            do {
+                try await Task.detached(priority: .utility) {
+                    try transcriptionRepo.updateSpeakers(id: transcriptionID, speakers: speakers)
+                }.value
+                self?.enqueueMeetingArtifactRefresh(
+                    transcriptionID: transcriptionID,
+                    generation: renameGeneration
+                )
+                await MainActor.run { onCommitted?(true) }
+            } catch {
+                let errorType = TelemetryErrorClassifier.classify(error)
+                self?.handleSpeakerRenamePersistenceFailure(
+                    transcriptionID: transcriptionID,
+                    generation: renameGeneration,
+                    previousCurrentSpeakers: previousCurrentSpeakers,
+                    previousCurrentSegments: previousCurrentSegments,
+                    previousCurrentUpdatedAt: previousCurrentUpdatedAt,
+                    previousListSpeakers: previousListSpeakers,
+                    previousListSegments: previousListSegments,
+                    previousListUpdatedAt: previousListUpdatedAt,
+                    errorType: errorType
+                )
+                self?.enqueueMeetingArtifactRefresh(
+                    transcriptionID: transcriptionID,
+                    generation: renameGeneration
+                )
+                await MainActor.run { onCommitted?(false) }
+            }
+        }
+        return true
+    }
+
+    private func handleSpeakerRenamePersistenceFailure(
+        transcriptionID: UUID,
+        generation: Int,
+        previousCurrentSpeakers: [SpeakerInfo],
+        previousCurrentSegments: [TranscriptSegmentRecord]?,
+        previousCurrentUpdatedAt: Date,
+        previousListSpeakers: [SpeakerInfo]?,
+        previousListSegments: [TranscriptSegmentRecord]?,
+        previousListUpdatedAt: Date?,
+        errorType: String
+    ) {
+        guard speakerRenameGenerations[transcriptionID] == generation else { return }
+        if var currentTranscription, currentTranscription.id == transcriptionID {
+            currentTranscription.speakers = previousCurrentSpeakers
+            currentTranscription.transcriptSegments = previousCurrentSegments
+            currentTranscription.updatedAt = previousCurrentUpdatedAt
+            self.currentTranscription = currentTranscription
+        }
+        if let index = transcriptions.firstIndex(where: { $0.id == transcriptionID }) {
+            transcriptions[index].speakers = previousListSpeakers
+            transcriptions[index].transcriptSegments = previousListSegments
+            if let previousListUpdatedAt {
+                transcriptions[index].updatedAt = previousListUpdatedAt
+            }
+        }
+        setError(message: "Failed to save speaker rename. The previous label was restored.")
+        logger.error("Failed to persist speaker rename error_type=\(errorType, privacy: .public)")
+    }
+
+    private func enqueueMeetingArtifactRefresh(transcriptionID: UUID, generation: Int) {
+        guard speakerRenameGenerations[transcriptionID] == generation,
+            transcriptionRepo != nil,
+            promptResultRepo != nil
+        else {
+            return
+        }
+
+        let previousTask = speakerRenameArtifactRefreshTasks[transcriptionID]
+        let token = UUID()
+        speakerRenameArtifactRefreshTokens[transcriptionID] = token
+        speakerRenameArtifactRefreshRequestedGenerations[transcriptionID] = max(
+            speakerRenameArtifactRefreshRequestedGenerations[transcriptionID] ?? 0,
+            generation
+        )
+
+        let task = Task.detached(priority: .utility) { [weak self, previousTask] in
+            await previousTask?.value
+            let shouldMaterialize = await MainActor.run { [weak self] in
+                guard let self else { return false }
+                let requestedGeneration = self.speakerRenameArtifactRefreshRequestedGenerations[transcriptionID] ?? 0
+                let completedGeneration = self.speakerRenameArtifactRefreshCompletedGenerations[transcriptionID] ?? 0
+                return requestedGeneration >= generation && completedGeneration < generation
+            }
+            guard shouldMaterialize else {
+                await MainActor.run { [weak self] in
+                    self?.finishSpeakerRenameArtifactRefresh(transcriptionID: transcriptionID, token: token)
+                }
+                return
+            }
+
+            var materializedGeneration = generation
+            while true {
+                let refreshed =
+                    await self?.refreshMeetingArtifacts(transcriptionID: transcriptionID, requiresSessionFolder: true)
+                    ?? false
+                if !refreshed { break }
+
+                let completedTargetGeneration = materializedGeneration
+                let nextGeneration = await MainActor.run { [weak self] () -> Int? in
+                    guard let self else { return nil }
+                    let completedGeneration =
+                        self.speakerRenameArtifactRefreshCompletedGenerations[transcriptionID] ?? 0
+                    self.speakerRenameArtifactRefreshCompletedGenerations[transcriptionID] = max(
+                        completedGeneration,
+                        completedTargetGeneration
+                    )
+                    let requestedGeneration =
+                        self.speakerRenameArtifactRefreshRequestedGenerations[transcriptionID]
+                        ?? completedTargetGeneration
+                    return requestedGeneration > completedTargetGeneration ? requestedGeneration : nil
+                }
+                guard let nextGeneration else { break }
+                materializedGeneration = nextGeneration
+            }
+            await MainActor.run { [weak self] in
+                self?.finishSpeakerRenameArtifactRefresh(transcriptionID: transcriptionID, token: token)
+            }
+        }
+        speakerRenameArtifactRefreshTasks[transcriptionID] = task
+    }
+
+    private func finishSpeakerRenameArtifactRefresh(transcriptionID: UUID, token: UUID) {
+        guard speakerRenameArtifactRefreshTokens[transcriptionID] == token else { return }
+        speakerRenameArtifactRefreshTokens[transcriptionID] = nil
+        speakerRenameArtifactRefreshTasks[transcriptionID] = nil
+        speakerRenameArtifactRefreshRequestedGenerations[transcriptionID] = nil
+        speakerRenameArtifactRefreshCompletedGenerations[transcriptionID] = nil
+    }
+
     public func renameCurrentTranscription(to newFileName: String) {
-        guard var transcription = currentTranscription else { return }
+        guard let transcription = currentTranscription else { return }
+        guard transcription.sourceType == .meeting else { return }
+        guard let transcriptionRepo else { return }
         let trimmed = newFileName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed != transcription.fileName else { return }
 
-        transcription.fileName = trimmed
-        transcription.derivedTitle = trimmed
-        currentTranscription = transcription
+        clearError()
+        let persistedTranscription: Transcription
         do {
-            try transcriptionRepo?.updateFileName(id: transcription.id, fileName: trimmed)
+            guard let updated = try transcriptionRepo.updateFileName(id: transcription.id, fileName: trimmed) else {
+                setError(message: "Failed to rename transcription: the meeting no longer exists.")
+                return
+            }
+            persistedTranscription = updated
+        } catch {
+            logger.error(
+                "Failed to persist transcription rename error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
+            )
+            setError(message: "Failed to rename transcription: \(error.localizedDescription)")
+            return
+        }
+
+        currentTranscription = persistedTranscription
+        if let index = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
+            transcriptions[index] = persistedTranscription
+        }
+        onMeetingRenamed?(MeetingRename(id: persistedTranscription.id, title: persistedTranscription.fileName))
+        Task { [weak self, persistedTranscription] in
+            await self?.refreshMeetingArtifacts(transcription: persistedTranscription)
+        }
+    }
+
+    public func renameCurrentTranscriptionTitle(to newTitle: String) {
+        guard let transcription = currentTranscription else { return }
+        guard transcription.sourceType == .file else { return }
+        guard let transcriptionRepo else { return }
+        guard let normalizedTitle = Transcription.normalizedTitleOverride(from: newTitle),
+            normalizedTitle != transcription.effectiveDisplayTitle
+        else {
+            return
+        }
+
+        clearError()
+        do {
+            try transcriptionRepo.updateTitleOverride(id: transcription.id, titleOverride: normalizedTitle)
+            guard let updatedTranscription = try transcriptionRepo.fetch(id: transcription.id) else { return }
+            currentTranscription = updatedTranscription
             if let index = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
-                transcriptions[index].fileName = trimmed
-                transcriptions[index].derivedTitle = trimmed
+                transcriptions[index] = updatedTranscription
             }
         } catch {
-            logger.error("Failed to persist transcription rename error=\(error.localizedDescription, privacy: .public)")
+            logger.error(
+                "Failed to persist transcription title rename error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
+            )
+            setError(message: "Failed to rename transcription: \(error.localizedDescription)")
         }
     }
 
@@ -1179,8 +3169,58 @@ public final class TranscriptionViewModel {
         do {
             hasPromptResultTabs = try promptResultRepo?.hasPromptResults(transcriptionId: transcriptionID) ?? false
         } catch {
-            logger.error("Failed to query prompt results error=\(error.localizedDescription, privacy: .public)")
+            logger.error(
+                "Failed to query prompt results error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
+            )
             hasPromptResultTabs = false
         }
+    }
+
+    /// Serializes notes and rename artifact writes per meeting. Read canonical
+    /// state after the previous write finishes so queued snapshots cannot restore
+    /// old notes or metadata. A derived-file failure never rolls back the DB.
+    @discardableResult
+    private func refreshMeetingArtifacts(transcription: Transcription) async -> Bool {
+        guard transcription.sourceType == .meeting else { return true }
+        return await refreshMeetingArtifacts(transcriptionID: transcription.id)
+    }
+
+    /// All metadata/correction refreshes share one queue per meeting. Read the
+    /// canonical row only after earlier writes finish, so a queued old snapshot
+    /// cannot overwrite more recent notes, names or speaker corrections.
+    private func refreshMeetingArtifacts(transcriptionID: UUID, requiresSessionFolder: Bool = false) async -> Bool {
+        guard let transcriptionRepo, let promptResultRepo else { return true }
+        let previousTask = meetingArtifactRefreshTasks[transcriptionID]?.task
+        let token = UUID()
+        let store = meetingArtifactStore
+        let reader = speakerAttributionReader
+        let logger = logger
+        let task = Task.detached(priority: .utility) {
+            _ = await previousTask?.value
+            do {
+                guard let current = try transcriptionRepo.fetch(id: transcriptionID),
+                    current.sourceType == .meeting
+                else { return true }
+                if requiresSessionFolder && MeetingArtifactStore.sessionFolderURL(for: current) == nil { return true }
+                let results = try promptResultRepo.fetchAll(transcriptionId: transcriptionID)
+                if let projection = try reader?.resolve(transcription: current) {
+                    _ = try await store.materialize(projection: projection, promptResults: results)
+                } else {
+                    _ = try await store.materialize(transcription: current, promptResults: results)
+                }
+                return true
+            } catch {
+                logger.warning(
+                    "Failed to refresh meeting artifact for transcription \(transcriptionID.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                )
+                return false
+            }
+        }
+        meetingArtifactRefreshTasks[transcriptionID] = (token, task)
+        let refreshed = await task.value
+        if meetingArtifactRefreshTasks[transcriptionID]?.token == token {
+            meetingArtifactRefreshTasks[transcriptionID] = nil
+        }
+        return refreshed
     }
 }

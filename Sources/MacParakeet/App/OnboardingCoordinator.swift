@@ -44,7 +44,8 @@ final class OnboardingCoordinator {
                 permissionService: environment.permissionService,
                 sttClient: environment.sttScheduler,
                 diarizationService: environment.diarizationService,
-                entitlementsService: environment.entitlementsService
+                entitlementsService: environment.entitlementsService,
+                restartExistingRun: false
             )
         }
     }
@@ -55,7 +56,8 @@ final class OnboardingCoordinator {
             permissionService: environment.permissionService,
             sttClient: environment.sttScheduler,
             diarizationService: environment.diarizationService,
-            entitlementsService: environment.entitlementsService
+            entitlementsService: environment.entitlementsService,
+            restartExistingRun: true
         )
     }
 
@@ -68,7 +70,8 @@ final class OnboardingCoordinator {
         permissionService: PermissionServiceProtocol,
         sttClient: STTClientProtocol,
         diarizationService: DiarizationServiceProtocol?,
-        entitlementsService: EntitlementsService
+        entitlementsService: EntitlementsService,
+        restartExistingRun: Bool
     ) {
         onboardingWindowController.show(
             permissionService: permissionService,
@@ -82,6 +85,7 @@ final class OnboardingCoordinator {
                     await entitlementsService.bootstrapTrialIfNeeded()
                 }
             },
+            restartExistingRun: restartExistingRun,
             onHotkeyPreviewArm: { [weak self] in self?.onHotkeyPreviewArm() },
             onHotkeyPreviewDisarm: { [weak self] in self?.onHotkeyPreviewDisarm() },
             onOpenMainApp: { [weak self] in

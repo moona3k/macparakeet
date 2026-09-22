@@ -48,3 +48,36 @@ final class AppDelegateMenuBarResolverTests: XCTestCase {
         XCTAssertEqual(state, .idle)
     }
 }
+
+@MainActor
+final class AppWindowCoordinatorActivationPolicyTests: XCTestCase {
+    func testMenuBarOnlyModeKeepsDockWhilePrimaryWindowIsVisible() {
+        XCTAssertEqual(
+            AppWindowCoordinator.activationPolicy(
+                menuBarOnlyMode: true,
+                hasVisiblePrimaryWindow: true
+            ),
+            .regular
+        )
+    }
+
+    func testMenuBarOnlyModeHidesDockWhenNoPrimaryWindowIsVisible() {
+        XCTAssertEqual(
+            AppWindowCoordinator.activationPolicy(
+                menuBarOnlyMode: true,
+                hasVisiblePrimaryWindow: false
+            ),
+            .accessory
+        )
+    }
+
+    func testDockRemainsAvailableWhenMenuBarOnlyModeIsDisabled() {
+        XCTAssertEqual(
+            AppWindowCoordinator.activationPolicy(
+                menuBarOnlyMode: false,
+                hasVisiblePrimaryWindow: false
+            ),
+            .regular
+        )
+    }
+}

@@ -1,0 +1,9 @@
+{
+  "recorded_at_utc": "2026-09-07T23:36:40.674700+00:00",
+  "owned_mount_path": "<QA>/package-runtime/dmg-readonly-v52tmqn4",
+  "owned_mount_path_absent": true,
+  "first_attempt_mount_path_absent": true,
+  "dmg_unchanged_sha256": "17fbf6c6a2a3ed6ada8ce3f0816adae041832f27d7b3a9a2ac9e3499859bcb22",
+  "all_commands_exit0": true,
+  "first_attempt_note": "Mount succeeded and detached; harness expected /tmp while hdiutil returned canonical /private/tmp. Only mount payload check retried after path normalization."
+}

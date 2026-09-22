@@ -1,6 +1,8 @@
 import Foundation
 
 public extension Notification.Name {
+    /// Payload-free cross-process hint; committed database intent is authoritative.
+    static let macParakeetShareStopQueued = Notification.Name("macparakeet.shareStopQueued")
     static let macParakeetOpenOnboarding = Notification.Name("macparakeet.openOnboarding")
     static let macParakeetOpenSettings = Notification.Name("macparakeet.openSettings")
     static let macParakeetHotkeyTriggerDidChange = Notification.Name("macparakeet.hotkeyTriggerDidChange")
@@ -10,9 +12,16 @@ public extension Notification.Name {
     static let macParakeetYouTubeTranscriptionHotkeyTriggerDidChange = Notification.Name("macparakeet.youtubeTranscriptionHotkeyTriggerDidChange")
     static let macParakeetAppearanceModeDidChange = Notification.Name("macparakeet.appearanceModeDidChange")
     static let macParakeetMenuBarOnlyModeDidChange = Notification.Name("macparakeet.menuBarOnlyModeDidChange")
+    static let macParakeetMenuBarIconVisibilityDidChange = Notification.Name("macparakeet.menuBarIconVisibilityDidChange")
     static let macParakeetShowIdlePillDidChange = Notification.Name("macparakeet.showIdlePillDidChange")
+    static let macParakeetShowDiscoverDidChange = Notification.Name("macparakeet.showDiscoverDidChange")
+    static let macParakeetShowMeetingRecordingPillDidChange = Notification.Name("macparakeet.showMeetingRecordingPillDidChange")
     static let macParakeetInstantDictationDidChange = Notification.Name("macparakeet.instantDictationDidChange")
     static let macParakeetMicrophoneSelectionDidChange = Notification.Name("macparakeet.microphoneSelectionDidChange")
+    /// Posted when meeting audio retention changes. The app schedules one
+    /// immediate guarded sweep so auto-delete choices take effect without
+    /// waiting for a relaunch.
+    static let macParakeetMeetingAudioRetentionDidChange = Notification.Name("macparakeet.meetingAudioRetentionDidChange")
     static let macParakeetAIFormatterWarning = Notification.Name("macparakeet.aiFormatterWarning")
     /// Posted by `DictationService`/`TranscriptionService` just before the AI
     /// formatter begins running on a transcript. Observed by the dictation
@@ -40,4 +49,6 @@ public extension Notification.Name {
     /// flow coordinator re-reads the preference and updates the on-screen
     /// preview live, so a size change is visible mid-dictation.
     static let macParakeetDictationPreviewTextSizeDidChange = Notification.Name("macparakeet.dictationPreviewTextSizeDidChange")
+    /// Posted after a cancelled dictation is transcribed and saved to History.
+    static let macParakeetDictationHistoryDidChange = Notification.Name("macparakeet.dictationHistoryDidChange")
 }

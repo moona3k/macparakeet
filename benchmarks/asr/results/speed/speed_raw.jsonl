@@ -1,0 +1,7 @@
+{"engine": "parakeet-v2", "method": "mp-cli diff(1,N)", "n_files": 24, "cold_start_s": 0.55, "steady_rtfx": 90.4, "peak_rss_mb": 123, "wall_1_s": 0.55, "wall_N_s": 2.7, "audio_1_s": 10.4, "audio_N_s": 204.3}
+{"engine": "parakeet-v3", "method": "mp-cli diff(1,N)", "n_files": 24, "cold_start_s": 0.38, "steady_rtfx": 81.1, "peak_rss_mb": 131, "wall_1_s": 0.38, "wall_N_s": 2.77, "audio_1_s": 10.4, "audio_N_s": 204.3}
+{"engine": "parakeet-unified", "method": "mp-cli diff(1,N)", "n_files": 24, "cold_start_s": 0.93, "steady_rtfx": 92.8, "peak_rss_mb": 115, "wall_1_s": 0.93, "wall_N_s": 3.02, "audio_1_s": 10.4, "audio_N_s": 204.3}
+{"engine": "nemotron-en", "method": "mp-cli diff(1,N)", "n_files": 24, "cold_start_s": 0.87, "steady_rtfx": 57.3, "peak_rss_mb": 141, "wall_1_s": 0.87, "wall_N_s": 4.25, "audio_1_s": 10.4, "audio_N_s": 204.3}
+{"engine": "nemotron-multi", "method": "mp-cli diff(1,N)", "n_files": 24, "cold_start_s": 0.7, "steady_rtfx": 60.9, "peak_rss_mb": 142, "wall_1_s": 0.7, "wall_N_s": 3.88, "audio_1_s": 10.4, "audio_N_s": 204.3}
+{"engine": "whisper", "method": "mp-cli diff(1,N)", "n_files": 24, "cold_start_s": 2.29, "steady_rtfx": 14.1, "peak_rss_mb": 274, "wall_1_s": 2.29, "wall_N_s": 16.01, "audio_1_s": 10.4, "audio_N_s": 204.3}
+{"engine": "cohere", "method": "fluidaudio per-file (drop file0)", "n_files": 12, "cold_start_s": 73.45, "steady_rtfx": 11.3, "peak_rss_mb": 11897, "total_wall_s": 86.5}

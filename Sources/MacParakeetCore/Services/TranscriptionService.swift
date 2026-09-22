@@ -16,6 +16,17 @@ public protocol TranscriptionServiceProtocol: Sendable {
         recording: MeetingRecordingOutput,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription
+    /// Creates and persists the pre-STT meeting row. Must not run speech-to-text.
+    func prepareMeetingTranscription(
+        recording: MeetingRecordingOutput
+    ) async throws -> Transcription
+    /// Finalizes the existing meeting row. Must update `transcriptionID`
+    /// rather than inserting another row.
+    func finalizeMeetingTranscription(
+        recording: MeetingRecordingOutput,
+        updating transcriptionID: UUID,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription
     func retranscribe(
         existing transcription: Transcription,
         fileURL: URL,
@@ -47,11 +58,43 @@ public protocol SpeechEngineOverrideTranscriptionService: TranscriptionServicePr
     ) async throws -> Transcription
 }
 
-private struct FormatterOutcome: Sendable {
-    let text: String?
-    let run: LLMRun?
+/// Additive capability for callers that explicitly configure speaker counting
+/// for a single retranscription. Keeping this separate preserves compatibility
+/// with lightweight services that only implement the base protocol.
+public protocol SpeakerConfiguredRetranscriptionService: SpeechEngineOverrideTranscriptionService {
+    func retranscribe(
+        existing transcription: Transcription,
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        speechEngineOverride: SpeechEngineSelection?,
+        speakerSelection: RetranscriptionSpeakerSelection,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription
+    func retranscribeMeeting(
+        existing transcription: Transcription,
+        recording: MeetingRecordingOutput,
+        speechEngineOverride: SpeechEngineSelection?,
+        speakerSelection: RetranscriptionSpeakerSelection,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription
+}
 
-    static let skipped = FormatterOutcome(text: nil, run: nil)
+/// Additive file-only capability used by the app and CLI when a local media
+/// container has more than one embedded audio stream.
+public protocol AudioTrackSelectingTranscriptionService: Sendable {
+    func audioTracks(in fileURL: URL) async throws -> [AudioTrackDescriptor]
+    func transcribe(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        audioTrackOrdinal: Int,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription
+    func transcribeTransient(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        audioTrackOrdinal: Int,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription
 }
 
 /// Metadata that pre-resolution (e.g. an Apple Podcasts iTunes lookup or RSS
@@ -179,6 +222,50 @@ extension TranscriptionServiceProtocol {
             onProgress: onProgress
         )
     }
+
+    public func retranscribe(
+        existing transcription: Transcription,
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        speechEngineOverride: SpeechEngineSelection?,
+        speakerSelection: RetranscriptionSpeakerSelection,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        guard let routedService = self as? any SpeakerConfiguredRetranscriptionService else {
+            throw STTError.engineStartFailed(
+                "Per-run speaker configuration cannot be honored by this transcription service."
+            )
+        }
+        return try await routedService.retranscribe(
+            existing: transcription,
+            fileURL: fileURL,
+            source: source,
+            speechEngineOverride: speechEngineOverride,
+            speakerSelection: speakerSelection,
+            onProgress: onProgress
+        )
+    }
+
+    public func retranscribeMeeting(
+        existing transcription: Transcription,
+        recording: MeetingRecordingOutput,
+        speechEngineOverride: SpeechEngineSelection?,
+        speakerSelection: RetranscriptionSpeakerSelection,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        guard let routedService = self as? any SpeakerConfiguredRetranscriptionService else {
+            throw STTError.engineStartFailed(
+                "Per-run speaker configuration cannot be honored by this transcription service."
+            )
+        }
+        return try await routedService.retranscribeMeeting(
+            existing: transcription,
+            recording: recording,
+            speechEngineOverride: speechEngineOverride,
+            speakerSelection: speakerSelection,
+            onProgress: onProgress
+        )
+    }
 }
 
 private struct TranscriptionOperationContext: Sendable {
@@ -208,85 +295,189 @@ private struct TranscriptionOperationContext: Sendable {
     }
 }
 
-public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
+public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, AudioTrackSelectingTranscriptionService {
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "TranscriptionService")
     private let audioProcessor: AudioProcessorProtocol
     private let sttTranscriber: STTTranscribing
     private let transcriptionRepo: TranscriptionRepositoryProtocol
+    private let segmentRepo: SegmentRepositoryProtocol?
+    private let knowledgeLayerMutator: KnowledgeLayerMutating?
     private let entitlements: EntitlementsChecking?
     private let customWordRepo: CustomWordRepositoryProtocol?
     private let snippetRepo: TextSnippetRepositoryProtocol?
     private let processingMode: @Sendable () -> Dictation.ProcessingMode
+    private let removeUmFiller: @Sendable () -> Bool
     private let textRefinementService: TextRefinementService
     private let llmService: LLMServiceProtocol?
     private let llmRunRecorder: LLMRunRecorder
     private let shouldUseAIFormatter: @Sendable () -> Bool
     private let aiFormatterPromptTemplate: @Sendable () -> String
+    private let shouldAutoGenerateMeetingTitles: @Sendable () -> Bool
     private let shouldKeepDownloadedAudio: @Sendable () -> Bool
     private let shouldDiarize: @Sendable () -> Bool
+    private let shouldDiarizeMeetings: @Sendable () -> Bool
+    private let fileSpeechEngineSelection: @Sendable () -> SpeechEngineSelection?
     private let youtubeDownloader: YouTubeDownloading?
     private let podcastResolver: PodcastResolving?
     private let podcastSearchResolver: PodcastSearchResolving?
     private let podcastAudioFetcher: PodcastAudioFetching?
     private let promptResultRepo: PromptResultRepositoryProtocol?
     private let diarizationService: DiarizationServiceProtocol?
+    private let diarizationServiceFactory: DiarizationServiceFactory
     private let mediaMetadataExtractor: MediaMetadataExtracting
     private let thumbnailCache: ThumbnailCaching
     private let playbackConverter: YouTubeAudioPlaybackConverting
     private let meetingArtifactStore: MeetingArtifactStoring?
     private let meetingAutomationHookRunner: MeetingAutomationHookRunning?
+    private let meetingCleanedMicrophoneReadinessPolicy: MeetingCleanedMicrophoneReadinessPolicy
+    private let meetingFinalizationBenchmarkObserver: MeetingFinalizationBenchmarkObserver?
+    private let speakerVoiceprints: SpeakerVoiceprintServicing?
 
     public init(
         audioProcessor: AudioProcessorProtocol,
         sttTranscriber: STTTranscribing,
         transcriptionRepo: TranscriptionRepositoryProtocol,
+        segmentRepo: SegmentRepositoryProtocol? = nil,
+        knowledgeLayerMutator: KnowledgeLayerMutating? = nil,
         promptResultRepo: PromptResultRepositoryProtocol? = nil,
         entitlements: EntitlementsChecking? = nil,
         customWordRepo: CustomWordRepositoryProtocol? = nil,
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
         processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil,
+        removeUmFiller: (@Sendable () -> Bool)? = nil,
         llmService: LLMServiceProtocol? = nil,
         llmRunRepo: LLMRunRepositoryProtocol? = nil,
         shouldUseAIFormatter: (@Sendable () -> Bool)? = nil,
         aiFormatterPromptTemplate: (@Sendable () -> String)? = nil,
+        shouldAutoGenerateMeetingTitles: (@Sendable () -> Bool)? = nil,
         shouldKeepDownloadedAudio: (@Sendable () -> Bool)? = nil,
         shouldDiarize: (@Sendable () -> Bool)? = nil,
+        shouldDiarizeMeetings: (@Sendable () -> Bool)? = nil,
+        fileSpeechEngineSelection: (@Sendable () -> SpeechEngineSelection?)? = nil,
         youtubeDownloader: YouTubeDownloading? = nil,
         podcastResolver: PodcastResolving? = nil,
         podcastSearchResolver: PodcastSearchResolving? = nil,
         podcastAudioFetcher: PodcastAudioFetching? = nil,
         diarizationService: DiarizationServiceProtocol? = nil,
+        diarizationServiceFactory: DiarizationServiceFactory = .live,
         mediaMetadataExtractor: MediaMetadataExtracting = AVMediaMetadataExtractor(),
         thumbnailCache: ThumbnailCaching = ThumbnailCacheService.shared,
         playbackConverter: YouTubeAudioPlaybackConverting = YouTubeAudioPlaybackConverter(),
         meetingArtifactStore: MeetingArtifactStoring? = MeetingArtifactStore(),
-        meetingAutomationHookRunner: MeetingAutomationHookRunning? = MeetingAutomationHookRunner()
+        meetingAutomationHookRunner: MeetingAutomationHookRunning? = MeetingAutomationHookRunner(),
+        meetingCleanedMicrophoneReadinessPolicy: MeetingCleanedMicrophoneReadinessPolicy = .production,
+        speakerVoiceprints: SpeakerVoiceprintServicing? = nil
+    ) {
+        self.init(
+            audioProcessor: audioProcessor,
+            sttTranscriber: sttTranscriber,
+            transcriptionRepo: transcriptionRepo,
+            segmentRepo: segmentRepo,
+            knowledgeLayerMutator: knowledgeLayerMutator,
+            promptResultRepo: promptResultRepo,
+            entitlements: entitlements,
+            customWordRepo: customWordRepo,
+            snippetRepo: snippetRepo,
+            processingMode: processingMode,
+            removeUmFiller: removeUmFiller,
+            llmService: llmService,
+            llmRunRepo: llmRunRepo,
+            shouldUseAIFormatter: shouldUseAIFormatter,
+            aiFormatterPromptTemplate: aiFormatterPromptTemplate,
+            shouldAutoGenerateMeetingTitles: shouldAutoGenerateMeetingTitles,
+            shouldKeepDownloadedAudio: shouldKeepDownloadedAudio,
+            shouldDiarize: shouldDiarize,
+            shouldDiarizeMeetings: shouldDiarizeMeetings,
+            fileSpeechEngineSelection: fileSpeechEngineSelection,
+            youtubeDownloader: youtubeDownloader,
+            podcastResolver: podcastResolver,
+            podcastSearchResolver: podcastSearchResolver,
+            podcastAudioFetcher: podcastAudioFetcher,
+            diarizationService: diarizationService,
+            diarizationServiceFactory: diarizationServiceFactory,
+            mediaMetadataExtractor: mediaMetadataExtractor,
+            thumbnailCache: thumbnailCache,
+            playbackConverter: playbackConverter,
+            meetingArtifactStore: meetingArtifactStore,
+            meetingAutomationHookRunner: meetingAutomationHookRunner,
+            meetingCleanedMicrophoneReadinessPolicy: meetingCleanedMicrophoneReadinessPolicy,
+            meetingFinalizationBenchmarkObserver: nil,
+            speakerVoiceprints: speakerVoiceprints
+        )
+    }
+
+    init(
+        audioProcessor: AudioProcessorProtocol,
+        sttTranscriber: STTTranscribing,
+        transcriptionRepo: TranscriptionRepositoryProtocol,
+        segmentRepo: SegmentRepositoryProtocol? = nil,
+        knowledgeLayerMutator: KnowledgeLayerMutating? = nil,
+        promptResultRepo: PromptResultRepositoryProtocol? = nil,
+        entitlements: EntitlementsChecking? = nil,
+        customWordRepo: CustomWordRepositoryProtocol? = nil,
+        snippetRepo: TextSnippetRepositoryProtocol? = nil,
+        processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil,
+        removeUmFiller: (@Sendable () -> Bool)? = nil,
+        llmService: LLMServiceProtocol? = nil,
+        llmRunRepo: LLMRunRepositoryProtocol? = nil,
+        shouldUseAIFormatter: (@Sendable () -> Bool)? = nil,
+        aiFormatterPromptTemplate: (@Sendable () -> String)? = nil,
+        shouldAutoGenerateMeetingTitles: (@Sendable () -> Bool)? = nil,
+        shouldKeepDownloadedAudio: (@Sendable () -> Bool)? = nil,
+        shouldDiarize: (@Sendable () -> Bool)? = nil,
+        shouldDiarizeMeetings: (@Sendable () -> Bool)? = nil,
+        fileSpeechEngineSelection: (@Sendable () -> SpeechEngineSelection?)? = nil,
+        youtubeDownloader: YouTubeDownloading? = nil,
+        podcastResolver: PodcastResolving? = nil,
+        podcastSearchResolver: PodcastSearchResolving? = nil,
+        podcastAudioFetcher: PodcastAudioFetching? = nil,
+        diarizationService: DiarizationServiceProtocol? = nil,
+        diarizationServiceFactory: DiarizationServiceFactory = .live,
+        mediaMetadataExtractor: MediaMetadataExtracting = AVMediaMetadataExtractor(),
+        thumbnailCache: ThumbnailCaching = ThumbnailCacheService.shared,
+        playbackConverter: YouTubeAudioPlaybackConverting = YouTubeAudioPlaybackConverter(),
+        meetingArtifactStore: MeetingArtifactStoring? = MeetingArtifactStore(),
+        meetingAutomationHookRunner: MeetingAutomationHookRunning? = MeetingAutomationHookRunner(),
+        meetingCleanedMicrophoneReadinessPolicy: MeetingCleanedMicrophoneReadinessPolicy = .production,
+        meetingFinalizationBenchmarkObserver: MeetingFinalizationBenchmarkObserver?,
+        speakerVoiceprints: SpeakerVoiceprintServicing? = nil
     ) {
         self.audioProcessor = audioProcessor
         self.sttTranscriber = sttTranscriber
         self.transcriptionRepo = transcriptionRepo
+        self.segmentRepo = segmentRepo
+        self.knowledgeLayerMutator = knowledgeLayerMutator
         self.entitlements = entitlements
         self.customWordRepo = customWordRepo
         self.snippetRepo = snippetRepo
         self.processingMode = processingMode ?? { .raw }
+        self.removeUmFiller = removeUmFiller ?? { true }
         self.textRefinementService = TextRefinementService()
         self.llmService = llmService
         self.llmRunRecorder = LLMRunRecorder(repository: llmRunRepo)
         self.shouldUseAIFormatter = shouldUseAIFormatter ?? { false }
         self.aiFormatterPromptTemplate = aiFormatterPromptTemplate ?? { AIFormatter.defaultPromptTemplate }
+        self.shouldAutoGenerateMeetingTitles = shouldAutoGenerateMeetingTitles ?? { false }
         self.shouldKeepDownloadedAudio = shouldKeepDownloadedAudio ?? { true }
-        self.shouldDiarize = shouldDiarize ?? { true }
+        let resolvedShouldDiarize = shouldDiarize ?? { true }
+        self.shouldDiarize = resolvedShouldDiarize
+        self.shouldDiarizeMeetings = shouldDiarizeMeetings ?? resolvedShouldDiarize
+        self.fileSpeechEngineSelection = fileSpeechEngineSelection ?? { nil }
         self.youtubeDownloader = youtubeDownloader
         self.podcastResolver = podcastResolver
         self.podcastSearchResolver = podcastSearchResolver
         self.podcastAudioFetcher = podcastAudioFetcher
         self.promptResultRepo = promptResultRepo
         self.diarizationService = diarizationService
+        self.diarizationServiceFactory = diarizationServiceFactory
         self.mediaMetadataExtractor = mediaMetadataExtractor
         self.thumbnailCache = thumbnailCache
         self.playbackConverter = playbackConverter
         self.meetingArtifactStore = meetingArtifactStore
         self.meetingAutomationHookRunner = meetingAutomationHookRunner
+        self.meetingCleanedMicrophoneReadinessPolicy = meetingCleanedMicrophoneReadinessPolicy
+        self.meetingFinalizationBenchmarkObserver = meetingFinalizationBenchmarkObserver
+        self.speakerVoiceprints = speakerVoiceprints
     }
 
     public func transcribe(
@@ -297,6 +488,8 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         try await transcribe(
             fileURL: fileURL,
             source: source,
+            audioTrackOrdinal: nil,
+            persistResult: true,
             options: .default,
             onProgress: onProgress
         ).transcription
@@ -308,9 +501,42 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         options: TranscriptionRunOptions,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> TranscriptionRunResult {
-        try await transcribeRun(
+        try await transcribe(
             fileURL: fileURL,
             source: source,
+            audioTrackOrdinal: nil,
+            persistResult: true,
+            options: options,
+            onProgress: onProgress
+        )
+    }
+
+    public func transcribe(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource = .file,
+        audioTrackOrdinal: Int,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        try await transcribe(
+            fileURL: fileURL,
+            source: source,
+            audioTrackOrdinal: audioTrackOrdinal,
+            options: .default,
+            onProgress: onProgress
+        ).transcription
+    }
+
+    public func transcribe(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource = .file,
+        audioTrackOrdinal: Int,
+        options: TranscriptionRunOptions,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> TranscriptionRunResult {
+        try await transcribe(
+            fileURL: fileURL,
+            source: source,
+            audioTrackOrdinal: audioTrackOrdinal,
             persistResult: true,
             options: options,
             onProgress: onProgress
@@ -322,9 +548,11 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         source: TelemetryTranscriptionSource = .file,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
-        try await transcribeTransient(
+        try await transcribe(
             fileURL: fileURL,
             source: source,
+            audioTrackOrdinal: nil,
+            persistResult: false,
             options: .default,
             onProgress: onProgress
         ).transcription
@@ -336,18 +564,56 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         options: TranscriptionRunOptions,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> TranscriptionRunResult {
-        try await transcribeRun(
+        try await transcribe(
             fileURL: fileURL,
             source: source,
+            audioTrackOrdinal: nil,
             persistResult: false,
             options: options,
             onProgress: onProgress
         )
     }
 
-    private func transcribeRun(
+    public func transcribeTransient(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource = .file,
+        audioTrackOrdinal: Int,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        try await transcribe(
+            fileURL: fileURL,
+            source: source,
+            audioTrackOrdinal: audioTrackOrdinal,
+            options: .default,
+            onProgress: onProgress
+        ).transcription
+    }
+
+    public func transcribeTransient(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource = .file,
+        audioTrackOrdinal: Int,
+        options: TranscriptionRunOptions,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> TranscriptionRunResult {
+        try await transcribe(
+            fileURL: fileURL,
+            source: source,
+            audioTrackOrdinal: audioTrackOrdinal,
+            persistResult: false,
+            options: options,
+            onProgress: onProgress
+        )
+    }
+
+    public func audioTracks(in fileURL: URL) async throws -> [AudioTrackDescriptor] {
+        try await FFmpegAudioTrackProbe().tracks(in: fileURL)
+    }
+
+    private func transcribe(
         fileURL: URL,
         source: TelemetryTranscriptionSource,
+        audioTrackOrdinal: Int?,
         persistResult: Bool,
         options: TranscriptionRunOptions,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
@@ -369,6 +635,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             source: source,
             sttJob: .fileTranscription,
             sourceType: sourceType,
+            audioTrackOrdinal: audioTrackOrdinal,
             persistResult: persistResult,
             options: options,
             onProgress: onProgress
@@ -379,14 +646,8 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         recording: MeetingRecordingOutput,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
-        let fileSize = (try? FileManager.default.attributesOfItem(atPath: recording.mixedAudioURL.path)[.size] as? Int)
-            .flatMap { $0 }
-        let operation = TranscriptionOperationContext(
-            source: .meeting,
-            inputKind: .meeting,
-            mediaExtension: Observability.mediaExtension(for: recording.mixedAudioURL),
-            fileSizeBucket: Observability.fileSizeBucket(bytes: fileSize)
-        )
+        let operation = meetingOperationContext(for: recording)
+        let speechEngine = resolvedMeetingSpeechEngineSelection(for: recording)
 
         return try await Observability.withOperationContext(operation.operationContext) {
             try await assertCanTranscribeOrEmitPreflight(
@@ -394,15 +655,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 audioDurationSeconds: recording.durationSeconds
             )
 
-            var transcription = Transcription(
-                fileName: recording.displayName,
-                filePath: recording.mixedAudioURL.path,
-                fileSizeBytes: fileSize,
-                language: nil,
-                status: .processing,
-                sourceType: .meeting,
-                userNotes: recording.userNotes
-            )
+            var transcription = makeMeetingTranscriptionStub(recording: recording)
             do {
                 try transcriptionRepo.save(transcription)
             } catch {
@@ -424,6 +677,65 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 recording: recording,
                 transcription: &transcription,
                 operation: operation,
+                speechEngineOverride: speechEngine,
+                onProgress: onProgress
+            )
+        }
+    }
+
+    public func prepareMeetingTranscription(
+        recording: MeetingRecordingOutput
+    ) async throws -> Transcription {
+        let transcription = makeMeetingTranscriptionStub(recording: recording)
+        try transcriptionRepo.save(transcription)
+        return transcription
+    }
+
+    public func finalizeMeetingTranscription(
+        recording: MeetingRecordingOutput,
+        updating transcriptionID: UUID,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        let operation = meetingOperationContext(for: recording)
+        let speechEngine = resolvedMeetingSpeechEngineSelection(for: recording)
+
+        return try await Observability.withOperationContext(operation.operationContext) {
+            try await assertCanTranscribeOrEmitPreflight(
+                operation,
+                audioDurationSeconds: recording.durationSeconds
+            )
+
+            guard var transcription = try transcriptionRepo.fetch(id: transcriptionID) else {
+                throw STTError.transcriptionFailed("Missing queued meeting transcription row.")
+            }
+            transcription.fileName = transcription.fileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? recording.displayName
+                : transcription.fileName
+            transcription.filePath = transcription.filePath ?? recording.mixedAudioURL.path
+            transcription.meetingArtifactFolderPath = transcription.meetingArtifactFolderPath ?? recording.folderURL.path
+            transcription.fileSizeBytes = transcription.fileSizeBytes ?? meetingFileSize(for: recording)
+            transcription.durationMs = recording.playableDurationMs
+            transcription.sourceType = .meeting
+            transcription.status = .processing
+            transcription.errorMessage = nil
+            transcription.userNotes = transcription.userNotes ?? recording.userNotes
+            transcription.meetingStartContext = transcription.meetingStartContext ?? recording.startContext
+            transcription.meetingCaptureReport = recording.captureReport
+                ?? transcription.meetingCaptureReport
+            transcription.calendarEventSnapshot = transcription.calendarEventSnapshot ?? recording.calendarEventSnapshot
+            transcription.updatedAt = Date()
+            try transcriptionRepo.save(transcription)
+
+            Telemetry.send(.transcriptionStarted(
+                source: .meeting,
+                audioDurationSeconds: recording.durationSeconds
+            ))
+
+            return try await transcribeMeetingAudio(
+                recording: recording,
+                transcription: &transcription,
+                operation: operation,
+                speechEngineOverride: speechEngine,
                 onProgress: onProgress
             )
         }
@@ -451,7 +763,50 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         speechEngineOverride: SpeechEngineSelection? = nil,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
+        try await retranscribeFile(
+            existing: original,
+            fileURL: fileURL,
+            source: source,
+            speechEngineOverride: speechEngineOverride,
+            speakerSelection: nil,
+            onProgress: onProgress
+        )
+    }
+
+    public func retranscribe(
+        existing original: Transcription,
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        speechEngineOverride: SpeechEngineSelection?,
+        speakerSelection: RetranscriptionSpeakerSelection,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        try await retranscribeFile(
+            existing: original,
+            fileURL: fileURL,
+            source: source,
+            speechEngineOverride: speechEngineOverride,
+            speakerSelection: try speakerSelection.validated(),
+            onProgress: onProgress
+        )
+    }
+
+    private func retranscribeFile(
+        existing original: Transcription,
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        speechEngineOverride: SpeechEngineSelection?,
+        speakerSelection: RetranscriptionSpeakerSelection?,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription {
+        let speechEngine = speechEngineOverride ?? fileSpeechEngineSelection()
+        let runDiarizationService = speakerSelection.map(makeDiarizationService(for:))
         var transcription = makeRetranscriptionRecord(from: original)
+        if source == .meeting {
+            // Saved meetings already carry their playable audio duration;
+            // fresh speech timings must not replace it, including silence.
+            transcription.durationMs = original.durationMs
+        }
         transcription.fileSizeBytes = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int)
             .flatMap { $0 } ?? original.fileSizeBytes
         let operation = TranscriptionOperationContext(
@@ -474,8 +829,8 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 operation: operation,
                 tempFiles: [],
                 persistFailureStatus: false,
-                options: .default,
-                speechEngine: speechEngineOverride,
+                speechEngine: speechEngine,
+                diarizationServiceOverride: runDiarizationService,
                 onProgress: onProgress
             ).transcription
         }
@@ -500,10 +855,52 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         speechEngineOverride: SpeechEngineSelection? = nil,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
+        try await retranscribeArchivedMeeting(
+            existing: original,
+            recording: recording,
+            speechEngineOverride: speechEngineOverride,
+            speakerSelection: nil,
+            onProgress: onProgress
+        )
+    }
+
+    public func retranscribeMeeting(
+        existing original: Transcription,
+        recording: MeetingRecordingOutput,
+        speechEngineOverride: SpeechEngineSelection?,
+        speakerSelection: RetranscriptionSpeakerSelection,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        try await retranscribeArchivedMeeting(
+            existing: original,
+            recording: recording,
+            speechEngineOverride: speechEngineOverride,
+            speakerSelection: try speakerSelection.validated(),
+            onProgress: onProgress
+        )
+    }
+
+    private func retranscribeArchivedMeeting(
+        existing original: Transcription,
+        recording: MeetingRecordingOutput,
+        speechEngineOverride: SpeechEngineSelection?,
+        speakerSelection: RetranscriptionSpeakerSelection?,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription {
+        let speechEngine = resolvedMeetingSpeechEngineSelection(
+            for: recording,
+            explicitSelection: speechEngineOverride
+        )
+        let runDiarizationService: (any DiarizationServiceProtocol)? = if recording.sourceAlignment.system != nil {
+            speakerSelection.map(makeDiarizationService(for:))
+        } else {
+            nil
+        }
         var transcription = makeRetranscriptionRecord(from: original)
         transcription.fileSizeBytes = (try? FileManager.default.attributesOfItem(atPath: recording.mixedAudioURL.path)[.size] as? Int)
             .flatMap { $0 } ?? original.fileSizeBytes
         transcription.userNotes = original.userNotes ?? recording.userNotes
+        transcription.calendarEventSnapshot = original.calendarEventSnapshot ?? recording.calendarEventSnapshot
         let operation = TranscriptionOperationContext(
             source: .meeting,
             inputKind: .meeting,
@@ -527,10 +924,18 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 transcription: &transcription,
                 operation: operation,
                 persistFailureStatus: false,
-                speechEngineOverride: speechEngineOverride,
+                speechEngineOverride: speechEngine,
+                diarizationServiceOverride: runDiarizationService,
                 onProgress: onProgress
             )
         }
+    }
+
+    private func makeDiarizationService(
+        for selection: RetranscriptionSpeakerSelection
+    ) -> any DiarizationServiceProtocol {
+        let constraint = selection.exactCount.map(SpeakerDiarizationConstraint.exact)
+        return diarizationServiceFactory.make(speakerConstraint: constraint)
     }
 
     private func transcribe(
@@ -540,18 +945,20 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         source: TelemetryTranscriptionSource,
         sttJob: STTJobKind,
         sourceType: Transcription.SourceType,
+        audioTrackOrdinal: Int? = nil,
         persistResult: Bool = true,
-        options: TranscriptionRunOptions,
+        options: TranscriptionRunOptions = .default,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> TranscriptionRunResult {
+        let speechEngine = fileSpeechEngineSelection()
         let embeddedMetadata = sourceType == .file
             ? await mediaMetadataExtractor.metadata(for: fileURL)
             : .empty
         let fileName = Self.firstNonEmpty(
             displayFileName,
-            embeddedMetadata.title,
             storedFileURL?.lastPathComponent,
-            fileURL.lastPathComponent
+            fileURL.lastPathComponent,
+            embeddedMetadata.title
         ) ?? fileURL.lastPathComponent
         let fileSize = storedFileURL.flatMap {
             (try? FileManager.default.attributesOfItem(atPath: $0.path)[.size] as? Int).flatMap { $0 }
@@ -569,6 +976,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             var transcription = Transcription(
                 fileName: fileName,
                 filePath: storedFileURL?.path,
+                audioTrackOrdinal: audioTrackOrdinal,
                 fileSizeBytes: fileSize,
                 durationMs: embeddedMetadata.durationMs,
                 language: nil,
@@ -617,6 +1025,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 tempFiles: [],
                 persistResult: persistResult,
                 options: options,
+                speechEngine: speechEngine,
                 onProgress: onProgress
             )
         }
@@ -625,6 +1034,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
     public func transcribeURL(urlString: String, onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil) async throws -> Transcription {
         try await transcribeURL(
             urlString: urlString,
+            persistResult: true,
             options: .default,
             onProgress: onProgress
         ).transcription
@@ -635,7 +1045,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         options: TranscriptionRunOptions,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> TranscriptionRunResult {
-        try await transcribeURLRun(
+        try await transcribeURL(
             urlString: urlString,
             persistResult: true,
             options: options,
@@ -644,8 +1054,9 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
     }
 
     public func transcribeURLTransient(urlString: String, onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil) async throws -> Transcription {
-        try await transcribeURLTransient(
+        try await transcribeURL(
             urlString: urlString,
+            persistResult: false,
             options: .default,
             onProgress: onProgress
         ).transcription
@@ -656,7 +1067,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         options: TranscriptionRunOptions,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> TranscriptionRunResult {
-        try await transcribeURLRun(
+        try await transcribeURL(
             urlString: urlString,
             persistResult: false,
             options: options,
@@ -664,12 +1075,13 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         )
     }
 
-    private func transcribeURLRun(
+    private func transcribeURL(
         urlString: String,
         persistResult: Bool,
         options: TranscriptionRunOptions,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> TranscriptionRunResult {
+        let speechEngine = fileSpeechEngineSelection()
         let inputURL = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Apple Podcasts links are their own lane: resolve via the iTunes
@@ -681,6 +1093,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 inputURL,
                 persistResult: persistResult,
                 options: options,
+                speechEngine: speechEngine,
                 onProgress: onProgress
             )
         }
@@ -713,6 +1126,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 operation: operation,
                 persistResult: persistResult,
                 options: options,
+                speechEngine: speechEngine,
                 onProgress: onProgress
             )
         }
@@ -724,6 +1138,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         _ inputURL: String,
         persistResult: Bool,
         options: TranscriptionRunOptions,
+        speechEngine: SpeechEngineSelection?,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> TranscriptionRunResult {
         let operation = Self.podcastOperationContext()
@@ -757,6 +1172,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 operation: operation,
                 persistResult: persistResult,
                 options: options,
+                speechEngine: speechEngine,
                 onProgress: onProgress
             )
         }
@@ -766,7 +1182,12 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         query: String,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
-        try await transcribePodcastQuery(query: query, options: .default, onProgress: onProgress).transcription
+        try await transcribePodcastQuery(
+            query: query,
+            persistResult: true,
+            options: .default,
+            onProgress: onProgress
+        ).transcription
     }
 
     public func transcribePodcastQuery(
@@ -774,7 +1195,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         options: TranscriptionRunOptions,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> TranscriptionRunResult {
-        try await transcribePodcastQueryRun(
+        try await transcribePodcastQuery(
             query: query,
             persistResult: true,
             options: options,
@@ -786,7 +1207,12 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         query: String,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
-        try await transcribePodcastQueryTransient(query: query, options: .default, onProgress: onProgress).transcription
+        try await transcribePodcastQuery(
+            query: query,
+            persistResult: false,
+            options: .default,
+            onProgress: onProgress
+        ).transcription
     }
 
     public func transcribePodcastQueryTransient(
@@ -794,7 +1220,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         options: TranscriptionRunOptions,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> TranscriptionRunResult {
-        try await transcribePodcastQueryRun(
+        try await transcribePodcastQuery(
             query: query,
             persistResult: false,
             options: options,
@@ -804,12 +1230,13 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
 
     /// Transcribe a freetext podcast query ("Lex Fridman episode 400"): iTunes
     /// search → RSS feed parse → episode select → native fetch → local STT.
-    private func transcribePodcastQueryRun(
+    private func transcribePodcastQuery(
         query: String,
         persistResult: Bool,
         options: TranscriptionRunOptions,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> TranscriptionRunResult {
+        let speechEngine = fileSpeechEngineSelection()
         let operation = Self.podcastOperationContext()
         return try await Observability.withOperationContext(operation.operationContext) {
             guard let searchResolver = podcastSearchResolver else {
@@ -841,6 +1268,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 operation: operation,
                 persistResult: persistResult,
                 options: options,
+                speechEngine: speechEngine,
                 onProgress: onProgress
             )
         }
@@ -888,6 +1316,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         operation: TranscriptionOperationContext,
         persistResult: Bool,
         options: TranscriptionRunOptions,
+        speechEngine: SpeechEngineSelection?,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> TranscriptionRunResult {
         var unownedDownloadedAudioURL: URL?
@@ -1018,7 +1447,6 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             }
         }
 
-        onProgress?(.transcribing(percent: 0))
         if !keepDownloadedAudio {
             unownedDownloadedAudioURL = nil
         }
@@ -1032,6 +1460,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             cleanUpDownloadedFiles: !keepDownloadedAudio,
             persistResult: persistResult,
             options: options,
+            speechEngine: speechEngine,
             onProgress: onProgress
         )
 
@@ -1089,17 +1518,71 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
 
     // MARK: - Private
 
+    private func meetingFileSize(for recording: MeetingRecordingOutput) -> Int? {
+        (try? FileManager.default.attributesOfItem(atPath: recording.mixedAudioURL.path)[.size] as? Int)
+            .flatMap { $0 }
+    }
+
+    private func meetingOperationContext(for recording: MeetingRecordingOutput) -> TranscriptionOperationContext {
+        let fileSize = meetingFileSize(for: recording)
+        return TranscriptionOperationContext(
+            source: .meeting,
+            inputKind: .meeting,
+            mediaExtension: Observability.mediaExtension(for: recording.mixedAudioURL),
+            fileSizeBucket: Observability.fileSizeBucket(bytes: fileSize)
+        )
+    }
+
+    private func resolvedMeetingSpeechEngineSelection(
+        for recording: MeetingRecordingOutput,
+        explicitSelection: SpeechEngineSelection? = nil
+    ) -> SpeechEngineSelection? {
+        if let explicitSelection {
+            return explicitSelection
+        }
+        if recording.speechEngineWasCaptured {
+            return recording.speechEngine
+        }
+        return fileSpeechEngineSelection()
+    }
+
+    private func makeMeetingTranscriptionStub(recording: MeetingRecordingOutput) -> Transcription {
+        Transcription(
+            createdAt: recording.startedAt ?? Date(),
+            fileName: recording.titleOverride ?? recording.displayName,
+            filePath: recording.mixedAudioURL.path,
+            meetingArtifactFolderPath: recording.folderURL.path,
+            fileSizeBytes: meetingFileSize(for: recording),
+            durationMs: recording.playableDurationMs,
+            language: nil,
+            status: .processing,
+            sourceType: .meeting,
+            meetingTypeId: recording.meetingTypeId,
+            userNotes: recording.userNotes,
+            meetingStartContext: recording.startContext,
+            meetingCaptureReport: recording.captureReport,
+            engine: recording.speechEngine.engine.rawValue,
+            calendarEventSnapshot: recording.calendarEventSnapshot,
+            titleOverride: recording.titleOverride,
+            audioRetentionStartedAt: recording.audioRetentionStartedAt
+        )
+    }
+
     private func transcribeMeetingAudio(
         recording: MeetingRecordingOutput,
         transcription: inout Transcription,
         operation: TranscriptionOperationContext,
         persistFailureStatus: Bool = true,
         speechEngineOverride: SpeechEngineSelection? = nil,
+        diarizationServiceOverride: (any DiarizationServiceProtocol)? = nil,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
         let processingStartedAt = Date()
         var lifecycleStage: TelemetryTranscriptionStage = .audioConversion
-        let diarizationRequested = diarizationService != nil && shouldDiarize() && recording.sourceAlignment.system != nil
+        let activeDiarizationService = diarizationServiceOverride ?? diarizationService
+        let diarizationRequested = activeDiarizationService != nil
+            && (diarizationServiceOverride != nil || shouldDiarizeMeetings())
+            && recording.sourceAlignment.system != nil
         var temporaryWavURLs: [URL] = []
         var sourceWavURLs: [AudioSource: URL] = [:]
         defer {
@@ -1118,21 +1601,52 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 onProgress: onProgress
             )
 
-            let systemDiarization = try await diarizeMeetingSystemIfNeeded(
-                recording: recording,
-                sourceWavURLs: sourceWavURLs,
-                requested: diarizationRequested,
-                lifecycleStage: &lifecycleStage,
-                onProgress: onProgress
-            )
+            let systemDiarization: MeetingTranscriptFinalizer.SystemDiarization?
+            if diarizationRequested {
+                meetingFinalizationBenchmarkObserver?.stageDidStart(.diarization)
+                do {
+                    systemDiarization = try await diarizeMeetingSystemIfNeeded(
+                        recording: recording,
+                        sourceWavURLs: sourceWavURLs,
+                        requested: true,
+                        diarizationService: activeDiarizationService,
+                        lifecycleStage: &lifecycleStage,
+                        onProgress: onProgress
+                    )
+                    meetingFinalizationBenchmarkObserver?.stageDidEnd(.diarization)
+                } catch {
+                    meetingFinalizationBenchmarkObserver?.stageDidEnd(.diarization)
+                    throw error
+                }
+            } else {
+                systemDiarization = nil
+            }
 
+            meetingFinalizationBenchmarkObserver?.stageDidStart(.finalizeMerge)
             let finalized = MeetingTranscriptFinalizer.finalize(
                 sourceTranscripts: sourceResults,
                 systemDiarization: systemDiarization
             )
+            meetingFinalizationBenchmarkObserver?.stageDidEnd(.finalizeMerge)
 
-            transcription.rawTranscript = finalized.rawTranscript
-            transcription.wordTimestamps = finalized.words
+            // Apply the user's Vocabulary corrections to the meeting transcript.
+            // Meetings otherwise never run custom words — the deterministic
+            // pipeline only touches dictation/file transcripts — so names the
+            // user has already corrected elsewhere would still come through raw
+            // here (issue #550). Intentionally always-on, not gated on the
+            // Raw/Clean dictation mode: the corrections drive the
+            // speaker-segmented view and the word-timestamp exports, and the
+            // default processing mode is `.raw`. `completeTranscription` below
+            // still receives the *uncorrected* `finalized.rawTranscript` and skips
+            // the dictation Clean pipeline, so filler removal cannot rewrite the
+            // verbatim meeting record.
+            let corrected = MeetingTranscriptVocabularyApplier.apply(
+                rawTranscript: finalized.rawTranscript,
+                words: finalized.words,
+                customWords: fetchMeetingVocabulary()
+            )
+            transcription.rawTranscript = corrected.rawTranscript
+            transcription.wordTimestamps = corrected.words
             transcription.language = Self.commonDetectedLanguage(from: sourceResults) ?? transcription.language
             // Both meeting source transcripts (mic + system) run through the
             // same `SpeechEngineSelection`, so taking the first source's
@@ -1141,13 +1655,20 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 transcription.engine = engineSource.result.engine.rawValue
                 transcription.engineVariant = engineSource.result.engineVariant
             }
-            transcription.durationMs = max(
-                Int((recording.durationSeconds * 1000).rounded()),
-                finalized.durationMs ?? 0
-            )
+            // Meeting duration describes playable media, not STT token extent
+            // or wall-clock session time. Engines can emit timestamps beyond
+            // the file edge; those must not inflate the saved recording.
+            transcription.durationMs = recording.playableDurationMs
+            transcription.meetingCaptureReport = recording.captureReport
+                ?? transcription.meetingCaptureReport
             transcription.speakers = finalized.speakers
             transcription.speakerCount = finalized.speakers.isEmpty ? nil : finalized.speakers.count
             transcription.diarizationSegments = finalized.diarizationSegments.isEmpty ? nil : finalized.diarizationSegments
+            let transcriptSegments = TranscriptSegmenter.materializeSegments(
+                words: corrected.words,
+                speakers: finalized.speakers
+            )
+            transcription.transcriptSegments = transcriptSegments.isEmpty ? nil : transcriptSegments
 
             lifecycleStage = .postProcessing
             let completed = try await completeTranscription(
@@ -1159,6 +1680,8 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 diarizationRequested: diarizationRequested,
                 diarizationApplied: systemDiarization != nil
             )
+
+            await scoreVoiceprintsIfEnabled(for: completed, systemDiarization: systemDiarization)
 
             return completed
         } catch {
@@ -1235,45 +1758,129 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
     ) async throws -> [MeetingTranscriptFinalizer.SourceTranscript] {
         var outputs: [MeetingTranscriptFinalizer.SourceTranscript] = []
         let activeSources = [AudioSource.microphone, .system].filter { recording.sourceAlignment.track(for: $0) != nil }
-        let speechEngine = speechEngineOverride ?? (recording.speechEngineWasCaptured ? recording.speechEngine : nil)
+        let speechEngine = speechEngineOverride
+        let microphoneDecision = activeSources.contains(.microphone)
+            ? try await resolveMeetingMicrophoneSource(for: recording)
+            : nil
 
         for (index, source) in activeSources.enumerated() {
-            let fileURL = meetingAudioURL(for: source, recording: recording)
-            lifecycleStage = .audioConversion
-            onProgress?(.converting)
-            let wavURL = try await audioProcessor.convert(fileURL: fileURL)
-            temporaryWavURLs.append(wavURL)
-            sourceWavURLs[source] = wavURL
-
-            lifecycleStage = .stt
-            onProgress?(.transcribing(percent: Int((Double(index) / Double(max(activeSources.count, 1))) * 100)))
-            let result = try await transcribeSpeech(
-                audioPath: wavURL.path,
-                job: .meetingFinalize,
-                speechEngine: speechEngine,
-                onProgress: meetingSourceProgressMapper(
-                    sourceIndex: index,
-                    sourceCount: activeSources.count,
-                    onProgress: onProgress
+            let benchmarkStage: MeetingFinalizationBenchmarkObserver.Stage =
+                source == .microphone ? .microphoneSTT : .systemSTT
+            do {
+                let fileURL = meetingAudioURL(
+                    for: source,
+                    recording: recording,
+                    microphoneDecision: microphoneDecision
                 )
-            )
+                lifecycleStage = .audioConversion
+                onProgress?(.converting)
+                let wavURL = try await audioProcessor.convert(fileURL: fileURL)
+                temporaryWavURLs.append(wavURL)
+                sourceWavURLs[source] = wavURL
 
-            outputs.append(
-                .init(
-                    source: source,
-                    result: result,
-                    startOffsetMs: recording.sourceAlignment.track(for: source)?.startOffsetMs ?? 0
+                lifecycleStage = .stt
+                onProgress?(.preparingSpeechModel)
+                let result: STTResult
+                meetingFinalizationBenchmarkObserver?.stageDidStart(benchmarkStage)
+                do {
+                    result = try await transcribeSpeech(
+                        audioPath: wavURL.path,
+                        job: .meetingFinalize,
+                        speechEngine: speechEngine,
+                        onProgress: meetingSourceProgressMapper(
+                            sourceIndex: index,
+                            sourceCount: activeSources.count,
+                            onProgress: onProgress
+                        )
+                    )
+                    meetingFinalizationBenchmarkObserver?.stageDidEnd(benchmarkStage)
+                } catch {
+                    meetingFinalizationBenchmarkObserver?.stageDidEnd(benchmarkStage)
+                    throw error
+                }
+
+                outputs.append(
+                    .init(
+                        source: source,
+                        result: result,
+                        startOffsetMs: recording.sourceAlignment.track(for: source)?.startOffsetMs ?? 0
+                    )
                 )
-            )
+            }
         }
 
         return outputs
+    }
+
+    /// Scores this meeting's system-track speakers against enrolled voices.
+    ///
+    /// Runs after the transcript is persisted: the fingerprint is derived from
+    /// the saved words and segments, and the suggestion rows carry a foreign key
+    /// to the transcription. The service itself is the gate — with the
+    /// preference off it reads nothing and writes nothing.
+    ///
+    /// Failures are logged and swallowed on purpose. A suggestion that did not
+    /// appear costs the user a rename they were going to do anyway; a meeting
+    /// that fails to finish costs them the recording.
+    private func scoreVoiceprintsIfEnabled(
+        for transcription: Transcription,
+        systemDiarization: MeetingTranscriptFinalizer.SystemDiarization?
+    ) async {
+        guard let speakerVoiceprints, let systemDiarization else { return }
+        guard !systemDiarization.speakerEmbeddings.isEmpty else { return }
+
+        let observations = Self.voiceprintObservations(
+            systemDiarization: systemDiarization,
+            persistedSpeakers: transcription.speakers ?? []
+        )
+        guard !observations.isEmpty else { return }
+
+        do {
+            let suggestions = try await speakerVoiceprints.evaluate(
+                transcriptionId: transcription.id,
+                fingerprint: SpeakerAttributionResolver.fingerprint(for: transcription),
+                clusters: observations
+            )
+            logger.info(
+                "meeting_voiceprint_evaluated speakers=\(observations.count, privacy: .public) suggestions=\(suggestions.count, privacy: .public)"
+            )
+        } catch {
+            logger.error(
+                "meeting_voiceprint_failed error=\(error.localizedDescription, privacy: .private)"
+            )
+        }
+    }
+
+    /// Observations for the speakers the saved transcript actually contains.
+    ///
+    /// Scoped to the persisted speakers, not the diarizer's full output: the
+    /// finalizer drops any cluster whose segments won no words, so scoring the
+    /// raw list would write a suggestion keyed to a speaker the transcript does
+    /// not have — one the UI could never resolve.
+    ///
+    /// Durations arrive in milliseconds and the matching gates are in seconds.
+    static func voiceprintObservations(
+        systemDiarization: MeetingTranscriptFinalizer.SystemDiarization,
+        persistedSpeakers: [SpeakerInfo]
+    ) -> [SpeakerClusterObservation] {
+        let persistedIDs = Set(persistedSpeakers.map(\.id))
+        return systemDiarization.speakers.compactMap { speaker in
+            guard persistedIDs.contains(speaker.id) else { return nil }
+            guard let embedding = systemDiarization.speakerEmbeddings[speaker.id] else { return nil }
+            return SpeakerClusterObservation(
+                speakerId: speaker.id,
+                embedding: embedding,
+                speechSeconds: Double(systemDiarization.speechMsBySpeaker[speaker.id] ?? 0) / 1000,
+                captureDomain: .system
+            )
+        }
     }
 
     private func diarizeMeetingSystemIfNeeded(
         recording: MeetingRecordingOutput,
         sourceWavURLs: [AudioSource: URL],
         requested: Bool,
+        diarizationService: (any DiarizationServiceProtocol)?,
         lifecycleStage: inout TelemetryTranscriptionStage,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> MeetingTranscriptFinalizer.SystemDiarization? {
@@ -1282,19 +1889,34 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         guard let systemWavURL = sourceWavURLs[.system] else { return nil }
 
         lifecycleStage = .diarization
+        // Attendee prior from the calendar snapshot captured at record start
+        // (min 1, max n + 1: it can cap over-splitting but never forces
+        // clusters), unless the service carries an explicit user constraint,
+        // which wins. Diagnostics record the effective policy.
+        let speakerPolicy = MeetingSpeakerPolicy.resolve(
+            prior: MeetingSpeakerPrior.derive(from: recording.calendarEventSnapshot),
+            explicitConstraint: await diarizationService.explicitSpeakerConstraint()
+        )
         do {
             onProgress?(.identifyingSpeakers)
             Telemetry.send(.diarizationStarted(source: .meeting))
             let diarStartedAt = Date()
             let diarResult = try await diarizationService.diarize(
                 audioURL: systemWavURL,
-                options: .default
+                speakerConstraint: speakerPolicy.speakerConstraintHint
             )
             let diarDuration = Date().timeIntervalSince(diarStartedAt)
+            logger.notice(
+                "meeting_system_diarization_completed prior=\(speakerPolicy.diagnosticsLabel, privacy: .public) speakers=\(diarResult.speakerCount, privacy: .public) segments=\(diarResult.segments.count, privacy: .public) duration_s=\(String(format: "%.2f", diarDuration), privacy: .public)"
+            )
+            AudioCaptureDiagnostics.append(
+                "meeting_system_diarization_completed session=\(recording.sessionID.uuidString) prior=\(speakerPolicy.diagnosticsLabel) speakers=\(diarResult.speakerCount) segments=\(diarResult.segments.count) duration_s=\(String(format: "%.2f", diarDuration))"
+            )
             Telemetry.send(.diarizationCompleted(
                 source: .meeting,
                 speakerCount: diarResult.speakerCount,
-                durationSeconds: diarDuration
+                durationSeconds: diarDuration,
+                speakerPrior: speakerPolicy.diagnosticsLabel
             ))
 
             guard !diarResult.segments.isEmpty else { return nil }
@@ -1316,10 +1938,36 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         }
     }
 
-    private func meetingAudioURL(for source: AudioSource, recording: MeetingRecordingOutput) -> URL {
+    private func resolveMeetingMicrophoneSource(
+        for recording: MeetingRecordingOutput
+    ) async throws -> MeetingCleanedMicrophoneSourceDecision {
+        let timeoutSeconds = meetingCleanedMicrophoneReadinessPolicy.timeoutSeconds(
+            for: recording.durationSeconds
+        )
+        let decision = try await recording.resolvedMicrophoneTranscriptionSource(
+            policy: meetingCleanedMicrophoneReadinessPolicy
+        )
+        let selected = decision.usesCleanedMicrophone ? "cleaned" : "raw"
+        logger.info(
+            "meeting_cleaned_mic_source session=\(recording.sessionID.uuidString, privacy: .public) selected=\(selected, privacy: .public) reason=\(decision.reason.rawValue, privacy: .public) timeout_s=\(timeoutSeconds, format: .fixed(precision: 3), privacy: .public)"
+        )
+        AudioCaptureDiagnostics.append(
+            "meeting_cleaned_mic_source session=\(recording.sessionID.uuidString) selected=\(selected) reason=\(decision.reason.rawValue) timeout_s=\(String(format: "%.3f", timeoutSeconds))"
+        )
+        return decision
+    }
+
+    private func meetingAudioURL(
+        for source: AudioSource,
+        recording: MeetingRecordingOutput,
+        microphoneDecision: MeetingCleanedMicrophoneSourceDecision?
+    ) -> URL {
         switch source {
         case .microphone:
-            return recording.microphoneAudioURL
+            // Transcribe the echo-cancelled mic when it was derived (plan #605
+            // U3/U4) and ready before the bounded deadline so remote speaker
+            // bleed does not surface as false "Me" text.
+            return microphoneDecision?.url ?? recording.validatedMicrophoneTranscriptionURL()
         case .system:
             return recording.systemAudioURL
         }
@@ -1377,25 +2025,31 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         cleanUpDownloadedFiles: Bool = true,
         persistResult: Bool = true,
         persistFailureStatus: Bool = true,
-        options: TranscriptionRunOptions,
+        options: TranscriptionRunOptions = .default,
         speechEngine: SpeechEngineSelection? = nil,
+        diarizationServiceOverride: (any DiarizationServiceProtocol)? = nil,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> TranscriptionRunResult {
         var wavURL: URL?
         let processingStartedAt = Date()
         var lifecycleStage: TelemetryTranscriptionStage = .audioConversion
-        let diarizationRequested = diarizationService != nil && shouldDiarize()
         var diarizationQualityReport: DiarizationQualityReport?
+        let activeDiarizationService = diarizationServiceOverride ?? diarizationService
+        let diarizationRequested = activeDiarizationService != nil
+            && (diarizationServiceOverride != nil || (source == .meeting ? shouldDiarizeMeetings() : shouldDiarize()))
         do {
             onProgress?(.converting)
-            wavURL = try await audioProcessor.convert(fileURL: fileURL)
+            wavURL = try await audioProcessor.convert(
+                fileURL: fileURL,
+                audioTrackOrdinal: transcription.audioTrackOrdinal
+            )
 
             guard let wavURL else {
                 throw AudioProcessorError.conversionFailed("Failed to produce WAV output")
             }
 
-            onProgress?(.transcribing(percent: 0))
             lifecycleStage = .stt
+            onProgress?(.preparingSpeechModel)
             let sttProgress: (@Sendable (Int, Int) -> Void)? = onProgress.map { callback in
                 { @Sendable current, total in
                     let pct = total > 0 ? Int(Double(current) / Double(total) * 100) : 0
@@ -1423,12 +2077,13 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             transcription.language = SpeechEnginePreference.normalizeKnownLanguage(result.language) ?? transcription.language
             transcription.engine = result.engine.rawValue
             transcription.engineVariant = result.engineVariant
-            if let speechDurationMs = words.map(\.endMs).max() {
+            if let speechDurationMs = words.map(\.endMs).max(),
+               source != .meeting || transcription.durationMs == nil {
                 transcription.durationMs = max(transcription.durationMs ?? 0, speechDurationMs)
             }
 
             let diarizationApplied: Bool
-            if let diarizationService, shouldDiarize() {
+            if let diarizationService = activeDiarizationService, diarizationRequested, !words.isEmpty {
                 lifecycleStage = .diarization
                 do {
                     onProgress?(.identifyingSpeakers)
@@ -1436,24 +2091,31 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                     let diarStartedAt = Date()
                     let diarResult = try await diarizationService.diarize(
                         audioURL: wavURL,
-                        options: options.diarizationOptions
+                        speakerConstraint: options.diarizationOptions.speakerConstraint
                     )
                     let diarDuration = Date().timeIntervalSince(diarStartedAt)
-                    let assignmentResult = SpeakerWordAssigner().assign(
-                        words: words,
-                        segments: diarResult.segments
-                    )
-                    if options.includeDiarizationReport {
-                        diarizationQualityReport = DiarizationQualityReport(
-                            transcriptionSourceType: transcription.sourceType,
-                            diarizedAudioSource: nil,
-                            requestedSpeakerHint: options.diarizationOptions.speakerCountHint,
-                            diarizationResult: diarResult,
-                            assignmentSummary: assignmentResult.summary
-                        )
-                    }
                     if !diarResult.segments.isEmpty {
-                        transcription.wordTimestamps = assignmentResult.words
+                        let mergedWords: [WordTimestamp]
+                        if options.includeDiarizationReport {
+                            let assignmentResult = SpeakerWordAssigner().assign(
+                                words: words,
+                                segments: diarResult.segments
+                            )
+                            mergedWords = assignmentResult.words
+                            diarizationQualityReport = DiarizationQualityReport(
+                                transcriptionSourceType: transcription.sourceType,
+                                diarizedAudioSource: nil,
+                                requestedSpeakerHint: options.diarizationOptions.speakerCountHint,
+                                diarizationResult: diarResult,
+                                assignmentSummary: assignmentResult.summary
+                            )
+                        } else {
+                            mergedWords = SpeakerMerger.mergeWordTimestampsWithSpeakers(
+                                words: words,
+                                segments: diarResult.segments
+                            )
+                        }
+                        transcription.wordTimestamps = mergedWords
                         transcription.speakerCount = diarResult.speakerCount
                         transcription.speakers = diarResult.speakers
                         transcription.diarizationSegments = diarResult.segments.map {
@@ -1585,6 +2247,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         transcription.speakerCount = nil
         transcription.speakers = nil
         transcription.diarizationSegments = nil
+        transcription.transcriptSegments = nil
         transcription.status = .processing
         transcription.errorMessage = nil
         transcription.exportPath = nil
@@ -1616,6 +2279,21 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         return languages.count == 1 ? languages.first : nil
     }
 
+    /// Enabled custom words for meeting transcript correction.
+    ///
+    /// Unlike `completeTranscription`'s fetch this is not gated on the Raw/Clean
+    /// processing mode — meeting corrections are always applied (see the call
+    /// site in the meeting finalize path). Failures degrade to no corrections
+    /// rather than failing the transcription.
+    private func fetchMeetingVocabulary() -> [CustomWord] {
+        do {
+            return try customWordRepo?.fetchEnabled() ?? []
+        } catch {
+            logger.error("meeting_custom_words_fetch_failed error_type=\(Self.errorType(for: error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
+            return []
+        }
+    }
+
     private func completeTranscription(
         source: TelemetryTranscriptionSource,
         transcription: inout Transcription,
@@ -1626,10 +2304,15 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         diarizationApplied: Bool,
         persistResult: Bool = true
     ) async throws -> Transcription {
+        let originalFileName = transcription.fileName
         let mode = processingMode()
+        // Meetings keep a verbatim record: custom words already ran through
+        // `MeetingTranscriptVocabularyApplier`. Filler removal, snippets, and
+        // insertion styling stay dictation/file-only (spec/07).
+        let appliesCleanPipeline = source != .meeting && mode.usesDeterministicPipeline
         var customWords: [CustomWord] = []
         var snippets: [TextSnippet] = []
-        if mode.usesDeterministicPipeline {
+        if appliesCleanPipeline {
             do { customWords = try customWordRepo?.fetchEnabled() ?? [] }
             catch { logger.error("transcription_custom_words_fetch_failed error_type=\(Self.errorType(for: error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)") }
             do { snippets = try snippetRepo?.fetchEnabled() ?? [] }
@@ -1638,14 +2321,23 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
 
         let refinement = await textRefinementService.refine(
             rawText: rawText,
-            mode: mode,
+            mode: appliesCleanPipeline ? mode : .raw,
             customWords: customWords,
-            snippets: snippets
+            snippets: snippets,
+            removeUmFiller: appliesCleanPipeline && removeUmFiller()
         )
         let baseText = refinement.text ?? rawText
-        let formatterOutcome = try await formatTranscriptIfNeeded(
+        let transcriptFormatter = TranscriptFormatter(
+            llmService: llmService,
+            shouldUseAIFormatter: shouldUseAIFormatter,
+            logger: logger
+        )
+        let promptTemplateProvider = aiFormatterPromptTemplate
+        let formatterOutcome = try await transcriptFormatter.format(
             baseText,
-            runSource: persistResult ? LLMRunSource(transcriptionId: transcription.id) : nil
+            runSource: persistResult ? LLMRunSource(transcriptionId: transcription.id) : nil,
+            lane: .transcription,
+            resolvePrompt: { (promptTemplateProvider(), nil) }
         )
         let formattedTranscript = formatterOutcome.text
         transcription.cleanTranscript = formattedTranscript ?? refinement.text
@@ -1661,10 +2353,58 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             excluding: transcription.derivedTitle
         ) ?? ""
 
+        if source != .meeting,
+           let words = transcription.wordTimestamps,
+           !words.isEmpty {
+            let durableSegments = KnowledgeSegmenter.materializeFileTranscriptSegments(
+                words: words,
+                speakers: transcription.speakers
+            )
+            transcription.transcriptSegments = durableSegments.isEmpty ? nil : durableSegments
+        }
+
+        if persistResult, source == .meeting,
+           transcription.normalizedTitleOverride == nil,
+           let generatedTitle = try await generateMeetingTitleIfNeeded(
+               transcriptText: derivationSource,
+               currentTitle: transcription.fileName
+           ) {
+            transcription.fileName = generatedTitle
+            transcription.derivedTitle = generatedTitle
+        }
+
         transcription.status = .completed
         transcription.updatedAt = Date()
         if persistResult {
-            try transcriptionRepo.save(transcription)
+            do {
+                // Invalidate before publishing the new completed transcript.
+                // A crash or replacement failure can temporarily remove search
+                // results, but can never expose segments from the old text as if
+                // they belonged to the new canonical transcript.
+                try segmentRepo?.deleteSegments(transcriptionId: transcription.id)
+            } catch {
+                let transcriptionID = transcription.id
+                logger.error("segment_invalidation_failed id=\(transcriptionID, privacy: .public) reindex_needed=true action=search-reindex error=\(error.localizedDescription, privacy: .public)")
+                throw error
+            }
+            transcription = try transcriptionRepo.savePreservingUserMetadata(
+                transcription, originalFileName: originalFileName
+            )
+            do {
+                if let knowledgeLayerMutator {
+                    try knowledgeLayerMutator.replaceSegmentsAndInvalidateCard(
+                        for: transcription
+                    )
+                } else {
+                    try segmentRepo?.replaceSegments(for: transcription)
+                }
+            } catch {
+                // Old rows were invalidated before the canonical save, so this
+                // failure leaves search incomplete but never stale. The derived
+                // index is repairable with `search-reindex`.
+                let transcriptionID = transcription.id
+                logger.error("segment_materialization_failed id=\(transcriptionID, privacy: .public) reindex_needed=true action=search-reindex error=\(error.localizedDescription, privacy: .public)")
+            }
             await llmRunRecorder.record(formatterOutcome.run)
         }
 
@@ -1706,6 +2446,22 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         return transcription
     }
 
+    private func generateMeetingTitleIfNeeded(
+        transcriptText: String?,
+        currentTitle: String
+    ) async throws -> String? {
+        guard let transcriptText else { return nil }
+        let generator = MeetingTitleGenerator(
+            llmService: llmService,
+            shouldGenerate: shouldAutoGenerateMeetingTitles,
+            logger: logger
+        )
+        return try await generator.generateTitle(
+            transcript: transcriptText,
+            currentTitle: currentTitle
+        )
+    }
+
     private func materializeMeetingArtifactIfPossible(_ transcription: Transcription) async {
         guard let meetingArtifactStore else { return }
         do {
@@ -1730,70 +2486,6 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 transcription: transcription,
                 artifact: artifact
             )
-        }
-    }
-
-    private func formatTranscriptIfNeeded(
-        _ text: String,
-        runSource: LLMRunSource?
-    ) async throws -> FormatterOutcome {
-        guard shouldUseAIFormatter(), let llmService else {
-            return .skipped
-        }
-        // The formatter rewrites the full text, so output length tracks input
-        // length; past the cap slow providers can stall finalization until
-        // timeout before falling back anyway (issue #493).
-        guard text.count <= AIFormatter.maxTranscriptionInputChars else {
-            logger.info("transcription_ai_formatter_skipped reason=input_too_long chars=\(text.count, privacy: .public) cap=\(AIFormatter.maxTranscriptionInputChars, privacy: .public)")
-            return .skipped
-        }
-
-        let promptTemplate = aiFormatterPromptTemplate()
-        // Normalize before comparing: `AIFormatter.renderPrompt` passes the
-        // template through `normalizedPromptTemplate` before sending, which
-        // trims whitespace and folds legacy-v1 prompts back onto the current
-        // default. Raw comparison would report those cases as custom prompts
-        // even though the LLM sees the shipped default.
-        let defaultPromptUsed = AIFormatter.normalizedPromptTemplate(promptTemplate)
-            == AIFormatter.defaultPromptTemplate
-        let startedAt = Date()
-        do {
-            let result = try await llmService.formatTranscriptDetailed(
-                transcript: text,
-                promptTemplate: promptTemplate,
-                source: .transcription,
-                defaultPromptUsed: defaultPromptUsed
-            )
-            let trimmed = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
-            let run = runSource.map {
-                LLMRun(formatterResult: result, source: $0, feature: .formatterTranscription)
-            }
-            return FormatterOutcome(text: trimmed.isEmpty ? nil : trimmed, run: run)
-        } catch {
-            if error is CancellationError {
-                throw error
-            }
-            logger.warning("transcription_ai_formatter_failed fallback=standard_cleanup error_type=\(Self.errorType(for: error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
-            let message = "\(error.localizedDescription) Used standard cleanup."
-            NotificationCenter.default.post(
-                name: .macParakeetAIFormatterWarning,
-                object: nil,
-                userInfo: [
-                    "source": "transcription",
-                    "message": message,
-                ]
-            )
-            let run = runSource.map {
-                LLMRun.failedFormatterRun(
-                    source: $0,
-                    feature: .formatterTranscription,
-                    errorType: Self.errorType(for: error),
-                    inputChars: text.count,
-                    defaultPromptUsed: defaultPromptUsed,
-                    startedAt: startedAt
-                )
-            }
-            return FormatterOutcome(text: nil, run: run)
         }
     }
 

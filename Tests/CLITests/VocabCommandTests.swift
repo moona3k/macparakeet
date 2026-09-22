@@ -97,6 +97,152 @@ final class VocabCommandTests: XCTestCase {
         XCTAssertTrue(schema.json)
     }
 
+    func testVocabWordsRecognitionBoostingStatusLineUsesCapabilityRegistry() {
+        let suiteName = "macparakeet-vocab-cli-defaults-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        SpeechEnginePreference.parakeet.save(to: defaults)
+        SpeechEnginePreference.saveParakeetModelVariant(.v3, defaults: defaults)
+        XCTAssertTrue(
+            VocabWordsCommand.recognitionBoostingStatusLine(defaults: defaults)
+                .contains("Recognition boosting is paused")
+        )
+
+        defaults.set(
+            true,
+            forKey: UserDefaultsAppRuntimePreferences.customVocabularyRecognitionBoostingEnabledKey
+        )
+        XCTAssertTrue(
+            VocabWordsCommand.recognitionBoostingStatusLine(defaults: defaults)
+                .contains("Recognition boosting on")
+        )
+
+        defaults.removeObject(
+            forKey: UserDefaultsAppRuntimePreferences.customVocabularyRecognitionBoostingEnabledKey
+        )
+        SpeechEnginePreference.saveParakeetModelVariant(.unified, defaults: defaults)
+        let unifiedLine = VocabWordsCommand.recognitionBoostingStatusLine(defaults: defaults)
+        XCTAssertTrue(unifiedLine.contains("Clean corrections only"))
+        XCTAssertTrue(unifiedLine.contains("Parakeet English (Unified)"))
+
+        SpeechEnginePreference.cohere.save(to: defaults)
+        let cohereLine = VocabWordsCommand.recognitionBoostingStatusLine(defaults: defaults)
+        XCTAssertTrue(cohereLine.contains("Clean corrections only"))
+        XCTAssertTrue(cohereLine.contains("Cohere"))
+    }
+
+    func testVocabWordsListDisplaysBlankReplacementAsAnchor() async throws {
+        let manager = try DatabaseManager(path: dbPath)
+        let repo = CustomWordRepository(dbQueue: manager.dbQueue)
+        let word = CustomWord(word: "MacParakeet", replacement: "  ")
+        try repo.save(word)
+
+        let cmd = try VocabWordsCommand.ListWords.parse([
+            "--database", dbPath,
+        ])
+        let output = try await capturingStdout {
+            try await cmd.run()
+        }
+
+        XCTAssertTrue(output.contains("[+] MacParakeet (anchor)"))
+        XCTAssertFalse(output.contains("MacParakeet ->"))
+    }
+
+    func testVocabWordsAddJSONReturnsSavedID() async throws {
+        let cmd = try VocabWordsCommand.AddWord.parse([
+            "MacParakeet",
+            "--database", dbPath,
+            "--json",
+        ])
+        let output = try await capturingStdout {
+            try await cmd.run()
+        }
+
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(decoded["ok"] as? Bool, true)
+        let word = try XCTUnwrap(decoded["word"] as? [String: Any])
+        XCTAssertEqual(word["word"] as? String, "MacParakeet")
+        XCTAssertNotNil(word["id"] as? String)
+        let manager = try DatabaseManager(path: dbPath)
+        let saved = try CustomWordRepository(dbQueue: manager.dbQueue).fetchAll()
+        XCTAssertEqual(saved.map(\.word), ["MacParakeet"])
+    }
+
+    func testVocabSnippetsAddJSONReturnsSavedID() async throws {
+        let cmd = try VocabSnippetsCommand.AddSnippet.parse([
+            "my signature",
+            "Best,\nDana",
+            "--database", dbPath,
+            "--json",
+        ])
+        let output = try await capturingStdout {
+            try await cmd.run()
+        }
+
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(decoded["ok"] as? Bool, true)
+        let snippet = try XCTUnwrap(decoded["snippet"] as? [String: Any])
+        XCTAssertEqual(snippet["trigger"] as? String, "my signature")
+        XCTAssertNotNil(snippet["id"] as? String)
+    }
+
+    func testVocabWordsSetTogglesEnabledState() async throws {
+        let manager = try DatabaseManager(path: dbPath)
+        let repo = CustomWordRepository(dbQueue: manager.dbQueue)
+        let word = CustomWord(word: "k8s", replacement: "Kubernetes", isEnabled: true)
+        try repo.save(word)
+
+        let cmd = try VocabWordsCommand.SetWord.parse([
+            String(word.id.uuidString.prefix(8)),
+            "--disabled",
+            "--database", dbPath,
+            "--json",
+        ])
+        let output = try await capturingStdout {
+            try await cmd.run()
+        }
+
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(decoded["ok"] as? Bool, true)
+        let updated = try XCTUnwrap(try repo.fetch(id: word.id))
+        XCTAssertFalse(updated.isEnabled)
+        XCTAssertGreaterThan(updated.updatedAt, word.updatedAt)
+    }
+
+    func testVocabWordsSetRequiresOneStateFlag() {
+        XCTAssertThrowsError(try VocabWordsCommand.SetWord.parse(["abcd"]))
+        XCTAssertThrowsError(try VocabWordsCommand.SetWord.parse(["abcd", "--enabled", "--disabled"]))
+    }
+
+    func testVocabSnippetsEditNoopWithJSONEmitsFailureEnvelope() async throws {
+        let cmd = try VocabSnippetsCommand.EditSnippet.parse([
+            "abcd",
+            "--database", dbPath,
+            "--json",
+        ])
+
+        var thrownError: Error?
+        let output = try await capturingStdout {
+            do {
+                try await cmd.run()
+            } catch {
+                thrownError = error
+            }
+        }
+
+        let error = try XCTUnwrap(thrownError)
+        XCTAssertTrue(error is CLIJSONEnvelopeExit)
+        XCTAssertEqual(CLI.normalizedExitCode(for: error), cliValidationMisuseExitCode)
+
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(decoded["ok"] as? Bool, false)
+        XCTAssertEqual(decoded["errorType"] as? String, "validation")
+        XCTAssertTrue((decoded["error"] as? String)?.contains("--trigger") == true)
+    }
+
     func testVocabSnippetsEditUpdatesExistingSnippet() async throws {
         let manager = try DatabaseManager(path: dbPath)
         let repo = TextSnippetRepository(dbQueue: manager.dbQueue)
@@ -132,6 +278,36 @@ final class VocabCommandTests: XCTestCase {
         XCTAssertGreaterThan(updated.updatedAt, createdAt)
     }
 
+    func testVocabSnippetsEditCanToggleEnabledOnly() async throws {
+        let manager = try DatabaseManager(path: dbPath)
+        let repo = TextSnippetRepository(dbQueue: manager.dbQueue)
+        let snippet = TextSnippet(trigger: "my sig", expansion: "Original", isEnabled: false)
+        try repo.save(snippet)
+
+        let cmd = try VocabSnippetsCommand.EditSnippet.parse([
+            String(snippet.id.uuidString.prefix(8)),
+            "--enabled",
+            "--database", dbPath,
+            "--json",
+        ])
+        let output = try await capturingStdout {
+            try await cmd.run()
+        }
+
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(decoded["ok"] as? Bool, true)
+        let updated = try XCTUnwrap(try repo.fetch(id: snippet.id))
+        XCTAssertTrue(updated.isEnabled)
+        XCTAssertEqual(updated.trigger, "my sig")
+        XCTAssertEqual(updated.expansion, "Original")
+    }
+
+    func testVocabSnippetsEditRejectsContradictoryEnabledFlags() {
+        XCTAssertThrowsError(
+            try VocabSnippetsCommand.EditSnippet.parse(["abcd", "--enabled", "--disabled"])
+        )
+    }
+
     func testVocabSnippetsEditRejectsShortIDPrefix() async throws {
         let manager = try DatabaseManager(path: dbPath)
         let repo = TextSnippetRepository(dbQueue: manager.dbQueue)
@@ -154,7 +330,29 @@ final class VocabCommandTests: XCTestCase {
         }
     }
 
-    func testVocabSnippetsDeletePreservesLegacyShortPrefixLookup() async throws {
+    func testVocabWordsDeleteJSONReportsDeletedID() async throws {
+        let manager = try DatabaseManager(path: dbPath)
+        let repo = CustomWordRepository(dbQueue: manager.dbQueue)
+        let word = CustomWord(word: "k8s", replacement: "Kubernetes")
+        try repo.save(word)
+
+        let cmd = try VocabWordsCommand.DeleteWord.parse([
+            String(word.id.uuidString.prefix(8)),
+            "--database", dbPath,
+            "--json",
+        ])
+        let output = try await capturingStdout {
+            try await cmd.run()
+        }
+
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(decoded["ok"] as? Bool, true)
+        XCTAssertEqual(decoded["id"] as? String, word.id.uuidString)
+        XCTAssertEqual(decoded["label"] as? String, "k8s")
+        XCTAssertNil(try repo.fetch(id: word.id))
+    }
+
+    func testVocabSnippetsDeleteRejectsShortPrefix() async throws {
         let manager = try DatabaseManager(path: dbPath)
         let repo = TextSnippetRepository(dbQueue: manager.dbQueue)
         let snippet = TextSnippet(
@@ -174,13 +372,40 @@ final class VocabCommandTests: XCTestCase {
             "a",
             "--database", dbPath,
         ])
+
+        do {
+            try await cmd.run()
+            XCTFail("Expected short ID prefix to be rejected")
+        } catch is ValidationError {
+            // Expected.
+        } catch {
+            XCTFail("Expected ValidationError, got \(type(of: error))")
+        }
+
+        XCTAssertNotNil(try repo.fetch(id: snippet.id))
+        XCTAssertNotNil(try repo.fetch(id: other.id))
+    }
+
+    func testVocabSnippetsDeleteJSONReportsDeletedID() async throws {
+        let manager = try DatabaseManager(path: dbPath)
+        let repo = TextSnippetRepository(dbQueue: manager.dbQueue)
+        let snippet = TextSnippet(trigger: "my sig", expansion: "Original")
+        try repo.save(snippet)
+
+        let cmd = try VocabSnippetsCommand.DeleteSnippet.parse([
+            String(snippet.id.uuidString.prefix(8)),
+            "--database", dbPath,
+            "--json",
+        ])
         let output = try await capturingStdout {
             try await cmd.run()
         }
 
-        XCTAssertTrue(output.contains("Deleted: \"my sig\""))
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(decoded["ok"] as? Bool, true)
+        XCTAssertEqual(decoded["id"] as? String, snippet.id.uuidString)
+        XCTAssertEqual(decoded["label"] as? String, "my sig")
         XCTAssertNil(try repo.fetch(id: snippet.id))
-        XCTAssertNotNil(try repo.fetch(id: other.id))
     }
 
     // MARK: - Schema
@@ -217,7 +442,7 @@ final class VocabCommandTests: XCTestCase {
         let outPath = tempDir.appendingPathComponent("out.json").path
         let cmd = try VocabExportCommand.parse([
             "--database", dbPath,
-            "--output", outPath
+            "--output", outPath,
         ])
         try await cmd.run()
 
@@ -279,7 +504,7 @@ final class VocabCommandTests: XCTestCase {
         let cmd = try VocabImportCommand.parse([
             "--database", dbPath,
             "--input", bundlePath,
-            "--json"
+            "--json",
         ])
         let output = try await capturingStdout {
             try await cmd.run()
@@ -294,8 +519,11 @@ final class VocabCommandTests: XCTestCase {
 
     func testImportInvalidSchemaThrows() async throws {
         let bundlePath = tempDir.appendingPathComponent("bad.json").path
-        try Data(#"{"schema":"not.us","version":1,"exportedAt":"2026-04-28T12:00:00Z","customWords":[],"textSnippets":[]}"#.utf8)
-            .write(to: URL(fileURLWithPath: bundlePath))
+        try Data(
+            #"{"schema":"not.us","version":1,"exportedAt":"2026-04-28T12:00:00Z","customWords":[],"textSnippets":[]}"#
+                .utf8
+        )
+        .write(to: URL(fileURLWithPath: bundlePath))
 
         let cmd = try VocabImportCommand.parse([
             "--database", dbPath,
@@ -349,7 +577,7 @@ final class VocabCommandTests: XCTestCase {
         let saved = dup(STDOUT_FILENO)
         defer { close(saved) }
         guard saved >= 0,
-              dup2(pipe.fileHandleForWriting.fileDescriptor, STDOUT_FILENO) >= 0
+            dup2(pipe.fileHandleForWriting.fileDescriptor, STDOUT_FILENO) >= 0
         else {
             XCTFail("failed to redirect stdout")
             return ""

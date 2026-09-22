@@ -119,7 +119,7 @@ Search transcends tabs. When the search field is non-empty, the 4-tab layout col
 | `DictationSectionViewModel` | hotkey, hold/toggle, mic, processing mode, dictation-specific permissions | ~250 lines |
 | `TranscriptionSectionViewModel` | transcription hotkeys, auto-copy, speaker detection, auto-save | ~150 lines |
 | `MeetingSectionViewModel` | meeting hotkey, calendar settings, screen-recording-permission | ~200 lines |
-| `EngineSettingsViewModel` | engine selector, Whisper language, model status, downloads | ~250 lines |
+| `EngineSettingsViewModel` | engine selector, Whisper language, model status, downloads. **Shipped on `advisor/architecture-improvements` via extract-and-delegate; `SettingsViewModel` forwards the existing public surface until views are repointed.** | ~250 lines |
 | `LLMSettingsViewModel` | already exists — reused as-is | unchanged |
 | `SystemSettingsViewModel` | permissions polling, storage stats, updates wrapper, privacy/telemetry, onboarding-redo trigger, about info, destructive actions | ~400 lines |
 

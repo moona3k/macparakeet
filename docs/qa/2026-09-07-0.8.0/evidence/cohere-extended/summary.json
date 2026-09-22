@@ -1,0 +1,44 @@
+{
+  "status": "runtime_pass",
+  "casesCompleted": 3,
+  "accuracyCertified": false,
+  "coldLoadBoundResolvedAsEngineFailure": false,
+  "cacheStateControlled": false,
+  "binarySHA256": "f8a62b79ece6045909d15ece2fd086eed7e10ca04ebc870d9fc50ed76774f095",
+  "cases": [
+    {
+      "language": "ja",
+      "exitCode": 0,
+      "wallSeconds": 49.271,
+      "rawTranscriptChars": 46,
+      "durationMs": 10440,
+      "timedWords": 0,
+      "persistedRows": 0,
+      "rawTranscript": "インターネットで敵対的環境構成について検索すると、おそらく現地企業の住所が出てくるでしょう。",
+      "resultPath": "ja-result.json"
+    },
+    {
+      "language": "ko",
+      "exitCode": 0,
+      "wallSeconds": 7.896,
+      "rawTranscriptChars": 67,
+      "durationMs": 12480,
+      "timedWords": 0,
+      "persistedRows": 0,
+      "rawTranscript": "다리의 수집 간격은 15미터이며 공사는 2011년 8월에 마무리되었으며 해당 다리의 통행 금지는 2017년 3월까지이다.",
+      "resultPath": "ko-result.json"
+    },
+    {
+      "language": "zh",
+      "exitCode": 0,
+      "wallSeconds": 6.642,
+      "rawTranscriptChars": 26,
+      "durationMs": 10380,
+      "timedWords": 0,
+      "persistedRows": 0,
+      "rawTranscript": "这并不是告别:这是一个篇章的结束,也是新篇章的开始。",
+      "resultPath": "zh-result.json"
+    }
+  ],
+  "curationNote": "Result links point to sanitized evidence; original output hashes remain in each case result. See manifest.json for source and curated hashes."
+}

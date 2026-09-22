@@ -5,55 +5,6 @@ import AppKit
 import MacParakeetCore
 import MacParakeetViewModels
 
-enum SettingsHotkeyConflictMessage {
-    static func disabled(conflictingWith rowName: String, trigger: HotkeyTrigger) -> String {
-        "Disabled — conflicts with \(rowName) (\(trigger.formattedLabel))."
-    }
-
-    static func blocked(conflictingWith rowName: String, trigger: HotkeyTrigger) -> String {
-        "Conflicts with \(rowName) (\(trigger.formattedLabel))."
-    }
-}
-
-enum SettingsDictationHotkeyConflictPolicy {
-    static func validation(
-        candidate: HotkeyTrigger,
-        peer: HotkeyTrigger,
-        peerName: String
-    ) -> HotkeyTrigger.ValidationResult? {
-        guard candidate.overlaps(with: peer) else { return nil }
-        if HotkeyTrigger.isSharedDictationGesture(handsFree: candidate, pushToTalk: peer) {
-            return nil
-        }
-        return .blocked(SettingsHotkeyConflictMessage.blocked(
-            conflictingWith: peerName,
-            trigger: peer
-        ))
-    }
-
-    static func existingConflictMessage(
-        trigger: HotkeyTrigger,
-        peer: HotkeyTrigger,
-        peerName: String,
-        disablesTrigger: Bool
-    ) -> String? {
-        guard trigger.overlaps(with: peer) else { return nil }
-        if HotkeyTrigger.isSharedDictationGesture(handsFree: trigger, pushToTalk: peer) {
-            return nil
-        }
-        if disablesTrigger {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: peerName,
-                trigger: peer
-            )
-        }
-        return SettingsHotkeyConflictMessage.blocked(
-            conflictingWith: peerName,
-            trigger: peer
-        )
-    }
-}
-
 enum SettingsDictationHotkeyDisplay {
     static func pushToTalkDisplayLabelOverride(
         pushToTalk: HotkeyTrigger,
@@ -132,6 +83,7 @@ private extension SettingsCaptureWorkflow {
 struct SettingsView: View {
     @Bindable var viewModel: SettingsViewModel
     @Bindable var llmSettingsViewModel: LLMSettingsViewModel
+    @Bindable var voiceProfilesViewModel: VoiceProfilesViewModel
     let updater: SPUUpdater
     let transformHotkeys: [Prompt]
     let requestedTab: SettingsTab?
@@ -159,10 +111,17 @@ struct SettingsView: View {
     /// Which downloaded model a destructive confirmation is pending for. Drives
     /// the shared delete-confirmation alert on the Engine tab.
     @State private var pendingModelDeletion: PendingModelDeletion?
+    @State private var pendingMeetingAudioRetention: PendingMeetingAudioRetention?
+    @State private var coherePolicyRelaunchInFlight = false
+    @State private var showVoiceProfiles = false
+    /// Owned by this view rather than the app: the sheet is the only consumer,
+    /// and it reloads from the store each time it opens.
+    @State private var advancedTranscriptionExpanded = false
 
     init(
         viewModel: SettingsViewModel,
         llmSettingsViewModel: LLMSettingsViewModel,
+        voiceProfilesViewModel: VoiceProfilesViewModel,
         updater: SPUUpdater,
         transformHotkeys: [Prompt] = [],
         requestedTab: SettingsTab? = nil,
@@ -173,6 +132,7 @@ struct SettingsView: View {
     ) {
         self.viewModel = viewModel
         self.llmSettingsViewModel = llmSettingsViewModel
+        self.voiceProfilesViewModel = voiceProfilesViewModel
         self.updater = updater
         self.transformHotkeys = transformHotkeys
         self.requestedTab = requestedTab
@@ -228,16 +188,24 @@ struct SettingsView: View {
             viewModel.startPermissionPolling()
             viewModel.refreshStats()
             viewModel.refreshEntitlements()
-            viewModel.refreshModelStatus()
+            viewModel.engine.refreshModelStatus()
+            viewModel.engine.refreshSpeechEngineSwitchAvailability()
             viewModel.refreshPendingMeetingRecoveries()
         }
         .onDisappear {
             viewModel.stopPermissionPolling()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            viewModel.refreshPermissions()
-            viewModel.refreshSpeechEngineSwitchAvailability()
-            Task { await viewModel.refreshCalendarNotificationAuthorization() }
+            viewModel.engine.refreshSpeechEngineSwitchAvailability()
+            guard AppFeatures.calendarEnabled,
+                rootViewModel.activeTab == .capture,
+                displayedCaptureWorkflow == .meetings,
+                !rootViewModel.isSearching
+            else { return }
+            Task {
+                await viewModel.refreshCalendarAccess()
+                await viewModel.refreshCalendarNotificationAuthorization()
+            }
         }
         .onAppear {
             if requestedTab != nil || requestedAnchor != nil {
@@ -357,6 +325,7 @@ struct SettingsView: View {
         if entry.tab == .capture, let section = captureSection(for: entry.cardAnchor) {
             rootViewModel.activeCaptureWorkflow = section
         }
+        expandAdvancedTranscriptionIfNeeded(anchor: entry.cardAnchor)
         pendingScrollTarget = normalizedScrollAnchor(for: entry.cardAnchor, tab: entry.tab)
         rootViewModel.activeTab = entry.tab
         rootViewModel.clearSearch()
@@ -367,6 +336,7 @@ struct SettingsView: View {
         if destinationTab == .capture, let anchor, let section = captureSection(for: anchor) {
             rootViewModel.activeCaptureWorkflow = section
         }
+        expandAdvancedTranscriptionIfNeeded(anchor: anchor)
         if let anchor {
             pendingScrollTarget = normalizedScrollAnchor(for: anchor, tab: destinationTab)
         }
@@ -384,6 +354,12 @@ struct SettingsView: View {
             return "transcription"
         case .meetings:
             return "meeting"
+        }
+    }
+
+    private func expandAdvancedTranscriptionIfNeeded(anchor: String?) {
+        if anchor == SettingsSearchIndex.advancedTranscriptionAnchor {
+            advancedTranscriptionExpanded = true
         }
     }
 
@@ -440,25 +416,24 @@ struct SettingsView: View {
     /// Engine tab — speech recognition stack, decomposed into cards so each
     /// surface owns one decision the user makes:
     ///
-    /// 1. `engineSelectorCard` — which engine? (Parakeet vs Nemotron vs Whisper)
+    /// 1. `engineSelectorCard` — primary engine plus an Advanced disclosure
+    ///    for the optional recordings/files override
     /// 2. `engineParakeetModelCard` — which Parakeet build? (Parakeet only —
-    ///    multilingual `v3` vs English-only `v2`)
+    ///    multilingual `v3`, English-only `v2`, or Unified)
     /// 3. `engineNemotronModelCard` — which Nemotron build? (Nemotron only —
     ///    multilingual vs English-only)
-    /// 4. `engineLanguageCard` — which language? (Whisper only — Parakeet
-    ///    auto-detects from its 25 supported European languages)
-    /// 5. `enginesModelsCard` — what's the local model state?
+    /// 4. `engineCohereModelCard` — GPU vs Neural Engine? (Cohere only)
+    /// 5. `engineLanguageCard` — which language? (Whisper only in Settings)
+    /// 6. `enginesModelsCard` — what's the local model state?
     ///
-    /// Cards 2–4 are mutually exclusive (one per engine), so exactly one
-    /// contextual config card sits between the selector and the models card.
-    ///
-    /// Sub-VM split (`EngineSettingsViewModel`) lands in a later commit;
-    /// the cards keep reading from `viewModel` for now.
+    /// Cards 2–5 appear for engines used by either route, so model/language
+    /// controls stay available when live speech and recordings differ.
     private var engineTabContent: some View {
         scrollableTabBody {
             engineSelectorCard.id("engine.selector")
             engineParakeetModelCard.id("engine.parakeetModel")
             engineNemotronModelCard.id("engine.nemotronModel")
+            engineCohereModelCard.id("engine.cohereModel")
             engineLanguageCard.id("engine.language")
             enginesModelsCard.id("engine.models")
         }
@@ -478,17 +453,17 @@ struct SettingsView: View {
         .alert(
             speechEngineSwitchConfirmationTitle,
             isPresented: Binding(
-                get: { viewModel.pendingSpeechEngineSwitchConfirmation != nil },
-                set: { if !$0 { viewModel.cancelPendingSpeechEngineSwitchConfirmation() } }
+                get: { viewModel.engine.pendingSpeechEngineSwitchConfirmation != nil },
+                set: { if !$0 { viewModel.engine.cancelPendingSpeechEngineSwitchConfirmation() } }
             ),
-            presenting: viewModel.pendingSpeechEngineSwitchConfirmation
+            presenting: viewModel.engine.pendingSpeechEngineSwitchConfirmation
         ) { engine in
             Button("Cancel", role: .cancel) {
-                viewModel.cancelPendingSpeechEngineSwitchConfirmation()
+                viewModel.engine.cancelPendingSpeechEngineSwitchConfirmation()
             }
             Button("Switch to \(engine.displayName)") {
                 withAnimation(DesignSystem.Animation.contentSwap) {
-                    viewModel.confirmPendingSpeechEngineSwitch()
+                    viewModel.engine.confirmPendingSpeechEngineSwitch()
                 }
             }
         } message: { engine in
@@ -498,29 +473,92 @@ struct SettingsView: View {
 
     /// A downloaded model awaiting delete confirmation. `parakeet` and
     /// `nemotron` carry the specific build; Whisper deletion follows the
-    /// configured Whisper variant from `SettingsViewModel.deleteWhisperModel()`,
+    /// configured Whisper variant from `EngineSettingsViewModel.deleteWhisperModel()`,
     /// so the alert copy stays variant-agnostic here.
     private enum PendingModelDeletion: Identifiable, Equatable {
         case parakeet(ParakeetModelVariant)
         case nemotron(NemotronModelVariant)
         case whisper
+        case cohere
 
         var id: String {
             switch self {
             case .parakeet(let variant): "parakeet-\(variant.rawValue)"
             case .nemotron(let variant): "nemotron-\(variant.rawValue)"
             case .whisper: "whisper"
+            case .cohere: "cohere"
             }
         }
+    }
+
+    private struct PendingMeetingAudioRetention: Identifiable, Equatable {
+        let retention: MeetingAudioRetention
+
+        var id: String { retention.configurationValue }
+    }
+
+    private func modelLifecycle(for key: SpeechEngineVariantKey) -> SpeechEngineModelLifecycle {
+        SpeechEngineCapabilityRegistry.capabilities(for: key).modelLifecycle
+    }
+
+    private func parakeetModelLifecycle(for variant: ParakeetModelVariant) -> SpeechEngineModelLifecycle {
+        modelLifecycle(for: .parakeet(variant))
+    }
+
+    private func nemotronModelLifecycle(for variant: NemotronModelVariant) -> SpeechEngineModelLifecycle {
+        modelLifecycle(for: .nemotron(variant))
+    }
+
+    private func nemotronUsesFixedLanguage(_ variant: NemotronModelVariant) -> Bool {
+        SpeechEngineCapabilityRegistry.capabilities(for: .nemotron(variant))
+            .supportedLanguages.mode == .fixed
+    }
+
+    private var whisperModelLifecycle: SpeechEngineModelLifecycle {
+        modelLifecycle(for: .whisper(viewModel.engine.whisperModelVariant))
+    }
+
+    private var cohereModelLifecycle: SpeechEngineModelLifecycle {
+        modelLifecycle(for: .cohere)
+    }
+
+    private func approximateDownloadSize(
+        for lifecycle: SpeechEngineModelLifecycle,
+        fallback: String
+    ) -> String {
+        lifecycle.approximateDownloadSize ?? fallback
+    }
+
+    private func sentenceDownloadSize(
+        for lifecycle: SpeechEngineModelLifecycle,
+        fallback: String
+    ) -> String {
+        guard let size = lifecycle.approximateDownloadSize else {
+            return fallback
+        }
+        if size.hasPrefix("~") {
+            return "about \(size.dropFirst())"
+        }
+        return size
+    }
+
+    private func sentenceStartDownloadSize(
+        for lifecycle: SpeechEngineModelLifecycle,
+        fallback: String
+    ) -> String {
+        let size = sentenceDownloadSize(for: lifecycle, fallback: fallback)
+        guard let first = size.first else { return size }
+        return first.uppercased() + String(size.dropFirst())
     }
 
     /// Names the model in the alert title; falls back to a generic title once
     /// the alert is dismissed and `pendingModelDeletion` is nil.
     private var modelDeletionAlertTitle: String {
         switch pendingModelDeletion {
-        case .parakeet(let variant): "Delete \(variant.modelName)?"
-        case .nemotron(let variant): "Delete \(variant.modelName)?"
+        case .parakeet(let variant): "Delete \(parakeetModelLifecycle(for: variant).modelName)?"
+        case .nemotron(let variant): "Delete \(nemotronModelLifecycle(for: variant).modelName)?"
         case .whisper: "Delete the Whisper model?"
+        case .cohere: "Delete \(cohereModelLifecycle.modelName)?"
         case nil: "Delete this model?"
         }
     }
@@ -528,28 +566,46 @@ struct SettingsView: View {
     private func modelDeletionMessage(for deletion: PendingModelDeletion) -> String {
         switch deletion {
         case .parakeet(let variant):
-            return "This frees \(variant.approximateDownloadSize). You can download \(variant.modelName) again at any time."
+            let lifecycle = parakeetModelLifecycle(for: variant)
+            let size = approximateDownloadSize(for: lifecycle, fallback: variant.approximateDownloadSize)
+            return "This frees \(size). You can download \(lifecycle.modelName) again at any time."
         case .nemotron(let variant):
-            return "This frees \(variant.approximateDownloadSize). You can download \(variant.modelName) again at any time."
+            let lifecycle = nemotronModelLifecycle(for: variant)
+            let size = approximateDownloadSize(for: lifecycle, fallback: variant.approximateDownloadSize)
+            return "This frees \(size). You can download \(lifecycle.modelName) again at any time."
         case .whisper:
             return "This removes the configured Whisper model download from this Mac. You can download it again at any time."
+        case .cohere:
+            let lifecycle = cohereModelLifecycle
+            let size = sentenceDownloadSize(for: lifecycle, fallback: "about 2.1 GB")
+            return "This frees \(size). You can download \(lifecycle.modelName) again at any time."
         }
     }
 
     private func performModelDeletion(_ deletion: PendingModelDeletion) {
-        switch deletion {
-        case .parakeet(let variant):
-            viewModel.deleteParakeetVariant(variant)
-        case .nemotron(let variant):
-            viewModel.deleteNemotronVariant(variant)
-        case .whisper:
-            viewModel.deleteWhisperModel()
-        }
         pendingModelDeletion = nil
+        Task { @MainActor in
+            let availability = await viewModel.engine.refreshSpeechEngineSwitchAvailabilityNow()
+            guard availability == .available else {
+                viewModel.engine.speechEngineError =
+                    EngineSettingsViewModel.speechEngineSwitchUnavailableMessage(for: availability)
+                return
+            }
+            switch deletion {
+            case .parakeet(let variant):
+                viewModel.engine.deleteParakeetVariant(variant)
+            case .nemotron(let variant):
+                viewModel.engine.deleteNemotronVariant(variant)
+            case .whisper:
+                viewModel.engine.deleteWhisperModel()
+            case .cohere:
+                viewModel.engine.deleteCohereModel()
+            }
+        }
     }
 
     private var speechEngineSwitchConfirmationTitle: String {
-        guard let engine = viewModel.pendingSpeechEngineSwitchConfirmation else {
+        guard let engine = viewModel.engine.pendingSpeechEngineSwitchConfirmation else {
             return "Switch speech engine?"
         }
         return "Switch to \(engine.displayName)?"
@@ -558,14 +614,16 @@ struct SettingsView: View {
     private func speechEngineSwitchConfirmationMessage(for engine: SpeechEnginePreference) -> String {
         switch engine {
         case .nemotron:
-            return "Nemotron is a Beta engine. It may take a moment to download or load, and transcript quality can vary while benchmarks are in progress. Dictation, file transcription, and meetings pause until the switch finishes."
+            return "Nemotron is a Beta streaming engine. It can improve live preview responsiveness, but quality varies by language and audio. Dictation, file transcription, and meetings pause until the switch finishes."
         case .whisper:
-            if viewModel.whisperHasBeenOptimized {
+            if viewModel.engine.whisperHasBeenOptimized {
                 return "Whisper may take a moment to load. Dictation, file transcription, and meetings pause until the switch finishes."
             }
             return "Preparing Whisper can take several minutes the first time while Core ML optimizes it for this Mac. Dictation, file transcription, and meetings pause until the switch finishes."
         case .parakeet:
             return "Switching back to Parakeet reloads the speech engine. Dictation, file transcription, and meetings pause until the switch finishes."
+        case .cohere:
+            return "Cohere is a local batch engine. It records first and transcribes after you stop, with no live preview, word timestamps, speaker labels, or auto language detection. Dictation, file transcription, and meetings pause until the switch finishes."
         }
     }
 
@@ -594,6 +652,22 @@ struct SettingsView: View {
             onboardingCard.id("system.onboarding")
             aboutCard.id("system.about")
             resetCleanupCard.id("system.reset")
+        }
+        .alert(
+            "Remove meeting audio automatically?",
+            isPresented: Binding(
+                get: { pendingMeetingAudioRetention != nil },
+                set: { if !$0 { pendingMeetingAudioRetention = nil } }
+            ),
+            presenting: pendingMeetingAudioRetention
+        ) { pending in
+            Button("Cancel", role: .cancel) { pendingMeetingAudioRetention = nil }
+            Button("Enable Auto-Removal", role: .destructive) {
+                viewModel.confirmMeetingAudioRetentionChange(pending.retention)
+                pendingMeetingAudioRetention = nil
+            }
+        } message: { pending in
+            Text(meetingAudioRetentionConfirmationMessage(for: pending.retention))
         }
     }
 
@@ -640,19 +714,29 @@ struct SettingsView: View {
             subtitle: "Choose how MacParakeet looks across app windows.",
             icon: "circle.lefthalf.filled"
         ) {
-            SettingsRow(
-                title: "Theme",
-                detail: viewModel.appAppearanceMode.detail
-            ) {
-                Picker("Theme", selection: $viewModel.appAppearanceMode) {
-                    ForEach(AppAppearanceMode.allCases, id: \.self) { mode in
-                        Text(mode.displayTitle).tag(mode)
+            VStack(spacing: DesignSystem.Spacing.md) {
+                SettingsRow(
+                    title: "Theme",
+                    detail: viewModel.appAppearanceMode.detail
+                ) {
+                    Picker("Theme", selection: $viewModel.appAppearanceMode) {
+                        ForEach(AppAppearanceMode.allCases, id: \.self) { mode in
+                            Text(mode.displayTitle).tag(mode)
+                        }
                     }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(width: 260)
+                    .accessibilityHint("Choose whether MacParakeet follows macOS or uses a fixed light or dark appearance.")
                 }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .frame(width: 260)
-                .accessibilityHint("Choose whether MacParakeet follows macOS or uses a fixed light or dark appearance.")
+
+                Divider()
+
+                settingsToggleRow(
+                    title: "Show Discover in the sidebar",
+                    detail: "When off, the Discover card is hidden and its feed is not requested.",
+                    isOn: $viewModel.showDiscover
+                )
             }
         }
     }
@@ -705,6 +789,10 @@ struct SettingsView: View {
                 Spacer(minLength: DesignSystem.Spacing.md)
 
                 HStack(spacing: DesignSystem.Spacing.sm) {
+                    if !viewModel.microphoneGranted {
+                        microphonePermissionActionButton
+                    }
+
                     Picker("Microphone", selection: $viewModel.selectedMicrophoneDeviceUID) {
                         Text("System Default").tag(SettingsViewModel.systemDefaultMicrophoneSelection)
                         ForEach(viewModel.microphoneDeviceOptions) { device in
@@ -843,7 +931,11 @@ struct SettingsView: View {
     private var microphoneTestDetail: String {
         switch viewModel.microphoneTestState {
         case .idle:
-            return viewModel.microphoneGranted ? "Run a short level check before recording." : "Grant microphone permission before testing."
+            return viewModel.microphoneGranted
+                ? "Run a short level check before recording."
+                : viewModel.microphoneStatus == .notDetermined
+                    ? "Grant microphone access to test input. File transcription does not need it."
+                    : "Open System Settings → Privacy & Security → Microphone, then try again."
         case .testing:
             return "Speak into the selected microphone."
         case .succeeded:
@@ -918,15 +1010,37 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
+                    title: "Hide menu bar icon",
+                    detail: "Remove MacParakeet from the menu bar. The Dock icon stays available.",
+                    isOn: Binding(
+                        get: { !viewModel.showMenuBarIcon },
+                        set: { viewModel.setMenuBarIconHidden($0) }
+                    )
+                )
+
+                Divider()
+
+                settingsToggleRow(
                     title: "Menu bar only mode",
                     detail: "Hide the Dock icon and run from the menu bar only.",
-                    isOn: $viewModel.menuBarOnlyMode
+                    isOn: Binding(
+                        get: { viewModel.menuBarOnlyMode },
+                        set: { viewModel.setMenuBarOnlyMode($0) }
+                    )
                 )
             }
         }
     }
 
     // MARK: - Dictation
+
+    private var liveDictationPreviewDetail: String {
+        if viewModel.engine.speechEnginePreference == .cohere {
+            return "Cohere is batch-only, so preview stays off until transcription finishes."
+        }
+
+        return "Shows a running transcript above the dictation pill as you speak. Parakeet and Nemotron support preview; Whisper is final-transcription only."
+    }
 
     private var dictationCard: some View {
         settingsCard(
@@ -1005,26 +1119,8 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
-                    title: "Pause media while dictating",
-                    detail: "Pauses playing media during dictation and resumes it when capture stops. On speakers, a moment of media sound can reach the mic before the pause lands — speak as you press, or use headphones.",
-                    isBeta: true,
-                    isOn: $viewModel.pauseMediaDuringDictation
-                )
-
-                Divider()
-
-                settingsToggleRow(
-                    title: "Instant dictation",
-                    detail: "Keeps dictation ready so it starts faster and is less likely to miss your first words. macOS will show the microphone indicator while this is on. Pauses automatically while a Bluetooth mic such as AirPods is selected, so playback stays high quality.",
-                    isBeta: true,
-                    isOn: $viewModel.instantDictationEnabled
-                )
-
-                Divider()
-
-                settingsToggleRow(
                     title: "Live transcript preview",
-                    detail: "Shows a running transcript above the dictation pill as you speak. Works with the Parakeet and Nemotron engines; not yet available with Whisper.",
+                    detail: liveDictationPreviewDetail,
                     isBeta: true,
                     // Animate via the binding so only this toggle's state change
                     // animates the sub-row reveal/reflow — not a blanket
@@ -1050,6 +1146,31 @@ struct SettingsView: View {
                         .frame(width: 200)
                     }
                 }
+
+                Divider()
+                HStack(alignment: .center) {
+                    rowText(
+                        title: "Undo window",
+                        detail: "How long cancel waits before discarding a dictation."
+                    )
+                    Spacer(minLength: DesignSystem.Spacing.md)
+                    Picker("Undo window", selection: $viewModel.dictationUndoCountdown) {
+                        ForEach(DictationUndoCountdown.allCases, id: \.self) { countdown in
+                            Text(countdown.displayTitle).tag(countdown)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(width: 200)
+                }
+
+                Divider()
+
+                settingsToggleRow(
+                    title: "Preserve discarded dictations",
+                    detail: "When you cancel or the undo window expires, keep the transcript in History instead of deleting it. Audio follows Save audio recordings. Off by default. Requires Save dictation history. Nothing is pasted.",
+                    isOn: $viewModel.preserveDiscardedDictations
+                )
 
                 Divider()
 
@@ -1083,9 +1204,35 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
+                    title: "Instant dictation",
+                    detail: "Keeps the mic ready so dictation starts faster and catches your first words; macOS shows the mic indicator while it's on. Pauses for Bluetooth mics like AirPods to protect playback quality.",
+                    isBeta: true,
+                    isOn: $viewModel.instantDictationEnabled
+                )
+
+                Divider()
+
+                settingsToggleRow(
+                    title: "Pause media while dictating",
+                    detail: "Pauses playing media during dictation and resumes it when capture stops. On speakers, a moment of media sound can reach the mic before the pause lands — speak as you press, or use headphones.",
+                    isBeta: true,
+                    isOn: $viewModel.pauseMediaDuringDictation
+                )
+
+                Divider()
+
+                settingsToggleRow(
                     title: "Keep dictation on clipboard",
                     detail: "Leaves the same text MacParakeet pastes on the clipboard, useful when remote desktops need a manual ⌘V.",
                     isOn: $viewModel.keepDictationOnClipboard
+                )
+
+                Divider()
+
+                settingsToggleRow(
+                    title: "Streaming cursor",
+                    detail: "Types the finished transcript into the app with a fast caret. Off keeps instant paste. Reduce Motion always pastes. ⌘Z may undo in pieces. Multi-line results still paste.",
+                    isOn: $viewModel.dictationStreamingCursorEnabled
                 )
             }
         }
@@ -1125,6 +1272,31 @@ struct SettingsView: View {
 
                 Divider()
 
+                settingsToggleRow(
+                    title: "Show floating meeting controls",
+                    detail: "Shows the small recording pill while a meeting is active. Turn this off to control recording from the menu bar, hotkey, or Meetings tab.",
+                    isOn: $viewModel.showMeetingRecordingPill
+                )
+
+                Divider()
+
+                settingsToggleRow(
+                    title: "Open app when meeting ends",
+                    detail: "Brings MacParakeet forward showing the transcript when a recording finishes. Turn this off to keep working — the meeting saves to your library in the background.",
+                    isOn: $viewModel.openAppAfterMeetingEnd
+                )
+
+                Divider()
+
+                settingsToggleRow(
+                    title: "Notify when transcript is ready",
+                    detail: "Plays a chime and shows a notification when a meeting finishes transcribing in the background. Applies when the app isn't set to open automatically.",
+                    isOn: $viewModel.notifyOnMeetingEnd
+                )
+                .disabled(viewModel.openAppAfterMeetingEnd)
+
+                Divider()
+
                 HStack(alignment: .center) {
                     rowText(
                         title: "Audio sources",
@@ -1141,14 +1313,71 @@ struct SettingsView: View {
                     .frame(minWidth: 220, idealWidth: 260, maxWidth: 320)
                 }
 
-                if AppFeatures.meetingAutoStopEnabled {
+                Divider()
+
+                settingsToggleRow(
+                    title: "Start meetings muted",
+                    detail: "Begin recording with your microphone off. Unmute from the meeting panel when you want to speak. System-audio-only capture ignores this. Changes apply to your next recording.",
+                    isOn: $viewModel.startMeetingsMuted
+                )
+                .disabled(!viewModel.meetingAudioSourceMode.capturesMicrophone)
+
+                Divider()
+
+                settingsToggleRow(
+                    title: "Live transcription during recording",
+                    detail: "Show a transcript as you record. Turn off to reduce processing during meetings; "
+                        + "the full transcript is still created after you stop. Changes apply to your next recording.",
+                    isOn: $viewModel.meetingLiveTranscriptionEnabled
+                )
+
+                Divider()
+
+                settingsToggleRow(
+                    title: "Speaker detection",
+                    detail: "Split captured system audio into other speakers after recording when audio is clear.",
+                    isOn: $viewModel.meetingSpeakerDiarization
+                )
+
+                // The toggle is gated twice over — the feature must be
+                // available, and speaker detection on, since without clusters
+                // there is nothing to remember.
+                if AppFeatures.isVoiceProfilesAvailable(), viewModel.meetingSpeakerDiarization {
+                    rememberSpeakersRow
+                }
+
+                // The management row answers to the flag *or* to voices being
+                // stored. A build where the flag is off can still be sitting on
+                // voices enrolled while it was on — a DEBUG session with
+                // `--enable-voice-profiles`, then a normal launch — and
+                // biometric data with no way to delete it is the one outcome
+                // this feature must never produce. Someone with neither sees no
+                // administration row for a feature they do not have.
+                if AppFeatures.isVoiceProfilesAvailable()
+                    || voiceProfilesViewModel.hasEnrolledVoices
+                {
+                    voiceProfilesManagementRow
+                }
+
+                Divider()
+
+                settingsToggleRow(
+                    title: "Also save meetings to a folder",
+                    detail: "MacParakeet keeps the complete meeting in its managed storage. Turn this on to also save the selected format to a folder you choose.",
+                    isOn: $viewModel.meetingAutoSave
+                )
+
+                if viewModel.meetingAutoSave {
+                    meetingAutoSaveOptionsView
+                }
+
+                // Start (calendar) and stop (activity) automation are grouped
+                // under one subsection so they read as the two ends of the
+                // recording lifecycle. Either flag alone still shows the group.
+                if AppFeatures.calendarEnabled || AppFeatures.meetingAutoStopEnabled {
                     Divider()
 
-                    settingsToggleRow(
-                        title: "Auto-stop ended meetings",
-                        detail: "Offer to stop after a meeting app closes or both channels stay quiet. You can keep recording before anything stops.",
-                        isOn: $viewModel.meetingAutoStopEnabled
-                    )
+                    meetingAutomationSection
                 }
 
                 if viewModel.pendingMeetingRecoveryCount > 0 {
@@ -1168,70 +1397,185 @@ struct SettingsView: View {
                         .parakeetAction(.secondary)
                     }
                 }
-
-                Divider()
-
-                settingsToggleRow(
-                    title: "Auto-save meetings to disk",
-                    detail: "Automatically write a file to the chosen folder after every meeting recording completes.",
-                    isOn: $viewModel.meetingAutoSave
-                )
-
-                if viewModel.meetingAutoSave {
-                    meetingAutoSaveOptionsView
-                }
-
-                if AppFeatures.calendarEnabled {
-                    Divider()
-
-                    // Calendar section folded in from the legacy standalone
-                    // `calendarCard`. Calendar is meeting-only — folding it
-                    // here removes a card without losing any controls.
-                    meetingCalendarSection
-                }
             }
+        }
+        // On the card, never on the row above: that row is conditional on what
+        // this load finds, so loading from there would leave it hidden forever
+        // for exactly the people it exists to serve.
+        .task {
+            await voiceProfilesViewModel.load()
         }
     }
 
     /// Header status chip for the Meeting Recording card. Surfaces the
-    /// screen-recording-permission state since system audio capture is
-    /// gated on it.
+    /// screen-recording-permission state only when the selected meeting source
+    /// mode captures system audio.
     private var meetingRecordingCardStatus: SettingsCardStatus? {
         SettingsStatusRules.meetingRecordingCardStatus(
             meetingRecordingEnabled: AppFeatures.meetingRecordingEnabled,
-            screenRecordingGranted: viewModel.screenRecordingGranted
+            screenRecordingGranted: viewModel.screenRecordingGranted,
+            meetingAudioSourceMode: viewModel.meetingAudioSourceMode
         )
     }
 
-    /// Calendar auto-start controls, rendered inline within the Meeting
-    /// Recording card after the auto-save section. Visually demoted to a
-    /// section heading so it reads as part of meeting setup.
-    private var meetingCalendarSection: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+    /// Automatic-recording controls grouped under one subsection: the
+    /// calendar-driven "Start recording automatically" half (ADR-017) and the
+    /// activity-driven "Stop recording automatically" half (ADR-023). They read
+    /// as the two ends of the recording lifecycle but use different signals on
+    /// purpose — calendar *start* times are reliable, *end* times are not, so
+    /// stop keys off meeting-end activity (app quit + dual-channel silence)
+    /// instead. Each flag is independent; either alone still renders the group.
+    private var meetingAutomationSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
             HStack(spacing: 6) {
-                Image(systemName: "calendar")
+                Image(systemName: "clock.arrow.circlepath")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
-                Text("Calendar auto-start")
+                Text("Automatic recording")
                     .font(DesignSystem.Typography.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
             }
 
-            CalendarSettingsView(viewModel: viewModel)
+            if AppFeatures.calendarEnabled {
+                CalendarSettingsView(viewModel: viewModel)
+            }
+
+            if AppFeatures.meetingAutoStopEnabled {
+                if AppFeatures.calendarEnabled {
+                    Divider()
+                }
+
+                settingsToggleRow(
+                    title: "Stop recording automatically",
+                    detail: "Stop after a meeting app quits, or both channels stay quiet for a few minutes. A countdown lets you keep recording first.",
+                    isBeta: true,
+                    isOn: $viewModel.meetingAutoStopEnabled
+                )
+            }
+        }
+    }
+
+    /// The switch reports intent rather than owning the value: turning it on
+    /// has to pass through consent, so the view model decides whether the
+    /// preference actually moves.
+    private var rememberSpeakersRow: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            Divider()
+
+            settingsToggleRow(
+                title: "Remember speakers",
+                detail: "Suggest a name in later meetings once you have named someone. Suggestions always need your confirmation, and voice samples never leave this Mac.",
+                isBeta: true,
+                isOn: Binding(
+                    get: { viewModel.rememberSpeakers },
+                    set: { viewModel.requestRememberSpeakers($0) }
+                )
+            )
+
+            if viewModel.rememberSpeakers, let acknowledgedAt = viewModel.voiceprintConsentAcknowledgedAt {
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    Text("Permission confirmed \(acknowledgedAt.formatted(date: .abbreviated, time: .shortened)).")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Withdraw") { viewModel.withdrawVoiceprintConsent() }
+                        .parakeetAction(.secondary)
+                }
+            }
+
+        }
+        .sheet(isPresented: $viewModel.isRequestingVoiceprintConsent) {
+            VoiceProfileConsentSheet(viewModel: viewModel)
+        }
+    }
+
+    /// Outside every preference check. Voices stored before the user turned
+    /// anything off are still on disk, and this is the only screen that can
+    /// show or remove one of them.
+    private var voiceProfilesManagementRow: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            Divider()
+
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                rowText(
+                    title: "Voice profiles",
+                    detail: "See and delete the voices saved on this Mac."
+                )
+                Spacer(minLength: DesignSystem.Spacing.md)
+                Button("Manage…") { showVoiceProfiles = true }
+                    .parakeetAction(.secondary)
+            }
+        }
+        // Cleared on dismissal: the view model is shared with the Reset &
+        // Cleanup card, so a rename failure raised inside the sheet would
+        // otherwise reappear under "Delete data", attributed to a destructive
+        // action the user never took.
+        .sheet(isPresented: $showVoiceProfiles, onDismiss: { voiceProfilesViewModel.clearError() }) {
+            VoiceProfilesSheet(viewModel: voiceProfilesViewModel)
         }
     }
 
     private var meetingAutoSaveOptionsView: some View {
-        autoSaveOptions(
-            format: $viewModel.meetingAutoSaveFormat,
-            folderPath: viewModel.meetingAutoSaveFolderPath,
-            formatDetail: "File format for saved meetings.",
-            panelMessage: "Select a folder for auto-saved meeting recordings",
-            resetHelp: "Reset to the default folder (~/Documents/MacParakeet/Meetings)",
-            onChooseFolder: { viewModel.chooseMeetingAutoSaveFolder(url: $0) },
-            onResetFolder: { viewModel.resetMeetingAutoSaveFolder() }
-        )
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            Text("Complete meeting artifacts—including transcript, notes, metadata, prompt results, and retained audio—stay in \(meetingArtifactsDisplayPath). The selected format is also saved to the folder below after each meeting.")
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            autoSaveOptions(
+                format: $viewModel.meetingAutoSaveFormat,
+                folderPath: viewModel.meetingAutoSaveFolderPath,
+                formatDetail: "File format also saved to the selected folder.",
+                panelMessage: "Select a folder for auto-saved meetings",
+                resetHelp: "Reset to the default folder (~/Documents/MacParakeet/Meetings)",
+                warning: viewModel.meetingAutoSaveFolderWarning,
+                onChooseFolder: { url in
+                    Task { await viewModel.chooseMeetingAutoSaveFolder(url: url) }
+                },
+                onResetFolder: {
+                    Task { await viewModel.resetMeetingAutoSaveFolder() }
+                }
+            )
+
+            if viewModel.meetingAutoSaveFormat == .txt || viewModel.meetingAutoSaveFormat == .md {
+                VStack(spacing: DesignSystem.Spacing.sm) {
+                    settingsToggleRow(
+                        title: "Include timestamps",
+                        detail: "Add one timestamp at the start of each reading paragraph.",
+                        isOn: $viewModel.meetingAutoSaveIncludeTimestamps
+                    )
+
+                    Divider()
+
+                    settingsToggleRow(
+                        title: "Include speaker labels",
+                        detail: "Show speaker names when meeting speaker information is available.",
+                        isOn: $viewModel.meetingAutoSaveIncludeSpeakerLabels
+                    )
+
+                    Divider()
+
+                    settingsToggleRow(
+                        title: "Include meeting details",
+                        detail: "Add the title, duration, and other available transcript details.",
+                        isOn: $viewModel.meetingAutoSaveIncludeMetadata
+                    )
+                }
+                .padding(DesignSystem.Spacing.sm)
+                .background(
+                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                        .fill(DesignSystem.Colors.surfaceElevated)
+                )
+            }
+        }
+        .task {
+            await viewModel.refreshMeetingAutoSaveFolderStatus()
+        }
+    }
+
+    private var meetingArtifactsDisplayPath: String {
+        (AppPaths.meetingRecordingsDir as NSString).abbreviatingWithTildeInPath
     }
 
     private var transcriptionCard: some View {
@@ -1244,9 +1588,8 @@ struct SettingsView: View {
                 transcriptionHotkeyRow(
                     title: "File transcription hotkey",
                     detail: "Opens the file picker from anywhere on macOS.",
-                    trigger: $viewModel.fileTranscriptionHotkeyTrigger,
-                    otherTranscriptionTrigger: viewModel.youtubeTranscriptionHotkeyTrigger,
-                    otherTranscriptionName: "video URL transcription"
+                    surface: .fileTranscription,
+                    trigger: $viewModel.fileTranscriptionHotkeyTrigger
                 )
 
                 Divider()
@@ -1254,9 +1597,8 @@ struct SettingsView: View {
                 transcriptionHotkeyRow(
                     title: "Video URL transcription hotkey",
                     detail: "Opens the video URL panel from anywhere on macOS.",
-                    trigger: $viewModel.youtubeTranscriptionHotkeyTrigger,
-                    otherTranscriptionTrigger: viewModel.fileTranscriptionHotkeyTrigger,
-                    otherTranscriptionName: "file transcription"
+                    surface: .youtubeTranscription,
+                    trigger: $viewModel.youtubeTranscriptionHotkeyTrigger
                 )
 
                 Divider()
@@ -1281,7 +1623,7 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Speaker detection",
-                    detail: "Optional. Adds speaker labels when audio is clear; leave off if labels are unreliable.",
+                    detail: "Add speaker labels to file and URL transcriptions when audio is clear.",
                     isOn: $viewModel.speakerDiarization
                 )
 
@@ -1312,12 +1654,23 @@ struct SettingsView: View {
     /// warning when the trigger collides with dictation, meeting, or the
     /// other transcription hotkey. Default trigger is `.disabled` — users opt
     /// in by recording a key.
+    private var hotkeyConflictSnapshot: HotkeyConflictPolicy.SettingsSnapshot {
+        HotkeyConflictPolicy.SettingsSnapshot(
+            handsFree: viewModel.hotkeyTrigger,
+            pushToTalk: viewModel.pushToTalkHotkeyTrigger,
+            meeting: viewModel.meetingHotkeyTrigger,
+            fileTranscription: viewModel.fileTranscriptionHotkeyTrigger,
+            youtubeTranscription: viewModel.youtubeTranscriptionHotkeyTrigger,
+            transformHotkeys: transformHotkeys,
+            meetingRecordingEnabled: AppFeatures.meetingRecordingEnabled
+        )
+    }
+
     private func transcriptionHotkeyRow(
         title: String,
         detail: String,
-        trigger: Binding<HotkeyTrigger>,
-        otherTranscriptionTrigger: HotkeyTrigger,
-        otherTranscriptionName: String
+        surface: HotkeyConflictPolicy.Surface,
+        trigger: Binding<HotkeyTrigger>
     ) -> some View {
         HStack(alignment: .center) {
             rowText(title: title, detail: detail)
@@ -1327,50 +1680,16 @@ struct SettingsView: View {
                     trigger: trigger,
                     defaultTrigger: .disabled,
                     additionalValidation: { candidate in
-                        guard !candidate.isDisabled else { return .allowed }
-                        if candidate.conflicts(with: viewModel.hotkeyTrigger, otherMode: .bareModifierDictation) {
-                            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                                conflictingWith: "hands-free mode",
-                                trigger: viewModel.hotkeyTrigger
-                            ))
-                        }
-                        if candidate.conflicts(
-                            with: viewModel.pushToTalkHotkeyTrigger,
-                            otherMode: .bareModifierDictation
-                        ) {
-                            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                                conflictingWith: "push to talk",
-                                trigger: viewModel.pushToTalkHotkeyTrigger
-                            ))
-                        }
-                        if AppFeatures.meetingRecordingEnabled, candidate.overlaps(with: viewModel.meetingHotkeyTrigger) {
-                            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                                conflictingWith: "meeting recording",
-                                trigger: viewModel.meetingHotkeyTrigger
-                            ))
-                        }
-                        if candidate.overlaps(with: otherTranscriptionTrigger) {
-                            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                                conflictingWith: otherTranscriptionName,
-                                trigger: otherTranscriptionTrigger
-                            ))
-                        }
-                        if let conflict = transformHotkeyConflict(for: candidate) {
-                            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                                conflictingWith: conflict.name,
-                                trigger: conflict.trigger
-                            ))
-                        }
-                        return .allowed
+                        HotkeyConflictPolicy.settingsValidation(
+                            candidate: candidate,
+                            surface: surface,
+                            snapshot: hotkeyConflictSnapshot
+                        )
                     },
                     onRecordingStateChanged: onHotkeyRecordingStateChanged
                 )
 
-                if let conflict = conflictMessage(
-                    trigger: trigger.wrappedValue,
-                    otherTranscription: otherTranscriptionTrigger,
-                    otherTranscriptionName: otherTranscriptionName
-                ) {
+                if let conflict = conflictMessage(trigger: trigger.wrappedValue, surface: surface) {
                     transcriptionHotkeyConflictText(conflict)
                 }
             }
@@ -1379,280 +1698,61 @@ struct SettingsView: View {
 
     private func conflictMessage(
         trigger: HotkeyTrigger,
-        otherTranscription: HotkeyTrigger,
-        otherTranscriptionName: String
+        surface: HotkeyConflictPolicy.Surface
     ) -> String? {
-        guard !trigger.isDisabled else { return nil }
-        if trigger.conflicts(with: viewModel.hotkeyTrigger, otherMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "hands-free mode",
-                trigger: viewModel.hotkeyTrigger
-            )
-        }
-        if trigger.conflicts(with: viewModel.pushToTalkHotkeyTrigger, otherMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "push to talk",
-                trigger: viewModel.pushToTalkHotkeyTrigger
-            )
-        }
-        if AppFeatures.meetingRecordingEnabled, trigger.overlaps(with: viewModel.meetingHotkeyTrigger) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "meeting recording",
-                trigger: viewModel.meetingHotkeyTrigger
-            )
-        }
-        if trigger.overlaps(with: otherTranscription) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: otherTranscriptionName,
-                trigger: otherTranscription
-            )
-        }
-        if let conflict = transformHotkeyConflict(for: trigger) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: conflict.name,
-                trigger: conflict.trigger
-            )
-        }
-        return nil
+        HotkeyConflictPolicy.settingsConflictMessage(
+            for: trigger,
+            surface: surface,
+            snapshot: hotkeyConflictSnapshot
+        )
     }
 
     private func dictationHotkeyValidation(for candidate: HotkeyTrigger) -> HotkeyTrigger.ValidationResult {
-        guard !candidate.isDisabled else { return .allowed }
-        if let result = SettingsDictationHotkeyConflictPolicy.validation(
+        HotkeyConflictPolicy.settingsValidation(
             candidate: candidate,
-            peer: viewModel.pushToTalkHotkeyTrigger,
-            peerName: "push to talk"
-        ) {
-            return result
-        }
-        if AppFeatures.meetingRecordingEnabled,
-           candidate.conflicts(with: viewModel.meetingHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "meeting recording",
-                trigger: viewModel.meetingHotkeyTrigger
-            ))
-        }
-        if candidate.conflicts(with: viewModel.fileTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "file transcription",
-                trigger: viewModel.fileTranscriptionHotkeyTrigger
-            ))
-        }
-        if candidate.conflicts(with: viewModel.youtubeTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "video URL transcription",
-                trigger: viewModel.youtubeTranscriptionHotkeyTrigger
-            ))
-        }
-        if let conflict = transformHotkeyConflict(for: candidate, triggerMode: .bareModifierDictation) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: conflict.name,
-                trigger: conflict.trigger
-            ))
-        }
-        return .allowed
+            surface: .handsFreeDictation,
+            snapshot: hotkeyConflictSnapshot
+        )
     }
 
     private func pushToTalkHotkeyValidation(for candidate: HotkeyTrigger) -> HotkeyTrigger.ValidationResult {
-        guard !candidate.isDisabled else { return .allowed }
-        if let result = SettingsDictationHotkeyConflictPolicy.validation(
+        HotkeyConflictPolicy.settingsValidation(
             candidate: candidate,
-            peer: viewModel.hotkeyTrigger,
-            peerName: "hands-free mode"
-        ) {
-            return result
-        }
-        if AppFeatures.meetingRecordingEnabled,
-           candidate.conflicts(with: viewModel.meetingHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "meeting recording",
-                trigger: viewModel.meetingHotkeyTrigger
-            ))
-        }
-        if candidate.conflicts(with: viewModel.fileTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "file transcription",
-                trigger: viewModel.fileTranscriptionHotkeyTrigger
-            ))
-        }
-        if candidate.conflicts(with: viewModel.youtubeTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "video URL transcription",
-                trigger: viewModel.youtubeTranscriptionHotkeyTrigger
-            ))
-        }
-        if let conflict = transformHotkeyConflict(for: candidate, triggerMode: .bareModifierDictation) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: conflict.name,
-                trigger: conflict.trigger
-            ))
-        }
-        return .allowed
+            surface: .pushToTalk,
+            snapshot: hotkeyConflictSnapshot
+        )
     }
 
     private func meetingHotkeyValidation(for candidate: HotkeyTrigger) -> HotkeyTrigger.ValidationResult {
-        guard !candidate.isDisabled else { return .allowed }
-        if candidate.conflicts(with: viewModel.hotkeyTrigger, otherMode: .bareModifierDictation) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "hands-free mode",
-                trigger: viewModel.hotkeyTrigger
-            ))
-        }
-        if candidate.conflicts(
-            with: viewModel.pushToTalkHotkeyTrigger,
-            otherMode: .bareModifierDictation
-        ) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "push to talk",
-                trigger: viewModel.pushToTalkHotkeyTrigger
-            ))
-        }
-        if candidate.overlaps(with: viewModel.fileTranscriptionHotkeyTrigger) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "file transcription",
-                trigger: viewModel.fileTranscriptionHotkeyTrigger
-            ))
-        }
-        if candidate.overlaps(with: viewModel.youtubeTranscriptionHotkeyTrigger) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "video URL transcription",
-                trigger: viewModel.youtubeTranscriptionHotkeyTrigger
-            ))
-        }
-        if let conflict = transformHotkeyConflict(for: candidate) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: conflict.name,
-                trigger: conflict.trigger
-            ))
-        }
-        return .allowed
+        HotkeyConflictPolicy.settingsValidation(
+            candidate: candidate,
+            surface: .meetingRecording,
+            snapshot: hotkeyConflictSnapshot
+        )
     }
 
     private func dictationHotkeyConflictMessage(for trigger: HotkeyTrigger) -> String? {
-        guard !trigger.isDisabled else { return nil }
-        if let conflict = SettingsDictationHotkeyConflictPolicy.existingConflictMessage(
-            trigger: trigger,
-            peer: viewModel.pushToTalkHotkeyTrigger,
-            peerName: "push to talk",
-            disablesTrigger: false
-        ) {
-            return conflict
-        }
-        if AppFeatures.meetingRecordingEnabled,
-           trigger.conflicts(with: viewModel.meetingHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "meeting recording",
-                trigger: viewModel.meetingHotkeyTrigger
-            )
-        }
-        if trigger.conflicts(with: viewModel.fileTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "file transcription",
-                trigger: viewModel.fileTranscriptionHotkeyTrigger
-            )
-        }
-        if trigger.conflicts(with: viewModel.youtubeTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "video URL transcription",
-                trigger: viewModel.youtubeTranscriptionHotkeyTrigger
-            )
-        }
-        if let conflict = transformHotkeyConflict(for: trigger, triggerMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: conflict.name,
-                trigger: conflict.trigger
-            )
-        }
-        return nil
+        HotkeyConflictPolicy.settingsConflictMessage(
+            for: trigger,
+            surface: .handsFreeDictation,
+            snapshot: hotkeyConflictSnapshot
+        )
     }
 
     private func pushToTalkHotkeyConflictMessage(for trigger: HotkeyTrigger) -> String? {
-        guard !trigger.isDisabled else { return nil }
-        if let conflict = SettingsDictationHotkeyConflictPolicy.existingConflictMessage(
-            trigger: trigger,
-            peer: viewModel.hotkeyTrigger,
-            peerName: "hands-free mode",
-            disablesTrigger: true
-        ) {
-            return conflict
-        }
-        if AppFeatures.meetingRecordingEnabled,
-           trigger.conflicts(with: viewModel.meetingHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "meeting recording",
-                trigger: viewModel.meetingHotkeyTrigger
-            )
-        }
-        if trigger.conflicts(with: viewModel.fileTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "file transcription",
-                trigger: viewModel.fileTranscriptionHotkeyTrigger
-            )
-        }
-        if trigger.conflicts(with: viewModel.youtubeTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "video URL transcription",
-                trigger: viewModel.youtubeTranscriptionHotkeyTrigger
-            )
-        }
-        if let conflict = transformHotkeyConflict(for: trigger, triggerMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: conflict.name,
-                trigger: conflict.trigger
-            )
-        }
-        return nil
+        HotkeyConflictPolicy.settingsConflictMessage(
+            for: trigger,
+            surface: .pushToTalk,
+            snapshot: hotkeyConflictSnapshot
+        )
     }
 
     private func meetingHotkeyConflictMessage(for trigger: HotkeyTrigger) -> String? {
-        guard !trigger.isDisabled else { return nil }
-        if trigger.conflicts(with: viewModel.hotkeyTrigger, otherMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "hands-free mode",
-                trigger: viewModel.hotkeyTrigger
-            )
-        }
-        if trigger.conflicts(with: viewModel.pushToTalkHotkeyTrigger, otherMode: .bareModifierDictation) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "push to talk",
-                trigger: viewModel.pushToTalkHotkeyTrigger
-            )
-        }
-        if trigger.overlaps(with: viewModel.fileTranscriptionHotkeyTrigger) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "file transcription",
-                trigger: viewModel.fileTranscriptionHotkeyTrigger
-            )
-        }
-        if trigger.overlaps(with: viewModel.youtubeTranscriptionHotkeyTrigger) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "video URL transcription",
-                trigger: viewModel.youtubeTranscriptionHotkeyTrigger
-            )
-        }
-        if let conflict = transformHotkeyConflict(for: trigger) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: conflict.name,
-                trigger: conflict.trigger
-            )
-        }
-        return nil
-    }
-
-    private func transformHotkeyConflict(
-        for trigger: HotkeyTrigger,
-        triggerMode: HotkeyTrigger.ConflictMode = .exclusive
-    ) -> (name: String, trigger: HotkeyTrigger)? {
-        guard !trigger.isDisabled else { return nil }
-        for transform in transformHotkeys {
-            guard let shortcut = transform.shortcut else { continue }
-            let transformTrigger = shortcut.hotkeyTrigger
-            guard !transformTrigger.isDisabled else { continue }
-            if trigger.conflicts(with: transformTrigger, selfMode: triggerMode) {
-                return ("Transform \(transform.name)", transformTrigger)
-            }
-        }
-        return nil
+        HotkeyConflictPolicy.settingsConflictMessage(
+            for: trigger,
+            surface: .meetingRecording,
+            snapshot: hotkeyConflictSnapshot
+        )
     }
 
     private func transcriptionHotkeyConflictText(_ message: String) -> some View {
@@ -1693,6 +1793,7 @@ struct SettingsView: View {
         formatDetail: String,
         panelMessage: String,
         resetHelp: String,
+        warning: String? = nil,
         onChooseFolder: @escaping (URL) -> Void,
         onResetFolder: @escaping () -> Void
     ) -> some View {
@@ -1736,6 +1837,20 @@ struct SettingsView: View {
                 }
                 .parakeetAction(.secondary)
             }
+
+            if let warning {
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(DesignSystem.Colors.warningAmber)
+                        .padding(.top, 1)
+                    Text(warning)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                }
+            }
         }
         .padding(DesignSystem.Spacing.sm)
         .background(
@@ -1770,19 +1885,17 @@ struct SettingsView: View {
         }
     }
 
-    /// AI tab is opt-in, so this never returns `.required`. We only show
-    /// signal when there is something actionable: yellow when the last
-    /// connection test failed, green when a saved setup exists and nothing is
-    /// currently broken. Silent in the not-yet-configured state because the
-    /// card body already explains the empty case.
+    /// Reflect the same saved-versus-draft status as the AI settings body.
+    /// AI remains opt-in, so a missing configuration is never required.
     private var aiProviderCardStatus: SettingsCardStatus? {
-        if case .error = llmSettingsViewModel.connectionTestState {
+        switch llmSettingsViewModel.setupStatus {
+        case .cannotConnect:
             return SettingsCardStatus(.recommended, label: "Last test failed")
-        }
-        if llmSettingsViewModel.isConfigured {
+        case .ready:
             return SettingsCardStatus(.ok, label: "Ready")
+        case .setUpNeeded:
+            return nil
         }
-        return nil
     }
 
     // MARK: - Storage
@@ -1821,11 +1934,7 @@ struct SettingsView: View {
 
                 Divider()
 
-                settingsToggleRow(
-                    title: "Keep meeting audio",
-                    detail: "Turn off to remove meeting audio after the final transcript is saved.",
-                    isOn: $viewModel.saveMeetingAudio
-                )
+                meetingAudioRetentionRow
 
                 Divider()
 
@@ -1855,6 +1964,103 @@ struct SettingsView: View {
         }
     }
 
+    private var meetingAudioRetentionRow: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
+                rowText(
+                    title: "Meeting audio retention",
+                    detail: "Choose how long MacParakeet keeps meeting audio after the transcript is saved."
+                )
+                Spacer(minLength: DesignSystem.Spacing.md)
+                Picker("Meeting audio retention", selection: meetingAudioRetentionModeBinding) {
+                    ForEach(MeetingAudioRetentionMode.allCases) { mode in
+                        Text(mode.displayTitle).tag(mode)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(width: 250)
+            }
+
+            if viewModel.meetingAudioRetention.mode == .deleteAfterDays {
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    Text("Delete after")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("30", value: meetingAudioRetentionDaysBinding, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 64)
+                    Stepper(
+                        "Meeting audio retention days",
+                        value: meetingAudioRetentionDaysBinding,
+                        in: MeetingAudioRetention.deleteAfterDaysRange
+                    )
+                    .labelsHidden()
+                    Text(viewModel.meetingAudioRetention.deleteAfterDays == 1 ? "day" : "days")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                    Text("1-365")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+
+            Text("Transcripts stay. Auto-removed audio is deleted permanently; playback and re-transcription will no longer be available, and MacParakeet cannot detect or backfill speakers for swept meetings.")
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var meetingAudioRetentionModeBinding: Binding<MeetingAudioRetentionMode> {
+        Binding(
+            get: { viewModel.meetingAudioRetention.mode },
+            set: { mode in
+                requestMeetingAudioRetentionChange(
+                    MeetingAudioRetention.make(
+                        mode: mode,
+                        days: viewModel.savedMeetingAudioRetentionDays
+                    )
+                )
+            }
+        )
+    }
+
+    private var meetingAudioRetentionDaysBinding: Binding<Int> {
+        Binding(
+            get: { viewModel.meetingAudioRetention.deleteAfterDays },
+            set: { days in
+                requestMeetingAudioRetentionChange(.deleteAfterDays(clampedMeetingAudioRetentionDays(days)))
+            }
+        )
+    }
+
+    private func clampedMeetingAudioRetentionDays(_ days: Int) -> Int {
+        min(
+            max(days, MeetingAudioRetention.minDeleteAfterDays),
+            MeetingAudioRetention.maxDeleteAfterDays
+        )
+    }
+
+    private func requestMeetingAudioRetentionChange(_ retention: MeetingAudioRetention) {
+        guard viewModel.requiresMeetingAudioRetentionConfirmation(for: retention) else {
+            viewModel.setMeetingAudioRetention(retention)
+            return
+        }
+        pendingMeetingAudioRetention = PendingMeetingAudioRetention(retention: retention)
+    }
+
+    private func meetingAudioRetentionConfirmationMessage(for retention: MeetingAudioRetention) -> String {
+        switch retention {
+        case .keepForever:
+            return ""
+        case .deleteAfterDays(let days):
+            return "MacParakeet will remove saved meeting audio older than \(MeetingAudioRetention.normalizedDeleteAfterDays(days)) days. Transcripts stay, and notes, AI results, and chats stay if they exist. Playback and re-transcription will no longer be available, and MacParakeet cannot detect or backfill speakers for swept meetings."
+        case .deleteImmediately:
+            return "New recordings will not keep audio after each final transcript is saved. Audio already saved from past meetings is kept. The meeting stays with its transcript, and notes, AI results, and chats stay if they exist. Playback and re-transcription will no longer be available for new recordings, and MacParakeet cannot detect or backfill speakers for them."
+        }
+    }
+
     // MARK: - Reset & Cleanup
 
     /// Holds every destructive operation in the app. Lives at the bottom of
@@ -1881,6 +2087,15 @@ struct SettingsView: View {
                     caption: "Removes saved rows. Your lifetime stats stay."
                 ) {
                     if let error = viewModel.storageCleanupError {
+                        Text(error)
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.errorRed)
+                    }
+
+                    // The voice-profile row below deletes through its own view
+                    // model, so its failures land in a different property and
+                    // would otherwise be invisible on this card.
+                    if let error = voiceProfilesViewModel.errorMessage {
                         Text(error)
                             .font(DesignSystem.Typography.caption)
                             .foregroundStyle(DesignSystem.Colors.errorRed)
@@ -1929,6 +2144,26 @@ struct SettingsView: View {
                         )
                     )
 
+                    // In Reset & Cleanup as well as inside the feature block:
+                    // this is where people look for "delete my data", and it
+                    // has to be findable without knowing where voices come
+                    // from. Not gated on the feature flag either: a build with
+                    // it off can still hold voices enrolled while it was on.
+                    Divider()
+
+                    resetActionRow(
+                        title: "Voice profiles",
+                        detail: "Saved voices and any still waiting to be named. Names already applied to transcripts stay.",
+                        action: ResetDestructiveAction(
+                            buttonTitle: "Forget…",
+                            accessibilityLabel: "Forget all voice profiles",
+                            confirmationTitle: "Forget All Voices?",
+                            confirmationMessage: "This deletes every saved voice, its samples, and any voices still waiting to be named. Names already applied to your transcripts stay as they are. This cannot be undone.",
+                            confirmButtonLabel: "Forget All",
+                            perform: { Task { await voiceProfilesViewModel.forgetAll() } }
+                        )
+                    )
+
                     Divider()
 
                     resetActionRow(
@@ -1940,7 +2175,7 @@ struct SettingsView: View {
                             buttonTitle: "Clear…",
                             accessibilityLabel: "Clear meeting audio",
                             confirmationTitle: "Clear Meeting Audio?",
-                            confirmationMessage: "This will delete all saved meeting audio, including interrupted recovery recordings, and detach audio from existing meeting transcripts. Meeting transcripts stay. This cannot be undone.",
+                            confirmationMessage: "This will delete all saved meeting audio, including interrupted recovery recordings, and detach audio from existing meeting transcripts. Meeting transcripts stay. Any meeting that hasn't been transcribed yet will lose its retry source permanently. This cannot be undone.",
                             confirmButtonLabel: "Clear Audio",
                             perform: viewModel.clearMeetingAudio
                         )
@@ -2032,8 +2267,8 @@ struct SettingsView: View {
 
     private var engineSelectorCard: some View {
         SettingsCard(
-            title: "Speech Recognition",
-            subtitle: "Choose the engine that powers dictation, file transcription, and meetings.",
+            title: "Speech Engine",
+            subtitle: speechEngineCardSubtitle,
             icon: "cpu",
             status: engineSelectorCardStatus
         ) {
@@ -2042,69 +2277,16 @@ struct SettingsView: View {
                     speechEngineSwitchBanner(title: banner.title, detail: banner.detail)
                 }
 
-                LazyVGrid(columns: engineOptionColumns, alignment: .leading, spacing: DesignSystem.Spacing.md) {
-                    EngineOptionTile(
-                        icon: "bolt.fill",
-                        name: "Parakeet",
-                        tagline: "Fastest local engine",
-                        strengths: [
-                            "English + 24 European languages",
-                            "155× realtime on Apple Silicon",
-                            "Best default for everyday dictation"
-                        ],
-                        helpText: "Best default for English and supported European languages including Spanish, French, German, and Italian. Runs locally with Core ML acceleration on Apple Silicon for the lowest-latency path.",
-                        modelStatus: displayedParakeetModelStatus,
-                        isSelected: viewModel.speechEnginePreference == .parakeet,
-                        isBusy: viewModel.speechEngineSwitching,
-                        unavailableReason: engineSwitchUnavailableReason(for: .parakeet),
-                        onSelect: { selectEngine(.parakeet) }
-                    )
-
-                    EngineOptionTile(
-                        icon: "sparkles",
-                        name: "Nemotron",
-                        tagline: "Streaming local models (Beta)",
-                        strengths: [
-                            "Multilingual or English-only builds",
-                            "Korean, Mandarin, Japanese, Hindi",
-                            "Cache-aware low-latency streaming"
-                        ],
-                        helpText: "Newest local NVIDIA ASR family. The multilingual build supports 40 language-locales with auto detection, including Korean, Mandarin, Japanese, Hindi, Spanish, French, German, Arabic, Vietnamese, and more. The English build is a smaller English-only model with strong research-benchmarked accuracy.",
-                        modelStatus: displayedNemotronModelStatus,
-                        isSelected: viewModel.speechEnginePreference == .nemotron,
-                        isBusy: viewModel.speechEngineSwitching,
-                        unavailableReason: engineSwitchUnavailableReason(for: .nemotron),
-                        onSelect: { handleNemotronTileTap() }
-                    )
-
-                    EngineOptionTile(
-                        icon: "globe",
-                        name: "Whisper",
-                        tagline: "Broad language fallback",
-                        strengths: [
-                            "Korean, Japanese, Chinese, Thai +95 more",
-                            "Mature mixed-language recognition",
-                            "Local Whisper Large v3 Turbo"
-                        ],
-                        helpText: "Best for languages outside Parakeet's coverage or when a mature broad-language fallback matters more than speed. Runs locally with WhisperKit.",
-                        modelStatus: displayedWhisperModelStatus,
-                        isSelected: viewModel.speechEnginePreference == .whisper,
-                        isBusy: viewModel.speechEngineSwitching,
-                        unavailableReason: engineSwitchUnavailableReason(for: .whisper),
-                        needsFirstOptimize: displayedWhisperModelStatus == .notLoaded
-                            && !viewModel.whisperHasBeenOptimized,
-                        onSelect: { handleWhisperTileTap() }
-                    )
-                }
+                engineOptionGrid
 
                 if let banner = nemotronDownloadBannerState {
                     EngineDownloadBanner(
-                        title: viewModel.nemotronModelVariant.isEnglishOnly
+                        title: nemotronUsesFixedLanguage(viewModel.engine.nemotronModelVariant)
                             ? "Nemotron Speech EN Beta"
                             : "Nemotron 3.5 Beta",
                         subtitle: banner.subtitle,
                         mode: banner.mode,
-                        action: { viewModel.downloadNemotronModel() }
+                        action: { viewModel.engine.downloadNemotronModel() }
                     )
                 }
 
@@ -2113,16 +2295,250 @@ struct SettingsView: View {
                         title: "Whisper Large v3 Turbo",
                         subtitle: banner.subtitle,
                         mode: banner.mode,
-                        action: { viewModel.downloadWhisperModel() }
+                        action: { viewModel.engine.downloadWhisperModel() }
                     )
                 }
 
-                if let error = viewModel.speechEngineError {
+                if let banner = cohereDownloadBannerState {
+                    EngineDownloadBanner(
+                        title: cohereModelLifecycle.modelName,
+                        subtitle: banner.subtitle,
+                        mode: banner.mode,
+                        action: { viewModel.engine.downloadCohereModel() }
+                    )
+                }
+
+                if let error = viewModel.engine.speechEngineError {
                     Text(error)
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(DesignSystem.Colors.errorRed)
                 }
+
+                Divider()
+
+                advancedTranscriptionDisclosure
+                    .id(SettingsSearchIndex.advancedTranscriptionAnchor)
             }
+        }
+    }
+
+    private var speechEngineCardSubtitle: String {
+        if viewModel.engine.usesDifferentFinalTranscriptionEngine {
+            return "\(viewModel.engine.speechEnginePreference.displayName) handles dictation and live preview · \(viewModel.engine.transcriptionSpeechEnginePreference.displayName) handles recordings and files."
+        }
+        return "Your selected engine handles dictation, meetings, recordings, and files."
+    }
+
+    private var engineOptionGrid: some View {
+        LazyVGrid(columns: engineOptionColumns, alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            parakeetEngineTile
+            nemotronEngineTile
+            whisperEngineTile
+            if AppFeatures.cohereEngineEnabled {
+                cohereEngineTile
+            }
+        }
+    }
+
+    private var parakeetEngineTile: some View {
+        EngineOptionTile(
+            icon: "bolt.fill",
+            name: "Parakeet",
+            tagline: "Everyday local default",
+            strengths: [
+                "Fast everyday dictation",
+                "Timestamps for saved dictations",
+                "English + supported European languages"
+            ],
+            helpText: "Choose Parakeet for fast everyday dictation in supported languages. Use Whisper when your dictation language is outside Parakeet's coverage.",
+            modelStatus: displayedParakeetModelStatus,
+            isSelected: viewModel.engine.speechEnginePreference == .parakeet,
+            isBusy: viewModel.engine.speechEngineSwitching,
+            unavailableReason: engineSwitchUnavailableReason(for: .parakeet),
+            selectionRole: engineSelectionRole(for: .parakeet),
+            onSelect: { selectEngine(.parakeet) }
+        )
+    }
+
+    private var nemotronEngineTile: some View {
+        EngineOptionTile(
+            icon: "sparkles",
+            name: "Nemotron",
+            tagline: "Beta live preview",
+            strengths: [
+                "Live preview while you speak",
+                "English or multilingual builds",
+                "Quality varies by language and audio"
+            ],
+            helpText: "Choose Nemotron when responsive live preview matters more than proven final quality. It is Beta, so validate it on your language, device, and audio.",
+            modelStatus: displayedNemotronModelStatus,
+            isSelected: viewModel.engine.speechEnginePreference == .nemotron,
+            isBusy: viewModel.engine.speechEngineSwitching,
+            unavailableReason: engineSwitchUnavailableReason(for: .nemotron),
+            selectionRole: engineSelectionRole(for: .nemotron),
+            onSelect: { handleNemotronTileTap() }
+        )
+    }
+
+    private var whisperEngineTile: some View {
+        EngineOptionTile(
+            icon: "globe",
+            name: "Whisper",
+            tagline: "Broad-language dictation",
+            strengths: [
+                "Recorded dictation in many languages",
+                "Meeting preview with word timestamps",
+                "Slower cold starts; no dictation preview"
+            ],
+            helpText: "Choose Whisper for recorded dictation outside Parakeet or Nemotron language coverage. It runs locally with word timestamps and can preview meetings, but first use can be slow and live dictation preview stays off.",
+            modelStatus: displayedWhisperModelStatus,
+            isSelected: viewModel.engine.speechEnginePreference == .whisper,
+            isBusy: viewModel.engine.speechEngineSwitching,
+            unavailableReason: engineSwitchUnavailableReason(for: .whisper),
+            needsFirstOptimize: displayedWhisperModelStatus == .notLoaded
+                && !viewModel.engine.whisperHasBeenOptimized,
+            selectionRole: engineSelectionRole(for: .whisper),
+            onSelect: { handleWhisperTileTap() }
+        )
+    }
+
+    private var cohereEngineTile: some View {
+        EngineOptionTile(
+            icon: "waveform",
+            name: "Cohere",
+            tagline: "Local batch plain text",
+            strengths: [
+                "Local record-then-transcribe",
+                "Plain text with set language",
+                "No dictation or meeting preview"
+            ],
+            helpText: "Choose Cohere when a local batch plain-text transcript is enough and you can set the language. It has no live preview, word timestamps, speaker labels, or auto language detection.",
+            modelStatus: displayedCohereModelStatus,
+            isSelected: viewModel.engine.speechEnginePreference == .cohere,
+            isBusy: viewModel.engine.speechEngineSwitching,
+            unavailableReason: engineSwitchUnavailableReason(for: .cohere),
+            selectionRole: engineSelectionRole(for: .cohere),
+            onSelect: { handleCohereTileTap() }
+        )
+    }
+
+    private var advancedTranscriptionDisclosure: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            DisclosureGroup(isExpanded: $advancedTranscriptionExpanded) {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                    Text(
+                        "MacParakeet uses your selected speech engine for everything by default. "
+                            + "You can choose another engine for completed meeting recordings, files, media, and URLs—for example, for higher accuracy or broader language support when a longer wait is okay."
+                    )
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .frame(maxWidth: 900, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                    HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
+                        Text("Recordings & files")
+                            .font(DesignSystem.Typography.body.weight(.medium))
+                            .foregroundStyle(DesignSystem.Colors.textPrimary)
+
+                        Spacer(minLength: DesignSystem.Spacing.md)
+
+                        Picker(
+                            "Recordings & files engine",
+                            selection: Binding(
+                                get: { viewModel.engine.recordingsSpeechEngineSelection },
+                                set: { viewModel.engine.recordingsSpeechEngineSelection = $0 }
+                            )
+                        ) {
+                            Text("Same as \(viewModel.engine.speechEnginePreference.displayName)")
+                                .tag(SpeechEnginePreference?.none)
+                            ForEach(transcriptionEngineOptions, id: \.self) { engine in
+                                Text(engine.displayName).tag(Optional(engine))
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .tint(DesignSystem.Colors.accent)
+                        .frame(minWidth: 190, idealWidth: 210, maxWidth: 240)
+                        .disabled(viewModel.engine.speechEngineSwitching)
+                        .accessibilityLabel("Engine for recordings and files")
+                        .accessibilityHint(
+                            "Use the selected speech engine or choose a separate engine for completed meeting recordings, files, media, and URLs."
+                        )
+                    }
+
+                    Text(recordingsEngineHint)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, DesignSystem.Spacing.sm)
+            } label: {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                    Text("Advanced transcription")
+                        .font(DesignSystem.Typography.body.weight(.medium))
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    Text(advancedTranscriptionSummary)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                }
+            }
+            .tint(DesignSystem.Colors.accent)
+
+            if let error = viewModel.engine.transcriptionSpeechEngineError {
+                Text(error)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.errorRed)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var advancedTranscriptionSummary: String {
+        if viewModel.engine.usesDifferentFinalTranscriptionEngine {
+            return "Recordings & files use \(viewModel.engine.transcriptionSpeechEnginePreference.displayName)."
+        }
+        return "Optionally use a different engine for recordings & files."
+    }
+
+    private var recordingsEngineHint: String {
+        if viewModel.engine.usesDifferentFinalTranscriptionEngine {
+            return "Dictation and live preview stay on \(viewModel.engine.speechEnginePreference.displayName)."
+        }
+        return "Using \(viewModel.engine.speechEnginePreference.displayName) for all speech recognition."
+    }
+
+    private func engineSelectionRole(
+        for engine: SpeechEnginePreference
+    ) -> EngineOptionTile.SelectionRole? {
+        guard viewModel.engine.usesDifferentFinalTranscriptionEngine,
+              viewModel.engine.speechEnginePreference != viewModel.engine.transcriptionSpeechEnginePreference
+        else { return nil }
+        if viewModel.engine.speechEnginePreference == engine { return .live }
+        if viewModel.engine.transcriptionSpeechEnginePreference == engine { return .recordings }
+        return nil
+    }
+
+    private func engineModelSubtitle(
+        _ base: String,
+        for engine: SpeechEnginePreference
+    ) -> String {
+        guard viewModel.engine.usesDifferentFinalTranscriptionEngine,
+              viewModel.engine.speechEnginePreference != viewModel.engine.transcriptionSpeechEnginePreference
+        else { return base }
+        if viewModel.engine.speechEnginePreference == engine {
+            return "\(base)\nUsed for live speech."
+        }
+        if viewModel.engine.transcriptionSpeechEnginePreference == engine {
+            return "\(base)\nUsed for recordings & files."
+        }
+        return base
+    }
+
+    private var transcriptionEngineOptions: [SpeechEnginePreference] {
+        SpeechEnginePreference.allCases.filter { engine in
+            engine != .cohere
+                || AppFeatures.cohereEngineEnabled
+                || viewModel.engine.transcriptionSpeechEnginePreference == .cohere
         }
     }
 
@@ -2130,22 +2546,30 @@ struct SettingsView: View {
         [GridItem(.adaptive(minimum: 260), spacing: DesignSystem.Spacing.md, alignment: .top)]
     }
 
-    /// Parakeet build picker (multilingual `v3` vs English-only `v2`). Only
-    /// shown when Parakeet is the active engine — symmetric to the Whisper
-    /// Language card. English-only fixes the v3 auto-detect mis-firing English
-    /// as another language (issues #311, #398).
+    /// Parakeet build picker (multilingual `v3`, English-only `v2`, and the
+    /// English-only Unified build, plus the optional Orukeet preview). Only shown when Parakeet is the active
+    /// engine — symmetric to the Whisper Language card. English-only builds fix
+    /// the v3 auto-detect mis-firing English as another language (issues #311,
+    /// #398); Unified is the punctuated English streaming build (issue #520).
     @ViewBuilder
     private var engineParakeetModelCard: some View {
-        if viewModel.speechEnginePreference == .parakeet {
+        if viewModel.engine.usesSpeechEngine(.parakeet) {
             SettingsCard(
                 title: "Parakeet Model",
-                subtitle: "Pick how Parakeet handles language. English-only is a touch faster and never mistakes English for another language.",
+                subtitle: engineModelSubtitle(
+                    "Pick what Parakeet optimizes for: supported-language coverage, English timestamps, or readable English live preview.",
+                    for: .parakeet
+                ),
                 icon: "character.book.closed"
             ) {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                     parakeetModelOptionRow(.v3)
                     Divider()
                     parakeetModelOptionRow(.v2)
+                    Divider()
+                    parakeetModelOptionRow(.unified)
+                    Divider()
+                    parakeetModelOptionRow(.orukeet)
                 }
             }
             .transition(.opacity)
@@ -2153,11 +2577,14 @@ struct SettingsView: View {
     }
 
     private func parakeetModelOptionRow(_ variant: ParakeetModelVariant) -> some View {
-        let isSelected = viewModel.parakeetModelVariant == variant
-        let isDownloaded = viewModel.downloadedParakeetVariants.contains(variant)
+        let isSelected = viewModel.engine.parakeetModelVariant == variant
+        let isDownloaded = viewModel.engine.downloadedParakeetVariants.contains(variant)
+        let lifecycle = parakeetModelLifecycle(for: variant)
+        let modelName = lifecycle.modelName
+        let downloadSize = approximateDownloadSize(for: lifecycle, fallback: variant.approximateDownloadSize)
         let downloadStatusLabel = isDownloaded
             ? "Downloaded."
-            : "\(variant.approximateDownloadSize), downloads on first use."
+            : "\(downloadSize), downloads on first use."
         // The selected build is the one Parakeet loads, so it's protected; only
         // the other, already-downloaded build can be removed from here.
         let canDelete = isDownloaded && !isSelected
@@ -2175,10 +2602,10 @@ struct SettingsView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: DesignSystem.Spacing.sm) {
-                            Text(variant.modelName)
+                            Text(modelName)
                                 .font(DesignSystem.Typography.body.weight(.medium))
                                 .foregroundStyle(DesignSystem.Colors.textPrimary)
-                            modelVariantStatusBadge(isDownloaded: isDownloaded, size: variant.approximateDownloadSize)
+                            modelVariantStatusBadge(isDownloaded: isDownloaded, size: downloadSize)
                         }
                         Text(variant.coverageSummary)
                             .font(DesignSystem.Typography.caption)
@@ -2191,22 +2618,22 @@ struct SettingsView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(viewModel.speechEngineSwitching)
+            .disabled(viewModel.engine.speechEngineSwitching)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(variant.modelName). \(variant.displayName). \(variant.coverageSummary) \(downloadStatusLabel)")
+            .accessibilityLabel("\(modelName). \(variant.displayName). \(variant.coverageSummary) \(downloadStatusLabel)")
             // `.combine` can drop the wrapping Button's role, so assert it explicitly
             // alongside the selected state for VoiceOver.
             .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : [.isButton])
 
             if canDelete {
                 ModelDeleteIconButton(
-                    helpText: "Remove this Parakeet build to free \(variant.approximateDownloadSize).",
-                    accessibilityLabel: "Delete \(variant.modelName) download"
+                    helpText: "Remove this Parakeet build to free \(downloadSize).",
+                    accessibilityLabel: "Delete \(modelName) download"
                 ) {
                     pendingModelDeletion = .parakeet(variant)
                 }
                 .padding(.top, 1)
-                .disabled(viewModel.speechEngineSwitching)
+                .disabled(viewModel.engine.speechEngineSwitching)
             }
         }
     }
@@ -2240,26 +2667,29 @@ struct SettingsView: View {
     /// flips then reverts. The VM setter (`applyParakeetModelVariantChange`)
     /// drives the actual reload + persistence.
     private func selectParakeetModelVariant(_ variant: ParakeetModelVariant) {
-        guard viewModel.parakeetModelVariant != variant,
-              !viewModel.speechEngineSwitching else { return }
+        guard viewModel.engine.parakeetModelVariant != variant,
+              !viewModel.engine.speechEngineSwitching else { return }
         Task { @MainActor in
-            let availability = await viewModel.refreshSpeechEngineSwitchAvailabilityNow()
+            let availability = await viewModel.engine.refreshSpeechEngineSwitchAvailabilityNow()
             guard availability == .available else {
-                viewModel.speechEngineError = SettingsViewModel.speechEngineSwitchUnavailableMessage(for: availability)
+                viewModel.engine.speechEngineError = EngineSettingsViewModel.speechEngineSwitchUnavailableMessage(for: availability)
                 return
             }
             withAnimation(DesignSystem.Animation.contentSwap) {
-                viewModel.parakeetModelVariant = variant
+                viewModel.engine.parakeetModelVariant = variant
             }
         }
     }
 
     @ViewBuilder
     private var engineNemotronModelCard: some View {
-        if viewModel.speechEnginePreference == .nemotron {
+        if viewModel.engine.usesSpeechEngine(.nemotron) {
             SettingsCard(
                 title: "Nemotron Model",
-                subtitle: "Pick which Nemotron build loads. English-only is a smaller download.",
+                subtitle: engineModelSubtitle(
+                    "Pick the Beta streaming build: multilingual for broader live preview, English for a smaller English-only path.",
+                    for: .nemotron
+                ),
                 icon: "character.book.closed"
             ) {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
@@ -2273,11 +2703,14 @@ struct SettingsView: View {
     }
 
     private func nemotronModelOptionRow(_ variant: NemotronModelVariant) -> some View {
-        let isSelected = viewModel.nemotronModelVariant == variant
-        let isDownloaded = viewModel.downloadedNemotronVariants.contains(variant)
+        let isSelected = viewModel.engine.nemotronModelVariant == variant
+        let isDownloaded = viewModel.engine.downloadedNemotronVariants.contains(variant)
+        let lifecycle = nemotronModelLifecycle(for: variant)
+        let modelName = lifecycle.modelName
+        let downloadSize = approximateDownloadSize(for: lifecycle, fallback: variant.approximateDownloadSize)
         let downloadStatusLabel = isDownloaded
             ? "Downloaded."
-            : "\(variant.approximateDownloadSize), downloads on first use."
+            : "\(downloadSize), downloads on first use."
         // The selected build is the one Nemotron loads, so it's protected; only
         // the other, already-downloaded build can be removed from here.
         let canDelete = isDownloaded && !isSelected
@@ -2295,10 +2728,10 @@ struct SettingsView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: DesignSystem.Spacing.sm) {
-                            Text(variant.modelName)
+                            Text(modelName)
                                 .font(DesignSystem.Typography.body.weight(.medium))
                                 .foregroundStyle(DesignSystem.Colors.textPrimary)
-                            modelVariantStatusBadge(isDownloaded: isDownloaded, size: variant.approximateDownloadSize)
+                            modelVariantStatusBadge(isDownloaded: isDownloaded, size: downloadSize)
                         }
                         Text(variant.coverageSummary)
                             .font(DesignSystem.Typography.caption)
@@ -2311,45 +2744,143 @@ struct SettingsView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(viewModel.speechEngineSwitching)
+            .disabled(viewModel.engine.speechEngineSwitching)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(variant.modelName). \(variant.displayName). \(variant.coverageSummary) \(downloadStatusLabel)")
+            .accessibilityLabel("\(modelName). \(variant.displayName). \(variant.coverageSummary) \(downloadStatusLabel)")
             // `.combine` can drop the wrapping Button's role, so assert it explicitly
             // alongside the selected state for VoiceOver.
             .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : [.isButton])
 
             if canDelete {
                 ModelDeleteIconButton(
-                    helpText: "Remove this Nemotron build to free \(variant.approximateDownloadSize).",
-                    accessibilityLabel: "Delete \(variant.modelName) download"
+                    helpText: "Remove this Nemotron build to free \(downloadSize).",
+                    accessibilityLabel: "Delete \(modelName) download"
                 ) {
                     pendingModelDeletion = .nemotron(variant)
                 }
                 .padding(.top, 1)
-                .disabled(viewModel.speechEngineSwitching)
+                .disabled(viewModel.engine.speechEngineSwitching)
             }
         }
     }
 
     /// Mirrors `selectParakeetModelVariant` for the Nemotron build picker.
     private func selectNemotronModelVariant(_ variant: NemotronModelVariant) {
-        guard viewModel.nemotronModelVariant != variant,
-              !viewModel.speechEngineSwitching else { return }
+        guard viewModel.engine.nemotronModelVariant != variant,
+              !viewModel.engine.speechEngineSwitching else { return }
         Task { @MainActor in
-            let availability = await viewModel.refreshSpeechEngineSwitchAvailabilityNow()
+            let availability = await viewModel.engine.refreshSpeechEngineSwitchAvailabilityNow()
             guard availability == .available else {
-                viewModel.speechEngineError = SettingsViewModel.speechEngineSwitchUnavailableMessage(for: availability)
+                viewModel.engine.speechEngineError = EngineSettingsViewModel.speechEngineSwitchUnavailableMessage(for: availability)
                 return
             }
             withAnimation(DesignSystem.Animation.contentSwap) {
-                viewModel.nemotronModelVariant = variant
+                viewModel.engine.nemotronModelVariant = variant
+            }
+        }
+    }
+
+    /// Cohere-only contextual card: where Cohere runs its model. The choice takes
+    /// effect the next time Cohere loads (the engine captures the policy at
+    /// construction), so the copy says so rather than implying an instant switch.
+    /// Mirrors `engineLanguageCard` (one contextual card, gated on the active
+    /// engine, `.transition(.opacity)`).
+    @ViewBuilder
+    private var engineCohereModelCard: some View {
+        @Bindable var engine = viewModel.engine
+        if engine.usesSpeechEngine(.cohere) {
+            SettingsCard(
+                title: "Cohere Performance",
+                subtitle: engineModelSubtitle(
+                    "GPU can finish Cohere batches faster after Core ML setup. Neural Engine avoids that setup wait. Changes apply next time Cohere loads.",
+                    for: .cohere
+                ),
+                icon: "bolt"
+            ) {
+                HStack(alignment: .center) {
+                    rowText(
+                        title: "Compute",
+                        detail: "Where Cohere runs its speech model."
+                    )
+                    Spacer(minLength: DesignSystem.Spacing.md)
+                    Picker("Compute", selection: $engine.cohereComputePolicy) {
+                        Text("Faster (GPU)").tag(CohereTranscribeEngine.ComputePolicy.gpu)
+                        Text("Balanced (ANE)").tag(CohereTranscribeEngine.ComputePolicy.ane)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .tint(DesignSystem.Colors.accent)
+                    .frame(width: 240)
+                }
+                if engine.cohereComputePolicyNeedsRelaunch {
+                    Divider()
+                    HStack(alignment: .center) {
+                        rowText(
+                            title: "Not applied yet",
+                            detail: viewModel.isMeetingRecordingActive
+                                ? "Finish the meeting recording, then relaunch to apply."
+                                : "Your change is saved but takes effect after MacParakeet relaunches."
+                        )
+                        Spacer(minLength: DesignSystem.Spacing.md)
+                        Button(coherePolicyRelaunchInFlight ? "Relaunching..." : "Relaunch to apply") {
+                            relaunchToApplyComputePolicy()
+                        }
+                        .parakeetAction(.secondary)
+                        .disabled(viewModel.isMeetingRecordingActive || coherePolicyRelaunchInFlight)
+                    }
+                }
+            }
+            .transition(.opacity)
+        }
+    }
+
+    /// Relaunch the app so a changed Cohere compute policy takes effect: the
+    /// engine captures its compute units at construction, so the new policy is
+    /// only read on the next load. Launches a fresh instance, then terminates
+    /// this one through the app's normal teardown. Gated on
+    /// `isMeetingRecordingActive` and `coherePolicyRelaunchInFlight` (both here
+    /// and on the button) so a relaunch cannot interrupt a recording or spawn
+    /// duplicate replacement instances — mirroring the `SparkleUpdateGuard` rule.
+    ///
+    /// This is the only deliberate `createsNewApplicationInstance` launch in
+    /// the app, so the new and old instances briefly coexist (~1–2 s until the
+    /// completion handler quits the old one). That overlap is intentional and
+    /// safe: the meeting gate above rules out the data-loss case, and the
+    /// shared GRDB store serializes with a busy-timeout, so the short window of
+    /// two readers/writers resolves without corruption.
+    private func relaunchToApplyComputePolicy() {
+        guard !viewModel.isMeetingRecordingActive, !coherePolicyRelaunchInFlight else { return }
+        coherePolicyRelaunchInFlight = true
+        // Force the persisted policy to flush before the replacement instance
+        // boots and reads `ComputePolicy.current()`. cfprefsd normally
+        // coordinates this across processes, but flushing here removes any
+        // ordering doubt so the fresh instance can't load a stale value.
+        UserDefaults.standard.synchronize()
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(
+            at: Bundle.main.bundleURL,
+            configuration: configuration
+        ) { newInstance, error in
+            // Only terminate once the replacement instance is actually running.
+            // If the launch failed, leave this app running rather than quitting
+            // into nothing — the user can retry instead of being stranded.
+            guard newInstance != nil, error == nil else {
+                Task { @MainActor in
+                    coherePolicyRelaunchInFlight = false
+                }
+                return
+            }
+            Task { @MainActor in
+                NSApplication.shared.terminate(nil)
             }
         }
     }
 
     @ViewBuilder
     private var engineLanguageCard: some View {
-        if viewModel.speechEnginePreference == .whisper {
+        @Bindable var engine = viewModel.engine
+        if engine.usesSpeechEngine(.whisper) {
             SettingsCard(
                 title: "Whisper Language",
                 subtitle: "Auto-detect works for most files. Pin a language for faster startup or mixed-language audio.",
@@ -2360,7 +2891,7 @@ struct SettingsView: View {
                         .font(DesignSystem.Typography.body)
                     Spacer(minLength: DesignSystem.Spacing.md)
                     LanguagePickerButton(
-                        selection: $viewModel.whisperDefaultLanguage,
+                        selection: $engine.whisperDefaultLanguage,
                         isDisabled: false
                     )
                 }
@@ -2369,7 +2900,7 @@ struct SettingsView: View {
         }
     }
 
-    /// Status chip rolls up the worst severity across both engines via
+    /// Status chip rolls up the worst severity across engines via
     /// `SettingsStatusRules.localModelsCardStatus`. Inline action button
     /// only renders for actionable states; Repair / Re-download for healthy
     /// models tucks into a `…` menu so calm rows stay calm.
@@ -2385,8 +2916,8 @@ struct SettingsView: View {
                     title: "Parakeet",
                     detail: displayedParakeetModelStatusDetail,
                     status: displayedParakeetModelStatus,
-                    isWorking: viewModel.parakeetRepairing,
-                    actionsDisabled: viewModel.speechEngineSwitching,
+                    isWorking: viewModel.engine.parakeetRepairing,
+                    actionsDisabled: viewModel.engine.speechEngineSwitching,
                     primaryAction: displayedParakeetModelStatus == .preparing ? nil : parakeetPrimaryAction,
                     overflowActions: displayedParakeetModelStatus == .preparing ? [] : parakeetOverflowActions
                 )
@@ -2397,8 +2928,8 @@ struct SettingsView: View {
                     title: "Nemotron",
                     detail: displayedNemotronModelStatusDetail,
                     status: displayedNemotronModelStatus,
-                    isWorking: viewModel.nemotronDownloading,
-                    actionsDisabled: viewModel.speechEngineSwitching,
+                    isWorking: viewModel.engine.nemotronDownloading,
+                    actionsDisabled: viewModel.engine.speechEngineSwitching,
                     primaryAction: displayedNemotronModelStatus == .preparing ? nil : nemotronPrimaryAction,
                     overflowActions: displayedNemotronModelStatus == .preparing ? [] : nemotronOverflowActions
                 )
@@ -2409,28 +2940,64 @@ struct SettingsView: View {
                     title: "Whisper",
                     detail: displayedWhisperModelStatusDetail,
                     status: displayedWhisperModelStatus,
-                    isWorking: viewModel.whisperDownloading,
-                    actionsDisabled: viewModel.speechEngineSwitching,
+                    isWorking: viewModel.engine.whisperDownloading,
+                    actionsDisabled: viewModel.engine.speechEngineSwitching,
                     primaryAction: displayedWhisperModelStatus == .preparing ? nil : whisperPrimaryAction,
                     overflowActions: displayedWhisperModelStatus == .preparing ? [] : whisperOverflowActions
                 )
+
+                if shouldShowCohereModelRow {
+                    Divider()
+
+                    modelStatusRow(
+                        title: "Cohere",
+                        detail: displayedCohereModelStatusDetail,
+                        status: displayedCohereModelStatus,
+                        isWorking: viewModel.engine.cohereDownloading,
+                        actionsDisabled: viewModel.engine.speechEngineSwitching,
+                        primaryAction: displayedCohereModelStatus == .preparing ? nil : coherePrimaryAction,
+                        overflowActions: displayedCohereModelStatus == .preparing ? [] : cohereOverflowActions
+                    )
+                }
             }
         }
     }
 
     private var engineSelectorCardStatus: SettingsCardStatus? {
-        if viewModel.speechEngineSwitching {
+        if viewModel.engine.speechEngineSwitchStalled {
+            return SettingsCardStatus(.required, label: "Taking too long")
+        }
+        if viewModel.engine.speechEngineSwitchFinishingInBackground {
+            return SettingsCardStatus(.recommended, label: "Still compiling")
+        }
+        if viewModel.engine.speechEngineSwitching {
             return SettingsCardStatus(.recommended, label: speechEngineSwitchTitle)
         }
-        if viewModel.speechEngineError != nil {
+        if viewModel.engine.speechEngineError != nil {
             return SettingsCardStatus(.required, label: "Action needed")
         }
         return nil
     }
 
     private var speechEngineSwitchBannerState: (title: String, detail: String)? {
-        guard viewModel.speechEngineSwitching else { return nil }
-        let phase = viewModel.speechEngineSwitchDetail ?? "Preparing speech engine..."
+        if viewModel.engine.speechEngineSwitchFinishingInBackground,
+           !viewModel.engine.speechEngineSwitching,
+           let target = viewModel.engine.abandonedSpeechEngineSwitchTarget
+        {
+            return (
+                "Still compiling in the background",
+                EngineSettingsViewModel.finishingAbandonedSpeechEngineSwitchDetail(for: target)
+            )
+        }
+        guard viewModel.engine.speechEngineSwitching else { return nil }
+        if viewModel.engine.speechEngineSwitchStalled {
+            let detail = viewModel.engine.speechEngineSwitchDetail
+                ?? EngineSettingsViewModel.stalledSpeechEngineSwitchDetail(
+                    for: currentSpeechEngineSwitchTarget
+                )
+            return ("This is taking too long", detail)
+        }
+        let phase = viewModel.engine.speechEngineSwitchDetail ?? "Preparing speech engine..."
         return (
             speechEngineSwitchTitle,
             "\(phase) Dictation, file transcription, and meetings pause until this finishes."
@@ -2441,10 +3008,10 @@ struct SettingsView: View {
     /// swap keeps the engine selection unchanged, so "Switching to …" would be
     /// wrong — show "Updating … model" instead.
     private var speechEngineSwitchTitle: String {
-        if viewModel.isParakeetVariantSwitch {
+        if viewModel.engine.isParakeetVariantSwitch {
             return "Updating Parakeet model"
         }
-        if viewModel.isNemotronVariantSwitch {
+        if viewModel.engine.isNemotronVariantSwitch {
             return "Updating Nemotron model"
         }
         let target = currentSpeechEngineSwitchTarget
@@ -2455,6 +3022,8 @@ struct SettingsView: View {
             return "Preparing Nemotron"
         case .whisper:
             return "Preparing Whisper"
+        case .cohere:
+            return "Preparing Cohere"
         }
     }
 
@@ -2463,83 +3032,123 @@ struct SettingsView: View {
             parakeet: displayedParakeetModelStatus,
             nemotron: displayedNemotronModelStatus,
             whisper: displayedWhisperModelStatus,
-            activeEngine: viewModel.speechEnginePreference
+            cohere: displayedCohereModelStatus,
+            cohereEnabled: shouldShowCohereModelRow,
+            activeEngine: viewModel.engine.speechEnginePreference
         )
     }
 
+    private var shouldShowCohereModelRow: Bool {
+        AppFeatures.cohereEngineEnabled || viewModel.engine.usesSpeechEngine(.cohere)
+    }
+
     private var currentSpeechEngineSwitchTarget: SpeechEnginePreference {
-        viewModel.speechEngineSwitchTarget ?? viewModel.speechEnginePreference
+        viewModel.engine.speechEngineSwitchTarget ?? viewModel.engine.speechEnginePreference
     }
 
     private func engineSwitchUnavailableReason(for engine: SpeechEnginePreference) -> String? {
-        guard viewModel.speechEnginePreference != engine else { return nil }
-        return viewModel.speechEngineSwitchUnavailableMessage
+        guard viewModel.engine.speechEnginePreference != engine else { return nil }
+        if engine == .cohere, !viewModel.engine.cohereMeetsMemoryRequirement {
+            return EngineSettingsViewModel.cohereInsufficientMemoryMessage
+        }
+        return viewModel.engine.speechEngineSwitchUnavailableMessage
     }
 
     private var displayedParakeetModelStatus: SettingsViewModel.LocalModelStatus {
-        guard viewModel.speechEngineSwitching,
+        guard viewModel.engine.speechEngineSwitching,
               currentSpeechEngineSwitchTarget == .parakeet else {
-            return viewModel.parakeetStatus
+            return viewModel.engine.parakeetStatus
         }
         return .preparing
     }
 
     private var displayedParakeetModelStatusDetail: String {
-        guard viewModel.speechEngineSwitching,
+        guard viewModel.engine.speechEngineSwitching,
               currentSpeechEngineSwitchTarget == .parakeet else {
-            return viewModel.parakeetStatusDetail
+            return viewModel.engine.parakeetStatusDetail
         }
-        return viewModel.speechEngineSwitchDetail ?? "Loading Parakeet with Core ML..."
+        return viewModel.engine.speechEngineSwitchDetail ?? "Loading Parakeet with Core ML..."
     }
 
     private var displayedWhisperModelStatus: SettingsViewModel.LocalModelStatus {
-        guard viewModel.speechEngineSwitching,
+        guard viewModel.engine.speechEngineSwitching,
               currentSpeechEngineSwitchTarget == .whisper else {
-            return viewModel.whisperModelStatus
+            return viewModel.engine.whisperModelStatus
         }
         return .preparing
     }
 
     private var displayedWhisperModelStatusDetail: String {
-        guard viewModel.speechEngineSwitching,
+        guard viewModel.engine.speechEngineSwitching,
               currentSpeechEngineSwitchTarget == .whisper else {
-            return viewModel.whisperModelStatusDetail
+            return viewModel.engine.whisperModelStatusDetail
         }
-        return viewModel.speechEngineSwitchDetail ?? "Optimizing Whisper for this Mac..."
+        return viewModel.engine.speechEngineSwitchDetail ?? "Optimizing Whisper for this Mac..."
     }
 
     private var displayedNemotronModelStatus: SettingsViewModel.LocalModelStatus {
-        guard viewModel.speechEngineSwitching,
+        guard viewModel.engine.speechEngineSwitching,
               currentSpeechEngineSwitchTarget == .nemotron else {
-            return viewModel.nemotronModelStatus
+            return viewModel.engine.nemotronModelStatus
         }
         return .preparing
     }
 
-    private var displayedNemotronModelStatusDetail: String {
-        guard viewModel.speechEngineSwitching,
-              currentSpeechEngineSwitchTarget == .nemotron else {
-            return viewModel.nemotronModelStatusDetail
+    private var displayedCohereModelStatus: SettingsViewModel.LocalModelStatus {
+        guard viewModel.engine.speechEngineSwitching,
+              currentSpeechEngineSwitchTarget == .cohere else {
+            return viewModel.engine.cohereModelStatus
         }
-        return viewModel.speechEngineSwitchDetail ?? "Loading \(viewModel.nemotronModelVariant.modelName) with Core ML..."
+        return .preparing
+    }
+
+    private var displayedCohereModelStatusDetail: String {
+        guard viewModel.engine.speechEngineSwitching,
+              currentSpeechEngineSwitchTarget == .cohere else {
+            return viewModel.engine.cohereModelStatusDetail
+        }
+        return viewModel.engine.speechEngineSwitchDetail ?? "Loading Cohere with Core ML..."
+    }
+
+    private var displayedNemotronModelStatusDetail: String {
+        guard viewModel.engine.speechEngineSwitching,
+              currentSpeechEngineSwitchTarget == .nemotron else {
+            return viewModel.engine.nemotronModelStatusDetail
+        }
+        return viewModel.engine.speechEngineSwitchDetail ?? "Loading \(viewModel.engine.nemotronModelVariant.modelName) with Core ML..."
     }
 
     private func speechEngineSwitchBanner(title: String, detail: String) -> some View {
-        HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
-            ProgressView()
-                .controlSize(.small)
-                .frame(width: 18, height: 18)
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                if viewModel.engine.speechEngineSwitchStalled {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(DesignSystem.Colors.warningAmber)
+                        .frame(width: 18, height: 18)
+                } else {
+                    ParakeetSpinner(.inline)
+                        .frame(width: 18, height: 18)
+                }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(DesignSystem.Typography.bodySmall.weight(.semibold))
-                Text(detail)
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(DesignSystem.Typography.bodySmall.weight(.semibold))
+                    Text(detail)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: DesignSystem.Spacing.md)
             }
 
-            Spacer(minLength: DesignSystem.Spacing.md)
+            if viewModel.engine.speechEngineSwitchStalled {
+                Button("Use previous engine") {
+                    viewModel.engine.leaveStalledSpeechEngineSwitch()
+                }
+                .parakeetAction(.secondary)
+                .help("Restores the previous engine in Settings. Core ML keeps compiling and is not cancelled. Speech stays paused until that finishes.")
+            }
         }
         .padding(.horizontal, DesignSystem.Spacing.md)
         .padding(.vertical, DesignSystem.Spacing.sm)
@@ -2551,24 +3160,26 @@ struct SettingsView: View {
             RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
                 .strokeBorder(DesignSystem.Colors.warningAmber.opacity(0.28), lineWidth: 0.5)
         )
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(
+            children: viewModel.engine.speechEngineSwitchStalled ? .contain : .combine
+        )
     }
 
     /// Routes a tile click through a confirmation step. The VM's eventual
     /// setter still validates and performs the actual switch, but the first tap
     /// no longer starts a potentially multi-minute engine reload by surprise.
     private func selectEngine(_ engine: SpeechEnginePreference) {
-        guard viewModel.speechEnginePreference != engine,
-              !viewModel.speechEngineSwitching,
-              viewModel.pendingSpeechEngineSwitchConfirmation == nil else { return }
+        guard viewModel.engine.speechEnginePreference != engine,
+              !viewModel.engine.speechEngineSwitching,
+              viewModel.engine.pendingSpeechEngineSwitchConfirmation == nil else { return }
         Task { @MainActor in
-            let availability = await viewModel.refreshSpeechEngineSwitchAvailabilityNow()
+            let availability = await viewModel.engine.refreshSpeechEngineSwitchAvailabilityNow()
             guard availability == .available else {
-                viewModel.speechEngineError = SettingsViewModel.speechEngineSwitchUnavailableMessage(for: availability)
+                viewModel.engine.speechEngineError = EngineSettingsViewModel.speechEngineSwitchUnavailableMessage(for: availability)
                 return
             }
             withAnimation(DesignSystem.Animation.contentSwap) {
-                viewModel.requestSpeechEngineSwitchConfirmation(to: engine)
+                viewModel.engine.requestSpeechEngineSwitchConfirmation(to: engine)
             }
         }
     }
@@ -2586,34 +3197,63 @@ struct SettingsView: View {
     /// The banner stays mounted across `.notDownloaded` → `.repairing` →
     /// terminal state so the action surface doesn't blink out on click.
     private var whisperDownloadBannerState: (mode: EngineDownloadBanner.Mode, subtitle: String)? {
-        guard viewModel.speechEnginePreference == .whisper else { return nil }
-        if viewModel.whisperDownloading {
-            return (.downloading, viewModel.whisperModelStatusDetail)
+        guard viewModel.engine.speechEnginePreference == .whisper else { return nil }
+        if viewModel.engine.whisperDownloading {
+            return (.downloading, viewModel.engine.whisperModelStatusDetail)
         }
-        switch viewModel.whisperModelStatus {
+        switch viewModel.engine.whisperModelStatus {
         case .notDownloaded:
-            return (.download, "632 MB · downloads once, runs locally afterwards")
+            let size = approximateDownloadSize(for: whisperModelLifecycle, fallback: "632 MB")
+            return (.download, "\(size) · broad-language file and retranscription fallback")
         case .repairing:
-            return (.downloading, viewModel.whisperModelStatusDetail)
+            return (.downloading, viewModel.engine.whisperModelStatusDetail)
         case .failed:
-            return (.retry, viewModel.whisperModelStatusDetail)
+            return (.retry, viewModel.engine.whisperModelStatusDetail)
         case .ready, .notLoaded, .preparing, .checking, .unknown:
             return nil
         }
     }
 
     private var nemotronDownloadBannerState: (mode: EngineDownloadBanner.Mode, subtitle: String)? {
-        guard viewModel.speechEnginePreference == .nemotron else { return nil }
-        if viewModel.nemotronDownloading {
-            return (.downloading, viewModel.nemotronModelStatusDetail)
+        guard viewModel.engine.speechEnginePreference == .nemotron else { return nil }
+        if viewModel.engine.nemotronDownloading {
+            return (.downloading, viewModel.engine.nemotronModelStatusDetail)
         }
-        switch viewModel.nemotronModelStatus {
+        switch viewModel.engine.nemotronModelStatus {
         case .notDownloaded:
-            return (.download, "\(viewModel.nemotronModelVariant.approximateDownloadSize) · Beta model, downloads once and runs locally")
+            let lifecycle = nemotronModelLifecycle(for: viewModel.engine.nemotronModelVariant)
+            let size = approximateDownloadSize(
+                for: lifecycle,
+                fallback: viewModel.engine.nemotronModelVariant.approximateDownloadSize
+            )
+            let qualityNote = nemotronUsesFixedLanguage(viewModel.engine.nemotronModelVariant)
+                ? "quality still being validated"
+                : "quality varies by language"
+            return (.download, "\(size) · Beta streaming model, \(qualityNote)")
         case .repairing:
-            return (.downloading, viewModel.nemotronModelStatusDetail)
+            return (.downloading, viewModel.engine.nemotronModelStatusDetail)
         case .failed:
-            return (.retry, viewModel.nemotronModelStatusDetail)
+            return (.retry, viewModel.engine.nemotronModelStatusDetail)
+        case .ready, .notLoaded, .preparing, .checking, .unknown:
+            return nil
+        }
+    }
+
+    private var cohereDownloadBannerState: (mode: EngineDownloadBanner.Mode, subtitle: String)? {
+        guard viewModel.engine.speechEnginePreference == .cohere else {
+            return nil
+        }
+        if viewModel.engine.cohereDownloading {
+            return (.downloading, viewModel.engine.cohereModelStatusDetail)
+        }
+        switch viewModel.engine.cohereModelStatus {
+        case .notDownloaded:
+            let size = sentenceStartDownloadSize(for: cohereModelLifecycle, fallback: "About 2.1 GB")
+            return (.download, "\(size) · local batch transcripts, no preview or timestamps")
+        case .repairing:
+            return (.downloading, viewModel.engine.cohereModelStatusDetail)
+        case .failed:
+            return (.retry, viewModel.engine.cohereModelStatusDetail)
         case .ready, .notLoaded, .preparing, .checking, .unknown:
             return nil
         }
@@ -2627,48 +3267,65 @@ struct SettingsView: View {
     /// usually settle within a frame, so we let those fall through to the
     /// VM's normal accept/revert path rather than rejecting prematurely.
     private func handleWhisperTileTap() {
-        switch viewModel.whisperModelStatus {
+        switch viewModel.engine.whisperModelStatus {
         case .ready, .notLoaded:
             selectEngine(.whisper)
         case .notDownloaded:
-            viewModel.speechEngineError = "Download the Whisper model from Local Models below before switching engines."
+            viewModel.engine.speechEngineError = "Download the Whisper model from Local Models below before switching engines."
         case .repairing:
-            viewModel.speechEngineError = "Whisper model is downloading — switch engines once it finishes."
+            viewModel.engine.speechEngineError = "Whisper model is downloading — switch engines once it finishes."
         case .preparing:
-            viewModel.speechEngineError = "Whisper is preparing for this Mac — switch engines once it finishes."
+            viewModel.engine.speechEngineError = "Whisper is preparing for this Mac — switch engines once it finishes."
         case .failed:
-            viewModel.speechEngineError = "Whisper model failed to load — retry below."
+            viewModel.engine.speechEngineError = "Whisper model failed to load — retry below."
         case .checking, .unknown:
             selectEngine(.whisper)
         }
     }
 
     private func handleNemotronTileTap() {
-        switch viewModel.nemotronModelStatus {
+        switch viewModel.engine.nemotronModelStatus {
         case .ready, .notLoaded:
             selectEngine(.nemotron)
         case .notDownloaded:
-            viewModel.speechEngineError = "Download the \(viewModel.nemotronModelVariant.displayName) Nemotron model below before switching engines."
+            viewModel.engine.speechEngineError = "Download the \(viewModel.engine.nemotronModelVariant.displayName) Nemotron model below before switching engines."
         case .repairing:
-            viewModel.speechEngineError = "Nemotron model is downloading — switch engines once it finishes."
+            viewModel.engine.speechEngineError = "Nemotron model is downloading — switch engines once it finishes."
         case .preparing:
-            viewModel.speechEngineError = "Nemotron is preparing for this Mac — switch engines once it finishes."
+            viewModel.engine.speechEngineError = "Nemotron is preparing for this Mac — switch engines once it finishes."
         case .failed:
-            viewModel.speechEngineError = "Nemotron model failed to load — retry below."
+            viewModel.engine.speechEngineError = "Nemotron model failed to load — retry below."
         case .checking, .unknown:
             selectEngine(.nemotron)
         }
     }
 
+    private func handleCohereTileTap() {
+        switch viewModel.engine.cohereModelStatus {
+        case .ready, .notLoaded:
+            selectEngine(.cohere)
+        case .notDownloaded:
+            viewModel.engine.speechEngineError = "Download Cohere Transcribe from Local Models below before switching engines."
+        case .repairing:
+            viewModel.engine.speechEngineError = "Cohere Transcribe is downloading — switch engines once it finishes."
+        case .preparing:
+            viewModel.engine.speechEngineError = "Cohere is preparing for this Mac — switch engines once it finishes."
+        case .failed:
+            viewModel.engine.speechEngineError = "Cohere Transcribe failed to load — retry below."
+        case .checking, .unknown:
+            selectEngine(.cohere)
+        }
+    }
+
     private var parakeetPrimaryAction: ModelRowAction? {
-        switch viewModel.parakeetStatus {
+        switch viewModel.engine.parakeetStatus {
         case .failed:
             return ModelRowAction(
                 label: "Retry",
                 isProminent: true,
                 help: "Re-run Parakeet setup and load the model again."
             ) {
-                viewModel.repairParakeetModel()
+                viewModel.engine.repairParakeetModel()
             }
         case .notDownloaded:
             return ModelRowAction(
@@ -2676,7 +3333,7 @@ struct SettingsView: View {
                 isProminent: true,
                 help: "Download and load the local Parakeet model."
             ) {
-                viewModel.repairParakeetModel()
+                viewModel.engine.repairParakeetModel()
             }
         default:
             return nil
@@ -2688,14 +3345,14 @@ struct SettingsView: View {
     /// download badge — that's the unambiguous place to remove the build you're
     /// not using (this row represents whichever build is active).
     private var parakeetOverflowActions: [ModelRowAction] {
-        switch viewModel.parakeetStatus {
+        switch viewModel.engine.parakeetStatus {
         case .ready, .notLoaded:
             return [ModelRowAction(
                 label: "Repair…",
                 isProminent: false,
                 help: "Re-validate the Parakeet files and load the model again."
             ) {
-                viewModel.repairParakeetModel()
+                viewModel.engine.repairParakeetModel()
             }]
         default:
             return []
@@ -2703,14 +3360,14 @@ struct SettingsView: View {
     }
 
     private var whisperPrimaryAction: ModelRowAction? {
-        switch viewModel.whisperModelStatus {
+        switch viewModel.engine.whisperModelStatus {
         case .notDownloaded:
             return ModelRowAction(
                 label: "Download",
                 isProminent: true,
                 help: "Download Whisper Large v3 Turbo for multilingual transcription."
             ) {
-                viewModel.downloadWhisperModel()
+                viewModel.engine.downloadWhisperModel()
             }
         case .failed:
             return ModelRowAction(
@@ -2718,7 +3375,7 @@ struct SettingsView: View {
                 isProminent: true,
                 help: "Try downloading the Whisper model again."
             ) {
-                viewModel.downloadWhisperModel()
+                viewModel.engine.downloadWhisperModel()
             }
         default:
             return nil
@@ -2726,14 +3383,14 @@ struct SettingsView: View {
     }
 
     private var nemotronPrimaryAction: ModelRowAction? {
-        switch viewModel.nemotronModelStatus {
+        switch viewModel.engine.nemotronModelStatus {
         case .notDownloaded:
             return ModelRowAction(
                 label: "Download",
                 isProminent: true,
                 help: "Download the selected Nemotron build for local speech recognition."
             ) {
-                viewModel.downloadNemotronModel()
+                viewModel.engine.downloadNemotronModel()
             }
         case .failed:
             return ModelRowAction(
@@ -2741,7 +3398,34 @@ struct SettingsView: View {
                 isProminent: true,
                 help: "Try downloading the Nemotron model again."
             ) {
-                viewModel.downloadNemotronModel()
+                viewModel.engine.downloadNemotronModel()
+            }
+        default:
+            return nil
+        }
+    }
+
+    private var coherePrimaryAction: ModelRowAction? {
+        // No download/retry affordance on a Mac that can't run Cohere; the engine
+        // tile already explains the 16 GB requirement, and the VM guards the
+        // download path regardless.
+        guard viewModel.engine.cohereMeetsMemoryRequirement else { return nil }
+        switch viewModel.engine.cohereModelStatus {
+        case .notDownloaded:
+            return ModelRowAction(
+                label: "Download",
+                isProminent: true,
+                help: "Download Cohere Transcribe for local speech recognition."
+            ) {
+                viewModel.engine.downloadCohereModel()
+            }
+        case .failed:
+            return ModelRowAction(
+                label: "Retry",
+                isProminent: true,
+                help: "Try downloading Cohere Transcribe again."
+            ) {
+                viewModel.engine.downloadCohereModel()
             }
         default:
             return nil
@@ -2749,23 +3433,23 @@ struct SettingsView: View {
     }
 
     private var nemotronOverflowActions: [ModelRowAction] {
-        switch viewModel.nemotronModelStatus {
+        switch viewModel.engine.nemotronModelStatus {
         case .ready, .notLoaded:
             var actions = [ModelRowAction(
                 label: "Repair…",
                 isProminent: false,
                 help: "Re-check the Nemotron files and re-download any missing model assets."
             ) {
-                viewModel.downloadNemotronModel()
+                viewModel.engine.downloadNemotronModel()
             }]
-            if viewModel.speechEnginePreference != .nemotron {
+            if !viewModel.engine.usesSpeechEngine(.nemotron) {
                 actions.append(ModelRowAction(
                     label: "Delete download…",
                     isProminent: false,
                     isDestructive: true,
                     help: "Remove the selected Nemotron build's download from this Mac."
                 ) {
-                    pendingModelDeletion = .nemotron(viewModel.nemotronModelVariant)
+                    pendingModelDeletion = .nemotron(viewModel.engine.nemotronModelVariant)
                 })
             }
             return actions
@@ -2775,7 +3459,7 @@ struct SettingsView: View {
     }
 
     private var whisperOverflowActions: [ModelRowAction] {
-        switch viewModel.whisperModelStatus {
+        switch viewModel.engine.whisperModelStatus {
         case .ready, .notLoaded:
             // Symmetric with Parakeet's "Repair…" — both engines surface the
             // same affordance to the user. Underneath, Parakeet re-runs warmup
@@ -2787,11 +3471,11 @@ struct SettingsView: View {
                 isProminent: false,
                 help: "Re-check the Whisper files and re-download any missing model assets."
             ) {
-                viewModel.downloadWhisperModel()
+                viewModel.engine.downloadWhisperModel()
             }]
             // Offer delete only when Whisper isn't the active engine — deleting
             // the in-use model would force a silent re-download next time.
-            if viewModel.speechEnginePreference != .whisper {
+            if !viewModel.engine.usesSpeechEngine(.whisper) {
                 actions.append(ModelRowAction(
                     label: "Delete download…",
                     isProminent: false,
@@ -2805,6 +3489,36 @@ struct SettingsView: View {
         default:
             return []
         }
+    }
+
+    private var cohereOverflowActions: [ModelRowAction] {
+        var actions: [ModelRowAction] = []
+        switch viewModel.engine.cohereModelStatus {
+        case .ready, .notLoaded:
+            actions.append(ModelRowAction(
+                label: "Repair…",
+                isProminent: false,
+                help: "Re-check Cohere Transcribe files and re-download any missing model assets."
+            ) {
+                viewModel.engine.downloadCohereModel()
+            })
+        case .failed, .notDownloaded:
+            break
+        default:
+            return []
+        }
+        if viewModel.engine.canDeleteCohereModel,
+           !viewModel.engine.usesSpeechEngine(.cohere) {
+            actions.append(ModelRowAction(
+                label: "Delete download…",
+                isProminent: false,
+                isDestructive: true,
+                help: "Remove the Cohere Transcribe download from this Mac."
+            ) {
+                pendingModelDeletion = .cohere
+            })
+        }
+        return actions
     }
 
     fileprivate struct ModelRowAction: Identifiable {
@@ -2856,22 +3570,23 @@ struct SettingsView: View {
         }
     }
 
-    /// Roll-up of the three permissions. `.required` if any feature gate is
-    /// missing; Screen Recording is required for meeting recording because the
-    /// runtime has no mic-only meeting fallback.
+    /// Roll-up of the three permissions. `.required` if any core gate is
+    /// missing; Screen Recording is only required by meeting source modes that
+    /// capture system audio.
     private var permissionsCardStatus: SettingsCardStatus? {
         SettingsStatusRules.permissionsCardStatus(
             meetingRecordingEnabled: AppFeatures.meetingRecordingEnabled,
             microphoneGranted: viewModel.microphoneGranted,
             accessibilityGranted: viewModel.accessibilityGranted,
-            screenRecordingGranted: viewModel.screenRecordingGranted
+            screenRecordingGranted: viewModel.screenRecordingGranted,
+            meetingAudioSourceMode: viewModel.meetingAudioSourceMode
         )
     }
 
     private var permissionsCard: some View {
         let permissionsSubtitle = AppFeatures.meetingRecordingEnabled
-            ? "Microphone and Accessibility are required. Screen Recording is required for meetings."
-            : "Microphone and Accessibility are required."
+            ? "Microphone is needed for dictation and microphone meetings. Accessibility is required for the global hotkey and paste. Screen Recording is needed for system-audio meetings."
+            : "Microphone is needed for dictation. Accessibility is required for the global hotkey and paste."
 
         return SettingsCard(
             title: "Permissions",
@@ -2881,7 +3596,10 @@ struct SettingsView: View {
         ) {
             VStack(spacing: DesignSystem.Spacing.md) {
                 HStack {
-                    rowText(title: "Microphone", detail: "Required for voice capture.")
+                    rowText(
+                        title: "Microphone",
+                        detail: "Needed for dictation and microphone meetings. File transcription does not use it."
+                    )
                     Spacer()
                     permissionPill(granted: viewModel.microphoneGranted)
                 }
@@ -2900,17 +3618,23 @@ struct SettingsView: View {
                     HStack {
                         rowText(
                             title: "Screen & System Audio Recording",
-                            detail: "Required for meeting audio capture. MacParakeet never records your screen."
+                            detail: "Required for meeting modes that capture system audio. MacParakeet never records your screen."
                         )
                         Spacer()
-                        permissionPill(granted: viewModel.screenRecordingGranted)
+                        screenRecordingPermissionPill
                     }
                 }
 
-                let needsScreenRecordingAction = AppFeatures.meetingRecordingEnabled && !viewModel.screenRecordingGranted
-                if !viewModel.accessibilityGranted || needsScreenRecordingAction {
+                let needsScreenRecordingAction = AppFeatures.meetingRecordingEnabled
+                    && viewModel.meetingAudioSourceMode.capturesSystemAudio
+                    && !viewModel.screenRecordingGranted
+                if !viewModel.microphoneGranted || !viewModel.accessibilityGranted || needsScreenRecordingAction {
                     Divider()
                     HStack(spacing: DesignSystem.Spacing.sm) {
+                        if !viewModel.microphoneGranted {
+                            microphonePermissionActionButton
+                        }
+
                         if !viewModel.accessibilityGranted {
                             Button("Open Accessibility Settings") {
                                 openAccessibilitySettings()
@@ -2940,7 +3664,7 @@ struct SettingsView: View {
     private var privacyCard: some View {
         settingsCard(
             title: "Privacy",
-            subtitle: "Your audio and transcriptions never leave your device.",
+            subtitle: "Speech recognition stays on your Mac. Optional network features use only text you choose.",
             icon: "hand.raised"
         ) {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
@@ -3051,7 +3775,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("MacParakeet \(identity.version) (\(identity.buildNumber))")
                             .font(DesignSystem.Typography.body)
-                        Text("Fast, private voice for Mac")
+                        Text("Fast, private, local-first voice for Mac")
                             .font(DesignSystem.Typography.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -3185,8 +3909,7 @@ struct SettingsView: View {
                         .help(overflowActions.count == 1 ? (overflowActions[0].help ?? "More actions") : "More actions")
                         .accessibilityLabel("More actions")
                     } else if isWorking || status == .checking || status == .repairing || status == .preparing {
-                        ProgressView()
-                            .controlSize(.small)
+                        ParakeetSpinner(.inline)
                             .frame(width: 22, height: 22)
                     } else {
                         Color.clear.frame(width: 22, height: 22)
@@ -3390,6 +4113,27 @@ struct SettingsView: View {
     }
 
     @ViewBuilder
+    private var screenRecordingPermissionPill: some View {
+        if viewModel.screenRecordingGranted || viewModel.meetingAudioSourceMode.capturesSystemAudio {
+            permissionPill(granted: viewModel.screenRecordingGranted)
+        } else {
+            HStack(spacing: 4) {
+                Image(systemName: "minus.circle.fill")
+                    .font(.system(size: 10))
+                Text("Not needed")
+                    .font(DesignSystem.Typography.micro)
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule()
+                    .fill(Color.secondary.opacity(0.1))
+            )
+        }
+    }
+
+    @ViewBuilder
     private func modelStatusPill(_ status: SettingsViewModel.LocalModelStatus) -> some View {
         let (icon, text, color): (String, String, Color) = switch status {
         case .unknown:
@@ -3447,6 +4191,21 @@ struct SettingsView: View {
             "Model setup is currently running."
         case .failed:
             "The last model setup attempt failed."
+        }
+    }
+
+    @ViewBuilder
+    private var microphonePermissionActionButton: some View {
+        if viewModel.microphoneStatus == .notDetermined {
+            Button("Grant Microphone Access") {
+                viewModel.requestMicrophoneAccess()
+            }
+            .parakeetAction(.primaryProminent)
+        } else {
+            Button("Open Microphone Settings") {
+                viewModel.openMicrophoneSystemSettings()
+            }
+            .parakeetAction(.primaryProminent)
         }
     }
 

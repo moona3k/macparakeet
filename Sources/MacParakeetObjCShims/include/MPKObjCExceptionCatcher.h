@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import <mach/mach.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -26,5 +27,9 @@ FOUNDATION_EXPORT NSString *const MPKObjCExceptionCallStackKey;
 /// @return @c YES if @c block returned normally, @c NO if it raised.
 FOUNDATION_EXPORT BOOL MPKTryBlock(NS_NOESCAPE void (^block)(void),
                                    NSError * _Nullable * _Nullable error);
+
+/// Returns the current process task port without exposing Darwin's
+/// mach_task_self_ global to Swift concurrency checking.
+FOUNDATION_EXPORT mach_port_t MPKCurrentTaskPort(void);
 
 NS_ASSUME_NONNULL_END

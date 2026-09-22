@@ -1,0 +1,23 @@
+{
+  "createdAt" : "2026-09-07T23:05:28Z",
+  "derivedSnippet" : "다리의 수집 간격은 15미터이며 공사는 2011년 8월에 마무리되었으며 해당 다리의 통행 금지는 2017년 3월까지이다.",
+  "derivedTitle" : "다리의 수집 간격은 15미터이며 공사는 2011년 8월에 마무리되었으며 해당 다리의 통행 금지는 2017년 3월까지이다",
+  "durationMs" : 12480,
+  "engine" : "cohere",
+  "engineVariant" : "ane",
+  "fileName" : "ko_kr_0000.wav",
+  "filePath" : "<PUBLIC_FLEURS>\/ko_kr\/ko_kr_0000.wav",
+  "fileSizeBytes" : 399404,
+  "id" : "A964B8F0-523B-4BF5-8806-0FAB0C8F7CCD",
+  "isFavorite" : false,
+  "isTranscriptEdited" : false,
+  "language" : "ko",
+  "rawTranscript" : "다리의 수집 간격은 15미터이며 공사는 2011년 8월에 마무리되었으며 해당 다리의 통행 금지는 2017년 3월까지이다.",
+  "recoveredFromCrash" : false,
+  "sourceType" : "file",
+  "status" : "completed",
+  "updatedAt" : "2026-09-07T23:05:35Z",
+  "wordTimestamps" : [
+
+  ]
+}

@@ -2,7 +2,7 @@ import FluidAudio
 import Foundation
 import os
 
-public actor NemotronEngine: STTTranscribing, NemotronLiveDictating {
+public actor NemotronEngine: STTTranscribing, NativeLiveDictating {
     public static let defaultModelVariant = SpeechEnginePreference.defaultNemotronModelVariant
 
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "NemotronEngine")
@@ -65,15 +65,19 @@ public actor NemotronEngine: STTTranscribing, NemotronLiveDictating {
             }.value
             onProgress?(25, 100)
             try Task.checkCancellation()
-            _ = try await manager.process(samples: samples)
+            _ = try await ANEInferenceGate.shared.withExclusiveAccess {
+                try await manager.process(samples: samples)
+            }
             onProgress?(90, 100)
-            let text = try await manager.finish()
+            let final = try await ANEInferenceGate.shared.withExclusiveAccess {
+                try await manager.finishWithTokenTimings()
+            }
             let detectedLanguage = await manager.detectedLanguage()
             onProgress?(100, 100)
 
             return STTResult(
-                text: text,
-                words: [],
+                text: final.text,
+                words: STTWordTimingBuilder.words(from: final.timings),
                 language: detectedLanguage ?? requestedLanguage,
                 engine: .nemotron,
                 engineVariant: modelVariant.rawValue
@@ -117,7 +121,9 @@ public actor NemotronEngine: STTTranscribing, NemotronLiveDictating {
         }
         do {
             try Task.checkCancellation()
-            _ = try await manager.process(samples: samples)
+            _ = try await ANEInferenceGate.shared.withExclusiveAccess {
+                try await manager.process(samples: samples)
+            }
         } catch {
             throw try Self.mapTranscriptionError(error)
         }
@@ -137,11 +143,13 @@ public actor NemotronEngine: STTTranscribing, NemotronLiveDictating {
 
         do {
             await manager.setPartialCallback { _ in }
-            let text = try await manager.finish()
+            let final = try await ANEInferenceGate.shared.withExclusiveAccess {
+                try await manager.finishWithTokenTimings()
+            }
             let detectedLanguage = await manager.detectedLanguage()
             return STTResult(
-                text: text,
-                words: [],
+                text: final.text,
+                words: STTWordTimingBuilder.words(from: final.timings),
                 language: detectedLanguage ?? requestedLanguage,
                 engine: .nemotron,
                 engineVariant: modelVariant.rawValue
@@ -207,16 +215,7 @@ public actor NemotronEngine: STTTranscribing, NemotronLiveDictating {
     }
 
     public nonisolated static func defaultCacheRoot() -> URL {
-        let appSupport = FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first ?? FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library", isDirectory: true)
-            .appendingPathComponent("Application Support", isDirectory: true)
-        return appSupport
-            .appendingPathComponent("FluidAudio", isDirectory: true)
-            .appendingPathComponent("Models", isDirectory: true)
-            .appendingPathComponent(Repo.nemotronMultilingual.folderName, isDirectory: true)
+        AppPaths.fluidAudioModelDirectory(for: .nemotronMultilingual)
     }
 
     public nonisolated static func defaultVariantDirectory(
@@ -346,6 +345,7 @@ public actor NemotronEngine: STTTranscribing, NemotronLiveDictating {
         return try await StreamingNemotronMultilingualAsrManager.downloadVariant(
             languageCode: SpeechEnginePreference.normalizeNemotronLanguage(language) ?? "auto",
             chunkMs: modelVariant.chunkMilliseconds,
+            to: AppPaths.fluidAudioModelsDirURL,
             progressHandler: progressHandler
         )
     }
@@ -361,6 +361,7 @@ public actor NemotronEngine: STTTranscribing, NemotronLiveDictating {
         let shared = try await StreamingNemotronMultilingualAsrManager.downloadAndPreloadShared(
             languageCode: languageCode,
             chunkMs: modelVariant.chunkMilliseconds,
+            to: AppPaths.fluidAudioModelsDirURL,
             progressHandler: progressHandler
         )
 
@@ -409,7 +410,7 @@ public actor NemotronEngine: STTTranscribing, NemotronLiveDictating {
 
     private nonisolated static func makeDownloadProgressHandler(
         _ onProgress: (@Sendable (String) -> Void)?
-    ) -> DownloadUtils.ProgressHandler? {
+    ) -> ProgressHandler? {
         guard let onProgress else { return nil }
         let clock = ContinuousClock()
         let lastProgressUpdate = OSAllocatedUnfairLock(initialState: clock.now - .seconds(1))
@@ -435,7 +436,7 @@ public actor NemotronEngine: STTTranscribing, NemotronLiveDictating {
         }
     }
 
-    private nonisolated static func progressMessage(from progress: DownloadUtils.DownloadProgress) -> String? {
+    private nonisolated static func progressMessage(from progress: DownloadProgress) -> String? {
         switch progress.phase {
         case .listing:
             return "Preparing Nemotron model download..."
@@ -483,6 +484,8 @@ public actor NemotronEngine: STTTranscribing, NemotronLiveDictating {
             case .processingFailed(let message):
                 return .transcriptionFailed(message)
             case .unsupportedPlatform(let message):
+                return .engineStartFailed(message)
+            case .encoderInstantiationFailed(let message):
                 return .engineStartFailed(message)
             case .streamingConversionFailed, .fileAccessFailed:
                 return .transcriptionFailed(asrError.localizedDescription)

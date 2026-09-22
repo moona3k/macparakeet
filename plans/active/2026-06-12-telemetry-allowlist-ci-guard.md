@@ -20,7 +20,7 @@
 - **Depends on**: none
 - **Category**: dx
 - **Planned at**: commit `3f9361005`, 2026-06-12
-- **Re-verified**: 2026-06-13 at HEAD `eb123cc35` — source branch `chore/improve-audit-fixes` + script present; sibling `../macparakeet-website` checkout present; repos **in sync** (97 Swift `TelemetryEventName` cases, 0 missing from `ALLOWED_EVENTS`). Drift baseline unchanged (`3f9361005..HEAD` touches neither in-scope file). Executor-ready.
+- **Implemented**: 2026-09-13 on `feat/telemetry-agent-debug` (script recovered, awk terminator hardened, curl fallback added, CI step wired). Enforcement in GitHub Actions still needs the maintainer `WEBSITE_REPO_TOKEN` secret.
 
 ## Why this matters
 

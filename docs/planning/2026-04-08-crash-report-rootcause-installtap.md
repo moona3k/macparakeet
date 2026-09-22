@@ -5,7 +5,8 @@
 > [issue #91](https://github.com/moona3k/macparakeet/issues/91). This
 > document is the engineering investigation record.
 
-> Status: **ACTIVE** — investigation complete (two passes), fix not yet shipped.
+> Status: **HISTORICAL / RESOLVED** — investigation complete; fix shipped in
+> PR #93 (`47beb7f5`) and issue #91 closed 2026-04-09.
 >
 > This report was written in two passes. The first pass reached the right
 > conclusion but contained several imprecisions (line-number off-by-4 in the

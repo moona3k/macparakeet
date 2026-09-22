@@ -1,0 +1,17 @@
+{
+  "candidate": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3",
+  "results": [
+    {
+      "check": "complete summary Copy equals stored Markdown",
+      "passed": true
+    },
+    {
+      "check": "table Copy includes complete rows",
+      "passed": true
+    },
+    {
+      "check": "code block Copy returns expected JSON",
+      "passed": false
+    }
+  ]
+}

@@ -13,7 +13,8 @@ public struct TextProcessingPipeline: Sendable {
         text: String,
         customWords: [CustomWord],
         snippets: [TextSnippet],
-        insertionStyle: DictationInsertionStyle = .sentence
+        insertionStyle: DictationInsertionStyle = .sentence,
+        removeUmFiller: Bool = true
     ) -> TextProcessingResult {
         guard !text.isEmpty else {
             return TextProcessingResult(text: "")
@@ -25,7 +26,7 @@ public struct TextProcessingPipeline: Sendable {
         var result = text
 
         // Step 1: Filler removal
-        result = removeFillers(from: result)
+        result = removeFillers(from: result, removeUmFiller: removeUmFiller)
 
         // Step 2: Custom word replacements
         result = applyCustomWords(to: result, words: customWords)
@@ -67,19 +68,27 @@ public struct TextProcessingPipeline: Sendable {
 
     // MARK: - Step 1: Filler Removal
 
-    /// Always-safe fillers (always removed)
-    /// Only pure hesitation sounds — words that never carry meaning.
+    /// Always-safe fillers (always removed).
+    /// Conservative hesitation spellings that do not conflict with supported languages.
     private static let alwaysSafeFillers = [
-        "um", "uh", "umm", "uhh"
+        "uh", "umm", "uhh",
     ]
 
+    /// English hesitation `um`. On by default; Portuguese/German speakers can
+    /// turn it off because `um` is a real word in those languages.
+    private static let englishUmFiller = "um"
+
     /// Pre-compiled filler regexes — avoids recompilation on every dictation.
-    private static let fillerRegexes: [NSRegularExpression] = alwaysSafeFillers.compactMap { filler in
+    private static let fillerRegexes: [NSRegularExpression] = alwaysSafeFillers.compactMap { fillerRegex(for: $0) }
+
+    private static let umFillerRegex: NSRegularExpression? = fillerRegex(for: englishUmFiller)
+
+    private static func fillerRegex(for filler: String) -> NSRegularExpression? {
         let pattern = "\\b\(NSRegularExpression.escapedPattern(for: filler))\\b"
         return try? NSRegularExpression(pattern: pattern, options: .caseInsensitive)
     }
 
-    func removeFillers(from text: String) -> String {
+    func removeFillers(from text: String, removeUmFiller: Bool = true) -> String {
         var result = text
 
         for regex in Self.fillerRegexes {
@@ -90,29 +99,58 @@ public struct TextProcessingPipeline: Sendable {
             )
         }
 
+        if removeUmFiller, let umRegex = Self.umFillerRegex {
+            result = umRegex.stringByReplacingMatches(
+                in: result,
+                range: NSRange(result.startIndex..., in: result),
+                withTemplate: ""
+            )
+        }
+
+        return cleanupFillerPunctuation(in: result)
+    }
+
+    /// STT often punctuates fillers (`Um, I think`, `I think, um, we`).
+    /// Removing the token alone leaves a leading comma/period or `,,`.
+    private static let doubledCommaRegex = try? NSRegularExpression(pattern: ",\\s*,+")
+    private static let leadingFillerPunctuationRegex = try? NSRegularExpression(
+        pattern: "^\\s*[,.]\\s+",
+        options: .anchorsMatchLines
+    )
+    private static let leftoverCommaAfterSentenceRegex = try? NSRegularExpression(
+        pattern: "([.!?])[ \\t]+,[ \\t]*"
+    )
+
+    private func cleanupFillerPunctuation(in text: String) -> String {
+        var result = text
+        if let regex = Self.doubledCommaRegex {
+            result = regex.stringByReplacingMatches(
+                in: result,
+                range: NSRange(result.startIndex..., in: result),
+                withTemplate: ","
+            )
+        }
+        if let regex = Self.leftoverCommaAfterSentenceRegex {
+            result = regex.stringByReplacingMatches(
+                in: result,
+                range: NSRange(result.startIndex..., in: result),
+                withTemplate: "$1 "
+            )
+        }
+        if let regex = Self.leadingFillerPunctuationRegex {
+            result = regex.stringByReplacingMatches(
+                in: result,
+                range: NSRange(result.startIndex..., in: result),
+                withTemplate: ""
+            )
+        }
         return result
     }
 
     // MARK: - Step 2: Custom Word Replacements
 
     func applyCustomWords(to text: String, words: [CustomWord]) -> String {
-        var result = text
-
-        for word in words {
-            guard word.isEnabled else { continue }
-
-            let replacement = word.replacement ?? word.word
-            let pattern = "\\b\(NSRegularExpression.escapedPattern(for: word.word))\\b"
-            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
-                result = regex.stringByReplacingMatches(
-                    in: result,
-                    range: NSRange(result.startIndex..., in: result),
-                    withTemplate: NSRegularExpression.escapedTemplate(for: replacement)
-                )
-            }
-        }
-
-        return result
+        CustomWordReplacer(words: words).apply(to: text)
     }
 
     // MARK: - Step 3: Trailing Action Extraction
@@ -124,16 +162,17 @@ public struct TextProcessingPipeline: Sendable {
         guard !actionSnippets.isEmpty else { return (text, nil) }
 
         // Sort longest-trigger-first (same as expandSnippets)
-        let sorted = actionSnippets
+        let sorted =
+            actionSnippets
             .filter { $0.isEnabled }
             .sorted { $0.trigger.count > $1.trigger.count }
 
         for snippet in sorted {
-            // Punctuation-tolerant: match trigger at end with optional trailing punctuation.
+            // Punctuation-tolerant: match a separate trigger at end with optional trailing Unicode punctuation.
             // Normalize literal spaces to \s+ so filler removal gaps (double spaces) still match.
             let escaped = NSRegularExpression.escapedPattern(for: snippet.trigger)
             let spaceNormalized = escaped.replacingOccurrences(of: " ", with: "\\s+")
-            let pattern = "\\b\(spaceNormalized)[.!?,;:]*\\s*$"
+            let pattern = "(?<!\\S)\(spaceNormalized)\\p{P}*\\s*$"
             guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
                 continue
             }
@@ -160,7 +199,8 @@ public struct TextProcessingPipeline: Sendable {
         var expandedIDs = Set<UUID>()
 
         // Sort longest-trigger-first to prevent partial matches
-        let sorted = snippets
+        let sorted =
+            snippets
             .filter { $0.isEnabled }
             .sorted { $0.trigger.count > $1.trigger.count }
 
@@ -254,10 +294,12 @@ public struct TextProcessingPipeline: Sendable {
         textSnippets: [TextSnippet],
         expandedSnippetIDs: Set<UUID>
     ) -> [String] {
-        let customTerms = customWords
+        let customTerms =
+            customWords
             .filter(\.isEnabled)
             .map { $0.replacement ?? $0.word }
-        let snippetTerms = textSnippets
+        let snippetTerms =
+            textSnippets
             .filter { $0.isEnabled && expandedSnippetIDs.contains($0.id) }
             .map(\.expansion)
         return customTerms + snippetTerms

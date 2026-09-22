@@ -1,0 +1,32 @@
+[
+  {
+    "case": "diarization-auto",
+    "assessment": "Boundary attribution mismatch",
+    "knownSourceSpeakerID": "1188",
+    "expectedOutputClusterFromFollowingWords": "S2",
+    "word": {
+      "confidence": 0.78662109375,
+      "endMs": 12320,
+      "startMs": 12160,
+      "word": "You"
+    },
+    "containingTranscriptSegmentSpeakerID": "S1",
+    "containingTranscriptSegmentText": "He hoped there would be stew for dinner, turnips and carrots and bruised potatoes and fat mutton pieces to be ladled out in thick, peppered, flour fattened sauce. You",
+    "evidence": "The unique word You begins the second concatenated public utterance. Its word timestamp has no speakerId and the assembled transcript segment appends it to S1. No overlap or diarization-error-rate score is inferred."
+  },
+  {
+    "case": "diarization-exact-2",
+    "assessment": "Boundary attribution mismatch",
+    "knownSourceSpeakerID": "1188",
+    "expectedOutputClusterFromFollowingWords": "S2",
+    "word": {
+      "confidence": 0.78662109375,
+      "endMs": 12320,
+      "startMs": 12160,
+      "word": "You"
+    },
+    "containingTranscriptSegmentSpeakerID": "S1",
+    "containingTranscriptSegmentText": "He hoped there would be stew for dinner, turnips and carrots and bruised potatoes and fat mutton pieces to be ladled out in thick, peppered, flour fattened sauce. You",
+    "evidence": "The unique word You begins the second concatenated public utterance. Its word timestamp has no speakerId and the assembled transcript segment appends it to S1. No overlap or diarization-error-rate score is inferred."
+  }
+]

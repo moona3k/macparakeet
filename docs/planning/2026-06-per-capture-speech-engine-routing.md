@@ -67,7 +67,8 @@ engine matches its latency, punctuation, and timestamp behavior.
 Per-capture routing does not require multiple audio streams, but it can increase
 model residency and switching pressure:
 
-- Parakeet v3/v2 are about 465 MB each on disk.
+- Parakeet v3/v2 are about 465 MB each on disk; Parakeet Unified is about
+  565 MB for its int8 export.
 - Nemotron Beta is about 1.5 GB on disk.
 - Whisper depends on the selected model variant.
 - Keeping multiple engines warm may be fine on 16-48 GB Macs, but lower-memory
@@ -90,7 +91,9 @@ Nemotron is a promising meeting candidate because it is local and fast in the
 smoke benchmark, but it should stay Beta until tested on real meeting audio.
 Known caution areas:
 
-- Nemotron does not currently surface word timestamps through MacParakeet.
+- Nemotron now maps FluidAudio token timings into MacParakeet word timestamps
+  when the upstream runtime reports them, but coverage still needs real meeting
+  audio validation before treating it as a default-quality path.
 - VAD-guided live chunking is currently Parakeet-only; Nemotron meetings use the
   fixed live chunk cadence.
 - Synthetic smoke data showed good speed but not enough quality proof to make
@@ -130,7 +133,7 @@ Do not:
 - Should the first setting be `App Default` or `Parakeet` by default?
 - Should CLI expose `config set meeting-speech-engine` immediately, or wait until
   the GUI proves the setting is useful?
-- Should Nemotron be allowed for meeting live preview before word timestamps are
-  available, or should it initially apply only to final transcription?
+- What real-world meeting coverage should gate broader Nemotron live-preview
+  promotion now that token-derived word timestamps are preserved when available?
 - What minimum real-world corpus result would promote Nemotron from Beta for
   meetings?

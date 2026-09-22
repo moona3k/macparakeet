@@ -15,7 +15,7 @@ authors: Claude Opus 4.6 (research), Codex/GPT (independent review), Daniel Moon
 
 ## TL;DR
 
-MacParakeet ships two concurrent features in the same process: dictation (hotkey-triggered mic capture) and meeting recording (mic + system audio simultaneously). The original meeting implementation used a Core Audio process tap introduced in macOS 14.2 to capture system audio; the current branch uses ScreenCaptureKit audio instead and ships raw meeting mic capture by default.
+MacParakeet ships two concurrent features in the same process: dictation (hotkey-triggered mic capture) and meeting recording (microphone + system audio by default, with single-source modes available). The original meeting implementation used a Core Audio process tap introduced in macOS 14.2 to capture system audio; the current branch uses ScreenCaptureKit audio instead and ships raw meeting mic capture by default.
 
 A refactor on 2026-04-10 (commit `97134e9b` "Refactor meeting recording to VPIO-first pipeline") turned on `AVAudioInputNode.setVoiceProcessingEnabled(true)` (VPIO) for the meeting microphone path to get Apple's hardware acoustic echo cancellation. Motivation: the laptop mic was picking up audio leaking through the speakers from the far-end meeting participant, producing duplicated/echoed content in the mic transcript.
 
@@ -124,7 +124,11 @@ Verified via grep and direct file reads on 2026-04-11:
 ### Historical software AEC infrastructure
 
 - Commit `118d7e6f` had `SoftwareAECConditioner` + `MeetingSoftwareAEC` as an experimental software AEC path.
-- Current `Sources/MacParakeetCore/Services/MicConditioner.swift` keeps `MicConditioning` but uses `PassthroughMicConditioner`; mic cleanup is owned upstream by VPIO when it engages.
+- Current `Sources/MacParakeetCore/Services/Capture/MicConditioner.swift`
+  keeps `MicConditioning` with `PassthroughMicConditioner` as the default and
+  `StreamingMeetingEchoSuppressor` as the optional LocalVQE-compatible
+  processor when a runtime/model are available. Mic cleanup is otherwise owned
+  upstream by VPIO only when an explicit VPIO experiment engages.
 - `MeetingRecordingService.shouldSuppressMicrophoneChunkTranscription` still provides an independent transcript-layer suppression path that drops mic chunks from STT when system-audio RMS dominates the mic over the same time window.
 
 ### CaptureOrchestrator pair-joining pipeline
@@ -351,6 +355,8 @@ Current manual verification checklist:
 - Meeting alone with Safari/Zoom/system audio playing -> `system.m4a` contains real system audio and live/final transcript includes the system side.
 - Meeting with built-in speakers -> `microphone.m4a` contains the user's voice; some far-end speaker bleed is acceptable in raw mode, with residual transcript suppression still available.
 - Meeting -> trigger dictation without stopping meeting -> dictation captures and pastes independently; meeting system audio remains continuous.
+- Meeting `microphoneOnly` mode -> microphone audio records without prompting
+  for or starting ScreenCaptureKit system audio.
 - Meeting `systemOnly` mode -> system audio records while the microphone remains free for dictation.
 - Explicit VPIO experiment retry after a failed VPIO start -> the next attempt does not fail with the stale half-VPIO `-10875` state.
 
@@ -531,9 +537,9 @@ Tracked here for the historical minimum-fix decision. Items tied to `SystemAudio
 - `Sources/MacParakeetCore/Audio/AudioRecorder.swift` — dictation path, no VPIO.
 - `Sources/MacParakeetCore/Audio/SystemAudioStream.swift` — ScreenCaptureKit system-audio stream implementation.
 - `Sources/MacParakeetCore/Services/MeetingRecordingService.swift` — hosts `shouldSuppressMicrophoneChunkTranscription` and `shouldTranscribeChunk`.
-- `Sources/MacParakeetCore/Services/MicConditioner.swift` — `PassthroughMicConditioner`; VPIO cleanup happens upstream when VPIO engages.
-- `Sources/MacParakeetCore/Services/CaptureOrchestrator.swift` — pair-joining pipeline.
-- `Sources/MacParakeetCore/Services/MeetingAudioPairJoiner.swift` — mic/system sample pairing with bounded lag.
+- `Sources/MacParakeetCore/Services/Capture/MicConditioner.swift` — `PassthroughMicConditioner` by default and optional `StreamingMeetingEchoSuppressor` when a runtime/model are available.
+- `Sources/MacParakeetCore/Services/Capture/CaptureOrchestrator.swift` — pair-joining pipeline.
+- `Sources/MacParakeetCore/Services/MeetingRecording/MeetingAudioPairJoiner.swift` — mic/system sample pairing with bounded lag.
 
 ### Related MacParakeet git commits
 

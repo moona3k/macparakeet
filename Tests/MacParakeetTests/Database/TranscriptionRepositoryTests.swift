@@ -12,6 +12,67 @@ final class TranscriptionRepositoryTests: XCTestCase {
         repo = TranscriptionRepository(dbQueue: manager.dbQueue)
     }
 
+    func testMeetingRenameRecordsExplicitTitleIntent() throws {
+        let meeting = Transcription(fileName: "Original", sourceType: .meeting)
+        try repo.save(meeting)
+        let saved = try XCTUnwrap(repo.updateFileName(id: meeting.id, fileName: "  Chosen title  "))
+        XCTAssertEqual(saved.titleOverride, "Chosen title")
+        XCTAssertEqual(try repo.fetch(id: meeting.id)?.titleOverride, "Chosen title")
+    }
+
+    func testCompletionPreservesExplicitMeetingTitleFromBeforeProcessing() throws {
+        let meeting = Transcription(fileName: "Chosen title", sourceType: .meeting, titleOverride: "Chosen title")
+        try repo.save(meeting)
+        var completed = meeting
+        completed.fileName = "Automatic title"
+        completed.derivedTitle = "Automatic title"
+        completed.status = .completed
+        let saved = try repo.savePreservingUserMetadata(completed, originalFileName: meeting.fileName)
+        XCTAssertEqual(saved.fileName, "Chosen title")
+        XCTAssertEqual(saved.titleOverride, "Chosen title")
+    }
+
+    func testRetentionUsesManagedAudioClockWithLegacyFallbackInSQLAndAdapters() throws {
+        let now = Date(timeIntervalSince1970: 1_000_000_000)
+        let cutoff = now.addingTimeInterval(-30 * 86_400)
+        let historical = now.addingTimeInterval(-3650 * 86_400)
+        let legacy = Transcription(createdAt: historical, fileName: "Legacy", filePath: "/managed/legacy.m4a",
+                                   status: .completed, sourceType: .meeting)
+        var imported = Transcription(createdAt: historical, fileName: "Imported", filePath: "/managed/imported.m4a",
+                                     status: .completed, sourceType: .meeting)
+        imported.audioRetentionStartedAt = now
+        var expired = imported
+        expired.id = UUID()
+        expired.createdAt = now
+        expired.audioRetentionStartedAt = cutoff
+        let adapter = MockTranscriptionRepository()
+        for row in [legacy, imported, expired] {
+            try repo.save(row)
+            try adapter.save(row)
+        }
+        for repository in [repo!, adapter] as [TranscriptionRepositoryProtocol] {
+            XCTAssertEqual(Set(try repository.fetchMeetingAudioRetentionCandidates(createdAtOrBefore: cutoff).map(\.id)),
+                           Set([legacy.id, expired.id]))
+        }
+        XCTAssertEqual(try repo.fetch(id: imported.id)?.audioRetentionStartedAt, now)
+        XCTAssertEqual(try repo.fetch(id: imported.id)?.createdAt, historical)
+    }
+
+    func testCompletionPreservesCurrentRetentionClockIncludingNil() throws {
+        for currentClock in [nil, Date(timeIntervalSince1970: 1_000_000_000)] as [Date?] {
+            var current = Transcription(fileName: "Meeting", sourceType: .meeting)
+            current.audioRetentionStartedAt = currentClock
+            try repo.save(current)
+            var completed = current
+            completed.audioRetentionStartedAt = Date(timeIntervalSince1970: 50)
+            completed.status = .completed
+            let saved = try repo.savePreservingUserMetadata(completed, originalFileName: current.fileName)
+            XCTAssertEqual(saved.audioRetentionStartedAt, currentClock)
+            try repo.savePreservingMeetingClassification(completed)
+            XCTAssertEqual(try repo.fetch(id: current.id)?.audioRetentionStartedAt, currentClock)
+        }
+    }
+
     // MARK: - CRUD
 
     func testSaveAndFetch() throws {
@@ -27,6 +88,85 @@ final class TranscriptionRepositoryTests: XCTestCase {
         XCTAssertEqual(fetched?.fileName, "interview.mp3")
         XCTAssertEqual(fetched?.status, .processing)
         XCTAssertEqual(fetched?.language, "en")
+    }
+
+    func testCompletionDoesNotRecreateDeletedRecording() throws {
+        let original = Transcription(fileName: "Deleted meeting", sourceType: .meeting)
+        try repo.save(original)
+        XCTAssertTrue(try repo.delete(id: original.id))
+        XCTAssertThrowsError(try repo.savePreservingUserMetadata(original, originalFileName: original.fileName)) {
+            XCTAssertEqual($0 as? TranscriptionCompletionError, .recordingDeleted)
+        }
+        XCTAssertNil(try repo.fetch(id: original.id))
+    }
+
+    func testCompletionPreservesClearedAndReplacedAudioPaths() throws {
+        for currentPath in [nil, "/tmp/relocated/audio.m4a"] as [String?] {
+            let original = Transcription(
+                fileName: "Meeting", filePath: "/tmp/old/audio.m4a", sourceType: .meeting
+            )
+            try repo.save(original)
+            try repo.updateFilePath(id: original.id, filePath: currentPath)
+            let saved = try repo.savePreservingUserMetadata(original, originalFileName: original.fileName)
+            XCTAssertEqual(saved.filePath, currentPath)
+            XCTAssertEqual(try repo.fetch(id: original.id)?.filePath, currentPath)
+        }
+    }
+
+    func testCompletionMergePreservesClearedMetadataAndReturnsCommittedRow() throws {
+        let type = MeetingType(name: "Customer")
+        try MeetingTypeRepository(dbQueue: dbQueue).save(type)
+        var original = Transcription(
+            fileName: "Meeting", status: .completed, isFavorite: true,
+            sourceType: .meeting, meetingTypeId: type.id, userNotes: "Old notes"
+        )
+        try repo.save(original)
+        try repo.updateUserNotes(id: original.id, userNotes: nil)
+        try repo.updateMeetingType(id: original.id, meetingTypeId: nil)
+        try repo.updateFavorite(id: original.id, isFavorite: false)
+        original.rawTranscript = "Replacement transcript"
+        let saved = try repo.savePreservingUserMetadata(original, originalFileName: original.fileName)
+        let persisted = try XCTUnwrap(repo.fetch(id: original.id))
+        for snapshot in [saved, persisted] {
+            XCTAssertNil(snapshot.userNotes)
+            XCTAssertNil(snapshot.meetingTypeId)
+            XCTAssertFalse(snapshot.isFavorite)
+            XCTAssertEqual(snapshot.rawTranscript, "Replacement transcript")
+        }
+    }
+
+    func testCompletionMergePreservesClearedFileTitle() throws {
+        let original = Transcription(fileName: "interview.wav", titleOverride: "Old title")
+        try repo.save(original)
+        try repo.updateTitleOverride(id: original.id, titleOverride: nil)
+        let saved = try repo.savePreservingUserMetadata(original, originalFileName: original.fileName)
+        XCTAssertNil(saved.titleOverride)
+        XCTAssertNil(try repo.fetch(id: original.id)?.titleOverride)
+    }
+
+    func testCompletionMergeDoesNotMoveUpdatedAtBehindConcurrentEdit() throws {
+        let completedAt = Date(timeIntervalSince1970: 100)
+        let editedAt = Date(timeIntervalSince1970: 200)
+        let stale = Transcription(fileName: "Meeting", sourceType: .meeting, updatedAt: completedAt)
+        var edited = stale
+        edited.updatedAt = editedAt
+        edited.userNotes = "Latest notes"
+        try repo.save(edited)
+        let saved = try repo.savePreservingUserMetadata(stale, originalFileName: stale.fileName)
+        XCTAssertEqual(saved.updatedAt, editedAt)
+        XCTAssertEqual(try repo.fetch(id: stale.id)?.updatedAt, editedAt)
+    }
+
+    func testCompletionAllowsGeneratedMeetingTitleWhenOriginalNameIsUnchanged() throws {
+        let original = Transcription(fileName: "Meeting recording", sourceType: .meeting)
+        try repo.save(original)
+        var completed = original
+        completed.fileName = "Generated topic"
+        completed.derivedTitle = completed.fileName
+        completed.status = .completed
+        let saved = try repo.savePreservingUserMetadata(completed, originalFileName: original.fileName)
+        XCTAssertEqual(saved.fileName, "Generated topic")
+        XCTAssertEqual(try repo.fetch(id: original.id)?.fileName, "Generated topic")
     }
 
     func testFetchNonExistent() throws {
@@ -47,6 +187,158 @@ final class TranscriptionRepositoryTests: XCTestCase {
         XCTAssertEqual(fetched?.engineVariant, SpeechEnginePreference.defaultWhisperModelVariant)
     }
 
+    func testTranscriptSegmentsRoundTrip() throws {
+        let segmentID = UUID(uuidString: "33333333-3333-3333-3333-333333333333")!
+        let transcription = Transcription(
+            fileName: "Design Review",
+            wordTimestamps: [
+                WordTimestamp(word: "Ship", startMs: 0, endMs: 200, confidence: 0.98, speakerId: "microphone")
+            ],
+            transcriptSegments: [
+                TranscriptSegmentRecord(
+                    id: segmentID,
+                    startMs: 0,
+                    endMs: 200,
+                    speakerId: "microphone",
+                    speakerLabel: "Me",
+                    text: "Ship",
+                    wordRange: TranscriptSegmentWordRange(startIndex: 0, endIndexExclusive: 1)
+                )
+            ],
+            status: .completed,
+            sourceType: .meeting
+        )
+        try repo.save(transcription)
+
+        let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
+        XCTAssertEqual(fetched.transcriptSegments?.count, 1)
+        XCTAssertEqual(fetched.transcriptSegments?.first?.id, segmentID)
+        XCTAssertEqual(fetched.transcriptSegments?.first?.startMs, 0)
+        XCTAssertEqual(fetched.transcriptSegments?.first?.endMs, 200)
+        XCTAssertEqual(fetched.transcriptSegments?.first?.speakerLabel, "Me")
+        XCTAssertEqual(
+            fetched.transcriptSegments?.first?.wordRange,
+            TranscriptSegmentWordRange(startIndex: 0, endIndexExclusive: 1)
+        )
+    }
+
+    func testMeetingCalendarEventSnapshotRoundTrips() throws {
+        let snapshot = MeetingCalendarSnapshot(
+            confidence: .confirmed,
+            eventIdentifier: "event-123",
+            externalId: "external-456",
+            title: "Design Review",
+            scheduledStartAt: Date(timeIntervalSince1970: 1_720_000_000),
+            scheduledEndAt: Date(timeIntervalSince1970: 1_720_003_600),
+            attendees: [
+                MeetingCalendarPerson(name: "Alice Example", email: "alice@example.com"),
+                MeetingCalendarPerson(name: "Bob Example", email: "bob@example.com"),
+            ],
+            organizer: MeetingCalendarPerson(name: "Omar Organizer", email: "omar@example.com"),
+            meetingURL: "https://zoom.us/j/123456789",
+            meetingService: "Zoom",
+            capturedAt: Date(timeIntervalSince1970: 1_720_000_010)
+        )
+        let transcription = Transcription(
+            fileName: "Design Review",
+            sourceType: .meeting,
+            calendarEventSnapshot: snapshot
+        )
+        try repo.save(transcription)
+
+        let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
+
+        XCTAssertEqual(fetched.calendarEventSnapshot, snapshot)
+    }
+
+    func testMeetingCaptureReportRoundTripsIndependentlyOfCompletedStatus() throws {
+        let report = MeetingCaptureReport(
+            sourceMode: .microphoneAndSystem,
+            sourceAlignment: MeetingSourceAlignment(
+                meetingOriginHostTime: 100,
+                microphone: .init(
+                    firstHostTime: 100,
+                    lastHostTime: 200,
+                    startOffsetMs: 0,
+                    writtenFrameCount: 48_000,
+                    sampleRate: 48_000
+                ),
+                system: .init(
+                    firstHostTime: 100,
+                    lastHostTime: 200,
+                    startOffsetMs: 0,
+                    writtenFrameCount: 48_000,
+                    sampleRate: 48_000
+                )
+            ),
+            elapsedDurationMs: 100_000,
+            playbackFallbackSource: .microphone
+        )
+        let transcription = Transcription(
+            fileName: "Partial Meeting",
+            durationMs: report.capturedDurationMs,
+            status: .completed,
+            sourceType: .meeting,
+            meetingCaptureReport: report
+        )
+
+        try repo.save(transcription)
+        let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
+
+        XCTAssertEqual(fetched.status, .completed)
+        XCTAssertEqual(fetched.durationMs, 1_000)
+        XCTAssertEqual(fetched.meetingCaptureReport, report)
+        XCTAssertEqual(fetched.meetingCaptureReport?.quality, .partial)
+        XCTAssertEqual(fetched.meetingCaptureReport?.playbackFallbackSource, .microphone)
+    }
+
+    func testTitleOverrideRoundTripsAndDrivesEffectiveDisplayTitle() throws {
+        let transcription = Transcription(
+            fileName: "source-file.m4a",
+            status: .completed,
+            titleOverride: "Q3 Vendor Notes"
+        )
+        try repo.save(transcription)
+
+        let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
+        XCTAssertEqual(fetched.titleOverride, "Q3 Vendor Notes")
+        XCTAssertEqual(fetched.effectiveDisplayTitle, "Q3 Vendor Notes")
+    }
+
+    func testEffectiveDisplayTitleFallbacks() throws {
+        let localWithDerived = Transcription(
+            fileName: "source-file.m4a",
+            status: .completed,
+            derivedTitle: "Transcript Topic"
+        )
+        let localWithBlankOverride = Transcription(
+            fileName: "blank-override.m4a",
+            status: .completed,
+            titleOverride: "   ",
+            derivedTitle: "Derived Topic"
+        )
+        let localWithoutDerived = Transcription(fileName: "source-file.m4a", status: .completed)
+        let urlWithDerived = Transcription(
+            fileName: "Published Video Title",
+            status: .completed,
+            sourceType: .youtube,
+            derivedTitle: "Transcript Topic"
+        )
+        let meeting = Transcription(
+            fileName: "Weekly Sync",
+            status: .completed,
+            sourceType: .meeting,
+            titleOverride: "Should Not Display",
+            derivedTitle: "Transcript-Derived Meeting Topic"
+        )
+
+        XCTAssertEqual(localWithDerived.effectiveDisplayTitle, "source-file.m4a")
+        XCTAssertEqual(localWithBlankOverride.effectiveDisplayTitle, "blank-override.m4a")
+        XCTAssertEqual(localWithoutDerived.effectiveDisplayTitle, "source-file.m4a")
+        XCTAssertEqual(urlWithDerived.effectiveDisplayTitle, "Transcript Topic")
+        XCTAssertEqual(meeting.effectiveDisplayTitle, "Weekly Sync")
+    }
+
     func testLegacyTranscriptionDecodesWithNilEngineFields() throws {
         let transcription = Transcription(fileName: "legacy.mp3")
         try repo.save(transcription)
@@ -54,6 +346,54 @@ final class TranscriptionRepositoryTests: XCTestCase {
         let fetched = try repo.fetch(id: transcription.id)
         XCTAssertNil(fetched?.engine)
         XCTAssertNil(fetched?.engineVariant)
+    }
+
+    func testMeetingStartContextRoundTrips() throws {
+        let startContext = MeetingStartContext(
+            triggerKind: .hotkey,
+            frontmostApplication: .init(
+                bundleIdentifier: "COM.Example.Zoom",
+                localizedName: "Zoom"
+            ),
+            sourceMode: .microphoneAndSystem
+        )
+        let transcription = Transcription(
+            fileName: "meeting-playback.m4a",
+            sourceType: .meeting,
+            meetingStartContext: startContext
+        )
+        try repo.save(transcription)
+
+        let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
+        XCTAssertEqual(fetched.meetingStartContext, startContext)
+        XCTAssertEqual(
+            fetched.meetingStartContext?.frontmostApplication?.bundleIdentifier,
+            "com.example.zoom"
+        )
+    }
+
+    func testMalformedMeetingStartContextDoesNotBlockTranscriptionDecode() throws {
+        let transcription = Transcription(
+            fileName: "meeting-playback.m4a",
+            rawTranscript: "Usable transcript",
+            sourceType: .meeting
+        )
+        try repo.save(transcription)
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE transcriptions SET meetingStartContext = ? WHERE id = ?",
+                arguments: [
+                    #"{"triggerKind":"future_trigger","sourceMode":"microphone_only"}"#,
+                    transcription.id.uuidString,
+                ]
+            )
+        }
+
+        let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
+        XCTAssertNil(fetched.meetingStartContext, "malformed start context should be dropped")
+        XCTAssertEqual(fetched.fileName, "meeting-playback.m4a")
+        XCTAssertEqual(fetched.rawTranscript, "Usable transcript")
+        XCTAssertEqual(fetched.sourceType, .meeting)
     }
 
     func testFetchAll() throws {
@@ -91,7 +431,7 @@ final class TranscriptionRepositoryTests: XCTestCase {
     }
 
     func testFetchByFilePathFiltersBySourceTypeAndOrdersNewestFirst() throws {
-        let path = "/tmp/meeting.m4a"
+        let path = "/tmp/meeting-playback.m4a"
         let olderMeeting = Transcription(
             createdAt: Date(timeIntervalSinceNow: -100),
             fileName: "older meeting",
@@ -231,11 +571,13 @@ final class TranscriptionRepositoryTests: XCTestCase {
     }
 
     func testUpdateUserNotesPreservesOtherFields() throws {
+        let oldUpdatedAt = Date(timeIntervalSince1970: 1_000)
         let transcription = Transcription(
             fileName: "Meeting Apr 5",
             rawTranscript: "Transcript",
             status: .completed,
-            sourceType: .meeting
+            sourceType: .meeting,
+            updatedAt: oldUpdatedAt
         )
         try repo.save(transcription)
 
@@ -245,6 +587,25 @@ final class TranscriptionRepositoryTests: XCTestCase {
         XCTAssertEqual(fetched.userNotes, "Decision: ship it")
         XCTAssertEqual(fetched.rawTranscript, "Transcript")
         XCTAssertEqual(fetched.sourceType, .meeting)
+        XCTAssertGreaterThan(fetched.updatedAt, oldUpdatedAt)
+    }
+
+    func testUpdateUserNotesCanClearNotes() throws {
+        let transcription = Transcription(
+            fileName: "Meeting Apr 5",
+            status: .completed,
+            sourceType: .meeting,
+            userNotes: "Decision: ship it"
+        )
+        try repo.save(transcription)
+
+        try repo.updateUserNotes(id: transcription.id, userNotes: nil)
+
+        XCTAssertNil(try XCTUnwrap(repo.fetch(id: transcription.id)).userNotes)
+    }
+
+    func testUpdateUserNotesReturnsFalseWhenRowIsMissing() throws {
+        XCTAssertFalse(try repo.updateUserNotes(id: UUID(), userNotes: "Unsaved"))
     }
 
     func testDelete() throws {
@@ -309,33 +670,50 @@ final class TranscriptionRepositoryTests: XCTestCase {
         try repo.save(Transcription(fileName: "done.mp3", status: .completed))
         try repo.save(Transcription(fileName: "working.mp3", status: .processing))
 
-        let page = try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(
-            limit: 10,
-            includeProcessing: true
-        ))
+        let page = try repo.fetchLibraryPage(
+            query: TranscriptionLibraryQuery(
+                limit: 10,
+                includeProcessing: true
+            ))
 
         XCTAssertEqual(Set(page.items.map(\.fileName)), ["done.mp3", "working.mp3"])
+    }
+
+    func testFetchLibraryPageCanIncludeProcessingMeetingsOnly() throws {
+        try repo.save(Transcription(fileName: "done.mp3", status: .completed, sourceType: .file))
+        try repo.save(Transcription(fileName: "working-file.mp3", status: .processing, sourceType: .file))
+        try repo.save(Transcription(fileName: "working-video.mp3", status: .processing, sourceType: .youtube))
+        try repo.save(Transcription(fileName: "working-meeting.m4a", status: .processing, sourceType: .meeting))
+
+        let page = try repo.fetchLibraryPage(
+            query: TranscriptionLibraryQuery(
+                limit: 10,
+                includeProcessingMeetings: true
+            ))
+
+        XCTAssertEqual(Set(page.items.map(\.fileName)), ["done.mp3", "working-meeting.m4a"])
     }
 
     func testFetchLibraryPageFiltersBySourceType() throws {
         let local = Transcription(fileName: "local.mp3", status: .completed, sourceType: .file)
         let youtube = Transcription(fileName: "video.mp3", status: .completed, sourceType: .youtube)
-        let meeting = Transcription(fileName: "meeting.m4a", status: .completed, sourceType: .meeting)
+        let meeting = Transcription(fileName: "meeting-playback.m4a", status: .completed, sourceType: .meeting)
         try repo.save(local)
         try repo.save(youtube)
         try repo.save(meeting)
 
-        let page = try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(
-            sourceType: .meeting,
-            limit: 10
-        ))
+        let page = try repo.fetchLibraryPage(
+            query: TranscriptionLibraryQuery(
+                sourceType: .meeting,
+                limit: 10
+            ))
 
         XCTAssertEqual(page.items.map(\.id), [meeting.id])
     }
 
     func testFetchLibraryPageFiltersFavoritesAndComposesWithSourceType() throws {
         let meetingFavorite = Transcription(
-            fileName: "fav meeting.m4a",
+            fileName: "fav meeting-playback.m4a",
             status: .completed,
             isFavorite: true,
             sourceType: .meeting
@@ -347,7 +725,7 @@ final class TranscriptionRepositoryTests: XCTestCase {
             sourceType: .file
         )
         let meetingNormal = Transcription(
-            fileName: "normal meeting.m4a",
+            fileName: "normal meeting-playback.m4a",
             status: .completed,
             sourceType: .meeting
         )
@@ -355,37 +733,67 @@ final class TranscriptionRepositoryTests: XCTestCase {
         try repo.save(fileFavorite)
         try repo.save(meetingNormal)
 
-        let page = try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(
-            sourceType: .meeting,
-            favoritesOnly: true,
-            limit: 10
-        ))
+        let page = try repo.fetchLibraryPage(
+            query: TranscriptionLibraryQuery(
+                sourceType: .meeting,
+                favoritesOnly: true,
+                limit: 10
+            ))
 
         XCTAssertEqual(page.items.map(\.id), [meetingFavorite.id])
     }
 
     func testFetchLibraryPageSearchesTitleTranscriptAndChannelName() throws {
-        let title = Transcription(fileName: "Design Notes", status: .completed)
+        let title = Transcription(
+            fileName: "original-audio.m4a",
+            status: .completed,
+            titleOverride: "Design Notes",
+            derivedTitle: "Generated Topic"
+        )
+        let derived = Transcription(
+            fileName: "derived-source.m4a",
+            status: .completed,
+            derivedTitle: "Customer Interview"
+        )
         let raw = Transcription(fileName: "raw.mp3", rawTranscript: "Budget review", status: .completed)
         let clean = Transcription(fileName: "clean.mp3", cleanTranscript: "Launch proposal", status: .completed)
         let channel = Transcription(fileName: "video.mp3", status: .completed, channelName: "Swift Talks")
         let other = Transcription(fileName: "other.mp3", rawTranscript: "Unrelated", status: .completed)
         try repo.save(title)
+        try repo.save(derived)
         try repo.save(raw)
         try repo.save(clean)
         try repo.save(channel)
         try repo.save(other)
 
         XCTAssertEqual(
-            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(searchText: "design", limit: 10)).items.map(\.id),
+            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(searchText: "design", limit: 10)).items.map(
+                \.id),
             [title.id]
         )
         XCTAssertEqual(
-            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(searchText: "budget", limit: 10)).items.map(\.id),
+            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(searchText: "generated", limit: 10)).items.map(
+                \.id),
+            [title.id]
+        )
+        XCTAssertEqual(
+            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(searchText: "original-audio", limit: 10)).items
+                .map(\.id),
+            [title.id]
+        )
+        XCTAssertEqual(
+            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(searchText: "customer", limit: 10)).items.map(
+                \.id),
+            [derived.id]
+        )
+        XCTAssertEqual(
+            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(searchText: "budget", limit: 10)).items.map(
+                \.id),
             [raw.id]
         )
         XCTAssertEqual(
-            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(searchText: "proposal", limit: 10)).items.map(\.id),
+            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(searchText: "proposal", limit: 10)).items.map(
+                \.id),
             [clean.id]
         )
         XCTAssertEqual(
@@ -411,11 +819,13 @@ final class TranscriptionRepositoryTests: XCTestCase {
             [match.id]
         )
         XCTAssertEqual(
-            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(searchText: "istanbul", limit: 10)).items.map(\.id),
+            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(searchText: "istanbul", limit: 10)).items.map(
+                \.id),
             [match.id]
         )
         XCTAssertEqual(
-            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(searchText: "resume", limit: 10)).items.map(\.id),
+            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(searchText: "resume", limit: 10)).items.map(
+                \.id),
             [match.id]
         )
         XCTAssertEqual(
@@ -429,28 +839,42 @@ final class TranscriptionRepositoryTests: XCTestCase {
             createdAt: Date(timeIntervalSinceReferenceDate: 100),
             fileName: "Banana.mp3",
             status: .completed,
+            titleOverride: "Cucumber Notes",
             updatedAt: Date(timeIntervalSinceReferenceDate: 100)
         )
         let newer = Transcription(
             createdAt: Date(timeIntervalSinceReferenceDate: 200),
-            fileName: "Apple.mp3",
+            fileName: "Zulu.mp3",
             status: .completed,
+            derivedTitle: "Aardvark Topic",
             updatedAt: Date(timeIntervalSinceReferenceDate: 200)
+        )
+        let meeting = Transcription(
+            createdAt: Date(timeIntervalSinceReferenceDate: 150),
+            fileName: "Briefing",
+            status: .completed,
+            sourceType: .meeting,
+            titleOverride: "Aardvark Override",
+            updatedAt: Date(timeIntervalSinceReferenceDate: 150)
         )
         try repo.save(older)
         try repo.save(newer)
+        try repo.save(meeting)
 
         XCTAssertEqual(
-            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(sortOrder: .dateDescending, limit: 10)).items.map(\.id),
-            [newer.id, older.id]
+            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(sortOrder: .dateDescending, limit: 10)).items
+                .map(\.id),
+            [newer.id, meeting.id, older.id]
         )
         XCTAssertEqual(
-            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(sortOrder: .dateAscending, limit: 10)).items.map(\.id),
-            [older.id, newer.id]
+            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(sortOrder: .dateAscending, limit: 10)).items.map(
+                \.id),
+            [older.id, meeting.id, newer.id]
         )
         XCTAssertEqual(
-            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(sortOrder: .titleAscending, limit: 10)).items.map(\.id),
-            [newer.id, older.id]
+            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(sortOrder: .titleAscending, limit: 10)).items
+                .map(\.id),
+            [meeting.id, older.id, newer.id]
         )
     }
 
@@ -509,6 +933,84 @@ final class TranscriptionRepositoryTests: XCTestCase {
         XCTAssertEqual(try repo.fetch(id: transcription.id)?.status, .cancelled)
     }
 
+    func testTransitionStatusUpdatesOnlyExpectedState() throws {
+        let transcription = Transcription(fileName: "test.mp3")
+        try repo.save(transcription)
+
+        XCTAssertTrue(
+            try repo.transitionStatus(
+                id: transcription.id,
+                from: .processing,
+                to: .error,
+                errorMessage: "Interrupted"
+            ))
+        XCTAssertEqual(try repo.fetch(id: transcription.id)?.status, .error)
+        XCTAssertEqual(try repo.fetch(id: transcription.id)?.errorMessage, "Interrupted")
+    }
+
+    func testTransitionStatusCannotRegressCompletedRow() throws {
+        let transcription = Transcription(fileName: "test.mp3")
+        try repo.save(transcription)
+        try repo.updateStatus(id: transcription.id, status: .completed)
+
+        XCTAssertFalse(
+            try repo.transitionStatus(
+                id: transcription.id,
+                from: .processing,
+                to: .error,
+                errorMessage: "Interrupted"
+            ))
+        XCTAssertEqual(try repo.fetch(id: transcription.id)?.status, .completed)
+        XCTAssertNil(try repo.fetch(id: transcription.id)?.errorMessage)
+    }
+
+    func testConcurrentCompletionAlwaysWinsOverReconciliationAcrossRepositories() async throws {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TranscriptionRepositoryRace-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+        let databasePath = directoryURL.appendingPathComponent("macparakeet.db").path
+        let firstManager = try DatabaseManager(path: databasePath)
+        let secondManager = try DatabaseManager(path: databasePath)
+        let firstRepository = TranscriptionRepository(dbQueue: firstManager.dbQueue)
+        let secondRepository = TranscriptionRepository(dbQueue: secondManager.dbQueue)
+
+        for iteration in 0..<25 {
+            let transcription = Transcription(
+                fileName: "race-\(iteration).m4a",
+                status: .processing,
+                sourceType: .meeting
+            )
+            try firstRepository.save(transcription)
+
+            let reconciliation = Task.detached {
+                try firstRepository.transitionStatus(
+                    id: transcription.id,
+                    from: .processing,
+                    to: .error,
+                    errorMessage: "Interrupted"
+                )
+            }
+            let completion = Task.detached {
+                try secondRepository.updateStatus(
+                    id: transcription.id,
+                    status: .completed,
+                    errorMessage: nil
+                )
+            }
+
+            _ = try await reconciliation.value
+            try await completion.value
+
+            XCTAssertEqual(
+                try firstRepository.fetch(id: transcription.id)?.status,
+                .completed,
+                "Completion was regressed in iteration \(iteration)"
+            )
+            XCTAssertNil(try firstRepository.fetch(id: transcription.id)?.errorMessage)
+        }
+    }
+
     func testUpdateFileName() throws {
         let transcription = Transcription(
             fileName: "Meeting Apr 5",
@@ -517,11 +1019,85 @@ final class TranscriptionRepositoryTests: XCTestCase {
         )
         try repo.save(transcription)
 
-        try repo.updateFileName(id: transcription.id, fileName: "Design Review")
+        let updated = try XCTUnwrap(repo.updateFileName(id: transcription.id, fileName: "Design Review"))
+        XCTAssertEqual(updated.id, transcription.id)
+        XCTAssertEqual(updated.fileName, "Design Review")
+        XCTAssertEqual(updated.derivedTitle, "Design Review")
 
         let fetched = try repo.fetch(id: transcription.id)
         XCTAssertEqual(fetched?.fileName, "Design Review")
         XCTAssertEqual(fetched?.derivedTitle, "Design Review")
+        XCTAssertEqual(
+            try XCTUnwrap(fetched).updatedAt.timeIntervalSince1970,
+            updated.updatedAt.timeIntervalSince1970,
+            accuracy: 0.001
+        )
+    }
+
+    func testUpdateFileNameReturnsNilForMissingRow() throws {
+        let transcription = Transcription(fileName: "Unchanged", status: .completed, sourceType: .meeting)
+        try repo.save(transcription)
+
+        XCTAssertNil(try repo.updateFileName(id: UUID(), fileName: "Missing"))
+        XCTAssertEqual(try repo.count(), 1)
+        XCTAssertEqual(try repo.fetch(id: transcription.id)?.fileName, "Unchanged")
+    }
+
+    func testUpdateTitleOverridePreservesSourceMetadataAndDerivedTitle() throws {
+        let transcription = Transcription(
+            fileName: "IMG_1942.m4a",
+            filePath: "/tmp/IMG_1942.m4a",
+            status: .completed,
+            derivedTitle: "Auto Derived Title"
+        )
+        try repo.save(transcription)
+
+        try repo.updateTitleOverride(id: transcription.id, titleOverride: "  Q3 Vendor Notes  ")
+
+        let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
+        XCTAssertEqual(fetched.titleOverride, "Q3 Vendor Notes")
+        XCTAssertEqual(fetched.effectiveDisplayTitle, "Q3 Vendor Notes")
+        XCTAssertEqual(fetched.fileName, "IMG_1942.m4a")
+        XCTAssertEqual(fetched.filePath, "/tmp/IMG_1942.m4a")
+        XCTAssertEqual(fetched.derivedTitle, "Auto Derived Title")
+        XCTAssertGreaterThan(fetched.updatedAt, transcription.updatedAt)
+    }
+
+    func testUpdateTitleOverrideBlankClearsWithoutChangingSourceMetadata() throws {
+        let transcription = Transcription(
+            fileName: "IMG_1942.m4a",
+            filePath: "/tmp/IMG_1942.m4a",
+            status: .completed,
+            titleOverride: "Custom Topic",
+            derivedTitle: "Derived Topic"
+        )
+        try repo.save(transcription)
+
+        try repo.updateTitleOverride(id: transcription.id, titleOverride: "   ")
+
+        let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
+        XCTAssertNil(fetched.titleOverride)
+        XCTAssertEqual(fetched.effectiveDisplayTitle, "IMG_1942.m4a")
+        XCTAssertEqual(fetched.fileName, "IMG_1942.m4a")
+        XCTAssertEqual(fetched.filePath, "/tmp/IMG_1942.m4a")
+        XCTAssertEqual(fetched.derivedTitle, "Derived Topic")
+    }
+
+    func testUpdateTitleOverrideDoesNotApplyToMeetingRows() throws {
+        let transcription = Transcription(
+            fileName: "Weekly Sync",
+            status: .completed,
+            sourceType: .meeting,
+            derivedTitle: "Transcript-Derived Meeting Topic"
+        )
+        try repo.save(transcription)
+
+        try repo.updateTitleOverride(id: transcription.id, titleOverride: "Should Not Display")
+
+        let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
+        XCTAssertNil(fetched.titleOverride)
+        XCTAssertEqual(fetched.effectiveDisplayTitle, "Weekly Sync")
+        XCTAssertEqual(fetched.derivedTitle, "Transcript-Derived Meeting Topic")
     }
 
     // MARK: - Chat Messages Persistence
@@ -532,7 +1108,7 @@ final class TranscriptionRepositoryTests: XCTestCase {
 
         let messages = [
             ChatMessage(role: .user, content: "What is this about?"),
-            ChatMessage(role: .assistant, content: "This is about testing.")
+            ChatMessage(role: .assistant, content: "This is about testing."),
         ]
         try repo.updateChatMessages(id: transcription.id, chatMessages: messages)
 
@@ -581,12 +1157,28 @@ final class TranscriptionRepositoryTests: XCTestCase {
         XCTAssertNil(fetched?.filePath)
     }
 
+    func testUpdateFilePathBackfillsMeetingArtifactFolderPath() throws {
+        let transcription = Transcription(
+            fileName: "Meeting",
+            status: .completed,
+            sourceType: .meeting
+        )
+        try repo.save(transcription)
+
+        try repo.updateFilePath(id: transcription.id, filePath: "/tmp/session/meeting-playback.m4a")
+
+        let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
+        XCTAssertEqual(fetched.filePath, "/tmp/session/meeting-playback.m4a")
+        XCTAssertEqual(fetched.meetingArtifactFolderPath, "/tmp/session")
+    }
+
     func testClearStoredAudioPathsForMeetingTranscriptionsOnlyClearsManagedDirectory() throws {
         let meetingRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("macparakeet-repo-meetings-\(UUID().uuidString)", isDirectory: true)
-        let managedAudio = meetingRoot
+        let managedAudio =
+            meetingRoot
             .appendingPathComponent("session", isDirectory: true)
-            .appendingPathComponent("meeting.m4a")
+            .appendingPathComponent("meeting-playback.m4a")
         let externalAudio = FileManager.default.temporaryDirectory
             .appendingPathComponent("external-meeting-\(UUID().uuidString).m4a")
             .path
@@ -615,9 +1207,87 @@ final class TranscriptionRepositoryTests: XCTestCase {
 
         try repo.clearStoredAudioPathsForMeetingTranscriptions(under: meetingRoot.path)
 
-        XCTAssertNil(try repo.fetch(id: managedMeeting.id)?.filePath)
+        let fetchedManagedMeeting = try XCTUnwrap(repo.fetch(id: managedMeeting.id))
+        XCTAssertNil(fetchedManagedMeeting.filePath)
+        XCTAssertEqual(
+            fetchedManagedMeeting.meetingArtifactFolderPath,
+            managedAudio.deletingLastPathComponent().standardizedFileURL.path
+        )
         XCTAssertEqual(try repo.fetch(id: externalMeeting.id)?.filePath, externalAudio)
         XCTAssertEqual(try repo.fetch(id: regularFile.id)?.filePath, managedAudio.path)
+    }
+
+    func testFetchMeetingAudioRetentionCandidatesFiltersInSQL() throws {
+        let now = Date(timeIntervalSinceReferenceDate: 1_000_000)
+        let oldMeeting = Transcription(
+            createdAt: now.addingTimeInterval(-31 * 24 * 60 * 60),
+            fileName: "old meeting",
+            filePath: "/tmp/old-meeting/meeting-playback.m4a",
+            status: .completed,
+            sourceType: .meeting,
+            updatedAt: now.addingTimeInterval(-31 * 24 * 60 * 60)
+        )
+        let emptyTranscriptMeeting = Transcription(
+            createdAt: now.addingTimeInterval(-32 * 24 * 60 * 60),
+            fileName: "silent meeting",
+            filePath: "/tmp/silent-meeting/meeting-playback.m4a",
+            rawTranscript: "",
+            status: .completed,
+            sourceType: .meeting,
+            updatedAt: now.addingTimeInterval(-32 * 24 * 60 * 60)
+        )
+        let tooNew = Transcription(
+            createdAt: now.addingTimeInterval(-5 * 24 * 60 * 60),
+            fileName: "new meeting",
+            filePath: "/tmp/new-meeting/meeting-playback.m4a",
+            status: .completed,
+            sourceType: .meeting,
+            updatedAt: now.addingTimeInterval(-5 * 24 * 60 * 60)
+        )
+        let noAudio = Transcription(
+            createdAt: now.addingTimeInterval(-40 * 24 * 60 * 60),
+            fileName: "detached meeting",
+            status: .completed,
+            sourceType: .meeting,
+            updatedAt: now.addingTimeInterval(-40 * 24 * 60 * 60)
+        )
+        let processing = Transcription(
+            createdAt: now.addingTimeInterval(-40 * 24 * 60 * 60),
+            fileName: "processing meeting",
+            filePath: "/tmp/processing-meeting/meeting-playback.m4a",
+            status: .processing,
+            sourceType: .meeting,
+            updatedAt: now.addingTimeInterval(-40 * 24 * 60 * 60)
+        )
+        let fileTranscription = Transcription(
+            createdAt: now.addingTimeInterval(-40 * 24 * 60 * 60),
+            fileName: "file",
+            filePath: "/tmp/file.m4a",
+            status: .completed,
+            sourceType: .file,
+            updatedAt: now.addingTimeInterval(-40 * 24 * 60 * 60)
+        )
+        let youtube = Transcription(
+            createdAt: now.addingTimeInterval(-40 * 24 * 60 * 60),
+            fileName: "youtube",
+            filePath: "/tmp/youtube.m4a",
+            status: .completed,
+            sourceURL: "https://youtu.be/example",
+            sourceType: .youtube,
+            updatedAt: now.addingTimeInterval(-40 * 24 * 60 * 60)
+        )
+
+        for transcription in [
+            oldMeeting, emptyTranscriptMeeting, tooNew, noAudio, processing, fileTranscription, youtube,
+        ] {
+            try repo.save(transcription)
+        }
+
+        let candidates = try repo.fetchMeetingAudioRetentionCandidates(
+            createdAtOrBefore: now.addingTimeInterval(-30 * 24 * 60 * 60)
+        )
+
+        XCTAssertEqual(candidates.map(\.id), [emptyTranscriptMeeting.id, oldMeeting.id])
     }
 
     func testChatMessagesRoundTrip() throws {
@@ -628,7 +1298,7 @@ final class TranscriptionRepositoryTests: XCTestCase {
             ChatMessage(role: .user, content: "First question"),
             ChatMessage(role: .assistant, content: "First answer"),
             ChatMessage(role: .user, content: "Second question"),
-            ChatMessage(role: .assistant, content: "Second answer")
+            ChatMessage(role: .assistant, content: "Second answer"),
         ]
         try repo.updateChatMessages(id: transcription.id, chatMessages: messages)
 
@@ -643,7 +1313,7 @@ final class TranscriptionRepositoryTests: XCTestCase {
     func testWordTimestampsSaveAndFetch() throws {
         let timestamps = [
             WordTimestamp(word: "Hello", startMs: 0, endMs: 500, confidence: 0.98),
-            WordTimestamp(word: "world", startMs: 520, endMs: 1000, confidence: 0.95)
+            WordTimestamp(word: "world", startMs: 520, endMs: 1000, confidence: 0.95),
         ]
         var transcription = Transcription(
             fileName: "test.mp3",
@@ -670,7 +1340,7 @@ final class TranscriptionRepositoryTests: XCTestCase {
 
         let speakers = [
             SpeakerInfo(id: "S1", label: "Alice"),
-            SpeakerInfo(id: "S2", label: "Bob")
+            SpeakerInfo(id: "S2", label: "Bob"),
         ]
         try repo.updateSpeakers(id: transcription.id, speakers: speakers)
 
@@ -679,6 +1349,60 @@ final class TranscriptionRepositoryTests: XCTestCase {
         XCTAssertEqual(fetched?.speakers?[0].id, "S1")
         XCTAssertEqual(fetched?.speakers?[0].label, "Alice")
         XCTAssertEqual(fetched?.speakers?[1].label, "Bob")
+    }
+
+    func testUpdateSpeakersRefreshesMatchingTranscriptSegmentLabels() throws {
+        let transcription = Transcription(
+            fileName: "meeting.wav",
+            speakers: [
+                SpeakerInfo(id: "S1", label: "Speaker 1"),
+                SpeakerInfo(id: "S2", label: "Speaker 2"),
+            ],
+            transcriptSegments: [
+                TranscriptSegmentRecord(
+                    startMs: 0,
+                    endMs: 500,
+                    speakerId: "S1",
+                    speakerLabel: "Speaker 1",
+                    text: "Hello",
+                    wordRange: TranscriptSegmentWordRange(startIndex: 0, endIndexExclusive: 1)
+                ),
+                TranscriptSegmentRecord(
+                    startMs: 500,
+                    endMs: 900,
+                    speakerId: "S2",
+                    speakerLabel: "Speaker 2",
+                    text: "there",
+                    wordRange: TranscriptSegmentWordRange(startIndex: 1, endIndexExclusive: 2)
+                ),
+                TranscriptSegmentRecord(
+                    startMs: 900,
+                    endMs: 1100,
+                    speakerId: "S3",
+                    speakerLabel: "Unmapped speaker",
+                    text: "aside",
+                    wordRange: TranscriptSegmentWordRange(startIndex: 2, endIndexExclusive: 3)
+                ),
+            ],
+            status: .completed,
+            sourceType: .meeting
+        )
+        try repo.save(transcription)
+
+        try repo.updateSpeakers(
+            id: transcription.id,
+            speakers: [
+                SpeakerInfo(id: "S1", label: "Sarah"),
+                SpeakerInfo(id: "S2", label: "Riley"),
+            ]
+        )
+
+        let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
+        XCTAssertEqual(fetched.speakers?[0].label, "Sarah")
+        XCTAssertEqual(fetched.speakers?[1].label, "Riley")
+        XCTAssertEqual(fetched.transcriptSegments?[0].speakerLabel, "Sarah")
+        XCTAssertEqual(fetched.transcriptSegments?[1].speakerLabel, "Riley")
+        XCTAssertEqual(fetched.transcriptSegments?[2].speakerLabel, "Unmapped speaker")
     }
 
     func testUpdateSpeakersToNil() throws {
@@ -697,7 +1421,7 @@ final class TranscriptionRepositoryTests: XCTestCase {
 
         let speakers = [
             SpeakerInfo(id: "S1", label: "Speaker 1"),
-            SpeakerInfo(id: "S2", label: "Speaker 2")
+            SpeakerInfo(id: "S2", label: "Speaker 2"),
         ]
         try repo.updateSpeakers(id: transcription.id, speakers: speakers)
 

@@ -1,0 +1,43 @@
+{
+  "candidate": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3",
+  "checks": [
+    {
+      "check": "Typed notes autosave without changing transcript",
+      "passed": true
+    },
+    {
+      "check": "Saved notes survive detail navigation",
+      "passed": true
+    },
+    {
+      "check": "Notes revision survives typing followed by navigation",
+      "passed": true
+    },
+    {
+      "check": "Ordinary quit retains latest typed notes",
+      "passed": true
+    },
+    {
+      "check": "Relaunch GUI displays latest persisted notes",
+      "passed": true
+    },
+    {
+      "check": "notes.md sidecar contains latest notes after quit/relaunch",
+      "passed": true
+    }
+  ],
+  "sidecars": [
+    {
+      "name": "notes.md",
+      "bytes": 241,
+      "sha256": "a00cbbb9187071235c95377fae277c8ee12ebdeb1ac0dd236dfbdb3bb5459181",
+      "containsLatestNote": true
+    }
+  ],
+  "note": "QA 0.8.0 saved notes\n\n- Copper lantern belongs to this public-speech meeting.\n- Verify autosave and reopen persistence.\n- Immediate navigation revision is retained.\n- Quit and reopen revision is retained.",
+  "limitations": [
+    "UI timing does not force pending debounce; deterministic tests cover that ordering.",
+    "No provider configured or external generation requested.",
+    "First four checks completed in verify-saved-notes-gui.py; early relaunch alert discovery was corrected by waiting for the actual startup state."
+  ]
+}

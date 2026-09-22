@@ -2,6 +2,13 @@ import ArgumentParser
 import Foundation
 import MacParakeetCore
 
+struct CLIConfigKeySpec: Encodable, Equatable {
+    let key: String
+    let valueSyntax: String
+    let allowedValues: [String]?
+    let summary: String
+}
+
 /// `macparakeet-cli config` — read or write app preferences from the CLI.
 ///
 /// Stores values in the same UserDefaults suite the GUI reads
@@ -23,17 +30,37 @@ struct ConfigCommand: ParsableCommand {
         Supported keys:
           telemetry                 on|off                         default: on
           processing-mode           raw|clean                       default: raw
-          speech-engine             parakeet|nemotron|whisper       default: parakeet
-          parakeet-model            v3|v2 (v3=multilingual,         default: v3
-                                    v2=English-only)
+          remove-um-filler          on|off                          default: on
+                                    (Clean processing; off keeps
+                                    Portuguese/German um)
+          speech-engine             parakeet|nemotron|whisper|cohere default: parakeet
+          parakeet-model            v3|v2|unified|orukeet                   default: v3
+                                    (v3=supported languages, v2=English
+                                    timestamps, unified=readable English timestamps,
+                                    orukeet=multilingual preview)
           nemotron-model            multilingual-1120ms|            default: multilingual-1120ms
-                                    english-1120ms (English-only)
+                                    english-1120ms (Beta streaming)
           nemotron-language         auto|<Nemotron language code>   default: auto
                                     (multilingual build only)
           whisper-language          auto|<Whisper language code>    default: auto
-          speaker-detection         on|off                          default: off
+          cohere-language           <Cohere language code>          default: en (no auto)
+          speaker-detection         on|off                          default: on
+          meeting-speaker-detection on|off                          default: on
+          custom-vocabulary-boosting on|off                         default: off
+          auto-meeting-titles       on|off                          default: on
+          voice-return-enabled      on|off                          default: off
+          voice-return-triggers     phrase[|phrase...]              default: press return
+          preserve-discarded-dictations on|off                      default: off
           save-transcription-audio  on|off                          default: on
-          save-meeting-audio        on|off                          default: on
+          meeting-audio-retention   keep-forever|                   default: keep-forever
+                                    delete-after-<1-365>-days|
+                                    <1-365>d|
+                                    delete-immediately
+          meeting-audio-source      microphone-and-system|          default: microphone-and-system
+                                    microphone-only|
+                                    system-only
+          start-meetings-muted      on|off                          default: off
+          save-meeting-audio        on|off                          legacy alias
           youtube-audio-quality     m4a|best-available              default: m4a
           meeting-artifacts-folder  absolute path|default           default: app support
           meeting-hook-enabled      on|off                          default: off
@@ -53,23 +80,165 @@ struct ConfigCommand: ParsableCommand {
     )
 
     /// Keys recognized by `get`/`set`/`list`.
-    static let supportedKeys: [String] = [
-        "telemetry",
-        "processing-mode",
-        "speech-engine",
-        "parakeet-model",
-        "nemotron-model",
-        "nemotron-language",
-        "whisper-language",
-        "speaker-detection",
-        "save-transcription-audio",
-        "save-meeting-audio",
-        "youtube-audio-quality",
-        "meeting-artifacts-folder",
-        "meeting-hook-enabled",
-        "meeting-hook-path",
-        "meeting-hook-timeout",
+    static let supportedKeySpecs: [CLIConfigKeySpec] = [
+        CLIConfigKeySpec(
+            key: "telemetry",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Enable or disable telemetry."
+        ),
+        CLIConfigKeySpec(
+            key: "processing-mode",
+            valueSyntax: "raw|clean",
+            allowedValues: ["raw", "clean"],
+            summary: "Default dictation text processing mode."
+        ),
+        CLIConfigKeySpec(
+            key: "remove-um-filler",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Clean processing strips standalone English hesitation um. Turn off to keep Portuguese/German um."
+        ),
+        CLIConfigKeySpec(
+            key: "speech-engine",
+            valueSyntax: "parakeet|nemotron|whisper|cohere",
+            allowedValues: ["parakeet", "nemotron", "whisper", "cohere"],
+            summary: "Default speech recognition engine for app-default transcription."
+        ),
+        CLIConfigKeySpec(
+            key: "parakeet-model",
+            valueSyntax: "v3|v2|unified|orukeet",
+            allowedValues: ["v3", "v2", "unified", "orukeet"],
+            summary: "Default Parakeet build: v3 supported languages, v2 English timestamps, Unified readable English timestamps, or orukeet (multilingual preview)."
+        ),
+        CLIConfigKeySpec(
+            key: "nemotron-model",
+            valueSyntax: "multilingual-1120ms|english-1120ms",
+            allowedValues: ["multilingual-1120ms", "english-1120ms"],
+            summary: "Default Nemotron Beta streaming build."
+        ),
+        CLIConfigKeySpec(
+            key: "nemotron-language",
+            valueSyntax: "auto|<Nemotron language code>",
+            allowedValues: nil,
+            summary: "Default Nemotron language hint for the multilingual build; auto uses engine detection when available."
+        ),
+        CLIConfigKeySpec(
+            key: "whisper-language",
+            valueSyntax: "auto|<Whisper language code>",
+            allowedValues: nil,
+            summary: "Default Whisper language hint; auto detects when possible."
+        ),
+        CLIConfigKeySpec(
+            key: "cohere-language",
+            valueSyntax: CohereTranscribeEngine.supportedLanguages.map(\.code).joined(separator: "|"),
+            allowedValues: CohereTranscribeEngine.supportedLanguages.map(\.code),
+            summary: "Default Cohere Transcribe language; Cohere has no auto-detect."
+        ),
+        CLIConfigKeySpec(
+            key: "speaker-detection",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Default file and URL transcription speaker detection."
+        ),
+        CLIConfigKeySpec(
+            key: "meeting-speaker-detection",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Default meeting recording speaker detection."
+        ),
+        CLIConfigKeySpec(
+            key: "custom-vocabulary-boosting",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Enable Parakeet TDT recognition-time boosting for enabled custom words without replacement text. Default off; Settings shows status but has no toggle."
+        ),
+        CLIConfigKeySpec(
+            key: "auto-meeting-titles",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Enable or disable automatic meeting title generation."
+        ),
+        CLIConfigKeySpec(
+            key: "voice-return-enabled",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Enable or disable Voice Return phrase insertion."
+        ),
+        CLIConfigKeySpec(
+            key: "voice-return-triggers",
+            valueSyntax: "phrase[|phrase...]",
+            allowedValues: nil,
+            summary: "Voice Return trigger phrases separated by |."
+        ),
+        CLIConfigKeySpec(
+            key: "preserve-discarded-dictations",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Save cancelled dictations to History instead of deleting them."
+        ),
+        CLIConfigKeySpec(
+            key: "save-transcription-audio",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Persist source audio for file/media transcriptions."
+        ),
+        CLIConfigKeySpec(
+            key: "meeting-audio-retention",
+            valueSyntax: "keep-forever|delete-immediately|delete-after-<1-365>-days|<1-365>d",
+            allowedValues: nil,
+            summary: "Meeting audio retention policy."
+        ),
+        CLIConfigKeySpec(
+            key: "meeting-audio-source",
+            valueSyntax: "microphone-and-system|microphone-only|system-only",
+            allowedValues: ["microphone-and-system", "microphone-only", "system-only"],
+            summary: "Default meeting capture source mode."
+        ),
+        CLIConfigKeySpec(
+            key: "start-meetings-muted",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Start microphone-capturing meetings muted until this setting is turned off."
+        ),
+        CLIConfigKeySpec(
+            key: "save-meeting-audio",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Legacy alias for meeting audio retention."
+        ),
+        CLIConfigKeySpec(
+            key: "youtube-audio-quality",
+            valueSyntax: "m4a|best-available",
+            allowedValues: ["m4a", "best-available"],
+            summary: "Downloaded media audio quality."
+        ),
+        CLIConfigKeySpec(
+            key: "meeting-artifacts-folder",
+            valueSyntax: "absolute path|default",
+            allowedValues: ["default"],
+            summary: "Meeting artifact folder override."
+        ),
+        CLIConfigKeySpec(
+            key: "meeting-hook-enabled",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Enable or disable the meeting automation hook."
+        ),
+        CLIConfigKeySpec(
+            key: "meeting-hook-path",
+            valueSyntax: "absolute executable path|none",
+            allowedValues: ["none"],
+            summary: "Executable invoked by the meeting automation hook."
+        ),
+        CLIConfigKeySpec(
+            key: "meeting-hook-timeout",
+            valueSyntax: "seconds 1-300",
+            allowedValues: nil,
+            summary: "Meeting automation hook timeout in seconds."
+        ),
     ]
+    static let supportedKeys: [String] = supportedKeySpecs.map(\.key)
 
     // MARK: - Subcommands
 
@@ -175,6 +344,9 @@ struct ConfigCommand: ParsableCommand {
         case "processing-mode":
             let raw = store.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey)
             return (Dictation.ProcessingMode(rawValue: raw ?? Dictation.ProcessingMode.raw.rawValue) ?? .raw).rawValue
+        case "remove-um-filler":
+            let on = UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: store)
+            return on ? "on" : "off"
         case "speech-engine":
             return SpeechEnginePreference.current(defaults: store).rawValue
         case "parakeet-model":
@@ -185,14 +357,40 @@ struct ConfigCommand: ParsableCommand {
             return SpeechEnginePreference.nemotronDefaultLanguage(defaults: store) ?? "auto"
         case "whisper-language":
             return SpeechEnginePreference.whisperDefaultLanguage(defaults: store) ?? WhisperLanguageCatalog.autoCode
+        case "cohere-language":
+            return SpeechEnginePreference.cohereDefaultLanguage(defaults: store) ?? "en"
         case "speaker-detection":
-            let on = store.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool ?? false
+            let on = UserDefaultsAppRuntimePreferences.speakerDiarizationEnabled(defaults: store)
             return on ? "on" : "off"
+        case "meeting-speaker-detection":
+            let on = UserDefaultsAppRuntimePreferences.meetingSpeakerDiarizationEnabled(defaults: store)
+            return on ? "on" : "off"
+        case "custom-vocabulary-boosting":
+            return UserDefaultsAppRuntimePreferences(defaults: store)
+                .customVocabularyRecognitionBoostingEnabled ? "on" : "off"
+        case "auto-meeting-titles":
+            let on = store.object(forKey: UserDefaultsAppRuntimePreferences.autoGenerateMeetingTitlesKey) as? Bool ?? true
+            return on ? "on" : "off"
+        case "voice-return-enabled":
+            let on = store.object(forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey) as? Bool ?? false
+            return on ? "on" : "off"
+        case "voice-return-triggers":
+            return displayVoiceReturnTriggers(
+                UserDefaultsAppRuntimePreferences.voiceReturnTriggerList(defaults: store)
+            )
+        case "preserve-discarded-dictations":
+            return UserDefaultsAppRuntimePreferences.preserveDiscardedDictations(defaults: store) ? "on" : "off"
         case "save-transcription-audio":
             let on = store.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool ?? true
             return on ? "on" : "off"
+        case "meeting-audio-retention":
+            return UserDefaultsAppRuntimePreferences.meetingAudioRetention(defaults: store).configurationValue
+        case "meeting-audio-source":
+            return MeetingAudioSourceMode.current(defaults: store).configurationValue
+        case "start-meetings-muted":
+            return UserDefaultsAppRuntimePreferences.startMeetingsMuted(defaults: store) ? "on" : "off"
         case "save-meeting-audio":
-            let on = store.object(forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey) as? Bool ?? true
+            let on = UserDefaultsAppRuntimePreferences(defaults: store).shouldSaveMeetingAudio
             return on ? "on" : "off"
         case "youtube-audio-quality":
             return displayYouTubeAudioQuality(YouTubeAudioQuality.current(defaults: store))
@@ -217,7 +415,12 @@ struct ConfigCommand: ParsableCommand {
     /// Writes the value and returns the canonical normalized form actually persisted
     /// (e.g. "on"/"off" for booleans).
     @discardableResult
-    static func write(key: String, value: String, defaults: UserDefaults? = nil) throws -> String {
+    static func write(
+        key: String,
+        value: String,
+        defaults: UserDefaults? = nil,
+        physicalMemoryBytes: UInt64 = ProcessInfo.processInfo.physicalMemory
+    ) throws -> String {
         let store = defaults ?? macParakeetAppDefaults()
         switch try canonicalKey(key) {
         case "telemetry":
@@ -228,8 +431,16 @@ struct ConfigCommand: ParsableCommand {
             let mode = try parseProcessingMode(value)
             store.set(mode.rawValue, forKey: UserDefaultsAppRuntimePreferences.processingModeKey)
             return mode.rawValue
+        case "remove-um-filler":
+            let parsed = try parseBool(value, key: key)
+            store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.removeUmFillerKey)
+            return parsed ? "on" : "off"
         case "speech-engine":
             let engine = try parseSpeechEngine(value)
+            try validateCLISpeechEngineMemoryRequirement(
+                for: engine,
+                physicalMemoryBytes: physicalMemoryBytes
+            )
             engine.save(to: store)
             return engine.rawValue
         case "parakeet-model":
@@ -254,17 +465,64 @@ struct ConfigCommand: ParsableCommand {
             let language = try parseWhisperLanguage(value)
             SpeechEnginePreference.saveWhisperDefaultLanguage(language, defaults: store)
             return language ?? WhisperLanguageCatalog.autoCode
+        case "cohere-language":
+            let language = try parseCohereLanguage(value)
+            SpeechEnginePreference.saveCohereDefaultLanguage(language, defaults: store)
+            return language
         case "speaker-detection":
             let parsed = try parseBool(value, key: key)
             store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey)
+            return parsed ? "on" : "off"
+        case "meeting-speaker-detection":
+            let parsed = try parseBool(value, key: key)
+            store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.meetingSpeakerDiarizationKey)
+            return parsed ? "on" : "off"
+        case "custom-vocabulary-boosting":
+            let parsed = try parseBool(value, key: key)
+            store.set(
+                parsed,
+                forKey: UserDefaultsAppRuntimePreferences.customVocabularyRecognitionBoostingEnabledKey
+            )
+            return parsed ? "on" : "off"
+        case "auto-meeting-titles":
+            let parsed = try parseBool(value, key: key)
+            store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.autoGenerateMeetingTitlesKey)
+            return parsed ? "on" : "off"
+        case "voice-return-enabled":
+            let parsed = try parseBool(value, key: key)
+            store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
+            return parsed ? "on" : "off"
+        case "voice-return-triggers":
+            let triggers = try parseVoiceReturnTriggers(value)
+            store.set(triggers, forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggersKey)
+            store.set(triggers.first, forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey)
+            return displayVoiceReturnTriggers(triggers)
+        case "preserve-discarded-dictations":
+            let parsed = try parseBool(value, key: key)
+            store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.preserveDiscardedDictationsKey)
             return parsed ? "on" : "off"
         case "save-transcription-audio":
             let parsed = try parseBool(value, key: key)
             store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey)
             return parsed ? "on" : "off"
+        case "meeting-audio-retention":
+            let retention = try parseMeetingAudioRetention(value)
+            UserDefaultsAppRuntimePreferences.saveMeetingAudioRetention(retention, defaults: store)
+            return retention.configurationValue
+        case "meeting-audio-source":
+            let mode = try parseMeetingAudioSourceMode(value)
+            store.set(mode.rawValue, forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey)
+            return mode.configurationValue
+        case "start-meetings-muted":
+            let parsed = try parseBool(value, key: key)
+            store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.startMeetingsMutedKey)
+            return parsed ? "on" : "off"
         case "save-meeting-audio":
             let parsed = try parseBool(value, key: key)
-            store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey)
+            UserDefaultsAppRuntimePreferences.saveMeetingAudioRetention(
+                parsed ? .keepForever : .deleteImmediately,
+                defaults: store
+            )
             return parsed ? "on" : "off"
         case "youtube-audio-quality":
             let quality = try parseYouTubeAudioQuality(value)
@@ -339,12 +597,12 @@ struct ConfigCommand: ParsableCommand {
     static func parseSpeechEngine(_ value: String) throws -> SpeechEnginePreference {
         let raw = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard let engine = SpeechEnginePreference(rawValue: raw) else {
-            throw ValidationError("Invalid value for speech-engine: '\(value)'. Use parakeet, nemotron, or whisper.")
+            throw ValidationError("Invalid value for speech-engine: '\(value)'. Use parakeet, nemotron, whisper, or cohere.")
         }
         return engine
     }
 
-    /// Accepts the canonical `v3`/`v2` ids plus the friendlier
+    /// Accepts the canonical `v3`/`v2`/`unified` ids plus the friendlier
     /// `multilingual`/`english` aliases so users can express intent either way.
     static func parseParakeetModelVariant(_ value: String) throws -> ParakeetModelVariant {
         let raw = value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -355,8 +613,12 @@ struct ConfigCommand: ParsableCommand {
             return .v3
         case "v2", "english", "english-only", "en":
             return .v2
+        case "unified", "english-unified", "unified-offline":
+            return .unified
+        case "orukeet":
+            return .orukeet
         default:
-            throw ValidationError("Invalid value for parakeet-model: '\(value)'. Use v3 (multilingual) or v2 (English-only).")
+            throw ValidationError("Invalid value for parakeet-model: '\(value)'. Use v3 (multilingual), v2 (English-only), unified (English-only with punctuation/capitalization), or orukeet (multilingual preview).")
         }
     }
 
@@ -400,6 +662,15 @@ struct ConfigCommand: ParsableCommand {
         return language
     }
 
+    static func parseCohereLanguage(_ value: String) throws -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let language = SpeechEnginePreference.normalizeCohereLanguage(trimmed) else {
+            let supported = CohereTranscribeEngine.supportedLanguages.map(\.code).joined(separator: ", ")
+            throw ValidationError("Invalid value for cohere-language: '\(value)'. Use one of: \(supported).")
+        }
+        return language
+    }
+
     static func parseYouTubeAudioQuality(_ value: String) throws -> YouTubeAudioQuality {
         let raw = value.trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
@@ -421,6 +692,35 @@ struct ConfigCommand: ParsableCommand {
         case .bestAvailable:
             return "best-available"
         }
+    }
+
+    static func parseMeetingAudioRetention(_ value: String) throws -> MeetingAudioRetention {
+        guard let retention = MeetingAudioRetention.parseConfigurationValue(value) else {
+            throw ValidationError("Invalid value for meeting-audio-retention: '\(value)'. Use keep-forever, delete-immediately, delete-after-<1-365>-days, or <1-365>d.")
+        }
+        return retention
+    }
+
+    static func parseMeetingAudioSourceMode(_ value: String) throws -> MeetingAudioSourceMode {
+        guard let mode = MeetingAudioSourceMode.parseConfigurationValue(value) else {
+            throw ValidationError("Invalid value for meeting-audio-source: '\(value)'. Use microphone-and-system, microphone-only, or system-only.")
+        }
+        return mode
+    }
+
+    static func parseVoiceReturnTriggers(_ value: String) throws -> [String] {
+        let rawTriggers = value
+            .split(separator: "|", omittingEmptySubsequences: false)
+            .map(String.init)
+        let triggers = VoiceReturnTriggerPhrases.normalized(rawTriggers)
+        guard !triggers.isEmpty else {
+            throw ValidationError("Invalid value for voice-return-triggers: '\(value)'. Provide at least one trigger phrase.")
+        }
+        return triggers
+    }
+
+    static func displayVoiceReturnTriggers(_ triggers: [String]) -> String {
+        triggers.joined(separator: "|")
     }
 
     static func parseMeetingArtifactsFolder(_ value: String) throws -> String? {

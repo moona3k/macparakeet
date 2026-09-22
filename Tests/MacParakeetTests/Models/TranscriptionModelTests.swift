@@ -3,14 +3,28 @@ import XCTest
 
 final class TranscriptionModelTests: XCTestCase {
 
+    func testAudioRetentionClockRoundTripsAndLegacyJSONDecodesWithoutIt() throws {
+        let anchor = Date(timeIntervalSince1970: 1_000_000_000)
+        let meeting = Transcription(fileName: "Imported", sourceType: .meeting, audioRetentionStartedAt: anchor)
+        let data = try JSONEncoder().encode(meeting)
+        XCTAssertEqual(try JSONDecoder().decode(Transcription.self, from: data).audioRetentionStartedAt, anchor)
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        json.removeValue(forKey: "audioRetentionStartedAt")
+        let legacy = try JSONDecoder().decode(Transcription.self, from: JSONSerialization.data(withJSONObject: json))
+        XCTAssertNil(legacy.audioRetentionStartedAt)
+        XCTAssertEqual(legacy.createdAt, meeting.createdAt)
+    }
+
     func testDefaultInit() {
         let t = Transcription(fileName: "recording.mp3")
 
         XCTAssertFalse(t.id.uuidString.isEmpty)
         XCTAssertEqual(t.fileName, "recording.mp3")
         XCTAssertNil(t.filePath)
+        XCTAssertNil(t.audioTrackOrdinal)
         XCTAssertNil(t.fileSizeBytes)
         XCTAssertNil(t.durationMs)
+        XCTAssertNil(t.meetingCaptureReport)
         XCTAssertNil(t.rawTranscript)
         XCTAssertNil(t.cleanTranscript)
         XCTAssertNil(t.wordTimestamps)
@@ -79,14 +93,38 @@ final class TranscriptionModelTests: XCTestCase {
     }
 
     func testTranscriptionCodableRoundTrip() throws {
+        let captureReport = MeetingCaptureReport(
+            sourceMode: .microphoneAndSystem,
+            sourceAlignment: MeetingSourceAlignment(
+                meetingOriginHostTime: 100,
+                microphone: .init(
+                    firstHostTime: 100,
+                    lastHostTime: 200,
+                    startOffsetMs: 0,
+                    writtenFrameCount: 48_000,
+                    sampleRate: 48_000
+                ),
+                system: .init(
+                    firstHostTime: 100,
+                    lastHostTime: 200,
+                    startOffsetMs: 0,
+                    writtenFrameCount: 48_000,
+                    sampleRate: 48_000
+                )
+            ),
+            elapsedDurationMs: 100_000,
+            playbackFallbackSource: .microphone
+        )
         let original = Transcription(
             fileName: "test.wav",
+            audioTrackOrdinal: 1,
             durationMs: 5000,
             rawTranscript: "Hello",
             wordTimestamps: [
                 WordTimestamp(word: "Hello", startMs: 0, endMs: 400, confidence: 0.98)
             ],
-            status: .completed
+            status: .completed,
+            meetingCaptureReport: captureReport
         )
 
         let encoder = JSONEncoder()
@@ -99,9 +137,12 @@ final class TranscriptionModelTests: XCTestCase {
 
         XCTAssertEqual(decoded.id, original.id)
         XCTAssertEqual(decoded.fileName, original.fileName)
+        XCTAssertEqual(decoded.audioTrackOrdinal, 1)
         XCTAssertEqual(decoded.rawTranscript, original.rawTranscript)
         XCTAssertEqual(decoded.wordTimestamps?.count, 1)
         XCTAssertEqual(decoded.status, original.status)
+        XCTAssertEqual(decoded.meetingCaptureReport, captureReport)
+        XCTAssertEqual(decoded.meetingCaptureReport?.playbackFallbackSource, .microphone)
     }
 
     // MARK: - Backward Compatibility
@@ -122,6 +163,7 @@ final class TranscriptionModelTests: XCTestCase {
         decoder.dateDecodingStrategy = .iso8601
         let t = try decoder.decode(Transcription.self, from: Data(json.utf8))
 
+        XCTAssertNil(t.audioTrackOrdinal)
         XCTAssertEqual(t.speakers?.count, 2)
         XCTAssertEqual(t.speakers?[0].id, "S1")
         XCTAssertEqual(t.speakers?[0].label, "Alice")

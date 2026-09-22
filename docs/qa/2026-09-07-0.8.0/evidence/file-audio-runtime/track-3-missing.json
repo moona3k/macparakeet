@@ -1,0 +1,11 @@
+{
+  "error": "--audio-track 3 is unavailable for two-tracks.mkv (2 audio tracks).",
+  "errorType": "validation",
+  "fix": "Run the command with --help and retry with a supported flag combination.",
+  "meta": {
+    "generatedAt": "2026-09-07T22:30:03Z",
+    "schemaVersion": 1,
+    "warnings": []
+  },
+  "ok": false
+}

@@ -2,6 +2,16 @@ import Foundation
 
 public enum TranscriptAIContextFormatter {
     public static func format(
+        projection: SpeakerAttributionProjection,
+        mode: TranscriptAIContextMode = .richTranscript
+    ) -> String {
+        format(
+            transcription: projection.effectiveTranscription,
+            mode: mode
+        )
+    }
+
+    public static func format(
         transcription: Transcription,
         mode: TranscriptAIContextMode = .richTranscript
     ) -> String {
@@ -33,11 +43,7 @@ public enum TranscriptAIContextFormatter {
             return edited
         }
 
-        guard let words = transcription.wordTimestamps, !words.isEmpty else {
-            return nil
-        }
-
-        let cues = TranscriptCueBuilder.build(from: words)
+        let cues = TranscriptCueBuilder.build(from: transcription)
         guard !cues.isEmpty else { return nil }
 
         return cues.map { cue in

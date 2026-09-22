@@ -1,0 +1,14 @@
+{
+  "sourceBinarySHA256": "c316f939ad57f1f6114737766ab0b42fd710ec4e4c5f43210496e8b7f949fc20",
+  "sourceBinaryUnchanged": true,
+  "copiedBinaryMatches": true,
+  "actualBundleSymlinkUnchanged": true,
+  "copyRootIsRealDirectory": true,
+  "internalLinks": {
+    "Sparkle": "Versions/Current/Sparkle",
+    "Resources": "Versions/Current/Resources",
+    "Headers": "Versions/Current/Headers",
+    "Versions/Current": "B"
+  },
+  "codesignStrictVerifyExit": 0
+}

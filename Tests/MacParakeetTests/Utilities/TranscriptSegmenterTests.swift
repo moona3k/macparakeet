@@ -91,6 +91,60 @@ final class TranscriptSegmenterTests: XCTestCase {
         XCTAssertEqual(segments.last?.speakerId, "s1")
     }
 
+    func testMaterializeSegmentsAddsDurableIdentityEndTimeLabelsAndWordRanges() {
+        let words = [
+            WordTimestamp(word: "This", startMs: 0, endMs: 120, confidence: 0.9, speakerId: "s1"),
+            WordTimestamp(word: "is", startMs: 140, endMs: 220, confidence: 0.9, speakerId: "s1"),
+            WordTimestamp(word: "done.", startMs: 240, endMs: 520, confidence: 0.9, speakerId: "s1"),
+            WordTimestamp(word: "Remote", startMs: 640, endMs: 820, confidence: 0.9, speakerId: "s2"),
+            WordTimestamp(word: "answer", startMs: 840, endMs: 1_000, confidence: 0.9, speakerId: "s2"),
+        ]
+        var ids = [
+            UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+            UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
+        ]
+
+        let segments = TranscriptSegmenter.materializeSegments(
+            words: words,
+            speakers: [
+                SpeakerInfo(id: "s1", label: "Dana"),
+                SpeakerInfo(id: "s2", label: "Riley"),
+            ],
+            idGenerator: { ids.removeFirst() }
+        )
+
+        XCTAssertEqual(segments.map(\.id), [
+            UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+            UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
+        ])
+        XCTAssertEqual(segments.map(\.text), ["This is done.", "Remote answer"])
+        XCTAssertEqual(segments.map(\.startMs), [0, 640])
+        XCTAssertEqual(segments.map(\.endMs), [520, 1_000])
+        XCTAssertEqual(segments.map(\.speakerId), ["s1", "s2"])
+        XCTAssertEqual(segments.map(\.speakerLabel), ["Dana", "Riley"])
+        XCTAssertEqual(segments.map(\.wordRange), [
+            TranscriptSegmentWordRange(startIndex: 0, endIndexExclusive: 3),
+            TranscriptSegmentWordRange(startIndex: 3, endIndexExclusive: 5),
+        ])
+
+        let presentationSegments = TranscriptSegmenter.groupIntoSegments(words: words)
+        XCTAssertEqual(presentationSegments.map(\.text), segments.map(\.text))
+        XCTAssertEqual(presentationSegments.map(\.startMs), segments.map(\.startMs))
+        XCTAssertEqual(presentationSegments.map(\.speakerId), segments.map(\.speakerId))
+    }
+
+    func testMaterializeSegmentsUsesSourceLabelsWhenSpeakerRosterIsAbsent() {
+        let words = [
+            WordTimestamp(word: "Local", startMs: 0, endMs: 100, confidence: 0.9, speakerId: "microphone"),
+            WordTimestamp(word: "track.", startMs: 120, endMs: 240, confidence: 0.9, speakerId: "microphone"),
+            WordTimestamp(word: "Remote", startMs: 260, endMs: 400, confidence: 0.9, speakerId: "system"),
+        ]
+
+        let segments = TranscriptSegmenter.materializeSegments(words: words)
+
+        XCTAssertEqual(segments.map(\.speakerLabel), ["Me", "Others"])
+    }
+
     // MARK: - groupIntoSpeakerTurns
 
     func testEmptySegmentsReturnsEmptyTurns() {

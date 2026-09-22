@@ -45,6 +45,21 @@ public final class HotkeyGestureController {
     private let stateMachine: FnKeyStateMachine
     private var holdOnlyState: HoldOnlyState = .idle
     private var singleTapState: SingleTapState = .idle
+
+    /// True while a trigger press is still being evaluated (pressed once, not yet
+    /// resolved into a tap, hold, or double-tap) — i.e. a recording start may be
+    /// armed but has not fired. Used to avoid dropping that pending start when a
+    /// CGEvent-tap recovery happens mid-gesture while the trigger is still held.
+    public var hasPendingTriggerPress: Bool {
+        switch mode {
+        case .holdOnly:
+            return holdOnlyState == .pressed
+        case .doubleTapAndHold, .doubleTapOnly:
+            return stateMachine.state == .waitingForSecondTap
+        case .singleTapToggle:
+            return false
+        }
+    }
     private var suppressedUntilReset = false
 
     public init(

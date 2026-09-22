@@ -1,0 +1,1 @@
+e4379fb 2026-09-07 Use outline icons across desktop and mobile (#7398)

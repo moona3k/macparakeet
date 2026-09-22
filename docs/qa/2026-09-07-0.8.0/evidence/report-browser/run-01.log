@@ -1,0 +1,108 @@
+PASS: embedded snapshot matches evidence.json
+PASS: all check rows render
+PASS: coverage count
+PASS: candidate provenance tooltip
+PASS: all badge count
+PASS: all filter rows
+PASS: all filter pressed state
+PASS: all result count
+PASS: passed badge count
+PASS: passed filter rows
+PASS: passed filter pressed state
+PASS: passed result count
+PASS: failed badge count
+PASS: failed filter rows
+PASS: failed filter pressed state
+PASS: failed result count
+PASS: unverified badge count
+PASS: unverified filter rows
+PASS: unverified filter pressed state
+PASS: unverified result count
+PASS: area filter AI and data
+PASS: area filter Files and exports
+PASS: area filter Hardware
+PASS: area filter Library
+PASS: area filter Meetings
+PASS: area filter Packaging
+PASS: area filter Recovery
+PASS: area filter Release gates
+PASS: area filter Speech
+PASS: area filter Vocabulary
+PASS: search 'asr-parakeet-v3'
+PASS: search 'RECOVERY'
+PASS: search '  vocabulary  '
+PASS: search 'qa-no-such-check-080-unique'
+PASS: empty search guidance
+PASS: combined search/status/area
+PASS: details open by click
+PASS: detail contains exact candidate
+PASS: details close by keyboard
+PASS: method disclosure toggles What worked
+PASS: method disclosure toggles What did not establish a pass
+PASS: all rendered local links exist
+PASS: report hyperlinks are local
+PASS: gallery count
+PASS: gallery image loads custom-words-empty
+PASS: gallery image enabled custom-words-empty
+PASS: lightbox title custom-words-empty
+PASS: original gallery link custom-words-empty
+PASS: lightbox open custom-words-empty
+PASS: lightbox closed custom-words-empty
+PASS: gallery image loads vocabulary-page
+PASS: gallery image enabled vocabulary-page
+PASS: lightbox title vocabulary-page
+PASS: original gallery link vocabulary-page
+PASS: lightbox open vocabulary-page
+PASS: lightbox closed vocabulary-page
+PASS: gallery image loads large-vocabulary
+PASS: gallery image enabled large-vocabulary
+PASS: lightbox title large-vocabulary
+PASS: original gallery link large-vocabulary
+PASS: lightbox open large-vocabulary
+PASS: lightbox closed large-vocabulary
+PASS: gallery image loads vocabulary-selection
+PASS: gallery image enabled vocabulary-selection
+PASS: lightbox title vocabulary-selection
+PASS: original gallery link vocabulary-selection
+PASS: lightbox open vocabulary-selection
+PASS: lightbox closed vocabulary-selection
+PASS: gallery image loads vocabulary-filtered-complete
+PASS: gallery image enabled vocabulary-filtered-complete
+PASS: lightbox title vocabulary-filtered-complete
+PASS: original gallery link vocabulary-filtered-complete
+PASS: lightbox open vocabulary-filtered-complete
+PASS: lightbox closed vocabulary-filtered-complete
+PASS: gallery image loads gui-track-picker
+PASS: gallery image enabled gui-track-picker
+PASS: lightbox title gui-track-picker
+PASS: original gallery link gui-track-picker
+PASS: lightbox open gui-track-picker
+PASS: lightbox closed gui-track-picker
+PASS: gallery image loads gui-edited-persisted
+PASS: gallery image enabled gui-edited-persisted
+PASS: lightbox title gui-edited-persisted
+PASS: original gallery link gui-edited-persisted
+PASS: lightbox open gui-edited-persisted
+PASS: lightbox closed gui-edited-persisted
+PASS: gallery image loads gui-dapt-options
+PASS: gallery image enabled gui-dapt-options
+PASS: lightbox title gui-dapt-options
+PASS: original gallery link gui-dapt-options
+PASS: lightbox open gui-dapt-options
+PASS: lightbox closed gui-dapt-options
+PASS: no page overflow at 1440px
+PASS: no page overflow at 768px
+PASS: no page overflow at 390px
+PASS: no page overflow with expanded mobile detail
+PASS: no page overflow at 320px
+PASS: valid offline evidence reload
+PASS: valid reload rows
+PASS: invalid evidence displays error
+PASS: invalid evidence preserves rows
+PASS: snapshot filename
+FAIL: saved snapshot selected filter matches visible rows
+PASS: saved snapshot embeds exact loaded evidence
+PASS: no JavaScript exceptions
+PASS: no browser console errors
+PASS: no external page requests
+{"passed": false, "assertions": 107, "run": "<BROWSER_EVIDENCE>/run-01"}

@@ -3,7 +3,7 @@
 > Status: **COMPLETED** — 2026-05-02
 > Ship target: **originally app v0.7.0; shipped in the v0.6 release scope**
 > Issue: TBD
-> Related: ADR-018 (Ask tab), ADR-013 (Prompt Library — pattern reference, not extension), `plans/active/cli-as-canonical-parakeet-surface.md`
+> Related: ADR-018 (Ask tab), ADR-013 (Prompt Library — pattern reference, not extension), `plans/completed/cli-as-canonical-parakeet-surface.md`
 > Touches: `Sources/MacParakeet/Views/MeetingRecording/LiveAskPaneView.swift:311,438`, `Sources/CLI/Commands/`
 > Shipped on `feat/ask-quick-prompts` in three commits (data layer → CLI → GUI). 51 new tests; full suite 2160 / 2160 passing.
 

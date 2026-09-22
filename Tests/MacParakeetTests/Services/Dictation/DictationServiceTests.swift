@@ -1,14 +1,36 @@
 import XCTest
 @testable import MacParakeetCore
 
+private actor DictationSuccessDisplayGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var released = false
+
+    func wait() async {
+        guard !released else { return }
+        await withCheckedContinuation { continuation = $0 }
+    }
+
+    func release() {
+        released = true
+        continuation?.resume()
+        continuation = nil
+    }
+}
+
 private final class DictationTelemetrySpy: TelemetryServiceProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private var events: [TelemetryEventSpec] = []
+    private let observer: (@Sendable (TelemetryEventSpec) -> Void)?
+
+    init(observer: (@Sendable (TelemetryEventSpec) -> Void)? = nil) {
+        self.observer = observer
+    }
 
     func send(_ event: TelemetryEventSpec) {
         lock.lock()
         events.append(event)
         lock.unlock()
+        observer?(event)
     }
 
     func sendAndFlush(_ event: TelemetryEventSpec) async -> Bool {
@@ -62,9 +84,20 @@ final class DictationServiceTests: XCTestCase {
         super.tearDown()
     }
 
+    private static func previewSpeechEngine(
+        _ key: SpeechEngineVariantKey,
+        language: String? = nil
+    ) -> SpeechEngineCapabilitySelection {
+        SpeechEngineCapabilitySelection(
+            selection: SpeechEngineSelection(engine: key.engine, language: language),
+            capabilities: SpeechEngineCapabilityRegistry.capabilities(for: key)
+        )
+    }
+
     func testInitialStateIsIdle() async {
         let state = await service.state
-        if case .idle = state {} else {
+        if case .idle = state {
+        } else {
             XCTFail("Expected idle state, got \(state)")
         }
     }
@@ -72,7 +105,8 @@ final class DictationServiceTests: XCTestCase {
     func testStartRecordingChangesState() async throws {
         try await service.startRecording()
         let state = await service.state
-        if case .recording = state {} else {
+        if case .recording = state {
+        } else {
             XCTFail("Expected recording state, got \(state)")
         }
     }
@@ -105,6 +139,12 @@ final class DictationServiceTests: XCTestCase {
     func testStartFailureUsesRequestedTelemetryContextForOperation() async throws {
         let telemetry = DictationTelemetrySpy()
         Telemetry.configure(telemetry)
+        await mockSTT.configureTelemetryAttribution(
+            .init(
+                speechEngine: .whisper,
+                engineVariant: SpeechEnginePreference.defaultWhisperModelVariant,
+                language: "en"
+            ))
 
         try await service.startRecording(context: DictationTelemetryContext(trigger: .menuBar, mode: .persistent))
         await service.confirmCancel()
@@ -114,7 +154,8 @@ final class DictationServiceTests: XCTestCase {
             try await service.startRecording(context: DictationTelemetryContext(trigger: .hotkey, mode: .hold))
             XCTFail("Expected startRecording to throw")
         } catch let error as AudioProcessorError {
-            if case .microphoneNotAvailable = error {} else {
+            if case .microphoneNotAvailable = error {
+            } else {
                 XCTFail("Expected microphoneNotAvailable, got \(error)")
             }
         } catch {
@@ -125,6 +166,59 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(operation["outcome"], "failure")
         XCTAssertEqual(operation["trigger"], "hotkey")
         XCTAssertEqual(operation["mode"], "hold")
+        XCTAssertEqual(operation["speech_engine"], "whisper")
+        XCTAssertEqual(operation["engine_variant"], SpeechEnginePreference.defaultWhisperModelVariant)
+        XCTAssertEqual(operation["language"], "en")
+    }
+
+    func testStartRecordingSnapshotsSpeechEngineAttributionAfterEntitlementAwait() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+        await mockSTT.configure(result: STTResult(text: "   ", words: []))
+        await mockSTT.configureTelemetryAttribution(
+            .init(
+                speechEngine: .parakeet,
+                engineVariant: ParakeetModelVariant.v3.rawValue,
+                language: nil
+            ))
+        let entitlements = DelayedEntitlements()
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            entitlements: entitlements
+        )
+
+        let startTask = Task {
+            try await self.service.startRecording(
+                context: DictationTelemetryContext(trigger: .hotkey, mode: .hold)
+            )
+        }
+        await entitlements.waitForAssert()
+        await mockSTT.configureTelemetryAttribution(
+            .init(
+                speechEngine: .whisper,
+                engineVariant: SpeechEnginePreference.defaultWhisperModelVariant,
+                language: "en"
+            ))
+        await entitlements.release()
+        try await startTask.value
+
+        do {
+            _ = try await service.stopRecording()
+            XCTFail("Expected empty transcript to throw")
+        } catch DictationServiceError.emptyTranscript {
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        let operation = try XCTUnwrap(dictationOperationProps(in: telemetry.snapshot()).last)
+        XCTAssertEqual(operation["outcome"], "empty")
+        XCTAssertEqual(operation["trigger"], "hotkey")
+        XCTAssertEqual(operation["mode"], "hold")
+        XCTAssertEqual(operation["speech_engine"], "whisper")
+        XCTAssertEqual(operation["engine_variant"], SpeechEnginePreference.defaultWhisperModelVariant)
+        XCTAssertEqual(operation["language"], "en")
     }
 
     func testInterruptedSubscribeWithoutCancelEmitsFailureTelemetry() async throws {
@@ -147,15 +241,164 @@ final class DictationServiceTests: XCTestCase {
         }
 
         let events = telemetry.snapshot()
-        XCTAssertTrue(events.contains { event in
-            if case .dictationFailed = event { return true }
-            return false
-        })
+        XCTAssertTrue(
+            events.contains { event in
+                if case .dictationFailed = event { return true }
+                return false
+            })
 
         let operation = try XCTUnwrap(dictationOperationProps(in: events).last)
         XCTAssertEqual(operation["outcome"], "failure")
         XCTAssertEqual(operation["trigger"], "hotkey")
         XCTAssertEqual(operation["mode"], "hold")
+    }
+
+    func testStartCaptureCancellationEmitsOneCancelledOperationWithoutFailureBreadcrumb() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+        await mockAudio.configureCaptureError(CancellationError())
+
+        do {
+            try await service.startRecording(context: DictationTelemetryContext(trigger: .hotkey, mode: .hold))
+            XCTFail("Expected capture cancellation")
+        } catch is CancellationError {
+        }
+        await service.confirmCancel()
+
+        let events = telemetry.snapshot()
+        let operations = dictationOperationProps(in: events)
+        XCTAssertEqual(operations.count, 1)
+        XCTAssertEqual(operations.first?["outcome"], "cancelled")
+        XCTAssertEqual(operations.first?["error_type"], "CancellationError")
+        XCTAssertEqual(operations.first?["trigger"], "hotkey")
+        XCTAssertEqual(operations.first?["mode"], "hold")
+        XCTAssertFalse(
+            events.contains { event in
+                if case .dictationFailed = event { return true }
+                return false
+            })
+    }
+
+    func testStopCaptureCancellationEmitsOneCancelledOperationWithoutFailureBreadcrumb() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+        try await service.startRecording(context: DictationTelemetryContext(trigger: .hotkey, mode: .hold))
+        await mockAudio.configureCaptureError(CancellationError())
+
+        do {
+            _ = try await service.stopRecording()
+            XCTFail("Expected capture cancellation")
+        } catch is CancellationError {
+        }
+        await service.confirmCancel()
+
+        let events = telemetry.snapshot()
+        let operations = dictationOperationProps(in: events)
+        XCTAssertEqual(operations.count, 1)
+        XCTAssertEqual(operations.first?["outcome"], "cancelled")
+        XCTAssertEqual(operations.first?["error_type"], "CancellationError")
+        XCTAssertFalse(
+            events.contains { event in
+                if case .dictationFailed = event { return true }
+                return false
+            })
+    }
+
+    func testUndoTranscriptionCancellationEmitsOneCancelledOperationWithoutFailureBreadcrumb() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+        let audioURL = try makeTemporaryAudioURL()
+        await mockAudio.configure(captureResult: audioURL)
+        await mockSTT.configure(error: CancellationError())
+        try await service.startRecording(context: DictationTelemetryContext(trigger: .hotkey, mode: .hold))
+        await service.cancelRecording(reason: .hotkey)
+
+        do {
+            _ = try await service.undoCancel()
+            XCTFail("Expected transcription cancellation")
+        } catch is CancellationError {
+        }
+        await service.confirmCancel()
+
+        let events = telemetry.snapshot()
+        let operations = dictationOperationProps(in: events)
+        XCTAssertEqual(operations.count, 1)
+        XCTAssertEqual(operations.first?["outcome"], "cancelled")
+        XCTAssertEqual(operations.first?["error_type"], "CancellationError")
+        XCTAssertFalse(
+            events.contains { event in
+                if case .dictationFailed = event { return true }
+                return false
+            })
+    }
+
+    func testConfirmCancelAfterSuccessDoesNotEmitAnotherTerminalOutcome() async throws {
+        let displayGate = DictationSuccessDisplayGate()
+        await service.setSuccessDisplayWaiterForTesting { await displayGate.wait() }
+        defer { Task { await displayGate.release() } }
+        let success = expectation(description: "Success emitted before the service's existing display dwell")
+        let telemetry = DictationTelemetrySpy { event in
+            if event.name == .dictationOperation, event.props?["outcome"] == "success" {
+                success.fulfill()
+            }
+        }
+        Telemetry.configure(telemetry)
+        let audioURL = try makeTemporaryAudioURL()
+        await mockAudio.configure(captureResult: audioURL)
+        await mockSTT.configure(result: STTResult(text: "first result"))
+        let service = try XCTUnwrap(self.service)
+        try await service.startRecording(sessionID: 1)
+        let stopTask = Task { try await service.stopRecording(sessionID: 1) }
+
+        await fulfillment(of: [success], timeout: 2)
+        guard case .success = await service.state else {
+            await displayGate.release()
+            _ = try await stopTask.value
+            return XCTFail("The test must confirm cancellation while Stop is still displaying success")
+        }
+        await service.confirmCancel(sessionID: 1)
+        await displayGate.release()
+        _ = try await stopTask.value
+
+        let operations = dictationOperationProps(in: telemetry.snapshot())
+        XCTAssertEqual(operations.count, 1)
+        XCTAssertEqual(operations.first?["outcome"], "success")
+    }
+
+    func testNewOperationAfterSuccessRetainsItsTerminalOutcomeAndIgnoresStaleCancel() async throws {
+        let displayGate = DictationSuccessDisplayGate()
+        await service.setSuccessDisplayWaiterForTesting { await displayGate.wait() }
+        defer { Task { await displayGate.release() } }
+        let success = expectation(description: "First operation succeeded")
+        let telemetry = DictationTelemetrySpy { event in
+            if event.name == .dictationOperation, event.props?["outcome"] == "success" {
+                success.fulfill()
+            }
+        }
+        Telemetry.configure(telemetry)
+        let audioURL = try makeTemporaryAudioURL()
+        await mockAudio.configure(captureResult: audioURL)
+        await mockSTT.configure(result: STTResult(text: "first result"))
+        let service = try XCTUnwrap(self.service)
+        try await service.startRecording(sessionID: 1)
+        let stopTask = Task { try await service.stopRecording(sessionID: 1) }
+
+        await fulfillment(of: [success], timeout: 2)
+        guard case .success = await service.state else {
+            await displayGate.release()
+            _ = try await stopTask.value
+            return XCTFail("The new operation must replace the first operation during its success dwell")
+        }
+        try await service.startRecording(sessionID: 2)
+        await service.confirmCancel(sessionID: 1)
+        await service.confirmCancel(sessionID: 2)
+        await displayGate.release()
+        _ = try await stopTask.value
+
+        let operations = dictationOperationProps(in: telemetry.snapshot())
+        XCTAssertEqual(operations.count, 2)
+        XCTAssertEqual(operations.map { $0["outcome"] }, ["success", "cancelled"])
+        XCTAssertEqual(Set(operations.compactMap { $0["operation_id"] }).count, 2)
     }
 
     func testCancelDuringStartCaptureStillEmitsCancelledOperation() async throws {
@@ -173,12 +416,177 @@ final class DictationServiceTests: XCTestCase {
         await service.confirmCancel()
 
         let operations = dictationOperationProps(in: telemetry.snapshot())
-        XCTAssertTrue(operations.contains { operation in
-            operation["outcome"] == "cancelled"
-                && operation["trigger"] == "hotkey"
-                && operation["mode"] == "hold"
-                && operation["cancel_reason"] == "hotkey"
-        })
+        XCTAssertTrue(
+            operations.contains { operation in
+                operation["outcome"] == "cancelled"
+                    && operation["trigger"] == "hotkey"
+                    && operation["mode"] == "hold"
+                    && operation["cancel_reason"] == "hotkey"
+            })
+    }
+
+    func testConfirmCancelPreservesDiscardedDictationWhenEnabled() async throws {
+        await mockSTT.configure(result: STTResult(text: "keep this cancelled take"))
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldPreserveDiscardedDictations: { true }
+        )
+
+        try await service.startRecording()
+        await service.cancelRecording(reason: .escape)
+        await service.confirmCancel()
+
+        let saved = try dictationRepo.fetchAll()
+        XCTAssertEqual(saved.count, 1)
+        XCTAssertEqual(saved.first?.status, .cancelled)
+        XCTAssertEqual(saved.first?.rawTranscript, "keep this cancelled take")
+        XCTAssertFalse(saved.first?.hidden ?? true)
+        XCTAssertEqual(try dictationRepo.stats().totalCount, 0)
+    }
+
+    func testConfirmCancelDoesNotSaveWhenPreserveDiscardedIsOff() async throws {
+        await mockSTT.configure(result: STTResult(text: "should not be saved"))
+        try await service.startRecording()
+        await service.cancelRecording(reason: .escape)
+        await service.confirmCancel()
+
+        XCTAssertTrue(try dictationRepo.fetchAll().isEmpty)
+    }
+
+    func testUndoWindowExpiryPreservesDiscardedDictationWhenEnabled() async throws {
+        let persistTranscribe = await expectCancelledPersistTranscribe()
+        await mockSTT.configure(result: STTResult(text: "expired cancel still kept"))
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldPreserveDiscardedDictations: { true },
+            cancelWindow: .milliseconds(20)
+        )
+
+        try await service.startRecording()
+        await service.cancelRecording(reason: .escape)
+
+        let saved = try await waitForSavedCancelledDictation(after: persistTranscribe)
+        XCTAssertEqual(saved.count, 1)
+        XCTAssertEqual(saved.first?.status, .cancelled)
+        XCTAssertEqual(saved.first?.rawTranscript, "expired cancel still kept")
+    }
+
+    func testConfirmCancelDoesNotSaveWhenHistoryIsOffEvenIfPreserveDiscardedIsOn() async throws {
+        await mockSTT.configure(result: STTResult(text: "privacy wins"))
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldSaveDictationHistory: { false },
+            shouldPreserveDiscardedDictations: { true }
+        )
+
+        try await service.startRecording()
+        await service.cancelRecording(reason: .escape)
+        await service.confirmCancel()
+
+        XCTAssertTrue(try dictationRepo.fetchAll().isEmpty)
+    }
+
+    func testConfirmCancelPersistDoesNotClobberANewRecording() async throws {
+        let enteredTranscribe = DictationSuccessDisplayGate()
+        let releaseTranscribe = DictationSuccessDisplayGate()
+        await mockSTT.configure(result: STTResult(text: "cancelled take recovered later"))
+        await mockSTT.setTranscribeHook {
+            await enteredTranscribe.release()
+            await releaseTranscribe.wait()
+        }
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldPreserveDiscardedDictations: { true }
+        )
+
+        try await service.startRecording()
+        await service.cancelRecording(reason: .escape)
+        let persistTask = Task { await self.service.confirmCancel() }
+        await enteredTranscribe.wait()
+        try await service.startRecording()
+        let stateDuringPersist = await service.state
+        guard case .recording = stateDuringPersist else {
+            XCTFail("Expected recording during cancelled persist, got \(stateDuringPersist)")
+            await releaseTranscribe.release()
+            await persistTask.value
+            return
+        }
+        await releaseTranscribe.release()
+        await persistTask.value
+
+        let stateAfterPersist = await service.state
+        guard case .recording = stateAfterPersist else {
+            XCTFail("Expected recording after cancelled persist, got \(stateAfterPersist)")
+            return
+        }
+        let saved = try dictationRepo.fetchAll()
+        XCTAssertEqual(saved.first?.status, .cancelled)
+    }
+
+    func testStartRecordingFromCancelledPreservesDiscardedDictation() async throws {
+        let persistTranscribe = await expectCancelledPersistTranscribe()
+        await mockSTT.configure(result: STTResult(text: "restart from cancel still kept"))
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldPreserveDiscardedDictations: { true }
+        )
+
+        try await service.startRecording()
+        await service.cancelRecording(reason: .escape)
+        try await service.startRecording()
+
+        let saved = try await waitForSavedCancelledDictation(after: persistTranscribe)
+        XCTAssertEqual(saved.count, 1)
+        XCTAssertEqual(saved.first?.status, .cancelled)
+        XCTAssertEqual(saved.first?.rawTranscript, "restart from cancel still kept")
+        let state = await service.state
+        guard case .recording = state else {
+            XCTFail("Expected recording after restart from cancel, got \(state)")
+            return
+        }
+    }
+
+    func testCancelThenConfirmEmitsCancelledTelemetryAndOperationReason() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+        await mockSTT.configureTelemetryAttribution(
+            .init(
+                speechEngine: .whisper,
+                engineVariant: SpeechEnginePreference.defaultWhisperModelVariant,
+                language: "en"
+            ))
+
+        try await service.startRecording(context: DictationTelemetryContext(trigger: .hotkey, mode: .hold))
+        await service.cancelRecording(reason: .escape)
+        await service.confirmCancel()
+
+        let events = telemetry.snapshot()
+        XCTAssertTrue(
+            events.contains { event in
+                guard case .dictationCancelled = event else { return false }
+                return event.props?["reason"] == "escape"
+            })
+
+        let operation = try XCTUnwrap(
+            dictationOperationProps(in: events).last { operation in
+                operation["outcome"] == "cancelled"
+                    && operation["trigger"] == "hotkey"
+                    && operation["mode"] == "hold"
+                    && operation["cancel_reason"] == "escape"
+            })
+        XCTAssertEqual(operation["speech_engine"], "whisper")
+        XCTAssertEqual(operation["engine_variant"], SpeechEnginePreference.defaultWhisperModelVariant)
+        XCTAssertEqual(operation["language"], "en")
     }
 
     func testInterruptedSubscribeAfterCancelDoesNotEmitFailureTelemetry() async throws {
@@ -201,17 +609,19 @@ final class DictationServiceTests: XCTestCase {
         try await startTask.value
 
         let events = telemetry.snapshot()
-        XCTAssertFalse(events.contains { event in
-            if case .dictationFailed = event { return true }
-            return false
-        })
+        XCTAssertFalse(
+            events.contains { event in
+                if case .dictationFailed = event { return true }
+                return false
+            })
 
         let operations = dictationOperationProps(in: events)
-        XCTAssertTrue(operations.contains { operation in
-            operation["outcome"] == "cancelled"
-                && operation["trigger"] == "hotkey"
-                && operation["mode"] == "hold"
-        })
+        XCTAssertTrue(
+            operations.contains { operation in
+                operation["outcome"] == "cancelled"
+                    && operation["trigger"] == "hotkey"
+                    && operation["mode"] == "hold"
+            })
     }
 
     func testInterruptedSubscribeAfterCancelLeavesServiceNonRecordingBeforeCancelCompletes() async throws {
@@ -241,7 +651,8 @@ final class DictationServiceTests: XCTestCase {
         await cancelTask.value
 
         let finalState = await service.state
-        if case .idle = finalState {} else {
+        if case .idle = finalState {
+        } else {
             XCTFail("Expected idle after confirmCancel, got \(finalState)")
         }
     }
@@ -254,7 +665,7 @@ final class DictationServiceTests: XCTestCase {
             text: "Hello world",
             words: [
                 TimestampedWord(word: "Hello", startMs: 0, endMs: 500, confidence: 0.98),
-                TimestampedWord(word: "world", startMs: 520, endMs: 1000, confidence: 0.95)
+                TimestampedWord(word: "world", startMs: 520, endMs: 1000, confidence: 0.95),
             ],
             language: "KO_kr",
             engine: .whisper,
@@ -285,23 +696,245 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(operation["speech_engine"], "whisper")
         XCTAssertEqual(operation["engine_variant"], SpeechEnginePreference.defaultWhisperModelVariant)
         XCTAssertEqual(operation["language"], "ko")
+        XCTAssertNotNil(operation["capture_ms"])
+        XCTAssertNotNil(operation["transcribe_ms"])
+        XCTAssertGreaterThanOrEqual(Int(operation["capture_ms"] ?? "-1") ?? -1, 0)
+        XCTAssertGreaterThanOrEqual(Int(operation["transcribe_ms"] ?? "-1") ?? -1, 0)
+        XCTAssertEqual(result.captureMs.map(String.init), operation["capture_ms"])
+        XCTAssertEqual(result.transcribeMs.map(String.init), operation["transcribe_ms"])
+        XCTAssertEqual(result.operationID, operation["operation_id"])
     }
 
-    func testStopRecordingUsesLiveNemotronResultWhenAvailable() async throws {
+    func testDurationUsesCapturedAudioDurationWhenWordsAreMissing() {
+        let result = STTResult(text: "cohere final", words: [], engine: .cohere)
+
+        XCTAssertEqual(
+            DictationService.computeDurationMs(from: result, capturedDurationMs: 12_345),
+            12_345
+        )
+    }
+
+    func testDurationFallsBackToWordEstimateWithoutCapturedDuration() {
+        let result = STTResult(text: "Hello world test", words: [])
+
+        XCTAssertEqual(
+            DictationService.computeDurationMs(from: result, capturedDurationMs: nil),
+            450
+        )
+    }
+
+    func testDurationPrefersWordTimingWhenPresent() {
+        let result = STTResult(
+            text: "timed final",
+            words: [
+                TimestampedWord(word: "timed", startMs: 0, endMs: 400, confidence: 0.9),
+                TimestampedWord(word: "final", startMs: 420, endMs: 900, confidence: 0.9),
+            ],
+            engine: .parakeet
+        )
+
+        XCTAssertEqual(
+            DictationService.computeDurationMs(from: result, capturedDurationMs: 12_345),
+            900
+        )
+    }
+
+    func testTranscriptionTimingDiagnosticsExposeCoverageWithoutTranscriptContent() {
+        let words = [
+            TimestampedWord(word: "private", startMs: 1_200, endMs: 1_600, confidence: 0.9),
+            TimestampedWord(word: "content", startMs: 1_700, endMs: 8_000, confidence: 0.9),
+        ]
+
+        let fields = DictationService.transcriptionTimingDiagnosticFields(
+            words: words,
+            capturedDurationMs: 20_000
+        )
+
+        XCTAssertEqual(
+            fields,
+            "captured_duration_ms=20000 timed_words=2 first_word_start_ms=1200 "
+                + "last_word_end_ms=8000 timed_span_ms=6800 timing_end_permille=400"
+        )
+        XCTAssertFalse(fields.contains("private"))
+        XCTAssertFalse(fields.contains("content"))
+    }
+
+    func testStopRecordingInjectsMultipleVoiceReturnTriggersInRawMode() async throws {
+        await mockSTT.configure(result: STTResult(text: "git status zatwierdź"))
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            voiceReturnTriggers: { ["press return", "zatwierdź"] }
+        )
+
+        try await service.startRecording()
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.rawTranscript, "git status zatwierdź")
+        XCTAssertEqual(result.dictation.cleanTranscript, "git status")
+        XCTAssertEqual(result.postPasteAction, .returnKey)
+    }
+
+    func testSilentCaptureHealthFailsBeforeSTTAndEmitsFailureTelemetry() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+        await mockSTT.configureTelemetryAttribution(
+            .init(
+                speechEngine: .whisper,
+                engineVariant: SpeechEnginePreference.defaultWhisperModelVariant,
+                language: "en"
+            ))
+
+        let audioURL = try makeTemporaryAudioURL()
+        await mockAudio.configure(captureResult: audioURL)
+        await mockAudio.configure(
+            lastCaptureHealth: AudioCaptureHealth(
+                sampleCount: 32_000,
+                audioDurationSeconds: 2,
+                wallDurationSeconds: 2,
+                fileBytes: 128_000,
+                inputBufferCount: 20,
+                outputBufferCount: 20,
+                inputFrameCount: 96_000,
+                maxRMS: 0,
+                maxAudioLevel: 0,
+                nonSilentBufferCount: 0,
+                missingFloatChannelDataBufferCount: 0,
+                invalidFormatBufferCount: 0,
+                noBufferTimeoutFired: false
+            ))
+        await mockSTT.configure(result: STTResult(text: "should not transcribe"))
+
+        try await service.startRecording(context: DictationTelemetryContext(trigger: .hotkey, mode: .persistent))
+        do {
+            _ = try await service.stopRecording()
+            XCTFail("Expected silent capture health to fail before STT")
+        } catch AudioProcessorError.inputUnavailable(let problem) {
+            XCTAssertEqual(problem, .silentInput)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        let transcribeCallCount = await mockSTT.transcribeCallCount
+        XCTAssertEqual(transcribeCallCount, 0)
+        let events = telemetry.snapshot()
+        XCTAssertFalse(
+            events.contains { event in
+                if case .dictationEmpty = event { return true }
+                return false
+            })
+        XCTAssertTrue(
+            events.contains { event in
+                if case .dictationFailed = event { return true }
+                return false
+            })
+
+        let operation = try XCTUnwrap(dictationOperationProps(in: events).last)
+        XCTAssertEqual(operation["outcome"], "failure")
+        XCTAssertEqual(operation["error_type"], "AudioProcessorError.inputUnavailable.silent_input")
+        XCTAssertEqual(operation["trigger"], "hotkey")
+        XCTAssertEqual(operation["mode"], "persistent")
+        XCTAssertEqual(operation["speech_engine"], "whisper")
+        XCTAssertEqual(operation["engine_variant"], SpeechEnginePreference.defaultWhisperModelVariant)
+        XCTAssertEqual(operation["language"], "en")
+    }
+
+    func testEmptyDictationOperationIncludesSpeechEngineAttribution() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+        await mockSTT.configure(
+            result: STTResult(
+                text: "   ",
+                words: [],
+                language: "en",
+                engine: .whisper,
+                engineVariant: SpeechEnginePreference.defaultWhisperModelVariant
+            ))
+        await mockSTT.configureTelemetryAttribution(
+            .init(
+                speechEngine: .whisper,
+                engineVariant: SpeechEnginePreference.defaultWhisperModelVariant,
+                language: "en"
+            ))
+
+        try await service.startRecording(context: DictationTelemetryContext(trigger: .hotkey, mode: .hold))
+        do {
+            _ = try await service.stopRecording()
+            XCTFail("Expected empty transcript to throw")
+        } catch DictationServiceError.emptyTranscript {
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        let operation = try XCTUnwrap(dictationOperationProps(in: telemetry.snapshot()).last)
+        XCTAssertEqual(operation["outcome"], "empty")
+        XCTAssertEqual(operation["trigger"], "hotkey")
+        XCTAssertEqual(operation["mode"], "hold")
+        XCTAssertEqual(operation["speech_engine"], "whisper")
+        XCTAssertEqual(operation["engine_variant"], SpeechEnginePreference.defaultWhisperModelVariant)
+        XCTAssertEqual(operation["language"], "en")
+    }
+
+    func testNoBufferCaptureFailureEmitsFailureTelemetry() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        await mockAudio.configure(
+            lastCaptureHealth: AudioCaptureHealth(
+                sampleCount: 0,
+                audioDurationSeconds: 0,
+                wallDurationSeconds: 3,
+                fileBytes: 4_096,
+                inputBufferCount: 0,
+                outputBufferCount: 0,
+                inputFrameCount: 0,
+                maxRMS: 0,
+                maxAudioLevel: 0,
+                nonSilentBufferCount: 0,
+                missingFloatChannelDataBufferCount: 0,
+                invalidFormatBufferCount: 0,
+                noBufferTimeoutFired: true
+            ))
+
+        try await service.startRecording(context: DictationTelemetryContext(trigger: .hotkey, mode: .hold))
+        await mockAudio.configureCaptureError(AudioProcessorError.inputUnavailable(.noInputBuffers))
+        do {
+            _ = try await service.stopRecording()
+            XCTFail("Expected no-buffer capture to fail")
+        } catch AudioProcessorError.inputUnavailable(let problem) {
+            XCTAssertEqual(problem, .noInputBuffers)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        let events = telemetry.snapshot()
+        XCTAssertFalse(
+            events.contains { event in
+                if case .dictationEmpty = event { return true }
+                return false
+            })
+        let operation = try XCTUnwrap(dictationOperationProps(in: events).last)
+        XCTAssertEqual(operation["outcome"], "failure")
+        XCTAssertEqual(operation["error_type"], "AudioProcessorError.inputUnavailable.no_input_buffers")
+    }
+
+    func testStopRecordingUsesRecordedFileEvenWhenLiveFinalIsAvailable() async throws {
         service = DictationService(
             audioProcessor: mockAudio,
             sttTranscriber: mockSTT,
             dictationRepo: dictationRepo,
             shouldAttemptLiveDictationTranscription: { true }
         )
-        await mockSTT.configure(result: STTResult(text: "file fallback"))
-        await mockSTT.configureLive(result: STTResult(
-            text: "live final",
-            words: [],
-            language: "en",
-            engine: .nemotron,
-            engineVariant: NemotronModelVariant.multilingual1120.rawValue
-        ))
+        await mockSTT.configure(result: STTResult(text: "file final"))
+        await mockSTT.configureLive(
+            result: STTResult(
+                text: "live final missing tail",
+                words: [],
+                language: "en",
+                engine: .nemotron,
+                engineVariant: NemotronModelVariant.multilingual1120.rawValue
+            ))
 
         try await service.startRecording()
         await mockSTT.emitLivePartial(" live partial ")
@@ -313,18 +946,16 @@ final class DictationServiceTests: XCTestCase {
         await mockAudio.emitLiveSamples([0.1, 0.2, 0.3])
         let result = try await service.stopRecording()
 
-        XCTAssertEqual(result.dictation.rawTranscript, "live final")
-        XCTAssertEqual(result.dictation.engine, "nemotron")
-        XCTAssertEqual(result.dictation.engineVariant, NemotronModelVariant.multilingual1120.rawValue)
+        XCTAssertEqual(result.dictation.rawTranscript, "file final")
         let transcribeCallCount = await mockSTT.transcribeCallCount
         let liveAppendCallCount = await mockSTT.liveAppendCallCount
         let liveFinishCallCount = await mockSTT.liveFinishCallCount
-        XCTAssertEqual(transcribeCallCount, 0)
+        XCTAssertEqual(transcribeCallCount, 1)
         XCTAssertEqual(liveAppendCallCount, 1)
         XCTAssertEqual(liveFinishCallCount, 1)
     }
 
-    func testLiveNemotronPreviewDisabledStillUsesLiveFinalButHidesPartials() async throws {
+    func testLiveNemotronPreviewDisabledStillUsesRecordedFileAndHidesPartials() async throws {
         service = DictationService(
             audioProcessor: mockAudio,
             sttTranscriber: mockSTT,
@@ -332,14 +963,15 @@ final class DictationServiceTests: XCTestCase {
             shouldAttemptLiveDictationTranscription: { true },
             shouldShowDictationPreview: { false }
         )
-        await mockSTT.configure(result: STTResult(text: "file fallback"))
-        await mockSTT.configureLive(result: STTResult(
-            text: "live final",
-            words: [],
-            language: "en",
-            engine: .nemotron,
-            engineVariant: NemotronModelVariant.multilingual1120.rawValue
-        ))
+        await mockSTT.configure(result: STTResult(text: "file final"))
+        await mockSTT.configureLive(
+            result: STTResult(
+                text: "live final",
+                words: [],
+                language: "en",
+                engine: .nemotron,
+                engineVariant: NemotronModelVariant.multilingual1120.rawValue
+            ))
 
         try await service.startRecording()
         await mockSTT.emitLivePartial(" live partial ")
@@ -351,11 +983,11 @@ final class DictationServiceTests: XCTestCase {
         await mockAudio.emitLiveSamples([0.1, 0.2, 0.3])
         let result = try await service.stopRecording()
 
-        XCTAssertEqual(result.dictation.rawTranscript, "live final")
+        XCTAssertEqual(result.dictation.rawTranscript, "file final")
         let transcribeCallCount = await mockSTT.transcribeCallCount
         let liveAppendCallCount = await mockSTT.liveAppendCallCount
         let liveFinishCallCount = await mockSTT.liveFinishCallCount
-        XCTAssertEqual(transcribeCallCount, 0)
+        XCTAssertEqual(transcribeCallCount, 1)
         XCTAssertEqual(liveAppendCallCount, 1)
         XCTAssertEqual(liveFinishCallCount, 1)
     }
@@ -455,11 +1087,12 @@ final class DictationServiceTests: XCTestCase {
             shouldAttemptLiveDictationTranscription: { true }
         )
         await mockSTT.configure(result: STTResult(text: "file fallback"))
-        await mockSTT.configureLive(result: STTResult(
-            text: "live final",
-            words: [],
-            engine: .nemotron
-        ))
+        await mockSTT.configureLive(
+            result: STTResult(
+                text: "live final",
+                words: [],
+                engine: .nemotron
+            ))
         await mockSTT.holdLiveAppends()
 
         try await service.startRecording()
@@ -489,11 +1122,12 @@ final class DictationServiceTests: XCTestCase {
             shouldAttemptLiveDictationTranscription: { true }
         )
         await mockSTT.configure(result: STTResult(text: "file fallback"))
-        await mockSTT.configureLive(result: STTResult(
-            text: "live final",
-            words: [],
-            engine: .nemotron
-        ))
+        await mockSTT.configureLive(
+            result: STTResult(
+                text: "live final",
+                words: [],
+                engine: .nemotron
+            ))
 
         try await service.startRecording()
         await mockAudio.emitLiveSamples([0.1, 0.2])
@@ -516,7 +1150,7 @@ final class DictationServiceTests: XCTestCase {
             audioProcessor: mockAudio,
             sttTranscriber: mockSTT,
             dictationRepo: dictationRepo,
-            dictationPreviewSpeechEngine: { SpeechEngineSelection(engine: .parakeet) },
+            dictationPreviewSpeechEngine: { Self.previewSpeechEngine(.parakeet(.v3)) },
             dictationPreviewInterval: .zero
         )
         await mockSTT.configure(result: STTResult(text: "file final", words: [], engine: .parakeet))
@@ -543,13 +1177,86 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(liveBeginCallCount, 0)
     }
 
+    func testCohereStyleDictationSkipsLivePathsAndUsesRecordedFileFinal() async throws {
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldAttemptLiveDictationTranscription: { false },
+            shouldShowDictationPreview: { true },
+            dictationPreviewSpeechEngine: { nil },
+            dictationPreviewInterval: .zero
+        )
+        await mockSTT.configure(result: STTResult(text: "cohere final", words: [], engine: .cohere))
+
+        try await service.startRecording()
+        await mockAudio.emitLiveSamples([0.1, 0.2, 0.3])
+        try await Task.sleep(for: .milliseconds(50))
+
+        let liveTranscript = await service.liveTranscript
+        XCTAssertEqual(liveTranscript, "")
+
+        let result = try await service.stopRecording()
+
+        let transcribeCallCount = await mockSTT.transcribeCallCount
+        let lastJob = await mockSTT.lastJob
+        let liveBeginCallCount = await mockSTT.liveBeginCallCount
+        let liveAppendCallCount = await mockSTT.liveAppendCallCount
+        let liveFinishCallCount = await mockSTT.liveFinishCallCount
+        let liveCancelCallCount = await mockSTT.liveCancelCallCount
+        let previewCallCount = await mockSTT.previewCallCount
+        let previewCancelCallCount = await mockSTT.previewCancelCallCount
+        XCTAssertEqual(result.dictation.rawTranscript, "cohere final")
+        XCTAssertEqual(result.dictation.engine, SpeechEnginePreference.cohere.rawValue)
+        XCTAssertEqual(result.dictation.wordCount, 2)
+        XCTAssertEqual(transcribeCallCount, 1)
+        XCTAssertEqual(lastJob, .dictation)
+        XCTAssertEqual(liveBeginCallCount, 0)
+        XCTAssertEqual(liveAppendCallCount, 0)
+        XCTAssertEqual(liveFinishCallCount, 0)
+        XCTAssertEqual(liveCancelCallCount, 0)
+        XCTAssertEqual(previewCallCount, 0)
+        XCTAssertEqual(previewCancelCallCount, 0)
+    }
+
+    func testCohereDisplayPreviewSelectionIsIgnored() async throws {
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldShowDictationPreview: { true },
+            dictationPreviewSpeechEngine: { Self.previewSpeechEngine(.cohere, language: "ja") },
+            dictationPreviewInterval: .zero
+        )
+        await mockSTT.configure(result: STTResult(text: "cohere final", words: [], engine: .cohere))
+        await mockSTT.configurePreview(result: STTResult(text: "should not preview", words: [], engine: .cohere))
+
+        try await service.startRecording()
+        await mockAudio.emitLiveSamples([0.1, 0.2, 0.3])
+        try await Task.sleep(for: .milliseconds(50))
+
+        let liveTranscript = await service.liveTranscript
+        XCTAssertEqual(liveTranscript, "")
+
+        let result = try await service.stopRecording()
+
+        let previewCallCount = await mockSTT.previewCallCount
+        let previewCancelCallCount = await mockSTT.previewCancelCallCount
+        let transcribeCallCount = await mockSTT.transcribeCallCount
+        XCTAssertEqual(result.dictation.rawTranscript, "cohere final")
+        XCTAssertEqual(result.dictation.engine, SpeechEnginePreference.cohere.rawValue)
+        XCTAssertEqual(previewCallCount, 0)
+        XCTAssertEqual(previewCancelCallCount, 0)
+        XCTAssertEqual(transcribeCallCount, 1)
+    }
+
     func testDisplayPreviewDisabledSkipsPreviewTranscription() async throws {
         service = DictationService(
             audioProcessor: mockAudio,
             sttTranscriber: mockSTT,
             dictationRepo: dictationRepo,
             shouldShowDictationPreview: { false },
-            dictationPreviewSpeechEngine: { SpeechEngineSelection(engine: .parakeet) },
+            dictationPreviewSpeechEngine: { Self.previewSpeechEngine(.parakeet(.v3)) },
             dictationPreviewInterval: .zero
         )
         await mockSTT.configure(result: STTResult(text: "file final", words: [], engine: .parakeet))
@@ -578,7 +1285,7 @@ final class DictationServiceTests: XCTestCase {
             audioProcessor: mockAudio,
             sttTranscriber: mockSTT,
             dictationRepo: dictationRepo,
-            dictationPreviewSpeechEngine: { SpeechEngineSelection(engine: .parakeet) },
+            dictationPreviewSpeechEngine: { Self.previewSpeechEngine(.parakeet(.v3)) },
             dictationPreviewInterval: .zero,
             dictationPreviewWindowSeconds: 3.0 / 16_000.0
         )
@@ -609,7 +1316,7 @@ final class DictationServiceTests: XCTestCase {
             audioProcessor: mockAudio,
             sttTranscriber: mockSTT,
             dictationRepo: dictationRepo,
-            dictationPreviewSpeechEngine: { SpeechEngineSelection(engine: .parakeet) },
+            dictationPreviewSpeechEngine: { Self.previewSpeechEngine(.parakeet(.v3)) },
             dictationPreviewInterval: .zero
         )
         await mockSTT.configure(result: STTResult(text: "file final", words: [], engine: .parakeet))
@@ -637,7 +1344,7 @@ final class DictationServiceTests: XCTestCase {
             audioProcessor: mockAudio,
             sttTranscriber: mockSTT,
             dictationRepo: dictationRepo,
-            dictationPreviewSpeechEngine: { SpeechEngineSelection(engine: .parakeet) },
+            dictationPreviewSpeechEngine: { Self.previewSpeechEngine(.parakeet(.v3)) },
             dictationPreviewInterval: .zero,
             dictationPreviewCancellationTimeout: .milliseconds(50)
         )
@@ -663,12 +1370,12 @@ final class DictationServiceTests: XCTestCase {
         await mockSTT.releasePreviewTranscription()
     }
 
-    func testPreRollDiscardClearsDisplayPreviewAndStillUsesRecordedFileFinal() async throws {
+    func testPreRollDiscardResetsDisplayPreviewAndStillUsesRecordedFileFinal() async throws {
         service = DictationService(
             audioProcessor: mockAudio,
             sttTranscriber: mockSTT,
             dictationRepo: dictationRepo,
-            dictationPreviewSpeechEngine: { SpeechEngineSelection(engine: .parakeet) },
+            dictationPreviewSpeechEngine: { Self.previewSpeechEngine(.parakeet(.v3)) },
             dictationPreviewInterval: .zero
         )
         await mockSTT.configure(result: STTResult(text: "file final", words: [], engine: .parakeet))
@@ -688,22 +1395,88 @@ final class DictationServiceTests: XCTestCase {
         }
         XCTAssertTrue(cleared, "Expected pre-roll discard to clear display preview")
         let previewCancelCallCount = await mockSTT.previewCancelCallCount
-        XCTAssertEqual(previewCancelCallCount, 1)
+        XCTAssertEqual(
+            previewCancelCallCount,
+            0,
+            "Pre-roll discard should reset the active preview instead of cancelling it"
+        )
 
         await mockAudio.emitLiveSamples([0.3, 0.4])
-        try await Task.sleep(for: .milliseconds(50))
-        let previewCallCount = await mockSTT.previewCallCount
+        await mockAudio.emitLiveSamples([0.5])
+        let previewCallReached = await mockSTT.waitForPreviewCallCount(3)
+        XCTAssertTrue(previewCallReached, "Expected post-reset preview passes")
+        let previewSamples = await mockSTT.previewSamples
         XCTAssertEqual(
-            previewCallCount,
-            1,
-            "Preview should stop after pre-roll discard so stale pre-roll samples cannot re-enter the visible tail"
+            previewSamples,
+            [[0.1, 0.2], [0.3, 0.4], [0.3, 0.4, 0.5]],
+            "Post-reset preview passes should exclude all pre-roll samples"
+        )
+        // Preview passes are serial. Entering pass 3 proves pass 2 returned and
+        // its updateDisplayPreview call completed before this assertion.
+        let resumedTranscript = await service.liveTranscript
+        XCTAssertEqual(
+            resumedTranscript,
+            "preview tail",
+            "Display preview should publish post-reset speech"
         )
 
         let result = try await service.stopRecording()
 
-        XCTAssertEqual(result.dictation.rawTranscript, "file final")
+        XCTAssertEqual(
+            result.dictation.rawTranscript,
+            "file final",
+            "Final dictation should remain recorded-file authoritative"
+        )
+        let finalPreviewCancelCallCount = await mockSTT.previewCancelCallCount
         let discardCallCount = await mockAudio.discardPreRollCallCount
-        XCTAssertEqual(discardCallCount, 1)
+        XCTAssertEqual(finalPreviewCancelCallCount, 1, "Stopping should still cancel display preview")
+        XCTAssertEqual(discardCallCount, 1, "Expected the recorder pre-roll to be discarded once")
+    }
+
+    func testPreRollDiscardDropsQueuedPreviewAudioAndInFlightResult() async throws {
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            dictationPreviewSpeechEngine: { Self.previewSpeechEngine(.parakeet(.v3)) },
+            dictationPreviewInterval: .zero
+        )
+        await mockSTT.configure(result: STTResult(text: "file final", words: [], engine: .parakeet))
+        await mockSTT.configurePreview(results: [
+            STTResult(text: "stale pre-roll preview", words: [], engine: .parakeet),
+            STTResult(text: "", words: [], engine: .parakeet),
+            STTResult(text: "", words: [], engine: .parakeet),
+        ])
+        await mockSTT.holdPreviewTranscription()
+
+        try await service.startRecording()
+        await mockAudio.emitLiveSamples([0.1])
+        let initialPreviewCallReached = await mockSTT.waitForPreviewCallCount(1)
+        XCTAssertTrue(initialPreviewCallReached, "Expected the held pre-reset preview pass")
+
+        await mockAudio.emitLiveSamples([0.2])
+        await service.discardPreRollForActiveCapture(sessionID: nil)
+        await mockAudio.emitLiveSamples([0.3, 0.4])
+        await mockAudio.emitLiveSamples([0.5])
+        await mockSTT.releasePreviewTranscription()
+
+        let postResetPreviewCallsReached = await mockSTT.waitForPreviewCallCount(3)
+        XCTAssertTrue(postResetPreviewCallsReached, "Expected post-reset preview passes")
+        let previewSamples = await mockSTT.previewSamples
+        XCTAssertEqual(
+            previewSamples,
+            [[0.1], [0.3, 0.4], [0.3, 0.4, 0.5]],
+            "Queued pre-roll audio should be dropped before post-reset passes"
+        )
+        let liveTranscript = await service.liveTranscript
+        XCTAssertEqual(liveTranscript, "", "An in-flight pre-roll result must not reappear after reset")
+
+        let result = try await service.stopRecording()
+        XCTAssertEqual(
+            result.dictation.rawTranscript,
+            "file final",
+            "Final dictation should remain recorded-file authoritative"
+        )
     }
 
     func testStopRecordingCancelsLiveSessionWhenCaptureIsTooShort() async throws {
@@ -715,11 +1488,12 @@ final class DictationServiceTests: XCTestCase {
             shouldAttemptLiveDictationTranscription: { true }
         )
         await mockSTT.configure(result: STTResult(text: "file fallback"))
-        await mockSTT.configureLive(result: STTResult(
-            text: "live final",
-            words: [],
-            engine: .nemotron
-        ))
+        await mockSTT.configureLive(
+            result: STTResult(
+                text: "live final",
+                words: [],
+                engine: .nemotron
+            ))
 
         try await service.startRecording()
         await shortCaptureAudio.emitLiveSamples([0.1, 0.2])
@@ -728,7 +1502,8 @@ final class DictationServiceTests: XCTestCase {
             _ = try await service.stopRecording()
             XCTFail("Expected stopRecording to throw insufficientSamples")
         } catch let error as AudioProcessorError {
-            if case .insufficientSamples = error {} else {
+            if case .insufficientSamples = error {
+            } else {
                 XCTFail("Expected insufficientSamples, got \(error)")
             }
         } catch {
@@ -759,17 +1534,19 @@ final class DictationServiceTests: XCTestCase {
         _ = try await service.stopRecording()
 
         let events = telemetry.snapshot()
-        let completed = try XCTUnwrap(events.last { event in
-            if case .dictationCompleted = event { return true }
-            return false
-        })
+        let completed = try XCTUnwrap(
+            events.last { event in
+                if case .dictationCompleted = event { return true }
+                return false
+            })
         XCTAssertEqual(completed.props?["app_category"], "email")
 
-        let operation = try XCTUnwrap(successfulDictationOperation(
-            in: events,
-            trigger: .menuBar,
-            mode: .hold
-        ))
+        let operation = try XCTUnwrap(
+            successfulDictationOperation(
+                in: events,
+                trigger: .menuBar,
+                mode: .hold
+            ))
         XCTAssertEqual(operation["app_category"], "email")
     }
 
@@ -789,22 +1566,26 @@ final class DictationServiceTests: XCTestCase {
         _ = try await service.stopRecording()
 
         let events = telemetry.snapshot()
-        let completed = try XCTUnwrap(events.last { event in
-            if case .dictationCompleted = event { return true }
-            return false
-        })
+        let completed = try XCTUnwrap(
+            events.last { event in
+                if case .dictationCompleted = event { return true }
+                return false
+            })
         XCTAssertEqual(completed.props?["app_category"], "other")
 
-        let operation = try XCTUnwrap(successfulDictationOperation(
-            in: events,
-            trigger: .menuBar,
-            mode: .hold
-        ))
+        let operation = try XCTUnwrap(
+            successfulDictationOperation(
+                in: events,
+                trigger: .menuBar,
+                mode: .hold
+            ))
         XCTAssertEqual(operation["app_category"], "other")
     }
 
     func testFirstDictationFlagFlipsAfterSuccessfulSave() async throws {
-        let defaults = UserDefaults(suiteName: "dictation-first-success-\(UUID().uuidString)")!
+        let suiteName = "dictation-first-success-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
         XCTAssertFalse(preferences.hasCompletedFirstDictation)
 
@@ -831,7 +1612,9 @@ final class DictationServiceTests: XCTestCase {
     }
 
     func testFirstDictationFlagDoesNotFlipOnFailedDictation() async throws {
-        let defaults = UserDefaults(suiteName: "dictation-first-failure-\(UUID().uuidString)")!
+        let suiteName = "dictation-first-failure-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
 
         service = DictationService(
@@ -916,6 +1699,39 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(result.dictation.rawTranscript, "Hello world.")
         XCTAssertEqual(result.dictation.cleanTranscript, "hello world")
         XCTAssertEqual(result.dictation.wordCount, 2)
+    }
+
+    func testStopRecordingStripsUmFillerByDefaultInCleanMode() async throws {
+        await mockSTT.configure(result: STTResult(text: "I um think we should ship it"))
+
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            processingMode: { .clean }
+        )
+
+        try await service.startRecording()
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.cleanTranscript, "I think we should ship it")
+    }
+
+    func testStopRecordingPreservesUmWhenFillerToggleIsOff() async throws {
+        await mockSTT.configure(result: STTResult(text: "um, dois, três"))
+
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            processingMode: { .clean },
+            removeUmFiller: { false }
+        )
+
+        try await service.startRecording()
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.cleanTranscript, "Um, dois, três")
     }
 
     func testStopRecordingNormalizesAIFormatterOutputBeforeInlineInsertionStyle() async throws {
@@ -1076,7 +1892,8 @@ final class DictationServiceTests: XCTestCase {
         let telemetryProps = allTelemetryProps(in: telemetry.snapshot())
         XCTAssertFalse(telemetryProps.isEmpty)
         for props in telemetryProps {
-            let serialized = props
+            let serialized =
+                props
                 .flatMap { [$0.key, $0.value] }
                 .joined(separator: "\n")
                 .lowercased()
@@ -1304,6 +2121,27 @@ final class DictationServiceTests: XCTestCase {
         }
     }
 
+    private func expectCancelledPersistTranscribe() async -> XCTestExpectation {
+        let persistTranscribe = expectation(description: "cancelled persist transcribe")
+        persistTranscribe.assertForOverFulfill = false
+        await mockSTT.setTranscribeHook {
+            persistTranscribe.fulfill()
+        }
+        return persistTranscribe
+    }
+
+    private func waitForSavedCancelledDictation(
+        after persistTranscribe: XCTestExpectation
+    ) async throws -> [Dictation] {
+        await fulfillment(of: [persistTranscribe], timeout: 2)
+        let saved = await waitForCondition {
+            _ = await self.service.state
+            return (try? self.dictationRepo.fetchAll().count) == 1
+        }
+        XCTAssertTrue(saved, "cancelled persist did not save a History row after STT")
+        return try dictationRepo.fetchAll()
+    }
+
     private func waitForCondition(
         timeout: Duration = .seconds(2),
         _ condition: @escaping @Sendable () async -> Bool
@@ -1315,6 +2153,13 @@ final class DictationServiceTests: XCTestCase {
             try? await Task.sleep(for: .milliseconds(10))
         }
         return await condition()
+    }
+
+    private func makeTemporaryAudioURL() throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(UUID().uuidString).wav")
+        try Data([0]).write(to: url)
+        return url
     }
 
     private func allTelemetryProps(in events: [TelemetryEventSpec]) -> [[String: String]] {
@@ -1342,6 +2187,43 @@ private actor RecordingAIFormatterPromptResolver: AIFormatterPromptResolving {
 
     func recordedContexts() -> [AppPromptContext?] {
         contexts
+    }
+}
+
+private actor DelayedEntitlements: EntitlementsChecking {
+    private var entered = false
+    private var released = false
+    private var assertWaiters: [CheckedContinuation<Void, Never>] = []
+    private var releaseContinuation: CheckedContinuation<Void, Never>?
+
+    func assertCanTranscribe(now: Date) async throws {
+        entered = true
+        let waiters = assertWaiters
+        assertWaiters.removeAll()
+        for waiter in waiters {
+            waiter.resume()
+        }
+        guard !released else { return }
+        await withCheckedContinuation { continuation in
+            releaseContinuation = continuation
+        }
+    }
+
+    func currentState(now: Date) async -> EntitlementsState {
+        EntitlementsState(access: .unlocked, licenseKeyMasked: nil, lastValidatedAt: nil)
+    }
+
+    func waitForAssert() async {
+        guard !entered else { return }
+        await withCheckedContinuation { continuation in
+            assertWaiters.append(continuation)
+        }
+    }
+
+    func release() {
+        released = true
+        releaseContinuation?.resume()
+        releaseContinuation = nil
     }
 }
 

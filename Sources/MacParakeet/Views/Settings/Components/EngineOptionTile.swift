@@ -9,6 +9,25 @@ import SwiftUI
 /// Download / Retry live outside the tile (see `EngineDownloadBanner`) so we
 /// never nest one Button inside another, which is unreliable on macOS SwiftUI.
 struct EngineOptionTile: View {
+    enum SelectionRole: Equatable {
+        case live
+        case recordings
+
+        var label: String {
+            switch self {
+            case .live: "Live"
+            case .recordings: "Recordings"
+            }
+        }
+
+        var accessibilityLabel: String {
+            switch self {
+            case .live: "Selected for live speech"
+            case .recordings: "Selected for recordings and files"
+            }
+        }
+    }
+
     let icon: String
     let name: String
     let tagline: String
@@ -22,6 +41,7 @@ struct EngineOptionTile: View {
     /// optimize, the next load is slow (minutes). Splits the `.notLoaded`
     /// footer into a cold "Setup needed" vs warm "Downloaded" presentation.
     var needsFirstOptimize: Bool = false
+    var selectionRole: SelectionRole? = nil
     let onSelect: () -> Void
 
     @State private var isHovered = false
@@ -68,9 +88,9 @@ struct EngineOptionTile: View {
                 isHovered = hovering
             }
         }
-        .accessibilityLabel("\(name) engine. \(tagline).")
+        .accessibilityLabel(tileAccessibilityLabel)
         .accessibilityHint(unavailableReason ?? helpText)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityAddTraits(isSelected && selectionRole == nil ? .isSelected : [])
     }
 
     private var isUnavailable: Bool {
@@ -101,7 +121,9 @@ struct EngineOptionTile: View {
 
             Spacer(minLength: DesignSystem.Spacing.xs)
 
-            if isSelected {
+            if let selectionRole {
+                selectionRoleChip(selectionRole)
+            } else if isSelected {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(DesignSystem.Colors.accent)
@@ -109,6 +131,26 @@ struct EngineOptionTile: View {
                     .accessibilityHidden(true)
             }
         }
+    }
+
+    private func selectionRoleChip(_ role: SelectionRole) -> some View {
+        Text(role.label)
+            .font(DesignSystem.Typography.micro.weight(.semibold))
+            .foregroundStyle(role == .live ? DesignSystem.Colors.onAccent : DesignSystem.Colors.accent)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule()
+                    .fill(role == .live ? DesignSystem.Colors.accent : .clear)
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(
+                        role == .recordings ? DesignSystem.Colors.accent.opacity(0.75) : .clear,
+                        lineWidth: 1
+                    )
+            )
+            .accessibilityLabel(role.accessibilityLabel)
     }
 
     private var statusFooter: some View {
@@ -145,6 +187,9 @@ struct EngineOptionTile: View {
         if isSelected {
             return DesignSystem.Colors.accent.opacity(0.13)
         }
+        if selectionRole == .recordings {
+            return DesignSystem.Colors.accent.opacity(0.06)
+        }
         if isUnavailable {
             return DesignSystem.Colors.surfaceElevated.opacity(0.25)
         }
@@ -154,6 +199,8 @@ struct EngineOptionTile: View {
     private var border: some View {
         let strokeColor: Color = if isSelected {
             DesignSystem.Colors.accent.opacity(0.8)
+        } else if selectionRole == .recordings {
+            DesignSystem.Colors.accent.opacity(0.5)
         } else if isUnavailable {
             DesignSystem.Colors.border.opacity(0.45)
         } else if isHovered {
@@ -161,9 +208,22 @@ struct EngineOptionTile: View {
         } else {
             DesignSystem.Colors.border.opacity(0.7)
         }
-        let lineWidth: CGFloat = isSelected ? 2.0 : 0.5
+        let lineWidth: CGFloat = if isSelected {
+            2.0
+        } else if selectionRole == .recordings {
+            1.0
+        } else {
+            0.5
+        }
         return RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
             .strokeBorder(strokeColor, lineWidth: lineWidth)
+    }
+
+    private var tileAccessibilityLabel: String {
+        if let selectionRole {
+            return "\(name) engine. \(tagline). \(selectionRole.accessibilityLabel)."
+        }
+        return "\(name) engine. \(tagline)."
     }
 
     private struct StatusInfo {
@@ -201,7 +261,7 @@ struct EngineOptionTile: View {
                 return StatusInfo(
                     color: DesignSystem.Colors.successGreen,
                     label: "Downloaded",
-                    detail: "Loads in seconds"
+                    detail: "Loading may take 1–2 min"
                 )
             case .notDownloaded:
                 return StatusInfo(
@@ -303,8 +363,7 @@ struct EngineDownloadBanner: View {
                 .accessibilityLabel("Download \(title)")
         case .downloading:
             HStack(spacing: DesignSystem.Spacing.xs) {
-                ProgressView()
-                    .controlSize(.small)
+                ParakeetSpinner(.inline)
                 Text("Downloading…")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.secondary)
@@ -340,13 +399,13 @@ struct EngineDownloadBanner: View {
             EngineOptionTile(
                 icon: "bolt.fill",
                 name: "Parakeet",
-                tagline: "Fastest local engine",
+                tagline: "Everyday local default",
                 strengths: [
-                    "English + 24 European languages",
-                    "155× realtime on Apple Silicon",
-                    "Best default for everyday dictation"
+                    "Fast dictation and meetings",
+                    "Timestamps for exports",
+                    "English + supported European languages"
                 ],
-                helpText: "Best default for English and supported European languages including Spanish, French, German, and Italian. Runs locally with Core ML acceleration on Apple Silicon for the lowest-latency path.",
+                helpText: "Choose Parakeet for fast dictation, meetings, and exports in supported languages. Use Whisper when the audio is outside Parakeet's language coverage.",
                 modelStatus: .ready,
                 isSelected: true,
                 isBusy: false,
@@ -357,13 +416,13 @@ struct EngineDownloadBanner: View {
             EngineOptionTile(
                 icon: "globe",
                 name: "Whisper",
-                tagline: "Broad language fallback",
+                tagline: "Files + broad languages",
                 strengths: [
-                    "Korean, Japanese, Chinese, Thai +95 more",
-                    "Mature mixed-language recognition",
-                    "Local Whisper Large v3 Turbo"
+                    "Files, media, retranscription",
+                    "Word timestamps for subtitles",
+                    "Slower cold starts; no live preview"
                 ],
-                helpText: "Best for languages outside Parakeet's coverage or when a mature broad-language fallback matters more than speed. Runs locally with WhisperKit.",
+                helpText: "Choose Whisper for files, media, and saved-audio retranscription outside Parakeet or Nemotron coverage. It runs locally and has word timestamps, but first use can be slow and live dictation preview stays off.",
                 modelStatus: .notDownloaded,
                 isSelected: false,
                 isBusy: false,

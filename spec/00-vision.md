@@ -1,25 +1,31 @@
 # MacParakeet: Vision & Philosophy
 
 > Status: **ACTIVE** - Authoritative, current
-> The fastest, most private voice app for Mac. Fully local speech, optional networked features, free and open-source (GPL-3.0).
+> Fast, private, local-first voice app for Mac. Fully local speech with separately documented network surfaces, free and open-source (GPL-3.0).
 > Pricing amendment: The current public build is free, GPL-3.0, and fully unlocked. Older "$49 one-time purchase" and trial-tier language is historical, but GPL-compatible official paid distribution, support, hosted services, or future paid builds remain valid options. The retained purchase activation plumbing must not be removed as dead code without explicit owner direction and an ADR/spec update.
 
 ---
 
 ## The North Star
 
-**The fastest, most private voice app for Mac. Fully local speech when you want it. No required cloud subscription for core speech.**
+**Fast, private, local-first voice for Mac. Fully local speech when you want it. No required cloud subscription for core speech.**
+
+That is the day-one promise. The destination it builds toward
+([ADR-027](adr/027-product-north-star.md)): **every word you speak or hear on
+your Mac becomes private, permanent, and useful — on your machine, owned by
+you, readable by you and your agents.** MacParakeet is the private speech
+memory of your Mac.
 
 ```
 +-----------------------------------------------------------------------+
 |                                                                       |
-|   CLOUD DICTATION (WisprFlow, Otter)                                  |
-|   ---------------------------------                                   |
-|   Voice -> Server -> Wait -> Text -> $12-15/mo forever                |
+|   CLOUD SPEECH SERVICE                                                |
+|   --------------------                                                |
+|   Voice -> Provider -> Text -> account and service dependency         |
 |                                                                       |
-|   LOCAL BUT COMPLEX (MacWhisper, Superwhisper)                        |
-|   -------------------------------------------                         |
-|   Voice -> Configure -> Select model -> Text -> $30-$250             |
+|   LOCAL SINGLE-MODE TOOL                                              |
+|   ----------------------                                              |
+|   Voice/file -> Local model -> Text -> narrow workflow                |
 |                                                                       |
 |   MacPARAKEET                                                         |
 |   -----------                                                         |
@@ -32,10 +38,31 @@ Three capture modes plus one optional selected-text AI utility. That is the prod
 
 1. **Dictate anywhere** -- Double-tap Fn for hands-free dictation, or hold Fn for push-to-talk. Text appears where your cursor is.
 2. **Drop a file** -- Drag audio/video in. Get a transcript out.
-3. **Record a meeting** -- Capture system audio + mic, get a transcript when you stop.
+3. **Record a meeting** -- Capture system audio, mic audio, or both, and get a transcript when you stop.
 4. **Transform selected text** -- Press a bound Transform hotkey to rewrite selected text through your configured LLM provider.
 
 Everything else exists to make those capture modes and the selected-text rewrite surface faster, smarter, and more useful.
+
+### Where This Is Going
+
+The modes converge ([ADR-027](adr/027-product-north-star.md)): dictation
+captures what you say, meetings capture what you discuss, files capture what
+you consume — and all of it lands in one local, searchable library that
+compounds in value the longer you use the app.
+
+- **The Library becomes the center of gravity** — unified search across all
+  three modes, question-answering over your own corpus, and export. Scope
+  guard: search + QA + export, not a PKM.
+- **Agents are first-class consumers** — scriptable corpus operations belong
+  in `macparakeet-cli`'s versioned contract, not a mirror of every GUI affordance.
+  Current retrieval capabilities and limits live in the [integration guide](../integrations/README.md).
+- **Session-based, by design** — every capture is explicitly started by you.
+  Ambient/always-on capture is deliberately parked
+  ([ADR-027](adr/027-product-north-star.md) §4); cloud STT remains
+  permanently out ([ADR-002](adr/002-local-only.md)).
+
+Every feature must capture speech better, make the corpus more useful, or
+hand it safely to you and your agents — otherwise it does not ship.
 
 ---
 
@@ -43,18 +70,16 @@ Everything else exists to make those capture modes and the selected-text rewrite
 
 **The problem:** Mac users who want voice-to-text face a bad tradeoff:
 
-| Option | Speed | Privacy | Price | Simplicity |
-|--------|-------|---------|-------|------------|
-| **Cloud services** (WisprFlow, Otter) | Fast | Your audio on their servers | $12+/mo forever | Simple |
-| **Local apps** (MacWhisper, Superwhisper) | Good | Private | $30-$250 | Complex or expensive |
-| **Apple Dictation** | Slow | Mostly local | Free | Very limited |
-| **MacParakeet** | **Fastest** | **Can be fully local** | **Current public build free/GPL** | **Three capture modes + Transforms** |
+| Option | Speech boundary | Product breadth | Ownership |
+|--------|-----------------|-----------------|-----------|
+| **Cloud speech services** | Audio leaves the Mac | Often focused on dictation or meetings | Provider account and service dependency |
+| **Local transcription tools** | Speech can stay local | Often focused on files or one capture mode | Local files, product-specific automation |
+| **Built-in OS dictation** | OS-managed | Dictation only | No shared transcript library or file/meeting workflow |
+| **MacParakeet** | **No cloud STT; can be fully local** | **Three capture modes + Transforms** | **Local library, exports, and versioned CLI** |
 
-No existing app nails all four: **Speed + Privacy + Simplicity + Fair Pricing**.
+MacParakeet is deliberately optimized for **speed + privacy + simplicity + user ownership**. Competitor capabilities and prices change; this spec defines MacParakeet's product commitments rather than serving as a live market-comparison table.
 
-Cloud services send your voice to remote servers, create accounts, charge monthly, and add server latency. Local apps either bury you in settings (MacWhisper has 50+ features) or charge a premium (Superwhisper at $250). Apple Dictation is free but slow, inaccurate, and has no custom vocabulary, no file transcription.
-
-**MacParakeet's answer:** Built from the ground up around Parakeet TDT for speed, with multilingual v3 as the default and English-only v2 as an opt-in Parakeet build, plus optional local Nemotron Beta and WhisperKit engines for broader language coverage. Fully local speech by default, with optional networked features. Three capture modes, plus Transforms for selected text. Simple and GPL open-source. Done.
+**MacParakeet's answer:** Built from the ground up around Parakeet TDT for speed, with multilingual v3 as the standard-path default, English-only v2 as an opt-in TDT build, and Parakeet Unified as an opt-in English build with punctuation, capitalization, live preview, and word-timestamped output, plus local Nemotron Beta, Cohere Transcribe, and WhisperKit engines for broader language coverage and accuracy-focused batch work. Locale-aware first-run setup selects WhisperKit for Korean/Japanese/Chinese/Cantonese when no preferred English language is present. Fully local speech by default, with optional networked features. Three capture modes, plus Transforms for selected text. Simple and GPL open-source. Done.
 
 ---
 
@@ -62,28 +87,38 @@ Cloud services send your voice to remote servers, create accounts, charge monthl
 
 ### 1. Speed Is the Feature
 
-Parakeet TDT 0.6B-v3 transcribes 60 minutes of audio in ~23 seconds (155x realtime on the Neural Engine via FluidAudio CoreML). English-only v2 is available for users who prefer a faster no-auto-detect Parakeet path. Dictation latency is under 500ms. This is not incremental improvement -- it is a category shift.
+On the repository's Apple M4 Pro reference benchmark, the three Parakeet builds sustain roughly 81–93x realtime with 115–131 MB peak RSS, depending on the build. English-only v2 provides a no-auto-detect TDT path, while Parakeet Unified provides English punctuation/capitalization, live preview, and word timestamps. These measurements are hardware- and corpus-specific; [`benchmarks/asr/`](../benchmarks/asr/) and the README carry the current tables.
 
-Speed changes behavior. When transcription takes 30 seconds, you think about whether it is worth doing. When it takes 0.5 seconds, you just talk. MacParakeet makes voice the faster input method for everything: emails, messages, code comments, documents, notes.
+Speed changes behavior. When a short dictation returns quickly and predictably, voice becomes a practical input method for emails, messages, code comments, documents, and notes.
 
 ### 2. Privacy Is the Brand
 
-Fully local speech is a core product property, and the app can stay fully local when configured that way.
+Fully local speech is a core product property. Core workflows can run offline
+after model setup; this is not a guarantee that a connected app makes no
+network requests.
 
 - Local STT. No cloud speech processing, no accounts, no required backend for core speech.
 - Audio never leaves your Mac for dictation or transcription.
 - No email signup. No login. Optional self-hosted telemetry can be disabled in Settings.
-- Works in airplane mode, air-gapped environments, classified settings.
+- Core capture and local-file speech workflows work in airplane-mode or air-gapped environments after the required models are installed. Media imports, models, updates, telemetry, and remote AI providers are separate network surfaces.
+- Discover requests its public feed at app launch by default, even with telemetry
+  disabled and without opening the Discover page. It has cached/bundled offline
+  content and an independent opt-out in Settings → System → Appearance. Turning
+  Discover off hides the card and cancels feed work; it is not a global network
+  switch. Explicit feedback/thought submissions also use the network.
 
-This is not privacy theater ("your data is encrypted in transit"). This is privacy by architecture: there is no server to send data to.
+This is privacy by architecture at the speech boundary: recognition has no
+server path. [ADR-002](adr/002-local-only.md) documents the distinct provider,
+telemetry, media, and app-content I/O boundaries; disabling one is not a global
+network opt-out.
 
 ### 3. Simplicity Over Features
 
-MacWhisper has 50+ features. MacParakeet has three capture modes plus Transforms.
+MacParakeet keeps the top-level product centered on three capture modes plus Transforms.
 
 - **Dictate** -- Double-tap Fn or hold Fn, speak, and text appears at cursor. Works in any app.
 - **Transcribe** -- Drop a file, get text out. Audio, video, YouTube links.
-- **Record** -- Capture a meeting (system audio + mic), get a transcript.
+- **Record** -- Capture a meeting (system audio, mic audio, or both), get a transcript.
 - **Transform** -- Select text anywhere, press a bound hotkey, rewrite it through your configured LLM provider.
 
 Every feature we add must pass the test: "Does this make dictation, transcription, or meeting recording better?" If not, it does not ship.
@@ -98,7 +133,10 @@ Simple does not mean basic. MacParakeet includes modern capabilities that cloud 
 
 ### 5. Free and Open-Source, Monetizable Official Distribution
 
-The current public build has no price tags, subscriptions, or feature gates. MacParakeet is free and open-source (GPL-3.0), and every core feature is available in the current official build.
+The current public build has no paid feature limits or required subscription.
+MacParakeet is free and open-source (GPL-3.0). Development feature gates still
+keep unfinished or unreleased capabilities out of normal builds; see the
+[release/flag status](README.md#release-channels-and-feature-flags).
 
 That does not mean monetization is permanently forbidden. GPL permits charging for distribution, and MacParakeet may later sell official signed/notarized builds, support, hosted services, team features, or paid official distribution while preserving recipients' GPL rights. The old LemonSqueezy/trial entitlement plumbing is intentionally retained for that future option and must not be removed as dead code without explicit owner direction and an ADR/spec update.
 
@@ -111,7 +149,7 @@ That does not mean monetization is permanently forbidden. GPL permits charging f
 | **Product type** | Native macOS app (menu bar + window) |
 | **Core function** | Voice dictation, file transcription, and meeting recording |
 | **Target users** | Developers, professionals, writers who want fast private voice input |
-| **Key differentiators** | Parakeet speed + optional local Nemotron/Whisper multilingual engines + free/open-source |
+| **Key differentiators** | Parakeet speed + optional local Nemotron/Cohere/Whisper engines + free/open-source |
 | **Business model** | Current public build is free/GPL/unlocked; official paid distribution, support, or hosted services remain possible |
 | **Platform** | macOS 14.2+, Apple Silicon only |
 
@@ -119,7 +157,7 @@ That does not mean monetization is permanently forbidden. GPL permits charging f
 
 ## What MacParakeet Is Not
 
-- **Not a full meeting intelligence app** -- MacParakeet records and transcribes meetings, has live notes, Ask, and prompt-based action summaries. Calendar auto-start is implemented and enabled (opt-in); it does not do entity extraction, cross-meeting memory, CRM-style enrichment, or team intelligence. That deeper intelligence layer is Oatmeal.
+- **Not a full meeting intelligence app** -- MacParakeet records and transcribes meetings, has live notes, Ask, and prompt-based action summaries. Calendar auto-start is implemented and enabled (opt-in). Cross-mode search and QA over your own library are in scope ([ADR-027](adr/027-product-north-star.md)); entity extraction, CRM-style enrichment, and team intelligence are not.
 - **Not a note-taking app** -- It puts text where your cursor is. Your note app is your note app.
 - **Not a cloud service** -- No hosted transcription backend, no accounts, no sync product. Core speech stays local.
 - **Not an enterprise product** -- Single-user, single-Mac. No admin console, no team management (initially).
@@ -188,11 +226,11 @@ That does not mean monetization is permanently forbidden. GPL permits charging f
 
 ```
 +-----------------------------------------------------------------------+
-|  Capture system audio + mic. Transcribe locally.                      |
+|  Capture system audio, mic audio, or both. Transcribe locally.        |
 |                                                                       |
 |  1. Click "Record Meeting" (or press meeting hotkey)                  |
-|  2. Grant Screen Recording permission (first time only)               |
-|  3. Meeting pill appears — recording system audio + mic               |
+|  2. Grant the permissions required by the selected source mode         |
+|  3. Meeting pill appears — recording the selected audio source(s)      |
 |  4. Click Stop when done                                              |
 |  5. Local STT transcribes source audio (Parakeet by default)          |
 |  6. Result saved to library with full export/prompt support            |
@@ -202,10 +240,10 @@ That does not mean monetization is permanently forbidden. GPL permits charging f
 +-----------------------------------------------------------------------+
 ```
 
-- Dual-stream capture: system audio (ScreenCaptureKit) + mic (AVAudioEngine)
+- Source-mode capture: system audio (ScreenCaptureKit), mic (AVAudioEngine), or both
 - Floating recording pill with elapsed timer and stop button
 - Results stored as `Transcription` with `sourceType = .meeting` — gets export, prompts, summaries, chat for free
-- Requires Screen Recording permission (macOS 14.2+)
+- Requires Screen & System Audio Recording permission only for modes that capture system audio (macOS 14.2+)
 
 > **Historical note:** This slot was originally "Command Mode (Pro)" which was removed in 2026-02. Meeting recording replaced it as Mode 3 in v0.6.
 
@@ -235,19 +273,26 @@ That does not mean monetization is permanently forbidden. GPL permits charging f
 
 ### Primary: Developers and Power Users
 
-The people who would use WisprFlow if it were not cloud-dependent. They type fast already, but voice is faster for certain tasks: writing long messages, thinking out loud, dictating documentation. They care deeply about privacy and dislike subscriptions.
+People who type quickly but prefer voice for long messages, thinking out loud,
+and dictating documentation. They care about low latency, clear privacy
+boundaries, automation, and avoiding a required subscription.
 
 **What they want:** Fast dictation that works in VS Code, Terminal, Slack. No cloud, no subscription, no bloat.
 
 ### Secondary: Privacy-Conscious Professionals
 
-Lawyers handling confidential case notes. Healthcare professionals with HIPAA constraints. Journalists protecting sources. Security researchers in air-gapped environments. Government and defense contractors with data sovereignty requirements.
+People who handle sensitive notes, interviews, research, or internal material
+and want speech recognition to stay on their Mac. MacParakeet does not itself
+certify a user's regulatory compliance; users must evaluate their complete
+workflow, device controls, enabled telemetry, and configured AI providers.
 
-**What they want:** Absolute certainty that audio never leaves the device. No accounts, no tracking, no terms-of-service loopholes. Compliance-friendly architecture.
+**What they want:** Understandable data boundaries, no required product
+account, local core speech, and the ability to disable telemetry and avoid
+remote AI providers.
 
 ### Tertiary: Subscription-Fatigued Users
 
-MacWhisper and Superwhisper users who balk at paying $30-$250. WisprFlow users tired of $144-180/year. People who searched "MacWhisper alternative" or "WisprFlow free alternative."
+People who want a capable voice app without another recurring subscription, account, or feature-gated trial.
 
 **What they want:** A good product without recurring charges. Free and open-source.
 
@@ -259,53 +304,18 @@ Writers who think better out loud. Podcasters who need episode transcripts. Cont
 
 ---
 
-## Competitive Position
+## Product Position
 
-```
-                         SPEED + ACCURACY
-                               |
-                               |
-            MacParakeet -------+----------------- WisprFlow
-            (free, local,      |                  ($144-180/yr, cloud,
-             Parakeet 155x)    |                   fast but server delays)
-                               |
-                               |
-   PRIVATE -------------------+------------------------------- CLOUD
-                               |
-                               |
-            MacWhisper --------+----------------- Otter.ai
-            ($30, local,       |                  ($100/yr, cloud,
-             Whisper 15-30x)   |                   meeting-focused)
-                               |
-                               |
-                          SLOW + COMPLEX
-```
+MacParakeet does not depend on a time-sensitive competitor matrix for its identity. Published comparisons must be reverified when used; prices, engine choices, and feature sets are not stable facts.
 
-### Head-to-Head Comparison
-
-| Feature | MacParakeet | WisprFlow | MacWhisper | Superwhisper | Apple Dictation |
-|---------|-------------|-----------|------------|--------------|-----------------|
-| **STT Engine** | Parakeet default + optional Nemotron/WhisperKit | Cloud AI | Whisper | Whisper | Apple Neural |
-| **Speed (60 min)** | ~23 sec | ~30 sec* | ~2-4 min | ~2-4 min | Real-time only |
-| **WER** | ~2.5% | ~5%** | 7-12% | 7-12% | ~10-15% |
-| **Privacy** | Local-first speech | Cloud | Local | Local | Mostly local |
-| **Dictation** | Yes | Yes | No | Yes | Yes |
-| **File transcription** | Yes | No | Yes | Limited | No |
-| **Meeting recording** | Yes | No | No | No | No |
-| **Smart cleanup** | Deterministic | Cloud AI | No | Cloud AI | No |
-| **Custom words** | Yes | Yes | Limited | No | No |
-| **Price** | Current public build free/GPL | $144-180/yr | $30 once | $250 once | Free |
-| **Account required** | No | Yes | No | Yes | Apple ID |
-
-*WisprFlow speed includes network latency.
-**WisprFlow accuracy estimated; uses proprietary cloud models.
-
-### Why We Win Each Segment
-
-- **vs WisprFlow**: Same speed class, but a fully local speech option + free vs $144-180/year. WisprFlow users who care about privacy or cost switch to us.
-- **vs MacWhisper**: Faster default engine, simpler three-mode product, plus system-wide dictation and free/open-source distribution.
-- **vs Superwhisper**: Free vs $250, Parakeet-first architecture. No contest on price.
-- **vs Apple Dictation**: Faster, more accurate, custom words, file transcription. Same price (free), dramatically more capable.
+| Product commitment | MacParakeet's position |
+|--------------------|------------------------|
+| Speech privacy | No cloud STT; supported speech engines run on the Mac |
+| Scope | System-wide dictation, file/media transcription, and meeting recording in one app |
+| Ownership | Local library, local artifacts, export, and a versioned CLI contract |
+| Processing | Deterministic cleanup by default; optional provider-backed AI |
+| Distribution | Current public build is free and GPL-3.0 |
+| Platform fit | Native Swift app for Apple Silicon Macs |
 
 ---
 
@@ -313,24 +323,24 @@ Writers who think better out loud. Podcasters who need episode transcripts. Cont
 
 ### 1. Parakeet-First Architecture
 
-We are not a Whisper app that added Parakeet. We built the entire product around Parakeet TDT 0.6B-v3 from day one, later exposed v2 as an English-only Parakeet option, then added WhisperKit and Nemotron explicitly as local opt-in engines for broader coverage and experimentation.
+We are not a Whisper app that added Parakeet. We built the entire product around Parakeet TDT 0.6B-v3 from day one, later exposed v2 and Unified as English-only Parakeet options, then added WhisperKit, Nemotron, and Cohere explicitly as local opt-in engines for broader coverage, experimentation, and accuracy-focused batch work.
 
-- **155x realtime** on the Neural Engine vs Whisper's 15-30x. Not an incremental improvement -- an order of magnitude.
-- **~2.5% WER** -- lower error rate than Whisper large-v3 at a fraction of the compute.
-- **Word-level timestamps** -- enables synced subtitles, precise seeking, confidence scoring.
-- **Technical vocabulary** -- better handling of code terms, acronyms, and proper nouns than Whisper.
+- **Fast default path** -- the current M4 Pro benchmark measures roughly 81–93x steady realtime across Parakeet v3, v2, and Unified.
+- **Measured engine tradeoffs** -- the shared benchmark reports accuracy, throughput, memory, and language coverage instead of relying on one headline number.
+- **Word-level timestamps** -- enables synced subtitles, precise seeking, and speaker alignment where the selected engine supplies timings.
+- **Vocabulary support** -- deterministic replacements ship today; recognition-time custom-vocabulary boosting is separately controlled and tested.
 
-Competitors bolted Parakeet onto existing Whisper architectures. We optimized the default pipeline for Parakeet while routing optional Nemotron and Whisper through the same scheduler/runtime control plane.
+MacParakeet optimizes the default pipeline for Parakeet while routing optional Nemotron, Cohere, and Whisper through the same scheduler/runtime control plane.
 
 ### 2. Local-First, Zero-Compromise Speech
 
 This is not "cloud by default with a local mode." Core speech recognition runs entirely on-device. There is no cloud STT path, no account system, and no requirement to send audio anywhere.
 
-Optional network features exist, but they are explicit and separate: transcript text can be sent to user-configured LLM providers, Sparkle checks for updates, YouTube imports download media, and self-hosted telemetry can be disabled. The privacy boundary is simple: speech stays local.
+Network surfaces remain separate from speech inference: configured LLM providers can receive text, models/media download assets, Sparkle checks updates, and self-hosted telemetry is opt-out. Discover refreshes its public feed at launch by default and has its own Settings opt-out, independent of telemetry. The privacy boundary is local speech, not a claim that all other app I/O is opt-in.
 
 ### 3. Free and Open-Source
 
-In a market of subscriptions ($144-180/yr for WisprFlow) and premium pricing ($250 for Superwhisper), the current free and open-source build is the adoption wedge: no pricing objection, no trial friction, no conversion funnel. Future monetization should sell official convenience, support, hosted services, or team workflows without undermining local-first GPL distribution.
+The current free and open-source build removes account, trial, and subscription friction. Future monetization should sell official convenience, support, hosted services, or team workflows without undermining local-first GPL distribution.
 
 ### 4. Focused Simplicity
 
@@ -350,7 +360,11 @@ MacParakeet is open-source under the **GPL-3.0** license. Current public builds 
 
 ## Relationship to Oatmeal
 
-MacParakeet and Oatmeal are **separate products** that share underlying technology.
+The comparison below records the original separate-product positioning.
+[ADR-027](adr/027-product-north-star.md) now owns the boundary: Library search
+and corpus Q&A belong in MacParakeet's direction, while deeper entity/graph/team
+work stays outside its scope. Whether Oatmeal continues as a distinct product
+is open; the older comparison is not a reason to reject MacParakeet Library work.
 
 ```
 +-----------------------------------------------------------------------+
@@ -381,16 +395,17 @@ MacParakeet and Oatmeal are **separate products** that share underlying technolo
 | **Purpose** | Voice input, transcription, meeting recording | Meeting memory and knowledge |
 | **Scope** | Text in, text out, meetings transcribed | Meetings, entities, relationships, patterns |
 | **Complexity** | Three capture modes + Transforms | Full knowledge system |
-| **User relationship** | Tool (use and forget) | System (compounds over time) |
+| **User relationship** | Tool whose local library compounds over time ([ADR-027](adr/027-product-north-star.md)) | System (compounds over time) |
 | **Codebase** | Independent | Independent |
 | **Revenue** | Current public build free/GPL; official paid distribution/support possible | TBD |
 
 ### Strategic Relationship
 
 - **Standalone value**: MacParakeet is a complete product on its own. It does not require or reference Oatmeal.
-- **Funnel potential**: MacParakeet records and transcribes meetings. Users who want intelligence on top (calendar sync, entity extraction, cross-meeting memory) are natural Oatmeal prospects.
+- **Historical funnel idea**: the original split reserved meeting intelligence for Oatmeal. MacParakeet now includes Calendar integration and is building toward corpus search/Q&A; only the deeper knowledge-system boundary remains outside its stated scope.
 - **Adoption timing**: MacParakeet builds community and mindshare while Oatmeal matures. Simpler product = faster to market.
 - **Technology proving ground**: Parakeet integration and clean pipeline are battle-tested in MacParakeet before being used in Oatmeal.
+- **Boundary note (2026-07)**: [ADR-027](adr/027-product-north-star.md) moves cross-mode search and corpus QA into MacParakeet; whether Oatmeal continues as a distinct product is an open question recorded there.
 
 ---
 
@@ -410,9 +425,9 @@ MacParakeet and Oatmeal are **separate products** that share underlying technolo
 
 | Metric | Target |
 |--------|--------|
-| Dictation latency (press-to-text) | < 500ms |
-| Transcription speed (60 min file) | < 30s on M1, < 15s on M1 Pro+ |
-| Word error rate | < 3% (Parakeet via FluidAudio CoreML: ~2.5%) |
+| Dictation latency | Measure end-of-capture to paste by engine/build; do not publish one hardware-independent number |
+| Parakeet throughput | ≥80x steady realtime on the current M4 Pro reference harness |
+| Word error rate | Publish per-engine/corpus results from `benchmarks/asr/`; no universal WER claim |
 | App crash rate | < 0.1% of sessions |
 | First-use success rate | > 95% (user dictates successfully on first try) |
 
@@ -426,7 +441,8 @@ A new user should be able to:
 4. See clean text appear at their cursor
 5. Think "this is better than anything I have tried"
 
-All within 60 seconds of first launch. A short permissions/model setup flow is acceptable; accounts and tutorials are not.
+On first use, the user should reach this outcome as soon as the required model
+download and permission setup complete. No product account is required.
 
 ---
 
@@ -473,16 +489,41 @@ Ship-quality polish. Direct distribution via notarized DMG.
 - System audio + mic capture with fragmented source files and crash recovery
 - Live meeting pill + Notes / Transcript / Ask panel
 - Source-aware final transcription with prompt results and chat in the library
-- Parakeet model selection: v3 multilingual default and v2 English-only opt-in
-- Optional local WhisperKit engine for languages outside Parakeet coverage
-- Settings speech-engine picker, Parakeet model picker, Nemotron controls, and Whisper language picker
-- CLI `transcribe --engine parakeet|nemotron|whisper --language --parakeet-model`
+- Parakeet model selection: v3 multilingual default, v2 English-only TDT opt-in, and Unified English opt-in
+- Optional local WhisperKit and Cohere Transcribe engines for languages or accuracy needs outside the default Parakeet coverage
+- Settings speech-engine picker, Parakeet model picker, Nemotron controls, Cohere language picker, and Whisper language picker
+- CLI `transcribe --engine parakeet|nemotron|whisper|cohere --language --parakeet-model`
 - Meeting recordings pin engine/language for live preview, recovery, and finalization
 - Calendar auto-start is implemented and enabled (`AppFeatures.calendarEnabled = true`); defaults to opt-in mode `.off`. Calendar-driven auto-stop was removed (ADR-017 amendment); recordings stop manually
 
 ### v0.7: Post-v0.6 polish
 
-- Follow-up scope TBD after the v0.6 release hardens in user hands
+- v0.7.3 added System Default microphone-routing repair, split live/final
+  speech-engine routes, bounded meeting-capture lifecycle handling, meeting
+  auto-save feedback, CLI 3.0, and post-v0.6 reliability polish.
+- Meeting echo cancellation ships as a fail-soft derived cleaned-microphone
+  artifact; activity-based auto-stop remains opt-in and activity-based meeting
+  detection remains gated.
+- Direction per [ADR-027](adr/027-product-north-star.md): continue Library
+  convergence and safe agent access through the CLI. Developer-gated local MLX
+  groundwork is not a normal-user v0.7 feature.
+
+### v0.8: Library, meetings, and transcript workflow
+
+- Stable v0.8.7 is the current user-facing DMG. The train adds meeting import
+  and split, timed transcript corrections, live transcription during recording,
+  independent capture-source startup, per-event calendar skip, start-meetings-muted,
+  Microsoft 365/Exchange calendar setup, Library labels/layouts, Seed of Life covers,
+  Clean English “um” stripping, optional preserved discarded dictations, DAPT export,
+  skip-microphone onboarding for file-only users, AI Formatter off by default with
+  separate dictation and transcript prompts, optional streaming-cursor insert,
+  China-lab LLM providers, and CLI 4.4.0. 0.8.5 cleared a stuck Wrapping up tile
+  label after stop (status only; recordings were already saved). 0.8.6 kept
+  the Sonoma Parakeet encoder off ANE. 0.8.7 restores hold-to-talk when the
+  microphone is already granted, admits Fn while Caps Lock is latched, and
+  splits overlay insets so hold-to-talk stays 16pt while cancelled/Undo is 7pt.
+- Voice profiles, encrypted share links, activity-based meeting detection,
+  app-aware AI Formatter profiles, and in-process MLX remain gated.
 
 ---
 
@@ -491,10 +532,10 @@ Ship-quality polish. Direct distribution via notarized DMG.
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | **Platform** | macOS 14.2+, Apple Silicon only | FluidAudio CoreML requires Apple Silicon. |
-| **STT engine** | Parakeet TDT 0.6B-v3 by default; Parakeet v2 English-only opt-in; optional Nemotron Beta and WhisperKit | Parakeet gives the latency target for supported languages; v2 avoids language auto-detect for English-only users; Nemotron is a fast local Beta path; WhisperKit keeps mature broader multilingual speech local. |
+| **STT engine** | Parakeet TDT 0.6B-v3 on the standard path; locale-aware CJK/Korean onboarding can select WhisperKit; Parakeet v2 and Unified English opt-ins; selectable Nemotron Beta, WhisperKit, and Cohere Transcribe | Parakeet gives the latency target for supported languages; v2 avoids language auto-detect for English-only users; Unified offers a newer English punctuation/capitalization path with live preview and word timestamps; Nemotron is a fast local Beta path; WhisperKit keeps mature broader multilingual speech local; Cohere is a larger batch-only accuracy path. |
 | **YouTube downloads** | Standalone yt-dlp | macOS binary, auto-updates via `--update`. No Python needed. |
 | **UI framework** | SwiftUI | Native Mac experience. Menu bar + window. |
-| **Database** | SQLite (GRDB) | Single file. No server. Dictation history, custom words, settings. |
+| **Structured records** | SQLite (GRDB) | Single local database for history, library, vocabulary, prompts/results and derived retrieval. Preferences use UserDefaults, credentials use Keychain, and retained audio/artifacts remain files. |
 | **Cloud option** | No cloud STT; optional LLM providers | Core speech stays local. AI and media downloads are user-triggered; updates and opt-out telemetry/crash reporting are product-managed network surfaces. Retained purchase activation endpoints remain in code but current public builds are free/unlocked. |
 | **Pricing** | Current public build free/GPL | Zero friction today; GPL-compatible official paid distribution/support remains available later. |
 
@@ -512,9 +553,9 @@ The parakeet bird is known for mimicking speech -- a fitting metaphor for a voic
 
 | Feature | What It Does | Why It Matters |
 |---------|--------------|----------------|
-| **Parakeet Speed** | 60 min audio in ~23 seconds | Transcription so fast it feels instant |
+| **Parakeet Speed** | ~81–93x steady realtime across current builds on the M4 Pro reference benchmark | Fast local transcription with measured, hardware-specific evidence |
 | **System-wide Dictation** | Fn to dictate in any app | Voice input everywhere, not just our app |
-| **Meeting Recording** | Capture system audio + mic, transcribe locally | Record any call or meeting without cloud services |
+| **Meeting Recording** | Capture system audio, mic audio, or both; transcribe locally | Record any call or meeting without cloud services |
 | **YouTube Transcription** | Paste a URL, get a transcript | File transcription for the YouTube era |
 | **Local-First STT** | Speech stays on-device; optional networked AI | Strong privacy claim without pretending the app never uses the network |
 | **Clean Pipeline** | Deterministic text cleanup | Professional output without LLM overhead |

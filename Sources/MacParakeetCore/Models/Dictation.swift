@@ -65,7 +65,18 @@ public struct Dictation: Codable, Identifiable, Sendable {
         case recording
         case processing
         case completed
+        case cancelled
         case error
+
+        public init(from decoder: Decoder) throws {
+            let rawValue = try decoder.singleValueContainer().decode(String.self)
+            self = Self(rawValue: rawValue) ?? .completed
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.singleValueContainer()
+            try container.encode(rawValue)
+        }
     }
 
     public init(

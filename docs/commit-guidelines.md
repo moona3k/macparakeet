@@ -55,15 +55,31 @@ bug, a demo blocker, a perf number, an audit finding). Enough that
 someone reading in 2027 with no project context understands the
 motivation.
 
-## Prompt That Would Produce This Diff
-Self-contained enough that an agent with repo access could replay
-this work. Reference specific file paths, design docs, and ADRs by
-name. Include the constraints (don't break X, match Y's pattern).
+## Seed Prompt
+The highest-level intent from which the whole change could be
+reconstructed — the architect's brief, not a stepwise recipe. State
+the goal, the constraints (don't break X, match Y's pattern), and the
+design decisions that were settled before the work began. Reference
+design docs and ADRs by name. Name specific files only when the
+location is itself part of the intent — an agent reconstructing this
+should be able to rediscover the right files from the intent alone
+(case by case; a surgical fix may warrant them, a feature usually
+doesn't). This section was formerly titled "Prompt That Would Produce
+This Diff"; older commits use that heading.
 
 ## ADRs Applied (if any)
 Links to architectural decisions that informed the change. If none,
 say "None — this is X polish, not architecture" so the reader knows
 it's a deliberate omission rather than oversight.
+
+## Author's Notes (optional, encouraged for agent authors)
+Honest first-person reflections from whoever wrote the diff: what
+surprised you, what you are least confident about, where you
+disagreed with the brief and what you did about it, debt knowingly
+left behind, anything the reviewer should probe. Candor beats polish
+— a doubt recorded here is a gift to the next debugger, and
+disagreement with the brief is signal for the architect, not
+insubordination.
 
 ## Files Changed
 Per-file rationale with line counts. For comprehensive changes, the
@@ -178,17 +194,20 @@ Users need visual feedback when dictating — they need to know the app
 is recording, see their voice levels, and have a clear way to cancel.
 The pill overlay appears over all apps without stealing focus.
 
-## Prompt That Would Produce This Diff
-Implement a dictation overlay for MacParakeet. Create a compact dark
-pill that:
-1. Appears as a borderless NSPanel over all windows
-2. Shows recording state with a pulsing indicator
-3. Displays real-time waveform from AVAudioEngine audio levels
-4. Has a cancel button (Escape key also cancels)
-5. Does NOT steal focus from the active app (non-activating panel)
+## Seed Prompt
+Give MacParakeet dictation visual feedback: a compact dark pill
+overlay, visible over all apps, that shows recording state and live
+voice levels and offers cancel (button + Escape). Hard constraints:
+must never steal focus from the active app (non-activating panel),
+and the audio-level source must come from the existing capture path
+rather than a second tap. Expose whatever publisher the view needs
+from `DictationService`.
 
-Add `audioLevelPublisher` to `DictationService` so the view can
-subscribe to audio levels.
+## Author's Notes
+The 100ms level-smoothing constant is eyeballed, not measured — if
+the waveform ever feels laggy, start there. I considered driving the
+waveform from the STT engine's VAD signal instead of raw levels and
+rejected it: it would couple UI cadence to engine choice.
 
 ## ADRs Applied
 - ADR-001 + ADR-007: Parakeet TDT model with FluidAudio CoreML runtime
@@ -260,9 +279,9 @@ README change needed.
 1. **Git history becomes the project's long-term memory** — rich
    context lives in version control rather than disappearing into
    chat transcripts and PR comments that nobody re-reads.
-2. **Reproducible changes** — the prompt section is a recipe that
-   could regenerate the diff if needed, and a record of the
-   constraints the author was working within.
+2. **Reconstructable changes** — the seed prompt preserves the
+   intent and constraints from which the work could be regenerated,
+   which outlives any particular file layout.
 3. **Onboarding via archaeology** — new devs and agents understand
    decisions by reading commits, not by scheduling explanations.
 4. **Auditable reasoning** — the "why" is preserved alongside the

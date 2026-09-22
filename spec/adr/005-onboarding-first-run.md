@@ -1,14 +1,21 @@
 # ADR 005: First-Run Onboarding Window
 
+> Status: **Accepted (amended)**
+>
+> Current decision: first-run onboarding is the six-step dictation-first flow
+> defined by the 2026-06-13 amendment. Meeting Recording and Calendar setup
+> were removed from onboarding and now request permission in context from
+> their feature surfaces.
+
 Date: 2026-02-10
-> Note: Qwen LLM warm-up step referenced below was removed 2026-02-23. As of 2026-04-06, onboarding prepares the local speech stack: Parakeet STT plus any required default-on speaker-detection assets. Addendum 2026-04-10: onboarding includes an optional Screen & System Audio Recording step for meeting capture. Addendum 2026-04-25 / 2026-05-21: onboarding also includes a skippable Calendar step when `AppFeatures.calendarEnabled` is true; Calendar auto-start defaults to `.off` and is strictly opt-in.
+> Historical note: the Qwen LLM warm-up step was removed 2026-02-23. Meeting Recording and Calendar steps added in April were later removed by the 2026-06-13 dictation-first amendment below.
 
 ## Context
 
 MacParakeet is a menu bar app with a configurable global hotkey (default: Fn) and paste automation. To deliver a premium first-run experience, we need to:
 
 - Explain the core interaction model (hotkey, stop/paste, cancel).
-- Acquire permissions (Microphone, Accessibility, plus optional Screen Recording for meeting capture and optional Calendar access for reminders/auto-start).
+- Acquire the core Microphone and Accessibility permissions. Optional Meeting Recording and Calendar permissions are requested later, in context.
 - Prepare the local speech stack so dictation and default-on file-transcription features are ready on first use.
 
 Without onboarding, users encounter failures out of context (missing permissions, slow first warm-up) and the product feels brittle.
@@ -17,16 +24,14 @@ Without onboarding, users encounter failures out of context (missing permissions
 
 Implement a dedicated first-run onboarding window that appears automatically when the app starts and onboarding has not been completed.
 
-The onboarding flow is linear and step-based:
+The current onboarding flow is linear and step-based:
 
 1. Welcome
-2. Microphone permission
+2. Microphone permission (skippable)
 3. Accessibility permission
-4. Meeting recording permission (optional Screen & System Audio Recording)
-5. Calendar meetings (optional EventKit access, gated by `AppFeatures.calendarEnabled`)
-6. Hotkey instructions
-7. Speech stack setup (Parakeet + required speaker-detection assets, retry available)
-8. Ready
+4. Hotkey instructions
+5. Speech stack setup (Parakeet + required speaker-detection assets, retry available)
+6. Ready
 
 The onboarding can also be launched manually from Settings.
 
@@ -39,8 +44,8 @@ While onboarding is visible, permission state is polled so changes made in Syste
 - Users get a guided, premium setup that reduces first-run friction.
 - Hotkey manager is restarted after onboarding to reliably start listening once Accessibility is granted.
 - The Parakeet STT model is downloaded/warmed during onboarding to reduce first-use latency for dictation.
-- If the user has enabled speaker detection (the toggle defaults off — ADR-010 amendment 2026-06-14), its diarization assets are also prepared before onboarding reports file transcription ready.
-- Meeting Recording and Calendar steps are explicitly skippable. If skipped, the feature surfaces can still request the relevant permission later from first use or Settings.
+- Speaker detection defaults on where supported (ADR-010 amendment 2026-07-03), so its diarization assets are prepared before onboarding reports file transcription ready when a diarization service is available.
+- Meeting Recording and Calendar are deliberately outside first-run onboarding. Their feature surfaces request the relevant permission on first use or from Settings.
 - Preflight checks fail fast with actionable guidance, reducing avoidable warm-up failures.
 - Onboarding completion is stored in `UserDefaults` as an ISO8601 timestamp.
 - Incomplete setup is never silently dismissed; users either continue setup or explicitly defer it.
@@ -76,5 +81,9 @@ Accessibility is still granted during onboarding for all users, which also cover
 - The warm-up tracks its own `engineBusy` flag, separate from the permission `isBusy`, so the head-start download never disables the Microphone/Accessibility grant buttons.
 - `startEngineWarmUp()` is idempotent (generation + observation-token guards): the early trigger starts it; the Speech Model step's `.onAppear` call is a no-op fallback. No second download.
 - The Parakeet-vs-Whisper fork is preserved for CJK locales — `whisperRecommendation` resolves synchronously in `init`, before any trigger.
-- A warm-up failure that occurs before the user reaches the Speech Model step is suppressed (state resets to `.idle`); the terminal `.failed` only surfaces once that step is shown, so an early/transient failure never flashes a failed card on an earlier step.
+- A warm-up failure that occurs before the user reaches the Speech Model step is preserved as `.failed`, but only the Speech Model step renders failure UI. Earlier steps continue to show their permission/hotkey surfaces, and the user sees the existing error + Retry affordance immediately on reaching Speech Model.
 - `modelDownloadStarted` now fires at onboarding open; the start→ready duration still measures real download time (the background download is independent of the user's step).
+
+## Amendment — 2026-09-16: Microphone may be skipped (issue #879)
+
+The Microphone step stays in onboarding, but Continue is no longer gated on grant. Dictation and mic-backed meetings request access on first use; persistent dictation prompts before capture so the same press can continue. Hold-to-talk cannot survive the system permission sheet, so a grant returns to idle and the next hold starts capture. Settings offers Grant or Open Microphone Settings when the mic is missing. Idle launch prewarm is skipped when the mic is not granted. Accessibility remains required.

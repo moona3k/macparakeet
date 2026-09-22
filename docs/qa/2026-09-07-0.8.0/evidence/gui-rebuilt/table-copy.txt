@@ -1,0 +1,7 @@
+
+
+|Check      |Owner              |Expected result                      |
+|:----------|:------------------|:------------------------------------|
+|Timed rows |QA ALPHA Speaker   |Copper lantern appears only in ALPHA |
+|Replacement|QA BRAVO Speaker   |Silver meadow appears only in BRAVO  |
+|Long scroll|QA LONG Speaker One|Final sentence 1000 remains reachable|

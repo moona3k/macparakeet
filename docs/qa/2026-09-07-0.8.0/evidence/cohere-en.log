@@ -1,0 +1,10 @@
+Transcribing 1089-134686-0000.flac with cohere...
+Converting audio...
+Preparing speech model...
+[14:57:32.718] [INFO] [FluidAudio.CoherePipeline] Loading encoder from /tmp/macparakeet-080-qa/isolated-home/Library/Application Support/FluidAudio/Models/cohere-transcribe/q8/cohere_encoder.mlmodelc
+[15:01:10.851] [INFO] [FluidAudio.CoherePipeline] Loading decoder from /tmp/macparakeet-080-qa/isolated-home/Library/Application Support/FluidAudio/Models/cohere-transcribe/q8/cohere_decoder_cache_external_v2.mlmodelc
+[15:01:14.773] [INFO] [FluidAudio.CoherePipeline] Loaded vocabulary with 16384 tokens
+Transcribing... 0%
+Transcribing... 40%
+Transcribing... 99%
+ANE model load has failed for on-device compiled macho. Must re-compile the E5 bundle. @ GetANEFModelANE model load has failed for on-device compiled macho. Must re-compile the E5 bundle. @ GetANEFModel

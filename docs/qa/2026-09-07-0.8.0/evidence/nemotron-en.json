@@ -1,0 +1,203 @@
+{
+  "createdAt" : "2026-09-07T21:57:15Z",
+  "derivedSnippet" : "He hoped there would be stew for dinner, turnips and carrots and bruised potatoes and fat mutton pieces to be ladled out in thick peppered…",
+  "derivedTitle" : "He hoped there would be stew for dinner, turnips and carrots and bruised…",
+  "durationMs" : 10496,
+  "engine" : "nemotron",
+  "engineVariant" : "multilingual-1120ms",
+  "fileName" : "1089-134686-0000.flac",
+  "filePath" : "<PUBLIC_CORPUS>\/LibriSpeech\/test-clean\/1089\/134686\/1089-134686-0000.flac",
+  "fileSizeBytes" : 183318,
+  "id" : "6C30CCE9-0E71-4462-BB8A-9C5237DCE870",
+  "isFavorite" : false,
+  "isTranscriptEdited" : false,
+  "language" : "en",
+  "rawTranscript" : "He hoped there would be stew for dinner, turnips and carrots and bruised potatoes and fat mutton pieces to be ladled out in thick peppered flour fatten sauce.",
+  "recoveredFromCrash" : false,
+  "sourceType" : "file",
+  "status" : "completed",
+  "transcriptSegments" : [
+    {
+      "endMs" : 10240,
+      "id" : "935674EF-1F33-48D4-BBD2-EFA2AEDF70EA",
+      "speakerLabel" : "Unknown Speaker",
+      "startMs" : 240,
+      "text" : "He hoped there would be stew for dinner, turnips and carrots and bruised potatoes and fat mutton pieces to be ladled out in thick peppered flour fatten sauce",
+      "wordRange" : {
+        "endIndexExclusive" : 28,
+        "startIndex" : 0
+      }
+    }
+  ],
+  "updatedAt" : "2026-09-07T21:57:32Z",
+  "wordTimestamps" : [
+    {
+      "confidence" : 1,
+      "endMs" : 320,
+      "startMs" : 240,
+      "word" : "He"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 800,
+      "startMs" : 640,
+      "word" : "hoped"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 1280,
+      "startMs" : 1200,
+      "word" : "there"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 1360,
+      "startMs" : 1280,
+      "word" : "would"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 1520,
+      "startMs" : 1440,
+      "word" : "be"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 2000,
+      "startMs" : 1680,
+      "word" : "stew"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 2160,
+      "startMs" : 2080,
+      "word" : "for"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 2720,
+      "startMs" : 2240,
+      "word" : "dinner,"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 3440,
+      "startMs" : 2880,
+      "word" : "turnips"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 3520,
+      "startMs" : 3440,
+      "word" : "and"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 3920,
+      "startMs" : 3600,
+      "word" : "carrots"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 4080,
+      "startMs" : 4000,
+      "word" : "and"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 4560,
+      "startMs" : 4160,
+      "word" : "bruised"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 5040,
+      "startMs" : 4640,
+      "word" : "potatoes"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 5520,
+      "startMs" : 5440,
+      "word" : "and"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 5760,
+      "startMs" : 5600,
+      "word" : "fat"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 6160,
+      "startMs" : 5840,
+      "word" : "mutton"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 6480,
+      "startMs" : 6240,
+      "word" : "pieces"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 6720,
+      "startMs" : 6640,
+      "word" : "to"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 6880,
+      "startMs" : 6800,
+      "word" : "be"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 7440,
+      "startMs" : 6880,
+      "word" : "ladled"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 7520,
+      "startMs" : 7440,
+      "word" : "out"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 7920,
+      "startMs" : 7840,
+      "word" : "in"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 8160,
+      "startMs" : 8000,
+      "word" : "thick"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 8800,
+      "startMs" : 8400,
+      "word" : "peppered"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 9280,
+      "startMs" : 9040,
+      "word" : "flour"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 9680,
+      "startMs" : 9440,
+      "word" : "fatten"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 10240,
+      "startMs" : 10080,
+      "word" : "sauce"
+    }
+  ]
+}

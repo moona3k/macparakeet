@@ -1,0 +1,256 @@
+{
+  "passed": 29,
+  "failed": 0,
+  "checks": [
+    {
+      "assertion": "track-1-en-verified completed",
+      "passed": true,
+      "detail": {
+        "exitCode": 0,
+        "timedOut": false,
+        "status": "completed"
+      }
+    },
+    {
+      "assertion": "track-1-en-verified transcript schema",
+      "passed": true,
+      "detail": {
+        "durationMs": 8720,
+        "textLength": 116
+      }
+    },
+    {
+      "assertion": "track-1-en-verified persistence",
+      "passed": true,
+      "detail": {
+        "rows": 1
+      }
+    },
+    {
+      "assertion": "track-2-ja completed",
+      "passed": true,
+      "detail": {
+        "exitCode": 0,
+        "timedOut": false,
+        "status": "completed"
+      }
+    },
+    {
+      "assertion": "track-2-ja transcript schema",
+      "passed": true,
+      "detail": {
+        "durationMs": 8400,
+        "textLength": 47
+      }
+    },
+    {
+      "assertion": "track-2-ja persistence",
+      "passed": true,
+      "detail": {
+        "rows": 1
+      }
+    },
+    {
+      "assertion": "diarization-auto completed",
+      "passed": true,
+      "detail": {
+        "exitCode": 0,
+        "timedOut": false,
+        "status": "completed"
+      }
+    },
+    {
+      "assertion": "diarization-auto transcript schema",
+      "passed": true,
+      "detail": {
+        "durationMs": 22660,
+        "textLength": 278
+      }
+    },
+    {
+      "assertion": "diarization-auto persistence",
+      "passed": true,
+      "detail": {
+        "rows": 1
+      }
+    },
+    {
+      "assertion": "diarization-exact-2 completed",
+      "passed": true,
+      "detail": {
+        "exitCode": 0,
+        "timedOut": false,
+        "status": "completed"
+      }
+    },
+    {
+      "assertion": "diarization-exact-2 transcript schema",
+      "passed": true,
+      "detail": {
+        "durationMs": 22660,
+        "textLength": 278
+      }
+    },
+    {
+      "assertion": "diarization-exact-2 persistence",
+      "passed": true,
+      "detail": {
+        "rows": 1
+      }
+    },
+    {
+      "assertion": "track-1-en-verified ordinal and engine",
+      "passed": true,
+      "detail": {
+        "jsonOrdinal": 0,
+        "databaseOrdinal": 0,
+        "engine": "nemotron",
+        "variant": "multilingual-1120ms",
+        "language": "en"
+      }
+    },
+    {
+      "assertion": "track-1-en-verified content source",
+      "passed": true,
+      "detail": {
+        "anchors": [
+          "communication",
+          "west"
+        ],
+        "transcript": "However, due to the slow communication channels, styles in the West could lag behind by twenty five to thirty years."
+      }
+    },
+    {
+      "assertion": "track-2-ja ordinal and engine",
+      "passed": true,
+      "detail": {
+        "jsonOrdinal": 1,
+        "databaseOrdinal": 1,
+        "engine": "nemotron",
+        "variant": "multilingual-1120ms",
+        "language": "ja"
+      }
+    },
+    {
+      "assertion": "track-2-ja content source",
+      "passed": true,
+      "detail": {
+        "anchors": [
+          "インターネット",
+          "住所"
+        ],
+        "transcript": "インターネットで敵体的環境コースについて検索すると、おそらく現地企業の住所が出てくるでしょう."
+      }
+    },
+    {
+      "assertion": "selected tracks differ",
+      "passed": true,
+      "detail": "Different known reference content"
+    },
+    {
+      "assertion": "track-0-invalid validation and no rows",
+      "passed": true,
+      "detail": {
+        "exitCode": 2,
+        "rows": 0
+      }
+    },
+    {
+      "assertion": "track-3-missing validation and no rows",
+      "passed": true,
+      "detail": {
+        "exitCode": 2,
+        "rows": 0
+      }
+    },
+    {
+      "assertion": "missing positive track error contract",
+      "passed": true,
+      "detail": "Structured validation error, no fallback"
+    },
+    {
+      "assertion": "diarization-auto engine and speaker schema",
+      "passed": true,
+      "detail": {
+        "speakerCount": 2,
+        "declaredIDs": [
+          "S1",
+          "S2"
+        ],
+        "usedIDs": [
+          "S1",
+          "S2"
+        ],
+        "segmentCount": 2
+      }
+    },
+    {
+      "assertion": "diarization-auto both source passages",
+      "passed": true,
+      "detail": "He hoped there would be stew for dinner, turnips and carrots and bruised potatoes and fat mutton pieces to be ladled out in thick, peppered, flour fattened sauce. You will find me continually speaking of four men, Titian, Holbein, Turner, and Tintaret, in almost the same terms."
+    },
+    {
+      "assertion": "diarization-auto word speaker references",
+      "passed": true,
+      "detail": {
+        "wordCount": 47,
+        "attributedWords": 46
+      }
+    },
+    {
+      "assertion": "diarization-exact-2 engine and speaker schema",
+      "passed": true,
+      "detail": {
+        "speakerCount": 2,
+        "declaredIDs": [
+          "S1",
+          "S2"
+        ],
+        "usedIDs": [
+          "S1",
+          "S2"
+        ],
+        "segmentCount": 2
+      }
+    },
+    {
+      "assertion": "diarization-exact-2 both source passages",
+      "passed": true,
+      "detail": "He hoped there would be stew for dinner, turnips and carrots and bruised potatoes and fat mutton pieces to be ladled out in thick, peppered, flour fattened sauce. You will find me continually speaking of four men, Titian, Holbein, Turner, and Tintaret, in almost the same terms."
+    },
+    {
+      "assertion": "diarization-exact-2 word speaker references",
+      "passed": true,
+      "detail": {
+        "wordCount": 47,
+        "attributedWords": 46
+      }
+    },
+    {
+      "assertion": "diarization-exact-2 exact count",
+      "passed": true,
+      "detail": {
+        "speakerCount": 2,
+        "usedClusters": 2
+      }
+    },
+    {
+      "assertion": "source files preserved",
+      "passed": true,
+      "detail": {
+        "unchanged": true,
+        "sourceHashesAfter": {
+          "<QA_ROOT>/audio-runtime/two-tracks.mkv": "7501a235b599d08d8cc449d8ea7d6e53177d2e508387582c0d5c4fb44b423bff",
+          "<PUBLIC_CORPUS>/LibriSpeech/test-clean/1089/134686/1089-134686-0000.flac": "30885601173f96b0d8ddd020dc959b055c6c1582b85a33e3fcab8c4b08ed94c2",
+          "<PUBLIC_CORPUS>/LibriSpeech/test-clean/1188/133604/1188-133604-0000.flac": "4a10149395cb5af8aa5d04ef3adb49b3980baa93114d0851046e6343744b26cb"
+        },
+        "cliSHA256After": "f8a62b79ece6045909d15ece2fd086eed7e10ca04ebc870d9fc50ed76774f095"
+      }
+    },
+    {
+      "assertion": "embedded audio matches public sources",
+      "passed": true,
+      "detail": "Decoded 16kHz mono PCM equality for both audio tracks"
+    }
+  ]
+}

@@ -5,6 +5,8 @@ import XCTest
 
 @MainActor
 final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
+    private typealias ProcessingLoadCaption = DictationOverlayViewModel.ProcessingLoadCaption
+
     private let timing = DictationProcessingLoadCaptionTiming(
         graceMs: 20,
         escalationMs: 50,
@@ -70,38 +72,85 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
     }
 
     func testFirstInstallShowsPreparingThenClearsOnSuccess() async throws {
-        let harness = try makeHarness(isReady: false, transcribeDelayMs: 90, hasCompletedFirstDictation: false)
+        // Hold transcription open until the preparing caption is observed so a
+        // congested CI main queue cannot complete first-dictation before
+        // fireCaption reads hasCompletedFirstDictation.
+        let transcribeGate = AsyncGate()
+        let harness = try makeHarness(
+            isReady: false,
+            transcribeDelayMs: 0,
+            hasCompletedFirstDictation: false,
+            transcribeGate: transcribeGate
+        )
 
         try await harness.startAndStop()
-        let shown = await waitUntil { self.isPreparingCaption(harness.coordinator.processingLoadCaptionForTesting) }
+        let shown = await harness.captionSignal.wait(for: .preparing, timeout: .seconds(3))
         XCTAssertTrue(shown)
-        let cleared = await waitUntil { harness.coordinator.processingLoadCaptionForTesting == nil }
+        XCTAssertTrue(harness.telemetry.snapshot().containsCaptionShown(firstInstall: true))
+
+        await transcribeGate.release()
+        let cleared = await waitUntil(timeoutMs: 3_000) {
+            harness.coordinator.processingLoadCaptionForTesting == nil
+        }
         XCTAssertTrue(cleared)
 
+        let recordedSuccess = await waitUntil(timeoutMs: 3_000) {
+            harness.telemetry.snapshot().containsCaptionDuration(outcome: "success")
+        }
+        XCTAssertTrue(recordedSuccess)
         let events = harness.telemetry.snapshot()
         XCTAssertTrue(events.containsCaptionShown(firstInstall: true))
         XCTAssertTrue(events.containsCaptionDuration(outcome: "success"))
     }
 
     func testFirstInstallEscalatesToSubcopyAfterDelay() async throws {
-        let harness = try makeHarness(isReady: false, transcribeDelayMs: 140, hasCompletedFirstDictation: false)
+        // Hold the transcription open with a gate so the escalation timer is
+        // guaranteed to fire before processing can finish, regardless of how
+        // slowly a loaded CI runner schedules the timer task.
+        let transcribeGate = AsyncGate()
+        let harness = try makeHarness(
+            isReady: false,
+            transcribeDelayMs: 0,
+            hasCompletedFirstDictation: false,
+            transcribeGate: transcribeGate
+        )
 
         try await harness.startAndStop()
 
-        let escalated = await waitUntil { harness.coordinator.processingLoadCaptionForTesting == .preparingExtended }
+        let escalated = await harness.captionSignal.wait(for: .preparingExtended, timeout: .seconds(3))
         XCTAssertTrue(escalated)
+        await transcribeGate.release()
     }
 
     func testSubsequentColdLaunchDoesNotEscalate() async throws {
         let harness = try makeHarness(isReady: false, transcribeDelayMs: 140, hasCompletedFirstDictation: true)
 
         try await harness.startAndStop()
-        let shown = await waitUntil { self.isPreparingCaption(harness.coordinator.processingLoadCaptionForTesting) }
+        let shown = await harness.captionSignal.wait(for: .preparing)
         XCTAssertTrue(shown)
         try await Task.sleep(for: .milliseconds(70))
 
         XCTAssertEqual(harness.coordinator.processingLoadCaptionForTesting, .preparing)
         XCTAssertTrue(harness.telemetry.snapshot().containsCaptionShown(firstInstall: false))
+    }
+
+    func testCohereShowsOptimizingCaptionAndEscalatesAfterFirstDictation() async throws {
+        // A user can complete first dictation on another engine before selecting
+        // Cohere, so the Cohere-specific model setup caption still escalates
+        // after the generic first-install milestone has passed.
+        let harness = try makeHarness(
+            isReady: false,
+            transcribeDelayMs: 140,
+            hasCompletedFirstDictation: true,
+            engine: .cohere
+        )
+
+        try await harness.startAndStop()
+
+        let shown = await harness.captionSignal.wait(for: .optimizing)
+        XCTAssertTrue(shown)
+        let escalated = await harness.captionSignal.wait(for: .optimizingExtended)
+        XCTAssertTrue(escalated)
     }
 
     func testFailureShowsFailureCaptionBeforeErrorCard() async throws {
@@ -117,11 +166,9 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         )
 
         try await harness.startAndStop()
-        let preparingCaptionShown = await waitUntil {
-            self.isPreparingCaption(harness.coordinator.processingLoadCaptionForTesting)
-        }
+        let preparingCaptionShown = await harness.captionSignal.wait(for: .preparing)
         XCTAssertTrue(preparingCaptionShown)
-        let failedCaptionShown = await waitUntil { harness.coordinator.processingLoadCaptionForTesting == .failed }
+        let failedCaptionShown = await harness.captionSignal.wait(for: .failed)
         XCTAssertTrue(failedCaptionShown)
         XCTAssertTrue(harness.coordinator.overlayStateForTesting?.isProcessingForTest == true)
 
@@ -132,28 +179,49 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
     }
 
     func testNoSpeechDismissesCaptionWithSnakeCaseOutcome() async throws {
+        let transcribeGate = AsyncGate()
         let harness = try makeHarness(
             isReady: false,
-            transcribeDelayMs: 140,
-            transcribeError: DictationServiceError.emptyTranscript
+            transcribeDelayMs: 0,
+            transcribeError: DictationServiceError.emptyTranscript,
+            transcribeGate: transcribeGate
         )
 
         try await harness.startAndStop()
-        let shown = await waitUntil { self.isPreparingCaption(harness.coordinator.processingLoadCaptionForTesting) }
+        let shown = await harness.captionSignal.wait(for: .preparing, timeout: .seconds(3))
         XCTAssertTrue(shown)
-        let cleared = await waitUntil { harness.coordinator.processingLoadCaptionForTesting == nil }
+        await transcribeGate.release()
+        let cleared = await waitUntil(timeoutMs: 3_000) {
+            harness.coordinator.processingLoadCaptionForTesting == nil
+        }
         XCTAssertTrue(cleared)
 
-        XCTAssertTrue(harness.telemetry.snapshot().containsCaptionDuration(outcome: "no_speech"))
+        let recordedNoSpeech = await waitUntil(timeoutMs: 3_000) {
+            harness.telemetry.snapshot().containsCaptionDuration(outcome: "no_speech")
+        }
+        XCTAssertTrue(recordedNoSpeech)
+    }
+
+    func testPasteFailureDismissesCaptionWithFailureOutcome() async throws {
+        let harness = try makeHarness(isReady: false, transcribeDelayMs: 90)
+        await harness.clipboard.setPasteError(ClipboardServiceError.eventSourceUnavailable)
+
+        try await harness.startAndStop()
+        let shown = await harness.captionSignal.wait(for: .preparing)
+        XCTAssertTrue(shown)
+        let recordedFailure = await waitUntil {
+            harness.telemetry.snapshot().containsCaptionDuration(outcome: "failure")
+        }
+
+        XCTAssertTrue(recordedFailure)
+        XCTAssertFalse(harness.telemetry.snapshot().containsCaptionDuration(outcome: "success"))
     }
 
     func testCancelDuringVisibleCaptionClearsCaption() async throws {
         let harness = try makeHarness(isReady: false, transcribeDelayMs: 2_000)
 
         try await harness.startAndStop()
-        let shown = await waitUntil(timeoutMs: 3_000) {
-            self.isPreparingCaption(harness.coordinator.processingLoadCaptionForTesting)
-        }
+        let shown = await harness.captionSignal.wait(for: .preparing, timeout: .seconds(3))
         XCTAssertTrue(shown)
 
         harness.coordinator.cancelDictation(reason: .escape)
@@ -168,7 +236,7 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         let harness = try makeHarness(isReady: false, transcribeDelayMs: 80)
 
         try await harness.startAndStop()
-        let firstShown = await waitUntil { self.isPreparingCaption(harness.coordinator.processingLoadCaptionForTesting) }
+        let firstShown = await harness.captionSignal.wait(for: .preparing)
         XCTAssertTrue(firstShown)
         let firstCleared = await waitUntil { harness.coordinator.processingLoadCaptionForTesting == nil }
         XCTAssertTrue(firstCleared)
@@ -183,6 +251,34 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         let shownCount = harness.telemetry.snapshot().captionShownCount
         XCTAssertEqual(shownCount, 1)
         XCTAssertNil(harness.coordinator.processingLoadCaptionForTesting)
+    }
+
+    func testStalePasteCompletionDoesNotClearNextProcessingCaption() async throws {
+        let harness = try makeHarness(isReady: true, transcribeDelayMs: 5)
+        await harness.clipboard.setPasteDelayMs(150)
+
+        try await harness.startAndStop()
+        let successVisible = await waitUntil {
+            harness.coordinator.overlayStateForTesting?.isSuccessForTest == true
+        }
+        XCTAssertTrue(successVisible)
+
+        await harness.stt.setReady(false)
+        await harness.stt.setTranscribeDelay(milliseconds: 300)
+        harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
+        let secondStarted = await waitUntil {
+            harness.coordinator.overlayStateForTesting?.isRecordingForTest == true
+        }
+        XCTAssertTrue(secondStarted)
+        harness.coordinator.stopDictation()
+
+        let secondCaptionShown = await harness.captionSignal.wait(for: .preparing)
+        XCTAssertTrue(secondCaptionShown)
+        let firstPasteCompleted = await waitUntilAsync {
+            await harness.clipboard.snapshot().pastedTexts.count == 1
+        }
+        XCTAssertTrue(firstPasteCompleted)
+        XCTAssertEqual(harness.coordinator.processingLoadCaptionForTesting, .preparing)
     }
 
     func testKeepDictationOnClipboardPastesNormalPayloadWithoutRestore() async throws {
@@ -202,6 +298,19 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         XCTAssertEqual(clipboard.lastPastedText, "Mock transcription ")
         XCTAssertEqual(clipboard.lastRestoresClipboard, false)
         XCTAssertNil(clipboard.lastCopiedText)
+        let insert = harness.telemetry.snapshot().compactMap { event -> [String: String]? in
+            guard case .dictationInsert = event else { return nil }
+            return event.props
+        }.last
+        XCTAssertNotNil(insert)
+        let captureMs = Int(insert?["capture_ms"] ?? "") ?? -1
+        let transcribeMs = Int(insert?["transcribe_ms"] ?? "") ?? -1
+        let pasteMs = Int(insert?["paste_ms"] ?? "") ?? -1
+        let e2eMs = Int(insert?["e2e_ms"] ?? "") ?? -1
+        XCTAssertEqual(e2eMs, captureMs + transcribeMs + pasteMs)
+        XCTAssertGreaterThanOrEqual(captureMs, 0)
+        XCTAssertGreaterThanOrEqual(transcribeMs, 0)
+        XCTAssertGreaterThanOrEqual(pasteMs, 0)
     }
 
     func testInlineInsertionStyleDoesNotAppendTrailingPasteSpace() async throws {
@@ -236,6 +345,10 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
             dictationInsertionStyle: .inline
         )
 
+        // The paste uses the insertion style captured when the transcript was
+        // produced. Even while the success checkmark is visible, a later
+        // preference change cannot race ahead of it — the captured (inline)
+        // style is applied.
         harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
         let started = await waitUntil { harness.coordinator.overlayStateForTesting?.isRecordingForTest == true }
         XCTAssertTrue(started)
@@ -261,7 +374,7 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         let harness = try makeHarness(
             isReady: true,
             transcribeDelayMs: 5,
-            transcribeText: "um",
+            transcribeText: "uh",
             keepDictationOnClipboard: true,
             processingMode: .clean
         )
@@ -276,6 +389,168 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         XCTAssertNil(clipboard.lastPastedText)
         XCTAssertNil(clipboard.lastCopiedText)
         XCTAssertNil(clipboard.lastRestoresClipboard)
+        XCTAssertFalse(harness.telemetry.snapshot().containsDictationInsert)
+    }
+
+    func testStreamingCursorInsertsWithoutPaste() async throws {
+        let harness = try makeHarness(
+            isReady: true,
+            transcribeDelayMs: 5,
+            streamingCursorEnabled: true
+        )
+
+        try await harness.startAndStop()
+        let inserted = await waitUntil {
+            harness.streamingInserter.snapshot().isEmpty == false
+        }
+        let clipboard = await harness.clipboard.snapshot()
+
+        XCTAssertTrue(inserted)
+        XCTAssertEqual(harness.streamingInserter.snapshot(), ["Mock transcription "])
+        XCTAssertEqual(clipboard.pasteCallCount, 0)
+        XCTAssertNil(clipboard.lastPastedText)
+    }
+
+    func testStreamingCursorReduceMotionFallsBackToPaste() async throws {
+        let harness = try makeHarness(
+            isReady: true,
+            transcribeDelayMs: 5,
+            streamingCursorEnabled: true,
+            shouldReduceMotion: true
+        )
+
+        try await harness.startAndStop()
+        let pasted = await waitUntilAsync {
+            await harness.clipboard.snapshot().lastPastedText != nil
+        }
+
+        XCTAssertTrue(pasted)
+        XCTAssertTrue(harness.streamingInserter.snapshot().isEmpty)
+        let reducedClipboard = await harness.clipboard.snapshot()
+        XCTAssertEqual(reducedClipboard.lastPastedText, "Mock transcription ")
+    }
+
+    func testStreamingCursorNonASCIIInputSourceFallsBackToPaste() async throws {
+        let harness = try makeHarness(
+            isReady: true,
+            transcribeDelayMs: 5,
+            streamingCursorEnabled: true,
+            inputSourceAllowsStreaming: false
+        )
+
+        try await harness.startAndStop()
+        let pasted = await waitUntilAsync {
+            await harness.clipboard.snapshot().lastPastedText != nil
+        }
+
+        XCTAssertTrue(pasted)
+        XCTAssertTrue(harness.streamingInserter.snapshot().isEmpty)
+    }
+
+    func testStreamingCursorNewlinesFallBackToPaste() async throws {
+        let harness = try makeHarness(
+            isReady: true,
+            transcribeDelayMs: 5,
+            transcribeText: "hello\nworld",
+            streamingCursorEnabled: true
+        )
+
+        try await harness.startAndStop()
+        let pasted = await waitUntilAsync {
+            await harness.clipboard.snapshot().lastPastedText != nil
+        }
+
+        XCTAssertTrue(pasted)
+        XCTAssertTrue(harness.streamingInserter.snapshot().isEmpty)
+        let newlineClipboard = await harness.clipboard.snapshot()
+        XCTAssertEqual(newlineClipboard.lastPastedText, "hello\nworld ")
+    }
+
+    func testStreamingCursorEventFailureFallsBackToPaste() async throws {
+        let inserter = RecordingStreamingInserter()
+        inserter.error = StreamingCursorError.eventSourceUnavailable
+        let harness = try makeHarness(
+            isReady: true,
+            transcribeDelayMs: 5,
+            streamingCursorEnabled: true,
+            streamingInserter: inserter
+        )
+
+        try await harness.startAndStop()
+        let pasted = await waitUntilAsync {
+            await harness.clipboard.snapshot().lastPastedText != nil
+        }
+
+        XCTAssertTrue(pasted)
+        XCTAssertEqual(inserter.snapshot(), [])
+        let fallbackClipboard = await harness.clipboard.snapshot()
+        XCTAssertEqual(fallbackClipboard.lastPastedText, "Mock transcription ")
+    }
+
+    func testStreamingCursorPartialInsertCopiesTranscriptWithoutPasting() async throws {
+        let inserter = RecordingStreamingInserter()
+        inserter.error = StreamingCursorError.partialInsert
+        let harness = try makeHarness(
+            isReady: true,
+            transcribeDelayMs: 5,
+            streamingCursorEnabled: true,
+            streamingInserter: inserter
+        )
+
+        try await harness.startAndStop()
+        let copied = await waitUntilAsync {
+            await harness.clipboard.snapshot().lastCopiedText != nil
+        }
+        let clipboard = await harness.clipboard.snapshot()
+
+        XCTAssertTrue(copied)
+        XCTAssertEqual(clipboard.lastCopiedText, "Mock transcription ")
+        XCTAssertEqual(clipboard.pasteCallCount, 0)
+    }
+
+    func testStreamingCursorPartialInsertReportsClipboardFailureWithoutPasting() async throws {
+        let inserter = RecordingStreamingInserter()
+        inserter.error = StreamingCursorError.partialInsert
+        let harness = try makeHarness(
+            isReady: true,
+            transcribeDelayMs: 5,
+            streamingCursorEnabled: true,
+            streamingInserter: inserter
+        )
+        await harness.clipboard.setCopySucceeds(false)
+
+        try await harness.startAndStop()
+        let failed = await waitUntil {
+            if case .finishing(outcome: .pasteFailedCopied(let message)) = harness.coordinator.flowStateForTesting {
+                return message == "Some text was inserted, but the clipboard could not be updated."
+            }
+            return false
+        }
+        let clipboard = await harness.clipboard.snapshot()
+
+        XCTAssertTrue(failed)
+        XCTAssertNil(clipboard.lastCopiedText)
+        XCTAssertEqual(clipboard.pasteCallCount, 0)
+    }
+
+    func testStreamingCursorKeepOnClipboardCopiesAfterInsert() async throws {
+        let harness = try makeHarness(
+            isReady: true,
+            transcribeDelayMs: 5,
+            keepDictationOnClipboard: true,
+            streamingCursorEnabled: true
+        )
+
+        try await harness.startAndStop()
+        let copied = await waitUntilAsync {
+            await harness.clipboard.snapshot().lastCopiedText != nil
+        }
+
+        XCTAssertTrue(copied)
+        XCTAssertEqual(harness.streamingInserter.snapshot(), ["Mock transcription "])
+        let retainedClipboard = await harness.clipboard.snapshot()
+        XCTAssertEqual(retainedClipboard.lastCopiedText, "Mock transcription ")
+        XCTAssertEqual(retainedClipboard.pasteCallCount, 0)
     }
 
     private func makeHarness(
@@ -287,10 +562,17 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         keepDictationOnClipboard: Bool = false,
         processingMode: Dictation.ProcessingMode = .raw,
         dictationInsertionStyle: DictationInsertionStyle = .sentence,
-        timing: DictationProcessingLoadCaptionTiming? = nil
+        engine: SpeechEnginePreference = .parakeet,
+        timing: DictationProcessingLoadCaptionTiming? = nil,
+        transcribeGate: AsyncGate? = nil,
+        streamingCursorEnabled: Bool = false,
+        shouldReduceMotion: Bool = false,
+        inputSourceAllowsStreaming: Bool = true,
+        streamingInserter: RecordingStreamingInserter? = nil
     ) throws -> Harness {
         let telemetry = LoadCaptionTelemetrySpy()
         Telemetry.configure(telemetry)
+        let captionSignal = StateSignal<ProcessingLoadCaption?>()
 
         let dbManager = try DatabaseManager()
         let audio = MockAudioProcessor()
@@ -298,11 +580,21 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
             ready: isReady,
             transcribeDelayMs: transcribeDelayMs,
             transcribeText: transcribeText,
-            transcribeError: transcribeError
+            transcribeError: transcribeError,
+            transcribeGate: transcribeGate
         )
         let repo = DictationRepository(dbQueue: dbManager.dbQueue)
-        let preferencesDefaults = UserDefaults(suiteName: "load-caption-\(UUID().uuidString)")!
-        preferencesDefaults.set(keepDictationOnClipboard, forKey: UserDefaultsAppRuntimePreferences.keepDictationOnClipboardKey)
+        let preferencesSuiteName = "load-caption-\(UUID().uuidString)"
+        let preferencesDefaults = UserDefaults(suiteName: preferencesSuiteName)!
+        addTeardownBlock {
+            UserDefaults(suiteName: preferencesSuiteName)?.removePersistentDomain(forName: preferencesSuiteName)
+        }
+        preferencesDefaults.set(
+            keepDictationOnClipboard, forKey: UserDefaultsAppRuntimePreferences.keepDictationOnClipboardKey)
+        preferencesDefaults.set(
+            streamingCursorEnabled,
+            forKey: UserDefaultsAppRuntimePreferences.dictationStreamingCursorEnabledKey
+        )
         preferencesDefaults.set(
             dictationInsertionStyle.rawValue,
             forKey: UserDefaultsAppRuntimePreferences.dictationInsertionStyleKey
@@ -323,7 +615,11 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
             }
         )
 
-        let settingsDefaults = UserDefaults(suiteName: "load-caption-settings-\(UUID().uuidString)")!
+        let settingsSuiteName = "load-caption-settings-\(UUID().uuidString)"
+        let settingsDefaults = UserDefaults(suiteName: settingsSuiteName)!
+        addTeardownBlock {
+            UserDefaults(suiteName: settingsSuiteName)?.removePersistentDomain(forName: settingsSuiteName)
+        }
         settingsDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.showIdlePillKey)
         let settings = SettingsViewModel(defaults: settingsDefaults)
 
@@ -334,27 +630,39 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         )
 
         let clipboard = MockClipboardService()
+        let inserter = streamingInserter ?? RecordingStreamingInserter()
         let coordinator = DictationFlowCoordinator(
             dictationService: service,
             clipboardService: clipboard,
+            streamingInserter: inserter,
+            shouldReduceMotion: { shouldReduceMotion },
+            inputSourceAllowsStreaming: { inputSourceAllowsStreaming },
             entitlementsService: entitlements,
             dictationRepo: repo,
             settingsViewModel: settings,
             sttRuntime: stt,
             runtimePreferences: preferences,
             captionTiming: timing ?? self.timing,
+            activeSpeechEngine: { engine },
             overlayControllerFactory: { SpyDictationOverlayController(viewModel: $0) },
             onMenuBarIconUpdate: { _ in },
             onHistoryReload: {},
             onPresentEntitlementsAlert: { _ in }
         )
+        coordinator.testHook_onProcessingLoadCaptionChange = { caption in
+            Task {
+                await captionSignal.emit(caption)
+            }
+        }
 
         return Harness(
             coordinator: coordinator,
             stt: stt,
             telemetry: telemetry,
             clipboard: clipboard,
-            preferencesDefaults: preferencesDefaults
+            streamingInserter: inserter,
+            preferencesDefaults: preferencesDefaults,
+            captionSignal: captionSignal
         )
     }
 
@@ -382,16 +690,14 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         return await condition()
     }
 
-    private func isPreparingCaption(_ caption: DictationOverlayViewModel.ProcessingLoadCaption?) -> Bool {
-        caption == .preparing || caption == .preparingExtended
-    }
-
     private struct Harness {
         let coordinator: DictationFlowCoordinator
         let stt: DelayedSTTClient
         let telemetry: LoadCaptionTelemetrySpy
         let clipboard: MockClipboardService
+        let streamingInserter: RecordingStreamingInserter
         let preferencesDefaults: UserDefaults
+        let captionSignal: StateSignal<ProcessingLoadCaption?>
 
         @MainActor
         func startAndStop() async throws {
@@ -413,6 +719,20 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
             }
             return condition()
         }
+    }
+}
+
+private final class RecordingStreamingInserter: StreamingCursorInserting, @unchecked Sendable {
+    private var inserted: [String] = []
+    var error: Error?
+
+    func insert(_ text: String) async throws {
+        if let error { throw error }
+        inserted.append(text)
+    }
+
+    func snapshot() -> [String] {
+        inserted
     }
 }
 
@@ -441,12 +761,20 @@ private actor DelayedSTTClient: STTClientProtocol, DictationSTTReadinessChecking
     private var transcribeDelayMs: UInt64
     private var transcribeText: String
     private var transcribeError: Error?
+    private let transcribeGate: AsyncGate?
 
-    init(ready: Bool, transcribeDelayMs: UInt64, transcribeText: String, transcribeError: Error?) {
+    init(
+        ready: Bool,
+        transcribeDelayMs: UInt64,
+        transcribeText: String,
+        transcribeError: Error?,
+        transcribeGate: AsyncGate?
+    ) {
         self.ready = ready
         self.transcribeDelayMs = transcribeDelayMs
         self.transcribeText = transcribeText
         self.transcribeError = transcribeError
+        self.transcribeGate = transcribeGate
     }
 
     func setReady(_ ready: Bool) {
@@ -462,6 +790,9 @@ private actor DelayedSTTClient: STTClientProtocol, DictationSTTReadinessChecking
         job: STTJobKind,
         onProgress: (@Sendable (Int, Int) -> Void)?
     ) async throws -> STTResult {
+        if let transcribeGate {
+            try await transcribeGate.wait()
+        }
         if transcribeDelayMs > 0 {
             try await Task.sleep(for: .milliseconds(Int(transcribeDelayMs)))
         }
@@ -512,6 +843,48 @@ private actor DelayedSTTClient: STTClientProtocol, DictationSTTReadinessChecking
     func shutdown() async {}
 }
 
+private actor AsyncGate {
+    private struct Waiter {
+        let id: UUID
+        let continuation: CheckedContinuation<Void, Error>
+    }
+
+    private var isReleased = false
+    private var continuations: [Waiter] = []
+
+    func wait() async throws {
+        if isReleased { return }
+        let id = UUID()
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                if isReleased {
+                    continuation.resume()
+                } else {
+                    continuations.append(Waiter(id: id, continuation: continuation))
+                }
+            }
+        } onCancel: {
+            Task {
+                await self.cancelWaiter(id: id)
+            }
+        }
+    }
+
+    func release() {
+        guard !isReleased else { return }
+        isReleased = true
+        let pending = continuations
+        continuations.removeAll()
+        pending.forEach { $0.continuation.resume() }
+    }
+
+    private func cancelWaiter(id: UUID) {
+        guard let index = continuations.firstIndex(where: { $0.id == id }) else { return }
+        let waiter = continuations.remove(at: index)
+        waiter.continuation.resume(throwing: CancellationError())
+    }
+}
+
 private final class LoadCaptionTelemetrySpy: TelemetryServiceProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private var events: [TelemetryEventSpec] = []
@@ -546,6 +919,13 @@ private extension Array where Element == TelemetryEventSpec {
     var containsCaptionShown: Bool {
         contains { event in
             if case .dictationFirstLoadCaptionShown = event { return true }
+            return false
+        }
+    }
+
+    var containsDictationInsert: Bool {
+        contains { event in
+            if case .dictationInsert = event { return true }
             return false
         }
     }

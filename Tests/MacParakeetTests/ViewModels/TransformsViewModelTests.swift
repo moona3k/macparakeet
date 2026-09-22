@@ -101,11 +101,12 @@ final class TransformsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.transforms.contains(where: { $0.id == prompt.id }))
     }
 
-    func testDeleteBuiltInIsRejected() async {
+    func testDeleteBuiltInRemovesRow() async {
         let polish = viewModel.transforms.first(where: { $0.name == "Polish" })!
         let deleted = await viewModel.delete(polish)
-        XCTAssertFalse(deleted, "Built-ins must be protected from deletion.")
-        XCTAssertEqual(viewModel.transforms.count, 3)
+        XCTAssertTrue(deleted)
+        XCTAssertEqual(viewModel.transforms.count, 2)
+        XCTAssertFalse(viewModel.transforms.contains(where: { $0.id == polish.id }))
     }
 
     func testConfirmPendingDeleteClearsAndDeletes() async {
@@ -286,6 +287,26 @@ final class TransformsViewModelTests: XCTestCase {
 
         let reloaded = viewModel.transforms.first(where: { $0.name == "Polish" })!
         XCTAssertEqual(reloaded.content, customContent, "Reseed must not overwrite existing built-in customizations.")
+    }
+
+    func testReseedRevealsHiddenBuiltInWithoutOverwriting() async throws {
+        var polish = try XCTUnwrap(viewModel.transforms.first(where: { $0.name == "Polish" }))
+        let customContent = "User-customized hidden Polish body."
+        polish.content = customContent
+        polish.isVisible = false
+        try repo.save(polish)
+
+        await viewModel.load()
+        XCTAssertEqual(viewModel.transforms.count, 2)
+        XCTAssertTrue(viewModel.hasMissingBuiltInTransforms)
+
+        let reseeded = await viewModel.reseedMissingBuiltIns()
+        XCTAssertTrue(reseeded)
+
+        let reloaded = try XCTUnwrap(viewModel.transforms.first(where: { $0.id == polish.id }))
+        XCTAssertTrue(reloaded.isVisible)
+        XCTAssertEqual(reloaded.content, customContent)
+        XCTAssertFalse(viewModel.hasMissingBuiltInTransforms)
     }
 
     func testReseedDoesNotOverwriteExistingBuiltInWhenVisibleStateIsStale() async throws {
@@ -624,6 +645,10 @@ private final class BlockingPromptRepository: PromptRepositoryProtocol, @uncheck
         lock.unlock()
         return prompt
     }
+
+    func fetchIncludingDeleted(id: UUID) throws -> Prompt? { try fetch(id: id) }
+
+    func fetchDeleted() throws -> [Prompt] { [] }
 
     func fetchAll() throws -> [Prompt] {
         lock.lock()

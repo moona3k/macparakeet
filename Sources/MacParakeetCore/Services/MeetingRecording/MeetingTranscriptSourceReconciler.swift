@@ -90,13 +90,15 @@ struct MeetingTranscriptSourceReconciler {
                 let windowEnd = microphoneToken.word.endMs + toleranceMs
 
                 while systemIndex < tokenWords.count,
-                      tokenWords[systemIndex].word.endMs < windowStart {
+                    tokenWords[systemIndex].word.endMs < windowStart
+                {
                     systemIndex += 1
                 }
 
                 var candidateIndex = systemIndex
                 while candidateIndex < tokenWords.count,
-                      tokenWords[candidateIndex].word.startMs <= windowEnd {
+                    tokenWords[candidateIndex].word.startMs <= windowEnd
+                {
                     if MeetingTranscriptSourceReconciler.tokensRoughlyMatch(
                         microphoneToken.token,
                         tokenWords[candidateIndex].token
@@ -127,12 +129,14 @@ struct MeetingTranscriptSourceReconciler {
                 let windowEnd = microphoneToken.word.endMs + toleranceMs
 
                 while systemIndex < tokenWords.count,
-                      tokenWords[systemIndex].word.endMs < windowStart {
+                    tokenWords[systemIndex].word.endMs < windowStart
+                {
                     systemIndex += 1
                 }
 
                 if systemIndex < tokenWords.count,
-                   tokenWords[systemIndex].word.startMs <= windowEnd {
+                    tokenWords[systemIndex].word.startMs <= windowEnd
+                {
                     count += 1
                 }
             }
@@ -152,6 +156,7 @@ struct MeetingTranscriptSourceReconciler {
     private static let duplicateMaxWords = 10
     private static let duplicateLowConfidenceThreshold = 0.65
     private static let duplicateShortConfidenceThreshold = 0.80
+    private static let simultaneousExactEchoMinWords = 3
     private static let simultaneousEchoMinWords = 5
     private static let simultaneousEchoSimilarity = 0.8
     private static let fuzzyTokenMinLength = 4
@@ -194,6 +199,14 @@ struct MeetingTranscriptSourceReconciler {
             return RemovalDecision(reason: .lowConfidenceSystemDuplicate, indexes: run.indexes, words: run.words)
         }
 
+        if isExactSimultaneousSystemEcho(run, reference: reference) {
+            return RemovalDecision(
+                reason: .simultaneousSystemEcho,
+                indexes: run.indexes,
+                words: run.words
+            )
+        }
+
         if let echoWords = simultaneousSystemEchoWords(run, reference: reference) {
             return RemovalDecision(
                 reason: .simultaneousSystemEcho,
@@ -215,11 +228,12 @@ struct MeetingTranscriptSourceReconciler {
 
         for (index, word) in words.enumerated().dropFirst() {
             if word.startMs - lastEndMs > runGapMs {
-                runs.append(WordRun(
-                    indexes: currentIndexes,
-                    words: currentWords,
-                    tokenWords: tokenizedMicrophoneWords(currentWords, indexes: currentIndexes)
-                ))
+                runs.append(
+                    WordRun(
+                        indexes: currentIndexes,
+                        words: currentWords,
+                        tokenWords: tokenizedMicrophoneWords(currentWords, indexes: currentIndexes)
+                    ))
                 currentIndexes = [index]
                 currentWords = [word]
             } else {
@@ -229,11 +243,12 @@ struct MeetingTranscriptSourceReconciler {
             lastEndMs = word.endMs
         }
 
-        runs.append(WordRun(
-            indexes: currentIndexes,
-            words: currentWords,
-            tokenWords: tokenizedMicrophoneWords(currentWords, indexes: currentIndexes)
-        ))
+        runs.append(
+            WordRun(
+                indexes: currentIndexes,
+                words: currentWords,
+                tokenWords: tokenizedMicrophoneWords(currentWords, indexes: currentIndexes)
+            ))
         return runs
     }
 
@@ -245,10 +260,23 @@ struct MeetingTranscriptSourceReconciler {
             return false
         }
 
-        let confidenceAllowsDrop = run.averageConfidence <= duplicateLowConfidenceThreshold
+        let confidenceAllowsDrop =
+            run.averageConfidence <= duplicateLowConfidenceThreshold
             || (run.tokens.count <= 2 && run.averageConfidence <= duplicateShortConfidenceThreshold)
         guard confidenceAllowsDrop else { return false }
 
+        return reference.containsExactSequence(
+            run.tokens,
+            overlapping: run,
+            toleranceMs: duplicateTimingToleranceMs
+        )
+    }
+
+    private static func isExactSimultaneousSystemEcho(
+        _ run: WordRun,
+        reference: SystemEchoReference
+    ) -> Bool {
+        guard run.tokens.count >= simultaneousExactEchoMinWords else { return false }
         return reference.containsExactSequence(
             run.tokens,
             overlapping: run,
@@ -327,9 +355,10 @@ struct MeetingTranscriptSourceReconciler {
         toleranceMs: Int
     ) -> Bool {
         guard let lhsStart = lhs.first?.startMs,
-              let lhsEnd = lhs.last?.endMs,
-              let rhsStart = rhs.first?.startMs,
-              let rhsEnd = rhs.last?.endMs else {
+            let lhsEnd = lhs.last?.endMs,
+            let rhsStart = rhs.first?.startMs,
+            let rhsEnd = rhs.last?.endMs
+        else {
             return false
         }
 

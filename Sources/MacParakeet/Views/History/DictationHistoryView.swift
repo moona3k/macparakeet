@@ -6,6 +6,7 @@ import MacParakeetViewModels
 struct DictationHistoryView: View {
     @Bindable var viewModel: DictationHistoryViewModel
     @State private var deleteAlertCount = 0
+    @State private var expandedDictationIDs: Set<UUID> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -148,8 +149,10 @@ struct DictationHistoryView: View {
                             isPlayingThis: viewModel.playingDictationId == dictation.id && viewModel.isPlaying,
                             isCopied: viewModel.copiedDictationId == dictation.id,
                             isSelected: viewModel.isDictationSelected(dictation),
+                            isExpanded: expandedDictationIDs.contains(dictation.id),
                             showsSelectionControls: viewModel.isBulkSelectionModeEnabled,
                             onToggleSelection: { viewModel.toggleSelection(for: dictation) },
+                            onToggleExpanded: { toggleExpanded(dictation) },
                             onTogglePlayback: { viewModel.togglePlayback(for: dictation) },
                             onCopy: {
                                 viewModel.copyToClipboard(dictation)
@@ -314,6 +317,46 @@ struct DictationHistoryView: View {
     private var displayedDeleteAlertCount: Int {
         deleteAlertCount > 0 ? deleteAlertCount : viewModel.pendingDeleteCount
     }
+
+    private func toggleExpanded(_ dictation: Dictation) {
+        withAnimation(DesignSystem.Animation.contentSwap) {
+            if expandedDictationIDs.contains(dictation.id) {
+                expandedDictationIDs.remove(dictation.id)
+            } else {
+                expandedDictationIDs.insert(dictation.id)
+            }
+        }
+    }
+
+}
+
+enum DictationTranscriptPresentation {
+    static let collapsedLineLimit = 3
+    static let expandedBoxMaxHeight: CGFloat = 280
+    static let remeasuringExpandedContentHeight = expandedBoxMaxHeight + 1
+
+    static func isExpandable(
+        fullHeight: CGFloat,
+        collapsedHeight: CGFloat,
+        canToggleExpansion: Bool = true
+    ) -> Bool {
+        canToggleExpansion
+            && fullHeight > 0
+            && collapsedHeight > 0
+            && fullHeight > collapsedHeight + 0.5
+    }
+
+    static func previewLineLimit(canToggleExpansion: Bool) -> Int? {
+        canToggleExpansion ? collapsedLineLimit : nil
+    }
+
+    static func expandedViewportHeight(forMeasuredContentHeight measuredContentHeight: CGFloat) -> CGFloat? {
+        measuredContentHeight > expandedBoxMaxHeight ? expandedBoxMaxHeight : nil
+    }
+
+    static func resetMeasuredExpandedContentHeight(isCurrentlyExpanded: Bool) -> CGFloat {
+        isCurrentlyExpanded ? remeasuringExpandedContentHeight : 0
+    }
 }
 
 // MARK: - Card Row View
@@ -324,11 +367,13 @@ struct DictationCardRow: View {
     var isPlayingThis: Bool = false
     var isCopied: Bool = false
     var isSelected: Bool = false
+    var isExpanded: Bool = false
     /// Whether the leading per-row selection circle is shown. Only true while
     /// the History list is in bulk-selection mode; hidden during ordinary
     /// browsing so a row doesn't look like a selection target.
     var showsSelectionControls: Bool = false
     var onToggleSelection: (() -> Void)?
+    var onToggleExpanded: (() -> Void)?
     var onTogglePlayback: (() -> Void)?
     var onCopy: () -> Void
     var onDelete: () -> Void
@@ -337,6 +382,8 @@ struct DictationCardRow: View {
     var onBeginBulkSelection: (() -> Void)?
 
     @State private var isHovered = false
+    @State private var expandedTranscriptContentHeight: CGFloat = 0
+    @State private var transcriptOverflowMeasurement = TranscriptOverflowMeasurement.zero
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
@@ -366,6 +413,16 @@ struct DictationCardRow: View {
                         Text(dictation.durationMs.formattedDuration)
                             .font(DesignSystem.Typography.duration)
                             .foregroundStyle(.tertiary)
+
+                        if dictation.status == .cancelled {
+                            Text("\u{2009}\u{00B7}\u{2009}")
+                                .font(DesignSystem.Typography.caption)
+                                .foregroundStyle(.quaternary)
+
+                            Text("Cancelled")
+                                .font(DesignSystem.Typography.caption)
+                                .foregroundStyle(.tertiary)
+                        }
 
                         if dictation.audioPath != nil {
                             Text("\u{2009}\u{00B7}\u{2009}")
@@ -430,6 +487,7 @@ struct DictationCardRow: View {
                         CardActionButton(
                             icon: isPlayingThis ? "pause.fill" : "play.fill",
                             color: DesignSystem.Colors.accent,
+                            help: isPlayingThis ? "Pause audio" : "Play audio",
                             action: { onTogglePlayback?() }
                         )
                     }
@@ -437,9 +495,19 @@ struct DictationCardRow: View {
                     CardActionButton(
                         icon: isCopied ? "checkmark" : "doc.on.clipboard",
                         color: isCopied ? DesignSystem.Colors.successGreen : .secondary,
+                        help: isCopied ? "Copied" : "Copy dictation",
                         action: { onCopy() }
                     )
                     .animation(DesignSystem.Animation.hoverTransition, value: isCopied)
+
+                    if transcriptIsExpandable || isExpanded {
+                        CardActionButton(
+                            icon: isExpanded ? "chevron.up" : "chevron.down",
+                            color: .secondary,
+                            help: isExpanded ? "Hide full note" : "Show full note",
+                            action: { onToggleExpanded?() }
+                        )
+                    }
 
                     CardMenuButton(
                         hasAudio: dictation.audioPath != nil,
@@ -454,13 +522,15 @@ struct DictationCardRow: View {
                 }
             }
 
-            Text(highlightedTranscript)
-                .font(DesignSystem.Typography.body)
-                .foregroundStyle(.primary)
-                .lineLimit(3)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentTransition(.opacity)
-                .animation(.easeInOut(duration: 0.22), value: dictation.displayRawTranscript)
+            transcriptContent
+                .background(alignment: .topLeading) {
+                    if !isExpanded && canToggleTranscriptExpansion {
+                        transcriptOverflowMeasurementProbe
+                        if transcriptIsExpandable {
+                            expandedTranscriptMeasurementProbe
+                        }
+                    }
+                }
         }
         .padding(DesignSystem.Spacing.md)
         .scaleEffect(isPlayingThis ? 1.005 : 1.0)
@@ -484,6 +554,19 @@ struct DictationCardRow: View {
         }
         .animation(.easeInOut(duration: 0.15), value: isPlayingThis)
         .animation(DesignSystem.Animation.selectionChange, value: isSelected)
+        .animation(DesignSystem.Animation.contentSwap, value: isExpanded)
+        .onChange(of: transcriptPlainText) { _, _ in
+            expandedTranscriptContentHeight =
+                DictationTranscriptPresentation
+                .resetMeasuredExpandedContentHeight(isCurrentlyExpanded: isExpanded)
+            transcriptOverflowMeasurement = .zero
+        }
+        .onPreferenceChange(ExpandedTranscriptHeightKey.self) { height in
+            updateExpandedTranscriptContentHeight(height)
+        }
+        .onPreferenceChange(TranscriptOverflowMeasurementKey.self) { measurement in
+            updateTranscriptOverflowMeasurement(measurement)
+        }
     }
 
     private var cardFill: Color {
@@ -506,10 +589,189 @@ struct DictationCardRow: View {
         return DesignSystem.Colors.border.opacity(0.5)
     }
 
+    @ViewBuilder
+    private var transcriptContent: some View {
+        let isExpandable = transcriptIsExpandable
+        if isExpanded {
+            expandedTranscriptContent
+        } else {
+            let lineLimit = DictationTranscriptPresentation.previewLineLimit(
+                canToggleExpansion: canToggleTranscriptExpansion
+            )
+            if isExpandable {
+                transcriptText(lineLimit: lineLimit)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onToggleExpanded?()
+                    }
+                    .help("Click to read full note")
+                    .contentTransition(.opacity)
+            } else {
+                transcriptText(lineLimit: lineLimit)
+                    .contentTransition(.opacity)
+            }
+        }
+    }
+
+    private var expandedTranscriptContent: some View {
+        expandedTranscriptViewport
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(DesignSystem.Colors.surfaceElevated.opacity(0.55))
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(DesignSystem.Colors.border.opacity(0.6), lineWidth: 0.5)
+            }
+            .contentTransition(.opacity)
+    }
+
+    @ViewBuilder
+    private var expandedTranscriptViewport: some View {
+        if let viewportHeight = DictationTranscriptPresentation.expandedViewportHeight(
+            forMeasuredContentHeight: expandedTranscriptContentHeight
+        ) {
+            ScrollView {
+                expandedTranscriptText
+            }
+            .frame(height: viewportHeight)
+        } else {
+            expandedTranscriptText
+        }
+    }
+
+    private var expandedTranscriptText: some View {
+        transcriptText(lineLimit: nil)
+            .padding(DesignSystem.Spacing.sm)
+            .fixedSize(horizontal: false, vertical: true)
+            .background {
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: ExpandedTranscriptHeightKey.self,
+                        value: proxy.size.height
+                    )
+                }
+            }
+    }
+
+    private var expandedTranscriptMeasurementProbe: some View {
+        expandedTranscriptText
+            .opacity(0)
+            .accessibilityHidden(true)
+            .allowsHitTesting(false)
+    }
+
+    private var transcriptOverflowMeasurementProbe: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .topLeading) {
+                transcriptLayoutText(lineLimit: nil)
+                    .frame(width: proxy.size.width, alignment: .leading)
+                    .background {
+                        GeometryReader { textProxy in
+                            Color.clear.preference(
+                                key: TranscriptOverflowMeasurementKey.self,
+                                value: TranscriptOverflowMeasurement(
+                                    fullHeight: textProxy.size.height,
+                                    collapsedHeight: 0
+                                )
+                            )
+                        }
+                    }
+
+                transcriptLayoutText(lineLimit: DictationTranscriptPresentation.collapsedLineLimit)
+                    .frame(width: proxy.size.width, alignment: .leading)
+                    .background {
+                        GeometryReader { textProxy in
+                            Color.clear.preference(
+                                key: TranscriptOverflowMeasurementKey.self,
+                                value: TranscriptOverflowMeasurement(
+                                    fullHeight: 0,
+                                    collapsedHeight: textProxy.size.height
+                                )
+                            )
+                        }
+                    }
+            }
+            .opacity(0)
+            .accessibilityHidden(true)
+            .allowsHitTesting(false)
+        }
+    }
+
+    private func updateExpandedTranscriptContentHeight(_ height: CGFloat) {
+        guard height > 0,
+            abs(height - expandedTranscriptContentHeight) > 0.5
+        else {
+            return
+        }
+
+        withAnimation(nil) {
+            expandedTranscriptContentHeight = height
+        }
+    }
+
+    private func updateTranscriptOverflowMeasurement(_ measurement: TranscriptOverflowMeasurement) {
+        guard measurement.fullHeight > 0,
+            measurement.collapsedHeight > 0,
+            measurement != transcriptOverflowMeasurement
+        else {
+            return
+        }
+
+        transcriptOverflowMeasurement = measurement
+    }
+
+    private func transcriptLayoutText(lineLimit: Int?) -> some View {
+        Text(highlightedTranscript)
+            .font(DesignSystem.Typography.body)
+            .lineLimit(lineLimit)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func transcriptText(lineLimit: Int?) -> some View {
+        let transcript = highlightedTranscript
+        // See PromptLibraryView for the same pattern: selectable macOS Text can
+        // over-expand during line-limit changes, so invisible layout text owns
+        // sizing while the selectable text is clipped to that box.
+        return Text(transcript)
+            .font(DesignSystem.Typography.body)
+            .lineLimit(lineLimit)
+            .opacity(0)
+            .accessibilityHidden(true)
+            .overlay(alignment: .topLeading) {
+                Text(transcript)
+                    .font(DesignSystem.Typography.body)
+                    .foregroundStyle(.primary)
+                    .lineLimit(lineLimit)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .clipped()
+            .animation(.easeInOut(duration: 0.22), value: dictation.displayRawTranscript)
+    }
+
+    private var transcriptPlainText: String {
+        dictation.displayText
+    }
+
+    private var transcriptIsExpandable: Bool {
+        DictationTranscriptPresentation.isExpandable(
+            fullHeight: transcriptOverflowMeasurement.fullHeight,
+            collapsedHeight: transcriptOverflowMeasurement.collapsedHeight,
+            canToggleExpansion: canToggleTranscriptExpansion
+        )
+    }
+
+    private var canToggleTranscriptExpansion: Bool {
+        onToggleExpanded != nil
+    }
+
     // MARK: - Highlighted Transcript
 
     private var highlightedTranscript: AttributedString {
-        let text = dictation.displayText
+        let text = transcriptPlainText
         let attributed = NSMutableAttributedString(string: text)
 
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -580,6 +842,35 @@ struct DictationCardRow: View {
     }
 }
 
+private struct ExpandedTranscriptHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+private struct TranscriptOverflowMeasurement: Equatable {
+    var fullHeight: CGFloat
+    var collapsedHeight: CGFloat
+
+    static let zero = Self(fullHeight: 0, collapsedHeight: 0)
+}
+
+private struct TranscriptOverflowMeasurementKey: PreferenceKey {
+    static let defaultValue = TranscriptOverflowMeasurement.zero
+
+    static func reduce(value: inout TranscriptOverflowMeasurement, nextValue: () -> TranscriptOverflowMeasurement) {
+        let next = nextValue()
+        if next.fullHeight > 0 {
+            value.fullHeight = next.fullHeight
+        }
+        if next.collapsedHeight > 0 {
+            value.collapsedHeight = next.collapsedHeight
+        }
+    }
+}
+
 // MARK: - Selection Toggle
 
 private struct SelectionToggleButton: View {
@@ -615,6 +906,7 @@ private struct SelectionToggleButton: View {
 private struct CardActionButton: View {
     let icon: String
     let color: Color
+    let help: String
     let action: () -> Void
 
     @State private var isHovered = false
@@ -632,6 +924,8 @@ private struct CardActionButton: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(isHovered ? .primary : color)
+        .help(help)
+        .accessibilityLabel(help)
         .onHover { isHovered = $0 }
     }
 }
@@ -649,7 +943,7 @@ private struct CardMenuButton: View {
     let onBeginBulkSelection: () -> Void
 
     var body: some View {
-        CardActionButton(icon: "ellipsis", color: .secondary) {
+        CardActionButton(icon: "ellipsis", color: .secondary, help: "More actions") {
             showMenu()
         }
     }
@@ -675,7 +969,7 @@ private struct CardMenuButton: View {
         // already in bulk mode (it would be redundant). Named to read as a
         // non-destructive selection gesture, not a delete.
         if showsBulkSelectionEntry {
-            menu.addItem(CallbackMenuItem(title: "Select Multiple…", icon: "checklist", action: onBeginBulkSelection))
+            menu.addItem(CallbackMenuItem(title: "Select Many...", icon: "checklist", action: onBeginBulkSelection))
         }
 
         if !menu.items.isEmpty {

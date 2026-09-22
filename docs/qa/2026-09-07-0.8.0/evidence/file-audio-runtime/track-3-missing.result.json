@@ -1,0 +1,35 @@
+{
+  "name": "track-3-missing",
+  "command": [
+    "<QA_ROOT>/macparakeet-cli-runtime",
+    "transcribe",
+    "<QA_ROOT>/audio-runtime/two-tracks.mkv",
+    "--database",
+    "<QA_OUTPUT>/track-3-missing.sqlite",
+    "--mode",
+    "raw",
+    "--format",
+    "json",
+    "--engine",
+    "nemotron",
+    "--nemotron-model",
+    "multilingual-1120ms",
+    "--speaker-detection",
+    "off",
+    "--language",
+    "en",
+    "--audio-track",
+    "3"
+  ],
+  "environment": {
+    "CFFIXED_USER_HOME": "<QA_ROOT>/isolated-home",
+    "MACPARAKEET_TELEMETRY": "0",
+    "DO_NOT_TRACK": "1"
+  },
+  "timeoutSeconds": 180,
+  "timedOut": false,
+  "exitCode": 2,
+  "wallSeconds": 0.311,
+  "jsonValid": true,
+  "rows": []
+}

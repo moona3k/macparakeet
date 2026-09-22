@@ -1,0 +1,42 @@
+[
+  {
+    "relative_path": "Contents/MacOS/MacParakeet",
+    "sha256": "ee456a117f5ebe416ad60dca798817402bc5dd7814ad947f0e3974c6e241bc03",
+    "matches_submitted_zip": true
+  },
+  {
+    "relative_path": "Contents/MacOS/macparakeet-cli",
+    "sha256": "98af21250125a7096494c421ce3cf15829974caeb50e0ed5ae2897c70096d3b3",
+    "matches_submitted_zip": true
+  },
+  {
+    "relative_path": "Contents/Resources/ffmpeg",
+    "sha256": "d362b2cdfda073a847514365b27f9765f6b9ee4d9d1b9883ab9e426d9ae5db99",
+    "matches_submitted_zip": true
+  },
+  {
+    "relative_path": "Contents/Resources/yt-dlp",
+    "sha256": "5123b8855bb5902d303c428032fe48f40b11b0dc69fc7fdcb8f521b41eab36a1",
+    "matches_submitted_zip": true
+  },
+  {
+    "relative_path": "Contents/Resources/node",
+    "sha256": "819047db33f7fad667aab9b1e5da45562b5a419239f30601c85beff331f456b2",
+    "matches_submitted_zip": true
+  },
+  {
+    "relative_path": "Contents/Frameworks/liblocalvqe.dylib",
+    "sha256": "ac0053541c2418dea9e92629562ad881337fceb32b64f95f9c22e7ef8d210c53",
+    "matches_submitted_zip": true
+  },
+  {
+    "relative_path": "Contents/Frameworks/Sparkle.framework/Versions/B/Sparkle",
+    "sha256": "908cd018c9f5855df9a7c038781939a4c963a4e494f172c39021b674861244ef",
+    "matches_submitted_zip": true
+  },
+  {
+    "relative_path": "Contents/Resources/MeetingEchoSuppression/localvqe-v1.4-aec-200K-f32.gguf",
+    "sha256": "b6e43138588a83bfe903ab5e143b4020b91c1e1629f5a575ac5855ff0003c731",
+    "matches_submitted_zip": true
+  }
+]

@@ -1,0 +1,23 @@
+{
+  "createdAt" : "2026-09-07T23:05:36Z",
+  "derivedSnippet" : "这并不是告别:这是一个篇章的结束,也是新篇章的开始。",
+  "derivedTitle" : "这并不是告别:这是一个篇章的结束,也是新篇章的开始。",
+  "durationMs" : 10380,
+  "engine" : "cohere",
+  "engineVariant" : "ane",
+  "fileName" : "cmn_hans_cn_0000.wav",
+  "filePath" : "<PUBLIC_FLEURS>\/cmn_hans_cn\/cmn_hans_cn_0000.wav",
+  "fileSizeBytes" : 332204,
+  "id" : "74C9E76D-F7D1-49BF-B4E4-3821803EF41B",
+  "isFavorite" : false,
+  "isTranscriptEdited" : false,
+  "language" : "zh",
+  "rawTranscript" : "这并不是告别:这是一个篇章的结束,也是新篇章的开始。",
+  "recoveredFromCrash" : false,
+  "sourceType" : "file",
+  "status" : "completed",
+  "updatedAt" : "2026-09-07T23:05:42Z",
+  "wordTimestamps" : [
+
+  ]
+}

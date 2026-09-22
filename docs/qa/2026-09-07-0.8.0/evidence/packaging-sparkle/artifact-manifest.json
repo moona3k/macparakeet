@@ -1,0 +1,34 @@
+{
+  "candidateCommit": "afa6fb3db30685fe1fe3e374e02093ec117184f4",
+  "files": [
+    {
+      "path": "actual-bundle-red.log",
+      "sha256": "cc3fb63b5fda1f73d918e49857e3f323e991098f9daca06a466730ada23c10b7"
+    },
+    {
+      "path": "actual-bundle-inspection.json",
+      "sha256": "d952e5bc0fb41fc06e4013b6fb16479d32693104f3b0f374fcfa48607be40138"
+    },
+    {
+      "path": "fixture-red-green.log",
+      "sha256": "71847e1a40b268dfb494a0f24184a8e24eaee4ca974689504034e64078840ea6"
+    },
+    {
+      "path": "repro.sh",
+      "sha256": "f8505dd998ff7986948717756035819c6a1d43d2604b9545a97e2631e13ad8a7"
+    },
+    {
+      "path": "sparkle-root-symlink.patch",
+      "sha256": "8e74725087a61fc4137b694ccf9c6b09df09ca3583335ac61d02a5e5a9efe2e0"
+    },
+    {
+      "path": "actual-framework-copy-green.log",
+      "sha256": "19577a3d06e8b995299496191a8abdcf5fe7f6100fdd3c1bb474946df02c849f"
+    },
+    {
+      "path": "actual-framework-copy-result.json",
+      "sha256": "34944a68f6246e1ec3f6bbdb61a5ef4b103806642af54830361353946c70d552"
+    }
+  ],
+  "actualArtifactChanged": false
+}

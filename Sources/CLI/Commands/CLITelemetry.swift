@@ -32,18 +32,7 @@ enum CLITelemetry {
         }
     }
 
-    /// Outcome of evaluating env-var overrides for CLI telemetry. Resolved before
-    /// the user's persisted UserDefaults preference is consulted.
-    enum EnvOverride: Equatable {
-        /// `MACPARAKEET_TELEMETRY=1/true/yes/on` — explicit force-on, defeats CI auto-disable.
-        case forceOn
-        /// `MACPARAKEET_TELEMETRY=0/false/no/off` or `DO_NOT_TRACK=1` — explicit force-off.
-        case forceOff
-        /// Headless CI context (`CI=true`, `GITHUB_ACTIONS=true`, etc.) with no explicit override.
-        case ciAutoDisable
-        /// No override; honor the persisted UserDefaults `telemetryEnabled` preference.
-        case none
-    }
+    typealias EnvOverride = TelemetryPolicy.EnvOverride
 
     static func configureIfNeeded(env: [String: String] = ProcessInfo.processInfo.environment) {
         switch decideOverride(env: env) {
@@ -68,58 +57,12 @@ enum CLITelemetry {
         }
     }
 
-    /// Pure decision function — testable without ProcessInfo or UserDefaults state.
-    /// `MACPARAKEET_TELEMETRY` wins outright. Then `DO_NOT_TRACK=1` (industry-standard,
-    /// honored by Homebrew, GitLab, VS Code, etc.). Then CI auto-disable so a 1000-job
-    /// agent run in GitHub Actions doesn't silently flood the endpoint with `cli_operation`
-    /// events.
     static func decideOverride(env: [String: String]) -> EnvOverride {
-        if let raw = env["MACPARAKEET_TELEMETRY"]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-           !raw.isEmpty {
-            if ["0", "false", "no", "off"].contains(raw) { return .forceOff }
-            if ["1", "true", "yes", "on"].contains(raw) { return .forceOn }
-        }
-
-        if let dnt = env["DO_NOT_TRACK"]?.trimmingCharacters(in: .whitespacesAndNewlines), dnt == "1" {
-            return .forceOff
-        }
-
-        if isCIEnvironment(env: env) {
-            return .ciAutoDisable
-        }
-
-        return .none
+        TelemetryPolicy.decideOverride(env: env)
     }
 
-    /// Variables that conventionally mark a CI/automation context.
-    /// Hoisted out of `isCIEnvironment` so it isn't reallocated per call.
-    private static let ciEnvVars: [String] = [
-        "CI",
-        "GITHUB_ACTIONS",
-        "GITLAB_CI",
-        "BUILDKITE",
-        "CIRCLECI",
-        "TRAVIS",
-        "JENKINS_URL",
-        "TF_BUILD",
-        "TEAMCITY_VERSION"
-    ]
-
-    /// Detects common CI/automation contexts. Conservative: only treats a variable as
-    /// CI-positive when it's set to a truthy value, so `CI=false` (yes, some setups
-    /// pass that) does not trigger auto-disable.
     static func isCIEnvironment(env: [String: String]) -> Bool {
-        for name in ciEnvVars {
-            guard let raw = env[name]?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
-                continue
-            }
-            let lower = raw.lowercased()
-            if lower == "false" || lower == "0" || lower == "no" || lower == "off" {
-                continue
-            }
-            return true
-        }
-        return false
+        TelemetryPolicy.isCIEnvironment(env: env)
     }
 
     static func runInstrumented(_ command: inout ParsableCommand) async throws {
@@ -254,6 +197,9 @@ extension Result where Success == Void, Failure == Error {
         case .success:
             return nil
         case .failure(let error):
+            // ArgumentParser uses successful thrown exits for help and other
+            // early completions. They must not carry a runtime error bucket.
+            guard !CLI.normalizedExitCode(for: error).isSuccess else { return nil }
             if let jsonExit = error as? CLIJSONEnvelopeExit {
                 return CLIErrorType.key(for: jsonExit.originalError)
             }

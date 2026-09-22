@@ -4,6 +4,49 @@ import Foundation
 /// without touching every call site. Release builds should set these to the
 /// shipping configuration before tagging a version.
 public enum AppFeatures {
+    /// Encrypted text sharing remains opt-in for development until its separate
+    /// privacy, service and interoperability release gates are complete.
+    public static let shareLinksEnabled = false
+    public static let shareLinksDeveloperLaunchArgument = "--enable-share-links"
+
+    public static func isShareLinksAvailable(arguments: [String] = ProcessInfo.processInfo.arguments) -> Bool {
+        #if DEBUG
+        shareLinksEnabled || arguments.contains(shareLinksDeveloperLaunchArgument)
+        #else
+        shareLinksEnabled
+        #endif
+    }
+
+    /// Experimental native Voice Control. Disabled in stable releases until
+    /// live qualification and release review justify a deliberate flag change.
+    public static let voiceControlEnabled = false
+    /// Per-user opt-in for reading the frontmost window's pixels with Vision OCR
+    /// as a second Voice Control observation source. Needs Screen Recording.
+    public static let voiceControlScreenTextDefaultsKey = "voiceControl.screenText.v1"
+    public static func isVoiceControlAvailable(arguments: [String] = ProcessInfo.processInfo.arguments) -> Bool {
+        #if DEBUG
+        voiceControlEnabled || arguments.contains("--enable-voice-control")
+        #else
+        voiceControlEnabled
+        #endif
+    }
+
+    /// Experimental speaker recognition; requires held-out meeting evaluation.
+    public static let voiceProfilesEnabled: Bool = false
+    public static let voiceProfilesDeveloperLaunchArgument = "--enable-voice-profiles"
+
+    /// A saved preference or a development launch argument cannot unlock an
+    /// unreleased feature in a release build. Consent remains a separate gate.
+    public static func isVoiceProfilesAvailable(
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> Bool {
+        #if DEBUG
+        voiceProfilesEnabled || arguments.contains(voiceProfilesDeveloperLaunchArgument)
+        #else
+        voiceProfilesEnabled
+        #endif
+    }
+
     /// Meeting Recording (ADR-014). When `false`, all meeting recording entry
     /// points are hidden: Transcribe tile, menu-bar "Start Recording", global
     /// meeting hotkey, settings card, library filter, and the screen recording
@@ -27,9 +70,8 @@ public enum AppFeatures {
     /// Activity-based meeting auto-stop (ADR-023). When `true`, Settings shows
     /// the opt-in meeting auto-stop toggle and the app constructs the
     /// coordinator that observes meeting-end signals only while a recording is
-    /// active. Enabled on `main` (2026-06-14) so the opt-in toggle is
-    /// dogfoodable; the per-user setting still defaults off, so nothing
-    /// auto-stops until a user turns it on. Not yet in a tagged release.
+    /// active. Shipping since the v0.7 release train; the per-user setting
+    /// still defaults off, so nothing auto-stops until a user turns it on.
     public static let meetingAutoStopEnabled: Bool = true
 
     /// Meeting capture reliability watchdog (ADR-025 Phase A). When `true`,
@@ -39,6 +81,15 @@ public enum AppFeatures {
     /// Keep this default-on reliability path behind a kill switch while repair
     /// phases are still being validated.
     public static let meetingCaptureReliabilityEnabled: Bool = true
+
+    /// Meeting source health presentation. When `false`, the Core health model,
+    /// service plumbing, view-model state, and tests remain intact, but the
+    /// panel chips, floating pill degraded glyph, and transcription-tile health
+    /// mirror are hidden. Default-off after 2026-07-04 product review because
+    /// quiet-but-normal recordings made the amber warning chips feel alarmist.
+    /// Confirmed actionable states (recovering, stalled, interrupted, and
+    /// unavailable) bypass this flag; silence and mute remain hidden.
+    public static let meetingSourceHealthUIEnabled: Bool = false
 
     /// Activity-based meeting detection (ADR-024). When `false`, Settings hides
     /// the meeting-activity detection mode, the app does not construct the
@@ -61,6 +112,15 @@ public enum AppFeatures {
     /// `transform_executed` / `transform_failed` (ADR-022 §9).
     public static let transformsEnabled: Bool = true
 
+    /// Cohere Transcribe dictation engine. When `true`, Settings offers Cohere
+    /// as a selectable speech engine (on-device Core ML via FluidAudio's
+    /// `CoherePipeline`). When `false`, the engine type, runtime routing, and
+    /// model plumbing remain compiled and intact — only the Settings surface
+    /// that lets a user select it is hidden, so flipping the flag is a no-data
+    /// operation. Gated separately because the model is a ~2.1 GB download and
+    /// the engine is batch-only (no live partials/word timestamps).
+    public static let cohereEngineEnabled: Bool = true
+
     /// VAD-guided meeting live chunking
     /// (`plans/completed/2026-05-meeting-vad-guided-live-chunking.md`). When
     /// `false`, meeting live-preview chunks use the fixed 5s / 1s-overlap
@@ -70,15 +130,15 @@ public enum AppFeatures {
     /// fixed chunking when VAD is unavailable or errors repeatedly. The final
     /// saved transcript (post-stop full-file STT) is unaffected either way.
     ///
-    /// Enabled for the VAD release candidate after Phase 0/corpus replay showed
-    /// clean inline performance and Phase 4.5 made model prep universal. Keep
-    /// `vad_model_prep` allowlisted and deployed before shipping flag-on builds.
+    /// Shipping since v0.6.24 after Phase 0/corpus replay showed clean inline
+    /// performance and Phase 4.5 made model prep universal. Keep
+    /// `vad_model_prep` allowlisted and deployed for flag-on builds.
     public static let meetingVadLiveChunkingEnabled: Bool = true
 
-    /// Display-only live dictation preview. Nemotron multilingual uses its
-    /// native live partial path; Parakeet uses the single-flight tail-window
-    /// sample preview path. Whisper remains default-off until its per-pass
-    /// latency is measured on a real model.
+    /// Display-only live dictation preview. Nemotron and Parakeet Unified use
+    /// their native live partial paths; Parakeet TDT builds use the single-flight
+    /// tail-window sample preview path. Whisper remains default-off until its
+    /// per-pass latency is measured on a real model.
     public static let liveDictationStreamingEnabled: Bool = true
 
     /// App-aware AI Formatter profiles (REQ-LLM-004, issues #117/#412). When
@@ -101,4 +161,60 @@ public enum AppFeatures {
     /// back to `true` to ship profiles in a later tag (no-data operation — the
     /// profile table/repository migrate regardless of this flag).
     public static let aiFormatterProfilesEnabled: Bool = false
+
+    /// In-process local LLM provider (MLX foundation). When `false`, the
+    /// provider descriptor, config, routing seam, and fake-runtime tests remain
+    /// compiled, but Settings and user-reachable provider lists hide the option.
+    /// The real MLX implementation is a separate opt-in build target gated by
+    /// `MACPARAKEET_ENABLE_MLX_LOCAL_LLM=1`, so normal SwiftPM builds and CI do
+    /// not resolve mlx-swift-lm.
+    public static let inProcessLocalLLMEnabled: Bool = false
+
+    /// Developer-only escape hatch for exercising the local LLM setup flow
+    /// while the public feature flag above stays off.
+    public static let inProcessLocalLLMDeveloperDefaultsKey = "MacParakeetEnableInProcessLocalLLM"
+    public static let inProcessLocalLLMDeveloperLaunchArgument = "--enable-local-ai"
+
+    public static func inProcessLocalLLMDeveloperOverrideEnabled(
+        defaults: UserDefaults = .standard,
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> Bool {
+        defaults.bool(forKey: inProcessLocalLLMDeveloperDefaultsKey)
+            || arguments.contains(inProcessLocalLLMDeveloperLaunchArgument)
+    }
+
+    public static func isInProcessLocalLLMProductVisible(
+        defaults: UserDefaults = .standard,
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> Bool {
+        inProcessLocalLLMEnabled
+            || inProcessLocalLLMDeveloperOverrideEnabled(
+                defaults: defaults,
+                arguments: arguments
+            )
+    }
+
+    public static func isInProcessLocalLLMVisible(
+        defaults: UserDefaults = .standard,
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        runtimeAvailable: Bool = false
+    ) -> Bool {
+        runtimeAvailable
+            && isInProcessLocalLLMProductVisible(
+                defaults: defaults,
+                arguments: arguments
+            )
+    }
+
+    public static func shouldShowInProcessLocalLLMUnavailableExplanation(
+        defaults: UserDefaults = .standard,
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        runtimeAvailable: Bool
+    ) -> Bool {
+        !runtimeAvailable
+            && inProcessLocalLLMDeveloperOverrideEnabled(
+                defaults: defaults,
+                arguments: arguments
+            )
+    }
 }

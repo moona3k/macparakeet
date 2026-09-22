@@ -63,17 +63,12 @@ struct HealthCommand: AsyncParsableCommand {
         }
 
         // 2. Directories
-        do {
-            try AppPaths.ensureDirectories()
-            report.directoriesOK = true
-        } catch {
-            report.directoriesOK = false
-            report.directoriesError = error.localizedDescription
-        }
+        report.directoriesError = probeHealthDirectories(AppPaths.requiredDirectories)
+        report.directoriesOK = report.directoriesError == nil
         if !json {
             print("Directories:")
             if report.directoriesOK {
-                print("  All directories exist or created.")
+                print("  All required directories exist and are writable.")
             } else {
                 print("  ERROR: \(report.directoriesError ?? "unknown")")
             }
@@ -81,19 +76,7 @@ struct HealthCommand: AsyncParsableCommand {
         }
 
         // 3. Database
-        let database: HealthReport.Database
-        if FileManager.default.fileExists(atPath: AppPaths.databasePath) {
-            do {
-                let dbManager = try DatabaseManager(path: AppPaths.databasePath)
-                let dictStats = try DictationRepository(dbQueue: dbManager.dbQueue).stats()
-                let transcriptions = try TranscriptionRepository(dbQueue: dbManager.dbQueue).fetchAll(limit: nil)
-                database = .init(status: "ok", dictations: dictStats.totalCount, transcriptions: transcriptions.count, error: nil)
-            } catch {
-                database = .init(status: "error", dictations: nil, transcriptions: nil, error: error.localizedDescription)
-            }
-        } else {
-            database = .init(status: "missing", dictations: nil, transcriptions: nil, error: nil)
-        }
+        let database = probeHealthDatabase(at: AppPaths.databasePath)
         report.database = database
         if !json {
             print("Database:")
@@ -104,6 +87,8 @@ struct HealthCommand: AsyncParsableCommand {
                 print("  Transcriptions: \(database.transcriptions ?? 0)")
             case "missing":
                 print("  Status: Not created yet (will be created on first use)")
+            case "schema_skew":
+                print("  Status: SCHEMA SKEW — \(database.error ?? "upgrade macparakeet-cli")")
             default:
                 print("  Status: ERROR — \(database.error ?? "unknown")")
             }
@@ -148,17 +133,25 @@ struct HealthCommand: AsyncParsableCommand {
         if let repairAttempts = validatedRepairAttempts {
             if !json { print(); print("Speech-stack repair requested...") }
             do {
-                try await prepareSpeechStack(
-                    attempts: repairAttempts,
-                    sttClient: sttClient,
-                    diarizationService: diarizationService,
-                    defaults: defaults,
-                    log: { message in if !self.json { print("  \(message)") } }
-                )
+                let repairOperation = {
+                    try await prepareSpeechStack(
+                        attempts: repairAttempts,
+                        sttClient: sttClient,
+                        diarizationService: diarizationService,
+                        defaults: defaults,
+                        log: { message in if !self.json { print("  \(message)") } }
+                    )
+                }
+                if json {
+                    try await withStandardOutputRedirectedToStandardError(repairOperation)
+                } else {
+                    try await repairOperation()
+                }
                 report.repair = HealthReport.Repair(attempted: true, completed: true, error: nil)
                 if !json { print("Speech-stack repair completed.") }
             } catch {
-                report.repair = HealthReport.Repair(attempted: true, completed: false, error: error.localizedDescription)
+                report.repair = HealthReport.Repair(
+                    attempted: true, completed: false, error: error.localizedDescription)
                 if !json { print("Speech-stack repair failed — \(error.localizedDescription)") }
             }
         }
@@ -246,13 +239,70 @@ struct HealthCommand: AsyncParsableCommand {
     }
 }
 
+func probeHealthDirectories(_ paths: [String]) -> String? {
+    let fileManager = FileManager.default
+    for path in paths {
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory) else {
+            return "Directory not created yet: \(path)"
+        }
+        guard isDirectory.boolValue else { return "Not a directory: \(path)" }
+        guard fileManager.isWritableFile(atPath: path) else { return "Directory is not writable: \(path)" }
+    }
+    return nil
+}
+
+func probeHealthDatabase(at path: String) -> HealthDatabaseReport {
+    guard FileManager.default.fileExists(atPath: path) else {
+        return .init(status: "missing", dictations: nil, transcriptions: nil, error: nil)
+    }
+
+    do {
+        let unknownMigrations = try DatabaseManager.unknownAppliedMigrationIdentifiers(at: path)
+        if !unknownMigrations.isEmpty {
+            return .init(
+                status: "schema_skew",
+                dictations: nil,
+                transcriptions: nil,
+                error: databaseSchemaSkewMessage(unknownMigrations: unknownMigrations)
+            )
+        }
+
+        let dbManager = try DatabaseManager(readOnlyPath: path)
+        let dictStats = try DictationRepository(dbQueue: dbManager.dbQueue).stats()
+        let transcriptionCount = try TranscriptionRepository(dbQueue: dbManager.dbQueue).count()
+        return .init(
+            status: "ok",
+            dictations: dictStats.totalCount,
+            transcriptions: transcriptionCount,
+            error: nil
+        )
+    } catch {
+        return .init(status: "error", dictations: nil, transcriptions: nil, error: error.localizedDescription)
+    }
+}
+
+private func databaseSchemaSkewMessage(unknownMigrations: [String]) -> String {
+    let migrationList = unknownMigrations.prefix(3).joined(separator: ", ")
+    let suffix = unknownMigrations.count > 3 ? ", ..." : ""
+    return
+        "This database has been migrated by a newer MacParakeet app than this macparakeet-cli build understands (\(migrationList)\(suffix)). Upgrade macparakeet-cli and retry."
+}
+
+struct HealthDatabaseReport: Encodable, Equatable {
+    let status: String  // "ok" | "missing" | "schema_skew" | "error"
+    let dictations: Int?
+    let transcriptions: Int?
+    let error: String?
+}
+
 // Health JSON payload. Local to the CLI so adding diagnostic fields here
 // doesn't require touching the Core layer.
 private struct HealthReport: Encodable {
     var paths: Paths = .empty
     var directoriesOK: Bool = false
     var directoriesError: String?
-    var database: Database?
+    var database: HealthDatabaseReport?
     var audioInput: AudioInput?
     var speechStack: SpeechStackPayload?
     var repair: Repair?
@@ -267,13 +317,6 @@ private struct HealthReport: Encodable {
         let bin: String
         let ytDlp: String
         static let empty = Paths(appSupport: "", database: "", temp: "", bin: "", ytDlp: "")
-    }
-
-    struct Database: Encodable {
-        let status: String  // "ok" | "missing" | "error"
-        let dictations: Int?
-        let transcriptions: Int?
-        let error: String?
     }
 
     struct AudioInput: Encodable {

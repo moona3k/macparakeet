@@ -41,8 +41,16 @@ public actor AudioProcessor: AudioProcessorProtocol {
         get async { await recorder.deviceInfo }
     }
 
+    public var lastCaptureHealth: AudioCaptureHealth? {
+        get async { await recorder.lastCaptureHealth }
+    }
+
     public func convert(fileURL: URL) async throws -> URL {
         try await converter.convert(fileURL: fileURL)
+    }
+
+    public func convert(fileURL: URL, audioTrackOrdinal: Int?) async throws -> URL {
+        try await converter.convert(fileURL: fileURL, audioTrackOrdinal: audioTrackOrdinal)
     }
 
     public func startCapture() async throws {

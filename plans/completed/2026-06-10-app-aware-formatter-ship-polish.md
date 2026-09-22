@@ -2,7 +2,9 @@
 
 > Status: **IMPLEMENTED** (2026-06-10)
 > Date: 2026-06-10
-> Requirement: REQ-LLM-004 (`spec/kernel/requirements.yaml`)
+> Requirement: legacy REQ-LLM-004 (`docs/historical/requirements-legacy.yaml`);
+> current authoritative behavior is in `spec/11-llm-integration.md` and
+> `spec/02-features.md`
 > Prior art: PR #419 (profiles), PR #428 (smart defaults), `6cd4a7034` (flag pulled
 > "while the profile UX is refined"), issues #117 / #412.
 
@@ -82,10 +84,16 @@ hatch, and nothing is hidden.
    - DB: category-enum↔CHECK drift guard over `allCases` round-trip; v0.21
      hidden-row scrub upgrade-path test; v0.21 marker-missing re-run test.
    - Search index + repo error copy updates.
-7. **Docs + flag**: spec/11, 12, 02, README, requirements.yaml, traceability,
-   CLAUDE.md, telemetry note (`default_prompt_used` step change), brainstorm
-   amendment note; flip `aiFormatterProfilesEnabled = true` as an isolated
-   final commit.
+7. **Docs + flag**: spec/11, 12, 02, README, legacy requirements record,
+   traceability, CLAUDE.md, telemetry note (`default_prompt_used` step change),
+   brainstorm amendment note; the original ship-polish sequence flipped
+   `aiFormatterProfilesEnabled = true` as an isolated final commit.
+
+   **Postscript:** the flag was re-gated to `false` on 2026-06-14 to hold the
+   feature out of the v0.6.23 release train. The 2026-07-04 alignment pass kept
+   the implementation flag-off and clarified the Settings behavior: built-in
+   smart-default prompts remain readable while the master switch is off, but
+   the tier cannot run until the master switch is enabled.
 
 ## Out of scope
 

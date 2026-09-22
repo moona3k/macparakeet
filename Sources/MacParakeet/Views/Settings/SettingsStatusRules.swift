@@ -4,24 +4,31 @@ import MacParakeetViewModels
 enum SettingsStatusRules {
     static func meetingRecordingCardStatus(
         meetingRecordingEnabled: Bool,
-        screenRecordingGranted: Bool
+        screenRecordingGranted: Bool,
+        meetingAudioSourceMode: MeetingAudioSourceMode
     ) -> SettingsCardStatus? {
         guard meetingRecordingEnabled else { return nil }
+        guard meetingAudioSourceMode.capturesSystemAudio else {
+            return SettingsCardStatus(.ok, label: "Ready")
+        }
         return screenRecordingGranted
             ? SettingsCardStatus(.ok, label: "Ready")
             : SettingsCardStatus(.required, label: "Permission required")
     }
 
     /// `parakeet` and `nemotron` carry the status of each engine's *selected*
-    /// build (v3/v2, multilingual/English) — per-build disk badges live in the
+    /// build (Parakeet v3/v2/Unified, Nemotron multilingual/English) — per-build disk badges live in the
     /// engine's model card, not in this rollup.
     static func localModelsCardStatus(
         parakeet: SettingsViewModel.LocalModelStatus,
         nemotron: SettingsViewModel.LocalModelStatus,
         whisper: SettingsViewModel.LocalModelStatus,
+        cohere: SettingsViewModel.LocalModelStatus,
+        cohereEnabled: Bool = true,
         activeEngine: SpeechEnginePreference
     ) -> SettingsCardStatus? {
-        if parakeet == .failed || nemotron == .failed || whisper == .failed {
+        let cohereStatus = cohereEnabled || activeEngine == .cohere ? cohere : .notDownloaded
+        if parakeet == .failed || nemotron == .failed || whisper == .failed || cohereStatus == .failed {
             return SettingsCardStatus(.required, label: "Action needed")
         }
 
@@ -30,6 +37,7 @@ enum SettingsStatusRules {
         case .parakeet: activeStatus = parakeet
         case .nemotron: activeStatus = nemotron
         case .whisper: activeStatus = whisper
+        case .cohere: activeStatus = cohereStatus
         }
 
         if activeStatus == .notDownloaded {
@@ -41,7 +49,10 @@ enum SettingsStatusRules {
         }
 
         let optionalNemotronReady = nemotron == .notDownloaded || isAvailable(nemotron)
-        if isAvailable(parakeet), isAvailable(whisper), optionalNemotronReady {
+        // Cohere is an optional, large-download engine like Nemotron: its absence
+        // must not block the "Ready" state when it isn't the active engine.
+        let optionalCohereReady = cohereStatus == .notDownloaded || isAvailable(cohereStatus)
+        if isAvailable(parakeet), isAvailable(whisper), optionalNemotronReady, optionalCohereReady {
             return SettingsCardStatus(.ok, label: "Ready")
         }
 
@@ -52,14 +63,19 @@ enum SettingsStatusRules {
         meetingRecordingEnabled: Bool,
         microphoneGranted: Bool,
         accessibilityGranted: Bool,
-        screenRecordingGranted: Bool
+        screenRecordingGranted: Bool,
+        meetingAudioSourceMode: MeetingAudioSourceMode
     ) -> SettingsCardStatus {
         if !microphoneGranted || !accessibilityGranted {
             return SettingsCardStatus(.required, label: "Action required")
         }
 
-        if meetingRecordingEnabled, !screenRecordingGranted {
+        if meetingRecordingEnabled, meetingAudioSourceMode.capturesSystemAudio, !screenRecordingGranted {
             return SettingsCardStatus(.required, label: "Action required")
+        }
+
+        if meetingRecordingEnabled, !meetingAudioSourceMode.capturesSystemAudio, !screenRecordingGranted {
+            return SettingsCardStatus(.ok, label: "Ready")
         }
 
         return SettingsCardStatus(.ok, label: "All granted")

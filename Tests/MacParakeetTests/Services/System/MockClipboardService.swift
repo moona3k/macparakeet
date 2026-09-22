@@ -4,6 +4,7 @@ import Foundation
 public actor MockClipboardService: ClipboardServiceProtocol {
     public struct Snapshot: Sendable {
         public let lastPastedText: String?
+        public let pastedTexts: [String]
         public let lastCopiedText: String?
         public let lastPostPasteAction: KeyAction?
         public let lastRestoresClipboard: Bool?
@@ -11,16 +12,21 @@ public actor MockClipboardService: ClipboardServiceProtocol {
     }
 
     public var lastPastedText: String?
+    public var pastedTexts: [String] = []
     public var lastCopiedText: String?
     public var lastPostPasteAction: KeyAction?
     public var lastRestoresClipboard: Bool?
     public var pasteCallCount = 0
+    private var pasteError: Error?
+    private var pasteDelayMs: UInt64 = 0
+    private var copySucceeds = true
 
     public init() {}
 
     public func snapshot() -> Snapshot {
         Snapshot(
             lastPastedText: lastPastedText,
+            pastedTexts: pastedTexts,
             lastCopiedText: lastCopiedText,
             lastPostPasteAction: lastPostPasteAction,
             lastRestoresClipboard: lastRestoresClipboard,
@@ -33,9 +39,16 @@ public actor MockClipboardService: ClipboardServiceProtocol {
     }
 
     public func pasteText(_ text: String, restoresClipboard: Bool) async throws {
-        lastPastedText = text
-        lastRestoresClipboard = restoresClipboard
         pasteCallCount += 1
+        if pasteDelayMs > 0 {
+            try await Task.sleep(for: .milliseconds(pasteDelayMs))
+        }
+        if let pasteError {
+            throw pasteError
+        }
+        lastPastedText = text
+        pastedTexts.append(text)
+        lastRestoresClipboard = restoresClipboard
     }
 
     public func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?) async throws -> Bool {
@@ -49,7 +62,20 @@ public actor MockClipboardService: ClipboardServiceProtocol {
     }
 
     public func copyToClipboard(_ text: String) async -> Bool {
+        guard copySucceeds else { return false }
         lastCopiedText = text
         return true
+    }
+
+    public func setPasteError(_ error: Error?) {
+        pasteError = error
+    }
+
+    public func setCopySucceeds(_ succeeds: Bool) {
+        copySucceeds = succeeds
+    }
+
+    public func setPasteDelayMs(_ delayMs: UInt64) {
+        pasteDelayMs = delayMs
     }
 }

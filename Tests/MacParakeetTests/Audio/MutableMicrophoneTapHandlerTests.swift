@@ -1,0 +1,400 @@
+import AVFoundation
+import os
+import XCTest
+@testable import MacParakeetCore
+
+final class MutableMicrophoneTapHandlerTests: XCTestCase {
+    func testReplaceRoutesFutureBuffersToTheNewHandler() throws {
+        let (buffer, time) = try makeBufferAndTime()
+        let initialCount = OSAllocatedUnfairLock(initialState: 0)
+        let replacementCount = OSAllocatedUnfairLock(initialState: 0)
+        let handler = MutableMicrophoneTapHandler { _, _ in
+            initialCount.withLock { $0 += 1 }
+        }
+
+        handler.invoke(buffer: buffer, time: time)
+        handler.replace { _, _ in
+            replacementCount.withLock { $0 += 1 }
+        }
+        handler.invoke(buffer: buffer, time: time)
+
+        XCTAssertEqual(initialCount.withLock { $0 }, 1)
+        XCTAssertEqual(replacementCount.withLock { $0 }, 1)
+    }
+
+    func testClearStopsFutureBufferDelivery() throws {
+        let (buffer, time) = try makeBufferAndTime()
+        let invocationCount = OSAllocatedUnfairLock(initialState: 0)
+        let handler = MutableMicrophoneTapHandler { _, _ in
+            invocationCount.withLock { $0 += 1 }
+        }
+
+        handler.clear()
+        handler.invoke(buffer: buffer, time: time)
+
+        XCTAssertEqual(invocationCount.withLock { $0 }, 0)
+    }
+
+    func testClearAfterSustainedDeliveryDoesNotOverflowTheStack() throws {
+        let (buffer, time) = try makeBufferAndTime()
+        let invocationCount = OSAllocatedUnfairLock(initialState: 0)
+        let handler = MutableMicrophoneTapHandler { _, _ in
+            invocationCount.withLock { $0 += 1 }
+        }
+
+        for _ in 0..<50_000 {
+            handler.invoke(buffer: buffer, time: time)
+        }
+
+        XCTAssertEqual(invocationCount.withLock { $0 }, 50_000)
+        handler.clear()
+    }
+
+    func testCallbackMonitoringRequiresAFirstCallbackAndClearInvalidatesIt() throws {
+        let (buffer, time) = try makeBufferAndTime()
+        let handler = MutableMicrophoneTapHandler { _, _ in }
+        let timeout: TimeInterval = 5
+
+        handler.activateCallbackMonitoring()
+        XCTAssertNil(
+            handler.livenessFailure(
+                nowUptimeNanoseconds: DispatchTime.now().uptimeNanoseconds,
+                callbackStallTimeout: timeout,
+                invalidBufferTimeout: 0
+            ),
+            "startup without a first callback belongs to the existing first-buffer watchdog"
+        )
+
+        handler.invoke(buffer: buffer, time: time)
+        let afterCallback = DispatchTime.now().uptimeNanoseconds
+        XCTAssertNil(
+            handler.livenessFailure(
+                nowUptimeNanoseconds: afterCallback,
+                callbackStallTimeout: timeout,
+                invalidBufferTimeout: 0
+            )
+        )
+        XCTAssertNotNil(
+            handler.livenessFailure(
+                nowUptimeNanoseconds: afterCallback + 6_000_000_000,
+                callbackStallTimeout: timeout,
+                invalidBufferTimeout: 0
+            )
+        )
+
+        handler.clear()
+        XCTAssertNil(
+            handler.livenessFailure(
+                nowUptimeNanoseconds: afterCallback + 6_000_000_000,
+                callbackStallTimeout: timeout,
+                invalidBufferTimeout: 0
+            )
+        )
+    }
+
+    func testKnownBluetoothDropsExactZeroButForwardsAnyRealSample() throws {
+        let (buffer, time) = try makeBufferAndTime()
+        buffer.frameLength = 4
+        let invocationCount = OSAllocatedUnfairLock(initialState: 0)
+        let handler = MutableMicrophoneTapHandler(requiresNonZeroSignal: true) { _, _ in
+            invocationCount.withLock { $0 += 1 }
+        }
+        handler.activateCallbackMonitoring()
+
+        handler.invoke(buffer: buffer, time: time)
+        XCTAssertEqual(invocationCount.withLock { $0 }, 0)
+
+        buffer.floatChannelData?[0][0] = .leastNonzeroMagnitude
+        handler.invoke(buffer: buffer, time: time)
+        XCTAssertEqual(
+            invocationCount.withLock { $0 },
+            1,
+            "The Bluetooth guard is exact-zero detection, not a voice-activity threshold"
+        )
+    }
+
+    func testVPIOSignalDetectionUsesOnlyMicrophoneChannelZero() throws {
+        let (buffer, time) = try makeBufferAndTime(channels: 2)
+        buffer.frameLength = 4
+        buffer.floatChannelData?[1][0] = .leastNonzeroMagnitude
+        let invocationCount = OSAllocatedUnfairLock(initialState: 0)
+        let handler = MutableMicrophoneTapHandler(
+            requiresNonZeroSignal: true,
+            checksOnlyChannelZeroForSignal: true
+        ) { _, _ in
+            invocationCount.withLock { $0 += 1 }
+        }
+        handler.activateCallbackMonitoring()
+
+        handler.invoke(buffer: buffer, time: time)
+        XCTAssertEqual(
+            invocationCount.withLock { $0 },
+            0,
+            "VPIO reference-channel signal must not certify a silent microphone channel"
+        )
+
+        buffer.floatChannelData?[0][0] = .leastNonzeroMagnitude
+        handler.invoke(buffer: buffer, time: time)
+        XCTAssertEqual(invocationCount.withLock { $0 }, 1)
+    }
+
+    func testCommittedBluetoothCapturePreservesSilenceAndResumes() throws {
+        let (buffer, time) = try makeBufferAndTime()
+        buffer.frameLength = 4
+        for frame in 0..<4 { buffer.floatChannelData?[0][frame] = 0 }
+        let clock = OSAllocatedUnfairLock(initialState: UInt64(0))
+        let count = OSAllocatedUnfairLock(initialState: 0)
+        let handler = MutableMicrophoneTapHandler(
+            requiresNonZeroSignal: true,
+            nowUptimeNanoseconds: { clock.withLock { $0 } }
+        ) { _, _ in count.withLock { $0 += 1 } }
+        handler.activateCallbackMonitoring()
+        buffer.floatChannelData?[0][0] = 0.01
+        handler.invoke(buffer: buffer, time: time)
+        XCTAssertTrue(handler.hasReceivedUsableBuffer())
+        handler.completeStartupConfigurationTracking()
+        handler.setStartupRequiresNonZeroSignal(false)
+        handler.setStartupRequiresNonZeroSignal(true)
+
+        buffer.floatChannelData?[0][0] = 0
+        for second in 1...60 {
+            clock.withLock { $0 = UInt64(second) * 1_000_000_000 }
+            handler.invoke(buffer: buffer, time: time)
+        }
+        XCTAssertEqual(count.withLock { $0 }, 61, "Valid silence preserves the captured timeline")
+        XCTAssertNil(
+            handler.livenessFailure(
+                nowUptimeNanoseconds: 60_000_000_000,
+                callbackStallTimeout: 5,
+                invalidBufferTimeout: 2
+            ))
+
+        buffer.floatChannelData?[0][0] = 0.01
+        handler.invoke(buffer: buffer, time: time)
+        XCTAssertEqual(count.withLock { $0 }, 62, "Speech resumes on the original callback target")
+    }
+
+    func testRawMultichannelSignalDetectionChecksEveryInputChannel() throws {
+        let (buffer, time) = try makeBufferAndTime(channels: 2)
+        buffer.frameLength = 4
+        buffer.floatChannelData?[1][0] = .leastNonzeroMagnitude
+        let invocationCount = OSAllocatedUnfairLock(initialState: 0)
+        let handler = MutableMicrophoneTapHandler(requiresNonZeroSignal: true) { _, _ in
+            invocationCount.withLock { $0 += 1 }
+        }
+        handler.activateCallbackMonitoring()
+
+        handler.invoke(buffer: buffer, time: time)
+
+        XCTAssertEqual(invocationCount.withLock { $0 }, 1)
+    }
+
+    func testFirstSignalDoesNotEndStartupGenerationGate() throws {
+        let (buffer, time) = try makeBufferAndTime()
+        let generation = OSAllocatedUnfairLock(initialState: UInt64(1))
+        let count = OSAllocatedUnfairLock(initialState: 0)
+        let handler = MutableMicrophoneTapHandler(
+            requiresNonZeroSignal: true,
+            configurationGenerationProvider: { generation.withLock { $0 } }
+        ) { _, _ in count.withLock { $0 += 1 } }
+        handler.activateCallbackMonitoring()
+        buffer.floatChannelData?[0][0] = 0.01
+        handler.invoke(buffer: buffer, time: time)
+        generation.withLock { $0 = 2 }
+        buffer.floatChannelData?[0][0] = 0
+        handler.invoke(buffer: buffer, time: time)
+
+        XCTAssertEqual(count.withLock { $0 }, 1)
+        XCTAssertEqual(
+            handler.latestUsableBufferConfigurationGeneration(), 1,
+            "Silent callbacks must not certify a changed route before commit")
+    }
+
+    func testVPIOValidityAndSignalUseOnlyTheMicrophoneChannelInEitherLayout() throws {
+        for interleaved in [false, true] {
+            let format = try XCTUnwrap(
+                AVAudioFormat(
+                    commonFormat: .pcmFormatFloat32, sampleRate: 48_000,
+                    channels: 2, interleaved: interleaved
+                ))
+            let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 1))
+            buffer.frameLength = 1
+            let channels = try XCTUnwrap(buffer.floatChannelData)
+            let microphone = channels[0]
+            let reference = interleaved ? channels[0].advanced(by: 1) : channels[1]
+            let time = AVAudioTime(sampleTime: 0, atRate: 48_000)
+            let count = OSAllocatedUnfairLock(initialState: 0)
+            let handler = MutableMicrophoneTapHandler(
+                requiresNonZeroSignal: true, checksOnlyChannelZeroForSignal: true
+            ) { _, _ in count.withLock { $0 += 1 } }
+            handler.activateCallbackMonitoring()
+            microphone[0] = 0.01
+            reference[0] = .nan
+            handler.invoke(buffer: buffer, time: time)
+            XCTAssertTrue(handler.hasReceivedUsableBuffer())
+            XCTAssertEqual(count.withLock { $0 }, 1, "Discarded reference channels cannot invalidate the mic")
+            handler.completeStartupConfigurationTracking()
+            microphone[0] = 0
+            handler.invoke(buffer: buffer, time: time)
+            XCTAssertEqual(count.withLock { $0 }, 2, "Valid mic silence survives a malformed reference")
+            microphone[0] = .infinity
+            reference[0] = 0.01
+            handler.invoke(buffer: buffer, time: time)
+            XCTAssertEqual(count.withLock { $0 }, 2, "Reference signal cannot mask malformed mic PCM")
+            XCTAssertEqual(handler.signalSnapshot().invalidBuffers, 1)
+        }
+    }
+
+    func testEmptyAndNonfiniteBuffersNeverCertifyStartupOrReachConsumers() throws {
+        for requiresSignal in [false, true] {
+            for invalidSample in [Float.nan, .infinity, -.infinity] {
+                let (buffer, time) = try makeBufferAndTime()
+                let count = OSAllocatedUnfairLock(initialState: 0)
+                let handler = MutableMicrophoneTapHandler(requiresNonZeroSignal: requiresSignal) { _, _ in
+                    count.withLock { $0 += 1 }
+                }
+                handler.activateCallbackMonitoring()
+                buffer.frameLength = 0
+                handler.invoke(buffer: buffer, time: time)
+                buffer.frameLength = 4
+                buffer.floatChannelData?[0][0] = 0.01
+                buffer.floatChannelData?[0][3] = invalidSample
+                handler.invoke(buffer: buffer, time: time)
+                XCTAssertFalse(handler.hasReceivedUsableBuffer())
+                XCTAssertNil(handler.latestUsableBufferConfigurationGeneration())
+                XCTAssertEqual(count.withLock { $0 }, 0)
+                XCTAssertEqual(handler.signalSnapshot().emptyBuffers, 1)
+                XCTAssertEqual(handler.signalSnapshot().invalidBuffers, 2)
+            }
+        }
+    }
+
+    func testInvalidCallbacksStillTriggerRecoveryOnEveryTransportAndSilenceClearsFailure() throws {
+        for requiresSignal in [false, true] {
+            let (buffer, time) = try makeBufferAndTime()
+            let clock = OSAllocatedUnfairLock(initialState: UInt64(0))
+            let handler = MutableMicrophoneTapHandler(
+                requiresNonZeroSignal: requiresSignal,
+                nowUptimeNanoseconds: { clock.withLock { $0 } }
+            ) { _, _ in }
+            handler.activateCallbackMonitoring()
+            buffer.floatChannelData?[0][0] = 0.01
+            handler.invoke(buffer: buffer, time: time)
+            handler.completeStartupConfigurationTracking()
+            buffer.frameLength = 0
+            handler.invoke(buffer: buffer, time: time)
+            clock.withLock { $0 = 3_000_000_000 }
+            handler.invoke(buffer: buffer, time: time)
+            XCTAssertEqual(
+                handler.livenessFailure(
+                    nowUptimeNanoseconds: 3_000_000_000,
+                    callbackStallTimeout: 5, invalidBufferTimeout: 2
+                ), .invalidBuffers(3))
+
+            buffer.frameLength = 4
+            buffer.floatChannelData?[0][0] = 0
+            handler.invoke(buffer: buffer, time: time)
+            XCTAssertNil(
+                handler.livenessFailure(
+                    nowUptimeNanoseconds: 3_000_000_000,
+                    callbackStallTimeout: 5, invalidBufferTimeout: 2
+                ))
+        }
+    }
+
+    func testSignalDiagnosticsDistinguishSilenceFromEmptyAndBoundTransitionEvents() throws {
+        let (buffer, time) = try makeBufferAndTime()
+        let clock = OSAllocatedUnfairLock(initialState: UInt64(0))
+        let handler = MutableMicrophoneTapHandler(
+            requiresNonZeroSignal: true,
+            nowUptimeNanoseconds: { clock.withLock { $0 } }
+        ) { _, _ in }
+        handler.activateCallbackMonitoring()
+        buffer.floatChannelData?[0][0] = 0.01
+        handler.invoke(buffer: buffer, time: time)
+        handler.completeStartupConfigurationTracking()
+
+        buffer.floatChannelData?[0][0] = 0
+        handler.invoke(buffer: buffer, time: time)
+        clock.withLock { $0 = 3_000_000_000 }
+        handler.invoke(buffer: buffer, time: time)
+        XCTAssertEqual(handler.takeSignalDiagnosticEvent(), "sustained_silence")
+        XCTAssertNil(handler.takeSignalDiagnosticEvent())
+        buffer.frameLength = 0
+        handler.invoke(buffer: buffer, time: time)
+        XCTAssertNil(handler.takeSignalDiagnosticEvent(), "An empty callback is not signal resumption")
+        buffer.frameLength = 4
+        buffer.floatChannelData?[0][0] = 0.01
+        handler.invoke(buffer: buffer, time: time)
+        XCTAssertEqual(handler.takeSignalDiagnosticEvent(), "signal_resumed")
+        XCTAssertNil(handler.takeSignalDiagnosticEvent())
+
+        buffer.floatChannelData?[0][0] = 0
+        handler.invoke(buffer: buffer, time: time)
+        clock.withLock { $0 = 6_000_000_000 }
+        handler.invoke(buffer: buffer, time: time)
+        XCTAssertNil(handler.takeSignalDiagnosticEvent(), "Later pauses do not flood logs")
+        let snapshot = handler.signalSnapshot()
+        XCTAssertEqual(snapshot.callbacks, 7)
+        XCTAssertEqual(snapshot.silentBuffers, 4)
+        XCTAssertEqual(snapshot.nonzeroBuffers, 2)
+        XCTAssertEqual(snapshot.emptyBuffers, 1)
+        XCTAssertEqual(snapshot.invalidBuffers, 1)
+        XCTAssertEqual(snapshot.forwardedBuffers, 6)
+        XCTAssertEqual(snapshot.lastFrameCount, 4)
+        XCTAssertEqual(snapshot.lastChannelCount, 1)
+        XCTAssertEqual(snapshot.lastSampleRate, 48_000)
+        handler.clear()
+        XCTAssertNil(handler.takeSignalDiagnosticEvent())
+    }
+
+    func testUsableBufferRecordsCurrentConfigurationGeneration() throws {
+        let (buffer, time) = try makeBufferAndTime()
+        let configurationGeneration = OSAllocatedUnfairLock(initialState: UInt64(3))
+        let handler = MutableMicrophoneTapHandler(
+            configurationGenerationProvider: {
+                configurationGeneration.withLock { $0 }
+            }
+        ) { _, _ in }
+        handler.activateCallbackMonitoring()
+
+        handler.invoke(buffer: buffer, time: time)
+        XCTAssertEqual(handler.latestUsableBufferConfigurationGeneration(), 3)
+
+        configurationGeneration.withLock { $0 = 4 }
+        XCTAssertEqual(
+            handler.latestUsableBufferConfigurationGeneration(),
+            3,
+            "A route change after the last usable buffer must leave that buffer stamped stale"
+        )
+
+        handler.invoke(buffer: buffer, time: time)
+        XCTAssertEqual(handler.latestUsableBufferConfigurationGeneration(), 4)
+
+        handler.completeStartupConfigurationTracking()
+        configurationGeneration.withLock { $0 = 5 }
+        handler.invoke(buffer: buffer, time: time)
+        XCTAssertEqual(
+            handler.latestUsableBufferConfigurationGeneration(),
+            4,
+            "Steady-state callbacks should stop reading startup configuration generations."
+        )
+    }
+
+    private func makeBufferAndTime(
+        channels: AVAudioChannelCount = 1
+    ) throws -> (AVAudioPCMBuffer, AVAudioTime) {
+        let format = try XCTUnwrap(
+            AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: channels)
+        )
+        let buffer = try XCTUnwrap(
+            AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4_096)
+        )
+        buffer.frameLength = 4
+        for channel in 0..<Int(channels) {
+            for frame in 0..<4 { buffer.floatChannelData?[channel][frame] = 0 }
+        }
+        let time = AVAudioTime(sampleTime: 0, atRate: format.sampleRate)
+        return (buffer, time)
+    }
+}

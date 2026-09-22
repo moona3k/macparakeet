@@ -1,0 +1,49 @@
+{
+  "generatedAt": "2026-07-03T22:52:59-0700",
+  "prepareModelsDirectory": "~/Library/Application Support/FluidAudio/Models",
+  "defaultRepoLeaf": "~/Library/Application Support/FluidAudio/Models/speaker-diarization-coreml",
+  "fluidAudioCheckout": "../../../.build/checkouts/FluidAudio",
+  "fluidAudioVersion": "v0.15.4",
+  "required": [
+    {
+      "name": "Segmentation.mlmodelc",
+      "exists": true
+    },
+    {
+      "name": "FBank.mlmodelc",
+      "exists": true
+    },
+    {
+      "name": "Embedding.mlmodelc",
+      "exists": true
+    },
+    {
+      "name": "PldaRho.mlmodelc",
+      "exists": true
+    },
+    {
+      "name": "plda-parameters.json",
+      "exists": true
+    }
+  ],
+  "additionalPresent": [
+    {
+      "name": "config.json",
+      "exists": true
+    },
+    {
+      "name": "xvector-transform.json",
+      "exists": true
+    },
+    {
+      "name": "pyannote_segmentation.mlmodelc",
+      "exists": true
+    },
+    {
+      "name": "wespeaker_v2.mlmodelc",
+      "exists": true
+    }
+  ],
+  "fallbackLegacyLeafExists": "~/Library/Application Support/FluidAudio/Models/speaker-diarization",
+  "allRequiredPresent": true
+}

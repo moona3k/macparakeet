@@ -39,6 +39,8 @@ public final class TranscriptChatViewModel {
     // Multi-conversation state
     public var conversations: [ChatConversation] = []
     public var currentConversation: ChatConversation?
+    /// Live/unsaved chats keep their UUID when promoted to a stored conversation.
+    private var unsavedConversationID = UUID()
     public var showConversationPicker: Bool = false
 
     // Model selection state
@@ -122,7 +124,8 @@ public final class TranscriptChatViewModel {
         }
         currentProviderID = config.id
         if config.id == .localCLI {
-            let displayName = cliConfigStore
+            let displayName =
+                cliConfigStore
                 .flatMap { $0.load() }
                 .map { LocalCLITemplate.displayName(for: $0.commandTemplate) }
                 ?? "Custom CLI"
@@ -197,7 +200,8 @@ public final class TranscriptChatViewModel {
                 return
             }
             let title = String(text.prefix(50))
-            let conversation = ChatConversation(transcriptionId: transcriptionId, title: title)
+            let conversation = ChatConversation(
+                id: unsavedConversationID, transcriptionId: transcriptionId, title: title)
             do {
                 try conversationRepo.save(conversation)
                 currentConversation = conversation
@@ -231,8 +235,9 @@ public final class TranscriptChatViewModel {
     public func regenerateLastResponse() {
         guard !isStreaming, llmService != nil else { return }
         guard let last = messages.last,
-              last.role == .assistant,
-              !last.isStreaming else { return }
+            last.role == .assistant,
+            !last.isStreaming
+        else { return }
         guard chatHistory.last?.role == .assistant else { return }
 
         // Pop the assistant turn from both the visible thread and persisted
@@ -244,9 +249,10 @@ public final class TranscriptChatViewModel {
         errorMessage = nil
 
         guard let trailingUser = chatHistory.last,
-              trailingUser.role == .user,
-              let visibleUser = messages.last,
-              visibleUser.role == .user else { return }
+            trailingUser.role == .user,
+            let visibleUser = messages.last,
+            visibleUser.role == .user
+        else { return }
         let userPrompt = trailingUser.modelPromptOverride ?? visibleUser.modelPromptOverride ?? trailingUser.content
         let historyForRequest = Array(chatHistory.dropLast())
 
@@ -270,6 +276,7 @@ public final class TranscriptChatViewModel {
 
         // Capture context so the task can persist independently if detached (e.g. user clicks New Chat)
         let capturedConversationId = currentConversation?.id
+        let requestConversationID = capturedConversationId ?? unsavedConversationID
         let capturedHistory = chatHistory
         let repo = conversationRepo
 
@@ -282,7 +289,8 @@ public final class TranscriptChatViewModel {
                     transcript: transcript,
                     userNotes: userNotes,
                     history: historyForRequest,
-                    source: chatSource
+                    source: chatSource,
+                    conversationID: requestConversationID
                 )
                 for try await token in stream {
                     accumulated += token
@@ -417,7 +425,7 @@ public final class TranscriptChatViewModel {
 
         let firstUser = chatHistory.first(where: { $0.role == .user })?.content ?? "Meeting chat"
         let title = String(firstUser.prefix(50))
-        let conversation = ChatConversation(transcriptionId: transcriptionId, title: title)
+        let conversation = ChatConversation(id: unsavedConversationID, transcriptionId: transcriptionId, title: title)
 
         do {
             try conversationRepo.save(conversation)
@@ -438,6 +446,7 @@ public final class TranscriptChatViewModel {
         self.transcriptText = text
         self.transcriptionId = transcriptionId
         self.streamingAssistantID = nil
+        unsavedConversationID = UUID()
 
         guard let transcriptionId else {
             messages.removeAll()
@@ -494,6 +503,7 @@ public final class TranscriptChatViewModel {
         errorMessage = nil
         inputText = ""
         currentConversation = nil
+        unsavedConversationID = UUID()
 
         Telemetry.send(.chatConversationCreated)
         notifyConversationsChanged()
@@ -536,6 +546,7 @@ public final class TranscriptChatViewModel {
                 messages.removeAll()
                 chatHistory.removeAll()
                 currentConversation = nil
+                unsavedConversationID = UUID()
             }
             errorMessage = nil
             inputText = ""
@@ -572,6 +583,7 @@ public final class TranscriptChatViewModel {
         errorMessage = nil
         inputText = ""
         currentConversation = nil
+        unsavedConversationID = UUID()
 
         notifyConversationsChanged()
     }
@@ -601,7 +613,8 @@ public final class TranscriptChatViewModel {
 
     private func discardEmptyCurrentConversation() {
         guard let current = currentConversation,
-              current.messages == nil || current.messages?.isEmpty == true else { return }
+            current.messages == nil || current.messages?.isEmpty == true
+        else { return }
 
         guard let conversationRepo else {
             logger.error("Missing conversationRepo in discardEmptyCurrentConversation")

@@ -1,0 +1,15 @@
+{
+  "_about": "Speed + memory micro-benchmark, Apple M4 Pro / 48 GB / macOS 15, one engine at a time, uncontended. cold_start_s = wall to first transcript from a cold process (model load + ANE compile). steady_rtfx = audio_s/wall with one-time load removed (mp-cli: 1-file vs 24-file differencing on LibriSpeech test-clean; cohere: median FluidAudio per-file rtfx dropping the cold file 0). peak_rss_mb = /usr/bin/time -l maximum resident set size of the isolated child (whole CLI: Swift runtime + loaded model). Reproduce with speed_bench.py.",
+  "hardware": "Apple M4 Pro, 48 GB, macOS 15",
+  "engines": [
+    {"engine": "parakeet-v2",      "method": "mp-cli diff(1,24)", "cold_start_s": 0.55, "steady_rtfx": 90.4, "peak_rss_mb": 123},
+    {"engine": "parakeet-v3",      "method": "mp-cli diff(1,24)", "cold_start_s": 0.38, "steady_rtfx": 81.1, "peak_rss_mb": 131},
+    {"engine": "parakeet-unified", "method": "mp-cli diff(1,24)", "cold_start_s": 0.93, "steady_rtfx": 92.8, "peak_rss_mb": 115},
+    {"engine": "nemotron-en",      "method": "mp-cli diff(1,24)", "cold_start_s": 0.87, "steady_rtfx": 57.3, "peak_rss_mb": 141},
+    {"engine": "nemotron-multi",   "method": "mp-cli diff(1,24)", "cold_start_s": 0.70, "steady_rtfx": 60.9, "peak_rss_mb": 142},
+    {"engine": "whisper",          "method": "mp-cli diff(1,24)", "cold_start_s": 2.29, "steady_rtfx": 14.1, "peak_rss_mb": 274},
+    {"engine": "cohere",           "method": "fluidaudio per-file (drop file0), LibriSpeech test-clean", "cold_start_s": 73.45, "steady_rtfx": 11.3, "peak_rss_mb": 11897,
+     "rss_note": "10.7-11.6 GB across 2/8/12-file runs; constant w.r.t. file count -> model-resident working set, not harness accumulation. Measured via the FluidAudio CLI (same SDK MacParakeet would integrate). Decision-critical: viable only on 16 GB+ Macs.",
+     "steady_note": "11.3x on LibriSpeech test-clean (matches the full-set per-file median 10.55x); ~16x on shorter FLEURS-en utterances. Fixes the contaminated 0.5x batch RTFx in the full-set accuracy run."}
+  ]
+}

@@ -1,0 +1,393 @@
+2026-06-23T02:38:07.464Z dictation_diagnostics_session_start pid=48848 version=0.6.24 build=20260621193207 source=dist-xcodebuild-release commit=390e5eeda65b
+2026-06-23T03:11:09.886Z dictation_diagnostics_session_start pid=61164 version=0.6.24 build=20260621193207 source=dist-xcodebuild-release commit=390e5eeda65b
+2026-06-23T03:15:48.508Z parakeet_variant_switch_start to=v2 engine=parakeet
+2026-06-23T03:17:15.497Z parakeet_variant_switch_complete to=v2 duration_s=86.989
+2026-06-23T04:30:29.252Z meeting_mic_capture_starting requested_mode=raw default_input=present default_input_transport=usb
+2026-06-23T04:30:29.512Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.678 ducking_ms=0.000 output_format_ms=0.007 install_tap_ms=0.005 audio_engine_start_ms=144.577 total_ms=255.863
+2026-06-23T04:30:29.513Z shared_mic_engine_input_device_started source=system_default device=present transport=usb vpio=false set_device_ms=0.000 start_engine_ms=256.614
+2026-06-23T04:30:29.513Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T04:30:29.514Z meeting_mic_processing mode=raw
+2026-06-23T04:30:29.514Z meeting_mic_capture_started requested_mode=raw effective_mode=raw sr=48000.0 ch=2 default_input=present default_input_transport=usb
+2026-06-23T04:30:29.619Z meeting_mic_first_buffer sr=48000.0 ch=2 interleaved=false
+2026-06-23T04:30:31.555Z meeting_mic_capture_stopped default_input=present default_input_transport=usb
+2026-06-23T04:30:31.569Z shared_mic_engine_stopped
+2026-06-23T04:30:31.570Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T04:39:41.698Z dictation_preview_started engine=parakeet
+2026-06-23T04:39:41.699Z dictation_capture_start permission_status=3
+2026-06-23T04:39:41.703Z dictation_capture_starting
+2026-06-23T04:39:41.769Z media_pause_skipped reason=no_playing_session snapshot_ms=71
+2026-06-23T04:39:41.852Z dictation_capture_start_cancelled_during_subscribe
+2026-06-23T04:39:41.910Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.005 ducking_ms=0.000 output_format_ms=0.006 install_tap_ms=0.004 audio_engine_start_ms=143.708 total_ms=204.783
+2026-06-23T04:39:41.910Z shared_mic_engine_input_device_started source=system_default device=present transport=usb vpio=false set_device_ms=0.000 start_engine_ms=205.431
+2026-06-23T04:39:41.910Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T04:39:41.911Z dictation_capture_start_aborted reason="interrupted_during_subscribe"
+2026-06-23T04:39:41.929Z shared_mic_engine_stopped
+2026-06-23T04:39:41.930Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T04:39:43.253Z dictation_preview_started engine=parakeet
+2026-06-23T04:39:43.254Z dictation_capture_start permission_status=3
+2026-06-23T04:39:43.256Z dictation_capture_starting
+2026-06-23T04:39:43.307Z media_pause_skipped reason=no_playing_session snapshot_ms=54
+2026-06-23T04:39:43.465Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.004 ducking_ms=0.000 output_format_ms=0.006 install_tap_ms=0.004 audio_engine_start_ms=139.305 total_ms=205.534
+2026-06-23T04:39:43.466Z shared_mic_engine_input_device_started source=system_default device=present transport=usb vpio=false set_device_ms=0.000 start_engine_ms=206.369
+2026-06-23T04:39:43.467Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T04:39:43.467Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=usb sr=48000.0 ch=2
+2026-06-23T04:39:43.571Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=2 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T04:39:44.442Z dictation_preview_pass engine=parakeet ms=177 samples=11200 chars=11
+2026-06-23T04:39:45.406Z dictation_preview_pass engine=parakeet ms=139 samples=27200 chars=11
+2026-06-23T04:39:46.406Z dictation_preview_pass engine=parakeet ms=137 samples=43200 chars=16
+2026-06-23T04:39:47.410Z dictation_preview_pass engine=parakeet ms=138 samples=59200 chars=39
+2026-06-23T04:39:48.502Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T04:39:48.512Z dictation_preview_pass engine=parakeet ms=142 samples=76800 chars=39
+2026-06-23T04:39:49.510Z dictation_preview_pass engine=parakeet ms=136 samples=92800 chars=39
+2026-06-23T04:39:50.621Z dictation_preview_pass engine=parakeet ms=148 samples=110400 chars=61
+2026-06-23T04:39:51.713Z dictation_preview_pass engine=parakeet ms=143 samples=128000 chars=53
+2026-06-23T04:39:52.717Z dictation_preview_pass engine=parakeet ms=143 samples=144000 chars=80
+2026-06-23T04:39:53.524Z dictation_capture_heartbeat input_buffers=100 input_frames=480000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T04:39:53.822Z dictation_preview_pass engine=parakeet ms=150 samples=161600 chars=86
+2026-06-23T04:39:54.920Z dictation_preview_pass engine=parakeet ms=149 samples=179200 chars=82
+2026-06-23T04:39:55.914Z dictation_preview_pass engine=parakeet ms=140 samples=195200 chars=84
+2026-06-23T04:39:57.019Z dictation_preview_pass engine=parakeet ms=146 samples=212800 chars=84
+2026-06-23T04:39:58.117Z dictation_preview_pass engine=parakeet ms=146 samples=230400 chars=82
+2026-06-23T04:39:58.579Z dictation_capture_heartbeat input_buffers=151 input_frames=724800 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T04:39:59.125Z dictation_preview_pass engine=parakeet ms=151 samples=240000 chars=74
+2026-06-23T04:40:00.200Z dictation_preview_pass engine=parakeet ms=128 samples=240000 chars=62
+2026-06-23T04:40:01.078Z shared_mic_engine_stopped
+2026-06-23T04:40:01.079Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T04:40:01.080Z dictation_capture_stop sample_count=278400 effective_sample_count=278400 duration_s=17.400 wall_duration_s=17.613 file_bytes=1117696 input_buffers=175 output_buffers=174 input_frames=840000 max_rms=0.035903 max_level=0.180 non_silent_buffers=172 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-06-23T04:40:01.081Z dictation_transcribe_begin file_bytes=1117696
+2026-06-23T04:40:01.219Z dictation_transcribe_complete chars=86 words=16 engine=parakeet variant=v2
+2026-06-23T04:44:30.478Z dictation_preview_started engine=parakeet
+2026-06-23T04:44:30.480Z dictation_capture_start permission_status=3
+2026-06-23T04:44:30.482Z dictation_capture_starting
+2026-06-23T04:44:30.531Z media_pause_skipped reason=no_playing_session snapshot_ms=53
+2026-06-23T04:44:30.698Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.005 ducking_ms=0.000 output_format_ms=0.005 install_tap_ms=0.004 audio_engine_start_ms=143.345 total_ms=211.148
+2026-06-23T04:44:30.698Z shared_mic_engine_input_device_started source=system_default device=present transport=usb vpio=false set_device_ms=0.000 start_engine_ms=211.959
+2026-06-23T04:44:30.699Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T04:44:30.699Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=usb sr=48000.0 ch=2
+2026-06-23T04:44:30.804Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=2 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T04:44:31.616Z dictation_preview_pass engine=parakeet ms=119 samples=11200 chars=2
+2026-06-23T04:44:32.626Z dictation_preview_pass engine=parakeet ms=127 samples=27200 chars=0
+2026-06-23T04:44:33.621Z dictation_preview_pass engine=parakeet ms=119 samples=43200 chars=0
+2026-06-23T04:44:34.639Z dictation_preview_pass engine=parakeet ms=135 samples=59200 chars=0
+2026-06-23T04:44:35.340Z shared_mic_engine_stopped
+2026-06-23T04:44:35.342Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T04:44:35.343Z dictation_capture_stop sample_count=72000 effective_sample_count=72000 duration_s=4.500 wall_duration_s=4.643 file_bytes=292096 input_buffers=46 output_buffers=45 input_frames=220800 max_rms=0.008155 max_level=0.041 non_silent_buffers=46 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-06-23T04:50:45.787Z dictation_preview_started engine=parakeet
+2026-06-23T04:50:45.789Z dictation_capture_start permission_status=3
+2026-06-23T04:50:45.792Z dictation_capture_starting
+2026-06-23T04:50:45.854Z media_pause_skipped reason=no_playing_session snapshot_ms=62
+2026-06-23T04:50:46.035Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.008 ducking_ms=0.000 output_format_ms=0.008 install_tap_ms=0.005 audio_engine_start_ms=158.600 total_ms=237.747
+2026-06-23T04:50:46.035Z shared_mic_engine_input_device_started source=system_default device=present transport=usb vpio=false set_device_ms=0.000 start_engine_ms=238.577
+2026-06-23T04:50:46.036Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T04:50:46.036Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=usb sr=48000.0 ch=2
+2026-06-23T04:50:46.140Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=2 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T04:50:46.979Z dictation_preview_pass engine=parakeet ms=146 samples=11200 chars=2
+2026-06-23T04:50:47.959Z dictation_preview_pass engine=parakeet ms=123 samples=27200 chars=0
+2026-06-23T04:50:48.973Z dictation_preview_pass engine=parakeet ms=134 samples=43200 chars=7
+2026-06-23T04:50:49.966Z dictation_preview_pass engine=parakeet ms=125 samples=59200 chars=25
+2026-06-23T04:50:51.063Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T04:50:51.077Z dictation_preview_pass engine=parakeet ms=137 samples=76800 chars=33
+2026-06-23T04:50:52.091Z dictation_preview_pass engine=parakeet ms=149 samples=92800 chars=47
+2026-06-23T04:50:53.185Z dictation_preview_pass engine=parakeet ms=144 samples=110400 chars=60
+2026-06-23T04:50:53.957Z shared_mic_engine_stopped
+2026-06-23T04:50:53.957Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T04:50:53.958Z dictation_capture_stop sample_count=124800 effective_sample_count=124800 duration_s=7.800 wall_duration_s=7.922 file_bytes=503296 input_buffers=79 output_buffers=78 input_frames=379200 max_rms=0.070407 max_level=0.352 non_silent_buffers=62 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-06-23T04:50:53.959Z dictation_transcribe_begin file_bytes=503296
+2026-06-23T04:50:54.066Z dictation_transcribe_complete chars=60 words=10 engine=parakeet variant=v2
+2026-06-23T05:12:44.971Z dictation_preview_started engine=parakeet
+2026-06-23T05:12:44.973Z dictation_capture_start permission_status=3
+2026-06-23T05:12:44.976Z dictation_capture_starting
+2026-06-23T05:12:45.075Z media_pause_sent snapshot_ms=96
+2026-06-23T05:12:45.170Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.006 ducking_ms=0.000 output_format_ms=0.011 install_tap_ms=0.005 audio_engine_start_ms=96.218 total_ms=187.578
+2026-06-23T05:12:45.173Z shared_mic_engine_input_device_started source=system_default device=present transport=usb vpio=false set_device_ms=0.000 start_engine_ms=189.589
+2026-06-23T05:12:45.173Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:12:45.176Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=usb sr=48000.0 ch=2
+2026-06-23T05:12:45.268Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=2 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T05:12:50.187Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:12:55.231Z dictation_capture_heartbeat input_buffers=100 input_frames=480000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:13:00.235Z dictation_capture_heartbeat input_buffers=150 input_frames=720000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:13:05.273Z dictation_capture_heartbeat input_buffers=201 input_frames=964800 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:13:10.308Z dictation_capture_heartbeat input_buffers=251 input_frames=1204800 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:13:15.321Z dictation_capture_heartbeat input_buffers=301 input_frames=1444800 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:13:20.373Z dictation_capture_heartbeat input_buffers=352 input_frames=1689600 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:13:24.779Z shared_mic_engine_stopped
+2026-06-23T05:13:24.780Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:13:24.781Z dictation_capture_stop sample_count=630400 effective_sample_count=630400 duration_s=39.400 wall_duration_s=39.606 file_bytes=2525696 input_buffers=395 output_buffers=394 input_frames=1896000 max_rms=0.142834 max_level=0.714 non_silent_buffers=329 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-06-23T05:13:24.781Z dictation_transcribe_begin file_bytes=2525696
+2026-06-23T05:13:24.836Z media_resume_sent
+2026-06-23T05:13:24.979Z dictation_transcribe_complete chars=155 words=28 engine=parakeet variant=v2
+2026-06-23T05:13:43.291Z dictation_preview_started engine=parakeet
+2026-06-23T05:13:43.293Z dictation_capture_start permission_status=3
+2026-06-23T05:13:43.296Z dictation_capture_starting
+2026-06-23T05:13:43.364Z media_pause_sent snapshot_ms=67
+2026-06-23T05:13:43.463Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.006 ducking_ms=0.000 output_format_ms=0.009 install_tap_ms=0.005 audio_engine_start_ms=80.787 total_ms=161.823
+2026-06-23T05:13:43.464Z shared_mic_engine_input_device_started source=system_default device=present transport=usb vpio=false set_device_ms=0.000 start_engine_ms=162.488
+2026-06-23T05:13:43.464Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:13:43.464Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=usb sr=48000.0 ch=2
+2026-06-23T05:13:43.568Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=2 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T05:13:48.509Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:13:53.547Z dictation_capture_heartbeat input_buffers=100 input_frames=480000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:13:56.192Z shared_mic_engine_stopped
+2026-06-23T05:13:56.193Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:13:56.194Z dictation_capture_stop sample_count=201600 effective_sample_count=201600 duration_s=12.600 wall_duration_s=12.729 file_bytes=810496 input_buffers=127 output_buffers=126 input_frames=609600 max_rms=0.107011 max_level=0.535 non_silent_buffers=127 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-06-23T05:13:56.254Z media_resume_sent
+2026-06-23T05:14:10.212Z dictation_preview_started engine=parakeet
+2026-06-23T05:14:10.214Z dictation_capture_start permission_status=3
+2026-06-23T05:14:10.217Z dictation_capture_starting
+2026-06-23T05:14:10.291Z media_pause_sent snapshot_ms=72
+2026-06-23T05:14:10.394Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=6.271 ducking_ms=0.000 output_format_ms=0.013 install_tap_ms=0.006 audio_engine_start_ms=80.195 total_ms=172.086
+2026-06-23T05:14:10.395Z shared_mic_engine_input_device_started source=system_default device=present transport=usb vpio=false set_device_ms=0.000 start_engine_ms=172.785
+2026-06-23T05:14:10.395Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:14:10.396Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=usb sr=48000.0 ch=2
+2026-06-23T05:14:10.500Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=2 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T05:14:15.448Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:14:20.452Z dictation_capture_heartbeat input_buffers=100 input_frames=480000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:14:25.461Z dictation_capture_heartbeat input_buffers=150 input_frames=720000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:14:30.375Z shared_mic_engine_stopped
+2026-06-23T05:14:30.376Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:14:30.378Z dictation_capture_stop sample_count=316800 effective_sample_count=316800 duration_s=19.800 wall_duration_s=19.982 file_bytes=1271296 input_buffers=199 output_buffers=198 input_frames=955200 max_rms=0.134530 max_level=0.673 non_silent_buffers=188 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-06-23T05:14:30.433Z media_resume_sent
+2026-06-23T05:15:10.581Z dictation_preview_started engine=parakeet
+2026-06-23T05:15:10.584Z dictation_capture_start permission_status=3
+2026-06-23T05:15:10.585Z dictation_capture_starting
+2026-06-23T05:15:10.652Z media_pause_sent snapshot_ms=71
+2026-06-23T05:15:10.750Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.004 ducking_ms=0.000 output_format_ms=0.007 install_tap_ms=0.005 audio_engine_start_ms=81.225 total_ms=160.310
+2026-06-23T05:15:10.751Z shared_mic_engine_input_device_started source=system_default device=present transport=usb vpio=false set_device_ms=0.000 start_engine_ms=160.885
+2026-06-23T05:15:10.751Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:15:10.752Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=usb sr=48000.0 ch=2
+2026-06-23T05:15:10.856Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=2 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T05:15:15.776Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:15:19.169Z shared_mic_engine_stopped
+2026-06-23T05:15:19.170Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:15:19.171Z dictation_capture_stop sample_count=131200 effective_sample_count=131200 duration_s=8.200 wall_duration_s=8.419 file_bytes=528896 input_buffers=83 output_buffers=82 input_frames=398400 max_rms=0.010884 max_level=0.054 non_silent_buffers=83 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-06-23T05:15:19.227Z media_resume_sent
+2026-06-23T05:20:45.674Z dictation_preview_started engine=parakeet
+2026-06-23T05:20:45.675Z dictation_capture_start permission_status=3
+2026-06-23T05:20:45.678Z dictation_capture_starting
+2026-06-23T05:20:45.745Z media_pause_sent snapshot_ms=60
+2026-06-23T05:20:45.842Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.005 ducking_ms=0.000 output_format_ms=0.009 install_tap_ms=0.005 audio_engine_start_ms=81.983 total_ms=160.984
+2026-06-23T05:20:45.842Z shared_mic_engine_input_device_started source=system_default device=present transport=usb vpio=false set_device_ms=0.000 start_engine_ms=161.679
+2026-06-23T05:20:45.843Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:20:45.843Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=usb sr=48000.0 ch=2
+2026-06-23T05:20:45.947Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=2 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T05:20:50.862Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:20:56.248Z dictation_capture_heartbeat input_buffers=104 input_frames=499200 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:20:57.267Z shared_mic_engine_stopped
+2026-06-23T05:20:57.268Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:20:57.269Z dictation_capture_stop sample_count=180800 effective_sample_count=180800 duration_s=11.300 wall_duration_s=11.426 file_bytes=727296 input_buffers=114 output_buffers=113 input_frames=547200 max_rms=0.075325 max_level=0.377 non_silent_buffers=114 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-06-23T05:20:57.270Z dictation_transcribe_begin file_bytes=727296
+2026-06-23T05:20:57.315Z media_resume_sent
+2026-06-23T05:20:57.405Z dictation_transcribe_complete chars=33 words=7 engine=parakeet variant=v2
+2026-06-23T05:21:16.077Z dictation_preview_started engine=parakeet
+2026-06-23T05:21:16.080Z dictation_capture_start permission_status=3
+2026-06-23T05:21:16.081Z dictation_capture_starting
+2026-06-23T05:21:16.143Z media_pause_sent snapshot_ms=66
+2026-06-23T05:21:16.241Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.005 ducking_ms=0.000 output_format_ms=0.009 install_tap_ms=0.005 audio_engine_start_ms=79.751 total_ms=156.890
+2026-06-23T05:21:16.242Z shared_mic_engine_input_device_started source=system_default device=present transport=usb vpio=false set_device_ms=0.000 start_engine_ms=157.580
+2026-06-23T05:21:16.242Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:21:16.243Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=usb sr=48000.0 ch=2
+2026-06-23T05:21:16.347Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=2 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T05:21:21.575Z dictation_capture_heartbeat input_buffers=53 input_frames=254400 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:21:22.089Z shared_mic_engine_stopped
+2026-06-23T05:21:22.090Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:21:22.090Z dictation_capture_stop sample_count=91200 effective_sample_count=91200 duration_s=5.700 wall_duration_s=5.848 file_bytes=368896 input_buffers=58 output_buffers=57 input_frames=278400 max_rms=0.077540 max_level=0.388 non_silent_buffers=58 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-06-23T05:21:22.091Z dictation_transcribe_begin file_bytes=368896
+2026-06-23T05:21:22.129Z media_resume_sent
+2026-06-23T05:21:22.227Z dictation_transcribe_complete chars=69 words=13 engine=parakeet variant=v2
+2026-06-23T05:21:33.049Z dictation_preview_started engine=parakeet
+2026-06-23T05:21:33.051Z dictation_capture_start permission_status=3
+2026-06-23T05:21:33.053Z dictation_capture_starting
+2026-06-23T05:21:33.120Z media_pause_sent snapshot_ms=66
+2026-06-23T05:21:33.218Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.004 ducking_ms=0.000 output_format_ms=0.008 install_tap_ms=0.005 audio_engine_start_ms=80.095 total_ms=160.798
+2026-06-23T05:21:33.219Z shared_mic_engine_input_device_started source=system_default device=present transport=usb vpio=false set_device_ms=0.000 start_engine_ms=161.552
+2026-06-23T05:21:33.219Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:21:33.219Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=usb sr=48000.0 ch=2
+2026-06-23T05:21:33.323Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=2 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T05:21:38.472Z dictation_capture_heartbeat input_buffers=52 input_frames=249600 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:21:40.004Z shared_mic_engine_stopped
+2026-06-23T05:21:40.005Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:21:40.006Z dictation_capture_stop sample_count=105600 effective_sample_count=105600 duration_s=6.600 wall_duration_s=6.787 file_bytes=426496 input_buffers=67 output_buffers=66 input_frames=321600 max_rms=0.099018 max_level=0.495 non_silent_buffers=67 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-06-23T05:21:40.050Z media_resume_sent
+2026-06-23T05:21:47.324Z meeting_mic_capture_starting requested_mode=raw default_input=present default_input_transport=usb
+2026-06-23T05:21:47.465Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.004 ducking_ms=0.000 output_format_ms=0.004 install_tap_ms=0.004 audio_engine_start_ms=74.649 total_ms=137.521
+2026-06-23T05:21:47.466Z shared_mic_engine_input_device_started source=system_default device=present transport=usb vpio=false set_device_ms=0.000 start_engine_ms=138.229
+2026-06-23T05:21:47.466Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:21:47.467Z meeting_mic_processing mode=raw
+2026-06-23T05:21:47.467Z meeting_mic_capture_started requested_mode=raw effective_mode=raw sr=48000.0 ch=2 default_input=present default_input_transport=usb
+2026-06-23T05:21:47.571Z meeting_mic_first_buffer sr=48000.0 ch=2 interleaved=false
+2026-06-23T05:21:49.624Z meeting_mic_capture_stopped default_input=present default_input_transport=usb
+2026-06-23T05:21:49.644Z shared_mic_engine_stopped
+2026-06-23T05:21:49.645Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:22:07.499Z dictation_preview_started engine=parakeet
+2026-06-23T05:22:07.499Z dictation_capture_start permission_status=3
+2026-06-23T05:22:07.500Z dictation_capture_starting
+2026-06-23T05:22:07.552Z media_pause_sent snapshot_ms=54
+2026-06-23T05:22:07.654Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.005 ducking_ms=0.000 output_format_ms=0.011 install_tap_ms=0.006 audio_engine_start_ms=82.741 total_ms=150.762
+2026-06-23T05:22:07.655Z shared_mic_engine_input_device_started source=system_default device=present transport=usb vpio=false set_device_ms=0.000 start_engine_ms=151.453
+2026-06-23T05:22:07.655Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:22:07.656Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=usb sr=48000.0 ch=2
+2026-06-23T05:22:07.759Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=2 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T05:22:12.711Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:22:13.446Z shared_mic_engine_stopped
+2026-06-23T05:22:13.446Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:22:13.447Z dictation_capture_stop sample_count=89600 effective_sample_count=89600 duration_s=5.600 wall_duration_s=5.791 file_bytes=362496 input_buffers=57 output_buffers=56 input_frames=273600 max_rms=0.073968 max_level=0.370 non_silent_buffers=52 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-06-23T05:22:13.447Z dictation_transcribe_begin file_bytes=362496
+2026-06-23T05:22:13.489Z media_resume_sent
+2026-06-23T05:22:13.575Z dictation_transcribe_complete chars=30 words=6 engine=parakeet variant=v2
+2026-06-23T05:22:20.021Z dictation_preview_started engine=parakeet
+2026-06-23T05:22:20.022Z dictation_capture_start permission_status=3
+2026-06-23T05:22:20.023Z dictation_capture_starting
+2026-06-23T05:22:20.072Z media_pause_sent snapshot_ms=48
+2026-06-23T05:22:20.176Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.005 ducking_ms=0.000 output_format_ms=0.009 install_tap_ms=0.006 audio_engine_start_ms=85.376 total_ms=149.707
+2026-06-23T05:22:20.176Z shared_mic_engine_input_device_started source=system_default device=present transport=usb vpio=false set_device_ms=0.000 start_engine_ms=150.494
+2026-06-23T05:22:20.177Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:22:20.177Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=usb sr=48000.0 ch=2
+2026-06-23T05:22:20.281Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=2 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T05:22:25.190Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:22:30.220Z dictation_capture_heartbeat input_buffers=100 input_frames=480000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:22:32.711Z shared_mic_engine_stopped
+2026-06-23T05:22:32.712Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:22:32.712Z dictation_capture_stop sample_count=198400 effective_sample_count=198400 duration_s=12.400 wall_duration_s=12.535 file_bytes=797696 input_buffers=125 output_buffers=124 input_frames=600000 max_rms=0.095114 max_level=0.476 non_silent_buffers=115 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-06-23T05:22:32.764Z media_resume_sent
+2026-06-23T05:22:45.721Z dictation_preview_started engine=parakeet
+2026-06-23T05:22:45.722Z dictation_capture_start permission_status=3
+2026-06-23T05:22:45.723Z dictation_capture_starting
+2026-06-23T05:22:45.747Z dictation_capture_start_cancelled_during_subscribe
+2026-06-23T05:22:45.748Z media_pause_skipped reason=snapshot_unavailable snapshot_ms=1
+2026-06-23T05:22:45.873Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.005 ducking_ms=0.000 output_format_ms=0.007 install_tap_ms=0.006 audio_engine_start_ms=79.376 total_ms=146.618
+2026-06-23T05:22:45.873Z shared_mic_engine_input_device_started source=system_default device=present transport=usb vpio=false set_device_ms=0.000 start_engine_ms=147.339
+2026-06-23T05:22:45.874Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:22:45.874Z dictation_capture_start_aborted reason="interrupted_during_subscribe"
+2026-06-23T05:22:45.893Z shared_mic_engine_stopped
+2026-06-23T05:22:45.893Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:22:46.020Z dictation_preview_started engine=parakeet
+2026-06-23T05:22:46.021Z dictation_capture_start permission_status=3
+2026-06-23T05:22:46.022Z dictation_capture_starting
+2026-06-23T05:22:46.071Z media_pause_sent snapshot_ms=51
+2026-06-23T05:22:46.170Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.005 ducking_ms=0.000 output_format_ms=0.007 install_tap_ms=0.004 audio_engine_start_ms=82.107 total_ms=146.237
+2026-06-23T05:22:46.171Z shared_mic_engine_input_device_started source=system_default device=present transport=usb vpio=false set_device_ms=0.000 start_engine_ms=146.674
+2026-06-23T05:22:46.171Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:22:46.172Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=usb sr=48000.0 ch=2
+2026-06-23T05:22:46.276Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=2 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T05:22:51.184Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:22:53.542Z shared_mic_engine_stopped
+2026-06-23T05:22:53.542Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:22:53.543Z dictation_capture_stop sample_count=115200 effective_sample_count=115200 duration_s=7.200 wall_duration_s=7.371 file_bytes=464896 input_buffers=73 output_buffers=72 input_frames=350400 max_rms=0.055815 max_level=0.279 non_silent_buffers=73 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-06-23T05:22:53.544Z dictation_transcribe_begin file_bytes=464896
+2026-06-23T05:22:53.587Z media_resume_sent
+2026-06-23T05:22:53.672Z dictation_transcribe_complete chars=42 words=8 engine=parakeet variant=v2
+2026-06-23T05:23:08.284Z dictation_preview_started engine=parakeet
+2026-06-23T05:23:08.285Z dictation_capture_start permission_status=3
+2026-06-23T05:23:08.286Z dictation_capture_starting
+2026-06-23T05:23:08.343Z media_pause_sent snapshot_ms=60
+2026-06-23T05:23:08.444Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.004 ducking_ms=0.000 output_format_ms=0.009 install_tap_ms=0.004 audio_engine_start_ms=81.458 total_ms=153.534
+2026-06-23T05:23:08.444Z shared_mic_engine_input_device_started source=system_default device=present transport=usb vpio=false set_device_ms=0.000 start_engine_ms=154.260
+2026-06-23T05:23:08.445Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:23:08.445Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=usb sr=48000.0 ch=2
+2026-06-23T05:23:08.549Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=2 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T05:23:13.466Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:23:18.482Z dictation_capture_heartbeat input_buffers=100 input_frames=480000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:23:23.513Z dictation_capture_heartbeat input_buffers=150 input_frames=720000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:23:24.369Z shared_mic_engine_stopped
+2026-06-23T05:23:24.370Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:23:24.371Z dictation_capture_stop sample_count=252800 effective_sample_count=252800 duration_s=15.800 wall_duration_s=15.925 file_bytes=1015296 input_buffers=159 output_buffers=158 input_frames=763200 max_rms=0.075488 max_level=0.377 non_silent_buffers=159 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-06-23T05:23:24.371Z dictation_transcribe_begin file_bytes=1015296
+2026-06-23T05:23:24.415Z media_resume_sent
+2026-06-23T05:23:24.526Z dictation_transcribe_complete chars=51 words=11 engine=parakeet variant=v2
+2026-06-23T05:23:42.925Z dictation_preview_started engine=parakeet
+2026-06-23T05:23:42.927Z dictation_capture_start permission_status=3
+2026-06-23T05:23:42.929Z dictation_capture_starting
+2026-06-23T05:23:42.990Z media_pause_sent snapshot_ms=59
+2026-06-23T05:23:43.096Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.004 ducking_ms=0.000 output_format_ms=0.012 install_tap_ms=0.006 audio_engine_start_ms=87.206 total_ms=161.570
+2026-06-23T05:23:43.097Z shared_mic_engine_input_device_started source=system_default device=present transport=usb vpio=false set_device_ms=0.000 start_engine_ms=162.290
+2026-06-23T05:23:43.097Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:23:43.098Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=usb sr=48000.0 ch=2
+2026-06-23T05:23:43.201Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=2 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T05:23:48.120Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:23:53.161Z dictation_capture_heartbeat input_buffers=100 input_frames=480000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:23:58.194Z dictation_capture_heartbeat input_buffers=150 input_frames=720000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:24:03.207Z dictation_capture_heartbeat input_buffers=201 input_frames=964800 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:24:08.214Z dictation_capture_heartbeat input_buffers=251 input_frames=1204800 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:24:12.940Z shared_mic_engine_stopped
+2026-06-23T05:24:12.941Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:24:12.941Z dictation_capture_stop sample_count=475200 effective_sample_count=475200 duration_s=29.700 wall_duration_s=29.843 file_bytes=1904896 input_buffers=298 output_buffers=297 input_frames=1430400 max_rms=0.142264 max_level=0.711 non_silent_buffers=263 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-06-23T05:24:12.942Z dictation_transcribe_begin file_bytes=1904896
+2026-06-23T05:24:12.973Z media_resume_sent
+2026-06-23T05:24:13.158Z dictation_transcribe_complete chars=274 words=48 engine=parakeet variant=v2
+2026-06-23T05:24:35.432Z dictation_preview_started engine=parakeet
+2026-06-23T05:24:35.435Z dictation_capture_start permission_status=3
+2026-06-23T05:24:35.437Z dictation_capture_starting
+2026-06-23T05:24:35.496Z media_pause_sent snapshot_ms=58
+2026-06-23T05:24:35.600Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.005 ducking_ms=0.000 output_format_ms=0.009 install_tap_ms=0.006 audio_engine_start_ms=85.563 total_ms=157.747
+2026-06-23T05:24:35.600Z shared_mic_engine_input_device_started source=system_default device=present transport=usb vpio=false set_device_ms=0.000 start_engine_ms=158.456
+2026-06-23T05:24:35.601Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:24:35.601Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=usb sr=48000.0 ch=2
+2026-06-23T05:24:35.705Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=2 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T05:24:40.636Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:24:45.688Z dictation_capture_heartbeat input_buffers=100 input_frames=480000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:24:46.949Z shared_mic_engine_stopped
+2026-06-23T05:24:46.951Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:24:46.952Z dictation_capture_stop sample_count=179200 effective_sample_count=179200 duration_s=11.200 wall_duration_s=11.351 file_bytes=720896 input_buffers=113 output_buffers=112 input_frames=542400 max_rms=0.093582 max_level=0.468 non_silent_buffers=113 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-06-23T05:24:46.953Z dictation_transcribe_begin file_bytes=720896
+2026-06-23T05:24:46.997Z media_resume_sent
+2026-06-23T05:24:47.096Z dictation_transcribe_complete chars=89 words=16 engine=parakeet variant=v2
+2026-06-23T05:25:48.538Z dictation_preview_started engine=parakeet
+2026-06-23T05:25:48.540Z dictation_capture_start permission_status=3
+2026-06-23T05:25:48.543Z dictation_capture_starting
+2026-06-23T05:25:48.611Z media_pause_sent snapshot_ms=65
+2026-06-23T05:25:48.713Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.005 ducking_ms=0.000 output_format_ms=0.011 install_tap_ms=0.005 audio_engine_start_ms=82.723 total_ms=164.910
+2026-06-23T05:25:48.713Z shared_mic_engine_input_device_started source=system_default device=present transport=usb vpio=false set_device_ms=0.000 start_engine_ms=165.581
+2026-06-23T05:25:48.714Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:25:48.714Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=usb sr=48000.0 ch=2
+2026-06-23T05:25:48.818Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=2 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T05:25:53.753Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:25:58.783Z dictation_capture_heartbeat input_buffers=100 input_frames=480000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:26:00.418Z shared_mic_engine_stopped
+2026-06-23T05:26:00.420Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:26:00.421Z dictation_capture_stop sample_count=184000 effective_sample_count=184000 duration_s=11.500 wall_duration_s=11.706 file_bytes=740096 input_buffers=116 output_buffers=115 input_frames=556800 max_rms=0.133293 max_level=0.666 non_silent_buffers=83 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-06-23T05:26:00.421Z dictation_transcribe_begin file_bytes=740096
+2026-06-23T05:26:00.469Z media_resume_sent
+2026-06-23T05:26:00.575Z dictation_transcribe_complete chars=108 words=20 engine=parakeet variant=v2
+2026-06-23T05:26:56.260Z dictation_preview_started engine=parakeet
+2026-06-23T05:26:56.263Z dictation_capture_start permission_status=3
+2026-06-23T05:26:56.266Z dictation_capture_starting
+2026-06-23T05:26:56.332Z media_pause_sent snapshot_ms=64
+2026-06-23T05:26:56.429Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.004 ducking_ms=0.000 output_format_ms=0.008 install_tap_ms=0.006 audio_engine_start_ms=79.361 total_ms=157.908
+2026-06-23T05:26:56.429Z shared_mic_engine_input_device_started source=system_default device=present transport=usb vpio=false set_device_ms=0.000 start_engine_ms=158.612
+2026-06-23T05:26:56.430Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:26:56.430Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=usb sr=48000.0 ch=2
+2026-06-23T05:26:56.534Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=2 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T05:27:01.443Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:27:06.492Z dictation_capture_heartbeat input_buffers=100 input_frames=480000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:27:11.529Z dictation_capture_heartbeat input_buffers=150 input_frames=720000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:27:16.577Z dictation_capture_heartbeat input_buffers=201 input_frames=964800 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:27:21.582Z dictation_capture_heartbeat input_buffers=251 input_frames=1204800 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:27:26.594Z dictation_capture_heartbeat input_buffers=301 input_frames=1444800 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:27:29.444Z shared_mic_engine_stopped
+2026-06-23T05:27:29.444Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:27:29.445Z dictation_capture_stop sample_count=524800 effective_sample_count=524800 duration_s=32.800 wall_duration_s=33.014 file_bytes=2103296 input_buffers=329 output_buffers=328 input_frames=1579200 max_rms=0.224418 max_level=1.000 non_silent_buffers=285 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-06-23T05:27:29.445Z dictation_transcribe_begin file_bytes=2103296
+2026-06-23T05:27:29.487Z media_resume_sent
+2026-06-23T05:27:29.671Z dictation_transcribe_complete chars=368 words=62 engine=parakeet variant=v2
+2026-06-23T05:37:38.316Z dictation_preview_started engine=parakeet
+2026-06-23T05:37:38.318Z dictation_capture_start permission_status=3
+2026-06-23T05:37:38.319Z dictation_capture_starting
+2026-06-23T05:37:38.372Z media_pause_sent snapshot_ms=56
+2026-06-23T05:37:38.470Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.004 ducking_ms=0.000 output_format_ms=0.006 install_tap_ms=0.004 audio_engine_start_ms=80.185 total_ms=148.407
+2026-06-23T05:37:38.470Z shared_mic_engine_input_device_started source=system_default device=present transport=usb vpio=false set_device_ms=0.000 start_engine_ms=149.005
+2026-06-23T05:37:38.471Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:37:38.471Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=usb sr=48000.0 ch=2
+2026-06-23T05:37:38.575Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=2 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T05:37:43.492Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:37:48.528Z dictation_capture_heartbeat input_buffers=100 input_frames=480000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:37:53.563Z dictation_capture_heartbeat input_buffers=150 input_frames=720000 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:37:58.613Z dictation_capture_heartbeat input_buffers=201 input_frames=964800 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:38:03.633Z dictation_capture_heartbeat input_buffers=251 input_frames=1204800 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:38:08.639Z dictation_capture_heartbeat input_buffers=301 input_frames=1444800 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:38:13.683Z dictation_capture_heartbeat input_buffers=352 input_frames=1689600 isRunning=true default_input=present default_input_transport=usb
+2026-06-23T05:38:17.754Z shared_mic_engine_stopped
+2026-06-23T05:38:17.755Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T05:38:17.756Z dictation_capture_stop sample_count=625600 effective_sample_count=625600 duration_s=39.100 wall_duration_s=39.284 file_bytes=2506496 input_buffers=392 output_buffers=391 input_frames=1881600 max_rms=0.124495 max_level=0.622 non_silent_buffers=335 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-06-23T05:38:17.756Z dictation_transcribe_begin file_bytes=2506496
+2026-06-23T05:38:17.796Z media_resume_sent
+2026-06-23T05:38:17.959Z dictation_transcribe_complete chars=322 words=58 engine=parakeet variant=v2

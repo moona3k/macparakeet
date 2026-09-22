@@ -5,6 +5,8 @@ import MacParakeetViewModels
 
 struct MeetingsView: View {
     @Bindable var viewModel: MeetingsWorkspaceViewModel
+    var meetingSplitViewModel: MeetingSplitViewModel? = nil
+    var meetingImportViewModel: MeetingImportViewModel? = nil
 
     var onRecordMeeting: () -> Void
     var onPauseToggleMeeting: (() -> Void)?
@@ -15,13 +17,23 @@ struct MeetingsView: View {
 
     @State private var audioSaveErrorMessage: String?
     @State private var pendingDeleteAudio: Transcription?
+    @State private var pendingDeleteMeeting: Transcription?
+    @State private var splitTarget: Transcription?
+    @State private var splitOperationId: UUID?
+    @State private var classificationTarget: Transcription?
     @State private var showingAskPromptsSheet = false
     @State private var showingPromptLibrary = false
+    @State private var showingMeetingImport = false
+    @FocusState private var recentMeetingsSelectionFocused: Bool
 
     private static let rightRailWidth: CGFloat = 280
     private static let twoColumnMinimumWidth: CGFloat = 1_100
 
     var body: some View {
+        sheetContent
+    }
+
+    private var layoutContent: some View {
         GeometryReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
@@ -36,69 +48,181 @@ struct MeetingsView: View {
                 .padding(.bottom, DesignSystem.Spacing.xl)
                 .frame(maxWidth: 1180, alignment: .topLeading)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            // Center the width-capped content column so extra window width
+            // becomes even margins instead of piling up on the right.
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(DesignSystem.Colors.contentBackground)
         }
-        .onAppear {
-            viewModel.refreshIfNeeded()
-        }
-        .onChange(of: viewModel.settingsViewModel.calendarAutoStartMode) { _, _ in
-            viewModel.refreshUpcomingEvents()
-        }
-        .onChange(of: viewModel.settingsViewModel.calendarPermissionStatus) { _, _ in
-            viewModel.refreshUpcomingEvents()
-        }
-        .onChange(of: viewModel.settingsViewModel.meetingTriggerFilter) { _, _ in
-            viewModel.refreshUpcomingEvents()
-        }
-        .onChange(of: viewModel.settingsViewModel.calendarExcludedIdentifiers) { _, _ in
-            viewModel.refreshUpcomingEvents()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
-            viewModel.refreshUpcomingEvents()
-        }
-        .alert(
-            "Save Failed",
-            isPresented: Binding(
-                get: { audioSaveErrorMessage != nil },
-                set: { if !$0 { audioSaveErrorMessage = nil } }
-            )
-        ) {
-            Button("OK", role: .cancel) {
-                audioSaveErrorMessage = nil
+    }
+
+    private var interactionContent: some View {
+        layoutContent
+            .onAppear {
+                viewModel.refreshIfNeeded()
             }
-        } message: {
-            Text(audioSaveErrorMessage ?? "Unable to save meeting audio.")
-        }
-        .alert(
-            "Delete Meeting Audio?",
-            isPresented: Binding(
-                get: { pendingDeleteAudio != nil },
-                set: { if !$0 { pendingDeleteAudio = nil } }
-            )
-        ) {
-            Button("Cancel", role: .cancel) {}
-            Button("Delete Audio", role: .destructive) {
-                if let transcription = pendingDeleteAudio {
-                    viewModel.recentMeetingsViewModel.deleteMeetingAudio(transcription)
+            .focusable(viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled)
+            .focused($recentMeetingsSelectionFocused)
+            // Keep keyboard focus (for ⌘A / Delete) but suppress the system
+            // focus ring when entering selection mode.
+            .focusEffectDisabled(viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled)
+            .onChange(of: viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled) { _, enabled in
+                if enabled {
+                    recentMeetingsSelectionFocused = true
                 }
             }
-        } message: {
-            Text("The transcript stays in Meetings. Playback and retranscription will be unavailable unless you saved a copy.")
-        }
-        .sheet(isPresented: $showingAskPromptsSheet, onDismiss: {
-            viewModel.quickPromptsViewModel.cancelCreating()
-            viewModel.quickPromptsViewModel.editingPrompt = nil
-            viewModel.refreshQuickPrompts()
-        }) {
-            AskPromptsSheet(viewModel: viewModel.quickPromptsViewModel)
-        }
-        .sheet(isPresented: $showingPromptLibrary, onDismiss: {
-            viewModel.promptsViewModel.editingPrompt = nil
-            viewModel.refreshAutoNotes()
-        }) {
-            PromptLibraryView(viewModel: viewModel.promptsViewModel)
-        }
+            .animation(
+                .easeInOut(duration: 0.16),
+                value: viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled
+            )
+            .onKeyPress(keys: ["a", "A", .delete, .deleteForward]) { press in
+                handleRecentMeetingsSelectionKeyPress(press)
+            }
+            .onChange(of: viewModel.settingsViewModel.calendarAutoStartMode) { _, _ in
+                viewModel.refreshUpcomingEvents()
+            }
+            .onChange(of: viewModel.settingsViewModel.calendarPermissionStatus) { _, _ in
+                viewModel.refreshUpcomingEvents()
+            }
+            .onChange(of: viewModel.settingsViewModel.meetingTriggerFilter) { _, _ in
+                viewModel.refreshUpcomingEvents()
+            }
+            .onChange(of: viewModel.settingsViewModel.calendarExcludedIdentifiers) { _, _ in
+                viewModel.refreshUpcomingEvents()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
+                viewModel.refreshUpcomingEvents()
+            }
+    }
+
+    private var alertContent: some View {
+        interactionContent
+            .alert(
+                "Save Failed",
+                isPresented: Binding(
+                    get: { audioSaveErrorMessage != nil },
+                    set: { if !$0 { audioSaveErrorMessage = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) {
+                    audioSaveErrorMessage = nil
+                }
+            } message: {
+                Text(audioSaveErrorMessage ?? "Unable to save meeting audio.")
+            }
+            .alert(
+                MeetingDeletionCopy.audioOnlyAlertTitle,
+                isPresented: Binding(
+                    get: { pendingDeleteAudio != nil },
+                    set: { if !$0 { pendingDeleteAudio = nil } }
+                )
+            ) {
+                Button("Cancel", role: .cancel) {
+                    pendingDeleteAudio = nil
+                }
+                Button(MeetingDeletionCopy.audioOnlyConfirmTitle, role: .destructive) {
+                    if let transcription = pendingDeleteAudio {
+                        viewModel.recentMeetingsViewModel.deleteMeetingAudio(transcription)
+                        pendingDeleteAudio = nil
+                    }
+                }
+            } message: {
+                Text(
+                    MeetingDeletionCopy.singleAudioOnlyMessage(
+                        surface: .meetings,
+                        status: pendingDeleteAudio?.status ?? .completed
+                    )
+                )
+            }
+            .alert(
+                MeetingDeletionCopy.fullDeleteAlertTitle,
+                isPresented: Binding(
+                    get: { pendingDeleteMeeting != nil },
+                    set: { if !$0 { pendingDeleteMeeting = nil } }
+                )
+            ) {
+                Button("Cancel", role: .cancel) {
+                    pendingDeleteMeeting = nil
+                }
+                Button(MeetingDeletionCopy.fullDeleteConfirmTitle, role: .destructive) {
+                    if let transcription = pendingDeleteMeeting {
+                        viewModel.recentMeetingsViewModel.deleteTranscription(transcription)
+                        pendingDeleteMeeting = nil
+                    }
+                }
+            } message: {
+                if let pendingDeleteMeeting {
+                    Text(MeetingDeletionCopy.singleFullDeleteMessage(for: pendingDeleteMeeting))
+                }
+            }
+            .alert(
+                recentMeetingsBulkOperationTitle,
+                isPresented: Binding(
+                    get: { viewModel.recentMeetingsViewModel.pendingBulkOperation != nil },
+                    set: { if !$0 { viewModel.recentMeetingsViewModel.cancelPendingBulkOperation() } }
+                )
+            ) {
+                Button("Cancel", role: .cancel) {
+                    viewModel.recentMeetingsViewModel.cancelPendingBulkOperation()
+                }
+                Button(recentMeetingsBulkOperationConfirmTitle, role: .destructive) {
+                    // Alert dismissal clears pending state before a deferred
+                    // task runs, so snapshot the operation synchronously.
+                    guard let operation = viewModel.recentMeetingsViewModel.pendingBulkOperation else { return }
+                    Task {
+                        await viewModel.recentMeetingsViewModel.confirmBulkOperation(operation)
+                    }
+                }
+            } message: {
+                if let operation = viewModel.recentMeetingsViewModel.pendingBulkOperation {
+                    Text(recentMeetingsBulkOperationMessage(for: operation))
+                }
+            }
+    }
+
+    private var sheetContent: some View {
+        alertContent
+            .sheet(
+                isPresented: $showingAskPromptsSheet,
+                onDismiss: {
+                    viewModel.quickPromptsViewModel.cancelCreating()
+                    viewModel.quickPromptsViewModel.editingPrompt = nil
+                    viewModel.refreshQuickPrompts()
+                }
+            ) {
+                AskPromptsSheet(viewModel: viewModel.quickPromptsViewModel)
+            }
+            .sheet(
+                isPresented: $showingPromptLibrary,
+                onDismiss: {
+                    viewModel.promptsViewModel.editingPrompt = nil
+                    viewModel.refreshAutoNotes()
+                }
+            ) {
+                PromptLibraryView(
+                    viewModel: viewModel.promptsViewModel,
+                    presentation: .meetingAutoNotes
+                )
+            }
+            .sheet(item: $splitTarget) { transcription in
+                if let meetingSplitViewModel {
+                    MeetingSplitSheetView(
+                        transcription: transcription,
+                        viewModel: meetingSplitViewModel,
+                        onDismiss: { splitTarget = nil },
+                        onOpenRecording: onSelectMeeting,
+                        initialOperationId: splitOperationId
+                    )
+                }
+            }
+            .sheet(isPresented: $showingMeetingImport) {
+                if let meetingImportViewModel {
+                    MeetingImportSheetView(
+                        viewModel: meetingImportViewModel,
+                        onDismiss: { showingMeetingImport = false },
+                        onOpenMeeting: onSelectMeeting
+                    )
+                }
+            }
     }
 
     private var header: some View {
@@ -114,6 +238,19 @@ struct MeetingsView: View {
 
             Spacer(minLength: DesignSystem.Spacing.lg)
 
+            if let meetingImportViewModel {
+                Button {
+                    if meetingImportViewModel.isProcessing || meetingImportViewModel.terminalResult != nil {
+                        showingMeetingImport = true
+                    } else {
+                        chooseMeetingImportSource(using: meetingImportViewModel)
+                    }
+                } label: {
+                    Label(importButtonTitle(for: meetingImportViewModel), systemImage: "tray.and.arrow.down")
+                }
+                .parakeetAction(.secondary)
+            }
+
             if viewModel.recordingStatus != .ready {
                 // Isolated into its own View so the per-second elapsed-time
                 // update (read via `formattedElapsed`) re-renders ONLY this
@@ -127,6 +264,18 @@ struct MeetingsView: View {
                 MeetingsLiveStatusChip(viewModel: viewModel)
             }
         }
+    }
+
+    private func importButtonTitle(for viewModel: MeetingImportViewModel) -> String {
+        if viewModel.isProcessing { return "View Import…" }
+        if viewModel.terminalResult != nil { return "View Import Result…" }
+        return "Import Recording…"
+    }
+
+    private func chooseMeetingImportSource(using viewModel: MeetingImportViewModel) {
+        guard let sourceURL = MeetingImportSourcePicker.chooseURL() else { return }
+        _ = viewModel.select(sourceURL: sourceURL)
+        showingMeetingImport = true
     }
 
     private var recordingSurface: some View {
@@ -244,7 +393,15 @@ struct MeetingsView: View {
                     } else {
                         VStack(spacing: 0) {
                             ForEach(viewModel.upcomingEvents) { event in
-                                CalendarEventRow(event: event)
+                                CalendarEventRow(
+                                    event: event,
+                                    skipScope: viewModel.skipScope(for: event),
+                                    isNotifyOnly: viewModel.settingsViewModel.calendarAutoStartMode == .notify,
+                                    onSkipThisMeeting: { viewModel.skipThisMeeting(event) },
+                                    onSkipThisRepeatingMeeting: { viewModel.skipThisRepeatingMeeting(event) },
+                                    onUnskipThisMeeting: { viewModel.unskipThisMeeting(event) },
+                                    onUnskipThisRepeatingMeeting: { viewModel.unskipThisRepeatingMeeting(event) }
+                                )
                                 if event.id != viewModel.upcomingEvents.last?.id {
                                     MeetingsHairline()
                                 }
@@ -324,7 +481,8 @@ struct MeetingsView: View {
                 MeetingsInlineState(
                     icon: "sparkles",
                     title: "Set up AI for auto-notes",
-                    detail: "Choose an AI provider and MacParakeet will write notes for you automatically when a meeting ends.",
+                    detail:
+                        "Choose an AI provider and MacParakeet will write notes for you automatically when a meeting ends.",
                     actionTitle: "Set Up AI",
                     actionIcon: "gearshape",
                     action: onOpenAISettings
@@ -349,7 +507,12 @@ struct MeetingsView: View {
                 Spacer(minLength: DesignSystem.Spacing.sm)
             }
 
-            if viewModel.meetingAutoNotePrompts.isEmpty {
+            if let errorMessage = viewModel.meetingPolicyErrorMessage {
+                Text(errorMessage)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if viewModel.meetingAutoNotePrompts.isEmpty {
                 Text("No note types yet. Add one in Manage.")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(DesignSystem.Colors.textTertiary)
@@ -378,7 +541,7 @@ struct MeetingsView: View {
                 Button {
                     showingPromptLibrary = true
                 } label: {
-                    Label("Manage", systemImage: "slider.horizontal.3")
+                    Label("Prompts", systemImage: "text.badge.plus")
                 }
                 .parakeetAction(.secondary)
             }
@@ -406,12 +569,25 @@ struct MeetingsView: View {
     private var recentMeetingsSection: some View {
         MeetingsSection(title: "Recent Meetings", icon: "clock.arrow.circlepath") {
             VStack(alignment: .leading, spacing: 0) {
+                MeetingClassificationFilterBar(
+                    libraryViewModel: viewModel.recentMeetingsViewModel
+                )
+                .padding(.horizontal, DesignSystem.Spacing.md)
+                .padding(.vertical, DesignSystem.Spacing.sm)
+
                 if shouldShowRecentMeetingSearch {
                     recentMeetingSearchField
                 }
 
+                if viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled {
+                    recentMeetingsSelectionBar
+                } else if showsRecentMeetingsSelectManyButton {
+                    recentMeetingsSelectManyRow
+                }
+
                 if viewModel.recentMeetingsViewModel.isLoading
-                    && viewModel.recentMeetingsViewModel.filteredTranscriptions.isEmpty {
+                    && viewModel.recentMeetingsViewModel.filteredTranscriptions.isEmpty
+                {
                     MeetingsLoadingRow(title: "Loading meetings")
                 } else if viewModel.recentMeetingsViewModel.filteredTranscriptions.isEmpty {
                     MeetingsInlineState(
@@ -455,9 +631,35 @@ struct MeetingsView: View {
                 ForEach(Array(section.items.enumerated()), id: \.element.id) { idx, transcription in
                     MeetingRowCard(
                         transcription: transcription,
+                        classification: viewModel.recentMeetingsViewModel.meetingClassificationViewModel.classification(
+                            for: transcription.id
+                        ),
                         searchText: viewModel.recentMeetingsViewModel.searchText,
-                        onTap: { onSelectMeeting(transcription) },
+                        effectiveTranscriptText: viewModel.recentMeetingsViewModel.effectiveTranscriptText(
+                            for: transcription
+                        ),
+                        isSelected: viewModel.recentMeetingsViewModel.isTranscriptionSelected(transcription),
+                        showsSelectionControls: viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled,
+                        isRetrying: viewModel.recentMeetingsViewModel.isRetryingMeetingTranscription(transcription),
+                        onTap: {
+                            if viewModel.recentMeetingsViewModel.isBulkOperationInProgress {
+                                return
+                            }
+                            if viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled {
+                                viewModel.recentMeetingsViewModel.toggleSelection(for: transcription)
+                            } else {
+                                onSelectMeeting(transcription)
+                            }
+                        },
+                        onRetry: {
+                            viewModel.recentMeetingsViewModel.retryMeetingTranscription(transcription)
+                        },
                         menuContent: { recentMeetingMenu(for: transcription) }
+                    )
+                    .meetingClassificationPopover(
+                        item: $classificationTarget,
+                        transcription: transcription,
+                        viewModel: viewModel.recentMeetingsViewModel.meetingClassificationViewModel
                     )
                     if idx < section.items.count - 1 {
                         MeetingRowHairline()
@@ -475,16 +677,86 @@ struct MeetingsView: View {
             Label("Open", systemImage: "doc.text")
         }
 
-        let audioAvailable = MeetingAudioFile.isAvailable(for: transcription)
+        Button {
+            classificationTarget = transcription
+        } label: {
+            Label("Classify...", systemImage: "tag")
+        }
+
+        if !viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled {
+            Button {
+                viewModel.recentMeetingsViewModel.beginBulkSelection(startingWith: transcription)
+            } label: {
+                Label("Select Many...", systemImage: "checklist")
+            }
+        }
+
+        let audioState = MeetingAudioFile.state(for: transcription)
+        let audioAvailable = audioState == .saved
+        let audioRemovable = MeetingAudioFile.isRemovable(for: transcription, state: audioState)
+        let artifactAvailable = MeetingArtifactActions.folderURL(for: transcription) != nil
+
+        if meetingSplitViewModel != nil, let provenance = transcription.splitProvenance {
+            Button {
+                splitOperationId = provenance.operationId
+                splitTarget = transcription
+            } label: {
+                Label("View split progress…", systemImage: "list.bullet.clipboard")
+            }
+            .parakeetAction(.secondary)
+        }
+
+        if meetingSplitViewModel != nil, MeetingSplitEligibility.isEligible(transcription) {
+            Divider()
+            Button {
+                splitOperationId = nil
+                splitTarget = transcription
+            } label: {
+                Label("Split and Transcribe…", systemImage: "square.split.2x1")
+            }
+            .parakeetAction(.secondary)
+        }
+
+        Divider()
+
+        if transcription.status == .error || transcription.status == .cancelled {
+            Button {
+                viewModel.recentMeetingsViewModel.retryMeetingTranscription(transcription)
+            } label: {
+                Label("Retry Transcription", systemImage: "arrow.clockwise")
+            }
+            .disabled(
+                viewModel.recentMeetingsViewModel.isRetryingMeetingTranscription(transcription) || audioState != .saved)
+
+            Divider()
+        }
+
+        Button {
+            MeetingArtifactActions.openFolder(for: transcription)
+        } label: {
+            Label("Open Meeting Folder", systemImage: "folder")
+        }
+        .disabled(!artifactAvailable)
+
+        Button {
+            MeetingArtifactActions.copyFolderPath(for: transcription)
+        } label: {
+            Label("Copy Artifact Folder Path", systemImage: "doc.on.doc")
+        }
+        .disabled(!artifactAvailable)
 
         Divider()
 
         Button {
             MeetingAudioActions.revealInFinder(transcription)
         } label: {
-            Label("Show in Finder", systemImage: "folder")
+            Label("Show Audio in Finder", systemImage: "waveform")
         }
         .disabled(!audioAvailable)
+        .help(
+            audioAvailable
+                ? "Reveal the meeting audio file in Finder"
+                : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
 
         Button {
             saveMeetingAudio(transcription)
@@ -492,13 +764,64 @@ struct MeetingsView: View {
             Label("Save Audio As…", systemImage: "square.and.arrow.down")
         }
         .disabled(!audioAvailable)
+        .help(
+            audioAvailable
+                ? "Save a copy of the meeting audio to a chosen location"
+                : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
 
         Button(role: .destructive) {
             pendingDeleteAudio = transcription
         } label: {
-            Label("Delete Audio", systemImage: "waveform.slash")
+            Label(MeetingDeletionCopy.audioOnlyMenuTitle, systemImage: "waveform.slash")
         }
-        .disabled(!audioAvailable)
+        .disabled(!audioRemovable)
+        .help(
+            audioRemovable
+                ? "Remove the saved meeting audio while keeping the meeting"
+                : MeetingDeletionCopy.audioRemovalUnavailableHelp(
+                    for: transcription,
+                    state: audioState
+                ))
+
+        Divider()
+
+        Button(role: .destructive) {
+            pendingDeleteMeeting = transcription
+        } label: {
+            Label(MeetingDeletionCopy.fullDeleteMenuTitle, systemImage: "trash")
+        }
+    }
+
+    private var recentMeetingsSelectionBar: some View {
+        BulkTranscriptionSelectionBar(
+            selectedCount: viewModel.recentMeetingsViewModel.selectedTranscriptionCount,
+            selectedMeetingAudioCount: viewModel.recentMeetingsViewModel.selectedMeetingAudioCount,
+            isMeetingContext: true,
+            areAllVisibleSelected: viewModel.recentMeetingsViewModel.areAllLoadedVisibleTranscriptionsSelected,
+            isPerformingOperation: viewModel.recentMeetingsViewModel.isBulkOperationInProgress,
+            onSelectVisible: { viewModel.recentMeetingsViewModel.selectLoadedVisibleTranscriptions() },
+            onClear: { viewModel.recentMeetingsViewModel.clearSelection() },
+            onCancel: { viewModel.recentMeetingsViewModel.exitBulkSelection() },
+            onDeleteAudioOnly: { viewModel.recentMeetingsViewModel.requestDeleteSelectedMeetingAudio() },
+            onDeleteItems: { viewModel.recentMeetingsViewModel.requestDeleteSelectedItems() }
+        )
+    }
+
+    private var recentMeetingsSelectManyRow: some View {
+        HStack {
+            Spacer()
+            Button {
+                viewModel.recentMeetingsViewModel.beginBulkSelection()
+            } label: {
+                Label("Select Many", systemImage: "checklist")
+            }
+            .parakeetAction(.secondary)
+            .help("Select multiple recent meetings")
+            .accessibilityHint("Shows selection controls for bulk cleanup")
+        }
+        .padding(.horizontal, DesignSystem.Spacing.lg)
+        .padding(.vertical, DesignSystem.Spacing.sm)
+        .overlay(alignment: .bottom) { Divider() }
     }
 
     private var recentMeetingSearchField: some View {
@@ -552,7 +875,6 @@ struct MeetingsView: View {
         )
     }
 
-
     private var recentMeetingsSearchText: String {
         viewModel.recentMeetingsViewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -588,6 +910,55 @@ struct MeetingsView: View {
         return {
             viewModel.recentMeetingsViewModel.searchText = ""
         }
+    }
+
+    private var showsRecentMeetingsSelectManyButton: Bool {
+        !viewModel.recentMeetingsViewModel.filteredTranscriptions.isEmpty
+    }
+
+    private var recentMeetingsBulkOperationTitle: String {
+        guard let operation = viewModel.recentMeetingsViewModel.pendingBulkOperation else {
+            return "Delete Meetings?"
+        }
+        return operation.isDeleteAudioOnly ? MeetingDeletionCopy.audioOnlyAlertTitle : "Delete Meetings?"
+    }
+
+    private var recentMeetingsBulkOperationConfirmTitle: String {
+        guard let operation = viewModel.recentMeetingsViewModel.pendingBulkOperation else {
+            return "Delete"
+        }
+        return operation.isDeleteAudioOnly ? MeetingDeletionCopy.audioOnlyConfirmTitle : "Delete Meetings"
+    }
+
+    private func recentMeetingsBulkOperationMessage(for operation: BulkTranscriptionOperation) -> String {
+        if operation.isDeleteAudioOnly {
+            return MeetingDeletionCopy.bulkAudioOnlyMessage(
+                count: operation.targetCount,
+                skippedCount: operation.skippedCount,
+                surface: .meetings,
+                hasNonCompletedMeeting: operation.hasNonCompletedMeeting
+            )
+        }
+
+        return MeetingDeletionCopy.bulkFullDeleteMessage(
+            count: operation.targetCount,
+            hasNonCompletedMeeting: operation.hasNonCompletedMeeting
+        )
+    }
+
+    private func handleRecentMeetingsSelectionKeyPress(_ press: KeyPress) -> KeyPress.Result {
+        let recentVM = viewModel.recentMeetingsViewModel
+        guard recentVM.isBulkSelectionModeEnabled, !recentVM.isBulkOperationInProgress else { return .ignored }
+        if press.key == .delete || press.key == .deleteForward {
+            guard recentVM.hasSelectedTranscriptions else { return .ignored }
+            recentVM.requestDeleteSelectedItems()
+            return .handled
+        }
+        if (press.key == "a" || press.key == "A"), press.modifiers.contains(.command) {
+            recentVM.selectLoadedVisibleTranscriptions()
+            return .handled
+        }
+        return .ignored
     }
 
     private func calendarEmptyDetail(for mode: CalendarAutoStartMode) -> String {
@@ -714,8 +1085,7 @@ private struct CalendarInlineControlsRow: View {
         case .notDetermined:
             Button(action: connectCalendar) {
                 if isRequestingPermission {
-                    ProgressView()
-                        .controlSize(.small)
+                    ParakeetSpinner(.inline)
                         .frame(maxWidth: .infinity)
                 } else {
                     Label("Connect Calendar", systemImage: "calendar.badge.plus")
@@ -780,7 +1150,8 @@ private struct CalendarInlineControlsRow: View {
             if settingsViewModel.calendarPermissionStatus == .denied {
                 return "Calendar access is blocked. Re-enable it in System Settings to use reminders."
             }
-            return "Connect your macOS Calendar to preview meetings and enable reminders."
+            return
+                "Connect calendars from this Mac, including Microsoft 365 and Exchange accounts added in System Settings."
         }
 
         switch settingsViewModel.calendarAutoStartMode {
@@ -928,6 +1299,7 @@ private struct MeetingsLiveStatusChip: View {
 
     private var icon: String {
         switch viewModel.recordingStatus {
+        case .starting: return "hourglass"
         case .recording: return "record.circle.fill"
         case .paused: return "pause.fill"
         case .finishing, .transcribing: return "waveform"
@@ -939,6 +1311,7 @@ private struct MeetingsLiveStatusChip: View {
     private var title: String {
         switch viewModel.recordingStatus {
         case .ready: return "Ready"
+        case .starting: return "Starting…"
         case .recording: return "Recording \(viewModel.meetingPillViewModel.formattedElapsed)"
         case .paused: return "Paused \(viewModel.meetingPillViewModel.formattedElapsed)"
         case .finishing: return "Finishing"
@@ -949,6 +1322,7 @@ private struct MeetingsLiveStatusChip: View {
 
     private var tint: Color {
         switch viewModel.recordingStatus {
+        case .starting: return DesignSystem.Colors.textTertiary
         case .recording: return DesignSystem.Colors.recordingRed
         case .paused, .finishing, .transcribing: return DesignSystem.Colors.warningAmber
         case .error: return DesignSystem.Colors.errorRed
@@ -1026,8 +1400,7 @@ private struct MeetingsLoadingRow: View {
 
     var body: some View {
         HStack(spacing: DesignSystem.Spacing.sm) {
-            ProgressView()
-                .controlSize(.small)
+            ParakeetSpinner(.inline)
             Text(title)
                 .font(DesignSystem.Typography.bodySmall)
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
@@ -1039,6 +1412,12 @@ private struct MeetingsLoadingRow: View {
 
 private struct CalendarEventRow: View {
     let event: CalendarEvent
+    let skipScope: CalendarSkipScope?
+    let isNotifyOnly: Bool
+    var onSkipThisMeeting: () -> Void
+    var onSkipThisRepeatingMeeting: () -> Void
+    var onUnskipThisMeeting: () -> Void
+    var onUnskipThisRepeatingMeeting: () -> Void
 
     var body: some View {
         HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
@@ -1063,10 +1442,62 @@ private struct CalendarEventRow: View {
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
                 .lineLimit(1)
+                if let caption = skipCaption {
+                    Text(caption)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        .lineLimit(2)
+                }
             }
         }
         .padding(DesignSystem.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .opacity(skipScope == nil ? 1 : 0.55)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+        .contextMenu {
+            skipMenuItems
+        }
+    }
+
+    @ViewBuilder
+    private var skipMenuItems: some View {
+        switch skipScope {
+        case nil:
+            Button("Don't auto-record this meeting", action: onSkipThisMeeting)
+            if event.isRecurring {
+                Button("Don't auto-record this repeating meeting", action: onSkipThisRepeatingMeeting)
+            }
+        case .event where event.isRecurring:
+            Button("Auto-record this repeating meeting again", action: onUnskipThisRepeatingMeeting)
+        default:
+            Button("Auto-record again", action: onUnskipThisMeeting)
+            if event.isRecurring, skipScope == .occurrence {
+                Button("Don't auto-record this repeating meeting", action: onSkipThisRepeatingMeeting)
+            }
+        }
+    }
+
+    private var skipCaption: String? {
+        guard skipScope != nil else { return nil }
+        if isNotifyOnly {
+            return "MacParakeet won't remind you or start recording."
+        }
+        if skipScope == .occurrence, event.isRecurring {
+            return "Won't auto-record this time."
+        }
+        if skipScope == .event, event.isRecurring {
+            return "Won't auto-record this series."
+        }
+        return "Won't auto-record."
+    }
+
+    private var accessibilityLabel: String {
+        var parts = [event.title, eventDateText, event.formattedTimeRange]
+        if let caption = skipCaption {
+            parts.append(caption)
+        }
+        return parts.joined(separator: ", ")
     }
 
     private var peopleCountText: String {
@@ -1346,9 +1777,10 @@ private struct AutoNoteChip: View {
             .padding(.vertical, 5)
             .background(
                 Capsule()
-                    .fill(isOn
-                          ? DesignSystem.Colors.accent.opacity(0.12)
-                          : DesignSystem.Colors.surfaceElevated.opacity(0.72))
+                    .fill(
+                        isOn
+                            ? DesignSystem.Colors.accent.opacity(0.12)
+                            : DesignSystem.Colors.surfaceElevated.opacity(0.72))
             )
             .overlay(
                 Capsule()
@@ -1364,6 +1796,9 @@ private struct AutoNoteChip: View {
         .accessibilityLabel("\(title) auto-note")
         .accessibilityValue(isOn ? "On" : "Off")
         .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
-        .help(isOn ? "Generated automatically after meetings — click to turn off" : "Click to generate this automatically after meetings")
+        .help(
+            isOn
+                ? "Generated automatically after meetings — click to turn off"
+                : "Click to generate this automatically after meetings")
     }
 }

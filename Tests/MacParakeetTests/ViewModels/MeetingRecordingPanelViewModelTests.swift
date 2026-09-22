@@ -20,6 +20,21 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.formattedElapsed, "2:05")
     }
 
+    func testMeetingTypeSelectionUpdatesLiveStateAndCallback() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        let customer = MeetingType(name: "Customer")
+        var selectedIDs: [UUID?] = []
+
+        viewModel.configureMeetingTypes([customer], selectedID: nil) {
+            selectedIDs.append($0)
+        }
+        viewModel.selectMeetingType(customer.id)
+
+        XCTAssertEqual(viewModel.meetingTypes, [customer])
+        XCTAssertEqual(viewModel.activeMeetingTypeID, customer.id)
+        XCTAssertEqual(selectedIDs, [customer.id])
+    }
+
     func testRecordingStateAllowsStopAndUpdatesSegments() {
         let viewModel = MeetingRecordingPanelViewModel()
         let lines = [
@@ -42,6 +57,87 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.previewLines, lines)
         XCTAssertEqual(viewModel.statusTitle, "Recording")
         XCTAssertFalse(viewModel.showsLaggingIndicator)
+    }
+
+    func testSourceHealthChipsMirrorDualSourceHealth() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        viewModel.state = .recording
+        viewModel.captureHealth = makeCaptureHealth(
+            microphone: MeetingSourceHealth(source: .microphone, status: .live, level: 0.7),
+            system: MeetingSourceHealth(source: .system, status: .interrupted)
+        )
+
+        let chips = viewModel.sourceHealthChips
+
+        XCTAssertTrue(viewModel.showsSourceHealthChips)
+        XCTAssertEqual(chips.map(\.label), ["Mic live", "System audio interrupted"])
+        XCTAssertEqual(chips.map(\.severity), [.good, .critical])
+        XCTAssertEqual(chips.map(\.symbolName), ["mic.fill", "exclamationmark.triangle.fill"])
+    }
+
+    func testSourceHealthChipsIncludeNotRecordedSingleSourceState() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        viewModel.state = .recording
+        viewModel.captureHealth = makeCaptureHealth(
+            sourceMode: .microphoneOnly,
+            microphone: MeetingSourceHealth(source: .microphone, status: .live, level: 0.8),
+            system: MeetingSourceHealth(source: .system, status: .notSelected)
+        )
+
+        let chips = viewModel.sourceHealthChips
+
+        XCTAssertEqual(chips.map(\.label), ["Mic live", "System not recorded"])
+        XCTAssertEqual(chips.last?.severity, .neutral)
+        XCTAssertFalse(chips.last?.isDegraded ?? true)
+    }
+
+    func testSourceHealthChipsHideOutsideRecording() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        viewModel.captureHealth = makeCaptureHealth(
+            microphone: MeetingSourceHealth(source: .microphone, status: .live, level: 0.5),
+            system: MeetingSourceHealth(source: .system, status: .live, level: 0.5)
+        )
+
+        XCTAssertTrue(viewModel.sourceHealthChips.isEmpty)
+        XCTAssertFalse(viewModel.showsSourceHealthChips)
+
+        viewModel.state = .recording
+        XCTAssertFalse(viewModel.sourceHealthChips.isEmpty)
+    }
+
+    func testActionableWarningsIncludeRecoveryButExcludeSilenceAndMute() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        viewModel.state = .recording
+        viewModel.captureHealth = makeCaptureHealth(
+            microphone: MeetingSourceHealth(source: .microphone, status: .silent),
+            system: MeetingSourceHealth(source: .system, status: .recovering)
+        )
+
+        XCTAssertEqual(
+            viewModel.actionableSourceHealthWarnings.map(\.label),
+            ["System audio reconnecting"]
+        )
+
+        viewModel.captureHealth = makeCaptureHealth(
+            microphone: MeetingSourceHealth(source: .microphone, status: .muted),
+            system: MeetingSourceHealth(source: .system, status: .live)
+        )
+        XCTAssertTrue(viewModel.actionableSourceHealthWarnings.isEmpty)
+    }
+
+    func testVisibleWarningsApplyCurrentProductPolicy() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        viewModel.state = .recording
+        viewModel.captureHealth = makeCaptureHealth(
+            microphone: MeetingSourceHealth(source: .microphone, status: .silent),
+            system: MeetingSourceHealth(source: .system, status: .recovering)
+        )
+
+        XCTAssertFalse(AppFeatures.meetingSourceHealthUIEnabled)
+        XCTAssertEqual(
+            viewModel.visibleSourceHealthWarnings.map(\.label),
+            ["System audio reconnecting"]
+        )
     }
 
     func testWordCountUpdatesWhenExistingSegmentGrows() {
@@ -69,7 +165,7 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
                 speakerLabel: "Them",
                 text: "Reply",
                 source: .system
-            )
+            ),
         ]
 
         viewModel.updatePreviewLines(initialLines)
@@ -98,7 +194,7 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
                 speakerLabel: "Others",
                 text: "Reply from the call",
                 source: .system
-            )
+            ),
         ])
 
         XCTAssertEqual(
@@ -128,7 +224,7 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
                 speakerLabel: "Others",
                 text: "Reply from the call",
                 source: .system
-            )
+            ),
         ])
 
         XCTAssertEqual(
@@ -161,7 +257,7 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
                 speakerLabel: "Others",
                 text: "Reply from the call",
                 source: .system
-            )
+            ),
         ])
 
         mode = .plainTranscript
@@ -188,12 +284,15 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.showsElapsedTime)
 
         viewModel.state = .error("Boom")
-        XCTAssertEqual(viewModel.statusTitle, "Meeting interrupted", "Phase 4 copy refinement: 'Recording Error' → 'Meeting interrupted'")
+        XCTAssertEqual(
+            viewModel.statusTitle, "Meeting interrupted",
+            "Phase 4 copy refinement: 'Recording Error' → 'Meeting interrupted'")
         XCTAssertTrue(viewModel.statusMessage.hasPrefix("Boom"), "Detail leads")
-        XCTAssertTrue(viewModel.statusMessage.contains("Library"), "Wrapper points the user at the Library for recovery")
+        XCTAssertTrue(
+            viewModel.statusMessage.contains("Library"), "Wrapper points the user at the Library for recovery")
         XCTAssertEqual(
             viewModel.compactErrorRecoveryMessage,
-            "Meeting interrupted. Open Library to retry transcription or export captured audio."
+            "Meeting interrupted. If audio was captured, open Library to retry transcription or export it."
         )
         XCTAssertFalse(viewModel.showsElapsedTime)
     }
@@ -242,7 +341,8 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.transcriptEmptyStateTitle, "Starting audio...")
         XCTAssertNil(viewModel.transcriptEmptyStateDetail)
 
-        viewModel.updateLiveTranscriptStatus(.preparingSpeechModel(message: "Speech model: Loading model into memory..."))
+        viewModel.updateLiveTranscriptStatus(
+            .preparingSpeechModel(message: "Speech model: Loading model into memory..."))
         XCTAssertEqual(viewModel.transcriptEmptyStateTitle, "Preparing speech model...")
         XCTAssertEqual(viewModel.transcriptEmptyStateDetail, "Loading model into memory...")
 
@@ -250,12 +350,108 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.transcriptEmptyStateTitle, "Live preview unavailable")
         XCTAssertEqual(
             viewModel.transcriptEmptyStateDetail,
-            "Audio keeps recording; retry transcription from Library if needed."
+            "Audio is still recording. If preview does not recover, retry transcription from Library after the meeting."
         )
 
         viewModel.updateLiveTranscriptStatus(.listening)
         XCTAssertEqual(viewModel.transcriptEmptyStateTitle, "Listening...")
         XCTAssertNil(viewModel.transcriptEmptyStateDetail)
+    }
+
+    func testPreviewOffStatusReassuresThatAudioIsRecording() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        viewModel.state = .recording
+
+        viewModel.updateLiveTranscriptStatus(.previewOff)
+
+        XCTAssertEqual(viewModel.transcriptEmptyStateTitle, "Live transcription is off")
+        XCTAssertEqual(
+            viewModel.transcriptEmptyStateDetail,
+            "Audio will be transcribed after you stop recording."
+        )
+        XCTAssertEqual(
+            viewModel.statusMessage,
+            "Audio is recording. Your transcript will be ready after you stop."
+        )
+        XCTAssertTrue(
+            viewModel.isTranscriptRosetteQuiet,
+            "Live-off empty state should sit the seed-of-life still and faded"
+        )
+    }
+
+    func testTranscriptRosetteIsQuietOnlyWhenLivePreviewIsOff() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        viewModel.state = .recording
+
+        XCTAssertFalse(viewModel.isTranscriptRosetteQuiet)
+
+        viewModel.updateLiveTranscriptStatus(.startingAudio)
+        XCTAssertFalse(viewModel.isTranscriptRosetteQuiet)
+
+        viewModel.updateLiveTranscriptStatus(.listening)
+        XCTAssertFalse(viewModel.isTranscriptRosetteQuiet)
+
+        viewModel.updateLiveTranscriptStatus(.live)
+        XCTAssertFalse(viewModel.isTranscriptRosetteQuiet)
+
+        viewModel.updateLiveTranscriptStatus(.previewUnavailable)
+        XCTAssertFalse(
+            viewModel.isTranscriptRosetteQuiet,
+            "Unavailable preview is still a waiting/recovering state, not a quiet opt-out"
+        )
+
+        viewModel.updateLiveTranscriptStatus(.previewOff)
+        XCTAssertTrue(viewModel.isTranscriptRosetteQuiet)
+
+        viewModel.isPaused = true
+        XCTAssertTrue(
+            viewModel.isTranscriptRosetteQuiet,
+            "Pause is a separate freeze; live-off remains the quiet mark"
+        )
+    }
+
+    func testDifferingSpeechRoutesExposePreviewAndFinalAttribution() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        let preview = SpeechEngineSelection(engine: .parakeet)
+        let final = SpeechEngineSelection(engine: .cohere, language: "fr")
+
+        viewModel.configureSpeechRouting(
+            live: preview,
+            plan: MeetingSpeechPlan(preview: preview, final: final)
+        )
+
+        XCTAssertEqual(
+            viewModel.speechRouteAttribution,
+            "Live preview: Parakeet · Final transcript: Cohere (fr) after recording ends"
+        )
+    }
+
+    func testUnsupportedLiveRouteAttributesDifferentFinalEngine() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        let live = SpeechEngineSelection(engine: .cohere, language: "fr")
+        let final = SpeechEngineSelection(engine: .whisper, language: "ko")
+
+        viewModel.configureSpeechRouting(
+            live: live,
+            plan: MeetingSpeechPlan(preview: nil, final: final)
+        )
+
+        XCTAssertEqual(
+            viewModel.speechRouteAttribution,
+            "Final transcript: Whisper (ko) after recording ends"
+        )
+    }
+
+    func testSameSpeechRouteDoesNotAddAttributionNoise() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        let selection = SpeechEngineSelection(engine: .parakeet)
+
+        viewModel.configureSpeechRouting(
+            live: selection,
+            plan: MeetingSpeechPlan(preview: selection, final: selection)
+        )
+
+        XCTAssertNil(viewModel.speechRouteAttribution)
     }
 
     func testTranscriptContentLocksOutAdvisoryEmptyStatus() {
@@ -275,6 +471,19 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.liveTranscriptStatus, .live)
         XCTAssertEqual(viewModel.previewLines, lines)
+    }
+
+    func testShowsMicrophoneMuteControlWhenStartMutedEvenIfToggleDisabled() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        viewModel.state = .starting
+        viewModel.isMicrophoneMuted = true
+        viewModel.canToggleMicrophoneMute = false
+
+        XCTAssertTrue(viewModel.showsMicrophoneMuteControl)
+
+        viewModel.isMicrophoneMuted = false
+
+        XCTAssertFalse(viewModel.showsMicrophoneMuteControl)
     }
 
     func testResetClearsTranscriptPreview() {
@@ -303,6 +512,7 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.elapsedSeconds, 0)
         XCTAssertEqual(viewModel.micLevel, 0)
         XCTAssertEqual(viewModel.systemLevel, 0)
+        XCTAssertEqual(viewModel.captureHealth, .notRecording)
         XCTAssertFalse(viewModel.isMicrophoneMuted)
         XCTAssertFalse(viewModel.canToggleMicrophoneMute)
         XCTAssertTrue(viewModel.previewLines.isEmpty)
@@ -334,6 +544,18 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
         // Sanity: the composed notes VM is non-nil and starts empty.
         XCTAssertEqual(viewModel.notesViewModel.notesText, "")
         XCTAssertEqual(viewModel.notesViewModel.wordCount, 0)
+    }
+
+    private func makeCaptureHealth(
+        sourceMode: MeetingAudioSourceMode = .microphoneAndSystem,
+        microphone: MeetingSourceHealth,
+        system: MeetingSourceHealth
+    ) -> MeetingCaptureHealthSummary {
+        MeetingCaptureHealthSummary(
+            sourceMode: sourceMode,
+            microphone: microphone,
+            system: system
+        )
     }
 
     func testResetClearsComposedNotesViewModel() {
@@ -380,7 +602,7 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
         // by the panel header (orb / "Recording" / elapsed timer / transcript
         // word count / Stop).
         let states: [MeetingRecordingPanelViewModel.PanelState] = [
-            .hidden, .recording, .transcribing, .error("test")
+            .hidden, .starting, .recording, .transcribing, .error("test"),
         ]
         for state in states {
             viewModel.state = state
@@ -444,6 +666,12 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
     func testCanTogglePauseTracksRecordingPanelState() {
         let viewModel = MeetingRecordingPanelViewModel()
         XCTAssertFalse(viewModel.canTogglePause, "No toggle from .hidden")
+
+        viewModel.state = .starting
+        XCTAssertTrue(viewModel.canStop)
+        XCTAssertFalse(viewModel.canTogglePause)
+        XCTAssertFalse(viewModel.showsAudioLevels)
+        XCTAssertFalse(viewModel.showsElapsedTime)
 
         viewModel.state = .recording
         XCTAssertTrue(viewModel.canTogglePause)

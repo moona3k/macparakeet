@@ -43,6 +43,26 @@ enum TranscriptionSourceDisplay: Equatable {
         }
     }
 
+    /// The platform whose bundled brand mark identifies this source on sight.
+    ///
+    /// Only the six whose display maps to exactly one platform. `.podcast`
+    /// covers any feed, not just Apple Podcasts, and `.mediaURL` covers Twitch
+    /// *and* unrecognized hosts, so neither can claim a mark. `.audioURL` is
+    /// reached only from SoundCloud today, but the case is named for audio in
+    /// general and would mislabel a future generic audio source, so it is left
+    /// out too. Anything absent here keeps its SF Symbol and its text.
+    var brandedPlatform: MediaPlatform? {
+        switch self {
+        case .youtube: return .youtube
+        case .x: return .x
+        case .vimeo: return .vimeo
+        case .facebook: return .facebook
+        case .tiktok: return .tiktok
+        case .instagram: return .instagram
+        case .meeting, .localFile, .podcast, .audioURL, .mediaURL: return nil
+        }
+    }
+
     var collapsedText: String {
         switch self {
         case .meeting: return "Meeting"

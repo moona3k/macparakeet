@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "preparedAt": "2026-09-12T02:59:40.452Z",
+  "baseRevision": "aaf3dc261536e5fc5158c4b1ca714bd3f4cece19",
+  "scope": "Research, implementation handoff and fictional HTML reference only; no app implementation or release.",
+  "changesSinceResearchVerification": [
+    "Added a five-unit implementation plan and linked it from the plan index and research overview.",
+    "Clarified that native UI/UX remains open in the plan, report, README, historical mockup brief and HTML banner.",
+    "Packaged the three existing screenshots without changing them; they predate the reference-only banner."
+  ],
+  "verification": {
+    "localMarkdownLinks": 24,
+    "brokenLinks": 0,
+    "inlineJavaScriptSyntax": "pass",
+    "jsonParse": "pass",
+    "stagedWhitespace": "pass",
+    "primaryResearchFilesUnchanged": true
+  },
+  "documentReview": {
+    "requestedCliModel": "claude-sonnet-5",
+    "completedReadOnlyLenses": ["coherence", "feasibility", "design", "security", "scope", "adversarial"],
+    "disposition": "Added a many-part publication-lock benchmark after confirming the five-second database busy timeout. Kept atomic publication as the default pending measurement. Did not mandate safe-gap suggestions, progress layout, separate CLI scheduling or a release flag: these are optional UX, implementation or release choices, not demonstrated blockers. Gate/ownership/lease terminology describes one coordination responsibility, not three required abstractions."
+  },
+  "evidenceLimits": [
+    "The original native experiment and browser flow checks are recorded in artifact-check.json.",
+    "The publication pass did not rerun native audio, app builds/tests, browser interactions or a full accessibility audit.",
+    "HTML executable logic is unchanged; only the explanatory banner changed. Historical screenshots do not show that banner clarification.",
+    "Hashes identify the packaged files, not the earlier research-time snapshot. This receipt is not evidence of a GitHub merge."
+  ],
+  "sha256": {
+    "docs/research/2026-09-11-issue-895-meeting-split/README.md": "c4648c8eb74d35e16dae6b44298a35e321b2cb0e3770b0331aca9e8759f1adb8",
+    "docs/research/2026-09-11-issue-895-meeting-split/artifact-check.json": "ae69e097f5feffa52dabbde7bbc94c97da184dcab6c3f19fbd5c3fdc2b006611",
+    "docs/research/2026-09-11-issue-895-meeting-split/audio-range-results-initial.json": "aa8888e8806b56a37583bac0b60e2ee647d5ed0fa402d38cad0be1f34c4313d2",
+    "docs/research/2026-09-11-issue-895-meeting-split/audio-range-results.json": "ba1faa2229b1df3c2c3e005c88c70056b7c0a86e1cca2f34cfcc2da28cdd61b1",
+    "docs/research/2026-09-11-issue-895-meeting-split/audio-range-spike.swift": "925648de2e7f447ad08aaa4a38f9c559d19817f7da405020b7f286ad1f4583af",
+    "docs/research/2026-09-11-issue-895-meeting-split/recommendation-review.md": "1445aa79352a4a125766de8563adf7b848e6a5e8342b38ffa5034327e4cea3b3",
+    "docs/research/2026-09-11-issue-895-meeting-split/report.md": "e80ae7414efc9a604c75c2d52e02d8b9dc33b53d85122b4f6e32bf964758dc3b",
+    "docs/research/2026-09-11-issue-895-meeting-split/split-recording-prototype.html": "5dc7e3b2ceecb6488d715c26d0f3eaacb4f574623130380c2aa06c644a47afc7",
+    "docs/research/2026-09-11-issue-895-meeting-split/storage-findings.md": "70ef73b2035e1574641107400dc0ef793705c07e2224bc4e9b94c5ccf802f5aa",
+    "docs/research/2026-09-11-issue-895-meeting-split/transcript-product-findings.md": "c1f85186fd6e857eafdf9e1656326627513e89baf3132123b00fb37f0770a6f9",
+    "docs/research/2026-09-11-issue-895-meeting-split/briefs/mockup.md": "efb86fb2081d1a97206c2341d02acfd691190f95b35e145bc4981a6f97cde641",
+    "docs/research/2026-09-11-issue-895-meeting-split/briefs/review.md": "0115308a9dc5d2544e32cfa1fdf5df967f24317e7bb8463d6f29725181461d84",
+    "docs/research/2026-09-11-issue-895-meeting-split/briefs/storage.md": "fa2d6f9e9ef228e3899c6742d2763e8d73098fed55f503d9e8110bccbb600490",
+    "docs/research/2026-09-11-issue-895-meeting-split/briefs/transcript-product.md": "8d40996371fab49d5ea215f598543b8f4338e11884acf158567919d0fecc05f4",
+    "docs/research/2026-09-11-issue-895-meeting-split/screenshots/split-four-desktop.png": "c691025d19fc07e65c734f424877ef32a52d2219b9a49f273b5d66f94cb19ff3",
+    "docs/research/2026-09-11-issue-895-meeting-split/screenshots/split-four-mobile.png": "50be2edb8ba793b51997f440b6f590bb1af2466de74002784d2a6a7b567e0f2e",
+    "docs/research/2026-09-11-issue-895-meeting-split/screenshots/split-success.png": "a33541b6e0b29b79501112afe8e6b0f3e6648732b3921fee2f7547ffd4e92e99",
+    "docs/plans/2026-09-11-issue-895-meeting-split-plan.md": "502198b1fd2f9aeedb3c29527ffa33174714758ab369960300dafe54bfc87c77"
+  }
+}

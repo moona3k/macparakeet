@@ -77,13 +77,16 @@ shasum -a 256 "dist/macparakeet-cli-${VERSION}-darwin-arm64.zip" \
 # Submit. The notarytool keychain profile name is whatever was set up
 # previously (search scripts/dist/ for the actual name).
 xcrun notarytool submit "dist/macparakeet-cli-${VERSION}-darwin-arm64.zip" \
-      --keychain-profile <profile-name>
+    --keychain-profile <profile-name> \
+    --no-wait --no-progress --no-s3-acceleration \
+    --output-format json
 ```
 
 Poll the returned submission ID with
 `xcrun notarytool info <id> --keychain-profile <profile>` until it reads
-`Accepted`. Do not use `notarytool submit --wait`; the app release pipeline
-avoids it because it can SIGBUS-crash on some macOS/Xcode combinations.
+`Accepted`. Do not use `notarytool submit --wait`. Do not poll a history ID
+that appeared after a SIGBUS/exit 138 — that upload did not finish. The app
+release pipeline uses `--no-progress --no-s3-acceleration` for the same reason.
 
 ### 4. Tar + checksum
 
@@ -155,7 +158,7 @@ see `brew tap-new --pull-label` and the Homebrew bottles docs.
 - **Pre-built signed binary** rather than `swift build` in the formula:
   faster install (no ~30s SwiftPM compile), no need for users to have
   Xcode CLT, simpler caveats. Recommended in the canonical plan at
-  `plans/active/cli-as-canonical-parakeet-surface.md`.
+  `plans/completed/cli-as-canonical-parakeet-surface.md`.
 - **Tap separate from main repo:** keeps Homebrew's expected layout
   (`Formula/<name>.rb`), allows future formulae (`macparakeet-cli`,
   potentially other tools) to share infrastructure.

@@ -1,9 +1,16 @@
+import AppKit
 import SwiftUI
 import MacParakeetCore
 import MacParakeetViewModels
 
+private enum LibraryLayoutMode: String {
+    case grid
+    case list
+}
+
 struct TranscriptionLibraryView: View {
     @Bindable var viewModel: TranscriptionLibraryViewModel
+    var meetingSplitViewModel: MeetingSplitViewModel? = nil
     var title: String = "Library"
     var showsFilterBar: Bool = true
     var primaryActionTitle: String? = nil
@@ -13,8 +20,31 @@ struct TranscriptionLibraryView: View {
     var onSelect: (Transcription) -> Void
 
     @State private var pendingDelete: Transcription?
+    @State private var classificationTarget: Transcription?
+    @State private var pendingRename: Transcription?
+    @State private var renameTitleDraft = ""
     @State private var pendingDeleteAudio: Transcription?
+    @State private var splitTarget: Transcription?
+    @State private var splitOperationId: UUID?
     @State private var audioSaveErrorMessage: String?
+    @State private var showingBulkExportOptions = false
+    @AppStorage("com.macparakeet.libraryBulkExportFormat")
+    private var selectedBulkExportFormatRawValue = TranscriptExportFormat.txt.rawValue
+    @AppStorage("com.macparakeet.libraryBulkExportIncludeTimestamps")
+    private var bulkExportIncludeTimestamps = true
+    @AppStorage("com.macparakeet.libraryBulkExportIncludeSpeakerLabels")
+    private var bulkExportIncludeSpeakerLabels = true
+    @AppStorage("com.macparakeet.libraryBulkExportIncludeMetadata")
+    private var bulkExportIncludeMetadata = true
+    @AppStorage("com.macparakeet.libraryLayoutMode")
+    private var storedLibraryLayoutMode: String?
+    @State private var bulkExportInProgress = false
+    @State private var bulkExportResult: BulkTranscriptExportResult?
+    @State private var bulkExportErrorMessage: String?
+    @State private var bulkExportCoordinatorTask: Task<Void, Never>?
+    @State private var bulkExportWorkerTask: Task<BulkTranscriptExportResult, Error>?
+    @State private var bulkExportRunID = UUID()
+    @FocusState private var selectionKeyboardFocused: Bool
 
     private var visibleLibraryFilters: [LibraryFilter] {
         LibraryFilter.allCases.filter { filter in
@@ -23,14 +53,43 @@ struct TranscriptionLibraryView: View {
     }
 
     var body: some View {
+        presentationContent
+    }
+
+    private var libraryContent: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             HStack {
                 Text(title)
                     .font(DesignSystem.Typography.pageTitle)
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
 
                 Spacer()
+
+                Picker(
+                    "Library layout",
+                    selection: Binding(
+                        get: { libraryLayoutMode },
+                        set: { storedLibraryLayoutMode = $0.rawValue }
+                    )
+                ) {
+                    Image(systemName: "square.grid.2x2")
+                        .accessibilityLabel("Grid")
+                        .tag(LibraryLayoutMode.grid)
+                    Image(systemName: "list.bullet")
+                        .accessibilityLabel("List")
+                        .tag(LibraryLayoutMode.list)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .accessibilityLabel("Library layout")
+                .frame(width: 76)
+                .help(libraryLayoutMode == .grid ? "Switch to list view" : "Switch to grid view")
+
+                if showsSelectManyButton {
+                    LibrarySelectManyButton {
+                        viewModel.beginBulkSelection()
+                    }
+                }
 
                 if let primaryActionTitle, let onPrimaryAction {
                     LibraryPrimaryActionButton(title: primaryActionTitle, action: onPrimaryAction)
@@ -40,7 +99,6 @@ struct TranscriptionLibraryView: View {
             .padding(.top, DesignSystem.Spacing.lg)
             .padding(.bottom, DesignSystem.Spacing.sm)
 
-            // Filter bar
             if showsFilterBar {
                 HStack(spacing: 0) {
                     ForEach(visibleLibraryFilters, id: \.self) { filter in
@@ -56,6 +114,10 @@ struct TranscriptionLibraryView: View {
                 .padding(.bottom, DesignSystem.Spacing.sm)
             }
 
+            MeetingClassificationFilterBar(libraryViewModel: viewModel)
+                .padding(.horizontal, DesignSystem.Spacing.lg)
+                .padding(.bottom, DesignSystem.Spacing.sm)
+
             if let errorMessage = viewModel.errorMessage {
                 Text(errorMessage)
                     .font(DesignSystem.Typography.bodySmall)
@@ -64,102 +126,236 @@ struct TranscriptionLibraryView: View {
                     .padding(.bottom, DesignSystem.Spacing.sm)
             }
 
-            // Content — date-grouped list for meetings, thumbnail grid otherwise.
-            // Reason: meetings have no thumbnail-worthy visual asset, so a list with
-            // preview text + speaker count is denser and more useful than a wall of
-            // waveform placeholders.
+            if viewModel.isBulkSelectionModeEnabled {
+                selectionActionsBar
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
             if viewModel.isLoading && viewModel.filteredTranscriptions.isEmpty {
                 loadingState
             } else if viewModel.filteredTranscriptions.isEmpty {
                 emptyState
-            } else if isMeetingListMode {
-                meetingsList
+            } else if usesListLayout {
+                transcriptionList
             } else {
                 thumbnailGrid
             }
         }
-        .searchable(text: $viewModel.searchText, prompt: "Search transcriptions")
-        .onAppear {
-            viewModel.loadTranscriptions()
-        }
-        .alert(
-            "Delete Transcription?",
-            isPresented: Binding(
-                get: { pendingDelete != nil },
-                set: { if !$0 { pendingDelete = nil } }
-            )
-        ) {
-            Button("Cancel", role: .cancel) {
-                pendingDelete = nil
+    }
+
+    private var interactionContent: some View {
+        libraryContent
+            .searchable(text: $viewModel.searchText, prompt: "Search transcriptions")
+            .focusable(viewModel.isBulkSelectionModeEnabled)
+            .focused($selectionKeyboardFocused)
+            // Retain keyboard focus without drawing the full-width system
+            // focus ring when bulk selection begins.
+            .focusEffectDisabled(viewModel.isBulkSelectionModeEnabled)
+            .onChange(of: viewModel.isBulkSelectionModeEnabled) { _, enabled in
+                if enabled {
+                    selectionKeyboardFocused = true
+                }
             }
-            Button("Delete", role: .destructive) {
-                if let transcription = pendingDelete {
-                    viewModel.deleteTranscription(transcription)
+            .animation(.easeInOut(duration: 0.16), value: viewModel.isBulkSelectionModeEnabled)
+            .onKeyPress(keys: ["a", "A", .delete, .deleteForward]) { press in
+                handleSelectionKeyPress(press)
+            }
+            .onAppear {
+                viewModel.loadTranscriptions()
+            }
+    }
+
+    private var primaryAlertsContent: some View {
+        interactionContent
+            .alert(
+                pendingDelete.map(singleDeleteTitle) ?? "Delete Transcription?",
+                isPresented: Binding(
+                    get: { pendingDelete != nil },
+                    set: { if !$0 { pendingDelete = nil } }
+                )
+            ) {
+                Button("Cancel", role: .cancel) {
                     pendingDelete = nil
                 }
-            }
-        } message: {
-            if let pending = pendingDelete {
-                Text("\"\(pending.fileName)\" will be permanently deleted.")
-            }
-        }
-        .alert(
-            "Delete Meeting Audio?",
-            isPresented: Binding(
-                get: { pendingDeleteAudio != nil },
-                set: { if !$0 { pendingDeleteAudio = nil } }
-            )
-        ) {
-            Button("Cancel", role: .cancel) {}
-            Button("Delete Audio", role: .destructive) {
-                if let transcription = pendingDeleteAudio {
-                    viewModel.deleteMeetingAudio(transcription)
+                Button(pendingDelete.map(singleDeleteConfirmTitle) ?? "Delete", role: .destructive) {
+                    if let transcription = pendingDelete {
+                        viewModel.deleteTranscription(transcription)
+                        pendingDelete = nil
+                    }
+                }
+            } message: {
+                if let pending = pendingDelete {
+                    Text(singleDeleteMessage(for: pending))
                 }
             }
-        } message: {
-            Text("The transcript stays in Library. Playback and retranscription will be unavailable unless you saved a copy.")
-        }
-        .alert(
-            "Save Failed",
-            isPresented: Binding(
-                get: { audioSaveErrorMessage != nil },
-                set: { if !$0 { audioSaveErrorMessage = nil } }
-            )
-        ) {
-            Button("OK", role: .cancel) {
-                audioSaveErrorMessage = nil
+            .alert(
+                "Rename Transcription",
+                isPresented: Binding(
+                    get: { pendingRename != nil },
+                    set: { if !$0 { cancelRename() } }
+                )
+            ) {
+                TextField("Title", text: $renameTitleDraft)
+                Button("Cancel", role: .cancel) {
+                    cancelRename()
+                }
+                Button("Rename") {
+                    commitRename()
+                }
+                .disabled(isRenameDisabled)
             }
-        } message: {
-            Text(audioSaveErrorMessage ?? "Unable to save meeting audio.")
-        }
+            .alert(
+                MeetingDeletionCopy.audioOnlyAlertTitle,
+                isPresented: Binding(
+                    get: { pendingDeleteAudio != nil },
+                    set: { if !$0 { pendingDeleteAudio = nil } }
+                )
+            ) {
+                Button("Cancel", role: .cancel) {
+                    pendingDeleteAudio = nil
+                }
+                Button(MeetingDeletionCopy.audioOnlyConfirmTitle, role: .destructive) {
+                    if let transcription = pendingDeleteAudio {
+                        viewModel.deleteMeetingAudio(transcription)
+                        pendingDeleteAudio = nil
+                    }
+                }
+            } message: {
+                Text(
+                    MeetingDeletionCopy.singleAudioOnlyMessage(
+                        surface: .library,
+                        status: pendingDeleteAudio?.status ?? .completed
+                    )
+                )
+            }
+    }
+
+    private var secondaryAlertsContent: some View {
+        primaryAlertsContent
+            .alert(
+                bulkOperationTitle,
+                isPresented: Binding(
+                    get: { viewModel.pendingBulkOperation != nil },
+                    set: { if !$0 { viewModel.cancelPendingBulkOperation() } }
+                )
+            ) {
+                Button("Cancel", role: .cancel) {
+                    viewModel.cancelPendingBulkOperation()
+                }
+                Button(bulkOperationConfirmTitle, role: .destructive) {
+                    // Alert dismissal clears pending state before a deferred
+                    // task runs, so snapshot the operation synchronously.
+                    guard let operation = viewModel.pendingBulkOperation else { return }
+                    Task {
+                        await viewModel.confirmBulkOperation(operation)
+                    }
+                }
+            } message: {
+                if let operation = viewModel.pendingBulkOperation {
+                    Text(bulkOperationMessage(for: operation))
+                }
+            }
+            .alert(
+                "Save Failed",
+                isPresented: Binding(
+                    get: { audioSaveErrorMessage != nil },
+                    set: { if !$0 { audioSaveErrorMessage = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) {
+                    audioSaveErrorMessage = nil
+                }
+            } message: {
+                Text(audioSaveErrorMessage ?? "Unable to save meeting audio.")
+            }
+            .alert(
+                "Export Failed",
+                isPresented: Binding(
+                    get: { bulkExportErrorMessage != nil },
+                    set: { if !$0 { bulkExportErrorMessage = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) {
+                    bulkExportErrorMessage = nil
+                }
+            } message: {
+                Text(bulkExportErrorMessage ?? "Unable to export selected transcripts.")
+            }
+    }
+
+    private var presentationContent: some View {
+        secondaryAlertsContent
+            .popover(item: $bulkExportResult, arrowEdge: .top) { result in
+                bulkExportConfirmationPopover(result)
+            }
+            .onDisappear {
+                cancelBulkExport()
+            }
+            .sheet(item: $splitTarget) { transcription in
+                if let meetingSplitViewModel {
+                    MeetingSplitSheetView(
+                        transcription: transcription,
+                        viewModel: meetingSplitViewModel,
+                        onDismiss: { splitTarget = nil },
+                        onOpenRecording: onSelect,
+                        initialOperationId: splitOperationId
+                    )
+                }
+            }
     }
 
     private var thumbnailGrid: some View {
         ScrollView {
             VStack(spacing: DesignSystem.Spacing.md) {
                 LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: DesignSystem.Layout.thumbnailCardMinWidth), spacing: DesignSystem.Spacing.md)],
+                    columns: [
+                        GridItem(
+                            .adaptive(minimum: DesignSystem.Layout.thumbnailCardMinWidth),
+                            spacing: DesignSystem.Spacing.md)
+                    ],
                     spacing: DesignSystem.Spacing.md
                 ) {
                     ForEach(viewModel.filteredTranscriptions) { transcription in
-                        TranscriptionThumbnailCard(transcription: transcription, searchText: viewModel.searchText) {
-                            onSelect(transcription)
+                        TranscriptionThumbnailCard(
+                            transcription: transcription,
+                            classification: viewModel.meetingClassificationViewModel.classification(
+                                for: transcription.id
+                            ),
+                            searchText: viewModel.searchText,
+                            isSelected: viewModel.isTranscriptionSelected(transcription),
+                            showsSelectionControls: viewModel.isBulkSelectionModeEnabled,
+                            sourceLabelStyle: sourceLabelStyle
+                        ) {
+                            if viewModel.isBulkOperationInProgress || bulkExportInProgress {
+                                return
+                            }
+                            if viewModel.isBulkSelectionModeEnabled {
+                                viewModel.toggleSelection(for: transcription)
+                            } else {
+                                onSelect(transcription)
+                            }
                         } menuContent: {
                             libraryMenuItems(for: transcription)
                         }
                         .contextMenu {
                             libraryMenuItems(for: transcription)
                         }
+                        .meetingClassificationPopover(
+                            item: $classificationTarget,
+                            transcription: transcription,
+                            viewModel: viewModel.meetingClassificationViewModel
+                        )
                     }
                 }
                 loadMoreFooter
             }
             .padding(.horizontal, DesignSystem.Spacing.lg)
+            .padding(.top, DesignSystem.Spacing.md)
             .padding(.bottom, DesignSystem.Spacing.lg)
         }
     }
 
-    private var meetingsList: some View {
+    private var transcriptionList: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(viewModel.groupedTranscriptions, id: \.group) { section in
@@ -167,9 +363,34 @@ struct TranscriptionLibraryView: View {
                     ForEach(Array(section.items.enumerated()), id: \.element.id) { idx, transcription in
                         MeetingRowCard(
                             transcription: transcription,
+                            classification: viewModel.meetingClassificationViewModel.classification(
+                                for: transcription.id
+                            ),
                             searchText: viewModel.searchText,
-                            onTap: { onSelect(transcription) },
+                            effectiveTranscriptText: viewModel.effectiveTranscriptText(for: transcription),
+                            isSelected: viewModel.isTranscriptionSelected(transcription),
+                            showsSelectionControls: viewModel.isBulkSelectionModeEnabled,
+                            sourceLabelStyle: sourceLabelStyle,
+                            isRetrying: viewModel.isRetryingMeetingTranscription(transcription),
+                            onTap: {
+                                if viewModel.isBulkOperationInProgress || bulkExportInProgress {
+                                    return
+                                }
+                                if viewModel.isBulkSelectionModeEnabled {
+                                    viewModel.toggleSelection(for: transcription)
+                                } else {
+                                    onSelect(transcription)
+                                }
+                            },
+                            onRetry: {
+                                viewModel.retryMeetingTranscription(transcription)
+                            },
                             menuContent: { libraryMenuItems(for: transcription) }
+                        )
+                        .meetingClassificationPopover(
+                            item: $classificationTarget,
+                            transcription: transcription,
+                            viewModel: viewModel.meetingClassificationViewModel
                         )
                         if idx < section.items.count - 1 {
                             MeetingRowHairline()
@@ -192,20 +413,104 @@ struct TranscriptionLibraryView: View {
             Label("Open", systemImage: "doc.text")
         }
 
+        if !viewModel.isBulkSelectionModeEnabled, transcription.sourceType == .file {
+            Button {
+                beginRename(transcription)
+            } label: {
+                Label("Rename...", systemImage: "pencil")
+            }
+        }
+
+        if !viewModel.isBulkSelectionModeEnabled {
+            Button {
+                viewModel.beginBulkSelection(startingWith: transcription)
+            } label: {
+                Label("Select Many...", systemImage: "checklist")
+            }
+        }
+
+        Button {
+            classificationTarget = transcription
+        } label: {
+            Label("Edit Labels...", systemImage: "tag")
+        }
+
         if transcription.sourceType == .meeting {
-            let audioAvailable = MeetingAudioFile.isAvailable(for: transcription)
+            Divider()
+
+            let audioState = MeetingAudioFile.state(for: transcription)
+            let audioAvailable = audioState == .saved
+            let audioRemovable = MeetingAudioFile.isRemovable(for: transcription, state: audioState)
+            let artifactAvailable = MeetingArtifactActions.folderURL(for: transcription) != nil
+
+            Divider()
+
+            if transcription.status == .error || transcription.status == .cancelled {
+                Button {
+                    viewModel.retryMeetingTranscription(transcription)
+                } label: {
+                    Label("Retry Transcription", systemImage: "arrow.clockwise")
+                }
+                .disabled(viewModel.isRetryingMeetingTranscription(transcription) || audioState != .saved)
+
+                Divider()
+            }
+
+            Button {
+                MeetingArtifactActions.openFolder(for: transcription)
+            } label: {
+                Label("Open Meeting Folder", systemImage: "folder")
+            }
+            .disabled(!artifactAvailable)
+            .help(
+                artifactAvailable
+                    ? "Open the meeting artifact folder in Finder"
+                    : "Meeting artifact folder is not available")
+
+            Button {
+                MeetingArtifactActions.copyFolderPath(for: transcription)
+            } label: {
+                Label("Copy Artifact Folder Path", systemImage: "doc.on.doc")
+            }
+            .disabled(!artifactAvailable)
+            .help(
+                artifactAvailable
+                    ? "Copy the meeting artifact folder path"
+                    : "Meeting artifact folder is not available")
+
+            if meetingSplitViewModel != nil, let provenance = transcription.splitProvenance {
+                Button {
+                    splitOperationId = provenance.operationId
+                    splitTarget = transcription
+                } label: {
+                    Label("View split progress…", systemImage: "list.bullet.clipboard")
+                }
+                .parakeetAction(.secondary)
+            }
+
+            if meetingSplitViewModel != nil, MeetingSplitEligibility.isEligible(transcription) {
+                Divider()
+                Button {
+                    splitOperationId = nil
+                    splitTarget = transcription
+                } label: {
+                    Label("Split and Transcribe…", systemImage: "square.split.2x1")
+                }
+                .parakeetAction(.secondary)
+            }
 
             Divider()
 
             Button {
                 MeetingAudioActions.revealInFinder(transcription)
             } label: {
-                Label("Show in Finder", systemImage: "folder")
+                Label("Show Audio in Finder", systemImage: "waveform")
             }
             .disabled(!audioAvailable)
-            .help(audioAvailable
-                  ? "Reveal the meeting audio file in Finder"
-                  : "Audio file is not available yet")
+            .help(
+                audioAvailable
+                    ? "Reveal the meeting audio file in Finder"
+                    : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
 
             Button {
                 saveMeetingAudio(transcription)
@@ -213,19 +518,24 @@ struct TranscriptionLibraryView: View {
                 Label("Save Audio As…", systemImage: "square.and.arrow.down")
             }
             .disabled(!audioAvailable)
-            .help(audioAvailable
-                  ? "Save a copy of the meeting audio to a chosen location"
-                  : "Audio file is not available yet")
+            .help(
+                audioAvailable
+                    ? "Save a copy of the meeting audio to a chosen location"
+                    : MeetingDeletionCopy.audioUnavailableHelp(for: audioState))
 
             Button(role: .destructive) {
                 pendingDeleteAudio = transcription
             } label: {
-                Label("Delete Audio", systemImage: "waveform.slash")
+                Label(MeetingDeletionCopy.audioOnlyMenuTitle, systemImage: "waveform.slash")
             }
-            .disabled(!audioAvailable)
-            .help(audioAvailable
-                  ? "Delete the stored meeting audio while keeping the transcript"
-                  : "Audio file is not available yet")
+            .disabled(!audioRemovable)
+            .help(
+                audioRemovable
+                    ? "Remove the saved meeting audio while keeping the meeting"
+                    : MeetingDeletionCopy.audioRemovalUnavailableHelp(
+                        for: transcription,
+                        state: audioState
+                    ))
         }
 
         Divider()
@@ -244,8 +554,35 @@ struct TranscriptionLibraryView: View {
         Button(role: .destructive) {
             pendingDelete = transcription
         } label: {
-            Label("Delete", systemImage: "trash")
+            Label(
+                transcription.sourceType == .meeting ? MeetingDeletionCopy.fullDeleteMenuTitle : "Delete",
+                systemImage: "trash")
         }
+    }
+
+    private var selectionActionsBar: some View {
+        BulkTranscriptionSelectionBar(
+            selectedCount: selectedBulkExportTargets.count,
+            selectedMeetingAudioCount: viewModel.selectedMeetingAudioCount,
+            isMeetingContext: isMeetingContext,
+            areAllVisibleSelected: viewModel.areAllLoadedVisibleTranscriptionsSelected,
+            isPerformingOperation: viewModel.isBulkOperationInProgress || bulkExportInProgress,
+            operationLabel: bulkExportInProgress ? "Exporting..." : "Deleting...",
+            isExportDisabled: isBulkExportActionDisabled,
+            onSelectVisible: { viewModel.selectLoadedVisibleTranscriptions() },
+            onClear: { viewModel.clearSelection() },
+            onCancel: { viewModel.exitBulkSelection() },
+            onExport: { showingBulkExportOptions = true },
+            onDeleteAudioOnly: { viewModel.requestDeleteSelectedMeetingAudio() },
+            onDeleteItems: { viewModel.requestDeleteSelectedItems() }
+        )
+        .popover(isPresented: $showingBulkExportOptions, arrowEdge: .top) {
+            bulkExportOptionsPopover
+        }
+    }
+
+    private var showsSelectManyButton: Bool {
+        !viewModel.isBulkSelectionModeEnabled && !viewModel.filteredTranscriptions.isEmpty
     }
 
     private func saveMeetingAudio(_ transcription: Transcription) {
@@ -270,23 +607,360 @@ struct TranscriptionLibraryView: View {
         }
     }
 
+    private func beginRename(_ transcription: Transcription) {
+        pendingRename = transcription
+        renameTitleDraft = transcription.effectiveDisplayTitle
+    }
+
+    private func cancelRename() {
+        pendingRename = nil
+        renameTitleDraft = ""
+    }
+
+    private func commitRename() {
+        guard let transcription = pendingRename else { return }
+        if viewModel.renameTranscriptionTitle(transcription, to: renameTitleDraft) {
+            cancelRename()
+        }
+    }
+
+    private var isRenameDisabled: Bool {
+        guard let normalizedTitle = Transcription.normalizedTitleOverride(from: renameTitleDraft) else {
+            return true
+        }
+        return normalizedTitle == pendingRename?.effectiveDisplayTitle
+    }
+
+    // Static so the completeness check runs once at first use rather than
+    // allocating two Sets on every body re-render (the popover re-renders on
+    // each format selection).
+    private static let bulkExportFormatOrder: [TranscriptExportFormat] = {
+        let preferredOrder: [TranscriptExportFormat] = [.txt, .md, .srt, .vtt, .dapt, .json, .pdf, .docx]
+        precondition(
+            preferredOrder.count == TranscriptExportFormat.allCases.count
+                && Set(preferredOrder) == Set(TranscriptExportFormat.allCases),
+            "Bulk export format order must include every TranscriptExportFormat case"
+        )
+        return preferredOrder
+    }()
+
+    private var selectedBulkExportFormat: TranscriptExportFormat {
+        get {
+            TranscriptExportFormat(rawValue: selectedBulkExportFormatRawValue) ?? .txt
+        }
+        nonmutating set {
+            selectedBulkExportFormatRawValue = newValue.rawValue
+        }
+    }
+
+    private var bulkExportOptions: TranscriptExportOptions {
+        TranscriptExportOptions(
+            includeTimestamps: bulkExportIncludeTimestamps,
+            includeSpeakerLabels: bulkExportIncludeSpeakerLabels,
+            includeMetadata: bulkExportIncludeMetadata
+        )
+    }
+
+    private var selectedBulkExportTargets: [Transcription] {
+        viewModel.selectedLoadedTranscriptionsForExport
+    }
+
+    private var isBulkExportActionDisabled: Bool {
+        selectedBulkExportTargets.isEmpty || bulkExportInProgress || viewModel.isBulkOperationInProgress
+    }
+
+    private var bulkExportOptionsPopover: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                Label("Export Selected", systemImage: "arrow.down.doc")
+                    .font(DesignSystem.Typography.body.bold())
+
+                Spacer()
+
+                Button {
+                    showingBulkExportOptions = false
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close export options")
+            }
+
+            Text(
+                "\(selectedBulkExportTargets.count) \(selectedBulkExportTargets.count == 1 ? "item" : "items")"
+            )
+            .font(DesignSystem.Typography.caption.weight(.medium))
+            .foregroundStyle(DesignSystem.Colors.textSecondary)
+
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                Text("Format")
+                    .font(DesignSystem.Typography.caption.weight(.medium))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 104), spacing: 8)],
+                    alignment: .leading,
+                    spacing: 8
+                ) {
+                    ForEach(Self.bulkExportFormatOrder) { format in
+                        Button {
+                            selectedBulkExportFormat = format
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: format.iconName)
+                                    .frame(width: 16)
+                                Text(format.shortName)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.85)
+                                Spacer(minLength: 0)
+                            }
+                            .font(DesignSystem.Typography.caption)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 7)
+                            .frame(maxWidth: .infinity)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(
+                                        selectedBulkExportFormat == format
+                                            ? DesignSystem.Colors.accent.opacity(0.14)
+                                            : DesignSystem.Colors.surface)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .strokeBorder(
+                                        selectedBulkExportFormat == format
+                                            ? DesignSystem.Colors.accent.opacity(0.7)
+                                            : DesignSystem.Colors.border.opacity(0.7),
+                                        lineWidth: 1
+                                    )
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(format.displayName)
+                        .accessibilityValue(selectedBulkExportFormat == format ? "Selected" : "")
+                    }
+                }
+            }
+
+            if selectedBulkExportFormat.supportsTranscriptOptions {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                    Text("Options")
+                        .font(DesignSystem.Typography.caption.weight(.medium))
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+
+                    Toggle("Include timestamps when available", isOn: $bulkExportIncludeTimestamps)
+                    Toggle("Include speaker labels when available", isOn: $bulkExportIncludeSpeakerLabels)
+                    Toggle("Include metadata", isOn: $bulkExportIncludeMetadata)
+                }
+            }
+
+            Divider()
+
+            HStack {
+                Spacer()
+                Button {
+                    showingBulkExportOptions = false
+                    runBulkExport()
+                } label: {
+                    Label("Choose Folder...", systemImage: "folder")
+                }
+                .parakeetAction(.primaryProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(isBulkExportActionDisabled)
+            }
+        }
+        .padding(DesignSystem.Spacing.md)
+        .frame(width: 390)
+    }
+
+    @ViewBuilder
+    private func bulkExportConfirmationPopover(_ result: BulkTranscriptExportResult) -> some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: result.isCompleteSuccess ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .font(.system(size: 18))
+                    .foregroundStyle(
+                        result.isCompleteSuccess ? DesignSystem.Colors.successGreen : DesignSystem.Colors.warningAmber)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(bulkExportResultTitle(result))
+                        .font(DesignSystem.Typography.body.bold())
+                    Text(result.directory.lastPathComponent)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    if result.failedCount > 0 {
+                        Text("\(result.failedCount) \(result.failedCount == 1 ? "file" : "files") failed.")
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.warningAmber)
+                    }
+                }
+
+                Spacer(minLength: 4)
+
+                Button {
+                    bulkExportResult = nil
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close export confirmation")
+            }
+
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting(result.exportedURLs)
+                bulkExportResult = nil
+            } label: {
+                Label("Show in Finder", systemImage: "folder")
+                    .font(DesignSystem.Typography.caption)
+            }
+            .parakeetAction(.secondary)
+        }
+        .padding(DesignSystem.Spacing.md)
+        .frame(minWidth: 240)
+    }
+
+    private func bulkExportResultTitle(_ result: BulkTranscriptExportResult) -> String {
+        if result.isCompleteSuccess {
+            return
+                "Exported \(result.exportedCount) \(result.format.shortName) \(result.exportedCount == 1 ? "file" : "files")"
+        }
+        if result.exportedCount > 0 {
+            return "Exported \(result.exportedCount) of \(result.requestedCount)"
+        }
+        return "No files exported"
+    }
+
+    private func runBulkExport() {
+        guard !isBulkExportActionDisabled else { return }
+        let targets = selectedBulkExportTargets
+
+        cancelBulkExport()
+        let outcome = runBulkExportFolderPanel()
+        guard case .selected(let directory) = outcome else { return }
+
+        let runID = UUID()
+        let format = selectedBulkExportFormat
+        let options = bulkExportOptions
+        let projectionProvider = viewModel.speakerAttributionProjectionProvider
+
+        bulkExportRunID = runID
+        bulkExportInProgress = true
+        bulkExportErrorMessage = nil
+        bulkExportResult = nil
+
+        bulkExportCoordinatorTask = Task { @MainActor in
+            defer {
+                finishBulkExportRun(runID)
+            }
+
+            do {
+                await Task.yield()
+                guard bulkExportRunID == runID, !Task.isCancelled else { return }
+
+                let exportTask = Task.detached(priority: .userInitiated) {
+                    try await TranscriptResultActions.exportTranscriptsToDirectory(
+                        transcriptions: targets,
+                        format: format,
+                        options: options,
+                        directory: directory,
+                        projectionProvider: projectionProvider
+                    )
+                }
+                bulkExportWorkerTask = exportTask
+                let result = try await withTaskCancellationHandler {
+                    try await exportTask.value
+                } onCancel: {
+                    exportTask.cancel()
+                }
+                guard bulkExportRunID == runID else { return }
+                bulkExportWorkerTask = nil
+
+                guard result.exportedCount > 0 else {
+                    bulkExportErrorMessage = result.firstErrorDescription ?? "No files were exported."
+                    SoundManager.shared.play(.errorSoft)
+                    return
+                }
+
+                SoundManager.shared.play(result.isCompleteSuccess ? .transcriptionComplete : .errorSoft)
+                bulkExportResult = result
+            } catch is CancellationError {
+                guard bulkExportRunID == runID else { return }
+            } catch {
+                guard bulkExportRunID == runID else { return }
+                bulkExportErrorMessage = error.localizedDescription
+                SoundManager.shared.play(.errorSoft)
+            }
+        }
+    }
+
+    @MainActor
+    private func finishBulkExportRun(_ runID: UUID) {
+        guard bulkExportRunID == runID else { return }
+        bulkExportInProgress = false
+        bulkExportCoordinatorTask = nil
+        bulkExportWorkerTask = nil
+    }
+
+    @MainActor
+    private func cancelBulkExport() {
+        bulkExportCoordinatorTask?.cancel()
+        bulkExportCoordinatorTask = nil
+        bulkExportWorkerTask?.cancel()
+        bulkExportWorkerTask = nil
+        bulkExportInProgress = false
+        bulkExportResult = nil
+        bulkExportErrorMessage = nil
+        bulkExportRunID = UUID()
+    }
+
+    private enum BulkExportFolderOutcome: Sendable {
+        case selected(URL)
+        case cancelled
+    }
+
+    // Synchronous app-modal panel, matching MeetingAudioActions.runSaveAudioPanel
+    // and DictationHistoryViewModel. It runs before the async export coordinator
+    // starts, so no Task is suspended inside the modal interaction.
+    @MainActor
+    private func runBulkExportFolderPanel() -> BulkExportFolderOutcome {
+        let panel = NSOpenPanel()
+        panel.title = "Choose Export Folder"
+        panel.prompt = "Export"
+        panel.message = "Choose a folder for the selected transcript files."
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        if let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first {
+            panel.directoryURL = downloads
+        }
+
+        guard panel.runModal() == .OK, let directory = panel.url else { return .cancelled }
+        return .selected(directory)
+    }
+
     private var emptyState: some View {
         VStack(spacing: DesignSystem.Spacing.lg) {
             Spacer()
             Image(systemName: emptyStateIcon)
                 .font(.system(size: 40, weight: .light))
                 .foregroundStyle(DesignSystem.Colors.textTertiary)
-            Text(viewModel.searchText.isEmpty
-                 ? emptyStateTitle
-                 : "No matching transcriptions")
-                .font(DesignSystem.Typography.body)
-                .foregroundStyle(DesignSystem.Colors.textSecondary)
-            Text(viewModel.searchText.isEmpty
-                 ? emptyStateMessage
-                 : "Try different words or clear your search.")
-                .font(DesignSystem.Typography.bodySmall)
-                .foregroundStyle(DesignSystem.Colors.textTertiary)
-                .multilineTextAlignment(.center)
+            Text(
+                emptyStateTitle
+            )
+            .font(DesignSystem.Typography.body)
+            .foregroundStyle(DesignSystem.Colors.textSecondary)
+            Text(
+                emptyStateMessage
+            )
+            .font(DesignSystem.Typography.bodySmall)
+            .foregroundStyle(DesignSystem.Colors.textTertiary)
+            .multilineTextAlignment(.center)
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -295,8 +969,7 @@ struct TranscriptionLibraryView: View {
     private var loadingState: some View {
         VStack {
             Spacer()
-            ProgressView()
-                .controlSize(.small)
+            ParakeetSpinner(.inline)
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -317,29 +990,150 @@ struct TranscriptionLibraryView: View {
                 Spacer()
             }
         } else if viewModel.isLoading {
-            ProgressView()
-                .controlSize(.small)
+            ParakeetSpinner(.inline)
                 .frame(maxWidth: .infinity)
         }
     }
 
-    private var isMeetingListMode: Bool {
+    private var isMeetingContext: Bool {
         viewModel.scope == .meetings || viewModel.filter == .meeting
     }
 
+    /// Drawn from the result set's `(scope, filter)` pair, so outgoing cards
+    /// keep their source presentation until the next query replaces them.
+    private var sourceLabelStyle: LibrarySourceLabelStyle {
+        viewModel.displayedSourceLabelStyle
+    }
+
+    private var libraryLayoutMode: LibraryLayoutMode {
+        // Browsing must not persist a default: only the picker writes a global choice.
+        storedLibraryLayoutMode.flatMap(LibraryLayoutMode.init(rawValue:))
+            ?? (isMeetingContext ? .list : .grid)
+    }
+
+    private var usesListLayout: Bool {
+        libraryLayoutMode == .list
+    }
+
+    private var bulkOperationTitle: String {
+        guard let operation = viewModel.pendingBulkOperation else { return "Delete Items?" }
+        if operation.isDeleteAudioOnly {
+            return MeetingDeletionCopy.audioOnlyAlertTitle
+        }
+        if operation.meetingCount == operation.targetCount, operation.targetCount == 1 {
+            return MeetingDeletionCopy.fullDeleteAlertTitle
+        }
+        if operation.meetingCount == operation.targetCount {
+            return "Delete Meetings?"
+        }
+        return "Delete Items?"
+    }
+
+    private var bulkOperationConfirmTitle: String {
+        guard let operation = viewModel.pendingBulkOperation else { return "Delete" }
+        if operation.isDeleteAudioOnly {
+            return MeetingDeletionCopy.audioOnlyConfirmTitle
+        }
+        if operation.meetingCount == operation.targetCount {
+            return operation.targetCount == 1 ? MeetingDeletionCopy.fullDeleteConfirmTitle : "Delete Meetings"
+        }
+        return "Delete Items"
+    }
+
+    private func bulkOperationMessage(for operation: BulkTranscriptionOperation) -> String {
+        if operation.isDeleteAudioOnly {
+            return MeetingDeletionCopy.bulkAudioOnlyMessage(
+                count: operation.targetCount,
+                skippedCount: operation.skippedCount,
+                surface: .library,
+                hasNonCompletedMeeting: operation.hasNonCompletedMeeting
+            )
+        }
+
+        if operation.meetingCount > 0 {
+            if operation.meetingCount == operation.targetCount {
+                return MeetingDeletionCopy.bulkFullDeleteMessage(
+                    count: operation.targetCount,
+                    hasNonCompletedMeeting: operation.hasNonCompletedMeeting
+                )
+            }
+            return MeetingDeletionCopy.mixedBulkFullDeleteMessage(
+                totalCount: operation.targetCount,
+                meetingCount: operation.meetingCount,
+                hasNonCompletedMeeting: operation.hasNonCompletedMeeting
+            )
+        }
+
+        return
+            "Delete \(operation.targetCount) \(operation.targetCount == 1 ? "item" : "items")? This permanently deletes the Library rows and app-owned files. Original local source files are not removed."
+    }
+
+    private func singleDeleteTitle(for transcription: Transcription) -> String {
+        transcription.sourceType == .meeting ? "Delete Meeting?" : "Delete Transcription?"
+    }
+
+    private func singleDeleteConfirmTitle(for transcription: Transcription) -> String {
+        transcription.sourceType == .meeting ? "Delete Meeting" : "Delete"
+    }
+
+    private func singleDeleteMessage(for transcription: Transcription) -> String {
+        if transcription.sourceType == .meeting {
+            return MeetingDeletionCopy.singleFullDeleteMessage(for: transcription)
+        }
+        return "\"\(transcription.fileName)\" will be permanently deleted. Original local source files are not removed."
+    }
+
+    private func handleSelectionKeyPress(_ press: KeyPress) -> KeyPress.Result {
+        guard
+            viewModel.isBulkSelectionModeEnabled,
+            !viewModel.isBulkOperationInProgress,
+            !bulkExportInProgress
+        else { return .ignored }
+        if press.key == .delete || press.key == .deleteForward {
+            guard viewModel.hasSelectedTranscriptions else { return .ignored }
+            viewModel.requestDeleteSelectedItems()
+            return .handled
+        }
+        if (press.key == "a" || press.key == "A"), press.modifiers.contains(.command) {
+            viewModel.selectLoadedVisibleTranscriptions()
+            return .handled
+        }
+        return .ignored
+    }
+
     private var emptyStateIcon: String {
+        if hasLabelFilter { return "tag" }
         if !viewModel.searchText.isEmpty { return "magnifyingglass" }
-        return isMeetingListMode ? "waveform.badge.mic" : "square.grid.2x2"
+        return isMeetingContext ? "waveform.badge.mic" : "square.grid.2x2"
     }
 
     private var emptyStateTitle: String {
-        isMeetingListMode ? "No meetings recorded yet" : emptyTitle
+        if hasLabelFilter {
+            if !viewModel.searchText.isEmpty {
+                return isMeetingContext
+                    ? "No meetings match this search and these labels"
+                    : "No transcriptions match this search and these labels"
+            }
+            return isMeetingContext ? "No meetings match these labels" : "No transcriptions match these labels"
+        }
+        if !viewModel.searchText.isEmpty { return "No matching transcriptions" }
+        return isMeetingContext ? "No meetings recorded yet" : emptyTitle
     }
 
     private var emptyStateMessage: String {
-        isMeetingListMode
+        if hasLabelFilter {
+            return viewModel.searchText.isEmpty
+                ? "Clear filters to show every transcription."
+                : "Clear filters or search to broaden the results."
+        }
+        if !viewModel.searchText.isEmpty { return "Try different words or clear your search." }
+        return isMeetingContext
             ? "Press Record Meeting on the Transcribe tab to capture system audio and transcribe locally."
             : emptyMessage
+    }
+
+    private var hasLabelFilter: Bool {
+        !viewModel.selectedMeetingLabelIDs.isEmpty
     }
 }
 
@@ -386,8 +1180,8 @@ private struct LibraryFilterChip: View {
         .buttonStyle(.plain)
         .onHover { hovering in
             isHovered = hovering
-            if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
         }
+        .pointingHandCursor(isActive: isHovered)
     }
 }
 
@@ -426,9 +1220,23 @@ private struct LibraryPrimaryActionButton: View {
         .buttonStyle(.plain)
         .onHover { hovering in
             isHovered = hovering
-            if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
         }
+        .pointingHandCursor(isActive: isHovered)
         .accessibilityLabel(title)
         .accessibilityHint("Starts a new transcription")
+    }
+}
+
+private struct LibrarySelectManyButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label("Select Many", systemImage: "checklist")
+                .font(DesignSystem.Typography.bodySmall.weight(.semibold))
+        }
+        .parakeetAction(.secondary)
+        .help("Select multiple visible Library items")
+        .accessibilityHint("Shows selection controls for bulk cleanup")
     }
 }

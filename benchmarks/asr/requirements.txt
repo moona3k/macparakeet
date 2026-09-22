@@ -1,0 +1,10 @@
+# ASR benchmark scorer dependencies — pinned to the versions the published
+# results were produced with. Python >= 3.10 (uses `X | Y` type syntax);
+# results were generated on CPython 3.14.5.
+#
+#   python3 -m venv venv && venv/bin/pip install -r requirements.txt
+#
+whisper-normalizer==0.1.12   # Whisper EnglishTextNormalizer / BasicTextNormalizer
+jiwer==4.0.0                 # word/char edit counting (Open ASR Leaderboard standard)
+rapidfuzz==3.14.5            # jiwer's Levenshtein backend; pinned for determinism
+mutagen==1.47.0             # FLAC duration -> RTFx in the run/speed scripts

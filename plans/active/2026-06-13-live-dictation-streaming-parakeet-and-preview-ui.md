@@ -114,7 +114,7 @@ Confirmed/volatile two-tone + a smoother source (e.g. `SlidingWindowAsrManager`)
 - Part A: screenshots + overlay VM tests.
 
 ## Docs to update (after shipping)
-REQ-STT-002 (above); `CLAUDE.md` Release Channels (feature + `liveDictationStreamingEnabled` in the main-vs-release delta); `Sources/MacParakeetCore/STT/README.md` (display-only ephemeral preview + sample-preview API + single-flight + "never the paste"); `docs/research/live-dictation-streaming.md` (record Whisper probe; flip status); `spec/02-features.md`/`spec/README.md`. Move plan → `completed/`; update board + advisor index. Note: ADR-016 cites FluidAudio 0.13.6 but `Package.resolved` is 0.15.2 — reconcile.
+ADR/spec live-preview wording; `spec/README.md` Release Channels And Feature Flags (feature + `liveDictationStreamingEnabled` in the main-vs-release delta); `Sources/MacParakeetCore/STT/README.md` (display-only ephemeral preview + sample-preview API + single-flight + "never the paste"); `docs/research/live-dictation-streaming.md` (record Whisper probe; flip status); `spec/02-features.md`/`spec/README.md`. Move plan → `completed/`; update board + advisor index. Note: ADR-016 cites FluidAudio 0.13.6 but `Package.resolved` is 0.15.2 — reconcile.
 
 ## STOP conditions
 - Drift on any anchor since `2473828f5`.

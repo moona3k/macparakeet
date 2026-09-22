@@ -77,16 +77,33 @@ public struct SettingsSearchEntry: Identifiable, Hashable, Sendable {
 /// when their `AppFeatures` flag is `false`, so search never lands on a
 /// card or row that won't render.
 public enum SettingsSearchIndex {
+    /// Shared anchor for the advanced recordings/files engine control.
+    public static let advancedTranscriptionAnchor = "engine.transcriptionSelector"
+
+    /// The anchor of the Meeting Recording card, which the view gates on
+    /// `AppFeatures.meetingRecordingEnabled` along with every row inside it.
+    private static let meetingCardAnchor = "meeting"
+
     /// Ids whose destination card or row is gated on
     /// `AppFeatures.meetingRecordingEnabled`. When the flag is off these
     /// entries are filtered out so search never lands on a destination
     /// that won't render.
-    private static let meetingGatedIds: Set<String> = [
-        "meeting",
-        "meeting.autoStop",
-        "meeting.calendar",
-        "system.permissions.screen"
-    ]
+    ///
+    /// Derived from the card anchor rather than hand-listed: the whole card
+    /// disappears with the flag, so every entry pointing at it must too, and
+    /// deriving means adding a meeting setting cannot forget to gate its
+    /// search row. Only entries that sit under a different anchor yet exist
+    /// solely to serve meeting recording — screen-recording permission — are
+    /// named explicitly.
+    private static let meetingGatedIds: Set<String> = {
+        var ids = Set(
+            allEntries
+                .filter { $0.cardAnchor == meetingCardAnchor }
+                .map(\.id)
+        )
+        ids.insert("system.permissions.screen")
+        return ids
+    }()
 
     /// Ids gated on `AppFeatures.calendarEnabled` independently of meeting
     /// recording. Filtered out when the flag is off so search doesn't land
@@ -153,11 +170,38 @@ public enum SettingsSearchIndex {
             cardAnchor: "dictation"
         ),
         SettingsSearchEntry(
+            id: "dictation.streaming.cursor",
+            tab: .capture,
+            title: "Streaming cursor",
+            subtitle: "in Dictation",
+            keywords: ["streaming", "cursor", "typewriter", "caret", "character", "superwhisper", "insert"],
+            cardAnchor: "dictation"
+        ),
+        SettingsSearchEntry(
             id: "dictation.live.preview",
             tab: .capture,
             title: "Live transcript preview",
             subtitle: "in Dictation",
             keywords: ["preview", "live preview", "transcript preview", "dictation pill", "overlay", "in progress"],
+            cardAnchor: "dictation"
+        ),
+        SettingsSearchEntry(
+            id: "dictation.undo.window",
+            tab: .capture,
+            title: "Undo window",
+            subtitle: "in Dictation",
+            keywords: ["undo", "cancel", "countdown", "timer", "wait", "discard", "off", "disable"],
+            cardAnchor: "dictation"
+        ),
+        SettingsSearchEntry(
+            id: "dictation.preserve.discarded",
+            tab: .capture,
+            title: "Preserve discarded dictations",
+            subtitle: "in Dictation",
+            keywords: [
+                "preserve", "discarded", "cancelled", "canceled", "recover",
+                "accidental cancel", "keep cancelled", "history",
+            ],
             cardAnchor: "dictation"
         ),
         SettingsSearchEntry(
@@ -225,11 +269,93 @@ public enum SettingsSearchIndex {
             cardAnchor: "meeting"
         ),
         SettingsSearchEntry(
+            id: "meeting.hotkey",
+            tab: .capture,
+            title: "Meeting hotkey",
+            subtitle: "in Meeting Recording",
+            keywords: [
+                "hotkey", "shortcut", "keyboard shortcut", "meeting shortcut",
+                "change hotkey", "change shortcut", "remove hotkey", "remove shortcut",
+                "disable hotkey", "unmap", "remap",
+                "cmd shift m", "cmd+shift+m", "command shift m", "command+shift+m", "⌘⇧m"
+            ],
+            cardAnchor: "meeting"
+        ),
+        SettingsSearchEntry(
             id: "meeting.calendar",
             tab: .capture,
             title: "Calendar",
             subtitle: "in Meeting Recording",
-            keywords: ["calendar", "auto start", "auto-start", "reminders", "events", "ics"],
+            keywords: [
+                "calendar", "auto start", "auto-start", "reminders", "events", "ics",
+                "outlook", "microsoft 365", "exchange", "internet accounts",
+            ],
+            cardAnchor: "meeting"
+        ),
+        SettingsSearchEntry(
+            id: "meeting.floatingControls",
+            tab: .capture,
+            title: "Show floating meeting controls",
+            subtitle: "in Meeting Recording",
+            keywords: [
+                "floating controls", "meeting pill", "recording pill",
+                "hide meeting", "hide recording", "recording ui", "menu bar",
+                "overlay"
+            ],
+            cardAnchor: "meeting"
+        ),
+        SettingsSearchEntry(
+            id: "meeting.openAppAfterEnd",
+            tab: .capture,
+            title: "Open app when meeting ends",
+            subtitle: "in Meeting Recording",
+            keywords: [
+                "open app", "auto open", "auto-open", "bring forward", "focus",
+                "steal focus", "meeting ends", "after meeting", "stop recording",
+                "background", "stay in background"
+            ],
+            cardAnchor: "meeting"
+        ),
+        SettingsSearchEntry(
+            id: "meeting.notifyOnEnd",
+            tab: .capture,
+            title: "Notify when transcript is ready",
+            subtitle: "in Meeting Recording",
+            keywords: [
+                "notification", "notify", "banner", "chime", "sound",
+                "meeting ready", "transcript ready", "meeting complete",
+                "meeting notification"
+            ],
+            cardAnchor: "meeting"
+        ),
+        SettingsSearchEntry(
+            id: "meeting.startMuted",
+            tab: .capture,
+            title: "Start meetings muted",
+            subtitle: "in Meeting Recording",
+            keywords: [
+                "start muted", "mute microphone", "mic off", "unmute later",
+                "join muted", "begin muted", "silence microphone",
+            ],
+            cardAnchor: "meeting"
+        ),
+        SettingsSearchEntry(
+            id: "meeting.liveTranscription",
+            tab: .capture,
+            title: "Live transcription during recording",
+            subtitle: "in Meeting Recording",
+            keywords: [
+                "live transcription", "live preview", "live captions", "cpu", "gpu",
+                "performance", "battery", "disable live transcription", "just record",
+            ],
+            cardAnchor: "meeting"
+        ),
+        SettingsSearchEntry(
+            id: "meeting.speakerDetection",
+            tab: .capture,
+            title: "Speaker detection",
+            subtitle: "in Meeting Recording",
+            keywords: ["speaker", "speaker labels", "diarization", "participants", "others", "system audio"],
             cardAnchor: "meeting"
         ),
         SettingsSearchEntry(
@@ -245,10 +371,25 @@ public enum SettingsSearchIndex {
         SettingsSearchEntry(
             id: "engine.selector",
             tab: .engine,
-            title: "Speech Recognition",
-            subtitle: "Parakeet, Nemotron, and Whisper engine selector.",
-            keywords: ["engine", "speech", "stt", "parakeet", "whisper", "model", "ane", "neural engine"],
+            title: "Speech Engine",
+            subtitle: "Your selected engine handles dictation, meetings, recordings, and files.",
+            keywords: [
+                "engine", "speech", "stt", "parakeet", "nemotron", "whisper", "cohere",
+                "model", "preview", "timestamps", "ane", "neural engine"
+            ],
             cardAnchor: "engine.selector"
+        ),
+        SettingsSearchEntry(
+            id: advancedTranscriptionAnchor,
+            tab: .engine,
+            title: "Recordings & Files Engine",
+            subtitle: "Optionally use a different engine for completed meeting recordings, files, media, and URLs.",
+            keywords: [
+                "meeting engine", "transcription engine", "final transcript", "file engine", "files engine",
+                "recordings", "accuracy", "slower", "separate engine", "same as live", "advanced",
+                "media", "retranscription", "dictation", "parakeet", "nemotron", "whisper", "cohere",
+            ],
+            cardAnchor: advancedTranscriptionAnchor
         ),
         SettingsSearchEntry(
             id: "engine.language",
@@ -292,11 +433,28 @@ public enum SettingsSearchIndex {
             cardAnchor: "engine.selector"
         ),
         SettingsSearchEntry(
+            id: "engine.cohereModel",
+            tab: .engine,
+            title: "Cohere Performance",
+            subtitle: "Available when Cohere is the active engine.",
+            keywords: [
+                "cohere", "gpu", "ane", "neural engine", "compute", "performance",
+                "speed", "latency", "fastest", "balanced", "model"
+            ],
+            // Same hidden-anchor rationale as the Parakeet/Nemotron Model
+            // entries: the Cohere Performance card only renders when Cohere is
+            // the active engine, so land on the always-present selector.
+            cardAnchor: "engine.selector"
+        ),
+        SettingsSearchEntry(
             id: "engine.models",
             tab: .engine,
             title: "Local Models",
-            subtitle: "Parakeet, Nemotron, and Whisper model status.",
-            keywords: ["model", "download", "repair", "disk", "parakeet", "whisper", "coreml", "local"],
+            subtitle: "Parakeet, Nemotron, Whisper, and Cohere model status.",
+            keywords: [
+                "model", "download", "repair", "disk", "parakeet", "nemotron",
+                "whisper", "cohere", "coreml", "local"
+            ],
             cardAnchor: "engine.models"
         ),
 
@@ -309,7 +467,9 @@ public enum SettingsSearchIndex {
             keywords: [
                 "ai", "llm", "openai", "anthropic", "claude", "gpt", "lm studio", "ollama",
                 "openai compatible", "summary", "summaries", "chat", "ask", "api key",
-                "provider", "local ai", "local app", "command line", "cli"
+                "provider", "local ai", "local app", "command line", "cli",
+                "kimi", "moonshot", "deepseek", "qwen", "dashscope", "z.ai", "zai", "z ai", "glm", "minimax",
+                "openrouter",
             ],
             cardAnchor: "ai.provider"
         ),
@@ -324,6 +484,17 @@ public enum SettingsSearchIndex {
                 "summary context", "chat context", "ask context"
             ],
             cardAnchor: "ai.transcriptContext"
+        ),
+        SettingsSearchEntry(
+            id: "ai.meetingTitles",
+            tab: .ai,
+            title: "Meeting Titles",
+            subtitle: "Auto-generate short meeting names from completed transcripts.",
+            keywords: [
+                "meeting title", "meeting titles", "auto title", "auto-title",
+                "automatic title", "library title", "recording title", "timestamp title"
+            ],
+            cardAnchor: "ai.meetingTitles"
         ),
         // The AI Formatter card (header + fallback prompt) is always visible;
         // only the smart defaults + profile management inside it are gated on
@@ -360,11 +531,22 @@ public enum SettingsSearchIndex {
             cardAnchor: "system.appearance"
         ),
         SettingsSearchEntry(
+            id: "system.appearance.discover",
+            tab: .system,
+            title: "Show Discover in the sidebar",
+            subtitle: "in Appearance",
+            keywords: ["discover", "sidebar", "hide discover", "feed"],
+            cardAnchor: "system.appearance"
+        ),
+        SettingsSearchEntry(
             id: "system.startup",
             tab: .system,
             title: "Startup",
             subtitle: "How MacParakeet shows up at sign-in.",
-            keywords: ["launch at login", "login items", "menu bar only", "startup", "boot", "auto launch"],
+            keywords: [
+                "launch at login", "login items", "menu bar", "menu bar icon", "hide menu bar icon",
+                "status icon", "menu bar only", "startup", "boot", "auto launch",
+            ],
             cardAnchor: "system.startup"
         ),
         SettingsSearchEntry(
@@ -407,7 +589,8 @@ public enum SettingsSearchIndex {
             keywords: [
                 "storage", "retention", "disk", "history",
                 "save dictation", "save audio", "keep youtube audio", "youtube",
-                "keep meeting audio", "meeting audio", "meeting recordings", "clear audio"
+                "keep meeting audio", "meeting audio", "meeting recordings",
+                "remove audio", "clear audio", "transcript only", "audio lifecycle"
             ],
             cardAnchor: "system.storage"
         ),

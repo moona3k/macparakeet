@@ -1,0 +1,14 @@
+{
+  "scope": "Static data-only synchronization after later release evidence updates; not a new browser run.",
+  "before_html_sha256": "5091e50cd4af6f4c136519627a53aedb8f32929091582ec975a0335806283d3b",
+  "after_html_sha256": "4f3761fa5d94d0f92dcd5a1e5875fcd7be239ed8be0235b3ad2cbba726168b86",
+  "evidence_sha256": "66275050caacec3d02b37a6415996e80f823d2079fd885555670e4df0598f531",
+  "embedded_data_equal": true,
+  "outside_script_bytes_preserved": true,
+  "counts": {
+    "passed": 26,
+    "failed": 6,
+    "unverified": 4
+  },
+  "checks": 36
+}

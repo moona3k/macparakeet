@@ -6,6 +6,7 @@ public actor MockAudioProcessor: AudioProcessorProtocol {
     public var convertError: Error?
     public var captureResult: URL?
     public var captureError: Error?
+    public var captureHealth: AudioCaptureHealth?
     private var _audioLevel: Float = 0.0
     private var _isRecording = false
     private var startCaptureDelayMs: UInt64 = 0
@@ -13,6 +14,7 @@ public actor MockAudioProcessor: AudioProcessorProtocol {
     public var stopCaptureCalled = false
     public var convertCallCount = 0
     public var lastConvertURL: URL?
+    public var lastAudioTrackOrdinal: Int?
     public var convertURLs: [URL] = []
     public var liveSampleSink: DictationAudioSampleSink?
 
@@ -26,6 +28,10 @@ public actor MockAudioProcessor: AudioProcessorProtocol {
     public func configure(captureResult: URL) {
         self.captureResult = captureResult
         self.captureError = nil
+    }
+
+    public func configure(lastCaptureHealth: AudioCaptureHealth?) {
+        self.captureHealth = lastCaptureHealth
     }
 
     public func configureConvertError(_ error: Error) {
@@ -56,9 +62,18 @@ public actor MockAudioProcessor: AudioProcessorProtocol {
         nil
     }
 
+    public var lastCaptureHealth: AudioCaptureHealth? {
+        captureHealth
+    }
+
     public func convert(fileURL: URL) async throws -> URL {
+        try await convert(fileURL: fileURL, audioTrackOrdinal: nil)
+    }
+
+    public func convert(fileURL: URL, audioTrackOrdinal: Int?) async throws -> URL {
         convertCallCount += 1
         lastConvertURL = fileURL
+        lastAudioTrackOrdinal = audioTrackOrdinal
         convertURLs.append(fileURL)
         if let error = convertError { throw error }
         return convertResult ?? URL(fileURLWithPath: "/tmp/converted.wav")

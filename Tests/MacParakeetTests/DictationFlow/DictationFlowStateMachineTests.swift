@@ -286,6 +286,20 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertTrue(effects.contains(.startDisplayDismissTimer(seconds: 5)))
     }
 
+    func testCheckingEntitlementsStartFailedShowsError() {
+        var m = makeMachine()
+        _ = m.handle(.startRequested(mode: .persistent))
+        let gen = m.generation
+
+        let effects = m.handle(.startFailed(generation: gen, message: "Microphone access required"))
+        XCTAssertEqual(m.state, .finishing(outcome: .error("Microphone access required")))
+        XCTAssertTrue(effects.contains(.showError("Microphone access required")))
+        XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
+        XCTAssertTrue(effects.contains(.updateMenuBar(.idle)))
+        XCTAssertTrue(effects.contains(.startDisplayDismissTimer(seconds: 5)))
+        XCTAssertFalse(effects.contains(.startRecording(mode: .persistent)))
+    }
+
     func testStartingServiceStopRequested() {
         var m = makeMachine()
         _ = m.handle(.startRequested(mode: .persistent))
@@ -359,9 +373,17 @@ final class DictationFlowStateMachineTests: XCTestCase {
         let effects = m.handle(.stopRequested)
         XCTAssertEqual(m.state, .processing)
         XCTAssertTrue(effects.contains(.cancelRecordingTask))
-        XCTAssertTrue(effects.contains(.stopRecordingAndTranscribe))
+        XCTAssertTrue(effects.contains(.stopRecordingAndTranscribe(mode: .persistent)))
         XCTAssertTrue(effects.contains(.showProcessingState))
         XCTAssertTrue(effects.contains(.updateMenuBar(.processing)))
+    }
+
+    func testRecordingHoldStopCarriesMode() {
+        var m = machineInRecording(mode: .holdToTalk)
+
+        let effects = m.handle(.stopRequested)
+        XCTAssertEqual(m.state, .processing)
+        XCTAssertTrue(effects.contains(.stopRecordingAndTranscribe(mode: .holdToTalk)))
     }
 
     func testRecordingCancelRequestedEscape() {
@@ -372,7 +394,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertTrue(effects.contains(.cancelRecordingTask))
         XCTAssertTrue(effects.contains(.cancelRecording(reason: .escape)))
         XCTAssertTrue(effects.contains(.showCancelCountdown))
-        XCTAssertTrue(effects.contains(.startCancelCountdown))
+        XCTAssertTrue(effects.contains(.startCancelCountdown(seconds: 5)))
         XCTAssertTrue(effects.contains(.updateMenuBar(.idle)))
         // Always emitted (old code always calls notifyCancelledByUI)
         XCTAssertTrue(effects.contains(.notifyHotkeyCancelledByUI))
@@ -384,6 +406,50 @@ final class DictationFlowStateMachineTests: XCTestCase {
         let effects = m.handle(.cancelRequested(reason: .ui))
         XCTAssertEqual(m.state, .cancelCountdown)
         XCTAssertTrue(effects.contains(.notifyHotkeyCancelledByUI))
+    }
+
+    func testRecordingCancelRequestedShortCountdownEmitsConfiguredDuration() {
+        var m = machineInRecording()
+        m.undoCountdownSeconds = 1
+
+        let effects = m.handle(.cancelRequested(reason: .escape))
+        XCTAssertEqual(m.state, .cancelCountdown)
+        XCTAssertTrue(effects.contains(.startCancelCountdown(seconds: 1)))
+        XCTAssertFalse(effects.contains(.startCancelCountdown(seconds: 5)))
+    }
+
+    func testRecordingCancelRequestedDisabledCountdownSkipsToConfirm() {
+        var m = machineInRecording()
+        m.undoCountdownSeconds = nil
+
+        let effects = m.handle(.cancelRequested(reason: .escape))
+        XCTAssertEqual(m.state, .idle)
+        XCTAssertFalse(effects.contains(.showCancelCountdown))
+        XCTAssertFalse(effects.contains(.startCancelCountdown(seconds: 5)))
+        XCTAssertFalse(effects.contains(.startCancelCountdown(seconds: 1)))
+        XCTAssertTrue(effects.contains(.cancelRecordingTask))
+        XCTAssertTrue(effects.contains(.confirmCancel(reason: .escape)))
+        XCTAssertTrue(effects.contains(.hideOverlay))
+        XCTAssertTrue(effects.contains(.showIdlePill))
+        XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
+        // confirmCancel carries the reason so the coordinator can record cancel
+        // telemetry and discard in one ordered task.
+        XCTAssertFalse(effects.contains(.cancelRecording(reason: .escape)))
+        // Must NOT block hotkeys: there is no countdown to expire on this path,
+        // so notifyHotkeyCancelledByUI would leave dictation shortcuts stuck.
+        XCTAssertFalse(effects.contains(.notifyHotkeyCancelledByUI))
+    }
+
+    func testCancelCountdownUndoReturnsToProcessing() {
+        var m = machineInRecording()
+        _ = m.handle(.cancelRequested(reason: .escape))
+        XCTAssertEqual(m.state, .cancelCountdown)
+
+        let effects = m.handle(.undoRequested)
+        XCTAssertEqual(m.state, .processing)
+        XCTAssertTrue(effects.contains(.cancelCancelCountdown))
+        XCTAssertTrue(effects.contains(.undoCancelAndTranscribe))
+        XCTAssertTrue(effects.contains(.showProcessingState))
     }
 
     func testRecordingDiscardRequestedShowsReadyPill() {
@@ -449,9 +515,22 @@ final class DictationFlowStateMachineTests: XCTestCase {
         let effects = m.handle(.recordingStarted(generation: gen))
         XCTAssertEqual(m.state, .processing)
         XCTAssertTrue(effects.contains(.cancelRecordingTask))
-        XCTAssertTrue(effects.contains(.stopRecordingAndTranscribe))
+        XCTAssertTrue(effects.contains(.stopRecordingAndTranscribe(mode: .persistent)))
         XCTAssertTrue(effects.contains(.showProcessingState))
         XCTAssertTrue(effects.contains(.updateMenuBar(.processing)))
+    }
+
+    func testPendingStopHoldRecordingStartedCarriesMode() {
+        var m = makeMachine()
+        _ = m.handle(.startRequested(mode: .holdToTalk))
+        let gen = m.generation
+        _ = m.handle(.entitlementsGranted(generation: gen))
+        _ = m.handle(.stopRequested)
+        XCTAssertEqual(m.state, .pendingStop(mode: .holdToTalk))
+
+        let effects = m.handle(.recordingStarted(generation: gen))
+        XCTAssertEqual(m.state, .processing)
+        XCTAssertTrue(effects.contains(.stopRecordingAndTranscribe(mode: .holdToTalk)))
     }
 
     func testPendingStopStartFailed() {
@@ -504,6 +583,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertTrue(effects.contains(.showSuccess))
         XCTAssertTrue(effects.contains(.updateMenuBar(.idle)))
         XCTAssertTrue(effects.contains(.resignKeyWindow))
+        XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
         XCTAssertTrue(effects.contains(.pasteTranscript))
     }
 
@@ -576,7 +656,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         let effects = m.handle(.cancelConfirmedImmediate)
         XCTAssertEqual(m.state, .idle)
         XCTAssertTrue(effects.contains(.cancelCancelCountdown))
-        XCTAssertTrue(effects.contains(.confirmCancel))
+        XCTAssertTrue(effects.contains(.confirmCancel(reason: nil)))
         XCTAssertTrue(effects.contains(.hideOverlay))
         XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
     }
@@ -587,7 +667,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
 
         let effects = m.handle(.cancelCountdownExpired(generation: gen))
         XCTAssertEqual(m.state, .idle)
-        XCTAssertTrue(effects.contains(.confirmCancel))
+        XCTAssertTrue(effects.contains(.confirmCancel(reason: nil)))
         XCTAssertTrue(effects.contains(.hideOverlay))
         XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
         XCTAssertTrue(effects.contains(.showIdlePill))
@@ -609,7 +689,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertEqual(m.state, .checkingEntitlements(mode: .persistent))
         XCTAssertEqual(m.generation, oldGen + 1)
         XCTAssertTrue(effects.contains(.cancelCancelCountdown))
-        XCTAssertTrue(effects.contains(.confirmCancel))
+        XCTAssertTrue(effects.contains(.confirmCancel(reason: nil)))
         XCTAssertTrue(effects.contains(.hideOverlay))
         XCTAssertTrue(effects.contains(.checkEntitlements))
     }
@@ -620,7 +700,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         let effects = m.handle(.dismissRequested)
         XCTAssertEqual(m.state, .idle)
         XCTAssertTrue(effects.contains(.cancelAllTimers))
-        XCTAssertTrue(effects.contains(.confirmCancel))
+        XCTAssertTrue(effects.contains(.confirmCancel(reason: nil)))
         XCTAssertTrue(effects.contains(.hideOverlay))
     }
 
@@ -630,7 +710,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         // Second cancel while in countdown = confirm immediately
         let effects = m.handle(.cancelRequested(reason: .escape))
         XCTAssertEqual(m.state, .idle)
-        XCTAssertTrue(effects.contains(.confirmCancel))
+        XCTAssertTrue(effects.contains(.confirmCancel(reason: nil)))
         XCTAssertTrue(effects.contains(.hideOverlay))
     }
 
@@ -644,6 +724,22 @@ final class DictationFlowStateMachineTests: XCTestCase {
         let effects = m.handle(.pasteSucceeded(generation: gen))
         XCTAssertEqual(m.state, .finishing(outcome: .success))
         XCTAssertTrue(effects.contains(.startDisplayDismissTimer(seconds: 0.8)))
+        XCTAssertFalse(effects.contains(.hideOverlay))
+    }
+
+    func testSuccessDwellAcceptsImmediatePersistentRestart() {
+        var m = machineInProcessing()
+        let gen = m.generation
+        _ = m.handle(.transcriptionCompleted(generation: gen))
+        _ = m.handle(.pasteSucceeded(generation: gen))
+
+        let effects = m.handle(.startRequested(mode: .persistent))
+
+        XCTAssertEqual(m.state, .checkingEntitlements(mode: .persistent))
+        XCTAssertEqual(m.generation, gen + 1)
+        XCTAssertTrue(effects.contains(.checkEntitlements))
+        XCTAssertTrue(effects.contains(.hideIdlePill))
+        XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
     }
 
     func testFinishingPasteFailed() {
@@ -797,6 +893,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertEqual(m.state, .ready)
         XCTAssertTrue(effects.contains(.showReadyPill))
         XCTAssertTrue(effects.contains(.cancelActionTask))
+        XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
     }
 
     func testFinishingErrorStartRequested() {
@@ -855,14 +952,16 @@ final class DictationFlowStateMachineTests: XCTestCase {
         _ = m.handle(.transcriptionCompleted(generation: gen))
         XCTAssertEqual(m.state, .finishing(outcome: .success))
 
-        // → paste succeeded
-        _ = m.handle(.pasteSucceeded(generation: gen))
+        // → paste succeeded starts the success-checkmark dwell
+        let pasteEffects = m.handle(.pasteSucceeded(generation: gen))
         XCTAssertEqual(m.state, .finishing(outcome: .success))
+        XCTAssertTrue(pasteEffects.contains(.startDisplayDismissTimer(seconds: 0.8)))
 
         // → idle
         let effects = m.handle(.displayDismissExpired(generation: gen))
         XCTAssertEqual(m.state, .idle)
         XCTAssertTrue(effects.contains(.reloadHistory))
+        XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
     }
 
     func testHappyPathHoldToTalk() {
@@ -889,7 +988,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
 
         let effects = m.handle(.cancelCountdownExpired(generation: gen))
         XCTAssertEqual(m.state, .idle)
-        XCTAssertTrue(effects.contains(.confirmCancel))
+        XCTAssertTrue(effects.contains(.confirmCancel(reason: nil)))
     }
 
     func testCancelFlowUndo() {
@@ -1010,7 +1109,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         // Recording starts → auto-transitions to processing
         let effects = m.handle(.recordingStarted(generation: gen))
         XCTAssertEqual(m.state, .processing)
-        XCTAssertTrue(effects.contains(.stopRecordingAndTranscribe))
+        XCTAssertTrue(effects.contains(.stopRecordingAndTranscribe(mode: .persistent)))
 
         // Complete transcription
         _ = m.handle(.transcriptionCompleted(generation: gen))

@@ -24,6 +24,18 @@ final class LLMResultTests: XCTestCase {
         XCTAssertEqual(usage.totalTokens, 0)
     }
 
+    func testTokenUsageTotalsPreserveComponentsAtIntegerBounds() {
+        let cases: [(Int, Int, Int?)] = [
+            (Int.max, 1, nil), (Int.min, -1, nil), (Int.max, 0, Int.max),
+        ]
+        for (prompt, completion, total) in cases {
+            let usage = LLMUsage(TokenUsage(promptTokens: prompt, completionTokens: completion))
+            XCTAssertEqual(usage.promptTokens, prompt)
+            XCTAssertEqual(usage.completionTokens, completion)
+            XCTAssertEqual(usage.totalTokens, total)
+        }
+    }
+
     // MARK: - LLMResult init from ChatCompletionResponse
 
     func testLLMResultFromResponseStampsProviderAndLatency() {
@@ -52,6 +64,42 @@ final class LLMResultTests: XCTestCase {
         XCTAssertNil(result.usage)
         XCTAssertNil(result.stopReason)
         XCTAssertEqual(result.provider, "ollama")
+    }
+
+    func testLLMResultFromResponseCarriesEffectiveInferenceReceipt() {
+        let settings = PromptInferenceSettings(temperature: 0.2, maxTokens: 512)
+        let response = ChatCompletionResponse(
+            content: "hi",
+            model: "gpt-4.1",
+            effectiveInferenceSettings: settings
+        )
+
+        let result = LLMResult(response: response, provider: .openai, latencyMs: 50)
+
+        XCTAssertEqual(result.effectiveSettings, settings)
+    }
+
+    func testLLMResultEncodesEffectiveSettingsAdditively() throws {
+        let result = LLMResult(
+            output: "configured",
+            provider: "openai",
+            model: "gpt-4.1",
+            latencyMs: 12,
+            effectiveSettings: PromptInferenceSettings(
+                temperature: 0.25,
+                maxTokens: 256,
+                thinkingMode: .enabled,
+                reasoningEffort: .high
+            )
+        )
+
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(result)) as? [String: Any]
+        )
+        let receipt = try XCTUnwrap(object["effectiveSettings"] as? [String: Any])
+        XCTAssertEqual(receipt["temperature"] as? Double, 0.25)
+        XCTAssertEqual(receipt["maxTokens"] as? Int, 256)
+        XCTAssertEqual(receipt["reasoningEffort"] as? String, "high")
     }
 
     // MARK: - JSON encoding shape

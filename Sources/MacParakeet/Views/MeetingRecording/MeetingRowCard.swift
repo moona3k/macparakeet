@@ -1,4 +1,5 @@
 import MacParakeetCore
+import MacParakeetViewModels
 import SwiftUI
 
 /// Single row in the Meetings list. Apple-minimal layout: title + snippet on
@@ -6,38 +7,60 @@ import SwiftUI
 /// (recovered dot, speaker count) appear only when they carry signal.
 struct MeetingRowCard<MenuContent: View>: View {
     let transcription: Transcription
+    var classification: MeetingClassification? = nil
     var searchText: String = ""
+    var effectiveTranscriptText: String? = nil
+    var isSelected: Bool = false
+    var showsSelectionControls: Bool = false
+    var sourceLabelStyle: LibrarySourceLabelStyle = .hidden
+    var isRetrying: Bool = false
     var onTap: () -> Void
+    var onRetry: (() -> Void)? = nil
     @ViewBuilder var menuContent: () -> MenuContent
 
     @State private var hovered = false
+    @State private var showsErrorDetail = false
 
     var body: some View {
-        Button(action: onTap) {
+        VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
-                contentColumn
-                trailingColumn
+                rowActivationButton
+
+                if audioState == .removed {
+                    MeetingAudioStateChip(state: audioState)
+                        .padding(.top, 2)
+                }
+
+                if showsRetryButton {
+                    retryButton
+                        .padding(.top, 4)
+                }
             }
-            .padding(.horizontal, DesignSystem.Spacing.lg)
-            .padding(.vertical, 12)
-            .frame(minHeight: 64, alignment: .top)
-            .contentShape(Rectangle())
-            .background(rowBackground)
+
+            errorDetailDisclosure
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, DesignSystem.Spacing.lg)
+        .padding(.vertical, 12)
+        .frame(minHeight: 64, alignment: .top)
+        .background(rowBackground)
         .help(hoverTooltip)
         .onHover { hovered = $0 }
         .animation(DesignSystem.Animation.hoverTransition, value: hovered)
         .contextMenu { menuContent() }
-        .accessibilityElement(children: .combine)
-        .accessibilityHint(hoverTooltip)
     }
 
     // MARK: - Backgrounds
 
     @ViewBuilder
     private var rowBackground: some View {
-        if hovered {
+        if isSelected {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(DesignSystem.Colors.accentLight)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 6)
+                        .strokeBorder(DesignSystem.Colors.accent.opacity(0.38), lineWidth: 0.8)
+                }
+        } else if hovered {
             RoundedRectangle(cornerRadius: 6)
                 .fill(DesignSystem.Colors.rowHoverBackground)
         } else {
@@ -45,11 +68,56 @@ struct MeetingRowCard<MenuContent: View>: View {
         }
     }
 
+    private var selectionBadge: some View {
+        ZStack {
+            Circle()
+                .fill(isSelected ? DesignSystem.Colors.accent : Color.clear)
+                .frame(width: 18, height: 18)
+                .overlay {
+                    Circle()
+                        .strokeBorder(
+                            isSelected ? DesignSystem.Colors.accent : DesignSystem.Colors.textTertiary.opacity(0.7),
+                            lineWidth: 1.2
+                        )
+                }
+
+            if isSelected {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(DesignSystem.Colors.onAccent)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
     // MARK: - Content
+
+    private var rowActivationButton: some View {
+        Button(action: onTap) {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                if showsSelectionControls {
+                    selectionBadge
+                        .padding(.top, 1)
+                }
+                contentColumn
+                metadataColumn
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(showsSelectionControls ? (isSelected ? "Selected" : "Not selected") : "")
+        .accessibilityHint(showsSelectionControls ? "Toggles selection" : hoverTooltip)
+    }
 
     private var contentColumn: some View {
         VStack(alignment: .leading, spacing: 3) {
             titleRow
+            MeetingClassificationBadges(
+                classification: classification,
+                maximumLabels: 2
+            )
             snippetRow
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -65,19 +133,55 @@ struct MeetingRowCard<MenuContent: View>: View {
                     .accessibilityLabel("Recovered from a crash")
             }
 
+            if let partialCapture = MeetingPartialCapturePresentation.make(for: transcription) {
+                Text(partialCapture.badgeText)
+                    .font(DesignSystem.Typography.micro.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.warningAmber)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(DesignSystem.Colors.warningAmber.opacity(0.10))
+                    )
+                    .fixedSize()
+                    .help(partialCapture.message)
+                    .accessibilityLabel(partialCapture.badgeText)
+                    .accessibilityHint(partialCapture.message)
+            }
+
             highlightedTitle
                 .font(.system(size: 15, weight: .semibold))
-                .tracking(-0.15)
                 .foregroundStyle(DesignSystem.Colors.textPrimary)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .contentTransition(.opacity)
+                .layoutPriority(1)
+
+            if transcription.isFavorite {
+                FavoriteStatusMarker()
+                    .fixedSize()
+            }
+
+            if sourceLabelStyle != .hidden {
+                sourceInline
+            }
 
             speakerInline
                 .layoutPriority(0)
 
+            audioInline
+                .layoutPriority(0)
+
             Spacer(minLength: 0)
         }
+    }
+
+    private var sourceInline: some View {
+        TranscriptionSourceLabel(
+            source: TranscriptionSourceDisplay.resolve(for: transcription),
+            style: sourceLabelStyle,
+            font: DesignSystem.Typography.micro.weight(.medium)
+        )
     }
 
     @ViewBuilder
@@ -92,6 +196,13 @@ struct MeetingRowCard<MenuContent: View>: View {
     }
 
     @ViewBuilder
+    private var audioInline: some View {
+        if audioState == .missing {
+            MeetingAudioStateChip(state: audioState)
+        }
+    }
+
+    @ViewBuilder
     private var snippetRow: some View {
         if let snippet = displayedSnippet {
             highlightedText(snippet)
@@ -100,28 +211,68 @@ struct MeetingRowCard<MenuContent: View>: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
         } else if transcription.status == .processing {
-            Text("Transcribing…")
-                .font(DesignSystem.Typography.bodySmall)
-                .foregroundStyle(DesignSystem.Colors.textTertiary)
-                .lineLimit(1)
+            HStack(spacing: 5) {
+                ParakeetSpinner(.inline)
+                    .scaleEffect(0.85)
+                    .frame(width: 12, height: 12)
+                Text(statusLine("Transcribing"))
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    .lineLimit(1)
+            }
         } else if transcription.status == .error {
-            Text("Transcription failed")
-                .font(DesignSystem.Typography.bodySmall)
-                .foregroundStyle(DesignSystem.Colors.errorRed.opacity(0.85))
-                .lineLimit(1)
+            failedHeadlineRow
         } else if transcription.status == .cancelled {
             // Keep-Audio outcome of the stop-transcription flow (issue #487):
             // the audio is intact and retranscribable from the detail view.
-            Text("Transcription stopped — audio saved")
+            Text(statusLine("Transcription stopped"))
                 .font(DesignSystem.Typography.bodySmall)
                 .foregroundStyle(DesignSystem.Colors.textTertiary)
                 .lineLimit(1)
         }
     }
 
+    private var failedHeadlineRow: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(DesignSystem.Colors.warningAmber)
+            Text(failedHeadline)
+                .font(DesignSystem.Typography.bodySmall)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .lineLimit(1)
+        }
+    }
+
+    @ViewBuilder
+    private var errorDetailDisclosure: some View {
+        if transcription.status == .error, let detail = errorDetail {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                if showsSelectionControls {
+                    Color.clear
+                        .frame(width: 18, height: 1)
+                }
+                DisclosureGroup(isExpanded: $showsErrorDetail) {
+                    Text(detail)
+                        .font(DesignSystem.Typography.micro)
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                        .lineLimit(3)
+                        .textSelection(.enabled)
+                        .padding(.top, 1)
+                } label: {
+                    Text("Details")
+                        .font(DesignSystem.Typography.micro.weight(.medium))
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                }
+                .disclosureGroupStyle(.automatic)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
     // MARK: - Trailing
 
-    private var trailingColumn: some View {
+    private var metadataColumn: some View {
         VStack(alignment: .trailing, spacing: 3) {
             if let durationMs = transcription.durationMs {
                 Text(durationMs.formattedDurationCompact)
@@ -140,33 +291,75 @@ struct MeetingRowCard<MenuContent: View>: View {
         .fixedSize()
     }
 
+    private var retryButton: some View {
+        Button {
+            onRetry?()
+        } label: {
+            HStack(spacing: 5) {
+                if isRetrying {
+                    ParakeetSpinner(.inline)
+                        .scaleEffect(0.85)
+                        .frame(width: 12, height: 12)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                Text(isRetrying ? "Retrying" : "Retry")
+                    .font(DesignSystem.Typography.micro.weight(.semibold))
+            }
+            .foregroundStyle(retryButtonForeground)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                Capsule()
+                    .fill(DesignSystem.Colors.surfaceElevated.opacity(0.72))
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(DesignSystem.Colors.border.opacity(0.8), lineWidth: 0.6)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isRetrying || onRetry == nil || audioState != .saved)
+        .help(retryHelp)
+        .accessibilityLabel(isRetrying ? "Retrying transcription" : "Retry transcription")
+    }
+
     // MARK: - Derived display values
 
-    /// A meeting carries a real, user-editable title (`fileName`) — the same
-    /// value shown in the detail header and set by the rename pencil, defaulting
-    /// to "Meeting <date>" at recording time. The Meetings list mirrors that
-    /// title so the row matches the detail view and honors renames. The
-    /// transcript-content-derived `derivedTitle` is only a snippet/export aid
-    /// for meetings (it still drives titles for file/YouTube grid rows).
     private var displayedTitle: String {
-        let name = transcription.fileName.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !name.isEmpty { return name }
+        let title = transcription.effectiveDisplayTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !title.isEmpty { return title }
         if transcription.status == .processing { return "Transcribing…" }
         return transcription.fileName
     }
 
     private var displayedSnippet: String? {
-        if let derived = transcription.derivedSnippet?.trimmingCharacters(in: .whitespacesAndNewlines), !derived.isEmpty {
+        if let effectiveTranscriptText,
+            let effectiveSnippet = SnippetDeriver.derive(
+                from: effectiveTranscriptText,
+                excluding: transcription.derivedTitle
+            ) ?? snippet(from: effectiveTranscriptText)
+        {
+            return effectiveSnippet
+        }
+        if let derived = transcription.derivedSnippet?.trimmingCharacters(in: .whitespacesAndNewlines), !derived.isEmpty
+        {
             return derived
         }
         return legacySnippet
     }
 
     private var legacySnippet: String? {
-        guard let text = transcription.cleanTranscript ?? transcription.rawTranscript, !text.isEmpty else {
+        snippet(from: transcription.cleanTranscript ?? transcription.rawTranscript)
+    }
+
+    private func snippet(from text: String?) -> String? {
+        guard let text, !text.isEmpty else {
             return nil
         }
-        let cleaned = text
+        let cleaned =
+            text
             .replacingOccurrences(of: "\n", with: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return nil }
@@ -178,16 +371,87 @@ struct MeetingRowCard<MenuContent: View>: View {
         return count >= 2 ? count : nil
     }
 
+    private var audioState: MeetingAudioFile.State {
+        MeetingAudioFile.state(for: transcription)
+    }
+
+    private var errorDetail: String? {
+        guard let detail = transcription.errorMessage?.trimmingCharacters(in: .whitespacesAndNewlines),
+            !detail.isEmpty
+        else {
+            return nil
+        }
+        return detail
+    }
+
+    private var failedHeadline: String {
+        switch audioState {
+        case .saved:
+            return "Transcription failed — audio is saved"
+        case .removed:
+            return "Transcription failed — audio unavailable"
+        case .missing:
+            return "Transcription failed — audio missing"
+        case .notMeeting:
+            return "Transcription failed"
+        }
+    }
+
+    private var showsRetryButton: Bool {
+        transcription.sourceType == .meeting
+            && (transcription.status == .error || transcription.status == .cancelled)
+    }
+
+    private var retryButtonForeground: Color {
+        if isRetrying || onRetry == nil || audioState != .saved {
+            return DesignSystem.Colors.textTertiary
+        }
+        return DesignSystem.Colors.accent
+    }
+
+    private var retryHelp: String {
+        if isRetrying {
+            return "Retry is already in progress"
+        }
+        guard onRetry != nil else {
+            return "Retry is not available"
+        }
+        return audioState == .saved
+            ? "Retry transcription from saved meeting audio"
+            : "Saved meeting audio is required before retrying transcription"
+    }
+
+    private func statusLine(_ prefix: String) -> String {
+        prefix
+    }
+
+    private var audioStateSuffix: String? {
+        switch audioState {
+        case .saved:
+            return "audio saved"
+        case .removed:
+            return "audio unavailable"
+        case .missing:
+            return "audio missing"
+        case .notMeeting:
+            return nil
+        }
+    }
+
     private var timeOfDayString: String {
         transcription.createdAt.formatted(date: .omitted, time: .shortened)
     }
 
     private var hoverTooltip: String {
         let absolute = transcription.createdAt.formatted(date: .abbreviated, time: .shortened)
-        if let engineLabel = engineLabel {
-            return "\(absolute) · \(engineLabel)"
+        var parts = [absolute]
+        if let engineLabel {
+            parts.append(engineLabel)
         }
-        return absolute
+        if let audioStateSuffix {
+            parts.append(audioStateSuffix)
+        }
+        return parts.joined(separator: " · ")
     }
 
     private var engineLabel: String? {

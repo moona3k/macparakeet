@@ -1,4 +1,5 @@
 import XCTest
+import FluidAudio
 @testable import MacParakeetCore
 
 final class AppPathsTests: XCTestCase {
@@ -37,6 +38,13 @@ final class AppPathsTests: XCTestCase {
         XCTAssertTrue(AppPaths.defaultMeetingRecordingsDir.hasSuffix("meeting-recordings"))
     }
 
+    func testFluidAudioModelsDirUsesFluidAudioDefaultWithoutDebugOverride() {
+        XCTAssertEqual(
+            AppPaths.resolvedFluidAudioModelsDir(environment: [:]),
+            MLModelConfigurationUtils.defaultModelsDirectory()
+        )
+    }
+
     func testMeetingRecordingsDirCanBeConfiguredFromDefaults() {
         let suiteName = "macparakeet.test.paths.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -54,9 +62,64 @@ final class AppPathsTests: XCTestCase {
         XCTAssertEqual(AppPaths.configuredMeetingRecordingsDir(defaults: defaults), custom)
     }
 
+    func testDeveloperAppStateDirOverridesAppSupport() {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-debug-state-\(UUID().uuidString)", isDirectory: true)
+            .standardizedFileURL
+        let environment = [AppPaths.debugAppStateDirEnvironmentKey: root.path]
+
+        XCTAssertEqual(AppPaths.resolvedAppSupportDir(environment: environment), root.path)
+        XCTAssertEqual(AppPaths.defaultMeetingRecordingsDir(environment: environment), root.appendingPathComponent("meeting-recordings").path)
+    }
+
+    func testDeveloperAppStateDirScopesFluidAudioModelsInsideThrowawayRoot() {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-debug-state-\(UUID().uuidString)", isDirectory: true)
+            .standardizedFileURL
+        let environment = [AppPaths.debugAppStateDirEnvironmentKey: root.path]
+        let expectedModelsDir = root
+            .appendingPathComponent("FluidAudio", isDirectory: true)
+            .appendingPathComponent("Models", isDirectory: true)
+
+        XCTAssertEqual(AppPaths.resolvedFluidAudioModelsDir(environment: environment), expectedModelsDir)
+        XCTAssertEqual(
+            AppPaths.resolvedFluidAudioModelDirectory(forASRVersion: .v3, environment: environment),
+            expectedModelsDir.appendingPathComponent(Repo.parakeetV3.folderName, isDirectory: true)
+        )
+        XCTAssertEqual(
+            AppPaths.resolvedFluidAudioModelDirectory(for: .vad, environment: environment),
+            expectedModelsDir.appendingPathComponent(Repo.vad.folderName, isDirectory: true)
+        )
+    }
+
+    func testDeveloperAppStateDirKeepsMeetingRecordingsInsideThrowawayRoot() {
+        let suiteName = "macparakeet.test.paths.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let realLookingCustom = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("MacParakeetRealArtifacts")
+            .path
+        defaults.set(realLookingCustom, forKey: AppPaths.meetingArtifactsFolderKey)
+
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-debug-state-\(UUID().uuidString)", isDirectory: true)
+            .standardizedFileURL
+        let environment = [AppPaths.debugAppStateDirEnvironmentKey: root.path]
+
+        XCTAssertEqual(
+            AppPaths.configuredMeetingRecordingsDir(defaults: defaults, environment: environment),
+            root.appendingPathComponent("meeting-recordings").path
+        )
+    }
     func testLogsDirIsInsideUserLogs() {
         XCTAssertTrue(AppPaths.logsDir.contains("Library/Logs"))
         XCTAssertTrue(AppPaths.logsDir.hasSuffix("MacParakeet"))
+    }
+
+    func testVoiceControlLogsDirIsInsideLogsDir() {
+        XCTAssertTrue(AppPaths.voiceControlLogsDir.hasPrefix(AppPaths.logsDir))
+        XCTAssertTrue(AppPaths.voiceControlLogsDir.hasSuffix("voice-control"))
     }
 
     func testTempDirContainsMacParakeet() {
@@ -89,5 +152,51 @@ final class AppPathsTests: XCTestCase {
         // Also verify the real ensureDirectories doesn't throw
         // (it may create real dirs, but those are expected app directories)
         try AppPaths.ensureDirectories()
+    }
+
+    // MARK: - appDefaults(bundleIdentifier:)
+
+    func testAppDefaultsReturnsStandardWhenBundleIdentifierMatchesSuite() {
+        XCTAssertTrue(
+            AppPaths.appDefaults(bundleIdentifier: AppPaths.preferencesSuiteName)
+                === UserDefaults.standard
+        )
+    }
+
+    // The two shared-suite cases verify the resolved instance against
+    // `sharedAppDefaults()` by writing through it, which targets the real
+    // `com.macparakeet.MacParakeet` domain: that is the only way to observe
+    // which suite an opaque `UserDefaults` wraps. The keys carry the
+    // `macparakeet.tests.` prefix so any leftover from a killed test run is
+    // identifiable, and the `defer` cleanup does not run on SIGKILL/abort.
+    private func assertResolvesToSharedSuite(
+        _ resolved: UserDefaults,
+        _ message: String
+    ) {
+        let key = "macparakeet.tests.AppPathsTests.\(UUID().uuidString)"
+        let value = UUID().uuidString
+        let shared = AppPaths.sharedAppDefaults()
+        defer {
+            shared.removeObject(forKey: key)
+        }
+
+        resolved.set(value, forKey: key)
+
+        XCTAssertFalse(resolved === UserDefaults.standard, message)
+        XCTAssertEqual(shared.string(forKey: key), value, message)
+    }
+
+    func testAppDefaultsReturnsSharedSuiteWhenBundleIdentifierIsNil() {
+        assertResolvesToSharedSuite(
+            AppPaths.appDefaults(bundleIdentifier: nil),
+            "nil bundle identifier resolves to the shared suite"
+        )
+    }
+
+    func testAppDefaultsReturnsSharedSuiteForUnrelatedBundleIdentifier() {
+        assertResolvesToSharedSuite(
+            AppPaths.appDefaults(bundleIdentifier: "com.macparakeet.tests.other"),
+            "unrelated bundle identifier resolves to the shared suite"
+        )
     }
 }

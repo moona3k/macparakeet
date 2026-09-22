@@ -426,11 +426,15 @@ final class MediaPlayerViewModelTests: XCTestCase {
     }
 }
 
-private func isolatedPlaybackDefaults() -> UserDefaults {
-    let suiteName = "com.macparakeet.tests.playback-rate.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suiteName)!
-    defaults.removePersistentDomain(forName: suiteName)
-    return defaults
+private extension MediaPlayerViewModelTests {
+    func isolatedPlaybackDefaults() -> UserDefaults {
+        let suiteName = "com.macparakeet.tests.playback-rate.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        addTeardownBlock {
+            UserDefaults(suiteName: suiteName)?.removePersistentDomain(forName: suiteName)
+        }
+        return defaults
+    }
 }
 
 /// Reference-type capture wrapper. Closures that have to mutate state can

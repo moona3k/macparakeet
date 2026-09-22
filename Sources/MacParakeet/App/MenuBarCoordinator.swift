@@ -4,6 +4,33 @@ import UniformTypeIdentifiers
 import MacParakeetCore
 import MacParakeetViewModels
 
+struct MenuBarStatusItemState: Equatable {
+    enum Transition: Equatable {
+        case none
+        case install(BreathWaveIcon.MenuBarState)
+        case remove
+        case update(BreathWaveIcon.MenuBarState)
+    }
+
+    private(set) var isVisible = false
+    private(set) var iconState: BreathWaveIcon.MenuBarState = .idle
+
+    mutating func setVisible(_ shouldBeVisible: Bool) -> Transition {
+        guard shouldBeVisible != isVisible else { return .none }
+        isVisible = shouldBeVisible
+        return shouldBeVisible ? .install(iconState) : .remove
+    }
+
+    mutating func updateIcon(_ state: BreathWaveIcon.MenuBarState) -> Transition {
+        iconState = state
+        return isVisible ? .update(state) : .none
+    }
+
+    mutating func markInstallationFailed() {
+        isVisible = false
+    }
+}
+
 @MainActor
 final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     private let updaterController: SPUStandardUpdaterController
@@ -15,6 +42,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     private let fileTranscriptionHotkeyTriggerProvider: () -> HotkeyTrigger
     private let youtubeTranscriptionHotkeyTriggerProvider: () -> HotkeyTrigger
     private let meetingRecordingActiveProvider: () -> Bool
+    private let liveMeetingPanelAvailableProvider: () -> Bool
     private let dictationCaptureActiveProvider: () -> Bool
     private let onOpenMainWindow: () -> Void
     private let onOpenSettings: () -> Void
@@ -22,11 +50,15 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     private let onNewTranscription: () -> Void
     private let onStartDictation: () -> Void
     private let onToggleMeetingRecording: () -> Void
+    private let onOpenLiveMeetingPanel: () -> Void
     private let onCreateTransform: () -> Void
     private let onQuit: () -> Void
     private let onShowAboutPanel: () -> Void
+    var onVoiceControl: (() -> Void)?
+    var onInteractionBusy: (() -> Void)?
 
     private var statusItem: NSStatusItem?
+    private var statusItemState = MenuBarStatusItemState()
     private var newTranscriptionMenuItem: NSMenuItem?
     private var startDictationMenuItem: NSMenuItem?
     private var createTransformMenuItem: NSMenuItem?
@@ -35,9 +67,20 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     private var pasteLastTransformMenuItem: NSMenuItem?
     private var recentTransformsMenuItem: NSMenuItem?
     private var recordMeetingMenuItems: [NSMenuItem] = []
+    private var openLiveMeetingPanelMenuItem: NSMenuItem?
     private var transcribeFileMenuItems: [NSMenuItem] = []
     private var transcribeYouTubeMenuItems: [NSMenuItem] = []
     private var hotkeyMenuItem: NSMenuItem?
+    /// "Cohere Language ▸" submenu — only shown while Cohere is the active engine
+    /// (Cohere has no auto-detect, so the language must be chosen).
+    private var cohereLanguageMenuItem: NSMenuItem?
+
+    struct MeetingRecordingMenuPresentation: Equatable {
+        let recordingTitle: String
+        let recordingEnabled: Bool
+        let openLiveMeetingPanelHidden: Bool
+        let openLiveMeetingPanelEnabled: Bool
+    }
 
     init(
         updaterController: SPUStandardUpdaterController,
@@ -49,6 +92,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         fileTranscriptionHotkeyTriggerProvider: @escaping () -> HotkeyTrigger,
         youtubeTranscriptionHotkeyTriggerProvider: @escaping () -> HotkeyTrigger,
         meetingRecordingActiveProvider: @escaping () -> Bool,
+        liveMeetingPanelAvailableProvider: @escaping () -> Bool,
         dictationCaptureActiveProvider: @escaping () -> Bool,
         onOpenMainWindow: @escaping () -> Void,
         onOpenSettings: @escaping () -> Void,
@@ -56,6 +100,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         onNewTranscription: @escaping () -> Void,
         onStartDictation: @escaping () -> Void,
         onToggleMeetingRecording: @escaping () -> Void,
+        onOpenLiveMeetingPanel: @escaping () -> Void,
         onCreateTransform: @escaping () -> Void,
         onQuit: @escaping () -> Void,
         onShowAboutPanel: @escaping () -> Void
@@ -69,6 +114,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         self.fileTranscriptionHotkeyTriggerProvider = fileTranscriptionHotkeyTriggerProvider
         self.youtubeTranscriptionHotkeyTriggerProvider = youtubeTranscriptionHotkeyTriggerProvider
         self.meetingRecordingActiveProvider = meetingRecordingActiveProvider
+        self.liveMeetingPanelAvailableProvider = liveMeetingPanelAvailableProvider
         self.dictationCaptureActiveProvider = dictationCaptureActiveProvider
         self.onOpenMainWindow = onOpenMainWindow
         self.onOpenSettings = onOpenSettings
@@ -76,6 +122,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         self.onNewTranscription = onNewTranscription
         self.onStartDictation = onStartDictation
         self.onToggleMeetingRecording = onToggleMeetingRecording
+        self.onOpenLiveMeetingPanel = onOpenLiveMeetingPanel
         self.onCreateTransform = onCreateTransform
         self.onQuit = onQuit
         self.onShowAboutPanel = onShowAboutPanel
@@ -91,6 +138,19 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
         item.target = self
         return item
+    }
+
+    static func meetingRecordingMenuPresentation(
+        environmentReady: Bool,
+        isMeetingRecordingActive: Bool,
+        canOpenLiveMeetingPanel: Bool
+    ) -> MeetingRecordingMenuPresentation {
+        MeetingRecordingMenuPresentation(
+            recordingTitle: isMeetingRecordingActive ? "Stop Recording" : "Start Recording",
+            recordingEnabled: environmentReady,
+            openLiveMeetingPanelHidden: !isMeetingRecordingActive,
+            openLiveMeetingPanelEnabled: environmentReady && canOpenLiveMeetingPanel
+        )
     }
 
     func setupMainMenu() {
@@ -188,6 +248,9 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         )
         captureMenu.addItem(startDictationItem)
         startDictationMenuItem = startDictationItem
+        if AppFeatures.isVoiceControlAvailable() {
+            captureMenu.addItem(makeMenuItem(title: "Voice Control…", action: #selector(openVoiceControl), key: ""))
+        }
         captureMenu.addItem(NSMenuItem.separator())
         let fileTranscriptionItem = makeMenuItem(
             title: "Transcribe File...",
@@ -293,13 +356,34 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         NSApp.mainMenu = mainMenu
     }
 
-    func setupMenuBar() {
+    func setMenuBarIconVisible(_ visible: Bool) {
+        switch statusItemState.setVisible(visible) {
+        case .install(let state):
+            if !installMenuBarIcon(state: state) {
+                statusItemState.markInstallationFailed()
+            }
+        case .remove:
+            removeMenuBarIcon()
+        case .none, .update:
+            break
+        }
+    }
+
+    private func installMenuBarIcon(state: BreathWaveIcon.MenuBarState) -> Bool {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
-        guard let statusItem,
-              let button = statusItem.button else { return }
+        guard
+            let statusItem,
+            let button = statusItem.button
+        else {
+            if let statusItem {
+                NSStatusBar.system.removeStatusItem(statusItem)
+            }
+            self.statusItem = nil
+            return false
+        }
 
-        button.image = BreathWaveIcon.menuBarIcon(pointSize: 18)
+        button.image = BreathWaveIcon.menuBarIcon(pointSize: 18, state: state)
 
         let dropView = MenuBarDropView(frame: button.bounds)
         dropView.onDrop = { [weak self] urls in
@@ -334,6 +418,9 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
+        if AppFeatures.isVoiceControlAvailable() {
+            menu.addItem(makeMenuItem(title: "Voice Control…", action: #selector(openVoiceControl), key: ""))
+        }
         let pasteItem = NSMenuItem(
             title: "Paste Last Dictation",
             action: #selector(pasteLastDictation),
@@ -409,9 +496,35 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
             applyChordShortcut(meetingHotkeyTriggerProvider(), to: recordMeetingItem)
             menu.addItem(recordMeetingItem)
             recordMeetingMenuItems.append(recordMeetingItem)
+
+            let openLiveMeetingPanelItem = NSMenuItem(
+                title: "Open Live Meeting Panel",
+                action: #selector(openLiveMeetingPanelFromMenu),
+                keyEquivalent: ""
+            )
+            openLiveMeetingPanelItem.target = self
+            menu.addItem(openLiveMeetingPanelItem)
+            openLiveMeetingPanelMenuItem = openLiveMeetingPanelItem
         }
 
         menu.addItem(NSMenuItem.separator())
+
+        let cohereLanguageItem = NSMenuItem(title: "Cohere Language", action: nil, keyEquivalent: "")
+        let cohereLanguageSubmenu = NSMenu()
+        for language in CohereTranscribeEngine.supportedLanguages {
+            let languageItem = NSMenuItem(
+                title: language.name,
+                action: #selector(selectCohereLanguage(_:)),
+                keyEquivalent: ""
+            )
+            languageItem.target = self
+            languageItem.representedObject = language.code
+            cohereLanguageSubmenu.addItem(languageItem)
+        }
+        cohereLanguageItem.submenu = cohereLanguageSubmenu
+        cohereLanguageItem.isHidden = true
+        menu.addItem(cohereLanguageItem)
+        cohereLanguageMenuItem = cohereLanguageItem
 
         let hotkeyItem = NSMenuItem(
             title: hotkeyMenuTitleProvider(),
@@ -449,10 +562,55 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         menu.addItem(quitItem)
 
         statusItem.menu = menu
+        return true
+    }
+
+    private func removeMenuBarIcon() {
+        guard let statusItem else { return }
+
+        if let menu = statusItem.menu {
+            transcribeFileMenuItems.removeAll { $0.menu === menu }
+            transcribeYouTubeMenuItems.removeAll { $0.menu === menu }
+            recordMeetingMenuItems.removeAll { $0.menu === menu }
+        }
+
+        statusItem.menu = nil
+        NSStatusBar.system.removeStatusItem(statusItem)
+        self.statusItem = nil
+        pasteLastMenuItem = nil
+        recentDictationsMenuItem = nil
+        pasteLastTransformMenuItem = nil
+        recentTransformsMenuItem = nil
+        openLiveMeetingPanelMenuItem = nil
+        hotkeyMenuItem = nil
+        cohereLanguageMenuItem = nil
     }
 
     func refreshHotkeyTitle() {
         hotkeyMenuItem?.title = hotkeyMenuTitleProvider()
+    }
+
+    /// Show the Cohere-language submenu only while Cohere is the active engine,
+    /// and check the chosen language. Cohere has no auto-detect, so this is how
+    /// the user picks among its 14 languages without opening the app.
+    private func updateCohereLanguageMenu() {
+        guard let item = cohereLanguageMenuItem else { return }
+        let isCohere =
+            SpeechEnginePreference.current() == .cohere
+            || SpeechEnginePreference.finalTranscription() == .cohere
+        item.isHidden = !isCohere
+        guard isCohere, let submenu = item.submenu else { return }
+        let selected = SpeechEnginePreference.cohereDefaultLanguage() ?? "en"
+        for languageItem in submenu.items {
+            languageItem.state = (languageItem.representedObject as? String) == selected ? .on : .off
+        }
+    }
+
+    @objc private func selectCohereLanguage(_ sender: NSMenuItem) {
+        guard let code = sender.representedObject as? String else { return }
+        SpeechEnginePreference.saveCohereDefaultLanguage(code)
+        Telemetry.send(.settingChanged(setting: .cohereLanguage))
+        updateCohereLanguageMenu()
     }
 
     func refreshMeetingHotkeyShortcut() {
@@ -477,7 +635,8 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     }
 
     func updateIcon(state: BreathWaveIcon.MenuBarState) {
-        statusItem?.button?.image = BreathWaveIcon.menuBarIcon(pointSize: 18, state: state)
+        guard case .update(let visibleState) = statusItemState.updateIcon(state) else { return }
+        statusItem?.button?.image = BreathWaveIcon.menuBarIcon(pointSize: 18, state: visibleState)
     }
 
     @objc private func showAboutPanel() {
@@ -558,10 +717,12 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         NSWorkspace.shared.open(url)
     }
 
+    @objc private func openVoiceControl() { onVoiceControl?() }
+
     @objc private func pasteLastDictation() {
         guard let env = environmentProvider() else { return }
         Task {
-            guard let dictation = (try? env.dictationRepo.fetchAll(limit: 1))?.first else { return }
+            guard let dictation = (try? env.dictationRepo.fetchCompleted(limit: 1))?.first else { return }
             // displayText honors the per-row "Undo AI edit" override.
             let text = dictation.displayText
             await pasteFromMenu(text: text, clipboardService: env.clipboardService)
@@ -572,7 +733,8 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         guard let env = environmentProvider(),
               let id = sender.representedObject as? UUID else { return }
         Task {
-            guard let dictation = try? env.dictationRepo.fetch(id: id) else { return }
+            guard let dictation = try? env.dictationRepo.fetch(id: id),
+                  dictation.status == .completed else { return }
             let text = dictation.displayText
             await pasteFromMenu(text: text, clipboardService: env.clipboardService)
         }
@@ -631,19 +793,30 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         onToggleMeetingRecording()
     }
 
+    @objc private func openLiveMeetingPanelFromMenu() {
+        onOpenLiveMeetingPanel()
+    }
+
     func menuNeedsUpdate(_ menu: NSMenu) {
         let environmentReady = environmentProvider() != nil
+        let meetingPresentation = Self.meetingRecordingMenuPresentation(
+            environmentReady: environmentReady,
+            isMeetingRecordingActive: meetingRecordingActiveProvider(),
+            canOpenLiveMeetingPanel: liveMeetingPanelAvailableProvider()
+        )
         newTranscriptionMenuItem?.isEnabled = environmentReady
         startDictationMenuItem?.isEnabled = environmentReady && !dictationCaptureActiveProvider()
         createTransformMenuItem?.isEnabled = environmentReady
         transcribeFileMenuItems.forEach { $0.isEnabled = environmentReady }
         transcribeYouTubeMenuItems.forEach { $0.isEnabled = environmentReady }
         recordMeetingMenuItems.forEach {
-            $0.isEnabled = environmentReady
-            $0.title = meetingRecordingActiveProvider()
-                ? "Stop Recording"
-                : "Start Recording"
+            $0.isEnabled = meetingPresentation.recordingEnabled
+            $0.title = meetingPresentation.recordingTitle
         }
+        openLiveMeetingPanelMenuItem?.isHidden = meetingPresentation.openLiveMeetingPanelHidden
+        openLiveMeetingPanelMenuItem?.isEnabled = meetingPresentation.openLiveMeetingPanelEnabled
+
+        updateCohereLanguageMenu()
 
         guard let env = environmentProvider() else {
             pasteLastMenuItem?.isEnabled = false
@@ -653,7 +826,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
             return
         }
 
-        let dictations = (try? env.dictationRepo.fetchAll(limit: 5)) ?? []
+        let dictations = (try? env.dictationRepo.fetchCompleted(limit: 5)) ?? []
         pasteLastMenuItem?.isEnabled = !dictations.isEmpty
         rebuildRecentDictationsSubmenu(with: dictations)
 
@@ -676,6 +849,8 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
 
     /// Resign menu-bar focus, wait for the target app to regain focus, then paste.
     private func pasteFromMenu(text: String, clipboardService: ClipboardServiceProtocol) async {
+        guard let lease = GUIMutationArbiter.shared.acquire(.historyPaste) else { onInteractionBusy?(); return }
+        defer { GUIMutationArbiter.shared.release(lease) }
         NSApp.deactivate()
         try? await Task.sleep(for: .milliseconds(200))
         do {

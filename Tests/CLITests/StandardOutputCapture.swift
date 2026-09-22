@@ -1,18 +1,27 @@
 import Darwin
 import Foundation
 
-/// Captures the small stdout payloads emitted by focused CLI unit tests.
-/// Do not use this for commands that can stream or print large output.
+/// Captures stdout payloads emitted by focused CLI unit tests.
 func captureStandardOutput(_ body: () throws -> Void) throws -> String {
     let pipe = Pipe()
     let originalStdout = dup(STDOUT_FILENO)
     guard originalStdout >= 0 else {
         throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
     }
+    let readGroup = DispatchGroup()
+    let readQueue = DispatchQueue(label: "macparakeet.tests.stdout-capture")
+    var capturedData = Data()
+    readGroup.enter()
+    readQueue.async {
+        capturedData = pipe.fileHandleForReading.readDataToEndOfFile()
+        readGroup.leave()
+    }
 
     fflush(stdout)
     guard dup2(pipe.fileHandleForWriting.fileDescriptor, STDOUT_FILENO) >= 0 else {
         close(originalStdout)
+        pipe.fileHandleForWriting.closeFile()
+        readGroup.wait()
         throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
     }
 
@@ -31,12 +40,12 @@ func captureStandardOutput(_ body: () throws -> Void) throws -> String {
     }
     close(originalStdout)
     pipe.fileHandleForWriting.closeFile()
+    readGroup.wait()
 
-    let data = pipe.fileHandleForReading.readDataToEndOfFile()
     if let bodyError {
         throw bodyError
     }
-    return String(decoding: data, as: UTF8.self)
+    return String(decoding: capturedData, as: UTF8.self)
 }
 
 /// Async variant for `AsyncParsableCommand.run()` tests.
@@ -48,10 +57,15 @@ func captureStandardOutput(_ body: () async throws -> Void) async throws -> Stri
     guard originalStdout >= 0 else {
         throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
     }
+    let readTask = Task.detached {
+        pipe.fileHandleForReading.readDataToEndOfFile()
+    }
 
     fflush(stdout)
     guard dup2(pipe.fileHandleForWriting.fileDescriptor, STDOUT_FILENO) >= 0 else {
         close(originalStdout)
+        pipe.fileHandleForWriting.closeFile()
+        _ = await readTask.value
         throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
     }
 
@@ -70,10 +84,10 @@ func captureStandardOutput(_ body: () async throws -> Void) async throws -> Stri
     }
     close(originalStdout)
     pipe.fileHandleForWriting.closeFile()
+    let capturedData = await readTask.value
 
-    let data = pipe.fileHandleForReading.readDataToEndOfFile()
     if let bodyError {
         throw bodyError
     }
-    return String(decoding: data, as: UTF8.self)
+    return String(decoding: capturedData, as: UTF8.self)
 }

@@ -1,0 +1,21 @@
+Transcribing 1089-134686-0000.flac with nemotron...
+Converting audio...
+Preparing speech model...
+[14:57:15.885] [INFO] [FluidAudio.NemotronMultilingualStreaming] Using cached multilingual variant at /tmp/macparakeet-080-qa/isolated-home/Library/Application Support/FluidAudio/Models/nemotron-multilingual/latin/1120ms
+[14:57:15.885] [INFO] [FluidAudio.NemotronMultilingualStreaming] Preloading shared Nemotron multilingual models from /tmp/macparakeet-080-qa/isolated-home/Library/Application Support/FluidAudio/Models/nemotron-multilingual/latin/1120ms...
+[14:57:15.885] [INFO] [FluidAudio.NemotronMultilingualStreaming] Loaded multilingual config: 1120ms chunks, vocab=2828, 128 prompts
+[14:57:32.013] [INFO] [FluidAudio.NemotronMultilingualStreaming] Loaded shared decoder.mlmodelc
+[14:57:32.060] [INFO] [FluidAudio.NemotronMultilingualStreaming] Loaded shared joint.mlmodelc
+[14:57:32.159] [INFO] [FluidAudio.NemotronMultilingualStreaming] Loaded shared decoder_joint.mlmodelc
+[14:57:32.162] [INFO] [FluidAudio.NemotronMultilingualStreaming] Shared models preload complete — ready for N consumers
+[14:57:32.175] [INFO] [FluidAudio.NemotronMultilingualStreaming] Nemotron multilingual manager initialized from shared models (1120ms chunks).
+[14:57:32.189] [INFO] [FluidAudio.NemotronMultilingualStreaming] Nemotron multilingual manager initialized from shared models (1120ms chunks).
+[14:57:32.190] [INFO] [FluidAudio.NemotronMultilingualStreaming] Prompt id set to 0 for language en
+[14:57:32.192] [INFO] [FluidAudio.NemotronMultilingualStreaming] Prompt id set to 0 for language en
+Transcribing... 0%
+[14:57:32.195] [INFO] [FluidAudio.NemotronMultilingualStreaming] Prompt id set to 0 for language en
+Transcribing... 25%
+Transcribing... 90%
+Transcribing... 99%
+[14:57:32.356] [INFO] [FluidAudio.NemotronMultilingualStreaming] StreamingNemotronMultilingualAsrManager resources cleaned up
+[14:57:32.368] [INFO] [FluidAudio.NemotronMultilingualStreaming] StreamingNemotronMultilingualAsrManager resources cleaned up

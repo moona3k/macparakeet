@@ -1,0 +1,60 @@
+{
+  "scope": "Only the nine explicitly assigned audio evidence JSON files; data values differ only by workstation path substitutions.",
+  "files": [
+    {
+      "path": "docs/qa/2026-09-07-0.8.0/evidence/cohere-en.json",
+      "source_sha256": "f10949df85842464e6afb133f97d4ce4985948bb2b99b910d235074227cd638b",
+      "curated_sha256": "b91df7097ad3eb5a8a2d5db371772b5f457f3481bb321e38d2cf4a472e23aadb",
+      "path_substitutions": 1
+    },
+    {
+      "path": "docs/qa/2026-09-07-0.8.0/evidence/nemotron-en.json",
+      "source_sha256": "876ba935f197132ad550851099349dbd1ab8f53b5e7e4dc0f7a48e37aad253ba",
+      "curated_sha256": "dd9bce37adcc752e05e6cf5d47f4834d0b26e9b9e60703b186af36aa27f45f95",
+      "path_substitutions": 1
+    },
+    {
+      "path": "docs/qa/2026-09-07-0.8.0/evidence/nemotron-ja.json",
+      "source_sha256": "f6d6a89933756f3ac8b1d23bc5fb195fb97114de3f959f7325b6be740fbbe8c0",
+      "curated_sha256": "3119c787099e055d9e4d1df41eea62e2096dbaa793e6b003c325c5dffccc8261",
+      "path_substitutions": 1
+    },
+    {
+      "path": "docs/qa/2026-09-07-0.8.0/evidence/nemotron-ko.json",
+      "source_sha256": "cb8f1ecaf388e61c34f25a5100e126019824ba9309c8cd8ddd061e4a50817a71",
+      "curated_sha256": "2ec69839e1a6572c71df604265b006209a1063d488b08d1cec9d9c136443a686",
+      "path_substitutions": 1
+    },
+    {
+      "path": "docs/qa/2026-09-07-0.8.0/evidence/nemotron-zh.json",
+      "source_sha256": "909d718b7828e8ff90ecc78ba2a36319d38482dd963bf11c744cbbab8cb4e9f0",
+      "curated_sha256": "486fe33d8a8f14f4f8b4d04a2c55edf0c07d63488eb8a90d72bd4146ef0a9e5a",
+      "path_substitutions": 1
+    },
+    {
+      "path": "docs/qa/2026-09-07-0.8.0/evidence/parakeet-unified-en.json",
+      "source_sha256": "9bb20fc8e28c002576bc3d2c9e78505e2a22c64e925ec03aee16daf1175c6839",
+      "curated_sha256": "b7dd706f16c0f2d72dd0c4b4bb1a985b0e5db1334125d6cc96fd5850e9041219",
+      "path_substitutions": 1
+    },
+    {
+      "path": "docs/qa/2026-09-07-0.8.0/evidence/parakeet-v2-en.json",
+      "source_sha256": "8bcbd3d4c67bcb3091879196389ff4699e182664257aa73717e26edd7dfcf84a",
+      "curated_sha256": "78c0a45211d99edd20fda60e5ad83d47329a108e53f7ffa4c3c72c6185ba3740",
+      "path_substitutions": 1
+    },
+    {
+      "path": "docs/qa/2026-09-07-0.8.0/evidence/parakeet-v3-en.json",
+      "source_sha256": "1177f4b980e39929707f56e46a7d76712b9be0e3bc08584f30d7840e48720149",
+      "curated_sha256": "dbb55719f79139e76288fe914851c865947ae4fb7a425e275856140dd8dbfbb3",
+      "path_substitutions": 1
+    },
+    {
+      "path": "docs/qa/2026-09-07-0.8.0/evidence/results.json",
+      "source_sha256": "030da5ca95bf27a42bbaced48361ac9d2342cd086f1617c568690aa28510d787",
+      "curated_sha256": "f2f8f72ab61962629d8cb589170414b8d8f5defb30e15938046e16b2bb82ce10",
+      "path_substitutions": 44
+    }
+  ],
+  "validation": "JSON decoded before and after; every non-path value is identical. Replacement handles plain and JSON-escaped slash prefixes. Source hashes preserved."
+}

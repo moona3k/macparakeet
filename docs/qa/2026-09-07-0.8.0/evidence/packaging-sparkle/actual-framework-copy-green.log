@@ -1,0 +1,10 @@
+--prepared:<QA_ROOT>/sparkle-packaging/actual-framework-copy/Sparkle.framework/Versions/Current/Updater.app
+--prepared:<QA_ROOT>/sparkle-packaging/actual-framework-copy/Sparkle.framework/Versions/Current/XPCServices/Downloader.xpc
+--prepared:<QA_ROOT>/sparkle-packaging/actual-framework-copy/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc
+--validated:<QA_ROOT>/sparkle-packaging/actual-framework-copy/Sparkle.framework/Versions/Current/XPCServices/Downloader.xpc
+--validated:<QA_ROOT>/sparkle-packaging/actual-framework-copy/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc
+--validated:<QA_ROOT>/sparkle-packaging/actual-framework-copy/Sparkle.framework/Versions/Current/Updater.app
+--prepared:<QA_ROOT>/sparkle-packaging/actual-framework-copy/Sparkle.framework/Versions/Current/Autoupdate
+--validated:<QA_ROOT>/sparkle-packaging/actual-framework-copy/Sparkle.framework/Versions/Current/Autoupdate
+<QA_ROOT>/sparkle-packaging/actual-framework-copy/Sparkle.framework: valid on disk
+<QA_ROOT>/sparkle-packaging/actual-framework-copy/Sparkle.framework: satisfies its Designated Requirement

@@ -363,6 +363,74 @@ final class YouTubeDownloaderTests: XCTestCase {
         ))
     }
 
+    func testClassifiedDownloadErrorMapsYouTubeAntiBotToBlockedByYouTube() {
+        let raw = """
+        ERROR: [youtube] kN4Hm0azqH0: Sign in to confirm you’re not a bot. \
+        Use --cookies-from-browser or --cookies for the authentication. \
+        See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  \
+        for how to manually pass cookies.
+        """
+
+        let error = YouTubeDownloader.classifiedDownloadError(fromYtDlpOutput: raw)
+
+        guard case .blockedByYouTube = error else {
+            return XCTFail("Expected blockedByYouTube, got \(error)")
+        }
+        XCTAssertEqual(
+            error.errorDescription,
+            "YouTube blocked this download. Try again later, or drop a local audio or video file instead."
+        )
+        XCTAssertTrue(
+            YouTubeDownloader.shouldRetryWithFreshYtDlp(error),
+            "A stale yt-dlp extractor can still be the fix for this YouTube gate"
+        )
+    }
+
+    func testClassifiedDownloadErrorMapsStraightApostropheAntiBotMessage() {
+        let error = YouTubeDownloader.classifiedDownloadError(
+            fromYtDlpOutput: "ERROR: [youtube] abc: Sign in to confirm you're not a bot."
+        )
+
+        guard case .blockedByYouTube = error else {
+            return XCTFail("Expected blockedByYouTube, got \(error)")
+        }
+    }
+
+    func testClassifiedDownloadErrorKeepsPrivateVideosAndGenericFailuresDistinct() {
+        let privateError = YouTubeDownloader.classifiedDownloadError(
+            fromYtDlpOutput: "ERROR: [youtube] abc: Private video. Sign in if you've been granted access."
+        )
+        let genericError = YouTubeDownloader.classifiedDownloadError(
+            fromYtDlpOutput: "ERROR: [generic] HTTP Error 404: Not Found"
+        )
+
+        guard case .videoNotFound = privateError else {
+            return XCTFail("Expected videoNotFound, got \(privateError)")
+        }
+        guard case .downloadFailed(let reason) = genericError else {
+            return XCTFail("Expected downloadFailed, got \(genericError)")
+        }
+        XCTAssertTrue(reason.contains("HTTP Error 404"))
+        XCTAssertTrue(YouTubeDownloader.shouldRetryWithFreshYtDlp(genericError))
+        XCTAssertTrue(YouTubeDownloader.shouldRetryWithFreshYtDlp(YouTubeDownloadError.timedOut))
+        XCTAssertFalse(YouTubeDownloader.shouldRetryWithFreshYtDlp(YouTubeDownloadError.videoNotFound))
+
+        let nonYouTubeCookieAdvice = YouTubeDownloader.classifiedDownloadError(
+            fromYtDlpOutput: "ERROR: [generic] Use --cookies-from-browser or --cookies for the authentication."
+        )
+        guard case .downloadFailed(let cookieReason) = nonYouTubeCookieAdvice else {
+            return XCTFail("Expected downloadFailed for non-YouTube cookie advice, got \(nonYouTubeCookieAdvice)")
+        }
+        XCTAssertTrue(cookieReason.contains("cookies-from-browser"))
+
+        let youtubeURLWithoutExtractor = YouTubeDownloader.classifiedDownloadError(
+            fromYtDlpOutput: "ERROR: [generic] Use --cookies-from-browser. See https://www.youtube.com/watch?v=abc"
+        )
+        guard case .downloadFailed = youtubeURLWithoutExtractor else {
+            return XCTFail("Expected downloadFailed when only a YouTube URL is present, got \(youtubeURLWithoutExtractor)")
+        }
+    }
+
     private func formatSelector(in args: [String]) -> String? {
         guard let index = args.firstIndex(of: "-f"),
               args.indices.contains(args.index(after: index)) else {

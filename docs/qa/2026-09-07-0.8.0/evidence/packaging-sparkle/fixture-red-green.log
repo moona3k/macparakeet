@@ -1,0 +1,5 @@
+RED: cp -R preserves the external absolute root symlink; self-contained framework assertion fails as expected.
+GREEN: cp -RH dereferences the command-line root, keeps all four internal relative links, and preserves payload and executable mode.
+GREEN: cp -RH also accepts a real framework directory (fallback source).
+GREEN: copied frameworks remain usable after generated source products move; the old copy is broken.
+Fixture retained at: <QA_ROOT>/sparkle-packaging/fixture.Uje6IC

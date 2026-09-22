@@ -5,14 +5,34 @@ import XCTest
 
 @MainActor
 final class DictationFlowCoordinatorTests: XCTestCase {
+    func testVoiceControlCannotAcquireDuringDictationCancelUndoWindow() async throws {
+        let arbiter = GUIMutationArbiter()
+        let harness = try await makeRecordingHarness(mutationArbiter: arbiter)
+        harness.coordinator.startDictation(mode: .persistent)
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+        XCTAssertNil(arbiter.acquire(.voiceControl))
+        harness.coordinator.cancelDictation()
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .cancelCountdown)
+        XCTAssertNil(arbiter.acquire(.voiceControl), "Undo can still resume this dictation")
+        harness.coordinator.cancelDictation()
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .idle)
+        XCTAssertNotNil(arbiter.acquire(.voiceControl))
+    }
+
     func testPillStartedPersistentRecordingSyncsFnHotkeyToStop() async throws {
         let harness = try await makeRecordingHarness()
         let fnManager = HotkeyManager(trigger: .fn)
+        // Isolate from the host keyboard and prove a Caps Lock latch (key 57)
+        // does not contaminate Fn-stop after a pill-started recording. Fn press
+        // reconciles CGEventSource keyState; an unstubbed leftover ordinary
+        // key would treat the stop gesture as contaminated and return [].
+        fnManager.setPhysicalKeyStateProviderForTesting { $0 == 57 }
         harness.coordinator.hotkeyManagers = [fnManager]
 
         harness.coordinator.startDictation(mode: .persistent, trigger: .pillClick)
 
-        let started = await waitUntil { self.isRecording(harness.coordinator.overlayStateForTesting) }
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
         XCTAssertTrue(started)
         XCTAssertEqual(
             fnManager.modifierFlagsChangedOutputsForTesting(
@@ -25,7 +45,87 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         harness.coordinator.cancelDictation()
     }
 
-    func testSuccessfulMicPermissionRequestDismissesStaleStartFailure() async throws {
+    func testPersistentBackToBackDictationsPasteJustCompletedTranscript() async throws {
+        let harness = try await makeRecordingHarness()
+        await harness.stt.configureSequence(results: [
+            STTResult(text: "first dictated message"),
+            STTResult(text: "second dictated message"),
+        ])
+
+        harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
+        let firstStarted = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(firstStarted)
+
+        harness.coordinator.stopDictation()
+        let firstPasted = await waitUntilAsync {
+            let snapshot = await harness.clipboard.snapshot()
+            return snapshot.pastedTexts.count == 1 && harness.coordinator.flowStateForTesting == .idle
+        }
+        XCTAssertTrue(firstPasted)
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .idle)
+
+        harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
+        let secondStarted = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(secondStarted)
+
+        harness.coordinator.stopDictation()
+        let secondPasted = await waitUntilAsync {
+            let snapshot = await harness.clipboard.snapshot()
+            return snapshot.pastedTexts.count == 2 && harness.coordinator.flowStateForTesting == .idle
+        }
+        XCTAssertTrue(secondPasted)
+
+        let clipboardSnapshot = await harness.clipboard.snapshot()
+        XCTAssertEqual(
+            clipboardSnapshot.pastedTexts,
+            ["first dictated message ", "second dictated message "]
+        )
+        XCTAssertEqual(clipboardSnapshot.lastPastedText, "second dictated message ")
+
+        let savedTranscripts = try harness.repo.fetchAll(limit: nil).map(\.rawTranscript)
+        XCTAssertEqual(savedTranscripts.count, 2)
+        XCTAssertTrue(savedTranscripts.contains("first dictated message"))
+        XCTAssertTrue(savedTranscripts.contains("second dictated message"))
+    }
+
+    func testSuccessDwellRestartDoesNotCancelCompletedPaste() async throws {
+        let harness = try await makeRecordingHarness()
+        await harness.stt.configureSequence(results: [
+            STTResult(text: "first delayed paste"),
+            STTResult(text: "second dictation"),
+        ])
+        await harness.clipboard.setPasteDelayMs(100)
+
+        harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
+        let firstStarted = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(firstStarted)
+
+        harness.coordinator.stopDictation()
+        let firstSuccessVisible = await waitUntil {
+            if case .success = harness.coordinator.overlayStateForTesting { return true }
+            return false
+        }
+        XCTAssertTrue(firstSuccessVisible)
+
+        harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
+        let secondStarted = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(secondStarted)
+
+        harness.coordinator.stopDictation()
+        let bothPasted = await waitUntilAsync {
+            let snapshot = await harness.clipboard.snapshot()
+            return snapshot.pastedTexts.count == 2
+        }
+        XCTAssertTrue(bothPasted)
+
+        let clipboardSnapshot = await harness.clipboard.snapshot()
+        XCTAssertEqual(
+            clipboardSnapshot.pastedTexts,
+            ["first delayed paste ", "second dictation "]
+        )
+    }
+
+    func testSuccessfulMicPermissionRequestContinuesIntoCapture() async throws {
         let harness = try await makeMicPermissionHarness(
             microphonePermission: .notDetermined,
             requestMicResult: true
@@ -39,13 +139,158 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         XCTAssertTrue(requestedPermission)
         XCTAssertEqual(harness.permissionService.microphonePermission, .granted)
         XCTAssertEqual(harness.permissionService.openMicrophoneSettingsCallCount, 0)
+
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
         let startCaptureCalled = await harness.audio.startCaptureCalled
         XCTAssertTrue(startCaptureCalled)
-
-        let dismissedStaleError = await waitUntil {
-            harness.coordinator.overlayStateForTesting == nil
+        if case .error = harness.coordinator.overlayStateForTesting {
+            XCTFail("Granting the microphone on first press should start capture, not show a start-failure overlay")
         }
-        XCTAssertTrue(dismissedStaleError)
+    }
+
+    func testHoldToTalkMicGrantDoesNotStartCapture() async throws {
+        let harness = try await makeMicPermissionHarness(
+            microphonePermission: .notDetermined,
+            requestMicResult: true
+        )
+
+        harness.coordinator.startDictation(mode: .holdToTalk, trigger: .hotkey)
+
+        let requestedPermission = await waitUntil {
+            harness.permissionService.requestMicrophonePermissionCallCount == 1
+        }
+        XCTAssertTrue(requestedPermission)
+        XCTAssertEqual(harness.permissionService.microphonePermission, .granted)
+
+        let returnedToIdle = await waitUntil {
+            harness.coordinator.flowStateForTesting == .idle
+        }
+        XCTAssertTrue(returnedToIdle)
+        let startCaptureCalled = await harness.audio.startCaptureCalled
+        XCTAssertFalse(
+            startCaptureCalled,
+            "The system mic sheet interrupts a hold; capture must wait for the next hold"
+        )
+        if case .error = harness.coordinator.overlayStateForTesting {
+            XCTFail("A successful hold-to-talk grant should not show a start-failure overlay")
+        }
+    }
+
+    func testHoldToTalkStartsCaptureWhenMicrophoneAlreadyGranted() async throws {
+        let harness = try await makeMicPermissionHarness(
+            microphonePermission: .granted,
+            requestMicResult: true
+        )
+
+        harness.coordinator.startDictation(mode: .holdToTalk, trigger: .hotkey)
+
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(
+            started,
+            "Hold-to-talk with an already-granted mic must start capture on this hold"
+        )
+        XCTAssertEqual(harness.permissionService.requestMicrophonePermissionCallCount, 0)
+        let startCaptureCalled = await harness.audio.startCaptureCalled
+        XCTAssertTrue(startCaptureCalled)
+        guard case .recording(mode: .holdToTalk) = harness.coordinator.flowStateForTesting else {
+            return XCTFail("Expected hold-to-talk recording, got \(harness.coordinator.flowStateForTesting)")
+        }
+        if case .error = harness.coordinator.overlayStateForTesting {
+            XCTFail("An already-granted hold-to-talk start should not show a start-failure overlay")
+        }
+
+        harness.coordinator.stopDictation()
+        let leftRecording = await waitUntil {
+            !self.isFlowRecording(harness.coordinator.flowStateForTesting)
+        }
+        XCTAssertTrue(leftRecording, "Releasing hold-to-talk must leave the recording state")
+    }
+
+    func testHoldToTalkSecondHoldStartsCaptureAfterMicSheetGrant() async throws {
+        let harness = try await makeMicPermissionHarness(
+            microphonePermission: .notDetermined,
+            requestMicResult: true
+        )
+
+        harness.coordinator.startDictation(mode: .holdToTalk, trigger: .hotkey)
+
+        let returnedToIdle = await waitUntil {
+            harness.coordinator.flowStateForTesting == .idle
+                && harness.permissionService.requestMicrophonePermissionCallCount == 1
+        }
+        XCTAssertTrue(returnedToIdle)
+        var startCaptureCalled = await harness.audio.startCaptureCalled
+        XCTAssertFalse(startCaptureCalled)
+
+        harness.coordinator.startDictation(mode: .holdToTalk, trigger: .hotkey)
+
+        let started = await waitUntil {
+            if case .recording(mode: .holdToTalk) = harness.coordinator.flowStateForTesting {
+                return true
+            }
+            return false
+        }
+        XCTAssertTrue(
+            started,
+            "The hold after the system mic sheet must start hold-to-talk capture"
+        )
+        XCTAssertEqual(harness.permissionService.requestMicrophonePermissionCallCount, 1)
+        startCaptureCalled = await harness.audio.startCaptureCalled
+        XCTAssertTrue(startCaptureCalled)
+
+        harness.coordinator.stopDictation()
+        let leftRecording = await waitUntil {
+            !self.isFlowRecording(harness.coordinator.flowStateForTesting)
+        }
+        XCTAssertTrue(leftRecording, "The second hold must leave recording before the test exits")
+    }
+
+    func testHoldToTalkDeniedMicrophoneDoesNotStartCapture() async throws {
+        let harness = try await makeMicPermissionHarness(
+            microphonePermission: .denied,
+            requestMicResult: false
+        )
+        harness.coordinator.testHook_skipMicPermissionAlert = true
+
+        harness.coordinator.startDictation(mode: .holdToTalk, trigger: .hotkey)
+
+        let failed = await waitUntil {
+            harness.coordinator.flowStateForTesting
+                == .finishing(outcome: .error("Microphone access required"))
+        }
+        XCTAssertTrue(failed)
+        XCTAssertEqual(harness.permissionService.requestMicrophonePermissionCallCount, 0)
+        let startCaptureCalled = await harness.audio.startCaptureCalled
+        XCTAssertFalse(startCaptureCalled)
+        guard case .error(let message) = harness.coordinator.overlayStateForTesting else {
+            return XCTFail("Denied mic should show the start-failure overlay")
+        }
+        XCTAssertEqual(message, "Microphone access required")
+    }
+
+    func testHoldToTalkSheetDenialDoesNotStartCapture() async throws {
+        let harness = try await makeMicPermissionHarness(
+            microphonePermission: .notDetermined,
+            requestMicResult: false
+        )
+        harness.coordinator.testHook_skipMicPermissionAlert = true
+
+        harness.coordinator.startDictation(mode: .holdToTalk, trigger: .hotkey)
+
+        let failed = await waitUntil {
+            harness.coordinator.flowStateForTesting
+                == .finishing(outcome: .error("Microphone access required"))
+        }
+        XCTAssertTrue(failed)
+        XCTAssertEqual(harness.permissionService.requestMicrophonePermissionCallCount, 1)
+        XCTAssertEqual(harness.permissionService.microphonePermission, .denied)
+        let startCaptureCalled = await harness.audio.startCaptureCalled
+        XCTAssertFalse(startCaptureCalled)
+        guard case .error(let message) = harness.coordinator.overlayStateForTesting else {
+            return XCTFail("A denied mic sheet should show the start-failure overlay")
+        }
+        XCTAssertEqual(message, "Microphone access required")
     }
 
     func testMenuBarPreferenceMatchesStateMachineIntent() {
@@ -151,6 +396,20 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(message, "Paste failed and the clipboard could not be updated.")
     }
 
+    func testStreamingPartialInsertMessageReportsClipboardWhenCopied() {
+        XCTAssertEqual(
+            DictationFlowCoordinator.streamingPartialInsertMessage(copiedToClipboard: true),
+            "Some text was inserted. The full transcript is on the clipboard."
+        )
+    }
+
+    func testStreamingPartialInsertMessageReportsClipboardFailureWhenNotCopied() {
+        XCTAssertEqual(
+            DictationFlowCoordinator.streamingPartialInsertMessage(copiedToClipboard: false),
+            "Some text was inserted, but the clipboard could not be updated."
+        )
+    }
+
     func testPasteFailureMessageStaysGenericWhenCopiedWithoutAccessibilityCause() {
         // A non-permission paste failure (e.g. CGEvent infrastructure) that still
         // landed on the clipboard must keep the generic copy - it must NOT claim
@@ -197,13 +456,27 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         )
     }
 
+    func testCommandFailureBucketSplitsStreamingCursorFailures() {
+        XCTAssertEqual(
+            DictationFlowCoordinator.commandFailureBucket(for: StreamingCursorError.eventSourceUnavailable),
+            "streaming_event_source_unavailable"
+        )
+        XCTAssertEqual(
+            DictationFlowCoordinator.commandFailureBucket(for: StreamingCursorError.eventCreationFailed),
+            "streaming_event_creation_failed"
+        )
+        XCTAssertEqual(
+            DictationFlowCoordinator.commandFailureBucket(for: StreamingCursorError.partialInsert),
+            "streaming_partial_insert"
+        )
+    }
+
     private func makeMicPermissionHarness(
         microphonePermission: PermissionStatus,
         requestMicResult: Bool
     ) async throws -> MicPermissionHarness {
         let dbManager = try DatabaseManager()
         let audio = MockAudioProcessor()
-        await audio.configureCaptureError(AudioProcessorError.microphonePermissionDenied)
         let stt = MockSTTClient()
         let repo = DictationRepository(dbQueue: dbManager.dbQueue)
         let service = DictationService(
@@ -250,10 +523,11 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         )
     }
 
-    private func makeRecordingHarness() async throws -> RecordingHarness {
+    private func makeRecordingHarness(mutationArbiter: GUIMutationArbiter? = nil) async throws -> RecordingHarness {
         let dbManager = try DatabaseManager()
         let audio = MockAudioProcessor()
         let stt = MockSTTClient()
+        let clipboard = MockClipboardService()
         let repo = DictationRepository(dbQueue: dbManager.dbQueue)
         let service = DictationService(
             audioProcessor: audio,
@@ -275,7 +549,8 @@ final class DictationFlowCoordinatorTests: XCTestCase {
 
         let coordinator = DictationFlowCoordinator(
             dictationService: service,
-            clipboardService: MockClipboardService(),
+            mutationArbiter: mutationArbiter,
+            clipboardService: clipboard,
             entitlementsService: entitlements,
             dictationRepo: repo,
             settingsViewModel: settings,
@@ -288,7 +563,13 @@ final class DictationFlowCoordinatorTests: XCTestCase {
             onPresentEntitlementsAlert: { _ in }
         )
 
-        return RecordingHarness(coordinator: coordinator)
+        return RecordingHarness(
+            coordinator: coordinator,
+            audio: audio,
+            stt: stt,
+            clipboard: clipboard,
+            repo: repo
+        )
     }
 
     private func makeTestDefaults(prefix: String) -> UserDefaults {
@@ -307,14 +588,35 @@ final class DictationFlowCoordinatorTests: XCTestCase {
     ) async -> Bool {
         let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000)
         while Date() < deadline {
+            if Task.isCancelled { return false }
             if condition() { return true }
-            try? await Task.sleep(for: .milliseconds(5))
+            do {
+                try await Task.sleep(for: .milliseconds(5))
+            } catch {
+                return false
+            }
         }
         return condition()
     }
 
-    private func isRecording(_ state: DictationOverlayViewModel.OverlayState?) -> Bool {
-        guard let state else { return false }
+    private func waitUntilAsync(
+        timeoutMs: UInt64 = 2_500,
+        condition: @escaping @MainActor () async -> Bool
+    ) async -> Bool {
+        let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000)
+        while Date() < deadline {
+            if Task.isCancelled { return false }
+            if await condition() { return true }
+            do {
+                try await Task.sleep(for: .milliseconds(5))
+            } catch {
+                return false
+            }
+        }
+        return await condition()
+    }
+
+    private func isFlowRecording(_ state: DictationFlowState) -> Bool {
         if case .recording = state { return true }
         return false
     }
@@ -327,6 +629,10 @@ final class DictationFlowCoordinatorTests: XCTestCase {
 
     private struct RecordingHarness {
         let coordinator: DictationFlowCoordinator
+        let audio: MockAudioProcessor
+        let stt: MockSTTClient
+        let clipboard: MockClipboardService
+        let repo: DictationRepository
     }
 }
 

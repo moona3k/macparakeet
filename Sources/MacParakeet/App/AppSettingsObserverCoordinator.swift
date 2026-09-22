@@ -15,22 +15,32 @@ final class AppSettingsObserverCoordinator {
     private let onYouTubeTranscriptionHotkeyTriggerChanged: () -> Void
     private let onAppearanceModeChanged: () -> Void
     private let onMenuBarOnlyModeChanged: () -> Void
+    private let onMenuBarIconVisibilityChanged: () -> Void
     private let onShowIdlePillChanged: () -> Void
+    private let onShowDiscoverChanged: () -> Void
+    private let onShowMeetingRecordingPillChanged: () -> Void
     private let onInstantDictationChanged: () -> Void
     private let onMicrophoneSelectionChanged: () -> Void
+    private let onMeetingAudioRetentionChanged: () -> Void
 
-    private var onboardingObserver: Any?
-    private var settingsObserver: Any?
-    private var hotkeyTriggerObserver: Any?
-    private var pushToTalkHotkeyTriggerObserver: Any?
-    private var meetingHotkeyTriggerObserver: Any?
-    private var fileTranscriptionHotkeyTriggerObserver: Any?
-    private var youtubeTranscriptionHotkeyTriggerObserver: Any?
-    private var appearanceModeObserver: Any?
-    private var menuBarOnlyModeObserver: Any?
-    private var showIdlePillObserver: Any?
-    private var instantDictationObserver: Any?
-    private var microphoneSelectionObserver: Any?
+    private var observerTokens: [NSObjectProtocol] = []
+
+    private static let plainChannels:
+        [(Notification.Name, @MainActor @Sendable (AppSettingsObserverCoordinator) -> Void)] = [
+            (.macParakeetHotkeyTriggerDidChange, { $0.onHotkeyTriggerChanged() }),
+            (.macParakeetPushToTalkHotkeyTriggerDidChange, { $0.onPushToTalkHotkeyTriggerChanged() }),
+            (.macParakeetMeetingHotkeyTriggerDidChange, { $0.onMeetingHotkeyTriggerChanged() }),
+            (.macParakeetFileTranscriptionHotkeyTriggerDidChange, { $0.onFileTranscriptionHotkeyTriggerChanged() }),
+            (.macParakeetYouTubeTranscriptionHotkeyTriggerDidChange, { $0.onYouTubeTranscriptionHotkeyTriggerChanged() }),
+            (.macParakeetAppearanceModeDidChange, { $0.onAppearanceModeChanged() }),
+            (.macParakeetMenuBarOnlyModeDidChange, { $0.onMenuBarOnlyModeChanged() }),
+            (.macParakeetMenuBarIconVisibilityDidChange, { $0.onMenuBarIconVisibilityChanged() }),
+            (.macParakeetShowIdlePillDidChange, { $0.onShowIdlePillChanged() }),
+            (.macParakeetShowMeetingRecordingPillDidChange, { $0.onShowMeetingRecordingPillChanged() }),
+            (.macParakeetInstantDictationDidChange, { $0.onInstantDictationChanged() }),
+            (.macParakeetMicrophoneSelectionDidChange, { $0.onMicrophoneSelectionChanged() }),
+            (.macParakeetMeetingAudioRetentionDidChange, { $0.onMeetingAudioRetentionChanged() }),
+        ]
 
     init(
         notificationCenter: NotificationCenter = .default,
@@ -43,9 +53,13 @@ final class AppSettingsObserverCoordinator {
         onYouTubeTranscriptionHotkeyTriggerChanged: @escaping () -> Void,
         onAppearanceModeChanged: @escaping () -> Void,
         onMenuBarOnlyModeChanged: @escaping () -> Void,
+        onMenuBarIconVisibilityChanged: @escaping () -> Void,
         onShowIdlePillChanged: @escaping () -> Void,
+        onShowDiscoverChanged: @escaping () -> Void,
+        onShowMeetingRecordingPillChanged: @escaping () -> Void,
         onInstantDictationChanged: @escaping () -> Void,
-        onMicrophoneSelectionChanged: @escaping () -> Void
+        onMicrophoneSelectionChanged: @escaping () -> Void,
+        onMeetingAudioRetentionChanged: @escaping () -> Void
     ) {
         self.notificationCenter = notificationCenter
         self.onOpenOnboarding = onOpenOnboarding
@@ -57,133 +71,50 @@ final class AppSettingsObserverCoordinator {
         self.onYouTubeTranscriptionHotkeyTriggerChanged = onYouTubeTranscriptionHotkeyTriggerChanged
         self.onAppearanceModeChanged = onAppearanceModeChanged
         self.onMenuBarOnlyModeChanged = onMenuBarOnlyModeChanged
+        self.onMenuBarIconVisibilityChanged = onMenuBarIconVisibilityChanged
         self.onShowIdlePillChanged = onShowIdlePillChanged
+        self.onShowDiscoverChanged = onShowDiscoverChanged
+        self.onShowMeetingRecordingPillChanged = onShowMeetingRecordingPillChanged
         self.onInstantDictationChanged = onInstantDictationChanged
         self.onMicrophoneSelectionChanged = onMicrophoneSelectionChanged
+        self.onMeetingAudioRetentionChanged = onMeetingAudioRetentionChanged
     }
 
     func startObserving() {
         stopObserving()
 
-        onboardingObserver = notificationCenter.addObserver(
-            forName: .macParakeetOpenOnboarding,
-            object: nil,
-            queue: .main
+        observerTokens.append(notificationCenter.addObserver(
+            forName: .macParakeetOpenOnboarding, object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in
-                self?.onOpenOnboarding()
-            }
-        }
+            Task { @MainActor in self?.onOpenOnboarding() }
+        })
 
-        settingsObserver = notificationCenter.addObserver(
-            forName: .macParakeetOpenSettings,
-            object: nil,
-            queue: .main
+        observerTokens.append(notificationCenter.addObserver(
+            forName: .macParakeetOpenSettings, object: nil, queue: .main
         ) { [weak self] notification in
             let tab = Self.settingsTab(from: notification)
-            Task { @MainActor in
-                self?.onOpenSettings(tab)
-            }
-        }
+            Task { @MainActor in self?.onOpenSettings(tab) }
+        })
 
-        hotkeyTriggerObserver = notificationCenter.addObserver(
-            forName: .macParakeetHotkeyTriggerDidChange,
-            object: nil,
-            queue: .main
+        // Unlike the other settings, Discover opt-out must cancel work before
+        // a rapid re-enable or an already-ready feed completion can run.
+        // NotificationCenter delivers this observer on the main queue.
+        observerTokens.append(notificationCenter.addObserver(
+            forName: .macParakeetShowDiscoverDidChange, object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in
-                self?.onHotkeyTriggerChanged()
+            MainActor.assumeIsolated {
+                self?.onShowDiscoverChanged()
             }
-        }
+        })
 
-        pushToTalkHotkeyTriggerObserver = notificationCenter.addObserver(
-            forName: .macParakeetPushToTalkHotkeyTriggerDidChange,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.onPushToTalkHotkeyTriggerChanged()
+        for (name, invoke) in Self.plainChannels {
+            let token = notificationCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in
+                    guard let self else { return }
+                    invoke(self)
+                }
             }
-        }
-
-        meetingHotkeyTriggerObserver = notificationCenter.addObserver(
-            forName: .macParakeetMeetingHotkeyTriggerDidChange,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.onMeetingHotkeyTriggerChanged()
-            }
-        }
-
-        fileTranscriptionHotkeyTriggerObserver = notificationCenter.addObserver(
-            forName: .macParakeetFileTranscriptionHotkeyTriggerDidChange,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.onFileTranscriptionHotkeyTriggerChanged()
-            }
-        }
-
-        youtubeTranscriptionHotkeyTriggerObserver = notificationCenter.addObserver(
-            forName: .macParakeetYouTubeTranscriptionHotkeyTriggerDidChange,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.onYouTubeTranscriptionHotkeyTriggerChanged()
-            }
-        }
-
-        appearanceModeObserver = notificationCenter.addObserver(
-            forName: .macParakeetAppearanceModeDidChange,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.onAppearanceModeChanged()
-            }
-        }
-
-        menuBarOnlyModeObserver = notificationCenter.addObserver(
-            forName: .macParakeetMenuBarOnlyModeDidChange,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.onMenuBarOnlyModeChanged()
-            }
-        }
-
-        showIdlePillObserver = notificationCenter.addObserver(
-            forName: .macParakeetShowIdlePillDidChange,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.onShowIdlePillChanged()
-            }
-        }
-
-        instantDictationObserver = notificationCenter.addObserver(
-            forName: .macParakeetInstantDictationDidChange,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.onInstantDictationChanged()
-            }
-        }
-
-        microphoneSelectionObserver = notificationCenter.addObserver(
-            forName: .macParakeetMicrophoneSelectionDidChange,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.onMicrophoneSelectionChanged()
-            }
+            observerTokens.append(token)
         }
     }
 
@@ -195,53 +126,9 @@ final class AppSettingsObserverCoordinator {
     }
 
     func stopObserving() {
-        if let onboardingObserver {
-            notificationCenter.removeObserver(onboardingObserver)
-            self.onboardingObserver = nil
+        for token in observerTokens {
+            notificationCenter.removeObserver(token)
         }
-        if let settingsObserver {
-            notificationCenter.removeObserver(settingsObserver)
-            self.settingsObserver = nil
-        }
-        if let hotkeyTriggerObserver {
-            notificationCenter.removeObserver(hotkeyTriggerObserver)
-            self.hotkeyTriggerObserver = nil
-        }
-        if let pushToTalkHotkeyTriggerObserver {
-            notificationCenter.removeObserver(pushToTalkHotkeyTriggerObserver)
-            self.pushToTalkHotkeyTriggerObserver = nil
-        }
-        if let meetingHotkeyTriggerObserver {
-            notificationCenter.removeObserver(meetingHotkeyTriggerObserver)
-            self.meetingHotkeyTriggerObserver = nil
-        }
-        if let fileTranscriptionHotkeyTriggerObserver {
-            notificationCenter.removeObserver(fileTranscriptionHotkeyTriggerObserver)
-            self.fileTranscriptionHotkeyTriggerObserver = nil
-        }
-        if let youtubeTranscriptionHotkeyTriggerObserver {
-            notificationCenter.removeObserver(youtubeTranscriptionHotkeyTriggerObserver)
-            self.youtubeTranscriptionHotkeyTriggerObserver = nil
-        }
-        if let appearanceModeObserver {
-            notificationCenter.removeObserver(appearanceModeObserver)
-            self.appearanceModeObserver = nil
-        }
-        if let menuBarOnlyModeObserver {
-            notificationCenter.removeObserver(menuBarOnlyModeObserver)
-            self.menuBarOnlyModeObserver = nil
-        }
-        if let showIdlePillObserver {
-            notificationCenter.removeObserver(showIdlePillObserver)
-            self.showIdlePillObserver = nil
-        }
-        if let instantDictationObserver {
-            notificationCenter.removeObserver(instantDictationObserver)
-            self.instantDictationObserver = nil
-        }
-        if let microphoneSelectionObserver {
-            notificationCenter.removeObserver(microphoneSelectionObserver)
-            self.microphoneSelectionObserver = nil
-        }
+        observerTokens.removeAll()
     }
 }

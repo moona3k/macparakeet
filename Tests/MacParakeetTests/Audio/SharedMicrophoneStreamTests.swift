@@ -64,6 +64,77 @@ final class SharedMicrophoneStreamTests: XCTestCase {
         XCTAssertEqual(platform.configureAndStartCalls.count, 0)
     }
 
+    // MARK: - Prewarm
+
+    /// Flush the engine queue so any async `prewarmDictation()` work has run.
+    private func flushEngineQueue() async {
+        await stream.unsubscribe(SharedMicrophoneStream.SubscriberToken())
+    }
+
+    func testPrewarmWhileIdlePreparesRawDictationEngine() async {
+        stream.prewarmDictation()
+        await flushEngineQueue()
+
+        XCTAssertEqual(platform.prepareCalls.count, 1)
+        XCTAssertEqual(platform.prepareCalls.first?.vpioEnabled, false)
+        XCTAssertEqual(platform.prepareCalls.first?.bufferSize, 1024)
+        XCTAssertEqual(platform.configureAndStartCalls.count, 0)
+    }
+
+    func testPrewarmWhileSubscriberActiveDoesNothing() async throws {
+        let token = try await stream.subscribe(wantsVPIO: false) { _, _ in }
+
+        stream.prewarmDictation()
+        await flushEngineQueue()
+
+        XCTAssertEqual(platform.prepareCalls.count, 0, "Must not pre-acquire while a subscriber holds the engine")
+
+        await stream.unsubscribe(token)
+    }
+
+    func testAutoPrewarmRePreparesAfterLastSubscriberLeaves() async throws {
+        let platform = MockMicrophonePlatform()
+        let stream = SharedMicrophoneStream(
+            platform: platform,
+            bufferSize: 1024,
+            autoPrewarmWhenIdle: true
+        )
+
+        let token = try await stream.subscribe(wantsVPIO: false) { _, _ in }
+        XCTAssertEqual(platform.prepareCalls.count, 0, "No prewarm while capturing")
+
+        await stream.unsubscribe(token)
+        // The prewarm is enqueued at the tail of unsubscribe; flush to observe it.
+        await stream.unsubscribe(SharedMicrophoneStream.SubscriberToken())
+
+        XCTAssertEqual(platform.stopEngineCallCount, 1)
+        XCTAssertEqual(platform.prepareCalls.count, 1)
+        XCTAssertEqual(platform.prepareCalls.first?.vpioEnabled, false)
+    }
+
+    func testRouteRefreshReplacesIdlePreparation() async throws {
+        let platform = MockMicrophonePlatform()
+        let stream = SharedMicrophoneStream(
+            platform: platform,
+            bufferSize: 1024,
+            autoPrewarmWhenIdle: true,
+            prewarmRefreshDebounce: 0
+        )
+
+        stream.prewarmDictation()
+        await stream.unsubscribe(SharedMicrophoneStream.SubscriberToken())
+        XCTAssertEqual(platform.prepareCalls.count, 1)
+
+        stream.refreshIdlePrewarm()
+        let deadline = ContinuousClock.now + .seconds(1)
+        while platform.prepareCalls.count < 2, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(1))
+        }
+
+        XCTAssertEqual(platform.stopEngineCallCount, 1)
+        XCTAssertEqual(platform.prepareCalls.count, 2)
+    }
+
     // MARK: - VPIO arbitration
 
     func testVPIOSubscriberStartsEngineWithVPIOOn() async throws {
@@ -83,7 +154,8 @@ final class SharedMicrophoneStreamTests: XCTestCase {
         let t1 = try await stream.subscribe(wantsVPIO: true) { _, _ in }
         let t2 = try await stream.subscribe(wantsVPIO: false) { _, _ in }
 
-        XCTAssertEqual(platform.configureAndStartCalls.count, 1, "Non-VPIO sub joining a VPIO engine must not reconfigure")
+        XCTAssertEqual(
+            platform.configureAndStartCalls.count, 1, "Non-VPIO sub joining a VPIO engine must not reconfigure")
         XCTAssertTrue(stream.diagnostics.vpioEngaged)
 
         await stream.unsubscribe(t1)
@@ -358,6 +430,38 @@ final class SharedMicrophoneStreamTests: XCTestCase {
         await stream.unsubscribe(t2)
     }
 
+    func testUnexpectedPlatformStopInvalidatesSubscribersAndFiresEngineDeathCallbacks() async throws {
+        let firstDeath = TestCounter()
+        let secondDeath = TestCounter()
+
+        let firstToken = try await stream.subscribe(
+            wantsVPIO: false,
+            onEngineDeath: { firstDeath.increment() }
+        ) { _, _ in }
+        _ = try await stream.subscribe(
+            wantsVPIO: false,
+            onEngineDeath: { secondDeath.increment() }
+        ) { _, _ in }
+
+        platform.simulateUnexpectedStop()
+        let deadline = ContinuousClock.now + .seconds(1)
+        while (firstDeath.value < 1 || secondDeath.value < 1), ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(1))
+        }
+
+        let diagnostics = stream.diagnostics
+        XCTAssertEqual(diagnostics.subscriberCount, 0)
+        XCTAssertFalse(diagnostics.engineRunning)
+        XCTAssertFalse(diagnostics.vpioEngaged)
+        XCTAssertEqual(firstDeath.value, 1)
+        XCTAssertEqual(secondDeath.value, 1)
+
+        // The terminal callback already invalidated this token. A late owner
+        // cleanup remains idempotent and must not stop a future engine.
+        await stream.unsubscribe(firstToken)
+        XCTAssertEqual(platform.stopEngineCallCount, 0)
+    }
+
     func testEngineDeathCallbackOptionalForBackwardsCompat() async throws {
         // Subscribers that don't pass onEngineDeath must keep working — the
         // promotion failure handles `nil` callbacks without trying to fire
@@ -478,9 +582,10 @@ final class SharedMicrophoneStreamTests: XCTestCase {
         async let r2 = subscribeResult(wantsVPIO: false)
 
         let results = await [r1, r2]
-        XCTAssertTrue(results.allSatisfy {
-            if case .failure = $0 { return true } else { return false }
-        }, "Both concurrent subscribes should fail when platform is broken")
+        XCTAssertTrue(
+            results.allSatisfy {
+                if case .failure = $0 { return true } else { return false }
+            }, "Both concurrent subscribes should fail when platform is broken")
 
         let diag = stream.diagnostics
         XCTAssertEqual(diag.subscriberCount, 0, "No orphaned subscribers")
@@ -563,8 +668,10 @@ private final class MockMicrophonePlatform: MicrophoneEnginePlatform, @unchecked
     private let lock = NSLock()
     private var _isRunning = false
     private var _configureCalls: [ConfigureCall] = []
+    private var _prepareCalls: [ConfigureCall] = []
     private var _stopCount = 0
     private var _tapHandler: (@Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void)?
+    private var _unexpectedStopHandler: (@Sendable () -> Void)?
     var configureAndStartError: Error?
 
     var isEngineRunning: Bool {
@@ -581,6 +688,20 @@ private final class MockMicrophonePlatform: MicrophoneEnginePlatform, @unchecked
 
     var stopEngineCallCount: Int {
         lock.withLock { _stopCount }
+    }
+
+    var prepareCalls: [ConfigureCall] {
+        lock.withLock { _prepareCalls }
+    }
+
+    func prepare(
+        vpioEnabled: Bool,
+        bufferSize: AVAudioFrameCount,
+        tapHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
+    ) {
+        lock.withLock {
+            _prepareCalls.append(ConfigureCall(vpioEnabled: vpioEnabled, bufferSize: bufferSize))
+        }
     }
 
     func configureAndStart(
@@ -610,6 +731,21 @@ private final class MockMicrophonePlatform: MicrophoneEnginePlatform, @unchecked
             _isRunning = false
             _tapHandler = nil
         }
+    }
+
+    func setUnexpectedStopHandler(_ handler: (@Sendable () -> Void)?) {
+        lock.withLock {
+            _unexpectedStopHandler = handler
+        }
+    }
+
+    func simulateUnexpectedStop() {
+        let handler = lock.withLock { () -> (@Sendable () -> Void)? in
+            _isRunning = false
+            _tapHandler = nil
+            return _unexpectedStopHandler
+        }
+        handler?()
     }
 
     /// Test hook — synchronously deliver a buffer through the installed tap.

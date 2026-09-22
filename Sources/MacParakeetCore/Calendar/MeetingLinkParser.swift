@@ -78,12 +78,13 @@ public struct MeetingLinkParser: Sendable {
     /// Friendly service name for UI ("Zoom", "Google Meet", …).
     public func identifyService(from url: String?) -> String? {
         guard let url, !url.isEmpty else { return nil }
-        if url.contains("zoom.us") || url.contains("zoomgov.com") { return "Zoom" }
-        if url.contains("meet.google.com") { return "Google Meet" }
-        if url.contains("teams.microsoft.com") { return "Microsoft Teams" }
-        if url.contains("webex.com") { return "Webex" }
-        if url.contains("around.co") { return "Around" }
-        if url.contains("whereby.com") { return "Whereby" }
+        let normalized = url.lowercased()
+        if normalized.contains("zoom.us") || normalized.contains("zoomgov.com") { return "Zoom" }
+        if normalized.contains("meet.google.com") { return "Google Meet" }
+        if normalized.contains("teams.microsoft.com") { return "Microsoft Teams" }
+        if normalized.contains("webex.com") { return "Webex" }
+        if normalized.contains("around.co") { return "Around" }
+        if normalized.contains("whereby.com") { return "Whereby" }
         return nil
     }
 

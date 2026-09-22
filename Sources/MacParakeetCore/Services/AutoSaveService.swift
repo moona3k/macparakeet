@@ -7,6 +7,7 @@ public enum AutoSaveFormat: String, Codable, CaseIterable, Sendable {
     case md
     case srt
     case vtt
+    case dapt
     case json
 
     public var displayName: String {
@@ -15,11 +16,14 @@ public enum AutoSaveFormat: String, Codable, CaseIterable, Sendable {
         case .md: return "Markdown (.md)"
         case .srt: return "SRT Subtitles (.srt)"
         case .vtt: return "WebVTT (.vtt)"
+        case .dapt: return "DAPT Transcript (.dapt.xml)"
         case .json: return "JSON (.json)"
         }
     }
 
-    public var fileExtension: String { rawValue }
+    public var fileExtension: String {
+        self == .dapt ? "dapt.xml" : rawValue
+    }
 }
 
 /// Distinguishes transcription vs meeting auto-save settings.
@@ -49,6 +53,14 @@ public enum AutoSaveScope: String, Sendable {
     }
 }
 
+/// Outcome of attempting an automatic export.
+public enum AutoSaveResult: Equatable, Sendable {
+    case disabled
+    case saved
+    case folderUnavailable
+    case failed
+}
+
 /// Automatically saves completed transcriptions to a user-chosen folder.
 /// Reads configuration from UserDefaults; does nothing when auto-save is disabled
 /// or no folder is configured.
@@ -62,6 +74,9 @@ public final class AutoSaveService {
     public static let enabledKey = AutoSaveScope.transcription.enabledKey
     public static let formatKey = AutoSaveScope.transcription.formatKey
     public static let folderBookmarkKey = AutoSaveScope.transcription.folderBookmarkKey
+    public static let meetingIncludeTimestampsKey = "meetingAutoSaveIncludeTimestamps"
+    public static let meetingIncludeSpeakerLabelsKey = "meetingAutoSaveIncludeSpeakerLabels"
+    public static let meetingIncludeMetadataKey = "meetingAutoSaveIncludeMetadata"
 
     public init(
         exportService: ExportServiceProtocol? = nil,
@@ -73,10 +88,16 @@ public final class AutoSaveService {
     }
 
     /// Save the transcription if auto-save is enabled for the given scope.
-    /// Failures are logged but never surfaced to the user.
-    public func saveIfEnabled(_ transcription: Transcription, scope: AutoSaveScope = .transcription) {
-        guard defaults.bool(forKey: scope.enabledKey) else { return }
+    /// The result lets callers surface failures without making the primary
+    /// transcription or meeting save fail.
+    @discardableResult
+    public func saveIfEnabled(
+        _ transcription: Transcription,
+        scope: AutoSaveScope = .transcription
+    ) -> AutoSaveResult {
+        guard defaults.bool(forKey: scope.enabledKey) else { return .disabled }
         let format = AutoSaveFormat(rawValue: defaults.string(forKey: scope.formatKey) ?? "md") ?? .md
+        let textOptions = transcriptExportOptions(for: scope)
         let operationContext = Observability.childOperationContext()
         guard let folderURL = resolveFolder(scope: scope) else {
             logger.warning("Auto-save enabled but no valid folder configured for \(scope.rawValue).")
@@ -87,7 +108,7 @@ public final class AutoSaveService {
                 outcome: .unavailable,
                 errorType: "folder_unavailable"
             )
-            return
+            return .folderUnavailable
         }
 
         let fileURL = buildFileURL(for: transcription, format: format, in: folderURL)
@@ -97,29 +118,43 @@ public final class AutoSaveService {
             try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
 
             switch format {
-            case .txt: try exportService.exportToTxt(transcription: transcription, url: fileURL)
-            case .md: try exportService.exportToMarkdown(transcription: transcription, url: fileURL)
+            case .txt:
+                try exportService.exportToTxt(
+                    transcription: transcription,
+                    url: fileURL,
+                    options: textOptions
+                )
+            case .md:
+                try exportService.exportToMarkdown(
+                    transcription: transcription,
+                    url: fileURL,
+                    options: textOptions
+                )
             case .srt: try exportService.exportToSRT(transcription: transcription, url: fileURL)
             case .vtt: try exportService.exportToVTT(transcription: transcription, url: fileURL)
+            case .dapt: try exportService.exportToDAPT(transcription: transcription, url: fileURL)
             case .json: try exportService.exportToJSON(transcription: transcription, url: fileURL)
             }
 
-            logger.info("Auto-saved \(scope.rawValue) transcript to \(fileURL.lastPathComponent)")
+            logger.info("auto_save_completed scope=\(scope.rawValue, privacy: .public) format=\(format.rawValue, privacy: .public) outcome=success")
             sendAutoSaveOperation(
                 operationContext: operationContext,
                 scope: scope,
                 format: format,
                 outcome: .success
             )
+            return .saved
         } catch {
-            logger.error("Auto-save failed for \(scope.rawValue): \(error.localizedDescription)")
+            let errorType = Observability.errorType(for: error)
+            logger.error("auto_save_failed scope=\(scope.rawValue, privacy: .public) format=\(format.rawValue, privacy: .public) outcome=failure error_type=\(errorType, privacy: .public)")
             sendAutoSaveOperation(
                 operationContext: operationContext,
                 scope: scope,
                 format: format,
                 outcome: .failure,
-                errorType: Observability.errorType(for: error)
+                errorType: errorType
             )
+            return .failed
         }
     }
 
@@ -133,7 +168,10 @@ public final class AutoSaveService {
 
     /// Resolve the stored bookmark data back to a URL for the given scope.
     /// Re-creates the bookmark if it has gone stale.
-    public static func resolveFolder(scope: AutoSaveScope = .transcription, defaults: UserDefaults = .standard) -> URL? {
+    public nonisolated static func resolveFolder(
+        scope: AutoSaveScope = .transcription,
+        defaults: UserDefaults = .standard
+    ) -> URL? {
         guard let bookmarkData = defaults.data(forKey: scope.folderBookmarkKey) else { return nil }
         var isStale = false
         guard let url = try? URL(
@@ -147,6 +185,31 @@ public final class AutoSaveService {
             }
         }
         return url
+    }
+
+    /// Resolve captured bookmark data without changing the stored bookmark.
+    /// This is useful for asynchronous preflight work whose result may become
+    /// stale while the user chooses a different folder.
+    public nonisolated static func resolveFolder(bookmarkData: Data) -> URL? {
+        var isStale = false
+        return try? URL(
+            resolvingBookmarkData: bookmarkData,
+            bookmarkDataIsStale: &isStale
+        )
+    }
+
+    /// A non-invasive preflight for Settings. The real export remains the
+    /// authoritative write check because availability can change at any time.
+    public nonisolated static func isFolderUsable(_ url: URL) async -> Bool {
+        await Task.detached(priority: .utility) {
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+                  isDirectory.boolValue
+            else {
+                return false
+            }
+            return FileManager.default.isWritableFile(atPath: url.path)
+        }.value
     }
 
     /// Upgraded installs may already have transcription auto-save configured before
@@ -163,6 +226,19 @@ public final class AutoSaveService {
               let value = defaults.object(forKey: sourceKey)
         else { return }
         defaults.set(value, forKey: destinationKey)
+    }
+
+    private func transcriptExportOptions(for scope: AutoSaveScope) -> TranscriptExportOptions {
+        guard scope == .meeting else { return .default }
+        return TranscriptExportOptions(
+            includeTimestamps: bool(defaultingToTrueForKey: Self.meetingIncludeTimestampsKey),
+            includeSpeakerLabels: bool(defaultingToTrueForKey: Self.meetingIncludeSpeakerLabelsKey),
+            includeMetadata: bool(defaultingToTrueForKey: Self.meetingIncludeMetadataKey)
+        )
+    }
+
+    private func bool(defaultingToTrueForKey key: String) -> Bool {
+        defaults.object(forKey: key) as? Bool ?? true
     }
 
     private func sendAutoSaveOperation(

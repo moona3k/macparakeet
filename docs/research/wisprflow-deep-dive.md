@@ -237,7 +237,7 @@ Command Mode via local Qwen3-8B is the key Pro feature. WisprFlow proves the dem
 
 | WisprFlow Feature | MacParakeet Local Implementation |
 |-------------------|--------------------------------|
-| Cloud STT | Parakeet TDT 0.6B via FluidAudio CoreML/ANE (v3 default, v2 English-only opt-in; ~155x faster) |
+| Cloud STT | Parakeet via FluidAudio CoreML/ANE (v3 default, v2 and Unified English opt-ins; ~155x faster) |
 | Cloud LLM refinement | Qwen3-8B via MLX-Swift (on-device, ~2s cold start) |
 | Context awareness | macOS Accessibility API (AXUIElement) + local Qwen3-8B |
 | Auto-edit (filler/grammar) | Deterministic pipeline + Qwen3-8B |

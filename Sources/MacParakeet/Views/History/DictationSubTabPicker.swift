@@ -34,7 +34,7 @@ struct DictationSubTabPicker: View {
         let isSelected = selection == tab
         let isHovered = hoveredTab == tab
         Button {
-            withAnimation(.spring(response: 0.36, dampingFraction: 0.82)) {
+            withAnimation(DesignSystem.Animation.contentSwap) {
                 selection = tab
             }
         } label: {

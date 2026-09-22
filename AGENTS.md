@@ -1,166 +1,192 @@
 # AGENTS.md -- MacParakeet
 
-> Read by coding agents (Claude Code, Codex CLI, Hermes, OpenClaw, etc.) working
-> *in this repo*. Deeper project context lives in [`CLAUDE.md`](./CLAUDE.md).
-> If your agent runs *outside* this repo and wants to *call* `macparakeet-cli`,
-> see [`integrations/README.md`](./integrations/README.md) instead.
+> Canonical startup guide for coding agents working in this repo. Claude Code
+> also reads [`CLAUDE.md`](./CLAUDE.md), which is a small Claude-specific
+> overlay. Agents outside this repo that want to call `macparakeet-cli` should
+> start with [`integrations/README.md`](./integrations/README.md).
 
-## What this project is
+## Project Shape
 
-MacParakeet is a fast, private, local-first voice app for macOS. The v0.6
-release has three co-equal capture modes: system-wide dictation, file
-transcription, and meeting recording, plus productized Transforms
-for selected-text rewrites. Parakeet TDT 0.6B via FluidAudio CoreML on the
-Apple Neural Engine is the default STT family: multilingual v3 is the default,
-and English-only v2 is an opt-in Parakeet model for users who want the fastest
-English path without v3 auto-detect. Two optional local engines extend
-coverage: Nemotron 3.5 (Beta), a fast multilingual FluidAudio streaming
-engine, and WhisperKit for languages Parakeet does not cover.
+MacParakeet is a fast, private, local-first voice app for Apple Silicon Macs.
+It ships three primary capture modes -- system-wide dictation, file/media URL
+transcription, and meeting recording -- plus Transforms for selected-text
+rewrites. Speech recognition runs locally by default through Parakeet via
+FluidAudio CoreML/ANE, with optional Nemotron, WhisperKit, and Cohere Transcribe
+engines.
 
-**Release status:** The notarized Stable DMG is the user-facing release
-channel; `main` is development. The canonical channel framing — including
-which `AppFeatures` flags differ between `main` and the latest release tag —
-lives in one place: [`CLAUDE.md`](./CLAUDE.md) → "Release Channels". Check
-there before describing release status anywhere; don't restate it in other
-docs.
+The repo contains two products:
 
-Free and open-source (GPL-3.0). Apple Silicon only. Requires macOS 14.2+.
+- `MacParakeet.app`: SwiftUI macOS app.
+- `macparakeet-cli`: public automation surface in `Sources/CLI/`; compatibility
+  notes live in `Sources/CLI/CHANGELOG.md`.
 
-The repo ships two products:
+`main` is development. The notarized DMG is the user-facing stable channel.
+For current release/flag state, read
+[`spec/README.md`](./spec/README.md#release-channels-and-feature-flags) and the
+relevant ADR/spec instead of copying release facts into new docs.
 
-- **`macparakeet-cli`** -- versioned public surface
-  ([`Sources/CLI/`](./Sources/CLI/), semver tracked in
-  [`Sources/CLI/CHANGELOG.md`](./Sources/CLI/CHANGELOG.md)).
-- **`MacParakeet.app`** -- SwiftUI macOS app, one consumer of the CLI's
-  underlying core library.
-
-## Build & Test
+## Commands
 
 ```bash
-# Build everything (app + CLI + core + viewmodels + tests)
 swift build
-
-# Run the test suite (Swift 6 language mode)
 swift test
-
-# Focused run of one test class while iterating (full suite before merge)
 swift test --filter TextProcessingPipelineTests
-
-# Build, codesign, and launch the dev app
+scripts/dev/check.sh [TestFilter]
+scripts/dev/format.sh
+scripts/dev/ci_local.sh
+scripts/dev/greptile_review.sh [BaseBranch]
 scripts/dev/run_app.sh
-
-# Run the CLI against your local DB
+no-mistakes doctor
+no-mistakes init
+no-mistakes axi
 swift run macparakeet-cli --help
 swift run macparakeet-cli health
 ```
 
-The full test suite is deterministic and normally finishes in roughly one to
-two minutes depending on SwiftPM cache state. Run `swift test` before declaring
-code-change work complete.
+For a testable GUI build, use `scripts/dev/run_app.sh` instead of copying its
+`xcodebuild` command by hand. `SwiftStreamingMarkdown` depends transitively on
+the `EquatableMacros` plugin, so Xcode builds must keep
+`-skipMacroValidation`; otherwise dependency resolution stops with
+`Macro “EquatableMacros” ... must be enabled before it can be used`. The dev
+script owns this flag. Do not install another Markdown renderer or edit the
+package checkout to work around the error. The script must confirm this worktree’s replaced dev executables have exited
+before it rebuilds or re-signs their bundle; preserve unrelated app instances.
+Re-signing a bundle in place while macOS is executing it can cause a delayed
+`SIGKILL (Code Signature Invalid)` when a menu or sheet loads another page.
 
-## Git & Worktrees
+For UI verification, use Playwright for browser pages and web views. For the
+native macOS app, use Xcode/XCUITest or the system Accessibility and screenshot
+tools directly. Do not use Orca computer-use in this repository.
 
-This repo runs many parallel worktrees. Two rules that save real time:
+Iterate on focused tests ONLY (`swift test --filter <AreaTests>` for the
+areas the diff touches). Run the full `swift test` suite AT MOST ONCE per
+task, as the final gate before declaring code-change work complete — never
+per iteration. The suite is 4,300+ tests including CPU-heavy AEC/DSP
+simulations; full-suite-per-iteration turns a 10-minute review into an
+hour. Exception only when the user explicitly scopes verification
+differently.
 
-- **Base new branches/worktrees on `origin/main`, not local `main`** — the
-  local `main` ref is often stale here. `git fetch origin` first, then
-  `git worktree add -b my-branch ../macparakeet-worktrees/my-branch origin/main`.
-- **Build from the worktree the branch is checked out in.** Xcode/SwiftPM
-  state under `.swiftpm/` pins source paths to the worktree that created it,
-  so `xcodebuild` invoked from another checkout can silently compile the
-  wrong tree. `swift build` / `swift test` from inside the worktree are
-  always safe.
+## Worktrees
 
-More git/CI gotchas (flaky-test policy, line-ending rules): [`CLAUDE.md`](./CLAUDE.md) → "Known Pitfalls".
+This repo often has many parallel worktrees.
 
-## Code Style
+- Base new branches/worktrees on `origin/main`, not local `main`.
+- Fetch first: `git fetch origin`.
+- Build and test from the worktree that owns the branch. SwiftPM/Xcode state can
+  otherwise point at the wrong checkout.
+- Treat `.build*`, `.claude/worktrees`, `dist`, and
+  `journal/x-agent/node_modules` as generated or archival unless the task
+  specifically asks about them.
+- Default searches should avoid ignored/generated/private paths such as
+  `.claude/`, `.build*`, `dist`, `diagnostics`, `logs`, `journal/`, local env
+  files, and key material unless the task explicitly names them.
 
-- Swift package tools-version 5.9; first-party Swift is kept Swift 6
-  language-mode / concurrency clean. SwiftUI for UI and GRDB for SQLite.
-- One repository per database table (see
-  [`Sources/MacParakeetCore/Database/`](./Sources/MacParakeetCore/Database/)).
-- Comments explain *why*, not *what* -- well-named identifiers carry the what.
-  Default to writing none.
-- `MacParakeetCore` has no SwiftUI/view dependencies. It is primarily
-  Foundation + GRDB + FluidAudio + optional WhisperKit, with small
-  AppKit-backed macOS adapter services where no Foundation-only API exists
-  (`ClipboardService`, `PermissionService`, `TelemetryService` termination
-  notification, `ExportService`). New AppKit use in Core should stay
-  adapter-shaped and must not introduce UI ownership.
-- ViewModels live in their own SPM target (`Sources/MacParakeetViewModels/`)
-  so they can be tested without the GUI.
-- Async/await for all I/O. No completion handlers, no Combine in new code.
-- Buttons use `.parakeetAction(.primary / .primaryProminent / .secondary / .destructive / .destructiveProminent / .subtle)` for semantic role + styling. Never apply `.tint(coral)` at NSHostingView roots or sheet wrappers — coral cascades only from `parakeetAction`. See `spec/04-ui-patterns.md` → Buttons.
+## Code Boundaries
 
-## Architecture Orientation
+- Swift package tools-version is 5.9; first-party code is kept Swift 6
+  language-mode/concurrency clean.
+- `MacParakeetCore` owns shared logic and has no SwiftUI view ownership. Small
+  AppKit-backed adapter services are allowed when Foundation has no equivalent.
+- `MacParakeetViewModels` contains `@Observable` view models that can be tested
+  without the GUI.
+- New I/O should use async/await. Avoid new completion-handler or Combine
+  patterns.
+- When ordering or a result matters, make the API async and await it instead of
+  using fire-and-forget `Task`.
+- Keep `@MainActor` work short; move long-running I/O, model, process, and
+  audio work off the actor, then hop back for UI state.
+- Database access uses GRDB repositories, roughly one repository per table.
+- UI buttons use `.parakeetAction(...)`; do not tint whole hosting roots coral.
 
-```
-Sources/
-  MacParakeetCore/        -- Pure Swift library: STT, DB, prompts, LLM, audio
-  MacParakeetViewModels/  -- @Observable view models, no UI
-  MacParakeet/            -- SwiftUI app target
-  CLI/                    -- macparakeet-cli; ArgumentParser commands
-Tests/
-  MacParakeetTests/       -- Unit, database, integration tests
-  CLITests/               -- CLI argument-parsing + helper tests
-```
+When editing a load-bearing Core subsystem, read its local README before code:
+`Audio/`, `STT/`, `TextProcessing/`, `Database/`, `Licensing/`, `Calendar/`,
+and `Services/System/` currently have subsystem rules.
 
-Full spec is in [`spec/`](./spec/). Architectural decisions (locked) are in
-[`spec/adr/`](./spec/adr/). Don't second-guess ADRs.
+## Product Rules
 
-**Subsystem READMEs.** Load-bearing folders inside
-[`Sources/MacParakeetCore/`](./Sources/MacParakeetCore/) carry their own
-`README.md` capturing non-obvious rules (threading, ordering,
-retention) that aren't visible from grep. **When you're about to edit
-inside one of these folders, read its README first.** Folders with
-READMEs today: `Audio/`, `STT/`, `TextProcessing/`, `Database/`,
-`Licensing/`.
+- Preserve the local-first posture. Audio/transcripts stay on-device for core
+  dictation, transcription, and meeting recording. Cloud LLMs, media downloads,
+  model/update flows, and telemetry are explicit product surfaces.
+- Treat the user database and meeting artifacts as user data. Do not delete them
+  outside explicit product recovery/discard flows.
+- Keep the product focused. Prefer reliable capture, recovery, durable local
+  artifacts, polished daily workflows, and simple UX over feature sprawl.
+- North star ([ADR-027](./spec/adr/027-product-north-star.md)): MacParakeet is
+  the private speech memory of your Mac. Features must capture speech better,
+  make the local library more useful, or expose it safely to the user and
+  their agents.
+- ADRs in `spec/adr/` record accepted decisions. If reality has changed, update
+  the relevant ADR/spec deliberately instead of silently coding around it.
 
-## Security & Privacy
+## Working Method
 
-- **Local-first speech.** STT runs on the Apple Neural Engine. Audio and
-  transcripts stay on-device for core dictation, transcription, and meeting
-  recording. Network surfaces are limited to user-triggered LLM providers,
-  media downloads, model/update flows, retained purchase activation endpoints
-  if explicitly invoked, and opt-out self-hosted telemetry/crash reporting.
-  Telemetry never includes audio or transcript content.
-- **Retained purchase activation is intentional.** The old
-  LemonSqueezy/trial entitlement code is dormant in current free/GPL builds,
-  but it is deliberate future-option plumbing. Do not delete or "clean up"
-  `EntitlementsService`, `LemonSqueezyLicenseAPI`, entitlement state, or
-  trial/license telemetry as dead code unless explicitly requested by the
-  project owner and reflected in an ADR/spec update.
-- **No accounts, no logins.** No identifying data is sent anywhere.
-- **The user database lives at**
-  `~/Library/Application Support/MacParakeet/macparakeet.db`. Treat it as user
-  data: never delete without explicit user confirmation; write migrations
-  rather than dropping tables.
+- Start by finding the governing code, ADRs/specs, and tests for the task.
+- Treat agent memory, old chat, and old plans as hints. Verify live state from
+  code, tests, `git`, GitHub, release metadata, or the governing doc before
+  relying on them.
+- For behavior changes, define the intended scope and must-not-change
+  invariants before editing.
+- Plans are useful working memory for substantial or long-running tasks, but
+  they are optional. Create or update one when it will keep the work coherent.
+- Add tests proportional to risk. Shared flows, persistence, CLI contracts,
+  privacy/telemetry, and concurrency need stronger coverage than copy edits.
+- Update docs when user-visible behavior, public CLI behavior, persistence,
+  privacy, or release framing changes.
+- Boundary contract changes must update the matching
+  [`spec/contracts/`](./spec/contracts/) document and focused tests in the same
+  PR.
 
-## Important Runtime Locations
+The old manual requirements/traceability workflow is retired. The legacy
+requirements index is archived at
+[`docs/historical/requirements-legacy.yaml`](./docs/historical/requirements-legacy.yaml)
+for old references only; do not add new REQ IDs as part of normal work.
 
-| Item | Path |
-|------|------|
-| App bundle | `/Applications/MacParakeet.app` |
-| Database | `~/Library/Application Support/MacParakeet/macparakeet.db` |
-| Parakeet / Nemotron CoreML STT models (~465 MB per Parakeet build, ~1.5 GB Nemotron multilingual / ~600 MB Nemotron English) | FluidAudio default cache, `~/Library/Application Support/FluidAudio/Models/` (Parakeet: `parakeet-*/`; Nemotron multilingual: `nemotron-multilingual/`; Nemotron English: `nemotron-streaming/<tier>ms`) |
-| WhisperKit STT models | `~/Library/Application Support/MacParakeet/models/stt/whisper/` |
-| yt-dlp / FFmpeg helper binaries | `~/Library/Application Support/MacParakeet/bin/` |
-| Settings | `~/Library/Preferences/com.macparakeet.MacParakeet.plist` (dev build: `com.macparakeet.dev`) |
-| Logs | `~/Library/Logs/MacParakeet/` |
+## Review And Commit
 
-## Where to Look Next
+Use [`docs/pr-review-workflow.md`](./docs/pr-review-workflow.md) for substantial
+changes. Scale review to risk: trivial edits can go straight in; small contained
+fixes need focused verification; substantial changes benefit from branch-first
+PRs, CI, local Greptile CLI review, and independent review until findings
+converge. Greptile CLI reviews committed branch changes only; uncommitted
+changes are ignored, so run it from the clean worktree/branch that owns the PR.
 
-- **Coding-agent context for this repo:** [`CLAUDE.md`](./CLAUDE.md) for deep
-  project context; [`spec/10-ai-coding-method.md`](./spec/10-ai-coding-method.md)
-  for spec precedence and lightweight kernel usage; ADRs in
-  [`spec/adr/`](./spec/adr/) for locked decisions.
-- **Calling macparakeet-cli from another agent (OpenClaw / Hermes / etc.):**
-  [`integrations/README.md`](./integrations/README.md) and the CLI changelog
-  at [`Sources/CLI/CHANGELOG.md`](./Sources/CLI/CHANGELOG.md).
-- **Commit format:** rich-format messages per
-  [`docs/commit-guidelines.md`](./docs/commit-guidelines.md) for significant
-  changes.
-- **PR & review workflow:** branch-first PR loop, reviewing to LGTM with
-  judgment, agent fresh-eye review, convergence, and the merge-ready checklist
-  in [`docs/pr-review-workflow.md`](./docs/pr-review-workflow.md). Scale the
-  ceremony to the change — trivial fixes go straight to `main`.
+MacParakeet adopts `no-mistakes` as the preferred gate for non-trivial
+agent-authored branches when it is installed. Initialize once per checkout with
+`no-mistakes init`; it adds the local `no-mistakes` remote and installs the
+user-level `/no-mistakes` skill for Claude Code and Codex. The committed
+[`.no-mistakes.yaml`](./.no-mistakes.yaml) keeps the gate deterministic:
+`swift test` is the baseline test command, `swift-format lint` is the lint
+command, automatic review fixing is off by default, in-repo evidence artifacts
+stay disabled, and transcript-based intent extraction is disabled so agents
+should pass explicit intent. For substantial ready-to-review work, prefer
+`/no-mistakes <task>` from the agent or `git push no-mistakes <branch>` from the
+terminal over a direct `git push origin`. If the tool is unavailable, continue
+with the documented PR workflow and say so in the handoff or PR notes.
+
+Commit messages should help a future reader understand the change. The rich
+format in [`docs/commit-guidelines.md`](./docs/commit-guidelines.md) is a tool
+for significant work, not ceremony for every typo. Do not add Cursor or other
+assistant `Co-authored-by` trailers.
+
+## Where To Look
+
+- Spec index and roadmap: [`spec/README.md`](./spec/README.md)
+- Architecture and product decisions: [`spec/adr/`](./spec/adr/)
+- Feature behavior: [`spec/02-features.md`](./spec/02-features.md)
+- System architecture: [`spec/03-architecture.md`](./spec/03-architecture.md)
+- UI patterns: [`spec/04-ui-patterns.md`](./spec/04-ui-patterns.md)
+- Testing strategy: [`spec/09-testing.md`](./spec/09-testing.md)
+- Agent working method: [`spec/10-ai-coding-method.md`](./spec/10-ai-coding-method.md)
+- Agent memory governance: [`docs/agent-memory-governance.md`](./docs/agent-memory-governance.md)
+- Documented solutions: [`docs/solutions/`](./docs/solutions/) -- categorized
+  learnings with `module`, `tags`, and `problem_type` frontmatter, relevant when
+  implementing, debugging, or making decisions in covered areas.
+- Agent instruction research: [`docs/research/coding-agent-instructions-2026-06.md`](./docs/research/coding-agent-instructions-2026-06.md)
+- Active/completed plans: [`plans/README.md`](./plans/README.md)
+- Distribution/release steps: [`docs/distribution.md`](./docs/distribution.md)
+- CLI automation contract: [`integrations/README.md`](./integrations/README.md)
+- Human-readable PR/issue walkthroughs: publish self-contained HTML at
+  `https://macparakeet.com/dev/pr/<number>` or
+  `/dev/issue/<number>`. Conventions live in the website repo
+  [`public/dev/README.md`](https://github.com/moona3k/macparakeet-website/blob/main/public/dev/README.md).
+  Link the live URL from the GitHub thread. Skip for typos and one-line fixes.

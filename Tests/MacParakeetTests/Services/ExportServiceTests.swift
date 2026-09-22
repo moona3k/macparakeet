@@ -10,6 +10,61 @@ final class ExportServiceTests: XCTestCase {
         exportService = ExportService()
     }
 
+    func testPlainTextAndMarkdownExportsPreserveExplicitUnassignedCorrection() throws {
+        let words = ["Alice", "speaks", "first.", "An", "unknown", "speaker.", "Alice", "speaks", "again."]
+            .enumerated().map { index, word in
+                WordTimestamp(
+                    word: word, startMs: index * 200, endMs: index * 200 + 150,
+                    confidence: 1, speakerId: "S1"
+                )
+            }
+        let speakers = [SpeakerInfo(id: "S1", label: "Alice")]
+        let automatic = Transcription(
+            fileName: "speakers.wav", wordTimestamps: words,
+            speakerCount: 1, speakers: speakers,
+            transcriptSegments: TranscriptSegmenter.materializeSegments(words: words, speakers: speakers),
+            status: .completed
+        )
+        let baseline = SpeakerAttributionResolver.resolve(transcription: automatic)
+        let target = try XCTUnwrap(baseline.editableSegments.dropFirst().first)
+        let correction = SpeakerCorrection(
+            transcriptionId: automatic.id, parentId: nil, sequence: 1,
+            transcriptFingerprint: baseline.fingerprint,
+            payload: .assign(
+                targets: [.init(
+                    anchorTranscriptSegmentIDs: target.anchorTranscriptSegmentIDs,
+                    wordRange: target.wordRange
+                )],
+                to: .unassigned
+            )
+        )
+        let state = SpeakerCorrectionState(
+            transcriptionId: automatic.id,
+            transcriptFingerprint: baseline.fingerprint.rawValue,
+            headId: correction.id, revision: 1
+        )
+        let attribution = SpeakerAttributionResolver.resolve(
+            transcription: automatic, corrections: [correction], state: state
+        )
+        XCTAssertTrue(attribution.unresolvedCorrections.isEmpty)
+        let projection = SpeakerAttributionProjection(
+            automaticTranscription: automatic, attribution: attribution, correctionsApplied: true
+        )
+        let options = TranscriptExportOptions(
+            includeTimestamps: false, includeSpeakerLabels: true, includeMetadata: false
+        )
+
+        XCTAssertEqual(
+            exportService.formatPlainText(projection: projection, options: options),
+            "Alice:\nAlice speaks first.\n\nUnassigned:\nAn unknown speaker.\n\nAlice:\nAlice speaks again."
+        )
+        XCTAssertEqual(
+            exportService.formatMarkdown(projection: projection, options: options),
+            "**Alice**\n\nAlice speaks first.\n\n**Unassigned**\n\nAn unknown speaker.\n\n**Alice**\n\nAlice speaks again.\n"
+        )
+        XCTAssertEqual(automatic.wordTimestamps, words)
+    }
+
     func testFormatForClipboard() {
         let transcription = Transcription(
             fileName: "test.mp3",
@@ -124,6 +179,46 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertFalse(text.contains("Automatically cleaned transcript."))
     }
 
+    func testSegmentTimedCorrectionFeedsTextSubtitleAndDAPTExportsWithoutInventingWordTiming() {
+        var transcription = makeExportOptionsTranscription()
+        transcription.cleanTranscript = "Corrected greeting. Goodbye."
+        transcription.transcriptSegments = [
+            TranscriptSegmentRecord(
+                startMs: 0,
+                endMs: 500,
+                speakerId: "S1",
+                speakerLabel: "Alice",
+                text: "Corrected greeting.",
+                wordRange: .init(startIndex: 0, endIndexExclusive: 1),
+                isTextEdited: true
+            ),
+            TranscriptSegmentRecord(
+                startMs: 2_000,
+                endMs: 2_500,
+                speakerId: "S2",
+                speakerLabel: "Bob",
+                text: "Goodbye.",
+                wordRange: .init(startIndex: 1, endIndexExclusive: 2)
+            ),
+        ]
+
+        let plain = exportService.formatPlainText(
+            transcription: transcription,
+            options: .init(includeTimestamps: true, includeSpeakerLabels: true, includeMetadata: false)
+        )
+        XCTAssertEqual(plain, "Alice:\n[0:00] Corrected greeting.\n\nBob:\n[0:02] Goodbye.")
+
+        let srt = exportService.formatSRT(transcription: transcription)
+        XCTAssertTrue(srt.contains("00:00:00,000 --> 00:00:00,500\nAlice: Corrected greeting."))
+        XCTAssertTrue(srt.contains("00:00:02,000 --> 00:00:02,500\nBob: Goodbye."))
+        XCTAssertFalse(srt.contains("Hello."))
+
+        let dapt = exportService.formatDAPT(transcription: transcription)
+        XCTAssertTrue(dapt.contains("begin=\"00:00:00.000\" end=\"00:00:00.500\""))
+        XCTAssertTrue(dapt.contains("<p>Corrected greeting.</p>"))
+        XCTAssertFalse(dapt.contains("<p>Hello.</p>"))
+    }
+
     func testFormatPlainTextCanOmitMetadataTimestampsAndSpeakers() {
         let transcription = makeExportOptionsTranscription(cleanTranscript: "Edited transcript without timing.")
         let options = TranscriptExportOptions(
@@ -172,6 +267,19 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertFalse(text.contains("[0:00]"))
     }
 
+    func testFormatPlainTextUsesOneTimestampPerReadingParagraph() {
+        let transcription = makeReadingParagraphTranscription()
+        let options = TranscriptExportOptions(
+            includeTimestamps: true,
+            includeSpeakerLabels: false,
+            includeMetadata: false
+        )
+
+        let text = exportService.formatPlainText(transcription: transcription, options: options)
+
+        XCTAssertEqual(text, "[0:00] First. Second. Third.\n\n[0:01] Fourth.")
+    }
+
     func testFormatMarkdownCanOmitMetadataTimestampsAndSpeakers() {
         let transcription = makeExportOptionsTranscription(cleanTranscript: "Edited transcript without timing.")
         let options = TranscriptExportOptions(
@@ -218,6 +326,22 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertTrue(markdown.contains("**Alice**\n\nFirst cue. Second cue."))
         XCTAssertFalse(markdown.contains("First cue.\n\nSecond cue."))
         XCTAssertFalse(markdown.contains("**[0:00]**"))
+    }
+
+    func testFormatMarkdownUsesOneTimestampPerReadingParagraph() {
+        let transcription = makeReadingParagraphTranscription()
+        let options = TranscriptExportOptions(
+            includeTimestamps: true,
+            includeSpeakerLabels: false,
+            includeMetadata: false
+        )
+
+        let markdown = exportService.formatMarkdown(transcription: transcription, options: options)
+
+        XCTAssertEqual(
+            markdown.trimmingCharacters(in: .whitespacesAndNewlines),
+            "**[0:00]** First. Second. Third.\n\n**[0:01]** Fourth."
+        )
     }
 
     func testExportToMarkdownUsesOptions() throws {
@@ -353,7 +477,7 @@ final class ExportServiceTests: XCTestCase {
 
     func testFormatSRTTranscriptionWithoutTimestampsUsesSingleCue() {
         let transcription = Transcription(
-            fileName: "meeting.m4a",
+            fileName: "meeting-playback.m4a",
             durationMs: 2500,
             rawTranscript: " Hello\n\nworld. ",
             status: .completed,
@@ -367,7 +491,7 @@ final class ExportServiceTests: XCTestCase {
 
     func testFormatVTTTranscriptionWithoutTimestampsUsesSingleCue() {
         let transcription = Transcription(
-            fileName: "meeting.m4a",
+            fileName: "meeting-playback.m4a",
             durationMs: 2500,
             rawTranscript: " Hello\n\nworld. ",
             status: .completed,
@@ -517,8 +641,8 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertTrue(md.contains("**Duration:** 0:05"))
         XCTAssertTrue(md.contains("**Language:** en"))
         XCTAssertTrue(md.contains("---"))
-        XCTAssertTrue(md.contains("**[0:00]** Hello world."))
-        XCTAssertTrue(md.contains("**[0:02]** How are you?"))
+        XCTAssertTrue(md.contains("**[0:00]** Hello world. How are you?"))
+        XCTAssertFalse(md.contains("**[0:02]**"))
     }
 
     func testFormatMarkdownWithoutTimestamps() {
@@ -715,6 +839,99 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertEqual(exportService.formatReadableTimestamp(ms: 5000), "0:05")
         XCTAssertEqual(exportService.formatReadableTimestamp(ms: 65000), "1:05")
         XCTAssertEqual(exportService.formatReadableTimestamp(ms: 3661000), "1:01:01")
+    }
+
+    // MARK: - Export Color Legibility
+
+    /// Every run in an exported PDF/DOCX — across all content branches — must
+    /// carry an explicit, appearance-independent dark color. A missing color
+    /// falls back to the dynamic default text color, and a dynamic label color
+    /// resolves to near-white in Dark Mode; both make the export invisible on
+    /// its white page.
+    func testBuildRichTranscriptUsesAppearanceIndependentDarkColors() throws {
+        // Precondition: the resolver must actually distinguish appearances,
+        // otherwise the per-run checks below would be vacuous. A dynamic label
+        // color resolves dark under Light and near-white under Dark.
+        let dynamicLight = concreteColor(.labelColor, appearance: .aqua)
+        let dynamicDark = concreteColor(.labelColor, appearance: .darkAqua)
+        XCTAssertNotEqual(dynamicLight, dynamicDark, "Precondition: resolver must distinguish light vs dark")
+        XCTAssertGreaterThan(brightness(of: dynamicDark), 0.6, "Precondition: labelColor near-white in Dark Mode")
+
+        // Cover every content branch of buildRichTranscript: word-timestamp
+        // speaker cues, an edited-transcript override, and the plain fallback.
+        let timestampedWithSpeakers = Transcription(
+            fileName: "meeting.mp3",
+            durationMs: 5000,
+            wordTimestamps: [
+                WordTimestamp(word: "Hello.", startMs: 0, endMs: 500, confidence: 0.99, speakerId: "S1"),
+                WordTimestamp(word: "Hi.", startMs: 600, endMs: 1000, confidence: 0.98, speakerId: "S2"),
+            ],
+            speakers: [
+                SpeakerInfo(id: "S1", label: "Alice"),
+                SpeakerInfo(id: "S2", label: "Bob"),
+            ],
+            status: .completed
+        )
+        let editedOverride = Transcription(
+            fileName: "edited.mp3",
+            durationMs: 5000,
+            rawTranscript: "Original text",
+            cleanTranscript: "Edited transcript body",
+            wordTimestamps: [
+                WordTimestamp(word: "Original", startMs: 0, endMs: 500, confidence: 0.99)
+            ],
+            status: .completed,
+            isTranscriptEdited: true
+        )
+        let plainText = Transcription(
+            fileName: "note.mp3",
+            durationMs: 3000,
+            rawTranscript: "Just a plain transcript.",
+            status: .completed
+        )
+
+        for transcription in [timestampedWithSpeakers, editedOverride, plainText] {
+            let name = transcription.fileName
+            let attributed = try exportService.buildRichTranscript(transcription: transcription)
+            XCTAssertGreaterThan(attributed.length, 0, "\(name): empty export")
+            let fullRange = NSRange(location: 0, length: attributed.length)
+
+            var inspectedRuns = 0
+            attributed.enumerateAttribute(.foregroundColor, in: fullRange) { value, range, _ in
+                inspectedRuns += 1
+                guard let color = value as? NSColor else {
+                    XCTFail("\(name) run \(range): no explicit foreground color; would vanish on white in Dark Mode")
+                    return
+                }
+                let light = concreteColor(color, appearance: .aqua)
+                let dark = concreteColor(color, appearance: .darkAqua)
+                XCTAssertEqual(light, dark, "\(name): exported color must be appearance-independent")
+                XCTAssertLessThan(brightness(of: color), 0.6, "\(name): exported text must be dark on white")
+            }
+            XCTAssertGreaterThan(inspectedRuns, 0, "\(name): no runs inspected")
+        }
+    }
+
+    /// Resolve a (possibly dynamic) color to a concrete sRGB value under a fixed
+    /// appearance, for comparing how it renders in Light vs Dark.
+    private func concreteColor(_ color: NSColor, appearance name: NSAppearance.Name) -> NSColor {
+        guard let appearance = NSAppearance(named: name) else {
+            return color.usingColorSpace(.sRGB) ?? color
+        }
+        var resolved = color
+        appearance.performAsCurrentDrawingAppearance {
+            resolved = color.usingColorSpace(.sRGB) ?? color
+        }
+        return resolved
+    }
+
+    /// HSB brightness read from a guaranteed-sRGB copy, so it never raises on a
+    /// non-RGB color space (`brightnessComponent` would).
+    private func brightness(of color: NSColor) -> CGFloat {
+        guard let rgb = color.usingColorSpace(.sRGB) else { return 0 }
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        rgb.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        return max(red, green, blue)
     }
 
     private func firstPageContentStream(from url: URL) throws -> String {
@@ -974,6 +1191,21 @@ final class ExportServiceTests: XCTestCase {
             speakers: [
                 SpeakerInfo(id: "S1", label: "Alice"),
                 SpeakerInfo(id: "S2", label: "Bob"),
+            ],
+            status: .completed
+        )
+    }
+
+    private func makeReadingParagraphTranscription() -> Transcription {
+        Transcription(
+            fileName: "meeting.m4a",
+            durationMs: 2_000,
+            rawTranscript: "First. Second. Third. Fourth.",
+            wordTimestamps: [
+                WordTimestamp(word: "First.", startMs: 0, endMs: 300, confidence: 0.99),
+                WordTimestamp(word: "Second.", startMs: 400, endMs: 700, confidence: 0.99),
+                WordTimestamp(word: "Third.", startMs: 800, endMs: 1_100, confidence: 0.99),
+                WordTimestamp(word: "Fourth.", startMs: 1_200, endMs: 1_500, confidence: 0.99),
             ],
             status: .completed
         )

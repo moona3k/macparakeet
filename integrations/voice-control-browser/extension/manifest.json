@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "MacParakeet Voice Control",
+  "version": "0.1.0",
+  "description": "Connect an explicitly chosen tab to MacParakeet Voice Control.",
+  "permissions": ["activeTab", "scripting", "nativeMessaging", "storage"],
+  "background": {"service_worker": "background.js"},
+  "action": {"default_popup": "popup.html", "default_title": "Voice Control"}
+}

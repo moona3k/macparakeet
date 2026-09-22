@@ -2,17 +2,25 @@
 
 > Status: IMPLEMENTED
 > Date: 2026-04-05
-> Related: ADR-001 (Parakeet STT), ADR-007 (FluidAudio CoreML), ADR-010 (speaker diarization), ADR-021 (WhisperKit optional STT), [GitHub #57](https://github.com/moona3k/macparakeet/issues/57)
+> Current echo path (2026-09-07): ADR-028 governs offline cleaned-microphone rendering and bounded finalization readiness. Section 10 records the earlier live-preview guards and transcript reconciliation that remain supporting mechanisms, not the authoritative AEC architecture. ADR-027 supersedes the original Oatmeal funnel positioning.
+> Related: ADR-001 (Parakeet STT + optional local STT amendments), ADR-007 (FluidAudio CoreML), ADR-010 (speaker diarization), ADR-021 (WhisperKit optional STT), [GitHub #57](https://github.com/moona3k/macparakeet/issues/57)
 > Amended: 2026-04-10 (historical: meeting mic echo mitigation via joined software AEC + observability hardening)
 > Amended: 2026-04-29 (replace Core Audio process taps with ScreenCaptureKit audio so optional VPIO no longer conflicts with system audio capture)
 > Amended: 2026-05-09 (pause/resume for active recordings — [issue #235](https://github.com/moona3k/macparakeet/issues/235))
 > Amended: 2026-05-14 (ship raw meeting mic capture by default after live-call testing showed VPIO can muffle the user's outgoing mic for other participants)
-> Amended: 2026-05-29 (permission timing clarification: Screen & System Audio Recording can be granted from the optional onboarding step or requested on first meeting use; denied/missing permission still blocks recording)
+> Amended: 2026-05-29 (permission timing clarification; superseded in part by the 2026-06-13 dictation-first onboarding change below)
+> Amended: 2026-06-13 (Meeting Recording setup removed from first-run onboarding; Screen & System Audio Recording is requested in context on first use of a mode that includes system audio)
 > Amended: 2026-06-10 (echo hardening for [issue #480](https://github.com/moona3k/macparakeet/issues/480): confidence-independent simultaneous-echo rule in the final transcript filter, streaming AEC frame carry + reference-delay knob, VPIO experiments now disable AGC)
+> Amended: 2026-06-20 (meeting source mode is configurable per recording: microphone + system audio by default, microphone-only, or system-audio-only; permission prompts are scoped to the selected sources)
+> Amended: 2026-06-27 (Cohere Transcribe can be selected for final meeting transcription through the captured engine lease; it is batch-only, so meeting live-preview chunks stay disabled and finalized Cohere transcripts are plain text without word timestamps/speaker labels)
+> Amended: 2026-07-15 (meeting speech routing is captured as an immutable live-preview/final plan: preview follows the leased Live Speech engine when supported, while authoritative finalization and recovery use the separately captured Final Transcription route)
+> Amended: 2026-07-15 (bound ScreenCaptureKit startup/teardown waits and make Stop during partial meeting startup immediately own durable settlement)
+> Amended: 2026-09-11 ("Live transcription during recording" setting: a user-facing preference gate on top of the captured `MeetingSpeechPlan`, letting the user turn off the live STT pass to save CPU/GPU while recording; the post-stop final pass is unaffected)
+> Amended: 2026-09-16 ("Start meetings muted" setting: default-off sticky preference to silence the microphone before the first captured frame, then unmute from the live panel. [Issue #882](https://github.com/moona3k/macparakeet/issues/882) remainder.)
 
 ## Context
 
-MacParakeet has three co-equal modes: system-wide dictation, file transcription, and meeting recording (added by this ADR). Parakeet STT via FluidAudio CoreML is the default on-device transcription path; ADR-021 adds optional WhisperKit for broader local language coverage. Users have requested the ability to record live meetings and calls — capturing both system audio (the other participants) and mic audio (the user) simultaneously, then transcribing the result.
+MacParakeet has three co-equal modes: system-wide dictation, file transcription, and meeting recording (added by this ADR). Parakeet STT via FluidAudio CoreML is the default on-device transcription path; ADR-021 adds optional WhisperKit for broader local language coverage, and ADR-001 amendments add opt-in Nemotron and Cohere engines. Users have requested the ability to record live meetings and calls — capturing system audio, mic audio, or both, then transcribing the result.
 
 This came from exploring [GitHub #52](https://github.com/moona3k/macparakeet/issues/52) (hotkey profiles). The core ask was different workflows for different use cases. Meeting recording is the direct answer — a third mode that extends MacParakeet's voice-to-text capability without changing the product's simplicity.
 
@@ -28,17 +36,30 @@ MacParakeet becomes three co-equal modes:
 |------|-------------|----------|--------|
 | Dictation | Mic | Seconds | Paste into active app |
 | File transcription | Imported file | Any | Display + export |
-| **Meeting recording** | **Mic + system audio** | **Minutes–hours** | **Display + export** |
+| **Meeting recording** | **Mic + system audio by default; mic-only or system-only when selected** | **Minutes–hours** | **Display + export** |
 
 ### 2. ScreenCaptureKit for system audio (macOS 14.2+)
 
-System audio is captured via ScreenCaptureKit `SCStream` audio (`SCStreamConfiguration.capturesAudio = true`, `SCStreamOutputType.audio`). This captures system audio without creating a HAL aggregate output device, which avoids the VPIO/process-tap conflict documented in `docs/research/vpio-process-tap-conflict.md`. It uses the same Screen & System Audio Recording permission already required by the meeting feature.
+System audio is captured via ScreenCaptureKit `SCStream` audio (`SCStreamConfiguration.capturesAudio = true`, `SCStreamOutputType.audio`). This captures system audio without creating a HAL aggregate output device, which avoids the VPIO/process-tap conflict documented in `docs/research/vpio-process-tap-conflict.md`. It uses the same Screen & System Audio Recording permission required by source modes that include system audio.
 
 Key components:
 - `SystemAudioStream` - ScreenCaptureKit audio wrapper, converts `CMSampleBuffer` to `AVAudioPCMBuffer`, and emits first-buffer/stall diagnostics
 - `MicrophoneCapture` - AVAudioEngine input node tap with raw capture by default and explicit VPIO opt-in support
-- `MeetingAudioCaptureService` — Actor combining both streams into an `AsyncStream<MeetingAudioCaptureEvent>`
-- `MeetingAudioStorageWriter` — Writes separate M4A files per source (mic + system)
+- `MeetingAudioCaptureService` — Actor combining the selected source streams into an `AsyncStream<MeetingAudioCaptureEvent>`
+- `MeetingAudioStorageWriter` — Writes separate M4A files per selected source (mic and/or system)
+
+`SystemAudioStream` continues to await ordered `SCStream` start and stop, but
+those callback bridges have deadlines because ScreenCaptureKit is not trusted
+to invoke a completion handler. The deadline covers the complete startup
+attempt, including shareable-content discovery. Timeout or cancellation
+invalidates attempt ownership, removes outputs, and runs bounded teardown; a
+late successful start receives another non-blocking stop request and cannot
+install running state.
+The stream does not publish `idle` until old outputs have been removed and the
+bounded stop has settled, preventing callbacks from crossing into a replacement
+recording.
+`MeetingAudioCaptureService` likewise owns `starting` as a real lifecycle state
+and tears down any microphone/system source already created when Stop arrives.
 
 ### 3. Reuse Transcription model with sourceType column
 
@@ -52,7 +73,7 @@ public enum SourceType: String, Codable, Sendable {
 }
 ```
 
-This gives meeting recordings the full library infrastructure for free: export (TXT/MD/SRT/VTT/DOCX/PDF/JSON), prompt library, multi-summary tabs, chat, favorites, search, thumbnail grid.
+This gives meeting recordings the full library infrastructure for free: export (TXT/MD/SRT/VTT/DAPT/DOCX/PDF/JSON), prompt library, multi-summary tabs, chat, favorites, search, thumbnail grid.
 
 No new table is needed. The migration adds a column and backfills existing records.
 
@@ -66,14 +87,39 @@ Meeting recording has a fundamentally different lifecycle from dictation:
 | Output | Paste into app | Save to library |
 | Cancel | 5-second undo window | Immediate |
 | Post-processing | Text refinement + paste | Batch transcription |
-| Permissions | Mic + Accessibility | Mic + Screen Recording |
+| Permissions | Mic + Accessibility | Mic and/or Screen Recording, depending on selected source mode |
 
 A shared state machine would make both harder to understand. `MeetingRecordingFlowStateMachine` + `MeetingRecordingFlowCoordinator` run parallel to dictation's and can operate concurrently (see ADR-015), with states:
 
 ```
 idle → checkingPermissions → starting → recording(elapsedSeconds)
-  → stopping → transcribing → completed(transcriptionID) | error
+  → stopping → queued(transcriptionID) → idle | error
 ```
+
+2026-06 amendment: `queued(transcriptionID)` is not a long-lived UI state.
+It marks the durable stop boundary: source audio, `meeting-playback.m4a`,
+`recording.lock(state=awaitingTranscription)`, and the processing Library row
+exist on disk, so the recorder returns to idle and another meeting can start.
+Final STT runs through `MeetingTranscriptionQueue` and updates that row later.
+The green completion check and "Saved to Library" copy acknowledge this
+durable boundary, not transcript completion. Opening the processing row shows
+an indeterminate transcription state that explicitly says the audio is saved
+and background work is continuing. Transcript editing and manual
+retranscription stay unavailable until that queued finalization reaches a
+terminal state. If the detail is already open, both completion and terminal
+failure refresh that same row in place without navigating or stealing focus.
+Recorder-idle queued completion may still present the finished meeting.
+Manual retry and crash recovery claim the session lock with the current PID and
+a unique lease before admission; startup reconciliation shares the same
+per-folder mutex so it cannot mark newly claimed work as interrupted.
+
+Stop is durable even in `starting`. It immediately enters `stopping` and runs
+the normal stop-and-queue effect instead of waiting for a `recordingStarted`
+event. The service marks that session as stop-owned before its first teardown
+await, so a stale startup task cannot run failed-start deletion afterward.
+Matching late start success/failure events are ignored once stopping owns the
+generation; they cannot trigger a second stop, overwrite the UI, or emit stale
+start telemetry. Cancel retains its existing discard semantics.
 
 ### 5. New MeetingAudioCaptureService, not an extension of AudioProcessor
 
@@ -81,13 +127,30 @@ The existing `AudioProcessor` is a single-stream actor wrapping `AudioRecorder` 
 
 `MeetingAudioCaptureService` is a parallel service at the same level, behind its own protocol.
 
-### 6. Screen Recording permission required, no fallback
+### 6. Source mode controls permission requirements
 
-If the user denies Screen Recording permission, meeting recording is blocked entirely. No mic-only fallback. This keeps the UX simple — the feature either works fully or doesn't. First-run onboarding contains a skippable Meeting Recording card that can request Screen & System Audio Recording early. If the user skips it, the Transcribe tile/menu-bar/hotkey first-use path still checks and requests the permission before starting. The invariant is unchanged: no Screen & System Audio Recording permission means no meeting recording, and there is no mic-only fallback.
+Meeting source mode is explicit user configuration, not an implicit fallback.
+The default remains microphone + system audio because that is the normal
+meeting-capture case. Users may instead choose microphone-only or
+system-audio-only when that better matches the call setup.
+
+Permission checks are scoped to the selected source mode:
+
+- microphone + system audio requires Microphone and Screen & System Audio
+  Recording permissions.
+- microphone-only requires Microphone permission and does not prompt for Screen
+  & System Audio Recording.
+- system-audio-only requires Screen & System Audio Recording permission and does
+  not start the mic stream.
+
+If a required permission for the selected mode is denied, recording is blocked
+with the matching settings action. The Transcribe tile/menu-bar/hotkey first-use
+path requests Screen & System Audio Recording only when the selected source mode
+needs it; first-run onboarding no longer includes Meeting Recording setup.
 
 ### 7. Batch transcription first; live preview implemented later
 
-Parakeet at 155x realtime transcribes 60 minutes of audio in ~23 seconds. Batch transcription (transcribe after recording stops) was the MVP. Real-time chunked transcription (5-second chunks during recording) shipped in Phase 2 and is best-effort; final post-stop transcription remains authoritative.
+Batch transcription (transcribe after recording stops) was the MVP. Current Parakeet builds measure roughly 81–93x steady realtime on the M4 Pro reference benchmark, depending on the build. Real-time chunked transcription (5-second chunks during recording) shipped in Phase 2 and is best-effort; final post-stop transcription remains authoritative.
 
 2026-05 hardening: the live preview path now supports a `MeetingLiveAudioChunking`
 strategy layer. The fixed strategy preserves the original 5-second / 1-second
@@ -97,28 +160,67 @@ the post-stop final transcription path is unchanged.
 
 ### 8. Source-aware meeting finalization
 
-Keeping mic and system audio as separate streams enables source-aware attribution: mic audio = "Me", system audio = remote speakers. Final meeting STT transcribes the per-source files separately and merges fresh results using persisted source-alignment metadata; `meeting.m4a` is the playback/export artifact, not the authoritative STT input.
+Keeping mic and system audio as separate streams enables source-aware attribution in the default dual-source mode: mic audio = "Me", system audio = remote speakers. Final meeting STT transcribes the selected source files separately and merges fresh results using persisted source-alignment metadata; `meeting-playback.m4a` is the playback/export artifact, not the authoritative STT input. Single-source meetings skip the unselected stream and produce a mono playback artifact.
 
 ### 9. Speech engine captured at recording start
 
-The meeting service captures the active `SpeechEngineSelection` at start and persists it in the session metadata/lock file. Live preview, final transcription, retranscription of archived source files, and crash recovery use that captured selection. Settings cannot switch engines while the meeting's speech-engine lease is active.
+The meeting service first acquires the current Live Speech scheduler lease,
+unconditionally, and then captures an immutable `MeetingSpeechPlan`:
+
+- `preview` is the lease selection when its capabilities provide the word
+  timings required by the current live renderer *and* the user has not
+  turned off the "Live transcription during recording" setting
+  (`meetingLiveTranscriptionEnabled`, default on); otherwise it is absent. No
+  unrelated fallback engine is selected. This setting is a preference gate
+  layered on top of engine capability, not a capability itself — an engine
+  that can preview is simply not asked to when the user has opted out, to
+  save CPU/GPU during the meeting.
+- `final` is the resolved Final Transcription selection, which follows Live
+  Speech unless the user enabled the Advanced override.
+
+The preference is read once at recording start. Changing it during a meeting
+affects the next recording; Settings states this explicitly. When preview is
+absent, the recording panel says "Live transcription is off" and confirms
+that audio will be transcribed after stop, regardless of whether the user
+disabled preview or the selected engine does not support it.
+
+Live chunks and warm-up use only `preview`. The authoritative post-stop pass
+re-reads durable source audio and uses only `final`; preview text is never
+promoted into the saved transcript. The existing lock schema remains v2 and
+its `speechEngine` field keeps the recovery-critical final selection.
+`meeting-recording-metadata.json` stores the same final selection plus optional
+preview provenance for diagnostics. Legacy metadata without preview provenance
+remains readable.
+
+Recovery treats that lock field as authoritative only when a schema-v2 lock
+actually contains it. Schema-v1 locks used `speechEngine` for the former shared
+route, and schema-v2 locks can omit the field; both cases use the current
+resolved Final Transcription route. This compatibility rule is not an engine
+fallback from a captured failure.
+
+Settings cannot switch engine models or delete model data while the live lease
+is active. For back-to-back recording, that lease ends at the durable stop
+boundary; queued finalization still uses the captured final selection through
+the routed STT job. Cohere cannot preview, but it may be the final route behind
+a different live preview engine; Cohere final output remains plain text without
+word timestamps or speaker labels.
 
 ### 10. Meeting mic echo mitigation (v0.6 hardening)
 
 To reduce phantom "Me" fragments when users are on speakers:
 
-- Meeting mic/system buffers are paired in `MeetingAudioPairJoiner` with bounded lag handling and silence-fill fallback.
+- In dual-source recordings, meeting mic/system buffers are paired in `MeetingAudioPairJoiner` with bounded lag handling and silence-fill fallback.
 - `MicrophoneCapture` uses raw mic capture by default so meeting recording does not change the live call mic heard by other participants. VPIO remains available only when explicitly requested.
-- A short-window dominant-system guard remains in place for live mic chunk enqueue when recent system energy strongly dominates mic energy.
+- A short-window dominant-system guard remains in place for live mic chunk enqueue when recent system energy strongly dominates mic energy. Single-source recordings bypass cross-source pairing/suppression for the missing source.
 - The guard affects live mic chunk transcription only; mic audio is still stored and included in the finalized meeting artifact.
 - Joiner queue overflow and sync-lag telemetry are logged for long-session observability.
-- The final transcript filter (`MeetingTranscriptNoiseFilter`) drops mic runs of >=5 words whose tokens fuzzy-match the remote speaker's *simultaneous* system words (>=80% in-order match within a +/-600 ms window), regardless of confidence — a person cannot utter the same multi-word sequence at the same time as the far end, so such runs are acoustic echo by construction (2026-06-10, issue #480). Short runs keep the conservative confidence-gated rule.
-- The opt-in experimental `StreamingMeetingEchoSuppressor` carries partial frames across batches (contiguous frames for stateful processors, no raw-tail leak) and supports an env-configured reference delay (`MACPARAKEET_MEETING_ECHO_REFERENCE_DELAY_MS`) approximating the echo-path latency (2026-06-10).
+- `MeetingTranscriptSourceReconciler` drops mic runs of >=5 words whose tokens fuzzy-match the remote speaker's *simultaneous* system words (>=80% in-order match within a +/-600 ms window), regardless of confidence. This is a duplicate-speech heuristic, not proof of acoustic echo; simultaneous repeated speech remains a possible false positive (2026-06-10, issue #480). Short runs keep the conservative confidence-gated rule.
+- The opt-in experimental `StreamingMeetingEchoSuppressor` carries partial frames across batches (contiguous frames for stateful processors, no raw-tail leak) and supports an env-configured reference delay (`MACPARAKEET_MEETING_ECHO_REFERENCE_DELAY_MS`) approximating the echo-path latency (2026-06-10). It requires an available LocalVQE-compatible runtime/model; otherwise meeting mic conditioning remains passthrough.
 - Dictation capture remains raw and unchanged (ADR-015 isolation still applies).
 
 ## Rationale
 
-### Why not keep meeting recording in Oatmeal only?
+### Why not keep meeting recording in Oatmeal only? (historical positioning)
 
 Oatmeal adds intelligence on top of recording: AI meeting notes, entity extraction, calendar integration, cross-meeting RAG. MacParakeet's meeting recording is the simple, free version — just record and transcribe. This creates a natural funnel: MacParakeet (free) → Oatmeal (paid) for users who want the intelligence layer.
 
@@ -152,6 +254,18 @@ Dictation has complex paste/cancel/undo behavior that meeting recording doesn't 
 - **Telemetry semantic drift.** `meetingRecordingCompleted(durationSeconds:)` and `meetingRecordingCancelled(durationSeconds:)` now emit active-recording time rather than wallclock-since-start. Cohort analysis spanning the merge date will silently mix two definitions. The follow-up PR that adds pause/resume telemetry events should also add a `pausedSeconds` field on the completed event so analyses can disambiguate.
 - **Calendar / wallclock alignment unaware of pause.** Any future feature that aligns transcript timestamps to wallclock (e.g., calendar correlation) would be off by `accumulatedPausedDuration` for paused meetings. Not relevant in v0.6.
 
+### 12. Start meetings muted (2026-09-16 amendment)
+
+[Issue #882](https://github.com/moona3k/macparakeet/issues/882) remaining request: join a meeting with the microphone off, then unmute when ready to speak. Mute-during-recording already existed; this slice arms mute **before capture start** so the first tap callback is silence.
+
+- Default-off Settings → Meeting Recording toggle (`startMeetingsMuted` / CLI `start-meetings-muted`). It stays on until turned off; it is not a one-shot for the next meeting only. System-audio-only capture ignores it, and the Settings control is disabled when the selected source does not capture a microphone.
+- `MeetingRecordingService` sets `microphoneMuted` and `microphoneMutedHostTime = 0` before `audioCaptureService.start`. Host time 0 covers first tap callbacks that can arrive before `setMicrophoneMuted` would have a real host-time origin. If capture later resolves with no microphone, the armed start-mute is dropped.
+- Unmute appends the completed mute host-time range so in-flight buffers stay silent.
+- The live panel shows the muted mic control during `.starting`, disabled until the microphone is ready. `canMute` stays false until then. See [UI patterns](../04-ui-patterns.md#meeting-recording-panel-v06).
+- Calendar auto-start uses the same preference, so an opted-in start-muted user does not leak the mic on an automatic join.
+- Changing the setting during a meeting affects the next recording; Settings states this explicitly.
+- Feature behavior: [F49](../02-features.md#f49-start-meetings-muted).
+
 ## Consequences
 
 ### Positive
@@ -166,7 +280,7 @@ Dictation has complex paste/cancel/undo behavior that meeting recording doesn't 
 
 ### Negative
 
-- **New permission:** Screen Recording permission is a significant UX cost. Users may be reluctant to grant it.
+- **New permission:** Screen & System Audio Recording permission is a significant UX cost for source modes that include system audio. Users may be reluctant to grant it, so microphone-only recording remains available without that permission.
 - **Larger audio files:** Meeting recordings generate much larger files than dictations (50–100 MB for 60 minutes). Audio is kept by default.
 - **Product scope expansion:** MacParakeet goes from "two things well" to "three things well." Must resist further scope creep.
 - **Code ported from Oatmeal:** ~1,200 lines of audio capture code to adapt. Divergence over time will need to be managed.

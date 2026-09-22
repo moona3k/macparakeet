@@ -23,10 +23,10 @@ through it.
 
 ## Cross-references
 
-- ADR-003 — one-time purchase pricing (historical, kept for context).
-- ADR-006 — trial + license activation (historical, kept for context).
-- `CLAUDE.md` § "Known Pitfalls — General" — repeats the
-  do-not-delete rule for project agents.
+- [ADR-003](../../../spec/adr/003-one-time-purchase.md) — one-time purchase
+  pricing (historical, kept for context).
+- [ADR-006](../../../spec/adr/006-trial-and-license-activation.md) — dormant
+  trial + license activation and the retained-code guardrail.
 
 ## What to know before editing
 
@@ -44,11 +44,17 @@ acceptable removal path is: explicit owner direction + an ADR or
 spec update reflecting the decision.
 
 **Do not introduce active gating from these types into user-facing
-flows.** Calling `EntitlementsService.isLicensed` to enable a
-feature is fine if the feature already gates correctly when
-licensed == true (which it always is today). Adding a *new*
-gate on dormant infrastructure is the wrong direction and would
-need owner sign-off.
+flows.** `EntitlementsChecking.currentState(now:)` always returns `.unlocked`,
+and `assertCanTranscribe(now:)` does not throw in current free/GPL builds.
+There is no `isLicensed` API. Preserve those semantics unless an explicit
+product decision and governing ADR/spec change authorize a different model.
+
+**Dormant gating does not mean no licensing I/O.** App setup calls
+`refreshValidationIfNeeded()`, and CLI transcription does so when
+`--enforce-entitlements` is requested. A retained license key and instance ID
+can trigger a LemonSqueezy validation request when its cached validation is
+at least a day old. No stored activation means no validation request; the
+result never locks the current free build.
 
 **Keychain access is not free on first call.** The first read after
 launch can take tens of milliseconds. Cache results in callers if

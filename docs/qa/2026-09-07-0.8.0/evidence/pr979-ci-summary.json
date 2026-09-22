@@ -1,0 +1,247 @@
+{
+  "captured_at": "2026-09-08T00:08:08.290880+00:00",
+  "pr": 979,
+  "head_sha": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3",
+  "verdict": "Both swift-test checks completed successfully at the requested exact head.",
+  "scope": "Read-only remote CI monitoring; no rerun, restart, cancellation, build, test, merge, or publication performed by this agent.",
+  "runs": [
+    {
+      "event": "push",
+      "run_id": 34169966386,
+      "head_sha": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3",
+      "url": "https://github.com/moona3k/macparakeet/actions/runs/34169966386",
+      "status": "completed",
+      "conclusion": "success",
+      "updated_at": "2026-09-07T23:59:40Z",
+      "jobs": [
+        {
+          "job_id": 101888305822,
+          "url": "https://github.com/moona3k/macparakeet/actions/runs/34169966386/job/101888305822",
+          "started_at": "2026-09-07T23:25:31Z",
+          "completed_at": "2026-09-07T23:59:40Z",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Checkout",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Select Xcode",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Toolchain Versions",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Check Subsystem README References",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Swift Format Lint (informational)",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Cache SwiftPM Dependencies",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Swift Build (Release)",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "CLI Contract Smoke",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Release Bundle Smoke",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Swift Concurrency Safety",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Swift 6 Language Mode",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Swift Test",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload CI Logs",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Cache SwiftPM Dependencies",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Checkout",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ]
+        }
+      ],
+      "raw_log": {
+        "filename": "34169966386.log",
+        "bytes": 8994999,
+        "sha256": "022a1827af3f353b5ffd869bd4a24fee5e2cde219d6fb0763ed89d7f0e62e21f"
+      },
+      "test_evidence": {
+        "parallel_xctest_progress_lines": 5563,
+        "last_parallel_progress_line": "swift-test\tSwift Test\t2026-09-07T23:59:36.5341040Z [5563/5563] Testing MacParakeetTests.YouTubeURLValidatorTests/testYouTubeHomepage",
+        "swift_testing_summary_lines": [
+          "swift-test\tSwift Test\t2026-09-07T23:59:36.6128950Z ✔ Test run with 29 tests passed after 0.004 seconds."
+        ],
+        "xctest_execution_or_skip_summary_lines": [],
+        "interpretation": "CI success and complete 5563-item parallel progress; denominator is not asserted to be a non-skipped pass count. Swift Testing explicitly reports 29 tests passed."
+      }
+    },
+    {
+      "event": "pull_request",
+      "run_id": 34169968359,
+      "head_sha": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3",
+      "url": "https://github.com/moona3k/macparakeet/actions/runs/34169968359",
+      "status": "completed",
+      "conclusion": "success",
+      "updated_at": "2026-09-08T00:06:51Z",
+      "jobs": [
+        {
+          "job_id": 101888310533,
+          "url": "https://github.com/moona3k/macparakeet/actions/runs/34169968359/job/101888310533",
+          "started_at": "2026-09-07T23:25:33Z",
+          "completed_at": "2026-09-08T00:06:50Z",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Checkout",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Select Xcode",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Toolchain Versions",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Check Subsystem README References",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Swift Format Lint (informational)",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Cache SwiftPM Dependencies",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Swift Build (Release)",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "CLI Contract Smoke",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Release Bundle Smoke",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Swift Concurrency Safety",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Swift 6 Language Mode",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Swift Test",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload CI Logs",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Cache SwiftPM Dependencies",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Checkout",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ]
+        }
+      ],
+      "raw_log": {
+        "filename": "34169968359.log",
+        "bytes": 8991320,
+        "sha256": "77b52953643e41709378f9988a15cc634b5f98086a06b3905b5317c9a2e91882"
+      },
+      "test_evidence": {
+        "parallel_xctest_progress_lines": 5563,
+        "last_parallel_progress_line": "swift-test\tSwift Test\t2026-09-08T00:06:46.0257770Z [5563/5563] Testing MacParakeetTests.YouTubeURLValidatorTests/testWhitespaceOnly",
+        "swift_testing_summary_lines": [
+          "swift-test\tSwift Test\t2026-09-08T00:06:46.1441370Z ✔ Test run with 29 tests passed after 0.007 seconds."
+        ],
+        "xctest_execution_or_skip_summary_lines": [],
+        "interpretation": "CI success and complete 5563-item parallel progress; denominator is not asserted to be a non-skipped pass count. Swift Testing explicitly reports 29 tests passed."
+      }
+    }
+  ]
+}

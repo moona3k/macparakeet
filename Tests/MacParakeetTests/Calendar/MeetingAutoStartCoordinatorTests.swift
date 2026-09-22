@@ -1,4 +1,5 @@
 import XCTest
+import UserNotifications
 @testable import MacParakeet
 @testable import MacParakeetCore
 @testable import MacParakeetViewModels
@@ -9,14 +10,14 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
     // MARK: - Fixtures
 
     private var defaults: UserDefaults!
+    private var defaultsSuiteName: String!
     private var settingsViewModel: SettingsViewModel!
     private var calendarService: MockCalendarService!
 
     /// Tracks calls to the recording-flow callbacks the coordinator makes.
     private var recordingActiveStub = false
     private var autoStartConfirmedCount = 0
-    private var autoStartConfirmedTitles: [String] = []
-    private var autoStartConfirmedCalendarContexts: [MeetingRecordingCalendarContext?] = []
+    private var autoStartConfirmedSnapshots: [MeetingCalendarSnapshot] = []
     /// When true, the `onAutoStartConfirmed` stub mimics the real flow
     /// coordinator's `state_busy` rejection by returning nil — exercising the
     /// back-to-back retry path (#8).
@@ -24,9 +25,8 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        let suite = "com.macparakeet.tests.coordinator.\(UUID().uuidString)"
-        defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defaultsSuiteName = "com.macparakeet.tests.coordinator.\(UUID().uuidString)"
+        defaults = UserDefaults(suiteName: defaultsSuiteName)!
         // Tests seed defaults before constructing SettingsViewModel via
         // `seedSettings(...)` so VM init reads the right values without
         // firing `didSet` (which under `.notify`/`.autoStart` would call
@@ -35,8 +35,7 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         calendarService = MockCalendarService()
         recordingActiveStub = false
         autoStartConfirmedCount = 0
-        autoStartConfirmedTitles = []
-        autoStartConfirmedCalendarContexts = []
+        autoStartConfirmedSnapshots = []
         simulateAutoStartBusy = false
     }
 
@@ -56,6 +55,8 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
     }
 
     override func tearDown() {
+        defaults.removePersistentDomain(forName: defaultsSuiteName)
+        defaultsSuiteName = nil
         defaults = nil
         settingsViewModel = nil
         calendarService = nil
@@ -63,23 +64,29 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
     }
 
     private func makeCoordinator(
-        toastController: MeetingCountdownToastController? = nil
+        toastController: MeetingCountdownToastController? = nil,
+        reminderDelivery: ReminderDeliveryStub? = nil
     ) -> MeetingAutoStartCoordinator {
         MeetingAutoStartCoordinator(
             calendarService: calendarService,
             settingsViewModel: settingsViewModel,
             isRecordingActive: { [weak self] in self?.recordingActiveStub ?? false },
-            onAutoStartConfirmed: { [weak self] title, calendarContext in
+            onAutoStartConfirmed: { [weak self] snapshot in
                 guard let self else { return nil }
                 self.autoStartConfirmedCount += 1
-                self.autoStartConfirmedTitles.append(title)
-                self.autoStartConfirmedCalendarContexts.append(calendarContext)
+                self.autoStartConfirmedSnapshots.append(snapshot)
                 if self.simulateAutoStartBusy {
                     // Mimic MeetingRecordingFlowCoordinator.startFromCalendar's
                     // synchronous state_busy path: reject with nil.
                     return nil
                 }
                 return 1
+            },
+            isNotificationAuthorized: {
+                await reminderDelivery?.isAuthorized() ?? false
+            },
+            postReminderNotification: { request in
+                try await reminderDelivery?.post(request)
             },
             toastController: toastController
         )
@@ -90,8 +97,7 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         title: String = "Standup",
         startsIn seconds: TimeInterval = 5 * 60,
         durationMinutes: Int = 30,
-        meetUrl: String? = "https://zoom.us/j/123",
-        participants: [EventParticipant] = [EventParticipant(email: "alice@example.com")]
+        meetUrl: String? = "https://zoom.us/j/123"
     ) -> CalendarEvent {
         let now = Date()
         let start = now.addingTimeInterval(seconds)
@@ -102,7 +108,7 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
             startTime: start,
             endTime: end,
             meetUrl: meetUrl,
-            participants: participants,
+            participants: [EventParticipant(email: "alice@example.com")],
             calendarIdentifier: "cal-1",
             userStatus: .accepted
         )
@@ -116,6 +122,17 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
             await Task.yield()
             try? await Task.sleep(for: .milliseconds(20))
         }
+    }
+
+    private func waitForFetchCount(atLeast expected: Int) async -> Bool {
+        for _ in 0..<20 {
+            if calendarService.fetchUpcomingEventsCallCount >= expected {
+                return true
+            }
+            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return calendarService.fetchUpcomingEventsCallCount >= expected
     }
 
     // MARK: - Lifecycle
@@ -210,24 +227,192 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
             title: uniqueTitle,
             startTime: Date(),
             endTime: Date().addingTimeInterval(1800),
-            participants: [
-                EventParticipant(email: "alice@example.com"),
-                EventParticipant(email: "bob@example.com"),
-                EventParticipant(email: "casey@example.com"),
-            ]
+            meetUrl: "https://zoom.us/j/123"
         )
         coordinator.handleAutoStartOutcome(.completed, for: event)
         XCTAssertEqual(autoStartConfirmedCount, 1,
                        "Recording start callback must fire on .completed outcome")
         // Title forwarding: the calendar event name is what the saved
         // recording will be titled, not the date-based default.
-        XCTAssertEqual(autoStartConfirmedTitles, [uniqueTitle],
+        XCTAssertEqual(autoStartConfirmedSnapshots.map(\.title), [uniqueTitle],
                        "Auto-start must forward the event title so the saved recording is named after the meeting")
-        XCTAssertEqual(autoStartConfirmedCalendarContexts, [
-            MeetingRecordingCalendarContext(attendeeCount: 3)
-        ], "Auto-start must forward the remote attendee count without subtracting the current user")
+        XCTAssertEqual(autoStartConfirmedSnapshots.first?.confidence, .confirmed)
+        XCTAssertEqual(autoStartConfirmedSnapshots.first?.eventIdentifier, "evt-1")
 
         coordinator.stop()
+    }
+
+    func testProbableManualStartSnapshotUsesLatestPollWithoutFetchingAgain() async throws {
+        calendarService.stubPermissionStatus = .granted
+        let currentEvent = event(
+            id: "evt-current",
+            title: "Customer Review",
+            startsIn: -60,
+            durationMinutes: 30,
+            meetUrl: "https://meet.google.com/abc-defg-hij"
+        )
+        calendarService.stubEvents = [currentEvent]
+        seedSettings(mode: .notify)
+
+        let coordinator = makeCoordinator()
+        coordinator.testHook_forcePoll()
+        await waitForPoll()
+        let fetchCountAfterPoll = calendarService.fetchUpcomingEventsCallCount
+
+        let snapshot = try XCTUnwrap(coordinator.testHook_probableSnapshotForManualStart())
+        XCTAssertEqual(snapshot.confidence, .probable)
+        XCTAssertEqual(snapshot.eventIdentifier, "evt-current")
+        XCTAssertEqual(snapshot.title, "Customer Review")
+        XCTAssertEqual(snapshot.meetingService, "Google Meet")
+        XCTAssertEqual(calendarService.fetchUpcomingEventsCallCount, fetchCountAfterPoll)
+    }
+
+    func testProbableManualStartSnapshotHonorsCurrentExcludedCalendarsWithoutFetchingAgain() async throws {
+        calendarService.stubPermissionStatus = .granted
+        calendarService.stubEvents = [
+            event(
+                id: "evt-current",
+                title: "Excluded Customer Review",
+                startsIn: -60,
+                durationMinutes: 30,
+                meetUrl: "https://meet.google.com/abc-defg-hij"
+            ),
+        ]
+        seedSettings(mode: .notify)
+
+        let coordinator = makeCoordinator()
+        coordinator.testHook_forcePoll()
+        await waitForPoll()
+        let fetchCountAfterPoll = calendarService.fetchUpcomingEventsCallCount
+
+        settingsViewModel.calendarExcludedIdentifiers = ["cal-1"]
+
+        XCTAssertNil(coordinator.testHook_probableSnapshotForManualStart())
+        XCTAssertEqual(calendarService.fetchUpcomingEventsCallCount, fetchCountAfterPoll)
+    }
+
+    func testProbableManualStartSnapshotHonorsCurrentTriggerFilterWithoutFetchingAgain() async throws {
+        calendarService.stubPermissionStatus = .granted
+        calendarService.stubEvents = [
+            event(
+                id: "evt-current",
+                title: "No Link Calendar Block",
+                startsIn: -60,
+                durationMinutes: 30,
+                meetUrl: nil
+            ),
+        ]
+        seedSettings(mode: .notify, triggerFilter: .allEvents)
+
+        let coordinator = makeCoordinator()
+        coordinator.testHook_forcePoll()
+        await waitForPoll()
+        let fetchCountAfterPoll = calendarService.fetchUpcomingEventsCallCount
+
+        XCTAssertNotNil(coordinator.testHook_probableSnapshotForManualStart())
+
+        settingsViewModel.meetingTriggerFilter = .withLink
+
+        XCTAssertNil(coordinator.testHook_probableSnapshotForManualStart())
+        XCTAssertEqual(calendarService.fetchUpcomingEventsCallCount, fetchCountAfterPoll)
+    }
+
+    func testProbableManualStartSnapshotSkipsPendingInviteWithoutFetchingAgain() async throws {
+        calendarService.stubPermissionStatus = .granted
+        var pendingEvent = event(
+            id: "evt-current",
+            title: "Pending Customer Review",
+            startsIn: -60,
+            durationMinutes: 30,
+            meetUrl: "https://meet.google.com/abc-defg-hij"
+        )
+        pendingEvent.userStatus = .pending
+        calendarService.stubEvents = [pendingEvent]
+        seedSettings(mode: .notify)
+
+        let coordinator = makeCoordinator()
+        coordinator.testHook_forcePoll()
+        await waitForPoll()
+        let fetchCountAfterPoll = calendarService.fetchUpcomingEventsCallCount
+
+        XCTAssertNil(coordinator.testHook_probableSnapshotForManualStart())
+        XCTAssertEqual(calendarService.fetchUpcomingEventsCallCount, fetchCountAfterPoll)
+    }
+
+    func testCalendarChangeClearsProbableManualStartSnapshotUntilRefreshCompletes() async throws {
+        calendarService.stubPermissionStatus = .granted
+        let currentEvent = event(
+            id: "evt-current",
+            title: "Customer Review",
+            startsIn: -60,
+            durationMinutes: 30,
+            meetUrl: "https://meet.google.com/abc-defg-hij"
+        )
+        calendarService.stubEvents = [currentEvent]
+        seedSettings(mode: .notify)
+
+        let coordinator = makeCoordinator()
+        coordinator.start()
+        await waitForPoll()
+        let fetchCountAfterInitialPoll = calendarService.fetchUpcomingEventsCallCount
+
+        XCTAssertNotNil(coordinator.testHook_probableSnapshotForManualStart())
+
+        var declinedEvent = currentEvent
+        declinedEvent.userStatus = .declined
+        calendarService.stubEvents = [declinedEvent]
+        calendarService.holdNextFetch = true
+
+        NotificationCenter.default.post(name: .EKEventStoreChanged, object: nil)
+
+        let refreshStarted = await waitForFetchCount(atLeast: fetchCountAfterInitialPoll + 1)
+        XCTAssertTrue(refreshStarted, "Calendar-change notification should trigger an immediate refresh")
+        XCTAssertNil(
+            coordinator.testHook_probableSnapshotForManualStart(),
+            "Manual starts must not persist stale calendar details while the refresh is still in flight"
+        )
+
+        calendarService.releaseHeldFetch()
+        await waitForPoll()
+        XCTAssertNil(coordinator.testHook_probableSnapshotForManualStart())
+
+        coordinator.stop()
+    }
+
+    func testProbableManualStartSnapshotRequiresCurrentCalendarModeAndPermission() async throws {
+        calendarService.stubPermissionStatus = .granted
+        calendarService.stubEvents = [
+            event(
+                id: "evt-current",
+                title: "Customer Review",
+                startsIn: -60,
+                durationMinutes: 30,
+                meetUrl: "https://meet.google.com/abc-defg-hij"
+            ),
+        ]
+        seedSettings(mode: .notify)
+
+        let coordinator = makeCoordinator()
+        coordinator.testHook_forcePoll()
+        await waitForPoll()
+
+        XCTAssertNotNil(coordinator.testHook_probableSnapshotForManualStart())
+
+        settingsViewModel.calendarAutoStartMode = .off
+        XCTAssertNil(coordinator.testHook_probableSnapshotForManualStart())
+
+        settingsViewModel.calendarAutoStartMode = .notify
+        calendarService.stubPermissionStatus = .denied
+        XCTAssertNil(coordinator.testHook_probableSnapshotForManualStart())
+    }
+
+    func testProbableManualStartSnapshotIsNilWithoutPollData() {
+        calendarService.stubPermissionStatus = .granted
+        seedSettings(mode: .notify)
+
+        let coordinator = makeCoordinator()
+
+        XCTAssertNil(coordinator.testHook_probableSnapshotForManualStart())
     }
 
     func testAutoStartCompletionIgnoredAfterModeTurnsOff() {
@@ -283,7 +468,8 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
             id: "B",
             title: "Back-to-back",
             startTime: Date(),
-            endTime: Date().addingTimeInterval(1800)
+            endTime: Date().addingTimeInterval(1800),
+            meetUrl: "https://zoom.us/j/123"
         )
         coordinator.testHook_markCountdownShown(event)
         XCTAssertTrue(coordinator.testHook_isCountdownShown(event))
@@ -310,7 +496,8 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
             id: "B",
             title: "Solo",
             startTime: Date(),
-            endTime: Date().addingTimeInterval(1800)
+            endTime: Date().addingTimeInterval(1800),
+            meetUrl: "https://zoom.us/j/123"
         )
         coordinator.testHook_markCountdownShown(event)
         coordinator.handleAutoStartOutcome(.completed, for: event)
@@ -355,4 +542,191 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         coordinator.stop()
     }
 
+    func testSkippingOtherEventDoesNotClearOwningCountdown() async {
+        calendarService.stubPermissionStatus = .granted
+        seedSettings(mode: .autoStart)
+
+        let toast = MeetingCountdownToastController()
+        let coordinator = makeCoordinator(toastController: toast)
+        coordinator.start()
+        await waitForPoll()
+
+        let meetingA = event(id: "A", title: "Keep")
+        let meetingB = event(id: "B", title: "Skip")
+        coordinator.testHook_markCountdownShown(meetingA)
+        var closeCount = 0
+        toast.showAutoStart(title: meetingA.title, duration: 60) { _ in closeCount += 1 }
+        settingsViewModel.skipOccurrence(meetingB)
+        await waitForPoll()
+
+        XCTAssertTrue(coordinator.testHook_isCountdownShown(meetingA))
+        XCTAssertEqual(closeCount, 0, "Skipping B must preserve A's visible toast")
+        coordinator.stop()
+        XCTAssertEqual(closeCount, 1, "The assertion must observe a real, closable toast")
+    }
+
+    func testSkipThenUnskipDuringHeldFetchRearmsCountdown() async {
+        calendarService.stubPermissionStatus = .granted
+        let meetingA = event(id: "A", startsIn: 0)
+        calendarService.stubEvents = [meetingA]
+        seedSettings(mode: .autoStart)
+
+        let coordinator = makeCoordinator()
+        coordinator.start()
+        await waitForPoll()
+        coordinator.testHook_markCountdownShown(meetingA)
+        XCTAssertTrue(coordinator.testHook_isCountdownShown(meetingA))
+
+        calendarService.holdNextFetch = true
+        coordinator.testHook_forcePoll()
+        await waitForPoll()
+
+        settingsViewModel.skipOccurrence(meetingA)
+        await waitForPoll()
+        XCTAssertFalse(coordinator.testHook_isCountdownShown(meetingA))
+
+        settingsViewModel.unskipOccurrence(meetingA)
+        await waitForPoll()
+        calendarService.releaseHeldFetch()
+        await waitForPoll()
+
+        XCTAssertTrue(coordinator.testHook_isCountdownShown(meetingA),
+                       "Undo inside the auto-start window must allow the countdown to reappear")
+        coordinator.stop()
+    }
+
+    func testSkipThenUnskipWithoutActorHopRearmsCountdown() async {
+        calendarService.stubPermissionStatus = .granted
+        seedSettings(mode: .autoStart, reminderMinutes: 0)
+        let coordinator = makeCoordinator()
+        coordinator.start()
+        await waitForPoll()
+        defer { coordinator.stop() }
+
+        let meeting = event()
+        coordinator.testHook_markCountdownShown(meeting)
+        settingsViewModel.skipOccurrence(meeting)
+        XCTAssertFalse(coordinator.testHook_isCountdownShown(meeting),
+                       "Skip must clear suppression before returning, even without a fetch or actor hop")
+        settingsViewModel.unskipOccurrence(meeting)
+        await waitForPoll()
+        XCTAssertFalse(coordinator.testHook_isCountdownShown(meeting),
+                       "Queued observers must not lose the skip/undo transition")
+        XCTAssertEqual(autoStartConfirmedCount, 0, "Undo must not directly start recording")
+    }
+
+    func testSkipFromAnotherSettingsInstanceImmediatelyClosesOwningToast() async {
+        calendarService.stubPermissionStatus = .granted
+        seedSettings(mode: .autoStart, reminderMinutes: 0)
+        let toast = MeetingCountdownToastController()
+        let coordinator = makeCoordinator(toastController: toast)
+        coordinator.start()
+        await waitForPoll()
+        defer { coordinator.stop() }
+
+        let otherSettings = SettingsViewModel(defaults: defaults)
+        var meeting = event()
+        meeting.isRecurring = true
+        meeting.externalId = "series"
+        coordinator.testHook_markCountdownShown(meeting)
+        var closeCount = 0
+        toast.showAutoStart(title: meeting.title, duration: 60) { _ in closeCount += 1 }
+
+        otherSettings.skipEvent(meeting)
+        XCTAssertEqual(closeCount, 1)
+        XCTAssertFalse(coordinator.testHook_isCountdownShown(meeting))
+        XCTAssertEqual(settingsViewModel.calendarSkippedEvents, [meeting.eventKey])
+        otherSettings.unskipEvent(meeting)
+        XCTAssertFalse(coordinator.testHook_isCountdownShown(meeting))
+        XCTAssertEqual(autoStartConfirmedCount, 0)
+    }
+
+    func testModeChangeToNotifyClosesOwningCountdownSuppressionPath() async {
+        calendarService.stubPermissionStatus = .granted
+        seedSettings(mode: .autoStart)
+
+        let toast = MeetingCountdownToastController()
+        let coordinator = makeCoordinator(toastController: toast)
+        coordinator.start()
+        await waitForPoll()
+        let meetingA = event(id: "A")
+        coordinator.testHook_markCountdownShown(meetingA)
+        var closeCount = 0
+        toast.showAutoStart(title: meetingA.title, duration: 60) { _ in closeCount += 1 }
+        settingsViewModel.calendarAutoStartMode = .notify
+        await waitForPoll()
+        XCTAssertEqual(closeCount, 1, "Changing mode must close the visible toast")
+        XCTAssertTrue(coordinator.testHook_isCountdownShown(meetingA),
+                      "Mode change closes the toast but keeps countdown-shown (post-#318)")
+        coordinator.stop()
+    }
+
+    func testAuthorizedReminderPostsWhenEventIsNotSkipped() async {
+        calendarService.stubPermissionStatus = .granted
+        let meeting = event(startsIn: 5 * 60)
+        calendarService.stubEvents = [meeting]
+        seedSettings(mode: .notify, reminderMinutes: 5)
+        let delivery = ReminderDeliveryStub()
+        delivery.authorized = true
+
+        let coordinator = makeCoordinator(reminderDelivery: delivery)
+        coordinator.start()
+        await waitForPoll()
+        defer { coordinator.stop() }
+
+        XCTAssertEqual(delivery.posted.count, 1)
+        XCTAssertEqual(delivery.posted.first?.identifier, "macparakeet.calendar.\(meeting.id)")
+        XCTAssertTrue(coordinator.testHook_isReminded(meeting))
+    }
+
+    func testSkipDuringReminderAuthWaitDoesNotPost() async {
+        calendarService.stubPermissionStatus = .granted
+        let meeting = event(startsIn: 5 * 60)
+        calendarService.stubEvents = [meeting]
+        seedSettings(mode: .notify, reminderMinutes: 5)
+        let delivery = ReminderDeliveryStub()
+        delivery.authorized = true
+        delivery.holdNext = true
+
+        let coordinator = makeCoordinator(reminderDelivery: delivery)
+        coordinator.start()
+        await waitForPoll()
+        defer { coordinator.stop() }
+
+        XCTAssertTrue(coordinator.testHook_isReminded(meeting),
+                      "The reminded mark is set before the authorization wait")
+        settingsViewModel.skipOccurrence(meeting)
+        delivery.release()
+        await waitForPoll()
+
+        XCTAssertTrue(delivery.posted.isEmpty,
+                      "Skip during the authorization wait must prevent reminder submit")
+        XCTAssertEqual(autoStartConfirmedCount, 0)
+    }
+
+}
+
+@MainActor
+private final class ReminderDeliveryStub {
+    var authorized = false
+    var holdNext = false
+    private var continuation: CheckedContinuation<Bool, Never>?
+    private(set) var posted: [UNNotificationRequest] = []
+
+    func isAuthorized() async -> Bool {
+        if holdNext {
+            holdNext = false
+            return await withCheckedContinuation { continuation = $0 }
+        }
+        return authorized
+    }
+
+    func release() {
+        continuation?.resume(returning: authorized)
+        continuation = nil
+    }
+
+    func post(_ request: UNNotificationRequest) async throws {
+        posted.append(request)
+    }
 }

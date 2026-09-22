@@ -1,0 +1,424 @@
+# Meeting Artifacts v1
+
+> Status: ACTIVE - stable local meeting session artifact contract.
+
+## Purpose
+
+A meeting session folder is the durable local view of a recorded meeting. It is
+safe for Finder actions, CLI automation, hooks, support diagnostics, and future
+agent workflows to inspect. The database row remains canonical for meeting
+identity and current metadata; files are refreshed views of that row and its
+related prompt results.
+
+Meeting classification follows the same rule. SQLite owns the current optional
+primary type and complete label assignment; artifacts contain local snapshots
+so copied folders remain understandable. The capture metadata sidecar is
+provenance and is not rewritten when classification changes.
+
+For meeting rows, `transcriptions.meetingArtifactFolderPath` is the durable
+folder locator. `transcriptions.filePath` is only the mixed-audio
+playback/export path and may be cleared by user deletion or retention.
+Transcription completion preserves the current locator values, including clears,
+and aborts when the canonical recording was deleted during processing.
+
+If a notes write commits but its follow-up read fails, the app updates only notes
+in its loaded snapshots and keeps existing artifacts intact until a successful
+refresh can read current metadata. The saved draft is not reported as lost.
+
+Meeting rename publishes the row returned by its database transaction. Notes,
+rename, and speaker correction refreshes in the transcription view model share
+a per-meeting queue and reread canonical metadata and effective attribution
+after previous writes finish. A missing row is not a successful rename and
+starts no artifact refresh.
+
+## Producers
+
+- `MeetingRecordingService`: creates session folders and source audio.
+- `MeetingTranscriptFinalizer` / meeting finalization: completes the DB row and
+  final transcript.
+- `MeetingArtifactStore`: materializes `manifest.json`, `meeting.md`,
+  `transcript.json`, `notes.md`, `prompt-results.json`, and
+  `prompt-results/*.md`.
+- `macparakeet-cli meetings artifact`: refreshes and returns the artifact
+  snapshot.
+- Meeting notes and prompt-result write paths: refresh artifact views after
+  user notes or agent-authored results change. The saved-meeting editor saves
+  notes to SQLite on debounce and refreshes these derived files when leaving
+  Notes or the detail view, before a prompt/chat action, or on ordinary quit.
+  CLI note writes continue to refresh immediately.
+
+## Consumers
+
+- Library, Meetings, and detail-view "Open Meeting Folder" / "Copy Artifact
+  Folder Path" actions.
+- Audio-specific "Show Audio in Finder" / "Save Audio As..." actions while
+  retained meeting audio is still available.
+- `macparakeet-cli meetings artifact` and `--envelope` output.
+- Meeting automation hooks through `MACPARAKEET_ARTIFACT_DIR` and
+  `MACPARAKEET_ARTIFACT_MANIFEST`.
+- Support diagnostics and future local agent workflows.
+
+## Stable Folder Entries
+
+Selected capture sources start independently. The recording service installs
+the source writer's event consumer before awaiting capture startup; a stuck
+microphone cannot prevent a healthy system source from being written. A missing selected source
+can therefore produce a valid partial meeting. Stop finalizes surviving audio
+through the existing source-alignment, playback and capture-report contract.
+A late source retains its actual offset rather than moving meeting time zero.
+
+The first usable buffer establishes capture, including valid silence. After
+12 seconds, a selected source with no callbacks is shown as unavailable; it may
+join the same live session later. With neither source delivering, startup fails
+and retires that session. Native microphone execution itself is not cancelled
+by this deadline. Existing bounded system teardown is additional settlement
+work. No deadline permits deleting captured audio: failed-start cleanup removes
+only proven-empty, finalized attempts; otherwise media and the recovery lock
+remain. Explicit user discard retains its existing deletion authority.
+
+Meeting Stop does not await a stuck microphone's native start/unsubscription.
+The singleton microphone remains leased until both settle; later system-only
+meetings can record, combined meetings report microphone unavailable, and a
+microphone-only request fails with a cleanup-pending error. Retired callbacks
+and late processing reports cannot write into a replacement meeting. This
+contains the impact of native delay; it does not establish or repair its cause.
+
+Quit while capture is still Starting offers End & Transcribe as well as
+Discard, because the writer may already hold a healthy source. Permission
+prompt abort stays discard-only. Explicit discard keeps its deletion
+authority. A missing selected source that later delivers may join the same
+live session; health does not tell the user to restart solely because the
+12-second window expired.
+
+The v1 folder can contain these stable filenames:
+
+- `meeting-playback.m4a`: mixed playback/export audio referenced by
+  `transcriptions.filePath` while retained.
+- `microphone-raw.m4a`: optional source mic audio.
+- `system-raw.m4a`: optional source system audio.
+- `microphone-cleaned.m4a`: optional derived echo-cancelled mic (16 kHz mono),
+  produced after stop from `microphone-raw.m4a` + `system-raw.m4a` when a meeting echo
+  suppressor is loaded (plan #605 U3). Internal STT input for the local ("Me")
+  track only after final-STT readiness/decodability gates pass, not a
+  user-facing export; the raw `microphone-raw.m4a` remains the source of truth.
+  Absent for single-source meetings, missing/unloaded AEC assets, render
+  failures, and when the echo-path probe finds no system-audio bleed to cancel.
+  Removed with the other managed audio by retention/detach.
+- `meeting-recording-metadata.json`: optional source-alignment and speech-route
+  sidecar. `speechEngine` is the authoritative final-transcription selection;
+  optional additive `previewSpeechEngine` records the live-preview route when
+  live preview was enabled and supported. Missing preview provenance is valid
+  when preview was disabled or unsupported, and for legacy folders. It may
+  also include additive `echoSuppression` provenance with
+  `reasonCode` plus optional `modelVersion`, `renderDurationMs`,
+  `delayEstimateMs`, and `probeBestCorrelation` fields so shared artifact
+  folders can explain cleaned-vs-raw microphone routing without app logs. It
+  may also include additive `startContext` with the one-shot local start
+  snapshot. `calendarEventSnapshot`, when present, is local EventKit context
+  and can include attendee/organizer names and emails. New finalized recordings
+  also include additive `captureReport`, the finalized capture-quality report
+  described below; legacy sidecars may omit it. An unreadable optional report
+  is treated as unknown without invalidating the remaining sidecar.
+  Each source-alignment track keeps `writtenFrameCount` as real captured frames
+  and may include `timelineFrameCount` for its playable end after inserting
+  silence across capture-recovery gaps. Legacy tracks omit the latter and use
+  written frames for both meanings. New captures derive start offsets from each
+  writer's effective file origin, so leading buffers without a valid host time
+  are not shifted a second time when timestamps become available. Crash
+  recovery preserves known host times and start offsets, rescales the real
+  written duration to a repaired file's sample rate (clamped to surviving
+  media), refreshes the playable timeline from the repaired media, and drops
+  tracks whose media cannot be recovered.
+- `manifest.json`: folder manifest.
+- `meeting.md`: deterministic Markdown view for users and local agents. It
+  keeps YAML frontmatter with local metadata and stable sections for title,
+  notes when present, transcript, prompt results when present, and artifact
+  paths. Speaker labels are included only when word-level speaker alignment is
+  still valid; otherwise `speakerLabelsIncluded` is `false` and the transcript
+  section uses plain transcript text.
+- `transcript.json`: transcript view.
+- `notes.md`: optional user notes view. Removed when notes are empty or nil.
+- `prompt-results.json`: JSON array of prompt-result records.
+- `prompt-results/`: refreshed directory of per-result Markdown files.
+- `prompt-results/*.md`: filenames use a stable two-digit 1-based index prefix
+  plus sanitized prompt-result name.
+
+Each `prompt-results.json` record preserves `userNotesSnapshot` and the
+additive Boolean `includeMeetingNotesSnapshot` (false for legacy/imported rows).
+The per-result Markdown view states whether automatic notes context was enabled.
+It also preserves the remaining prompt-result snapshots,
+including additive optional `inferenceSettingsSnapshot`. When present, this is
+the normalized effective provider/model-filtered inference receipt stored on
+the canonical database row. Its optional `reasoningEffort` is one of `low`,
+`medium`, `high`, or `xhigh` and appears only with enabled thinking; legacy and
+externally imported rows may omit it.
+This field contains effective settings only, not the mutable prompt's requested
+settings or unsupported-field metadata. Numeric snapshots are validated before
+database save/replacement. Failed or cancelled generation, including an Ollama
+error-only stream frame after partial output, must not materialize a new
+successful result or replace the previous valid result.
+
+New recordings write the role-explicit audio filenames above. For read
+compatibility with folders created before the in-place v1 audio filename
+rename, readers and artifact materializers must also resolve legacy
+`microphone.m4a` and `system.m4a` when the current raw-audio filename is absent.
+Regenerated `manifest.json` and `meeting.md` path fields point to the actual
+existing current or legacy raw-audio file. New captures must not create legacy
+raw-audio filenames.
+
+## Stable JSON Fields
+
+`MeetingArtifactSnapshot` and CLI artifact output keep these fields stable:
+
+- `schema`: `com.macparakeet.meeting-session`
+- `schemaVersion`: `1`
+- `generatedAt`
+- `meetingID`
+- `title`
+- `folderPath`
+- `manifestPath`
+- `markdownPath`
+- `rawMicrophoneAudioPath`
+- `cleanedMicrophoneAudioPath`
+- `rawSystemAudioPath`
+- `playbackAudioPath`
+- `transcriptPath`
+- `notesPath`
+- `promptResultsPath`
+- `promptResultsDirectoryPath`
+- `promptResultCount`
+- `meetingType`
+- `meetingLabels`
+- `calendarEventSnapshot`
+- `meetingCaptureReport`
+- `speakerCorrectionsApplied`
+- `textCorrectionsApplied`
+- `speakerCorrectionRevision`
+
+`manifest.json` keeps:
+
+- `schema`
+- `schemaVersion`
+- `generatedAt`
+- `meeting` (including optional `startContext`)
+- `files`
+- `promptResults`
+
+`manifest.meeting.transcriptTextAlignment` is `automatic`, `segment`, or
+`untimed`. `automatic` requires present automatic word timestamps; `segment`
+means effective rewritten text is aligned only to its segment envelopes;
+`untimed` covers missing word timestamps and legacy whole-text edits.
+`manifest.meeting.meetingType` is optional; absence means
+unclassified.
+`manifest.meeting.meetingLabels` is the complete assigned-label array and may
+be empty. Type and label snapshots carry stable UUID and display name plus
+optional presentation metadata. Archived values remain materialized while a
+meeting still references them.
+
+`manifest.meeting.calendarEventSnapshot`, when present, keeps the same local
+EventKit snapshot shape as `transcriptions.calendarEventSnapshot`: confidence,
+event identifiers, scheduled time range, title, attendee/organizer names and
+emails, meeting URL/service, and capture timestamp.
+
+Attendee and organizer entries may also contain optional `status` (`accepted`,
+`declined`, `tentative`, `pending`, `unknown`) and `kind` (`person`, `room`,
+`resource`, `group`, `unknown`) strings captured from EventKit. Older snapshots
+without these fields remain readable. These fields stay local with the snapshot;
+speaker-prior telemetry contains only the resulting policy label.
+
+`manifest.meeting.meetingCaptureReport`, `transcript.json`'s optional
+`meetingCaptureReport`, and `MeetingArtifactSnapshot.meetingCaptureReport` use
+the same additive shape as `transcriptions.meetingCaptureReport`:
+
+- `quality`: `healthy` or `partial`
+- `sourceMode`: `microphone_only`, `system_only`, or `microphone_and_system`
+- `elapsedDurationMs`: pause-adjusted time capture was expected to be active
+- `capturedDurationMs`: end of the longest selected playable source timeline,
+  including silence inserted to preserve capture-recovery gaps
+- `sources`: stable microphone/system-order records with `source`,
+  `writtenDurationMs`, `coverageRatio`, and `status` (`complete`, `silent`,
+  `coverage_shortfall`, `interrupted`, `unavailable`, or `capture_failed`)
+- `interruptedSources`: terminally interrupted selected sources
+- `captureFailed`: runtime capture-control failure, kept separate from final
+  source quality
+- `playbackFallbackSource`: optional `microphone` or `system` marker when both
+  selected source files were decodable but canonical playback had to use only
+  the named source because combining them failed; its presence makes `quality`
+  partial without changing otherwise-complete source capture statuses
+
+In the release-readiness candidate, the diagnostic `silent` verdict is supplied
+only for a selected system source when system buffers
+arrived, the peak absolute sample in successfully appended converted PCM stayed
+at exact zero, the microphone had nonzero signal, and pause-adjusted capture
+lasted at least 30 seconds. Interrupted system sources do not produce a new
+silent verdict or diagnostic silence log. The source writer normally averages input
+channels before converting system input to 48 kHz mono; severe destructive
+cancellation instead retains one dominant-energy channel for the whole buffer.
+Right-channel-only and inverse stereo retain signal. This measures retained PCM,
+not channel 0 of the input or the UI RMS meter.
+Preserved pre-pause buffers count; buffers dropped for an
+intentional pause do not. Short recordings, wholly silent sessions, and quiet
+system tracks with any nonzero written sample do not receive `silent`.
+
+A silent selected source is valid input and does not make `quality` partial.
+Self-notes and other one-sided recordings with sufficient coverage are healthy;
+presentation consumes `quality` without adding a silence warning or note.
+Source status precedence is `interrupted`, `capture_failed`, `unavailable`,
+`coverage_shortfall`, `silent`, then `complete`, so silence never hides missing
+coverage. Runtime failure, interruption, unavailable tracks, insufficient
+coverage, and playback fallback still make the report partial.
+
+Decoding an older silence-only `partial` report normalizes its quality to
+`healthy` only when all selected sources are present in stable order, their
+statuses are `complete` or `silent` (at least one `silent`), each meets production
+coverage (90%), and there is no capture failure, interruption, or playback
+fallback. Written durations are checked because older `silent` statuses could
+hide coverage shortfalls. Other stored verdicts and all source diagnostics
+remain unchanged. Required fields remain required; the optional playback
+fallback and encoded JSON shape are unchanged. This normalization applies when
+reading stored reports, without rewriting source audio or requiring a migration.
+
+Meeting `durationMs` is the probed duration of the decodable
+`meeting-playback.m4a` artifact. Normal finalization keeps it equal to
+`capturedDurationMs`. Crash recovery refreshes surviving source media facts and
+rebuilds `capturedDurationMs`, while preserving elapsed/interruption history
+and prior `silent` source verdicts when coverage is sufficient. Missing,
+interrupted, or insufficient recovered sources take the more informative status
+above. Both duration values remain coherent
+even when a damaged source must be dropped. A
+partial report does not change transcription `status`: successfully processed
+partial audio remains `completed`. Archived reconstruction re-probes the
+resolved canonical playback file and uses a supplied stored duration only when
+that media probe fails. Missing or unreadable reports on legacy artifacts mean
+unknown, not healthy.
+
+`manifest.files` keeps path fields for `folderPath`, `playbackAudioPath`,
+`rawMicrophoneAudioPath`, `cleanedMicrophoneAudioPath`, `rawSystemAudioPath`,
+`metadataPath`, `manifestPath`, `markdownPath`, `transcriptPath`, `notesPath`,
+`promptResultsPath`, and `promptResultsDirectoryPath`.
+
+`meeting.md` frontmatter keeps the local Markdown schema
+`com.macparakeet.meeting-markdown` with `schemaVersion: 1`, meeting identity,
+timestamps, duration/status/source/engine metadata, artifact/audio paths when
+available, `speakerLabelsIncluded`, `speakerCorrectionsApplied`,
+`speakerCorrectionRevision`, and `promptResultCount`. The body section
+order is: title, optional notes, transcript, optional prompt results, and
+artifact paths.
+
+Legacy v1 `MeetingArtifactSnapshot` JSON without correction keys decodes with
+`speakerCorrectionsApplied = false`, `textCorrectionsApplied = false`, and
+`speakerCorrectionRevision = 0`.
+The legacy `speakerCorrectionsApplied` name reports any active entry in the
+shared speaker/transcript correction journal, including text-only corrections;
+it does not assert that a speaker identity changed. Consumers should use
+`textCorrectionsApplied` for the independent timed-text/boundary signal.
+Metadata and speaker refreshes in the transcription view model share a queue
+per meeting and read the current DB row after earlier materializations finish.
+
+`transcript.json` publishes the effective transcript projection and includes
+`speakerCorrectionsApplied`, `textCorrectionsApplied`,
+`speakerCorrectionRevision`, and `transcriptTextAlignment`. Each durable
+`transcriptSegments` item may additionally include `isTextEdited: true` and
+`speakerSpans`. A structurally changed segment also includes
+`anchorTranscriptSegmentIDs`; a one-to-one text edit retains the durable segment
+ID instead. Omitted `isTextEdited` means the line retains automatic text and
+boundaries. A span has
+`wordRange`, nullable `speakerId`, and `speakerLabel`; multiple spans preserve
+manual splits that cannot be represented by the segment's legacy single
+speaker fields. GUI correction refreshes preserve the resolved projection and
+its revision together; CLI classification refreshes resolve corrections from
+the same database before regenerating files. These refreshes must never replay
+an effective transcription as though it were the automatic baseline.
+
+When classified, the frontmatter also includes the type id/name and complete
+label id/name list. Human-readable details render those values without changing
+the stable section order. Unclassified meetings omit the type and do not gain a
+synthetic label.
+
+`transcript.json` keeps meeting essentials: `id`, `title`, timestamps,
+`durationMs`, `status`, raw/clean/transcript text, word/speaker/diarization
+fields, durable `transcriptSegments`, `userNotes`, language/engine attribution,
+`sourceType`, `recoveredFromCrash`, `isTranscriptEdited`, and optional
+`startContext`, `calendarEventSnapshot`, `meetingCaptureReport`, `meetingType`,
+and `meetingLabels`. Classification uses the same snapshot shape as the
+manifest.
+
+`transcriptSegments` is an additive v1 field populated from the DB row when a
+meeting has durable segments. Each segment keeps `id`, `startMs`, `endMs`,
+`speakerId`, `speakerLabel`, `text`, and a half-open `wordRange`
+(`startIndex`, `endIndexExclusive`) into the same transcript's
+`wordTimestamps` array. Effective text or boundary corrections are represented
+by `isTextEdited: true` and retain only the segment's start/end timing claim.
+The word array preserves the automatic recognized text and timing; it is not a
+per-word alignment for a corrected line. One-to-one edits retain the durable
+segment ID. Structural splits and merges use a deterministic effective ID plus
+`anchorTranscriptSegmentIDs` mapping to the durable source segments. Meeting
+retranscription may replace the array with newly minted segment IDs.
+
+`startContext`, when present, keeps the recording-start snapshot:
+
+- `triggerKind`: `manual`, `hotkey`, or `calendar_auto_start`
+- `sourceMode`: configured meeting source mode at start (`microphone_only`,
+  `microphone_and_system`, or `system_only`)
+- `frontmostApplication`: optional object with `bundleIdentifier` and
+  `localizedName`
+
+`calendarEventSnapshot`, when present, keeps local calendar context captured at
+recording start. It can include EventKit identifiers, title, scheduled
+start/end, attendee/organizer names and emails, meeting URL/service, confidence,
+and capture timestamp.
+
+## Non-Stable Fields
+
+- `generatedAt` changes on every materialization.
+- Absolute paths vary by user, configured meeting artifact folder, and DEBUG
+  smoke-state root.
+- Prompt-result ordering follows the supplied prompt-result input order.
+- Prompt-result Markdown body can gain additive sections when the
+  corresponding JSON fields remain readable.
+
+## Versioning And Compatibility
+
+The current schema is v1. This contract absorbed the pre-hardening rename to
+role-explicit audio filenames and path fields in place before external
+compatibility was promised. Future additive fields and new optional files can
+remain v1 when old consumers can ignore them. Future renames or removals of
+stable filenames or fields require a schema-version bump and CLI/changelog
+notes.
+
+The database row stays canonical. Do not teach features to treat the folder as
+the source of truth for mutable meeting metadata unless the contract is updated
+with a migration and conflict-resolution rule.
+
+Audio retention and "Remove Audio Only" clear `transcriptions.filePath` but
+must preserve `transcriptions.meetingArtifactFolderPath` and leave the folder's
+non-audio artifact files in place. The retention sweeper acts only on the
+age-based `delete_after_days` mode. `delete_immediately` ("Remove audio after
+transcription") applies at capture/finalization to new recordings and must
+never retroactively remove previously saved audio — selecting it in Settings
+is not consent to delete the existing library. Bulk meeting-audio cleanup removes top-level
+app-managed audio files in the session folder, including canonical filenames
+and other managed audio extensions, while preserving JSON/Markdown artifacts.
+Full meeting deletion removes the artifact folder even when retained audio was
+already deleted.
+
+## Tests that enforce this
+
+- `MeetingArtifactStoreTests`
+- `MeetingsCommandTests`
+- `HistoryCommandTests`
+- `MeetingAudioRetentionSweeperTests`
+- `TranscriptionDeletionCleanupTests`
+- `TranscriptionRepositoryTests`
+
+Focused coverage pins stable filenames, schema/schemaVersion, manifest path
+references, `meeting.md` frontmatter/sections, transcript essentials,
+`notes.md` deletion, refreshed `prompt-results/` contents, durable transcript
+segments in `transcript.json`, speaker-label Markdown fallback, non-meeting
+rejection, CLI artifact envelope fields, retained-out audio, full deletion
+after audio detach, and artifact-folder path preservation.
+
+## When this changes
+
+Update this file, `spec/01-data-model.md`, `Sources/CLI/CHANGELOG.md` when CLI
+users are affected, and the focused XCTest coverage in the same PR.

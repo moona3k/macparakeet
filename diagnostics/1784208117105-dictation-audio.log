@@ -1,0 +1,1220 @@
+2026-07-11T17:41:05.366Z dictation_preview_started engine=parakeet
+2026-07-11T17:41:05.368Z dictation_capture_start permission_status=3
+2026-07-11T17:41:05.375Z dictation_capture_starting
+2026-07-11T17:41:05.385Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=other outcome=skipped reason=default_output_not_bluetooth
+2026-07-11T17:41:05.525Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.478 ducking_ms=0.000 output_format_ms=0.009 install_tap_ms=0.199 audio_engine_start_ms=76.707 total_ms=139.353
+2026-07-11T17:41:05.526Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=140.128
+2026-07-11T17:41:05.526Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-11T17:41:05.527Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-07-11T17:41:05.627Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-07-11T17:41:06.848Z dictation_preview_pass engine=parakeet ms=421 samples=12800 chars=7
+2026-07-11T17:41:07.503Z dictation_preview_pass engine=parakeet ms=73 samples=28800 chars=0
+2026-07-11T17:41:08.615Z dictation_preview_pass engine=parakeet ms=87 samples=46400 chars=45
+2026-07-11T17:41:09.716Z dictation_preview_pass engine=parakeet ms=89 samples=64000 chars=52
+2026-07-11T17:41:10.573Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=built-in
+2026-07-11T17:41:10.724Z dictation_preview_pass engine=parakeet ms=94 samples=80000 chars=87
+2026-07-11T17:41:11.823Z dictation_preview_pass engine=parakeet ms=94 samples=97600 chars=83
+2026-07-11T17:41:12.922Z dictation_preview_pass engine=parakeet ms=95 samples=115200 chars=94
+2026-07-11T17:41:13.928Z dictation_preview_pass engine=parakeet ms=98 samples=131200 chars=120
+2026-07-11T17:41:15.030Z dictation_preview_pass engine=parakeet ms=102 samples=148800 chars=131
+2026-07-11T17:41:15.623Z dictation_capture_heartbeat input_buffers=101 input_frames=484800 isRunning=true default_input=present default_input_transport=built-in
+2026-07-11T17:41:16.136Z dictation_preview_pass engine=parakeet ms=109 samples=166400 chars=134
+2026-07-11T17:41:17.140Z dictation_preview_pass engine=parakeet ms=111 samples=182400 chars=147
+2026-07-11T17:41:18.239Z dictation_preview_pass engine=parakeet ms=111 samples=200000 chars=154
+2026-07-11T17:41:19.338Z dictation_preview_pass engine=parakeet ms=111 samples=217600 chars=163
+2026-07-11T17:41:20.344Z dictation_preview_pass engine=parakeet ms=114 samples=233600 chars=180
+2026-07-11T17:41:20.639Z dictation_capture_heartbeat input_buffers=151 input_frames=724800 isRunning=true default_input=present default_input_transport=built-in
+2026-07-11T17:41:21.445Z dictation_preview_pass engine=parakeet ms=117 samples=240000 chars=193
+2026-07-11T17:41:22.545Z dictation_preview_pass engine=parakeet ms=118 samples=240000 chars=197
+2026-07-11T17:41:22.789Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-11T17:41:23.003Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-11T17:41:23.020Z dictation_stop_requested mode=hold_to_talk session=10
+2026-07-11T17:41:23.086Z shared_mic_engine_stopped
+2026-07-11T17:41:23.087Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-11T17:41:23.087Z dictation_capture_stop sample_count=276800 effective_sample_count=276800 duration_s=17.300 wall_duration_s=17.561 file_bytes=1111296 input_buffers=174 output_buffers=173 input_frames=835200 max_rms=0.112709 max_level=0.564 non_silent_buffers=173 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-11T17:41:23.088Z dictation_transcribe_begin file_bytes=1111296
+2026-07-11T17:41:23.232Z dictation_transcribe_complete chars=210 words=40 engine=parakeet variant=v3
+2026-07-11T17:41:25.364Z dictation_preview_started engine=parakeet
+2026-07-11T17:41:25.365Z dictation_capture_start permission_status=3
+2026-07-11T17:41:25.366Z dictation_capture_starting
+2026-07-11T17:41:25.370Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=other outcome=skipped reason=default_output_not_bluetooth
+2026-07-11T17:41:25.504Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.004 ducking_ms=0.000 output_format_ms=0.008 install_tap_ms=0.004 audio_engine_start_ms=71.975 total_ms=133.992
+2026-07-11T17:41:25.505Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=134.551
+2026-07-11T17:41:25.505Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-11T17:41:25.505Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-07-11T17:41:25.610Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-07-11T17:41:26.494Z dictation_preview_pass engine=parakeet ms=84 samples=12800 chars=19
+2026-07-11T17:41:27.496Z dictation_preview_pass engine=parakeet ms=84 samples=28800 chars=21
+2026-07-11T17:41:28.592Z dictation_preview_pass engine=parakeet ms=81 samples=46400 chars=32
+2026-07-11T17:41:29.690Z dictation_preview_pass engine=parakeet ms=81 samples=64000 chars=33
+2026-07-11T17:41:30.549Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=built-in
+2026-07-11T17:41:30.705Z dictation_preview_pass engine=parakeet ms=93 samples=80000 chars=57
+2026-07-11T17:41:31.809Z dictation_preview_pass engine=parakeet ms=98 samples=97600 chars=69
+2026-07-11T17:41:32.903Z dictation_preview_pass engine=parakeet ms=93 samples=115200 chars=78
+2026-07-11T17:41:33.909Z dictation_preview_pass engine=parakeet ms=97 samples=131200 chars=81
+2026-07-11T17:41:35.004Z dictation_preview_pass engine=parakeet ms=94 samples=148800 chars=90
+2026-07-11T17:41:35.593Z dictation_capture_heartbeat input_buffers=100 input_frames=480000 isRunning=true default_input=present default_input_transport=built-in
+2026-07-11T17:41:36.107Z dictation_preview_pass engine=parakeet ms=98 samples=166400 chars=98
+2026-07-11T17:41:37.110Z dictation_preview_pass engine=parakeet ms=98 samples=182400 chars=106
+2026-07-11T17:41:38.217Z dictation_preview_pass engine=parakeet ms=106 samples=200000 chars=108
+2026-07-11T17:41:39.324Z dictation_preview_pass engine=parakeet ms=105 samples=217600 chars=112
+2026-07-11T17:41:40.405Z dictation_preview_pass engine=parakeet ms=97 samples=235200 chars=125
+2026-07-11T17:41:40.639Z dictation_capture_heartbeat input_buffers=151 input_frames=724800 isRunning=true default_input=present default_input_transport=built-in
+2026-07-11T17:41:41.411Z dictation_preview_pass engine=parakeet ms=101 samples=240000 chars=122
+2026-07-11T17:41:42.509Z dictation_preview_pass engine=parakeet ms=100 samples=240000 chars=111
+2026-07-11T17:41:43.515Z dictation_preview_pass engine=parakeet ms=103 samples=240000 chars=109
+2026-07-11T17:41:43.919Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-11T17:41:44.130Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-11T17:41:44.140Z dictation_stop_requested mode=hold_to_talk session=11
+2026-07-11T17:41:44.206Z shared_mic_engine_stopped
+2026-07-11T17:41:44.208Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-11T17:41:44.209Z dictation_capture_stop sample_count=296000 effective_sample_count=296000 duration_s=18.500 wall_duration_s=18.704 file_bytes=1188096 input_buffers=186 output_buffers=185 input_frames=892800 max_rms=0.109163 max_level=0.546 non_silent_buffers=185 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-11T17:41:44.210Z dictation_transcribe_begin file_bytes=1188096
+2026-07-11T17:41:44.337Z dictation_transcribe_complete chars=136 words=27 engine=parakeet variant=v3
+2026-07-11T17:41:55.283Z dictation_preview_started engine=parakeet
+2026-07-11T17:41:55.284Z dictation_capture_start permission_status=3
+2026-07-11T17:41:55.287Z dictation_capture_starting
+2026-07-11T17:41:55.300Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=other outcome=skipped reason=default_output_not_bluetooth
+2026-07-11T17:41:55.483Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.011 ducking_ms=0.000 output_format_ms=0.011 install_tap_ms=0.005 audio_engine_start_ms=96.540 total_ms=184.592
+2026-07-11T17:41:55.484Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=185.309
+2026-07-11T17:41:55.484Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-11T17:41:55.486Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-07-11T17:41:55.584Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-07-11T17:41:56.499Z dictation_preview_pass engine=parakeet ms=115 samples=12800 chars=11
+2026-07-11T17:41:57.472Z dictation_preview_pass engine=parakeet ms=85 samples=28800 chars=23
+2026-07-11T17:41:57.519Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-11T17:41:57.729Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-11T17:41:57.737Z dictation_stop_requested mode=hold_to_talk session=12
+2026-07-11T17:41:57.807Z shared_mic_engine_stopped
+2026-07-11T17:41:57.807Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-11T17:41:57.808Z dictation_capture_stop sample_count=33600 effective_sample_count=33600 duration_s=2.100 wall_duration_s=2.323 file_bytes=138496 input_buffers=22 output_buffers=21 input_frames=105600 max_rms=0.070937 max_level=0.355 non_silent_buffers=22 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-11T17:41:57.809Z dictation_transcribe_begin file_bytes=138496
+2026-07-11T17:41:57.890Z dictation_transcribe_complete chars=22 words=4 engine=parakeet variant=v3
+2026-07-11T17:42:00.553Z dictation_preview_started engine=parakeet
+2026-07-11T17:42:00.554Z dictation_capture_start permission_status=3
+2026-07-11T17:42:00.555Z dictation_capture_starting
+2026-07-11T17:42:00.558Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=other outcome=skipped reason=default_output_not_bluetooth
+2026-07-11T17:42:00.681Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.005 ducking_ms=0.000 output_format_ms=0.009 install_tap_ms=0.004 audio_engine_start_ms=67.522 total_ms=123.070
+2026-07-11T17:42:00.682Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=123.763
+2026-07-11T17:42:00.683Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-11T17:42:00.683Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-07-11T17:42:00.786Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-07-11T17:42:01.668Z dictation_preview_pass engine=parakeet ms=82 samples=12800 chars=15
+2026-07-11T17:42:02.672Z dictation_preview_pass engine=parakeet ms=84 samples=28800 chars=22
+2026-07-11T17:42:03.591Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-11T17:42:03.765Z dictation_preview_pass engine=parakeet ms=78 samples=46400 chars=21
+2026-07-11T17:42:03.797Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-11T17:42:03.803Z dictation_stop_requested mode=hold_to_talk session=13
+2026-07-11T17:42:03.875Z shared_mic_engine_stopped
+2026-07-11T17:42:03.876Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-11T17:42:03.877Z dictation_capture_stop sample_count=48000 effective_sample_count=48000 duration_s=3.000 wall_duration_s=3.194 file_bytes=196096 input_buffers=31 output_buffers=30 input_frames=148800 max_rms=0.095018 max_level=0.475 non_silent_buffers=31 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-11T17:42:03.877Z dictation_transcribe_begin file_bytes=196096
+2026-07-11T17:42:03.949Z dictation_transcribe_complete chars=21 words=4 engine=parakeet variant=v3
+2026-07-11T17:42:06.297Z dictation_preview_started engine=parakeet
+2026-07-11T17:42:06.298Z dictation_capture_start permission_status=3
+2026-07-11T17:42:06.299Z dictation_capture_starting
+2026-07-11T17:42:06.303Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=other outcome=skipped reason=default_output_not_bluetooth
+2026-07-11T17:42:06.431Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.008 ducking_ms=0.000 output_format_ms=0.011 install_tap_ms=0.005 audio_engine_start_ms=68.853 total_ms=128.095
+2026-07-11T17:42:06.431Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=128.744
+2026-07-11T17:42:06.432Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-11T17:42:06.432Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-07-11T17:42:06.534Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-07-11T17:42:07.414Z dictation_preview_pass engine=parakeet ms=80 samples=12800 chars=0
+2026-07-11T17:42:08.420Z dictation_preview_pass engine=parakeet ms=83 samples=28800 chars=0
+2026-07-11T17:42:09.516Z dictation_preview_pass engine=parakeet ms=81 samples=46400 chars=11
+2026-07-11T17:42:10.619Z dictation_preview_pass engine=parakeet ms=85 samples=64000 chars=24
+2026-07-11T17:42:11.354Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-11T17:42:11.478Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=built-in
+2026-07-11T17:42:11.564Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-11T17:42:11.576Z dictation_stop_requested mode=hold_to_talk session=14
+2026-07-11T17:42:11.624Z dictation_preview_pass engine=parakeet ms=87 samples=80000 chars=34
+2026-07-11T17:42:11.636Z shared_mic_engine_stopped
+2026-07-11T17:42:11.636Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-11T17:42:11.637Z dictation_capture_stop sample_count=80000 effective_sample_count=80000 duration_s=5.000 wall_duration_s=5.205 file_bytes=324096 input_buffers=51 output_buffers=50 input_frames=244800 max_rms=0.114447 max_level=0.572 non_silent_buffers=51 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-11T17:42:11.637Z dictation_transcribe_begin file_bytes=324096
+2026-07-11T17:42:11.721Z dictation_transcribe_complete chars=34 words=6 engine=parakeet variant=v3
+2026-07-11T17:42:17.172Z dictation_preview_started engine=parakeet
+2026-07-11T17:42:17.174Z dictation_capture_start permission_status=3
+2026-07-11T17:42:17.175Z dictation_capture_starting
+2026-07-11T17:42:17.180Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=other outcome=skipped reason=default_output_not_bluetooth
+2026-07-11T17:42:17.315Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.005 ducking_ms=0.000 output_format_ms=0.009 install_tap_ms=0.004 audio_engine_start_ms=73.057 total_ms=135.272
+2026-07-11T17:42:17.316Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=136.165
+2026-07-11T17:42:17.316Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-11T17:42:17.316Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-07-11T17:42:17.419Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-07-11T17:42:18.299Z dictation_preview_pass engine=parakeet ms=80 samples=12800 chars=0
+2026-07-11T17:42:19.305Z dictation_preview_pass engine=parakeet ms=82 samples=28800 chars=23
+2026-07-11T17:42:19.582Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-11T17:42:19.787Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-11T17:42:19.799Z dictation_stop_requested mode=hold_to_talk session=15
+2026-07-11T17:42:19.870Z shared_mic_engine_stopped
+2026-07-11T17:42:19.871Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-11T17:42:19.872Z dictation_capture_stop sample_count=36800 effective_sample_count=36800 duration_s=2.300 wall_duration_s=2.556 file_bytes=151296 input_buffers=24 output_buffers=23 input_frames=115200 max_rms=0.170180 max_level=0.851 non_silent_buffers=23 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-11T17:42:19.873Z dictation_transcribe_begin file_bytes=151296
+2026-07-11T17:42:19.948Z dictation_transcribe_complete chars=23 words=4 engine=parakeet variant=v3
+2026-07-11T17:42:24.347Z dictation_preview_started engine=parakeet
+2026-07-11T17:42:24.348Z dictation_capture_start permission_status=3
+2026-07-11T17:42:24.349Z dictation_capture_starting
+2026-07-11T17:42:24.352Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=other outcome=skipped reason=default_output_not_bluetooth
+2026-07-11T17:42:24.477Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.005 ducking_ms=0.000 output_format_ms=0.010 install_tap_ms=0.005 audio_engine_start_ms=67.814 total_ms=124.217
+2026-07-11T17:42:24.477Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=124.830
+2026-07-11T17:42:24.477Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-11T17:42:24.478Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-07-11T17:42:24.579Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-07-11T17:42:25.472Z dictation_preview_pass engine=parakeet ms=93 samples=12800 chars=6
+2026-07-11T17:42:26.466Z dictation_preview_pass engine=parakeet ms=85 samples=28800 chars=22
+2026-07-11T17:42:27.562Z dictation_preview_pass engine=parakeet ms=82 samples=46400 chars=32
+2026-07-11T17:42:28.662Z dictation_preview_pass engine=parakeet ms=83 samples=64000 chars=37
+2026-07-11T17:42:29.518Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=built-in
+2026-07-11T17:42:29.670Z dictation_preview_pass engine=parakeet ms=88 samples=80000 chars=50
+2026-07-11T17:42:30.760Z dictation_preview_pass engine=parakeet ms=80 samples=97600 chars=53
+2026-07-11T17:42:30.864Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-11T17:42:31.072Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-11T17:42:31.085Z dictation_stop_requested mode=hold_to_talk session=16
+2026-07-11T17:42:31.152Z shared_mic_engine_stopped
+2026-07-11T17:42:31.153Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-11T17:42:31.155Z dictation_capture_stop sample_count=104000 effective_sample_count=104000 duration_s=6.500 wall_duration_s=6.677 file_bytes=420096 input_buffers=66 output_buffers=65 input_frames=316800 max_rms=0.098331 max_level=0.492 non_silent_buffers=66 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-11T17:42:31.156Z dictation_transcribe_begin file_bytes=420096
+2026-07-11T17:42:31.248Z dictation_transcribe_complete chars=53 words=9 engine=parakeet variant=v3
+2026-07-11T17:42:33.268Z dictation_preview_started engine=parakeet
+2026-07-11T17:42:33.269Z dictation_capture_start permission_status=3
+2026-07-11T17:42:33.270Z dictation_capture_starting
+2026-07-11T17:42:33.276Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=other outcome=skipped reason=default_output_not_bluetooth
+2026-07-11T17:42:33.400Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.006 ducking_ms=0.000 output_format_ms=0.008 install_tap_ms=0.003 audio_engine_start_ms=69.957 total_ms=124.675
+2026-07-11T17:42:33.401Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=125.245
+2026-07-11T17:42:33.401Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-11T17:42:33.402Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-07-11T17:42:33.502Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-07-11T17:42:34.378Z dictation_preview_pass engine=parakeet ms=76 samples=12800 chars=0
+2026-07-11T17:42:35.389Z dictation_preview_pass engine=parakeet ms=84 samples=28800 chars=13
+2026-07-11T17:42:36.489Z dictation_preview_pass engine=parakeet ms=86 samples=46400 chars=45
+2026-07-11T17:42:37.583Z dictation_preview_pass engine=parakeet ms=81 samples=64000 chars=44
+2026-07-11T17:42:38.442Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=built-in
+2026-07-11T17:42:38.595Z dictation_preview_pass engine=parakeet ms=90 samples=80000 chars=58
+2026-07-11T17:42:39.695Z dictation_preview_pass engine=parakeet ms=92 samples=97600 chars=73
+2026-07-11T17:42:40.795Z dictation_preview_pass engine=parakeet ms=93 samples=115200 chars=80
+2026-07-11T17:42:41.804Z dictation_preview_pass engine=parakeet ms=99 samples=131200 chars=94
+2026-07-11T17:42:42.901Z dictation_preview_pass engine=parakeet ms=98 samples=148800 chars=105
+2026-07-11T17:42:43.477Z dictation_capture_heartbeat input_buffers=100 input_frames=480000 isRunning=true default_input=present default_input_transport=built-in
+2026-07-11T17:42:44.008Z dictation_preview_pass engine=parakeet ms=106 samples=166400 chars=122
+2026-07-11T17:42:45.027Z dictation_preview_pass engine=parakeet ms=102 samples=182400 chars=144
+2026-07-11T17:42:46.116Z dictation_preview_pass engine=parakeet ms=113 samples=200000 chars=145
+2026-07-11T17:42:46.195Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-11T17:42:46.404Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-11T17:42:46.411Z dictation_stop_requested mode=hold_to_talk session=17
+2026-07-11T17:42:46.480Z shared_mic_engine_stopped
+2026-07-11T17:42:46.480Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-11T17:42:46.481Z dictation_capture_stop sample_count=206400 effective_sample_count=206400 duration_s=12.900 wall_duration_s=13.080 file_bytes=829696 input_buffers=130 output_buffers=129 input_frames=624000 max_rms=0.132652 max_level=0.663 non_silent_buffers=128 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-11T17:42:46.482Z dictation_transcribe_begin file_bytes=829696
+2026-07-11T17:42:46.599Z dictation_transcribe_complete chars=142 words=26 engine=parakeet variant=v3
+2026-07-11T17:58:53.388Z dictation_preview_started engine=parakeet
+2026-07-11T17:58:53.389Z dictation_capture_start permission_status=3
+2026-07-11T17:58:53.394Z dictation_capture_starting
+2026-07-11T17:58:53.397Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=other outcome=skipped reason=default_output_not_bluetooth
+2026-07-11T17:58:53.520Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.490 ducking_ms=0.000 output_format_ms=0.008 install_tap_ms=0.095 audio_engine_start_ms=70.100 total_ms=123.030
+2026-07-11T17:58:53.521Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=123.553
+2026-07-11T17:58:53.521Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-11T17:58:53.522Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-07-11T17:58:53.621Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-07-11T17:58:54.781Z dictation_preview_pass engine=parakeet ms=360 samples=12800 chars=2
+2026-07-11T17:58:55.505Z dictation_preview_pass engine=parakeet ms=81 samples=28800 chars=22
+2026-07-11T17:58:56.602Z dictation_preview_pass engine=parakeet ms=80 samples=46400 chars=36
+2026-07-11T17:58:57.701Z dictation_preview_pass engine=parakeet ms=80 samples=64000 chars=57
+2026-07-11T17:58:58.567Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=built-in
+2026-07-11T17:58:58.703Z dictation_preview_pass engine=parakeet ms=79 samples=80000 chars=54
+2026-07-11T17:58:59.808Z dictation_preview_pass engine=parakeet ms=86 samples=97600 chars=66
+2026-07-11T17:59:00.912Z dictation_preview_pass engine=parakeet ms=91 samples=115200 chars=88
+2026-07-11T17:59:01.914Z dictation_preview_pass engine=parakeet ms=91 samples=131200 chars=88
+2026-07-11T17:59:03.050Z dictation_preview_pass engine=parakeet ms=127 samples=148800 chars=107
+2026-07-11T17:59:03.598Z dictation_capture_heartbeat input_buffers=100 input_frames=480000 isRunning=true default_input=present default_input_transport=built-in
+2026-07-11T17:59:04.122Z dictation_preview_pass engine=parakeet ms=102 samples=166400 chars=127
+2026-07-11T17:59:05.130Z dictation_preview_pass engine=parakeet ms=106 samples=182400 chars=140
+2026-07-11T17:59:06.226Z dictation_preview_pass engine=parakeet ms=104 samples=200000 chars=147
+2026-07-11T17:59:07.334Z dictation_preview_pass engine=parakeet ms=113 samples=217600 chars=146
+2026-07-11T17:59:08.337Z dictation_preview_pass engine=parakeet ms=113 samples=233600 chars=157
+2026-07-11T17:59:08.635Z dictation_capture_heartbeat input_buffers=151 input_frames=724800 isRunning=true default_input=present default_input_transport=built-in
+2026-07-11T17:59:09.466Z dictation_preview_pass engine=parakeet ms=143 samples=240000 chars=180
+2026-07-11T17:59:10.535Z dictation_preview_pass engine=parakeet ms=114 samples=240000 chars=167
+2026-07-11T17:59:11.536Z dictation_preview_pass engine=parakeet ms=113 samples=240000 chars=167
+2026-07-11T17:59:12.627Z dictation_preview_pass engine=parakeet ms=105 samples=240000 chars=144
+2026-07-11T17:59:13.654Z dictation_capture_heartbeat input_buffers=201 input_frames=964800 isRunning=true default_input=present default_input_transport=built-in
+2026-07-11T17:59:13.726Z dictation_preview_pass engine=parakeet ms=106 samples=240000 chars=160
+2026-07-11T17:59:14.732Z dictation_preview_pass engine=parakeet ms=109 samples=240000 chars=170
+2026-07-11T17:59:15.834Z dictation_preview_pass engine=parakeet ms=111 samples=240000 chars=157
+2026-07-11T17:59:15.969Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-11T17:59:16.175Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-11T17:59:16.189Z dictation_stop_requested mode=hold_to_talk session=18
+2026-07-11T17:59:16.265Z shared_mic_engine_stopped
+2026-07-11T17:59:16.266Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-11T17:59:16.268Z dictation_capture_stop sample_count=360000 effective_sample_count=360000 duration_s=22.500 wall_duration_s=22.746 file_bytes=1444096 input_buffers=226 output_buffers=225 input_frames=1084800 max_rms=0.105983 max_level=0.530 non_silent_buffers=224 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-11T17:59:16.269Z dictation_transcribe_begin file_bytes=1444096
+2026-07-11T17:59:16.411Z dictation_transcribe_complete chars=239 words=44 engine=parakeet variant=v3
+2026-07-13T13:04:31.793Z dictation_preview_started engine=parakeet
+2026-07-13T13:04:31.796Z dictation_capture_start permission_status=3
+2026-07-13T13:04:31.809Z dictation_capture_starting
+2026-07-13T13:04:31.841Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=other outcome=skipped reason=default_output_not_bluetooth
+2026-07-13T13:04:32.033Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.561 ducking_ms=0.000 output_format_ms=0.010 install_tap_ms=0.076 audio_engine_start_ms=108.526 total_ms=192.249
+2026-07-13T13:04:32.034Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=192.744
+2026-07-13T13:04:32.034Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-13T13:04:32.035Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-07-13T13:04:32.132Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-07-13T13:04:33.104Z dictation_preview_pass engine=parakeet ms=268 samples=11200 chars=14
+2026-07-13T13:04:34.017Z dictation_preview_pass engine=parakeet ms=83 samples=28800 chars=27
+2026-07-13T13:04:35.115Z dictation_preview_pass engine=parakeet ms=83 samples=46400 chars=47
+2026-07-13T13:04:35.841Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-13T13:04:36.044Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-13T13:04:36.053Z dictation_stop_requested mode=hold_to_talk session=19
+2026-07-13T13:04:36.119Z dictation_preview_pass engine=parakeet ms=84 samples=62400 chars=47
+2026-07-13T13:04:36.119Z shared_mic_engine_stopped
+2026-07-13T13:04:36.119Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-13T13:04:36.120Z dictation_capture_stop sample_count=62400 effective_sample_count=62400 duration_s=3.900 wall_duration_s=4.085 file_bytes=253696 input_buffers=40 output_buffers=39 input_frames=192000 max_rms=0.054533 max_level=0.273 non_silent_buffers=39 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-13T13:04:36.121Z dictation_transcribe_begin file_bytes=253696
+2026-07-13T13:04:36.192Z dictation_transcribe_complete chars=47 words=8 engine=parakeet variant=v3
+2026-07-13T13:33:41.796Z dictation_preview_started engine=parakeet
+2026-07-13T13:33:41.798Z dictation_capture_start permission_status=3
+2026-07-13T13:33:41.808Z dictation_capture_starting
+2026-07-13T13:33:41.817Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=other outcome=skipped reason=default_output_not_bluetooth
+2026-07-13T13:33:41.971Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.416 ducking_ms=0.000 output_format_ms=0.008 install_tap_ms=0.017 audio_engine_start_ms=86.469 total_ms=153.477
+2026-07-13T13:33:41.972Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=154.710
+2026-07-13T13:33:41.973Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-13T13:33:41.974Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-07-13T13:33:42.068Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-07-13T13:33:43.112Z dictation_preview_pass engine=parakeet ms=245 samples=12800 chars=18
+2026-07-13T13:33:43.946Z dictation_preview_pass engine=parakeet ms=76 samples=28800 chars=21
+2026-07-13T13:33:44.239Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-13T13:33:44.449Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-13T13:33:44.461Z dictation_stop_requested mode=hold_to_talk session=20
+2026-07-13T13:33:44.527Z shared_mic_engine_stopped
+2026-07-13T13:33:44.528Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-13T13:33:44.529Z dictation_capture_stop sample_count=36800 effective_sample_count=36800 duration_s=2.300 wall_duration_s=2.555 file_bytes=151296 input_buffers=24 output_buffers=23 input_frames=115200 max_rms=0.067215 max_level=0.336 non_silent_buffers=23 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-13T13:33:44.530Z dictation_transcribe_begin file_bytes=151296
+2026-07-13T13:33:44.600Z dictation_transcribe_complete chars=21 words=3 engine=parakeet variant=v3
+2026-07-13T13:33:52.326Z dictation_preview_started engine=parakeet
+2026-07-13T13:33:52.327Z dictation_capture_start permission_status=3
+2026-07-13T13:33:52.328Z dictation_capture_starting
+2026-07-13T13:33:52.334Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=other outcome=skipped reason=default_output_not_bluetooth
+2026-07-13T13:33:52.460Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.015 ducking_ms=0.000 output_format_ms=0.007 install_tap_ms=0.005 audio_engine_start_ms=72.156 total_ms=126.315
+2026-07-13T13:33:52.461Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=126.950
+2026-07-13T13:33:52.461Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-13T13:33:52.461Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-07-13T13:33:52.561Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-07-13T13:33:53.455Z dictation_preview_pass engine=parakeet ms=94 samples=12800 chars=6
+2026-07-13T13:33:54.448Z dictation_preview_pass engine=parakeet ms=84 samples=28800 chars=42
+2026-07-13T13:33:55.539Z dictation_preview_pass engine=parakeet ms=77 samples=46400 chars=33
+2026-07-13T13:33:56.049Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-13T13:33:56.259Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-13T13:33:56.271Z dictation_stop_requested mode=hold_to_talk session=21
+2026-07-13T13:33:56.328Z shared_mic_engine_stopped
+2026-07-13T13:33:56.329Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-13T13:33:56.330Z dictation_capture_stop sample_count=59200 effective_sample_count=59200 duration_s=3.700 wall_duration_s=3.869 file_bytes=240896 input_buffers=38 output_buffers=37 input_frames=182400 max_rms=0.063511 max_level=0.318 non_silent_buffers=36 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-13T13:33:56.330Z dictation_transcribe_begin file_bytes=240896
+2026-07-13T13:33:56.415Z dictation_transcribe_complete chars=36 words=8 engine=parakeet variant=v3
+2026-07-13T14:07:47.490Z dictation_preview_started engine=parakeet
+2026-07-13T14:07:47.492Z dictation_capture_start permission_status=3
+2026-07-13T14:07:47.497Z dictation_capture_starting
+2026-07-13T14:07:47.505Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=other outcome=skipped reason=default_output_not_bluetooth
+2026-07-13T14:07:47.624Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.472 ducking_ms=0.000 output_format_ms=0.008 install_tap_ms=0.024 audio_engine_start_ms=68.049 total_ms=119.465
+2026-07-13T14:07:47.625Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=120.012
+2026-07-13T14:07:47.625Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-13T14:07:47.626Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-07-13T14:07:47.645Z dictation_capture_start_failed reason=no_first_buffer
+2026-07-13T14:07:47.647Z dictation_capture_start_cancelled_during_subscribe
+2026-07-13T14:07:47.707Z shared_mic_engine_stopped
+2026-07-13T14:07:47.707Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-13T14:08:30.567Z dictation_preview_started engine=parakeet
+2026-07-13T14:08:30.568Z dictation_capture_start permission_status=3
+2026-07-13T14:08:30.570Z dictation_capture_starting
+2026-07-13T14:08:30.574Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=other outcome=skipped reason=default_output_not_bluetooth
+2026-07-13T14:08:30.687Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.013 ducking_ms=0.000 output_format_ms=0.005 install_tap_ms=0.006 audio_engine_start_ms=66.286 total_ms=112.688
+2026-07-13T14:08:30.687Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=113.310
+2026-07-13T14:08:30.687Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-13T14:08:30.688Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-07-13T14:08:30.789Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-07-13T14:08:30.929Z shared_mic_engine_stopped
+2026-07-13T14:08:30.929Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-13T14:08:30.930Z dictation_capture_stop sample_count=0 effective_sample_count=0 duration_s=0.000 wall_duration_s=0.242 file_bytes=4096 input_buffers=1 output_buffers=0 input_frames=4800 max_rms=0.000000 max_level=0.000 non_silent_buffers=0 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-13T14:08:30.930Z dictation_capture_insufficient sample_count=0 required=4800
+2026-07-13T15:16:53.845Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T15:16:53.873Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T15:16:54.232Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T15:16:54.239Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T15:16:54.240Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T15:16:54.242Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T15:16:54.243Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T15:16:54.245Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T15:16:54.247Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T15:16:54.249Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T15:16:54.251Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T15:16:54.253Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T15:16:54.254Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T15:16:54.255Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T15:16:54.256Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T15:16:54.257Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T15:16:54.258Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T15:16:54.259Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T15:16:54.259Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T15:16:54.260Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T15:16:54.260Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T15:16:54.261Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T15:16:54.261Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T15:16:54.262Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T19:23:34.418Z dictation_preview_started engine=parakeet
+2026-07-13T19:23:34.421Z dictation_capture_start permission_status=3
+2026-07-13T19:23:34.427Z dictation_capture_starting
+2026-07-13T19:23:34.432Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=bluetooth outcome=fired reason=built_in_promoted
+2026-07-13T19:23:34.462Z dictation_capture_start_cancelled_during_subscribe
+2026-07-13T19:23:34.873Z shared_mic_engine_input_device_start_failed source=built_in device=present transport=built-in set_device_ms=422.196 error_type=com.apple.coreaudio.avfaudio.-10868 error_detail="The operation couldn’t be completed. (com.apple.coreaudio.avfaudio error -10868.)"
+2026-07-13T19:23:34.958Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.005 ducking_ms=0.000 output_format_ms=0.008 install_tap_ms=0.003 audio_engine_start_ms=37.203 total_ms=83.840
+2026-07-13T19:23:34.959Z shared_mic_engine_input_device_started source=system_default device=present transport=bluetooth vpio=false set_device_ms=0.000 start_engine_ms=84.874
+2026-07-13T19:23:34.959Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-13T19:23:34.960Z dictation_capture_start_aborted reason="interrupted_during_subscribe"
+2026-07-13T19:23:35.213Z shared_mic_engine_stopped
+2026-07-13T19:23:35.213Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-13T21:44:22.002Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.034Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.040Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.041Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.042Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.045Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.046Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.048Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.050Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.051Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.052Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.053Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.055Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.056Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.058Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.071Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.504Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.543Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.558Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.561Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.562Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.563Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.565Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.566Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:44:22.567Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.321Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.325Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.329Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.331Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.335Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.339Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.384Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.495Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.498Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.500Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.505Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.508Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.510Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.512Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.513Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.515Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.517Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.518Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.520Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.522Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.524Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.537Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.615Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.620Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:50.621Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:45:55.940Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:55.967Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:55.977Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:55.986Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:55.995Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:55.999Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:56.018Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:56.072Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:56.147Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:56.250Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:56.288Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:56.313Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:56.318Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:56.320Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:56.321Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:56.322Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:56.323Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:56.324Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:56.325Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:56.326Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:56.326Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:56.327Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:56.328Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:56.329Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:45:56.330Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:07.491Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.495Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.499Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.503Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.549Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.650Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.657Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.664Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.682Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.750Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.778Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.781Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.783Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.784Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.785Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.786Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.787Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.788Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.789Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.790Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.791Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.792Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.793Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.794Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:07.795Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:47:30.431Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.458Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.462Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.487Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.598Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.606Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.620Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.633Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.652Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.741Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.783Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.789Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.790Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.791Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.792Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.793Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.793Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.794Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.795Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.796Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.797Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.797Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.798Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.799Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:47:30.800Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T21:51:13.444Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.226Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.505Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.532Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.552Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.573Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.589Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.623Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.632Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.670Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.724Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.772Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.817Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.848Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.854Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.858Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.860Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.864Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.865Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.867Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.869Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.872Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.876Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.881Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T21:51:15.882Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T22:45:10.723Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:10.923Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:10.958Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:10.985Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:11.016Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:11.019Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:11.021Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:11.033Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:11.036Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:11.039Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:11.042Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:11.046Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:11.048Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:11.052Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:11.057Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:11.063Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:11.071Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:11.075Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:11.080Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:11.083Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:11.085Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:11.086Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:11.088Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:11.090Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T22:45:11.093Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:25:47.626Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.357Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.361Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.410Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.422Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.424Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.425Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.427Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.428Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.430Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.431Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.432Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.433Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.435Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.459Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.525Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.531Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.533Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.535Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.542Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.544Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.546Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.548Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.549Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:25:48.551Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-13T23:27:29.892Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:29.903Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:30.143Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:30.219Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:30.244Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:30.351Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:30.433Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:30.435Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:30.444Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:30.454Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:30.459Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:30.462Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:30.465Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:30.482Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:30.616Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:30.731Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:30.733Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:30.737Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:30.738Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:30.739Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:30.740Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:30.741Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:30.742Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:30.742Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-13T23:27:30.743Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:53.693Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:53.732Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:54.091Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:54.108Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:54.175Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:54.189Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:54.191Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:54.193Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:54.195Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:54.198Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:54.200Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:54.202Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:54.203Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:54.204Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:54.206Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:54.207Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:54.208Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:54.209Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:54.210Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:54.211Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:54.212Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:54.212Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:54.213Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:54.214Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:54.215Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:22:56.667Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.676Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.679Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.687Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.739Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.896Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.947Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.953Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.954Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.955Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.956Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.956Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.957Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.958Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.958Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.959Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.959Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.960Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.960Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.961Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.961Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.962Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.962Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.963Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:22:56.963Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T14:29:40.532Z dictation_preview_started engine=parakeet
+2026-07-14T14:29:40.534Z dictation_capture_start permission_status=3
+2026-07-14T14:29:40.539Z dictation_capture_starting
+2026-07-14T14:29:40.544Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=other outcome=skipped reason=default_output_not_bluetooth
+2026-07-14T14:29:40.676Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.758 ducking_ms=0.000 output_format_ms=0.009 install_tap_ms=0.028 audio_engine_start_ms=76.407 total_ms=132.640
+2026-07-14T14:29:40.677Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=133.178
+2026-07-14T14:29:40.678Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-14T14:29:40.678Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-07-14T14:29:40.781Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-07-14T14:29:41.854Z dictation_preview_pass engine=parakeet ms=273 samples=12800 chars=5
+2026-07-14T14:29:42.665Z dictation_preview_pass engine=parakeet ms=82 samples=28800 chars=17
+2026-07-14T14:29:43.761Z dictation_preview_pass engine=parakeet ms=79 samples=46400 chars=33
+2026-07-14T14:29:44.862Z dictation_preview_pass engine=parakeet ms=81 samples=64000 chars=37
+2026-07-14T14:29:45.691Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=built-in
+2026-07-14T14:29:45.868Z dictation_preview_pass engine=parakeet ms=84 samples=80000 chars=52
+2026-07-14T14:29:46.958Z dictation_preview_pass engine=parakeet ms=76 samples=97600 chars=73
+2026-07-14T14:29:47.528Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-14T14:29:47.731Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-14T14:29:47.747Z dictation_stop_requested mode=hold_to_talk session=25
+2026-07-14T14:29:47.817Z shared_mic_engine_stopped
+2026-07-14T14:29:47.818Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-14T14:29:47.819Z dictation_capture_stop sample_count=110400 effective_sample_count=110400 duration_s=6.900 wall_duration_s=7.141 file_bytes=445696 input_buffers=70 output_buffers=69 input_frames=336000 max_rms=0.088444 max_level=0.442 non_silent_buffers=69 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-14T14:29:47.820Z dictation_transcribe_begin file_bytes=445696
+2026-07-14T14:29:47.902Z dictation_transcribe_complete chars=77 words=13 engine=parakeet variant=v3
+2026-07-14T14:29:53.488Z dictation_preview_started engine=parakeet
+2026-07-14T14:29:53.489Z dictation_capture_start permission_status=3
+2026-07-14T14:29:53.490Z dictation_capture_starting
+2026-07-14T14:29:53.495Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=other outcome=skipped reason=default_output_not_bluetooth
+2026-07-14T14:29:53.601Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.009 ducking_ms=0.000 output_format_ms=0.005 install_tap_ms=0.006 audio_engine_start_ms=61.744 total_ms=106.551
+2026-07-14T14:29:53.602Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=107.122
+2026-07-14T14:29:53.602Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-14T14:29:53.604Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-07-14T14:29:53.706Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-07-14T14:29:54.693Z dictation_preview_pass engine=parakeet ms=187 samples=12800 chars=4
+2026-07-14T14:29:55.588Z dictation_preview_pass engine=parakeet ms=80 samples=28800 chars=24
+2026-07-14T14:29:56.686Z dictation_preview_pass engine=parakeet ms=79 samples=46400 chars=35
+2026-07-14T14:29:57.793Z dictation_preview_pass engine=parakeet ms=87 samples=64000 chars=52
+2026-07-14T14:29:58.611Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=built-in
+2026-07-14T14:29:58.801Z dictation_preview_pass engine=parakeet ms=92 samples=80000 chars=67
+2026-07-14T14:29:59.896Z dictation_preview_pass engine=parakeet ms=89 samples=97600 chars=70
+2026-07-14T14:30:00.995Z dictation_preview_pass engine=parakeet ms=89 samples=115200 chars=74
+2026-07-14T14:30:02.000Z dictation_preview_pass engine=parakeet ms=91 samples=131200 chars=88
+2026-07-14T14:30:03.102Z dictation_preview_pass engine=parakeet ms=95 samples=148800 chars=98
+2026-07-14T14:30:03.194Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-14T14:30:03.404Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-14T14:30:03.412Z dictation_stop_requested mode=hold_to_talk session=26
+2026-07-14T14:30:03.482Z shared_mic_engine_stopped
+2026-07-14T14:30:03.483Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-14T14:30:03.485Z dictation_capture_stop sample_count=155200 effective_sample_count=155200 duration_s=9.700 wall_duration_s=9.883 file_bytes=624896 input_buffers=98 output_buffers=97 input_frames=470400 max_rms=0.074148 max_level=0.371 non_silent_buffers=97 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-14T14:30:03.485Z dictation_transcribe_begin file_bytes=624896
+2026-07-14T14:30:03.593Z dictation_transcribe_complete chars=98 words=15 engine=parakeet variant=v3
+2026-07-14T14:47:58.750Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.758Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.789Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.865Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.868Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.870Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.872Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.873Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.877Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.885Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.891Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.928Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.951Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.953Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.954Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.955Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.956Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.957Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.958Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.959Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.962Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.963Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.963Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.965Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.965Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.966Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T14:47:58.966Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T18:58:18.695Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:18.708Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:18.718Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:18.789Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:18.867Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:18.874Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:18.892Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:18.951Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:18.988Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:18.989Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:18.994Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:18.996Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:18.997Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:18.998Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:18.999Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:19.003Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:19.004Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:19.005Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:19.005Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:19.006Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:19.007Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:19.007Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:19.008Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:19.009Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:19.009Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:19.010Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T18:58:19.010Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T20:40:10.039Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.053Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.157Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.165Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.167Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.169Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.170Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.172Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.175Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.176Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.177Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.178Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.181Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.190Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.244Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.245Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.248Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.249Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.250Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.251Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.252Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.253Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.253Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.254Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.254Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.255Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T20:40:10.256Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T21:56:09.857Z dictation_preview_started engine=parakeet
+2026-07-14T21:56:09.859Z dictation_capture_start permission_status=3
+2026-07-14T21:56:09.865Z dictation_capture_starting
+2026-07-14T21:56:09.869Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=bluetooth outcome=fired reason=built_in_promoted
+2026-07-14T21:56:10.311Z shared_mic_engine_input_device_start_failed source=built_in device=present transport=built-in set_device_ms=392.488 error_type=com.apple.coreaudio.avfaudio.-10868 error_detail="The operation couldn’t be completed. (com.apple.coreaudio.avfaudio error -10868.)"
+2026-07-14T21:56:10.976Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.004 ducking_ms=0.000 output_format_ms=0.006 install_tap_ms=0.004 audio_engine_start_ms=49.392 total_ms=662.927
+2026-07-14T21:56:10.977Z shared_mic_engine_input_device_started source=system_default device=present transport=bluetooth vpio=false set_device_ms=0.000 start_engine_ms=663.465
+2026-07-14T21:56:10.977Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-14T21:56:10.978Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=bluetooth sr=16000.0 ch=1
+2026-07-14T21:56:11.032Z shared_mic_engine_configuration_changed sr=16000.0 ch=1 isRunning=true engine_is_running=true default_input=present default_input_transport=bluetooth
+2026-07-14T21:56:11.225Z dictation_capture_first_buffer sr=16000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4096 has_float_data=true
+2026-07-14T21:56:11.236Z dictation_preview_failed engine=parakeet error_type=STTError.transcriptionFailed error_detail="Transcription failed: Invalid audio data provided. Must be at least 300ms of 16kHz audio."
+2026-07-14T21:56:12.449Z dictation_preview_pass engine=parakeet ms=205 samples=20480 chars=0
+2026-07-14T21:56:13.371Z dictation_preview_pass engine=parakeet ms=86 samples=36864 chars=20
+2026-07-14T21:56:14.383Z dictation_preview_pass engine=parakeet ms=78 samples=53248 chars=0
+2026-07-14T21:56:15.412Z dictation_preview_pass engine=parakeet ms=88 samples=69632 chars=42
+2026-07-14T21:56:16.013Z dictation_capture_heartbeat input_buffers=19 input_frames=77824 isRunning=true default_input=present default_input_transport=bluetooth
+2026-07-14T21:56:16.437Z dictation_preview_pass engine=parakeet ms=93 samples=86016 chars=63
+2026-07-14T21:56:17.459Z dictation_preview_pass engine=parakeet ms=94 samples=102400 chars=71
+2026-07-14T21:56:18.499Z dictation_preview_pass engine=parakeet ms=94 samples=118784 chars=66
+2026-07-14T21:56:19.521Z dictation_preview_pass engine=parakeet ms=97 samples=135168 chars=92
+2026-07-14T21:56:20.548Z dictation_preview_pass engine=parakeet ms=104 samples=151552 chars=119
+2026-07-14T21:56:21.018Z dictation_capture_heartbeat input_buffers=39 input_frames=159744 isRunning=true default_input=present default_input_transport=bluetooth
+2026-07-14T21:56:21.569Z dictation_preview_pass engine=parakeet ms=104 samples=167936 chars=127
+2026-07-14T21:56:22.620Z dictation_preview_pass engine=parakeet ms=135 samples=184320 chars=137
+2026-07-14T21:56:23.575Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-14T21:56:23.636Z dictation_preview_pass engine=parakeet ms=111 samples=200704 chars=148
+2026-07-14T21:56:23.785Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-14T21:56:23.797Z dictation_stop_requested mode=hold_to_talk session=27
+2026-07-14T21:56:23.827Z shared_mic_engine_stopped
+2026-07-14T21:56:23.828Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-14T21:56:23.828Z dictation_capture_stop sample_count=204800 effective_sample_count=204800 duration_s=12.800 wall_duration_s=12.851 file_bytes=823296 input_buffers=50 output_buffers=50 input_frames=204800 max_rms=0.135665 max_level=0.678 non_silent_buffers=44 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-14T21:56:23.829Z dictation_transcribe_begin file_bytes=823296
+2026-07-14T21:56:23.919Z dictation_transcribe_complete chars=148 words=28 engine=parakeet variant=v3
+2026-07-14T22:06:19.451Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:19.462Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:19.466Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:19.472Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:19.515Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:19.859Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:19.869Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:19.876Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:19.892Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:19.952Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:19.989Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:19.992Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:20.003Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:20.006Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:20.007Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:20.008Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:20.009Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:20.010Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:20.011Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:20.011Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:20.012Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:20.013Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:20.014Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:20.015Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:20.015Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:20.016Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:20.017Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:06:20.018Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-14T22:17:53.758Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:53.789Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:53.989Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.132Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.140Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.142Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.143Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.144Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.146Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.147Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.148Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.150Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.150Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.151Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.152Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.153Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.153Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.154Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.155Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.155Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.156Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.157Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.157Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.158Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.158Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.159Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.160Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-14T22:17:54.160Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-07-15T12:24:50.235Z dictation_preview_started engine=parakeet
+2026-07-15T12:24:50.237Z dictation_capture_start permission_status=3
+2026-07-15T12:24:50.249Z dictation_capture_starting
+2026-07-15T12:24:50.268Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=other outcome=skipped reason=default_output_not_bluetooth
+2026-07-15T12:24:50.442Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.506 ducking_ms=0.000 output_format_ms=0.010 install_tap_ms=0.099 audio_engine_start_ms=102.309 total_ms=173.526
+2026-07-15T12:24:50.443Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=175.217
+2026-07-15T12:24:50.444Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-15T12:24:50.445Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-07-15T12:24:50.540Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-07-15T12:24:51.544Z dictation_preview_pass engine=parakeet ms=204 samples=12800 chars=14
+2026-07-15T12:24:52.520Z dictation_preview_pass engine=parakeet ms=82 samples=30400 chars=19
+2026-07-15T12:24:53.522Z dictation_preview_pass engine=parakeet ms=81 samples=46400 chars=19
+2026-07-15T12:24:54.621Z dictation_preview_pass engine=parakeet ms=82 samples=64000 chars=19
+2026-07-15T12:24:55.498Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=built-in
+2026-07-15T12:24:55.726Z dictation_preview_pass engine=parakeet ms=88 samples=81600 chars=34
+2026-07-15T12:24:56.727Z dictation_preview_pass engine=parakeet ms=86 samples=97600 chars=37
+2026-07-15T12:24:57.827Z dictation_preview_pass engine=parakeet ms=88 samples=115200 chars=49
+2026-07-15T12:24:58.928Z dictation_preview_pass engine=parakeet ms=90 samples=132800 chars=58
+2026-07-15T12:24:59.615Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-15T12:24:59.820Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-15T12:24:59.828Z dictation_stop_requested mode=hold_to_talk session=28
+2026-07-15T12:24:59.906Z shared_mic_engine_stopped
+2026-07-15T12:24:59.907Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-15T12:24:59.908Z dictation_capture_stop sample_count=147200 effective_sample_count=147200 duration_s=9.200 wall_duration_s=9.463 file_bytes=592896 input_buffers=93 output_buffers=92 input_frames=446400 max_rms=0.111466 max_level=0.557 non_silent_buffers=93 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-15T12:24:59.910Z dictation_transcribe_begin file_bytes=592896
+2026-07-15T12:25:00.002Z dictation_transcribe_complete chars=58 words=10 engine=parakeet variant=v3
+2026-07-15T12:28:06.815Z dictation_preview_started engine=parakeet
+2026-07-15T12:28:06.817Z dictation_capture_start permission_status=3
+2026-07-15T12:28:06.828Z dictation_capture_starting
+2026-07-15T12:28:06.839Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=other outcome=skipped reason=default_output_not_bluetooth
+2026-07-15T12:28:07.023Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.609 ducking_ms=0.000 output_format_ms=0.009 install_tap_ms=0.090 audio_engine_start_ms=104.635 total_ms=183.114
+2026-07-15T12:28:07.023Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=183.927
+2026-07-15T12:28:07.024Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-15T12:28:07.025Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-07-15T12:28:07.120Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-07-15T12:28:07.994Z dictation_preview_pass engine=parakeet ms=170 samples=11200 chars=6
+2026-07-15T12:28:09.009Z dictation_preview_pass engine=parakeet ms=88 samples=28800 chars=32
+2026-07-15T12:28:10.040Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-15T12:28:10.102Z dictation_preview_pass engine=parakeet ms=82 samples=46400 chars=50
+2026-07-15T12:28:10.251Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-15T12:28:10.262Z dictation_stop_requested mode=hold_to_talk session=29
+2026-07-15T12:28:10.326Z shared_mic_engine_stopped
+2026-07-15T12:28:10.327Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-15T12:28:10.328Z dictation_capture_stop sample_count=49600 effective_sample_count=49600 duration_s=3.100 wall_duration_s=3.303 file_bytes=202496 input_buffers=32 output_buffers=31 input_frames=153600 max_rms=0.087730 max_level=0.439 non_silent_buffers=31 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-15T12:28:10.329Z dictation_transcribe_begin file_bytes=202496
+2026-07-15T12:28:10.410Z dictation_transcribe_complete chars=50 words=9 engine=parakeet variant=v3
+2026-07-15T12:43:59.804Z dictation_preview_started engine=parakeet
+2026-07-15T12:43:59.805Z dictation_capture_start permission_status=3
+2026-07-15T12:43:59.807Z dictation_capture_starting
+2026-07-15T12:43:59.811Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=other outcome=skipped reason=default_output_not_bluetooth
+2026-07-15T12:43:59.933Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.015 ducking_ms=0.000 output_format_ms=0.008 install_tap_ms=0.007 audio_engine_start_ms=68.656 total_ms=122.038
+2026-07-15T12:43:59.934Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=122.595
+2026-07-15T12:43:59.934Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-15T12:43:59.935Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-07-15T12:44:00.035Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-07-15T12:44:00.949Z dictation_preview_pass engine=parakeet ms=114 samples=12800 chars=16
+2026-07-15T12:44:01.924Z dictation_preview_pass engine=parakeet ms=87 samples=28800 chars=27
+2026-07-15T12:44:02.696Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-15T12:44:02.907Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-15T12:44:02.919Z dictation_stop_requested mode=hold_to_talk session=30
+2026-07-15T12:44:02.984Z shared_mic_engine_stopped
+2026-07-15T12:44:02.985Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-15T12:44:02.985Z dictation_capture_stop sample_count=44800 effective_sample_count=44800 duration_s=2.800 wall_duration_s=3.051 file_bytes=183296 input_buffers=29 output_buffers=28 input_frames=139200 max_rms=0.085556 max_level=0.428 non_silent_buffers=28 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-15T12:44:02.986Z dictation_transcribe_begin file_bytes=183296
+2026-07-15T12:44:03.074Z dictation_transcribe_complete chars=41 words=7 engine=parakeet variant=v3
+2026-07-15T12:50:36.369Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.381Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.419Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.493Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.500Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.507Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.511Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.512Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.515Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.518Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.521Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.537Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.562Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.598Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.599Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.600Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.601Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.602Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.603Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.604Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.605Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.607Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.608Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.608Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.609Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.609Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.610Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.610Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.610Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.611Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T12:50:36.611Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T13:53:53.658Z dictation_preview_started engine=parakeet
+2026-07-15T13:53:53.661Z dictation_capture_start permission_status=3
+2026-07-15T13:53:53.674Z dictation_capture_starting
+2026-07-15T13:53:53.703Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=bluetooth outcome=fired reason=built_in_promoted
+2026-07-15T13:53:54.570Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-15T13:53:54.779Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-15T15:55:07.106Z meeting_live_chunking_mode session=EF1B368C-F497-40EE-A450-6D1489D58C32 mode=vad reason=started
+2026-07-15T15:55:07.123Z meeting_mic_capture_starting requested_mode=raw default_input=present default_input_transport=bluetooth
+2026-07-15T15:55:21.883Z dictation_capture_start_cancelled_during_subscribe
+2026-07-15T15:55:21.893Z dictation_preview_started engine=parakeet
+2026-07-15T15:55:21.894Z dictation_capture_start permission_status=3
+2026-07-15T15:55:21.897Z dictation_capture_starting
+2026-07-15T15:55:21.970Z dictation_capture_start_cancelled_during_subscribe
+2026-07-15T16:04:07.765Z meeting_recording_paused session=EF1B368C-F497-40EE-A450-6D1489D58C32
+2026-07-15T17:14:47.186Z dictation_preview_started engine=parakeet
+2026-07-15T17:14:47.188Z dictation_capture_start permission_status=3
+2026-07-15T17:14:47.193Z dictation_capture_starting
+2026-07-15T17:14:49.955Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-15T17:14:50.164Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-15T17:14:51.763Z dictation_capture_start_cancelled_during_subscribe
+2026-07-15T17:14:51.766Z dictation_preview_started engine=parakeet
+2026-07-15T17:14:51.767Z dictation_capture_start permission_status=3
+2026-07-15T17:14:51.767Z dictation_capture_starting
+2026-07-15T17:14:51.848Z dictation_capture_start_cancelled_during_subscribe
+2026-07-15T18:01:30.859Z dictation_preview_started engine=parakeet
+2026-07-15T18:01:30.863Z dictation_capture_start permission_status=3
+2026-07-15T18:01:30.874Z dictation_capture_starting
+2026-07-15T18:01:31.176Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-15T18:01:31.388Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-15T18:01:31.731Z dictation_capture_start_cancelled_during_subscribe
+2026-07-15T18:01:31.745Z dictation_preview_started engine=parakeet
+2026-07-15T18:01:31.745Z dictation_capture_start permission_status=3
+2026-07-15T18:01:31.746Z dictation_capture_starting
+2026-07-15T18:01:31.767Z dictation_capture_start_cancelled_during_subscribe
+2026-07-15T20:33:32.053Z dictation_preview_started engine=parakeet
+2026-07-15T20:33:32.056Z dictation_capture_start permission_status=3
+2026-07-15T20:33:32.062Z dictation_capture_starting
+2026-07-15T20:33:32.261Z dictation_capture_start_cancelled_during_subscribe
+2026-07-15T22:39:47.494Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:47.533Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:47.555Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:47.558Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:47.818Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.079Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.091Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.104Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.107Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.111Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.116Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.137Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.305Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.312Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.313Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.317Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.319Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.320Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.321Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.322Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.323Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.324Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.326Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.327Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.328Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.329Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.330Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.331Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.332Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.334Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.336Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.825Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.535 ducking_ms=0.000 output_format_ms=31553632.525 install_tap_ms=1.874 audio_engine_start_ms=505.931 total_ms=31554141.812
+2026-07-15T22:39:48.825Z shared_mic_engine_input_device_started source=built_in device=present transport=built-in vpio=false set_device_ms=404.891 start_engine_ms=31554142.226
+2026-07-15T22:39:48.826Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-15T22:39:48.827Z dictation_capture_start_aborted reason="interrupted_during_subscribe"
+2026-07-15T22:39:48.827Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=2 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-15T22:39:48.827Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=3 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-15T22:39:48.828Z meeting_mic_processing mode=raw
+2026-07-15T22:39:48.828Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=4 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-15T22:39:48.828Z dictation_capture_start_aborted reason="interrupted_during_subscribe"
+2026-07-15T22:39:48.828Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=5 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-15T22:39:48.828Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=6 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-15T22:39:48.828Z dictation_capture_start_aborted reason="interrupted_during_subscribe"
+2026-07-15T22:39:48.829Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=7 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-15T22:39:48.829Z dictation_capture_start_aborted reason="interrupted_during_subscribe"
+2026-07-15T22:39:48.829Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=8 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-15T22:39:48.829Z dictation_capture_start_aborted reason="interrupted_during_subscribe"
+2026-07-15T22:39:48.829Z dictation_capture_start_aborted reason="interrupted_during_subscribe"
+2026-07-15T22:39:48.830Z dictation_capture_start_aborted reason="interrupted_during_subscribe"
+2026-07-15T22:39:48.830Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=7 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-15T22:39:48.831Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=6 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-15T22:39:48.831Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=5 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-15T22:39:48.831Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=4 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-15T22:39:48.832Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=3 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-15T22:39:48.832Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=2 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-15T22:39:48.832Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-15T22:39:48.854Z meeting_mic_capture_started requested_mode=raw effective_mode=raw sr=16000.0 ch=1 default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.945Z system_audio_stream_start_failed error_type=MeetingAudioError.systemAudioCaptureFailed error_detail="System audio capture failed: no capturable display available"
+2026-07-15T22:39:48.947Z meeting_mic_capture_stopped default_input=present default_input_transport=bluetooth
+2026-07-15T22:39:48.948Z meeting_recording_start_failed session=EF1B368C-F497-40EE-A450-6D1489D58C32 error_type=MeetingAudioError.systemAudioCaptureFailed error_detail="System audio capture failed: System audio capture failed: no capturable display available"
+2026-07-15T22:39:48.949Z shared_mic_engine_stopped
+2026-07-15T22:39:48.949Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-16T13:17:10.615Z dictation_diagnostics_session_start pid=72342 version=0.7.2 build=20260712195419 source=dist-xcodebuild-release commit=afc2eff9dd0c
+2026-07-16T13:17:35.466Z dictation_preview_started engine=parakeet
+2026-07-16T13:17:35.467Z dictation_capture_start permission_status=3
+2026-07-16T13:17:35.502Z dictation_capture_starting
+2026-07-16T13:17:35.505Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=bluetooth outcome=fired reason=built_in_promoted
+2026-07-16T13:17:35.774Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.034 ducking_ms=0.000 output_format_ms=0.340 install_tap_ms=0.018 audio_engine_start_ms=123.112 total_ms=123.534
+2026-07-16T13:17:35.775Z shared_mic_engine_input_device_started source=built_in device=present transport=built-in vpio=false set_device_ms=145.014 start_engine_ms=124.234
+2026-07-16T13:17:35.775Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-16T13:17:35.783Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=bluetooth sr=48000.0 ch=1
+2026-07-16T13:17:35.880Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-07-16T13:17:36.456Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-16T13:17:36.666Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-16T13:17:36.677Z dictation_stop_requested mode=hold_to_talk session=1
+2026-07-16T13:17:36.706Z shared_mic_engine_stopped
+2026-07-16T13:17:36.706Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-16T13:17:36.707Z dictation_capture_stop sample_count=0 effective_sample_count=0 duration_s=0.000 wall_duration_s=0.932 file_bytes=4096 input_buffers=1 output_buffers=0 input_frames=4800 max_rms=0.000052 max_level=0.000 non_silent_buffers=0 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-16T13:17:36.707Z dictation_capture_insufficient sample_count=0 required=4800
+2026-07-16T13:17:37.991Z dictation_preview_started engine=parakeet
+2026-07-16T13:17:37.992Z dictation_capture_start permission_status=3
+2026-07-16T13:17:37.993Z dictation_capture_starting
+2026-07-16T13:17:37.996Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=bluetooth outcome=fired reason=built_in_promoted
+2026-07-16T13:17:38.125Z dictation_capture_start_cancelled_during_subscribe
+2026-07-16T13:17:38.229Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.004 ducking_ms=0.000 output_format_ms=10.607 install_tap_ms=0.007 audio_engine_start_ms=74.718 total_ms=85.380
+2026-07-16T13:17:38.230Z shared_mic_engine_input_device_started source=built_in device=present transport=built-in vpio=false set_device_ms=147.890 start_engine_ms=86.268
+2026-07-16T13:17:38.230Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-16T13:17:38.231Z dictation_capture_start_aborted reason="interrupted_during_subscribe"
+2026-07-16T13:17:38.289Z shared_mic_engine_stopped
+2026-07-16T13:17:38.290Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-16T13:17:39.909Z dictation_preview_started engine=parakeet
+2026-07-16T13:17:39.910Z dictation_capture_start permission_status=3
+2026-07-16T13:17:39.911Z dictation_capture_starting
+2026-07-16T13:17:39.915Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=bluetooth outcome=fired reason=built_in_promoted
+2026-07-16T13:17:39.940Z dictation_capture_start_cancelled_during_subscribe
+2026-07-16T13:17:40.010Z dictation_preview_started engine=parakeet
+2026-07-16T13:17:40.010Z dictation_capture_start permission_status=3
+2026-07-16T13:17:40.011Z dictation_capture_starting
+2026-07-16T13:17:40.036Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.003 ducking_ms=0.000 output_format_ms=0.292 install_tap_ms=0.004 audio_engine_start_ms=47.231 total_ms=47.554
+2026-07-16T13:17:40.037Z shared_mic_engine_input_device_started source=built_in device=present transport=built-in vpio=false set_device_ms=73.591 start_engine_ms=47.976
+2026-07-16T13:17:40.037Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-16T13:17:40.037Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=2 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-16T13:17:40.037Z dictation_capture_start_aborted reason="interrupted_during_subscribe"
+2026-07-16T13:17:40.037Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-16T13:17:40.038Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=bluetooth sr=48000.0 ch=1
+2026-07-16T13:17:40.095Z shared_mic_engine_configuration_changed sr=48000.0 ch=1 isRunning=true engine_is_running=true default_input=present default_input_transport=bluetooth
+2026-07-16T13:17:40.143Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-07-16T13:17:45.061Z dictation_capture_heartbeat input_buffers=2 input_frames=9600 isRunning=true default_input=present default_input_transport=bluetooth
+2026-07-16T13:17:50.070Z dictation_capture_heartbeat input_buffers=2 input_frames=9600 isRunning=true default_input=present default_input_transport=bluetooth
+2026-07-16T13:17:55.127Z dictation_capture_heartbeat input_buffers=2 input_frames=9600 isRunning=true default_input=present default_input_transport=bluetooth
+2026-07-16T13:17:57.163Z dictation_hotkey_stop mode=persistent tail_ms=0
+2026-07-16T13:17:57.177Z dictation_stop_requested mode=persistent session=4
+2026-07-16T13:17:57.207Z shared_mic_engine_stopped
+2026-07-16T13:17:57.207Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-16T13:17:57.208Z dictation_capture_stop sample_count=1600 effective_sample_count=1600 duration_s=0.100 wall_duration_s=17.170 file_bytes=10496 input_buffers=2 output_buffers=1 input_frames=9600 max_rms=0.001965 max_level=0.010 non_silent_buffers=0 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-16T13:17:57.208Z dictation_capture_insufficient sample_count=1600 required=4800
+2026-07-16T13:20:24.235Z dictation_preview_started engine=parakeet
+2026-07-16T13:20:24.237Z dictation_capture_start permission_status=3
+2026-07-16T13:20:24.238Z dictation_capture_starting
+2026-07-16T13:20:24.242Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=bluetooth outcome=fired reason=built_in_promoted
+2026-07-16T13:20:24.399Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.010 ducking_ms=0.000 output_format_ms=0.297 install_tap_ms=0.005 audio_engine_start_ms=75.114 total_ms=75.463
+2026-07-16T13:20:24.399Z shared_mic_engine_input_device_started source=built_in device=present transport=built-in vpio=false set_device_ms=81.936 start_engine_ms=76.875
+2026-07-16T13:20:24.400Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-16T13:20:24.409Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=bluetooth sr=48000.0 ch=1
+2026-07-16T13:20:24.436Z shared_mic_engine_configuration_changed sr=48000.0 ch=1 isRunning=true engine_is_running=true default_input=present default_input_transport=bluetooth
+2026-07-16T13:20:24.494Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-07-16T13:20:29.445Z dictation_capture_heartbeat input_buffers=3 input_frames=14400 isRunning=true default_input=present default_input_transport=bluetooth
+2026-07-16T13:20:34.480Z dictation_capture_heartbeat input_buffers=3 input_frames=14400 isRunning=true default_input=present default_input_transport=bluetooth
+2026-07-16T13:20:36.885Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-16T13:20:37.095Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-16T13:20:37.102Z dictation_stop_requested mode=hold_to_talk session=5
+2026-07-16T13:20:37.144Z shared_mic_engine_stopped
+2026-07-16T13:20:37.144Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-16T13:20:37.145Z dictation_capture_stop sample_count=3200 effective_sample_count=3200 duration_s=0.200 wall_duration_s=12.745 file_bytes=16896 input_buffers=3 output_buffers=2 input_frames=14400 max_rms=0.016821 max_level=0.084 non_silent_buffers=2 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-16T13:20:37.145Z dictation_capture_insufficient sample_count=3200 required=4800
+2026-07-16T13:20:49.496Z dictation_preview_started engine=parakeet
+2026-07-16T13:20:49.498Z dictation_capture_start permission_status=3
+2026-07-16T13:20:49.499Z dictation_capture_starting
+2026-07-16T13:20:49.512Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=true default_output_transport=bluetooth outcome=fired reason=explicit_selection_resolved
+2026-07-16T13:20:49.716Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.009 ducking_ms=0.000 output_format_ms=0.366 install_tap_ms=0.005 audio_engine_start_ms=95.527 total_ms=95.948
+2026-07-16T13:20:49.717Z shared_mic_engine_input_device_started source=selected device=present transport=built-in vpio=false set_device_ms=111.279 start_engine_ms=97.405
+2026-07-16T13:20:49.717Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-16T13:20:49.721Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=bluetooth sr=48000.0 ch=1
+2026-07-16T13:20:49.724Z shared_mic_engine_configuration_changed sr=48000.0 ch=1 isRunning=true engine_is_running=true default_input=present default_input_transport=bluetooth
+2026-07-16T13:20:49.815Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-07-16T13:20:52.731Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-16T13:20:52.942Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-16T13:20:52.954Z dictation_stop_requested mode=hold_to_talk session=6
+2026-07-16T13:20:52.985Z shared_mic_engine_stopped
+2026-07-16T13:20:52.986Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-16T13:20:52.986Z dictation_capture_stop sample_count=1600 effective_sample_count=1600 duration_s=0.100 wall_duration_s=3.268 file_bytes=10496 input_buffers=2 output_buffers=1 input_frames=9600 max_rms=0.009795 max_level=0.049 non_silent_buffers=1 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-16T13:20:52.987Z dictation_capture_insufficient sample_count=1600 required=4800
+2026-07-16T13:20:58.711Z meeting_mic_capture_starting requested_mode=raw default_input=present default_input_transport=bluetooth
+2026-07-16T13:20:58.716Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=true default_output_transport=bluetooth outcome=fired reason=explicit_selection_resolved
+2026-07-16T13:20:58.826Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.003 ducking_ms=0.000 output_format_ms=0.237 install_tap_ms=0.003 audio_engine_start_ms=50.449 total_ms=50.717
+2026-07-16T13:20:58.826Z shared_mic_engine_input_device_started source=selected device=present transport=built-in vpio=false set_device_ms=58.710 start_engine_ms=51.143
+2026-07-16T13:20:58.827Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-16T13:20:58.827Z meeting_mic_processing mode=raw
+2026-07-16T13:20:58.827Z meeting_mic_capture_started requested_mode=raw effective_mode=raw sr=48000.0 ch=1 default_input=present default_input_transport=bluetooth
+2026-07-16T13:20:58.882Z shared_mic_engine_configuration_changed sr=48000.0 ch=1 isRunning=true engine_is_running=true default_input=present default_input_transport=bluetooth
+2026-07-16T13:20:58.932Z meeting_mic_first_buffer sr=48000.0 ch=1 interleaved=false
+2026-07-16T13:21:00.936Z meeting_mic_capture_stopped default_input=present default_input_transport=bluetooth
+2026-07-16T13:21:00.972Z shared_mic_engine_stopped
+2026-07-16T13:21:00.972Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-16T13:21:03.646Z meeting_mic_capture_starting requested_mode=raw default_input=present default_input_transport=bluetooth
+2026-07-16T13:21:03.651Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=true default_output_transport=bluetooth outcome=fired reason=explicit_selection_resolved
+2026-07-16T13:21:03.768Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.003 ducking_ms=0.000 output_format_ms=0.278 install_tap_ms=0.004 audio_engine_start_ms=51.309 total_ms=51.634
+2026-07-16T13:21:03.769Z shared_mic_engine_input_device_started source=selected device=present transport=built-in vpio=false set_device_ms=65.505 start_engine_ms=52.089
+2026-07-16T13:21:03.769Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-16T13:21:03.769Z meeting_mic_processing mode=raw
+2026-07-16T13:21:03.769Z meeting_mic_capture_started requested_mode=raw effective_mode=raw sr=48000.0 ch=1 default_input=present default_input_transport=bluetooth
+2026-07-16T13:21:03.833Z shared_mic_engine_configuration_changed sr=48000.0 ch=1 isRunning=true engine_is_running=true default_input=present default_input_transport=bluetooth
+2026-07-16T13:21:03.874Z meeting_mic_first_buffer sr=48000.0 ch=1 interleaved=false
+2026-07-16T13:21:04.991Z meeting_mic_capture_stopped default_input=present default_input_transport=bluetooth
+2026-07-16T13:21:05.027Z shared_mic_engine_stopped
+2026-07-16T13:21:05.027Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-16T13:21:06.630Z meeting_mic_capture_starting requested_mode=raw default_input=present default_input_transport=bluetooth
+2026-07-16T13:21:06.636Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=true default_output_transport=bluetooth outcome=fired reason=explicit_selection_resolved
+2026-07-16T13:21:06.747Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.002 ducking_ms=0.000 output_format_ms=0.252 install_tap_ms=0.002 audio_engine_start_ms=49.374 total_ms=49.654
+2026-07-16T13:21:06.747Z shared_mic_engine_input_device_started source=selected device=present transport=built-in vpio=false set_device_ms=61.488 start_engine_ms=50.086
+2026-07-16T13:21:06.747Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-16T13:21:06.748Z meeting_mic_processing mode=raw
+2026-07-16T13:21:06.748Z meeting_mic_capture_started requested_mode=raw effective_mode=raw sr=48000.0 ch=1 default_input=present default_input_transport=bluetooth
+2026-07-16T13:21:06.810Z shared_mic_engine_configuration_changed sr=48000.0 ch=1 isRunning=true engine_is_running=true default_input=present default_input_transport=bluetooth
+2026-07-16T13:21:06.853Z meeting_mic_first_buffer sr=48000.0 ch=1 interleaved=false
+2026-07-16T13:21:08.255Z meeting_mic_capture_stopped default_input=present default_input_transport=bluetooth
+2026-07-16T13:21:08.278Z shared_mic_engine_stopped
+2026-07-16T13:21:08.279Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-16T13:21:09.727Z meeting_mic_capture_starting requested_mode=raw default_input=present default_input_transport=bluetooth
+2026-07-16T13:21:09.732Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=bluetooth outcome=fired reason=built_in_promoted
+2026-07-16T13:21:09.843Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.003 ducking_ms=0.000 output_format_ms=0.247 install_tap_ms=0.003 audio_engine_start_ms=48.838 total_ms=49.113
+2026-07-16T13:21:09.844Z shared_mic_engine_input_device_started source=built_in device=present transport=built-in vpio=false set_device_ms=62.443 start_engine_ms=49.569
+2026-07-16T13:21:09.844Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-16T13:21:09.844Z meeting_mic_processing mode=raw
+2026-07-16T13:21:09.844Z meeting_mic_capture_started requested_mode=raw effective_mode=raw sr=48000.0 ch=1 default_input=present default_input_transport=bluetooth
+2026-07-16T13:21:09.900Z shared_mic_engine_configuration_changed sr=48000.0 ch=1 isRunning=true engine_is_running=true default_input=present default_input_transport=bluetooth
+2026-07-16T13:21:09.949Z meeting_mic_first_buffer sr=48000.0 ch=1 interleaved=false
+2026-07-16T13:21:11.953Z meeting_mic_capture_stopped default_input=present default_input_transport=bluetooth
+2026-07-16T13:21:11.989Z shared_mic_engine_stopped
+2026-07-16T13:21:11.990Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-16T13:21:18.329Z dictation_preview_started engine=parakeet
+2026-07-16T13:21:18.330Z dictation_capture_start permission_status=3
+2026-07-16T13:21:18.331Z dictation_capture_starting
+2026-07-16T13:21:18.344Z mic_attempts_bluetooth_output_policy preference=on explicit_selection_resolved=false default_output_transport=bluetooth outcome=fired reason=built_in_promoted
+2026-07-16T13:21:18.514Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.008 ducking_ms=0.000 output_format_ms=0.322 install_tap_ms=0.003 audio_engine_start_ms=88.543 total_ms=88.992
+2026-07-16T13:21:18.515Z shared_mic_engine_input_device_started source=built_in device=present transport=built-in vpio=false set_device_ms=89.590 start_engine_ms=90.279
+2026-07-16T13:21:18.516Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-16T13:21:18.519Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=bluetooth sr=48000.0 ch=1
+2026-07-16T13:21:18.541Z shared_mic_engine_configuration_changed sr=48000.0 ch=1 isRunning=true engine_is_running=true default_input=present default_input_transport=bluetooth
+2026-07-16T13:21:18.620Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-07-16T13:21:20.977Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-07-16T13:21:21.189Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-07-16T13:21:21.196Z dictation_stop_requested mode=hold_to_talk session=7
+2026-07-16T13:21:21.220Z shared_mic_engine_stopped
+2026-07-16T13:21:21.221Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-07-16T13:21:21.221Z dictation_capture_stop sample_count=1600 effective_sample_count=1600 duration_s=0.100 wall_duration_s=2.705 file_bytes=10496 input_buffers=2 output_buffers=1 input_frames=9600 max_rms=0.004688 max_level=0.023 non_silent_buffers=1 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-07-16T13:21:21.222Z dictation_capture_insufficient sample_count=1600 required=4800

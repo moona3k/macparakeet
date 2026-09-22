@@ -182,6 +182,7 @@ final class MeetingLinkParserTests: XCTestCase {
         XCTAssertEqual(parser.identifyService(from: "https://around.co/r/x"), "Around")
         XCTAssertEqual(parser.identifyService(from: "https://zoomgov.com/j/1"), "Zoom")
         XCTAssertEqual(parser.identifyService(from: "https://whereby.com/room"), "Whereby")
+        XCTAssertEqual(parser.identifyService(from: "HTTPS://MEET.GOOGLE.COM/abc"), "Google Meet")
         XCTAssertNil(parser.identifyService(from: "https://example.com"))
         XCTAssertNil(parser.identifyService(from: nil))
     }

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>system-entities</key>
+	<array>
+		<dict>
+			<key>content-hint</key>
+			<string>Apple_APFS</string>
+			<key>dev-entry</key>
+			<string>/dev/disk14s1</string>
+			<key>potentially-mountable</key>
+			<false/>
+			<key>unmapped-content-hint</key>
+			<string>7C3457EF-0000-11AA-AA11-00306543ECAC</string>
+		</dict>
+		<dict>
+			<key>content-hint</key>
+			<string>GUID_partition_scheme</string>
+			<key>dev-entry</key>
+			<string>/dev/disk14</string>
+			<key>potentially-mountable</key>
+			<false/>
+			<key>unmapped-content-hint</key>
+			<string>GUID_partition_scheme</string>
+		</dict>
+		<dict>
+			<key>content-hint</key>
+			<string>41504653-0000-11AA-AA11-00306543ECAC</string>
+			<key>dev-entry</key>
+			<string>/dev/disk15s1</string>
+			<key>mount-point</key>
+			<string><QA>/package-runtime/dmg-readonly-v52tmqn4</string>
+			<key>potentially-mountable</key>
+			<true/>
+			<key>unmapped-content-hint</key>
+			<string>41504653-0000-11AA-AA11-00306543ECAC</string>
+			<key>volume-kind</key>
+			<string>apfs</string>
+		</dict>
+		<dict>
+			<key>content-hint</key>
+			<string>EF57347C-0000-11AA-AA11-00306543ECAC</string>
+			<key>dev-entry</key>
+			<string>/dev/disk15</string>
+			<key>potentially-mountable</key>
+			<false/>
+			<key>unmapped-content-hint</key>
+			<string>EF57347C-0000-11AA-AA11-00306543ECAC</string>
+		</dict>
+	</array>
+</dict>
+</plist>

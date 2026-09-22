@@ -14,8 +14,8 @@ import os
 /// resampled, then fed through the streaming manager in bounded slices and
 /// finalized. Live dictation drives the same streaming manager incrementally,
 /// emitting partials through `setPartialCallback` exactly like the multilingual
-/// sibling (see `NemotronLiveDictating`).
-public actor NemotronEnglishEngine: STTTranscribing, NemotronLiveDictating {
+/// sibling (see `NativeLiveDictating`).
+public actor NemotronEnglishEngine: STTTranscribing, NativeLiveDictating {
     public static let modelVariant = NemotronModelVariant.english1120
 
     /// Samples per feed slice (10 s at 16 kHz). The manager's internal buffer
@@ -27,12 +27,64 @@ public actor NemotronEnglishEngine: STTTranscribing, NemotronLiveDictating {
 
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "NemotronEnglishEngine")
 
+    /// Loads one manager's models from the FluidAudio cache (the download step
+    /// runs before it, ungated). Injected so tests can observe gating without
+    /// compiling models.
+    typealias ManagerLoader = @Sendable (
+        StreamingNemotronAsrManager, URL, ProgressHandler?
+    ) async throws -> Void
+
     private var interactiveManager: StreamingNemotronAsrManager?
     private var backgroundManager: StreamingNemotronAsrManager?
     private var initializationTask: Task<Void, Error>?
     private var activeLanes: Set<NemotronEnglishRuntimeLane> = []
+    /// Serializes Neural Engine work on macOS 14 (no-op on macOS 15+). Since
+    /// FluidAudio 0.15.6 `StreamingNemotronAsrManager.loadModels` runs an
+    /// encoder prediction as a load-time health probe, so model loading is
+    /// inference and must take the gate like every `process` call.
+    /// Fetches missing model files into the cache before the gated load.
+    typealias ModelDownloader = @Sendable (URL, ProgressHandler?) async throws -> Void
 
-    public init() {}
+    private let inferenceGate: ANEInferenceGate
+    private let managerLoader: ManagerLoader
+    private let modelDownloader: ModelDownloader
+
+    public init(inferenceGate: ANEInferenceGate = .shared) {
+        self.init(
+            inferenceGate: inferenceGate,
+            managerLoader: { manager, directory, progressHandler in
+                try await manager.loadModels(
+                    to: directory,
+                    configuration: nil,
+                    progressHandler: progressHandler
+                )
+            },
+            modelDownloader: { directory, progressHandler in
+                // Check FluidAudio's complete required set, not just the
+                // metadata + encoder readiness gate, so a partial cache is
+                // completed here rather than under the inference gate. This is
+                // an existence check: an existing but truncated `.mlmodelc`
+                // bundle passes it and is repaired by `loadModels`'s own
+                // purge-and-retry, which then downloads under the gate.
+                guard !Self.isModelCacheComplete(cacheRoot: Self.defaultCacheRoot()) else { return }
+                try await ModelHub.download(
+                    .nemotronStreaming1120,
+                    to: directory,
+                    progressHandler: progressHandler
+                )
+            }
+        )
+    }
+
+    init(
+        inferenceGate: ANEInferenceGate,
+        managerLoader: @escaping ManagerLoader,
+        modelDownloader: @escaping ModelDownloader
+    ) {
+        self.inferenceGate = inferenceGate
+        self.managerLoader = managerLoader
+        self.modelDownloader = modelDownloader
+    }
 
     public func transcribe(
         audioPath: String,
@@ -77,22 +129,25 @@ public actor NemotronEnglishEngine: STTTranscribing, NemotronLiveDictating {
             while offset < samples.count {
                 try Task.checkCancellation()
                 let end = min(offset + Self.sliceSampleCount, samples.count)
-                let buffer = try Self.makePCMBuffer(samples: samples[offset..<end])
-                _ = try await manager.process(audioBuffer: buffer)
+                let sampleSlice = samples[offset..<end]
+                let buffer = UncheckedSendableAudioPCMBuffer(try Self.makePCMBuffer(samples: sampleSlice))
+                try await inferenceGate.withExclusiveAccess {
+                    _ = try await manager.process(audioBuffer: buffer.buffer)
+                }
                 offset = end
                 let fraction = Double(offset) / Double(samples.count)
                 onProgress?(25 + Int(fraction * 65), 100)
             }
-            let text = try await manager.finish()
+            let final = try await inferenceGate.withExclusiveAccess {
+                try await manager.finishWithTokenTimings()
+            }
             onProgress?(100, 100)
 
             // `language` reflects the build's fixed configuration (the model is
-            // English-only), mirroring the Parakeet attribution posture. No
-            // word timings: the streaming RNN-T path exposes none (same
-            // posture as the multilingual Nemotron build).
+            // English-only), mirroring the Parakeet attribution posture.
             return STTResult(
-                text: text,
-                words: [],
+                text: final.text,
+                words: STTWordTimingBuilder.words(from: final.timings),
                 language: "en",
                 engine: .nemotron,
                 engineVariant: Self.modelVariant.rawValue
@@ -146,8 +201,11 @@ public actor NemotronEnglishEngine: STTTranscribing, NemotronLiveDictating {
             // already 16 kHz mono Float32, so `makePCMBuffer` wraps them in the
             // manager's target format and `resampleBuffer` skips a second
             // resample.
-            let buffer = try Self.makePCMBuffer(samples: samples[...])
-            _ = try await manager.process(audioBuffer: buffer)
+            let sampleSlice = samples[...]
+            let buffer = UncheckedSendableAudioPCMBuffer(try Self.makePCMBuffer(samples: sampleSlice))
+            try await inferenceGate.withExclusiveAccess {
+                _ = try await manager.process(audioBuffer: buffer.buffer)
+            }
         } catch {
             throw try Self.mapTranscriptionError(error)
         }
@@ -163,10 +221,12 @@ public actor NemotronEnglishEngine: STTTranscribing, NemotronLiveDictating {
 
         do {
             await manager.setPartialCallback { _ in }
-            let text = try await manager.finish()
+            let final = try await inferenceGate.withExclusiveAccess {
+                try await manager.finishWithTokenTimings()
+            }
             return STTResult(
-                text: text,
-                words: [],
+                text: final.text,
+                words: STTWordTimingBuilder.words(from: final.timings),
                 language: "en",
                 engine: .nemotron,
                 engineVariant: Self.modelVariant.rawValue
@@ -232,15 +292,7 @@ public actor NemotronEnglishEngine: STTTranscribing, NemotronLiveDictating {
     /// `<Application Support>/FluidAudio/Models` — the base FluidAudio's
     /// `loadModels(to:)` resolves when no directory is passed.
     nonisolated static func modelsBaseDirectory() -> URL {
-        let appSupport = FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first ?? FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library", isDirectory: true)
-            .appendingPathComponent("Application Support", isDirectory: true)
-        return appSupport
-            .appendingPathComponent("FluidAudio", isDirectory: true)
-            .appendingPathComponent("Models", isDirectory: true)
+        AppPaths.fluidAudioModelsDirURL
     }
 
     /// The 1120 ms tier directory (`…/Models/nemotron-streaming/1120ms`).
@@ -259,6 +311,14 @@ public actor NemotronEnglishEngine: STTTranscribing, NemotronLiveDictating {
     /// the encoder is the manager's own download gate, and without metadata the
     /// manager would silently fall back to `NemotronStreamingConfig()`'s 2240 ms
     /// chunk geometry — the wrong tier for this build.
+    /// Every file `ModelHub.download(.nemotronStreaming1120)` fetches is present.
+    nonisolated static func isModelCacheComplete(cacheRoot: URL) -> Bool {
+        let fileManager = FileManager.default
+        return ModelNames.NemotronStreaming.requiredModels.allSatisfy { fileName in
+            fileManager.fileExists(atPath: cacheRoot.appendingPathComponent(fileName).path)
+        }
+    }
+
     nonisolated static func isModelCached(cacheRoot: URL) -> Bool {
         let fileManager = FileManager.default
         let metadata = cacheRoot.appendingPathComponent(ModelNames.NemotronStreaming.metadata)
@@ -303,7 +363,7 @@ public actor NemotronEnglishEngine: STTTranscribing, NemotronLiveDictating {
         guard !isModelCached(cacheRoot: cacheRoot) else { return cacheRoot }
         onProgress?("Preparing Nemotron model download...")
         let progressHandler = makeDownloadProgressHandler(onProgress)
-        try await DownloadUtils.downloadRepo(
+        try await ModelHub.download(
             .nemotronStreaming1120,
             to: modelsBaseDirectory(),
             progressHandler: progressHandler
@@ -327,16 +387,21 @@ public actor NemotronEnglishEngine: STTTranscribing, NemotronLiveDictating {
         // shared via the page cache rather than duplicated per instance.
         let loadedInteractiveManager = StreamingNemotronAsrManager(requestedChunkSize: .ms1120)
         let loadedBackgroundManager = StreamingNemotronAsrManager(requestedChunkSize: .ms1120)
-        try await loadedInteractiveManager.loadModels(
-            to: nil,
-            configuration: nil,
-            progressHandler: progressHandler
-        )
-        try await loadedBackgroundManager.loadModels(
-            to: nil,
-            configuration: nil,
-            progressHandler: progressHandler
-        )
+        // Fetch missing files before taking the gate so a slow download never
+        // holds the macOS 14 inference permit; the gated `loadModels` below
+        // then finds the cache complete. Only its purge-and-retry recovery
+        // (a corrupt cache) can still download under the gate.
+        let directory = Self.modelsBaseDirectory()
+        try await modelDownloader(directory, progressHandler)
+        // One gate acquisition per load, never nested: `prepare` is always
+        // called outside the transcription gate sections.
+        let managerLoader = self.managerLoader
+        try await inferenceGate.withExclusiveAccess {
+            try await managerLoader(loadedInteractiveManager, directory, progressHandler)
+        }
+        try await inferenceGate.withExclusiveAccess {
+            try await managerLoader(loadedBackgroundManager, directory, progressHandler)
+        }
 
         self.interactiveManager = loadedInteractiveManager
         self.backgroundManager = loadedBackgroundManager
@@ -398,7 +463,7 @@ public actor NemotronEnglishEngine: STTTranscribing, NemotronLiveDictating {
 
     private nonisolated static func makeDownloadProgressHandler(
         _ onProgress: (@Sendable (String) -> Void)?
-    ) -> DownloadUtils.ProgressHandler? {
+    ) -> ProgressHandler? {
         guard let onProgress else { return nil }
         let clock = ContinuousClock()
         let lastProgressUpdate = OSAllocatedUnfairLock(initialState: clock.now - .seconds(1))
@@ -424,7 +489,7 @@ public actor NemotronEnglishEngine: STTTranscribing, NemotronLiveDictating {
         }
     }
 
-    private nonisolated static func progressMessage(from progress: DownloadUtils.DownloadProgress) -> String? {
+    private nonisolated static func progressMessage(from progress: DownloadProgress) -> String? {
         switch progress.phase {
         case .listing:
             return "Preparing Nemotron model download..."
@@ -472,6 +537,8 @@ public actor NemotronEnglishEngine: STTTranscribing, NemotronLiveDictating {
             case .processingFailed(let message):
                 return .transcriptionFailed(message)
             case .unsupportedPlatform(let message):
+                return .engineStartFailed(message)
+            case .encoderInstantiationFailed(let message):
                 return .engineStartFailed(message)
             case .streamingConversionFailed, .fileAccessFailed:
                 return .transcriptionFailed(asrError.localizedDescription)

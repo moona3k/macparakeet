@@ -6,6 +6,112 @@ public protocol MeetingArtifactStoring: Sendable {
         transcription: Transcription,
         promptResults: [PromptResult]
     ) async throws -> MeetingArtifactSnapshot
+
+    @discardableResult
+    func materialize(
+        projection: SpeakerAttributionProjection,
+        promptResults: [PromptResult]
+    ) async throws -> MeetingArtifactSnapshot
+
+    @discardableResult
+    func materialize(
+        transcription: Transcription,
+        promptResults: [PromptResult],
+        classification: MeetingArtifactClassificationSnapshot?
+    ) async throws -> MeetingArtifactSnapshot
+
+    @discardableResult
+    func materialize(
+        projection: SpeakerAttributionProjection,
+        promptResults: [PromptResult],
+        classification: MeetingArtifactClassificationSnapshot?
+    ) async throws -> MeetingArtifactSnapshot
+}
+
+public extension MeetingArtifactStoring {
+    func materialize(
+        projection: SpeakerAttributionProjection,
+        promptResults: [PromptResult]
+    ) async throws -> MeetingArtifactSnapshot {
+        try await materialize(
+            transcription: projection.effectiveTranscription,
+            promptResults: promptResults
+        )
+    }
+
+    @discardableResult
+    func materialize(
+        projection: SpeakerAttributionProjection,
+        promptResults: [PromptResult],
+        classification: MeetingArtifactClassificationSnapshot?
+    ) async throws -> MeetingArtifactSnapshot {
+        try await materialize(
+            transcription: projection.effectiveTranscription,
+            promptResults: promptResults,
+            classification: classification
+        )
+    }
+
+    @discardableResult
+    func materialize(
+        transcription: Transcription,
+        promptResults: [PromptResult],
+        classification: MeetingArtifactClassificationSnapshot?
+    ) async throws -> MeetingArtifactSnapshot {
+        try await materialize(transcription: transcription, promptResults: promptResults)
+    }
+}
+
+public struct MeetingArtifactClassificationSnapshot: Codable, Sendable, Equatable {
+    public struct Value: Codable, Sendable, Equatable, Identifiable {
+        public var id: UUID
+        public var name: String
+        public var colorToken: String?
+        public var iconName: String?
+        public var isArchived: Bool
+
+        public init(
+            id: UUID,
+            name: String,
+            colorToken: String?,
+            iconName: String? = nil,
+            isArchived: Bool
+        ) {
+            self.id = id
+            self.name = name
+            self.colorToken = colorToken
+            self.iconName = iconName
+            self.isArchived = isArchived
+        }
+    }
+
+    public var meetingType: Value?
+    public var labels: [Value]
+
+    public init(meetingType: Value?, labels: [Value]) {
+        self.meetingType = meetingType
+        self.labels = labels
+    }
+
+    public init(_ classification: MeetingClassification) {
+        meetingType = classification.meetingType.map {
+            Value(
+                id: $0.id,
+                name: $0.name,
+                colorToken: $0.colorToken,
+                iconName: $0.iconName,
+                isArchived: $0.isArchived
+            )
+        }
+        labels = classification.labels.map {
+            Value(
+                id: $0.id,
+                name: $0.name,
+                colorToken: $0.colorToken,
+                isArchived: $0.isArchived
+            )
+        }
+    }
 }
 
 public enum MeetingArtifactError: Error, LocalizedError, Sendable {
@@ -30,11 +136,78 @@ public struct MeetingArtifactSnapshot: Codable, Sendable, Equatable {
     public let title: String
     public let folderPath: String
     public let manifestPath: String
+    public let markdownPath: String?
+    public let rawMicrophoneAudioPath: String?
+    public let cleanedMicrophoneAudioPath: String?
+    public let rawSystemAudioPath: String?
+    public let playbackAudioPath: String?
     public let transcriptPath: String
     public let notesPath: String?
     public let promptResultsPath: String
     public let promptResultsDirectoryPath: String
     public let promptResultCount: Int
+    public let speakerCorrectionsApplied: Bool
+    public let textCorrectionsApplied: Bool
+    public let speakerCorrectionRevision: Int
+    public let meetingType: MeetingArtifactClassificationSnapshot.Value?
+    public let meetingLabels: [MeetingArtifactClassificationSnapshot.Value]?
+    public let calendarEventSnapshot: MeetingCalendarSnapshot?
+    public let meetingCaptureReport: MeetingCaptureReport?
+
+    private enum CodingKeys: String, CodingKey {
+        case schema
+        case schemaVersion
+        case generatedAt
+        case meetingID
+        case title
+        case folderPath
+        case manifestPath
+        case markdownPath
+        case rawMicrophoneAudioPath
+        case cleanedMicrophoneAudioPath
+        case rawSystemAudioPath
+        case playbackAudioPath
+        case transcriptPath
+        case notesPath
+        case promptResultsPath
+        case promptResultsDirectoryPath
+        case promptResultCount
+        case speakerCorrectionsApplied
+        case textCorrectionsApplied
+        case speakerCorrectionRevision
+        case meetingType
+        case meetingLabels
+        case calendarEventSnapshot
+        case meetingCaptureReport
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        schema = try values.decode(String.self, forKey: .schema)
+        schemaVersion = try values.decode(Int.self, forKey: .schemaVersion)
+        generatedAt = try values.decode(Date.self, forKey: .generatedAt)
+        meetingID = try values.decode(UUID.self, forKey: .meetingID)
+        title = try values.decode(String.self, forKey: .title)
+        folderPath = try values.decode(String.self, forKey: .folderPath)
+        manifestPath = try values.decode(String.self, forKey: .manifestPath)
+        markdownPath = try values.decodeIfPresent(String.self, forKey: .markdownPath)
+        rawMicrophoneAudioPath = try values.decodeIfPresent(String.self, forKey: .rawMicrophoneAudioPath)
+        cleanedMicrophoneAudioPath = try values.decodeIfPresent(String.self, forKey: .cleanedMicrophoneAudioPath)
+        rawSystemAudioPath = try values.decodeIfPresent(String.self, forKey: .rawSystemAudioPath)
+        playbackAudioPath = try values.decodeIfPresent(String.self, forKey: .playbackAudioPath)
+        transcriptPath = try values.decode(String.self, forKey: .transcriptPath)
+        notesPath = try values.decodeIfPresent(String.self, forKey: .notesPath)
+        promptResultsPath = try values.decode(String.self, forKey: .promptResultsPath)
+        promptResultsDirectoryPath = try values.decode(String.self, forKey: .promptResultsDirectoryPath)
+        promptResultCount = try values.decode(Int.self, forKey: .promptResultCount)
+        speakerCorrectionsApplied = try values.decodeIfPresent(Bool.self, forKey: .speakerCorrectionsApplied) ?? false
+        textCorrectionsApplied = try values.decodeIfPresent(Bool.self, forKey: .textCorrectionsApplied) ?? false
+        speakerCorrectionRevision = try values.decodeIfPresent(Int.self, forKey: .speakerCorrectionRevision) ?? 0
+        meetingType = try values.decodeIfPresent(MeetingArtifactClassificationSnapshot.Value.self, forKey: .meetingType)
+        meetingLabels = try values.decodeIfPresent([MeetingArtifactClassificationSnapshot.Value].self, forKey: .meetingLabels)
+        calendarEventSnapshot = try values.decodeIfPresent(MeetingCalendarSnapshot.self, forKey: .calendarEventSnapshot)
+        meetingCaptureReport = try values.decodeIfPresent(MeetingCaptureReport.self, forKey: .meetingCaptureReport)
+    }
 
     public init(
         schema: String = MeetingArtifactStore.schema,
@@ -44,11 +217,23 @@ public struct MeetingArtifactSnapshot: Codable, Sendable, Equatable {
         title: String,
         folderPath: String,
         manifestPath: String,
+        markdownPath: String?,
+        rawMicrophoneAudioPath: String? = nil,
+        cleanedMicrophoneAudioPath: String? = nil,
+        rawSystemAudioPath: String? = nil,
+        playbackAudioPath: String? = nil,
         transcriptPath: String,
         notesPath: String?,
         promptResultsPath: String,
         promptResultsDirectoryPath: String,
-        promptResultCount: Int
+        promptResultCount: Int,
+        speakerCorrectionsApplied: Bool = false,
+        textCorrectionsApplied: Bool = false,
+        speakerCorrectionRevision: Int = 0,
+        meetingType: MeetingArtifactClassificationSnapshot.Value? = nil,
+        meetingLabels: [MeetingArtifactClassificationSnapshot.Value]? = nil,
+        calendarEventSnapshot: MeetingCalendarSnapshot? = nil,
+        meetingCaptureReport: MeetingCaptureReport? = nil
     ) {
         self.schema = schema
         self.schemaVersion = schemaVersion
@@ -57,11 +242,23 @@ public struct MeetingArtifactSnapshot: Codable, Sendable, Equatable {
         self.title = title
         self.folderPath = folderPath
         self.manifestPath = manifestPath
+        self.markdownPath = markdownPath
+        self.rawMicrophoneAudioPath = rawMicrophoneAudioPath
+        self.cleanedMicrophoneAudioPath = cleanedMicrophoneAudioPath
+        self.rawSystemAudioPath = rawSystemAudioPath
+        self.playbackAudioPath = playbackAudioPath
         self.transcriptPath = transcriptPath
         self.notesPath = notesPath
         self.promptResultsPath = promptResultsPath
         self.promptResultsDirectoryPath = promptResultsDirectoryPath
         self.promptResultCount = promptResultCount
+        self.speakerCorrectionsApplied = speakerCorrectionsApplied
+        self.textCorrectionsApplied = textCorrectionsApplied
+        self.speakerCorrectionRevision = speakerCorrectionRevision
+        self.meetingType = meetingType
+        self.meetingLabels = meetingLabels
+        self.calendarEventSnapshot = calendarEventSnapshot
+        self.meetingCaptureReport = meetingCaptureReport
     }
 }
 
@@ -69,14 +266,43 @@ public final class MeetingArtifactStore: MeetingArtifactStoring, @unchecked Send
     public static let schema = "com.macparakeet.meeting-session"
     public static let schemaVersion = 1
     public static let manifestFileName = "manifest.json"
+    public static let markdownFileName = "meeting.md"
     public static let transcriptFileName = "transcript.json"
     public static let promptResultsFileName = "prompt-results.json"
     public static let promptResultsDirectoryName = "prompt-results"
 
     private let fileManager: FileManager
+    private let markdownWriter: @Sendable (String, String) throws -> Void
+    private let speakerAttributionReader: SpeakerAttributionReading?
+    private let classificationProvider: (@Sendable (UUID) throws -> MeetingArtifactClassificationSnapshot?)?
 
-    public init(fileManager: FileManager = .default) {
+    public init(
+        fileManager: FileManager = .default,
+        speakerAttributionReader: SpeakerAttributionReading? = nil,
+        classificationProvider: (@Sendable (UUID) throws -> MeetingArtifactClassificationSnapshot?)? = nil
+    ) {
         self.fileManager = fileManager
+        self.speakerAttributionReader = speakerAttributionReader
+        self.classificationProvider = classificationProvider
+        markdownWriter = { content, path in
+            try content.write(
+                toFile: path,
+                atomically: true,
+                encoding: .utf8
+            )
+        }
+    }
+
+    init(
+        fileManager: FileManager = .default,
+        speakerAttributionReader: SpeakerAttributionReading? = nil,
+        classificationProvider: (@Sendable (UUID) throws -> MeetingArtifactClassificationSnapshot?)? = nil,
+        markdownWriter: @escaping @Sendable (String, String) throws -> Void
+    ) {
+        self.fileManager = fileManager
+        self.speakerAttributionReader = speakerAttributionReader
+        self.classificationProvider = classificationProvider
+        self.markdownWriter = markdownWriter
     }
 
     @discardableResult
@@ -84,25 +310,81 @@ public final class MeetingArtifactStore: MeetingArtifactStoring, @unchecked Send
         transcription: Transcription,
         promptResults: [PromptResult] = []
     ) async throws -> MeetingArtifactSnapshot {
+        try await materialize(
+            transcription: transcription,
+            promptResults: promptResults,
+            classification: nil
+        )
+    }
+
+    @discardableResult
+    public func materialize(
+        transcription: Transcription,
+        promptResults: [PromptResult],
+        classification: MeetingArtifactClassificationSnapshot?
+    ) async throws -> MeetingArtifactSnapshot {
+        let projection = try speakerAttributionReader?.resolve(transcription: transcription)
+        return try await materializeResolved(
+            transcription: projection?.effectiveTranscription ?? transcription,
+            projection: projection,
+            promptResults: promptResults,
+            classification: classification
+        )
+    }
+
+    public func materialize(
+        projection: SpeakerAttributionProjection,
+        promptResults: [PromptResult] = []
+    ) async throws -> MeetingArtifactSnapshot {
+        try await materialize(projection: projection, promptResults: promptResults, classification: nil)
+    }
+
+    @discardableResult
+    public func materialize(
+        projection: SpeakerAttributionProjection,
+        promptResults: [PromptResult],
+        classification: MeetingArtifactClassificationSnapshot?
+    ) async throws -> MeetingArtifactSnapshot {
+        try await materializeResolved(
+            transcription: projection.effectiveTranscription,
+            projection: projection,
+            promptResults: promptResults,
+            classification: classification
+        )
+    }
+
+    private func materializeResolved(
+        transcription: Transcription,
+        projection: SpeakerAttributionProjection?,
+        promptResults: [PromptResult],
+        classification: MeetingArtifactClassificationSnapshot?
+    ) async throws -> MeetingArtifactSnapshot {
         guard transcription.sourceType == .meeting else {
             throw MeetingArtifactError.notMeeting
         }
         guard let folderURL = Self.sessionFolderURL(for: transcription) else {
             throw MeetingArtifactError.missingSessionFolder
         }
+        let effectiveTranscription = transcription
+        let effectiveClassification =
+            try classification
+            ?? classificationProvider?(transcription.id)
 
         try fileManager.createDirectory(at: folderURL, withIntermediateDirectories: true)
 
         let generatedAt = Date()
         let transcriptURL = folderURL.appendingPathComponent(Self.transcriptFileName)
         let promptResultsURL = folderURL.appendingPathComponent(Self.promptResultsFileName)
-        let promptResultsDirectoryURL = folderURL.appendingPathComponent(Self.promptResultsDirectoryName, isDirectory: true)
+        let promptResultsDirectoryURL = folderURL.appendingPathComponent(
+            Self.promptResultsDirectoryName,
+            isDirectory: true
+        )
         let notesURL = MeetingNotesFile.fileURL(for: folderURL)
 
         let notesPath: String?
         try await MeetingNotesFile.write(
-            notes: transcription.userNotes,
-            displayName: transcription.fileName,
+            notes: effectiveTranscription.userNotes,
+            displayName: effectiveTranscription.fileName,
             to: folderURL,
             fileManager: MeetingNotesFile.SendableFileManager(fileManager)
         )
@@ -110,34 +392,68 @@ public final class MeetingArtifactStore: MeetingArtifactStoring, @unchecked Send
 
         let resultFiles = try writePromptResults(
             promptResults,
-            meeting: transcription,
+            meeting: effectiveTranscription,
             jsonURL: promptResultsURL,
             directoryURL: promptResultsDirectoryURL
         )
 
         try writeJSON(
-            MeetingArtifactTranscript(transcription),
+            MeetingArtifactTranscript(
+                effectiveTranscription,
+                projection: projection,
+                classification: effectiveClassification
+            ),
             to: transcriptURL
         )
 
         let manifestURL = folderURL.appendingPathComponent(Self.manifestFileName)
+        let artifactPaths = MeetingMarkdownArtifactPaths.resolve(
+            transcription: effectiveTranscription,
+            promptResults: promptResults,
+            fileManager: fileManager
+        )
         let snapshot = MeetingArtifactSnapshot(
             generatedAt: generatedAt,
             meetingID: transcription.id,
             title: transcription.fileName,
             folderPath: folderURL.path,
             manifestPath: manifestURL.path,
+            markdownPath: artifactPaths.markdownPath,
+            rawMicrophoneAudioPath: artifactPaths.rawMicrophoneAudioPath,
+            cleanedMicrophoneAudioPath: artifactPaths.cleanedMicrophoneAudioPath,
+            rawSystemAudioPath: artifactPaths.rawSystemAudioPath,
+            playbackAudioPath: artifactPaths.playbackAudioPath,
             transcriptPath: transcriptURL.path,
             notesPath: notesPath,
             promptResultsPath: promptResultsURL.path,
             promptResultsDirectoryPath: promptResultsDirectoryURL.path,
-            promptResultCount: promptResults.count
+            promptResultCount: promptResults.count,
+            speakerCorrectionsApplied: projection?.correctionsApplied ?? false,
+            textCorrectionsApplied: projection?.attribution.hasTextCorrections ?? false,
+            speakerCorrectionRevision: projection?.correctionRevision ?? 0,
+            meetingType: effectiveClassification?.meetingType,
+            meetingLabels: effectiveClassification?.labels,
+            calendarEventSnapshot: effectiveTranscription.calendarEventSnapshot,
+            meetingCaptureReport: effectiveTranscription.meetingCaptureReport
         )
+        if let markdownPath = artifactPaths.markdownPath {
+            let markdown = MeetingMarkdownRenderer().render(
+                transcription: effectiveTranscription,
+                promptResults: promptResults,
+                artifactPaths: artifactPaths,
+                speakerCorrectionsApplied: projection?.correctionsApplied ?? false,
+                speakerCorrectionRevision: projection?.correctionRevision ?? 0,
+                classification: effectiveClassification
+            )
+            try markdownWriter(markdown, markdownPath)
+        }
         try writeJSON(
             MeetingArtifactManifest(
                 snapshot: snapshot,
-                transcription: transcription,
-                promptResultFiles: resultFiles
+                transcription: effectiveTranscription,
+                artifactPaths: artifactPaths,
+                promptResultFiles: resultFiles,
+                classification: effectiveClassification
             ),
             to: manifestURL
         )
@@ -146,12 +462,26 @@ public final class MeetingArtifactStore: MeetingArtifactStoring, @unchecked Send
     }
 
     public static func sessionFolderURL(for transcription: Transcription) -> URL? {
+        guard transcription.sourceType == .meeting else {
+            return nil
+        }
+        if let folderPath = normalizedPath(transcription.meetingArtifactFolderPath) {
+            return URL(fileURLWithPath: folderPath, isDirectory: true)
+        }
         guard let filePath = transcription.filePath?.trimmingCharacters(in: .whitespacesAndNewlines),
               !filePath.isEmpty
         else {
             return nil
         }
         return URL(fileURLWithPath: filePath).deletingLastPathComponent()
+    }
+
+    private static func normalizedPath(_ path: String?) -> String? {
+        guard let trimmed = path?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        return URL(fileURLWithPath: trimmed).standardizedFileURL.path
     }
 
     private func writePromptResults(
@@ -173,7 +503,7 @@ public final class MeetingArtifactStore: MeetingArtifactStoring, @unchecked Send
         var files: [MeetingArtifactPromptResultFile] = []
         for record in records {
             let fileURL = directoryURL.appendingPathComponent(
-                "\(String(format: "%02d", record.index))-\(Self.sanitizedFileName(record.name)).md"
+                Self.promptResultMarkdownFileName(index: record.index, name: record.name)
             )
             try record.markdown(meetingTitle: meeting.fileName).write(
                 to: fileURL,
@@ -205,6 +535,10 @@ public final class MeetingArtifactStore: MeetingArtifactStoring, @unchecked Send
         return cleaned.isEmpty ? "result" : String(cleaned.prefix(80))
     }
 
+    public static func promptResultMarkdownFileName(index: Int, name: String) -> String {
+        "\(String(format: "%02d", index))-\(sanitizedFileName(name)).md"
+    }
+
     private static func makeEncoder() -> JSONEncoder {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -224,13 +558,18 @@ private struct MeetingArtifactManifest: Codable {
     init(
         snapshot: MeetingArtifactSnapshot,
         transcription: Transcription,
-        promptResultFiles: [MeetingArtifactPromptResultFile]
+        artifactPaths: MeetingMarkdownArtifactPaths,
+        promptResultFiles: [MeetingArtifactPromptResultFile],
+        classification: MeetingArtifactClassificationSnapshot?
     ) {
         schema = snapshot.schema
         schemaVersion = snapshot.schemaVersion
         generatedAt = snapshot.generatedAt
-        meeting = MeetingArtifactMeetingSummary(transcription)
-        files = MeetingArtifactFiles(snapshot: snapshot, transcription: transcription)
+        meeting = MeetingArtifactMeetingSummary(
+            transcription,
+            classification: classification
+        )
+        files = MeetingArtifactFiles(paths: artifactPaths)
         promptResults = promptResultFiles
     }
 }
@@ -245,10 +584,19 @@ private struct MeetingArtifactMeetingSummary: Codable {
     let language: String?
     let engine: String?
     let engineVariant: String?
+    let calendarEventSnapshot: MeetingCalendarSnapshot?
+    let meetingCaptureReport: MeetingCaptureReport?
     let recoveredFromCrash: Bool
     let isTranscriptEdited: Bool
+    let transcriptTextAlignment: TranscriptTextAlignment
+    let startContext: MeetingStartContext?
+    let meetingType: MeetingArtifactClassificationSnapshot.Value?
+    let meetingLabels: [MeetingArtifactClassificationSnapshot.Value]?
 
-    init(_ transcription: Transcription) {
+    init(
+        _ transcription: Transcription,
+        classification: MeetingArtifactClassificationSnapshot?
+    ) {
         id = transcription.id
         title = transcription.fileName
         createdAt = transcription.createdAt
@@ -258,39 +606,44 @@ private struct MeetingArtifactMeetingSummary: Codable {
         language = transcription.language
         engine = transcription.engine
         engineVariant = transcription.engineVariant
+        calendarEventSnapshot = transcription.calendarEventSnapshot
+        meetingCaptureReport = transcription.meetingCaptureReport
         recoveredFromCrash = transcription.recoveredFromCrash
         isTranscriptEdited = transcription.isTranscriptEdited
+        transcriptTextAlignment = transcription.transcriptTextAlignment
+        startContext = transcription.meetingStartContext
+        meetingType = classification?.meetingType
+        meetingLabels = classification?.labels
     }
 }
 
 private struct MeetingArtifactFiles: Codable {
     let folderPath: String
-    let mixedAudioPath: String?
-    let microphoneAudioPath: String?
-    let systemAudioPath: String?
+    let playbackAudioPath: String?
+    let rawMicrophoneAudioPath: String?
+    let cleanedMicrophoneAudioPath: String?
+    let rawSystemAudioPath: String?
     let metadataPath: String?
     let manifestPath: String
+    let markdownPath: String?
     let transcriptPath: String
     let notesPath: String?
     let promptResultsPath: String
     let promptResultsDirectoryPath: String
 
-    init(snapshot: MeetingArtifactSnapshot, transcription: Transcription) {
-        folderPath = snapshot.folderPath
-        mixedAudioPath = transcription.filePath
-        let folderURL = URL(fileURLWithPath: snapshot.folderPath, isDirectory: true)
-        let microphoneURL = folderURL.appendingPathComponent("microphone.m4a")
-        let systemURL = folderURL.appendingPathComponent("system.m4a")
-        let metadataURL = MeetingRecordingMetadataStore.metadataURL(for: folderURL)
-        let fileManager = FileManager.default
-        microphoneAudioPath = fileManager.fileExists(atPath: microphoneURL.path) ? microphoneURL.path : nil
-        systemAudioPath = fileManager.fileExists(atPath: systemURL.path) ? systemURL.path : nil
-        metadataPath = fileManager.fileExists(atPath: metadataURL.path) ? metadataURL.path : nil
-        manifestPath = snapshot.manifestPath
-        transcriptPath = snapshot.transcriptPath
-        notesPath = snapshot.notesPath
-        promptResultsPath = snapshot.promptResultsPath
-        promptResultsDirectoryPath = snapshot.promptResultsDirectoryPath
+    init(paths: MeetingMarkdownArtifactPaths) {
+        folderPath = paths.artifactFolderPath ?? ""
+        playbackAudioPath = paths.playbackAudioPath
+        rawMicrophoneAudioPath = paths.rawMicrophoneAudioPath
+        cleanedMicrophoneAudioPath = paths.cleanedMicrophoneAudioPath
+        rawSystemAudioPath = paths.rawSystemAudioPath
+        metadataPath = paths.metadataPath
+        manifestPath = paths.manifestPath ?? ""
+        markdownPath = paths.markdownPath
+        transcriptPath = paths.transcriptPath ?? ""
+        notesPath = paths.notesPath
+        promptResultsPath = paths.promptResultsPath ?? ""
+        promptResultsDirectoryPath = paths.promptResultsDirectoryPath ?? ""
     }
 }
 
@@ -308,16 +661,30 @@ private struct MeetingArtifactTranscript: Codable {
     let speakerCount: Int?
     let speakers: [SpeakerInfo]?
     let diarizationSegments: [DiarizationSegmentRecord]?
+    let transcriptSegments: [MeetingArtifactTranscriptSegment]?
+    let speakerCorrectionsApplied: Bool
+    let textCorrectionsApplied: Bool
+    let speakerCorrectionRevision: Int
+    let transcriptTextAlignment: TranscriptTextAlignment
     let userNotes: String?
     let language: String?
     let engine: String?
     let engineVariant: String?
+    let calendarEventSnapshot: MeetingCalendarSnapshot?
+    let meetingCaptureReport: MeetingCaptureReport?
     let sourceURL: String?
     let sourceType: Transcription.SourceType
     let recoveredFromCrash: Bool
     let isTranscriptEdited: Bool
+    let startContext: MeetingStartContext?
+    let meetingType: MeetingArtifactClassificationSnapshot.Value?
+    let meetingLabels: [MeetingArtifactClassificationSnapshot.Value]?
 
-    init(_ transcription: Transcription) {
+    init(
+        _ transcription: Transcription,
+        projection: SpeakerAttributionProjection?,
+        classification: MeetingArtifactClassificationSnapshot?
+    ) {
         id = transcription.id
         title = transcription.fileName
         createdAt = transcription.createdAt
@@ -331,14 +698,95 @@ private struct MeetingArtifactTranscript: Codable {
         speakerCount = transcription.speakerCount
         speakers = transcription.speakers
         diarizationSegments = transcription.diarizationSegments
+        let runsBySegmentID = Dictionary(
+            (projection?.attribution.durableSegments ?? []).map {
+                ($0.base.id, $0.speakerRuns)
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let labelsBySpeakerID = Dictionary(
+            (projection?.attribution.speakers ?? transcription.speakers ?? []).map {
+                ($0.id, $0.label)
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
+        transcriptSegments = transcription.transcriptSegments?.map {
+            MeetingArtifactTranscriptSegment(
+                $0,
+                speakerRuns: runsBySegmentID[$0.id],
+                labelsBySpeakerID: labelsBySpeakerID
+            )
+        }
+        speakerCorrectionsApplied = projection?.correctionsApplied ?? false
+        textCorrectionsApplied = projection?.attribution.hasTextCorrections ?? false
+        speakerCorrectionRevision = projection?.correctionRevision ?? 0
+        transcriptTextAlignment = transcription.transcriptTextAlignment
         userNotes = transcription.userNotes
         language = transcription.language
         engine = transcription.engine
         engineVariant = transcription.engineVariant
+        calendarEventSnapshot = transcription.calendarEventSnapshot
+        meetingCaptureReport = transcription.meetingCaptureReport
         sourceURL = transcription.sourceURL
         sourceType = transcription.sourceType
         recoveredFromCrash = transcription.recoveredFromCrash
         isTranscriptEdited = transcription.isTranscriptEdited
+        startContext = transcription.meetingStartContext
+        meetingType = classification?.meetingType
+        meetingLabels = classification?.labels
+    }
+}
+
+private struct MeetingArtifactTranscriptSegment: Codable {
+    let id: UUID
+    let startMs: Int
+    let endMs: Int
+    let text: String
+    let speakerId: String?
+    let speakerLabel: String?
+    let wordRange: TranscriptSegmentWordRange
+    let isTextEdited: Bool?
+    let anchorTranscriptSegmentIDs: [UUID]?
+    let speakerSpans: [MeetingArtifactSpeakerSpan]?
+
+    init(
+        _ segment: TranscriptSegmentRecord,
+        speakerRuns: [EffectiveSpeakerRun]?,
+        labelsBySpeakerID: [String: String]
+    ) {
+        id = segment.id
+        startMs = segment.startMs
+        endMs = segment.endMs
+        text = segment.text
+        speakerId = segment.speakerId
+        speakerLabel = segment.speakerLabel
+        wordRange = segment.wordRange
+        isTextEdited = segment.isTextEdited
+        anchorTranscriptSegmentIDs = segment.anchorTranscriptSegmentIDs
+        speakerSpans = speakerRuns?.map {
+            MeetingArtifactSpeakerSpan(
+                run: $0,
+                labelsBySpeakerID: labelsBySpeakerID
+            )
+        }
+    }
+}
+
+private struct MeetingArtifactSpeakerSpan: Codable {
+    let wordRange: TranscriptSegmentWordRange
+    let speakerId: String?
+    let speakerLabel: String
+
+    init(run: EffectiveSpeakerRun, labelsBySpeakerID: [String: String]) {
+        wordRange = run.wordRange
+        switch run.assignment {
+        case .speaker(let id):
+            speakerId = id
+            speakerLabel = labelsBySpeakerID[id] ?? id
+        case .unassigned:
+            speakerId = nil
+            speakerLabel = "Unassigned"
+        }
     }
 }
 
@@ -350,6 +798,8 @@ private struct MeetingArtifactPromptResult: Codable {
     let extraInstructions: String?
     let content: String
     let userNotesSnapshot: String?
+    let includeMeetingNotesSnapshot: Bool
+    let inferenceSettingsSnapshot: PromptInferenceSettings?
     let createdAt: Date
     let updatedAt: Date
 
@@ -361,6 +811,8 @@ private struct MeetingArtifactPromptResult: Codable {
         extraInstructions = result.extraInstructions
         content = result.content
         userNotesSnapshot = result.userNotesSnapshot
+        includeMeetingNotesSnapshot = result.includeMeetingNotesSnapshot
+        inferenceSettingsSnapshot = result.inferenceSettingsSnapshot
         createdAt = result.createdAt
         updatedAt = result.updatedAt
     }
@@ -372,6 +824,7 @@ private struct MeetingArtifactPromptResult: Codable {
         - Meeting: \(meetingTitle)
         - Result ID: \(id.uuidString)
         - Created: \(Self.isoString(createdAt))
+        - Automatic meeting notes context: \(includeMeetingNotesSnapshot ? "enabled" : "disabled")
         """)
         sections.append("## Output\n\n\(content.trimmingCharacters(in: .whitespacesAndNewlines))")
         if let extra = extraInstructions?.trimmingCharacters(in: .whitespacesAndNewlines), !extra.isEmpty {

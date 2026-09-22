@@ -179,8 +179,9 @@ public final class DictationHistoryViewModel {
         loadDictations()
     }
 
-    public func loadDictations(shouldRefreshStats: Bool = true) {
-        guard let repo = dictationRepo else { return }
+    @discardableResult
+    public func loadDictations(shouldRefreshStats: Bool = true) -> Int {
+        guard let repo = dictationRepo else { return 0 }
 
         let dictations: [Dictation]
         do {
@@ -208,6 +209,8 @@ public final class DictationHistoryViewModel {
         if shouldRefreshStats {
             refreshStats()
         }
+
+        return dictations.count
     }
 
     public func isDictationSelected(_ dictation: Dictation) -> Bool {
@@ -487,11 +490,28 @@ public final class DictationHistoryViewModel {
             loadDictations(shouldRefreshStats: false)
             return
         }
-        Telemetry.send(.historySearched)
-        searchDebounceTask = Task {
+        searchDebounceTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(300))
-            guard !Task.isCancelled else { return }
-            loadDictations(shouldRefreshStats: false)
+            guard let self, !Task.isCancelled else { return }
+            let resultCount = self.loadDictations(shouldRefreshStats: false)
+            Telemetry.send(.historySearched(resultCountBucket: Self.searchResultCountBucket(resultCount)))
+        }
+    }
+
+    private static func searchResultCountBucket(_ count: Int) -> String {
+        switch count {
+        case ...0:
+            return "0"
+        case 1:
+            return "1"
+        case 2...5:
+            return "2_5"
+        case 6...20:
+            return "6_20"
+        case 21...50:
+            return "21_50"
+        default:
+            return "51_plus"
         }
     }
 

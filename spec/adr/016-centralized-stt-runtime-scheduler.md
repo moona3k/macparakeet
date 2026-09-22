@@ -2,10 +2,14 @@
 
 > Status: ACCEPTED
 > Date: 2026-04-06
-> Related: ADR-001 (Parakeet STT + Nemotron Beta amendment), ADR-007 (FluidAudio CoreML migration), ADR-014 (meeting recording), ADR-015 (concurrent dictation and meeting recording), ADR-021 (WhisperKit multilingual STT)
+> Related: ADR-001 (Parakeet STT + optional local STT amendments), ADR-007 (FluidAudio CoreML migration), ADR-014 (meeting recording), ADR-015 (concurrent dictation and meeting recording), ADR-021 (WhisperKit multilingual STT)
 > Amendment 2026-04-28: The scheduler is now engine-routed. Parakeet remains default; WhisperKit can be selected globally or per routed job. Meeting sessions hold a speech-engine lease so engine changes cannot split a meeting across engines.
 > Amendment 2026-06-08: Nemotron 3.5 joins the same routed scheduler/runtime as an opt-in Beta engine. The one-control-plane rule still holds; Nemotron does not create feature-owned STT runtimes.
 > Amendment 2026-06-11: The Nemotron engine routes between two builds (multilingual `NemotronEngine` / English-only `NemotronEnglishEngine`) on the persisted Nemotron model preference. Nemotron build swaps follow the same scheduler rules as Parakeet v2/v3 swaps — rejected while jobs run or a meeting lease is active.
+> Amendment 2026-07-06: Parakeet Unified routes inside the same control plane through a dedicated `ParakeetUnifiedEngine` selected by the persisted Parakeet model preference. Unified does not create a feature-owned STT runtime; final paste/file/meeting work and live dictation preview use its native streaming manager so token-derived word timestamps are available to exports and speaker alignment.
+> Amendment 2026-06-27: Cohere Transcribe routes through the same runtime owner as an opt-in, explicitly downloaded, batch-only FluidAudio CoreML engine. It is allowed for recorded dictation finalization, file transcription, and meeting finalization/retranscribe, but it must not enter live dictation preview or meeting live-chunk paths because it emits no live partials, word timestamps, or speaker labels. Because the Cohere runtime is a single large batch pipeline rather than separate interactive/background managers, the scheduler treats Cohere as a global single-flight resource instead of hiding cross-slot waits inside the engine.
+> Amendment 2026-07-11: GUI routing preferences are split by workflow. `speechRecognitionEngine` remains the dictation engine; `transcriptionSpeechRecognitionEngine` routes file/media/URL jobs and is captured by new meeting leases. Missing workflow state inherits dictation for backward compatibility. Both routes remain inside the single runtime/scheduler control plane.
+> Amendment 2026-07-15: The GUI split is defined by live-vs-final responsibility rather than feature grouping. `speechRecognitionEngine` is Live Speech for dictation and meeting preview. `transcriptionSpeechRecognitionEngine` is an optional Advanced Final Transcription override for post-meeting and file/media work; absence means inheritance. Meetings always lease Live Speech and capture a separate immutable final route.
 
 ## Context
 
@@ -47,12 +51,14 @@ Feature services submit jobs to the control plane; they do not own their own STT
 
 ### 2. One shared STT runtime owner
 
-The control plane coordinates one shared STT runtime owner for speech model lifecycle. Parakeet's FluidAudio managers, Nemotron's FluidAudio managers, and the optional WhisperKit engine live behind this owner; callers do not own model lifecycles directly.
+The control plane coordinates one shared STT runtime owner for speech model lifecycle. Parakeet's FluidAudio managers, Parakeet Unified's dedicated FluidAudio engine, Nemotron's FluidAudio managers, Cohere's FluidAudio pipeline, and the optional WhisperKit engine live behind this owner; callers do not own model lifecycles directly.
 
 That runtime is the sole owner of:
 
-- slot-scoped Parakeet `AsrManager` instances
-- the optional Beta `NemotronEngine` instance
+- slot-scoped Parakeet v2/v3 `AsrManager` instances
+- the Parakeet Unified engine
+- the optional Beta Nemotron multilingual / English engine instances
+- the optional batch-only `CohereTranscribeEngine` instance
 - the optional `WhisperEngine` instance
 - model download / initialization / readiness
 - warm-up progress
@@ -110,11 +116,11 @@ This means:
 
 - dictation stays responsive even during other work
 - meeting finalization beats live preview
-- file transcription yields to meeting work
+- queued file transcription yields priority to meeting work; already-running file work is not preempted
 - file transcription does not receive dedicated always-on capacity
 
-Meeting recordings use `meetingFinalize` both immediately after stop and during archived retranscribe when the saved folder still contains `meeting-recording-metadata.json` plus the per-source files.
-Legacy meeting rows without that archived metadata fall back to `fileTranscription` on the mixed `meeting.m4a` artifact.
+Meeting recordings use `meetingFinalize` from the background finalization queue after durable stop and during archived retranscribe when the saved folder still contains `meeting-recording-metadata.json` plus the per-source files.
+Legacy meeting rows without that archived metadata fall back to `fileTranscription` on the stored `transcriptions.filePath` audio.
 
 Reference shape:
 
@@ -139,6 +145,9 @@ TranscriptionService -------┘
 ### 6. Backpressure is explicit
 
 Meeting live chunk transcription is best-effort and droppable under backlog.
+The current scheduler caps pending live chunks at 120 by default and drops
+the oldest pending live chunk when another arrives at the limit. Durable
+file/finalization jobs are not dropped by this admission rule.
 
 If the control plane exceeds configured queue or latency thresholds, it may:
 
@@ -177,7 +186,7 @@ It remains a separate service because:
 
 The STT control plane may coordinate with diarization for lifecycle/UI/reporting purposes, but diarization capacity policy remains separate.
 
-Keeping diarization out of the speech-slot scheduler does **not** mean product readiness may ignore it. When speaker detection is enabled (it is off by default — see ADR-010 amendment 2026-06-14), onboarding and ready-state UX must account for diarization-model readiness before claiming file transcription is fully prepared.
+Keeping diarization out of the speech-slot scheduler does **not** mean product readiness may ignore it. Speaker detection now defaults on where supported (see ADR-010 amendment 2026-07-03), so onboarding and ready-state UX must account for diarization-model readiness before claiming file transcription is fully prepared when a diarization service is available.
 
 ### 9. Progress must be job-scoped
 
@@ -195,12 +204,22 @@ This avoids crosstalk between:
 The control plane supports both unrouted and routed transcription calls:
 
 - Unrouted jobs use the runtime's current `SpeechEnginePreference`.
-- Routed jobs pass a `SpeechEngineSelection` (`parakeet` or `whisper` plus optional Whisper language).
+- Routed jobs pass a `SpeechEngineSelection` (`parakeet`, `nemotron`, `cohere`, or `whisper`, with optional language where the selected engine/build supports it).
+- Cohere jobs are admitted as a scheduler-level single-flight resource across the interactive and background slots. Parakeet/Nemotron/Whisper keep the normal slot split; Cohere trades that low-latency isolation for its larger batch accuracy path.
 - `setSpeechEngine(_:)` is rejected while jobs are queued/running.
-- `beginSpeechEngineSession()` returns a lease containing the current selection; `endSpeechEngineSession(_:)` releases it.
+- `beginSpeechEngineSession()` returns a lease containing the current live selection and capabilities; `endSpeechEngineSession(_:)` releases it.
 - Engine switching is rejected while any lease is active.
 
-Meeting recording uses this lease at start. This prevents a long recording from starting with one engine for live preview and finishing with another. The captured engine/language is also persisted to meeting metadata and recovery lock files so interrupted sessions recover through the same engine.
+Meeting recording always acquires the current Live Speech lease at start—even
+when that engine cannot render preview—so engine and model-variant switches
+remain excluded for the full capture. It resolves one immutable
+`MeetingSpeechPlan` from that lease plus the resolved Final Transcription
+preference. Preview admission is a capability decision derived from word-timing
+support; there is no fallback engine. The final selection is persisted in the
+existing lock field for recovery and in archived metadata for immediate and
+later retranscription. Optional preview provenance is metadata-only. Final
+model loading remains lazy and enters through normal scheduler admission after
+durable stop; the meeting feature never constructs or downloads an engine.
 
 ## Consequences
 
@@ -212,7 +231,7 @@ Meeting recording uses this lease at start. This prevents a long recording from 
 - Meeting live preview degrades gracefully under pressure
 - File transcription is intentionally simple and low-risk in v1
 - The architecture leaves room for chunked batch work or a third slot later without returning to per-feature STT ownership
-- Whisper support fits the same control plane instead of creating a parallel scheduler
+- Whisper, Nemotron, Cohere, and Parakeet Unified support fit the same control plane instead of creating parallel schedulers
 
 ### Negative
 
@@ -226,13 +245,14 @@ Meeting recording uses this lease at start. This prevents a long recording from 
 
 ### Core types
 
-- `STTRuntime` — owns slot-scoped Parakeet `AsrManager` instances, optional `NemotronEngine` / `WhisperEngine` instances, engine dispatch, and model lifecycle
+- `STTRuntime` — owns slot-scoped Parakeet v2/v3 `AsrManager` instances, the dedicated Parakeet Unified engine, optional Nemotron / Cohere / Whisper engine instances, engine dispatch, and model lifecycle
 - `STTScheduler` — owns admission, slot assignment, in-slot priority, progress fan-out, speech-engine sessions, and job execution against the runtime
 
 ### Service boundaries
 
 - `DictationService` submits interactive dictation jobs
-- `MeetingRecordingService` submits live chunk and immediate post-stop meeting-finalization jobs
+- `MeetingRecordingService` submits live chunk jobs and persists the captured engine into stopped-session metadata/locks
+- `MeetingTranscriptionQueue` submits post-stop meeting-finalization jobs after the recorder has durably finalized audio and returned to idle
 - `TranscriptionService` submits batch file / YouTube jobs plus saved-item retranscribes, including archived meetings that reconstruct into the dual-source `meetingFinalize` path when metadata is available
 
 ### Migration path

@@ -179,8 +179,9 @@ after a false-positive + idle-CPU pass.
 - Mark ADR-024 status from PROPOSAL → IMPLEMENTED as phases ship; record any
   amendments inline (ADR-017 style).
 - `spec/README.md` + `spec/02-features.md`: add the activity-detection entry to
-  the meeting section; update REQ-MEET-016 status when the coordinator wires.
-- `CLAUDE.md` Release Channels: note the new `AppFeatures` flag in the
-  `main`-vs-release delta until it ships in a tagged build.
+  the meeting section and update status when the coordinator wires.
+- `spec/README.md` Release Channels And Feature Flags: note the new
+  `AppFeatures` flag in the `main`-vs-release delta until it ships in a tagged
+  build.
 - Archive this plan to `plans/completed/` once Phase C/D land and the flag is
   on in a release.

@@ -1,0 +1,9 @@
+Transcribing ja_jp_0000.wav with cohere...
+Converting audio...
+Preparing speech model...
+[16:02:25.862] [INFO] [FluidAudio.CoherePipeline] Loading encoder from <QA_ROOT>/isolated-home/Library/Application Support/FluidAudio/Models/cohere-transcribe/q8/cohere_encoder.mlmodelc
+[16:03:01.192] [INFO] [FluidAudio.CoherePipeline] Loading decoder from <QA_ROOT>/isolated-home/Library/Application Support/FluidAudio/Models/cohere-transcribe/q8/cohere_decoder_cache_external_v2.mlmodelc
+[16:03:06.511] [INFO] [FluidAudio.CoherePipeline] Loaded vocabulary with 16384 tokens
+Transcribing... 0%
+Transcribing... 40%
+Transcribing... 99%

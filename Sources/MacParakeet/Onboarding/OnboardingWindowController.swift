@@ -17,6 +17,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         sttClient: STTClientProtocol,
         diarizationService: DiarizationServiceProtocol? = nil,
         onFinish: @escaping () -> Void,
+        restartExistingRun: Bool = false,
         onHotkeyPreviewArm: @escaping () -> Void = {},
         onHotkeyPreviewDisarm: @escaping () -> Void = {},
         onOpenMainApp: @escaping () -> Void,
@@ -24,6 +25,10 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         onIncompleteDismiss: @escaping () -> Void
     ) {
         if let window {
+            if restartExistingRun {
+                viewModel?.startNewCurrentRun()
+                viewModel?.markOnboardingShown()
+            }
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
@@ -79,6 +84,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
 
             let response = alert.runModal()
             if response == .alertSecondButtonReturn {
+                vm.markOnboardingDismissed()
                 onIncompleteDismiss()
                 allowCloseWithoutCompletion = true
                 close()

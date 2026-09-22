@@ -3,25 +3,40 @@ import Foundation
 public protocol AppRuntimePreferencesProtocol: Sendable {
     var processingMode: Dictation.ProcessingMode { get }
     var dictationInsertionStyle: DictationInsertionStyle { get }
+    var removeUmFiller: Bool { get }
+    var voiceReturnTriggers: [String] { get }
     var voiceReturnTrigger: String? { get }
     var shouldSaveAudioRecordings: Bool { get }
     var shouldSaveDictationHistory: Bool { get }
     var shouldSaveTranscriptionAudio: Bool { get }
+    var meetingAudioRetention: MeetingAudioRetention { get }
     var shouldSaveMeetingAudio: Bool { get }
+    var shouldAutoGenerateMeetingTitles: Bool { get }
     var youtubeAudioQuality: YouTubeAudioQuality { get }
     var shouldDiarize: Bool { get }
+    var shouldDiarizeMeetings: Bool { get }
+    var meetingLiveTranscriptionEnabled: Bool { get }
     var aiFormatterEnabled: Bool { get }
     var aiFormatterEnabledForDictation: Bool { get }
     var aiFormatterEnabledForTranscriptions: Bool { get }
     var aiFormatterPrompt: String { get }
+    var aiFormatterDictationPrompt: String { get }
     var transcriptAIContextMode: TranscriptAIContextMode { get }
     var selectedMicrophoneDeviceUID: String? { get }
     var meetingAudioSourceMode: MeetingAudioSourceMode { get }
+    var startMeetingsMuted: Bool { get }
+    var shouldShowMeetingRecordingPill: Bool { get }
+    var openAppAfterMeetingEnd: Bool { get }
+    var notifyOnMeetingEnd: Bool { get }
     var pauseMediaDuringDictation: Bool { get }
+    var preserveDiscardedDictations: Bool { get }
     var instantDictationEnabled: Bool { get }
+    var customVocabularyRecognitionBoostingEnabled: Bool { get }
     var showLiveDictationPreview: Bool { get }
     var dictationPreviewTextSize: DictationPreviewTextSize { get }
+    var dictationUndoCountdown: DictationUndoCountdown { get }
     var shouldKeepDictationOnClipboard: Bool { get }
+    var dictationStreamingCursorEnabled: Bool { get }
     var hasCompletedFirstDictation: Bool { get }
     /// Flip the one-shot "first dictation completed" flag. Returns `true` only
     /// the first time it transitions (so callers can fire a one-shot side
@@ -29,6 +44,150 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     /// subsequent call.
     @discardableResult
     func markFirstDictationCompleted() -> Bool
+}
+
+public enum MeetingAudioRetentionMode: String, CaseIterable, Identifiable, Hashable, Sendable, Equatable {
+    case keepForever = "keep_forever"
+    case deleteAfterDays = "delete_after_days"
+    case deleteImmediately = "delete_immediately"
+
+    public var id: String { rawValue }
+
+    public var displayTitle: String {
+        switch self {
+        case .keepForever:
+            return "Keep forever"
+        case .deleteAfterDays:
+            return "Remove after..."
+        case .deleteImmediately:
+            return "Remove audio after transcription"
+        }
+    }
+}
+
+public enum MeetingAudioRetention: Hashable, Sendable, Equatable {
+    public static let minDeleteAfterDays = 1
+    public static let maxDeleteAfterDays = 365
+    public static let defaultDeleteAfterDays = 30
+    public static let deleteAfterDaysRange = minDeleteAfterDays...maxDeleteAfterDays
+
+    case keepForever
+    case deleteAfterDays(Int)
+    case deleteImmediately
+
+    public var mode: MeetingAudioRetentionMode {
+        switch self {
+        case .keepForever:
+            return .keepForever
+        case .deleteAfterDays:
+            return .deleteAfterDays
+        case .deleteImmediately:
+            return .deleteImmediately
+        }
+    }
+
+    public var deleteAfterDays: Int {
+        switch self {
+        case .deleteAfterDays(let days):
+            return Self.normalizedDeleteAfterDays(days)
+        case .keepForever, .deleteImmediately:
+            return Self.defaultDeleteAfterDays
+        }
+    }
+
+    public var shouldSaveFreshAudio: Bool {
+        self != .deleteImmediately
+    }
+
+    public var automaticallyDeletesAudio: Bool {
+        self != .keepForever
+    }
+
+    public var storageRawValue: String {
+        switch self {
+        case .keepForever:
+            return MeetingAudioRetentionMode.keepForever.rawValue
+        case .deleteAfterDays:
+            return MeetingAudioRetentionMode.deleteAfterDays.rawValue
+        case .deleteImmediately:
+            return MeetingAudioRetentionMode.deleteImmediately.rawValue
+        }
+    }
+
+    public var configurationValue: String {
+        switch self {
+        case .keepForever:
+            return "keep-forever"
+        case .deleteAfterDays(let days):
+            let normalizedDays = Self.normalizedDeleteAfterDays(days)
+            return "delete-after-\(normalizedDays)-\(Self.dayUnit(for: normalizedDays))"
+        case .deleteImmediately:
+            return "delete-immediately"
+        }
+    }
+
+    public static func make(mode: MeetingAudioRetentionMode, days: Int = defaultDeleteAfterDays) -> MeetingAudioRetention {
+        switch mode {
+        case .keepForever:
+            return .keepForever
+        case .deleteAfterDays:
+            return .deleteAfterDays(normalizedDeleteAfterDays(days))
+        case .deleteImmediately:
+            return .deleteImmediately
+        }
+    }
+
+    public static func normalizedDeleteAfterDays(_ days: Int) -> Int {
+        guard deleteAfterDaysRange.contains(days) else {
+            return defaultDeleteAfterDays
+        }
+        return days
+    }
+
+    public static func isValidDeleteAfterDays(_ days: Int) -> Bool {
+        deleteAfterDaysRange.contains(days)
+    }
+
+    public static func parseConfigurationValue(_ value: String) -> MeetingAudioRetention? {
+        let raw = value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "_", with: "-")
+            .replacingOccurrences(of: " ", with: "-")
+
+        switch raw {
+        case "keep-forever", "forever", "keep", "on", "true":
+            return .keepForever
+        case "delete-immediately", "immediate", "delete-after-transcription", "after-transcription", "off", "false":
+            return .deleteImmediately
+        default:
+            break
+        }
+
+        var dayValue = raw
+        if dayValue.hasSuffix("-days") {
+            dayValue = String(dayValue.dropLast("-days".count))
+        } else if dayValue.hasSuffix("-day") {
+            dayValue = String(dayValue.dropLast("-day".count))
+        } else if dayValue.hasSuffix("d") {
+            dayValue = String(dayValue.dropLast())
+        }
+        if dayValue.hasPrefix("delete-after-") {
+            dayValue = String(dayValue.dropFirst("delete-after-".count))
+        } else if dayValue.hasPrefix("after-") {
+            dayValue = String(dayValue.dropFirst("after-".count))
+        }
+
+        if let days = Int(dayValue),
+           isValidDeleteAfterDays(days) {
+            return .deleteAfterDays(days)
+        }
+        return nil
+    }
+
+    private static func dayUnit(for days: Int) -> String {
+        days == 1 ? "day" : "days"
+    }
 }
 
 public enum DictationInsertionStyle: String, CaseIterable, Hashable, Sendable, Equatable {
@@ -96,6 +255,42 @@ public enum DictationPreviewTextSize: String, CaseIterable, Hashable, Sendable, 
             return .medium
         }
         return size
+    }
+}
+
+public enum DictationUndoCountdown: String, CaseIterable, Hashable, Sendable, Equatable {
+    case off = "off"
+    case oneSecond = "oneSecond"
+    case fiveSeconds = "fiveSeconds"
+
+    public var seconds: Double? {
+        switch self {
+        case .fiveSeconds:
+            return 5
+        case .oneSecond:
+            return 1
+        case .off:
+            return nil
+        }
+    }
+
+    public var displayTitle: String {
+        switch self {
+        case .fiveSeconds:
+            return "5 seconds"
+        case .oneSecond:
+            return "1 second"
+        case .off:
+            return "Off"
+        }
+    }
+
+    public static func current(defaults: UserDefaults = .standard) -> DictationUndoCountdown {
+        guard let raw = defaults.string(forKey: UserDefaultsAppRuntimePreferences.dictationUndoCountdownKey),
+              let countdown = DictationUndoCountdown(rawValue: raw) else {
+            return .fiveSeconds
+        }
+        return countdown
     }
 }
 
@@ -172,29 +367,90 @@ public enum YouTubeAudioQuality: String, CaseIterable, Hashable, Sendable, Equat
     }
 }
 
-public enum MeetingAudioSourceMode: String, CaseIterable, Hashable, Sendable, Equatable {
+public enum MeetingAudioSourceMode: String, Codable, CaseIterable, Hashable, Sendable, Equatable {
     case microphoneAndSystem = "microphone_and_system"
+    case microphoneOnly = "microphone_only"
     case systemOnly = "system_only"
 
     public var capturesMicrophone: Bool {
-        self == .microphoneAndSystem
+        switch self {
+        case .microphoneAndSystem, .microphoneOnly:
+            return true
+        case .systemOnly:
+            return false
+        }
+    }
+
+    public var capturesSystemAudio: Bool {
+        switch self {
+        case .microphoneAndSystem, .systemOnly:
+            return true
+        case .microphoneOnly:
+            return false
+        }
     }
 
     public var displayTitle: String {
         switch self {
         case .microphoneAndSystem:
-            return "Microphone + System Audio"
+            return "Microphone + system audio"
+        case .microphoneOnly:
+            return "Microphone only"
         case .systemOnly:
-            return "System Audio Only"
+            return "System audio only"
         }
     }
 
     public var detail: String {
         switch self {
         case .microphoneAndSystem:
-            return "Capture your microphone and computer audio. Weak mic bleed is suppressed live."
+            return "Capture your voice and call audio. Best when using headphones."
+        case .microphoneOnly:
+            return "Capture only your microphone. Useful when speaker audio bleeds into the mic."
         case .systemOnly:
-            return "Capture computer audio for meetings. Your microphone is still used for dictation."
+            return "Capture only computer audio. Your microphone stays available for dictation."
+        }
+    }
+
+    public var configurationValue: String {
+        switch self {
+        case .microphoneAndSystem:
+            return "microphone-and-system"
+        case .microphoneOnly:
+            return "microphone-only"
+        case .systemOnly:
+            return "system-only"
+        }
+    }
+
+    public static func parseConfigurationValue(_ value: String) -> MeetingAudioSourceMode? {
+        let raw = value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .components(separatedBy: CharacterSet(charactersIn: "_-+&").union(.whitespacesAndNewlines))
+            .filter { !$0.isEmpty }
+            .joined(separator: "-")
+
+        switch raw {
+        case "microphone-and-system",
+             "microphone-and-system-audio",
+             "microphone-system",
+             "microphone-system-audio",
+             "mic-and-system",
+             "mic-and-system-audio",
+             "mic-system",
+             "mic-system-audio",
+             "both",
+             "all",
+             "default":
+            return .microphoneAndSystem
+        // Short source aliases are exclusive; use "both" or "default" for combined capture.
+        case "microphone-only", "mic-only", "microphone", "mic":
+            return .microphoneOnly
+        case "system-only", "system-audio-only", "system", "computer-audio-only", "computer-audio":
+            return .systemOnly
+        default:
+            return nil
         }
     }
 
@@ -207,24 +463,86 @@ public enum MeetingAudioSourceMode: String, CaseIterable, Hashable, Sendable, Eq
     }
 }
 
+public enum VoiceReturnTriggerPhrases: Sendable {
+    public static let defaultTrigger = "press return"
+
+    public static func normalized(_ rawTriggers: [String]) -> [String] {
+        var seenKeys = Set<String>()
+        var triggers: [String] = []
+
+        for rawTrigger in rawTriggers {
+            let trigger = rawTrigger.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trigger.isEmpty else { continue }
+
+            let key = trigger.lowercased()
+            guard seenKeys.insert(key).inserted else { continue }
+            triggers.append(trigger)
+        }
+
+        return triggers
+    }
+
+    public static func normalizedOrDefault(_ rawTriggers: [String]) -> [String] {
+        let triggers = normalized(rawTriggers)
+        return triggers.isEmpty ? [defaultTrigger] : triggers
+    }
+}
+
 public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProtocol, @unchecked Sendable {
+    public static let defaultVoiceReturnTrigger = VoiceReturnTriggerPhrases.defaultTrigger
     public static let showIdlePillKey = "showIdlePill"
+    public static let showDiscoverKey = "showDiscover"
+    public static let showMeetingRecordingPillKey = "showMeetingRecordingPill"
+    /// Open the main window on the finished meeting when its transcription
+    /// completes (default on). Off means completion does not change focus or
+    /// select a different meeting; `notifyOnMeetingEnd` controls its signal.
+    public static let openAppAfterMeetingEndKey = "openAppAfterMeetingEnd"
+    /// Post the meeting-transcript-ready chime/banner on the quiet path, i.e.
+    /// when `openAppAfterMeetingEnd` is off (default on). Independent of the
+    /// Transcription card's `notifyOnTranscriptionComplete` toggle.
+    public static let notifyOnMeetingEndKey = "notifyOnMeetingEnd"
     public static let silenceAutoStopKey = "silenceAutoStop"
     public static let silenceDelayKey = "silenceDelay"
     public static let voiceReturnEnabledKey = "voiceReturnEnabled"
     public static let voiceReturnTriggerKey = "voiceReturnTrigger"
+    public static let voiceReturnTriggersKey = "voiceReturnTriggers"
     public static let processingModeKey = "processingMode"
     public static let dictationInsertionStyleKey = "dictationInsertionStyle"
+    /// Clean processing strips standalone English hesitation `um` (default on).
+    /// Portuguese and German speakers can turn this off; `um` is a real word.
+    public static let removeUmFillerKey = "removeUmFiller"
+    public static let defaultRemoveUmFiller = true
     public static let saveDictationHistoryKey = "saveDictationHistory"
     public static let saveAudioRecordingsKey = "saveAudioRecordings"
     public static let saveTranscriptionAudioKey = "saveTranscriptionAudio"
     public static let saveMeetingAudioKey = "saveMeetingAudio"
+    public static let meetingAudioRetentionKey = "meetingAudioRetention"
+    public static let meetingAudioRetentionDeleteAfterDaysKey = "meetingAudioRetentionDeleteAfterDays"
+    public static let lastMeetingAudioRetentionSweepAtKey = "lastMeetingAudioRetentionSweepAt"
+    public static let autoGenerateMeetingTitlesKey = "autoGenerateMeetingTitles"
     public static let youtubeAudioQualityKey = "youtubeAudioQuality"
     public static let speakerDiarizationKey = "speakerDiarization"
+    public static let defaultSpeakerDiarizationEnabled = true
+    public static let meetingSpeakerDiarizationKey = "meetingSpeakerDiarization"
+    public static let defaultMeetingSpeakerDiarizationEnabled = true
+    /// Runs the live STT pass during meeting recording (default on). Off
+    /// means only audio is captured while recording; the final transcript
+    /// still runs a full post-stop STT pass over the saved audio regardless
+    /// of this setting.
+    public static let meetingLiveTranscriptionEnabledKey = "meetingLiveTranscriptionEnabled"
+    public static let defaultMeetingLiveTranscriptionEnabled = true
+    /// Off unless the user asks: a voiceprint is biometric data.
+    public static let rememberSpeakersKey = "rememberSpeakers"
+    public static let defaultRememberSpeakersEnabled = false
+    /// A date rather than a flag: "when did you consent?" needs one. Asked when
+    /// the toggle goes on, not at the first enrollment — by then a voice has
+    /// already been stored.
+    public static let voiceprintConsentAcknowledgedAtKey = "voiceprintConsentAcknowledgedAt"
     public static let aiFormatterEnabledKey = "aiFormatterEnabled"
     public static let aiFormatterEnabledForDictationKey = "aiFormatterEnabledForDictation"
     public static let aiFormatterEnabledForTranscriptionsKey = "aiFormatterEnabledForTranscriptions"
     public static let aiFormatterPromptKey = "aiFormatterPrompt"
+    public static let aiFormatterDictationPromptKey = "aiFormatterDictationPrompt"
     /// Master switch for the built-in smart-default formatter prompts
     /// (default on). Off means the resolution chain skips the smart-default
     /// tier entirely — custom profiles, then the fallback prompt.
@@ -233,14 +551,23 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     /// turned off individually (default empty).
     public static let aiFormatterDisabledSmartDefaultCategoriesKey = "aiFormatterDisabledSmartDefaultCategories"
     public static let transcriptAIContextModeKey = "transcriptAIContextMode"
+    public static let transcriptFontScaleKey = "com.macparakeet.transcriptFontScale"
     public static let selectedMicrophoneDeviceUIDKey = "selectedMicrophoneDeviceUID"
     public static let meetingAudioSourceModeKey = "meetingAudioSourceMode"
+    /// Start microphone-capturing meetings muted (default off) until this
+    /// setting is turned off. Unmute from the live panel; system-only
+    /// capture ignores this.
+    public static let startMeetingsMutedKey = "startMeetingsMuted"
     public static let meetingAutoStopEnabledKey = "meetingAutoStopEnabled"
     public static let pauseMediaDuringDictationKey = "pauseMediaDuringDictation"
+    public static let preserveDiscardedDictationsKey = "preserveDiscardedDictations"
     public static let instantDictationEnabledKey = "instantDictationEnabled"
+    public static let customVocabularyRecognitionBoostingEnabledKey = "customVocabularyRecognitionBoostingEnabled"
     public static let showLiveDictationPreviewKey = "showLiveDictationPreview"
     public static let dictationPreviewTextSizeKey = "dictationPreviewTextSize"
+    public static let dictationUndoCountdownKey = "dictationUndoCountdown"
     public static let keepDictationOnClipboardKey = "keepDictationOnClipboard"
+    public static let dictationStreamingCursorEnabledKey = "dictationStreamingCursorEnabled"
     public static let hasCompletedFirstDictationKey = "hasCompletedFirstDictation"
     /// Play a chime (and, when backgrounded, post a banner) when a file/URL
     /// transcription or a batch finishes. Default on; opt-out in Settings.
@@ -252,6 +579,78 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
         self.defaults = defaults
     }
 
+    public static func normalizedVoiceReturnTriggers(_ rawTriggers: [String]) -> [String] {
+        VoiceReturnTriggerPhrases.normalized(rawTriggers)
+    }
+
+    public static func voiceReturnTriggerList(defaults: UserDefaults = .standard) -> [String] {
+        if defaults.object(forKey: voiceReturnTriggersKey) != nil {
+            let triggers = VoiceReturnTriggerPhrases.normalized(
+                defaults.stringArray(forKey: voiceReturnTriggersKey) ?? []
+            )
+            if !triggers.isEmpty {
+                return triggers
+            }
+        }
+
+        if let legacyTrigger = defaults.string(forKey: voiceReturnTriggerKey) {
+            let triggers = VoiceReturnTriggerPhrases.normalized([legacyTrigger])
+            if !triggers.isEmpty {
+                return triggers
+            }
+        }
+
+        return [defaultVoiceReturnTrigger]
+    }
+
+    public static func speakerDiarizationEnabled(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: speakerDiarizationKey) as? Bool ?? defaultSpeakerDiarizationEnabled
+    }
+
+    public static func meetingSpeakerDiarizationEnabled(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: meetingSpeakerDiarizationKey) as? Bool ?? defaultMeetingSpeakerDiarizationEnabled
+    }
+
+    public static func meetingLiveTranscriptionEnabled(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: meetingLiveTranscriptionEnabledKey) as? Bool
+            ?? defaultMeetingLiveTranscriptionEnabled
+    }
+
+    /// Requires speaker detection, since without clusters there is nothing to
+    /// match, and an acknowledged consent date, since the first thing this
+    /// feature does is store a voice.
+    ///
+    /// The consent gate is part of the resolver rather than a check at the
+    /// enrollment surface: a voice is now kept from the end of the meeting, so
+    /// a gate that only guarded naming would come too late.
+    public static func rememberSpeakersEnabled(
+        defaults: UserDefaults = .standard,
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> Bool {
+        guard AppFeatures.isVoiceProfilesAvailable(arguments: arguments) else { return false }
+        let enabled = defaults.object(forKey: rememberSpeakersKey) as? Bool
+            ?? defaultRememberSpeakersEnabled
+        return enabled
+            && meetingSpeakerDiarizationEnabled(defaults: defaults)
+            && voiceprintConsentAcknowledgedAt(defaults: defaults) != nil
+    }
+
+    public static func voiceprintConsentAcknowledgedAt(defaults: UserDefaults = .standard) -> Date? {
+        defaults.object(forKey: voiceprintConsentAcknowledgedAtKey) as? Date
+    }
+
+    public static func showMeetingRecordingPill(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: showMeetingRecordingPillKey) as? Bool ?? true
+    }
+
+    public static func openAppAfterMeetingEnd(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: openAppAfterMeetingEndKey) as? Bool ?? true
+    }
+
+    public static func notifyOnMeetingEnd(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: notifyOnMeetingEndKey) as? Bool ?? true
+    }
+
     public var processingMode: Dictation.ProcessingMode {
         let raw = defaults.string(forKey: Self.processingModeKey)
         return Dictation.ProcessingMode(rawValue: raw ?? Dictation.ProcessingMode.raw.rawValue) ?? .raw
@@ -261,11 +660,21 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
         DictationInsertionStyle.current(defaults: defaults)
     }
 
+    public var removeUmFiller: Bool {
+        Self.removeUmFiller(defaults: defaults)
+    }
+
+    public static func removeUmFiller(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: removeUmFillerKey) as? Bool ?? defaultRemoveUmFiller
+    }
+
+    public var voiceReturnTriggers: [String] {
+        guard defaults.bool(forKey: Self.voiceReturnEnabledKey) else { return [] }
+        return Self.voiceReturnTriggerList(defaults: defaults)
+    }
+
     public var voiceReturnTrigger: String? {
-        guard defaults.bool(forKey: Self.voiceReturnEnabledKey) else { return nil }
-        let trigger = (defaults.string(forKey: Self.voiceReturnTriggerKey) ?? "press return")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return trigger.isEmpty ? nil : trigger
+        voiceReturnTriggers.first
     }
 
     public var shouldSaveAudioRecordings: Bool {
@@ -280,8 +689,16 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
         defaults.object(forKey: Self.saveTranscriptionAudioKey) as? Bool ?? true
     }
 
+    public var meetingAudioRetention: MeetingAudioRetention {
+        Self.meetingAudioRetention(defaults: defaults)
+    }
+
     public var shouldSaveMeetingAudio: Bool {
-        defaults.object(forKey: Self.saveMeetingAudioKey) as? Bool ?? true
+        meetingAudioRetention.shouldSaveFreshAudio
+    }
+
+    public var shouldAutoGenerateMeetingTitles: Bool {
+        defaults.object(forKey: Self.autoGenerateMeetingTitlesKey) as? Bool ?? true
     }
 
     public var youtubeAudioQuality: YouTubeAudioQuality {
@@ -289,7 +706,23 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     }
 
     public var shouldDiarize: Bool {
-        defaults.object(forKey: Self.speakerDiarizationKey) as? Bool ?? false
+        Self.speakerDiarizationEnabled(defaults: defaults)
+    }
+
+    public var shouldDiarizeMeetings: Bool {
+        Self.meetingSpeakerDiarizationEnabled(defaults: defaults)
+    }
+
+    public var meetingLiveTranscriptionEnabled: Bool {
+        Self.meetingLiveTranscriptionEnabled(defaults: defaults)
+    }
+
+    public var startMeetingsMuted: Bool {
+        Self.startMeetingsMuted(defaults: defaults)
+    }
+
+    public static func startMeetingsMuted(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: startMeetingsMutedKey) as? Bool ?? false
     }
 
     public var aiFormatterEnabled: Bool {
@@ -306,16 +739,43 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     }
 
     /// Whether the AI Formatter runs on file/meeting transcripts. Defaults to
-    /// `true` to preserve the pre-#493 behavior where transcripts followed the
-    /// saved provider config alone; the transcription gate is the logical AND
-    /// of `aiFormatterEnabled` and this flag.
+    /// `false`, matching dictation: configuring a provider is not consent to
+    /// rewrite every finalized transcript. The transcription gate is the
+    /// logical AND of `aiFormatterEnabled` and this flag.
     public var aiFormatterEnabledForTranscriptions: Bool {
-        defaults.object(forKey: Self.aiFormatterEnabledForTranscriptionsKey) as? Bool ?? true
+        defaults.object(forKey: Self.aiFormatterEnabledForTranscriptionsKey) as? Bool ?? false
     }
 
     public var aiFormatterPrompt: String {
         let prompt = defaults.string(forKey: Self.aiFormatterPromptKey) ?? ""
         return AIFormatter.normalizedPromptTemplate(prompt)
+    }
+
+    /// Dictation formatter prompt. Independent of the transcript prompt after
+    /// the split; a customized pre-split shared prompt is copied once.
+    public var aiFormatterDictationPrompt: String {
+        Self.migrateAIFormatterDictationPromptIfNeeded(defaults: defaults)
+        return Self.resolvedAIFormatterDictationPrompt(from: defaults)
+    }
+
+    public static func resolvedAIFormatterDictationPrompt(from defaults: UserDefaults) -> String {
+        AIFormatter.resolvedDictationPrompt(
+            storedDictationPrompt: defaults.string(forKey: aiFormatterDictationPromptKey),
+            storedSharedPrompt: defaults.string(forKey: aiFormatterPromptKey)
+        )
+    }
+
+    public static func migrateAIFormatterDictationPromptIfNeeded(defaults: UserDefaults) {
+        let stored = defaults.string(forKey: aiFormatterDictationPromptKey)
+        if let stored, !stored.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return
+        }
+        let shared = defaults.string(forKey: aiFormatterPromptKey) ?? ""
+        guard !AIFormatter.isBuiltInSharedPrompt(shared) else { return }
+        defaults.set(
+            resolvedAIFormatterDictationPrompt(from: defaults),
+            forKey: aiFormatterDictationPromptKey
+        )
     }
 
     public var transcriptAIContextMode: TranscriptAIContextMode {
@@ -330,12 +790,36 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
         MeetingAudioSourceMode.current(defaults: defaults)
     }
 
+    public var shouldShowMeetingRecordingPill: Bool {
+        Self.showMeetingRecordingPill(defaults: defaults)
+    }
+
+    public var openAppAfterMeetingEnd: Bool {
+        Self.openAppAfterMeetingEnd(defaults: defaults)
+    }
+
+    public var notifyOnMeetingEnd: Bool {
+        Self.notifyOnMeetingEnd(defaults: defaults)
+    }
+
     public var pauseMediaDuringDictation: Bool {
         defaults.object(forKey: Self.pauseMediaDuringDictationKey) as? Bool ?? false
     }
 
+    public var preserveDiscardedDictations: Bool {
+        Self.preserveDiscardedDictations(defaults: defaults)
+    }
+
+    public static func preserveDiscardedDictations(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: preserveDiscardedDictationsKey) as? Bool ?? false
+    }
+
     public var instantDictationEnabled: Bool {
         defaults.object(forKey: Self.instantDictationEnabledKey) as? Bool ?? false
+    }
+
+    public var customVocabularyRecognitionBoostingEnabled: Bool {
+        defaults.object(forKey: Self.customVocabularyRecognitionBoostingEnabledKey) as? Bool ?? false
     }
 
     public var showLiveDictationPreview: Bool {
@@ -346,8 +830,16 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
         DictationPreviewTextSize.current(defaults: defaults)
     }
 
+    public var dictationUndoCountdown: DictationUndoCountdown {
+        DictationUndoCountdown.current(defaults: defaults)
+    }
+
     public var shouldKeepDictationOnClipboard: Bool {
         defaults.bool(forKey: Self.keepDictationOnClipboardKey)
+    }
+
+    public var dictationStreamingCursorEnabled: Bool {
+        defaults.object(forKey: Self.dictationStreamingCursorEnabledKey) as? Bool ?? false
     }
 
     public var hasCompletedFirstDictation: Bool {
@@ -359,5 +851,52 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
         guard !hasCompletedFirstDictation else { return false }
         defaults.set(true, forKey: Self.hasCompletedFirstDictationKey)
         return true
+    }
+
+    public static func meetingAudioRetention(
+        defaults: UserDefaults = .standard, persistMigration: Bool = true
+    ) -> MeetingAudioRetention {
+        if let raw = defaults.string(forKey: meetingAudioRetentionKey),
+           let mode = MeetingAudioRetentionMode(rawValue: raw) {
+            return MeetingAudioRetention.make(
+                mode: mode,
+                days: meetingAudioRetentionDeleteAfterDays(defaults: defaults)
+            )
+        }
+
+        let migrated: MeetingAudioRetention = (defaults.object(forKey: saveMeetingAudioKey) as? Bool ?? true)
+            ? .keepForever
+            : .deleteImmediately
+        if persistMigration {
+            saveMeetingAudioRetention(migrated, defaults: defaults)
+        }
+        return migrated
+    }
+
+    public static func meetingAudioRetentionDeleteAfterDays(defaults: UserDefaults = .standard) -> Int {
+        MeetingAudioRetention.normalizedDeleteAfterDays(
+            defaults.object(forKey: meetingAudioRetentionDeleteAfterDaysKey) as? Int
+                ?? MeetingAudioRetention.defaultDeleteAfterDays
+        )
+    }
+
+    public static func saveMeetingAudioRetention(
+        _ retention: MeetingAudioRetention,
+        defaults: UserDefaults = .standard
+    ) {
+        let normalized = MeetingAudioRetention.make(
+            mode: retention.mode,
+            days: retention.deleteAfterDays
+        )
+        defaults.set(normalized.storageRawValue, forKey: meetingAudioRetentionKey)
+        if case .deleteAfterDays(let days) = normalized {
+            defaults.set(days, forKey: meetingAudioRetentionDeleteAfterDaysKey)
+        } else if defaults.object(forKey: meetingAudioRetentionDeleteAfterDaysKey) == nil {
+            defaults.set(
+                MeetingAudioRetention.defaultDeleteAfterDays,
+                forKey: meetingAudioRetentionDeleteAfterDaysKey
+            )
+        }
+        defaults.set(normalized.shouldSaveFreshAudio, forKey: saveMeetingAudioKey)
     }
 }

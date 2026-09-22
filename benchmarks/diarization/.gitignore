@@ -1,0 +1,4 @@
+wav/
+results/
+.cache/
+venv/

@@ -264,9 +264,10 @@ final class TransformExecutorTests: XCTestCase {
         let names = events.map { eventName($0) }
         XCTAssertEqual(names.first, "capturing")
         guard let llmStartedIdx = names.firstIndex(of: "llmStarted"),
-              let pastingIdx = names.firstIndex(of: "pasting"),
-              let doneIdx = names.firstIndex(of: "done"),
-              let completedIdx = names.firstIndex(of: "llmCompleted") else {
+            let pastingIdx = names.firstIndex(of: "pasting"),
+            let doneIdx = names.firstIndex(of: "done"),
+            let completedIdx = names.firstIndex(of: "llmCompleted")
+        else {
             XCTFail("Missing expected progress events: \(names)")
             return
         }
@@ -276,6 +277,40 @@ final class TransformExecutorTests: XCTestCase {
         XCTAssertTrue(names.contains("llmStreaming"))
 
         XCTAssertEqual(replacementBackend.lastAXText(), "Hi there!")
+    }
+
+    func testRunPassesCapturedInferenceSettingsAndModelOverrideToLLM() async throws {
+        let captureBackend = FakeSelectionCaptureBackend(
+            isTrusted: true,
+            focusedElement: AXUIElementCreateSystemWide(),
+            selectedText: "Hello world"
+        )
+        let captureService = SelectionCaptureService(
+            backend: captureBackend,
+            clipboardPollTimeout: .milliseconds(40),
+            pollIntervalNanos: 1_000_000
+        )
+        let replacementService = SelectionReplacementService(
+            backend: FakeSelectionReplacementBackend(isTrusted: true, axWriteSucceeds: true),
+            postPasteDelay: .milliseconds(1)
+        )
+        let llm = MockTransformLLMService()
+        let executor = TransformExecutor(
+            captureService: captureService,
+            replacementService: replacementService,
+            llmService: llm
+        )
+        let settings = PromptInferenceSettings(temperature: 0.2, maxTokens: 700)
+
+        _ = try await executor.run(
+            prompt: "polish",
+            inferenceSettings: settings,
+            modelOverride: "provider/model-v2",
+            onProgress: { _ in }
+        )
+
+        XCTAssertEqual(llm.capturedInferenceSettings, settings.normalized)
+        XCTAssertEqual(llm.capturedModelOverride, "provider/model-v2")
     }
 
     func testRunCanPasteResultIntoCurrentFocusInsteadOfAXReplacing() async throws {
@@ -389,6 +424,7 @@ final class TransformProgressRecorder: @unchecked Sendable {
 
 final class MockTransformLLMService: LLMServiceProtocol, @unchecked Sendable {
     private let lock = OSAllocatedUnfairLock<Int>(initialState: 0)
+    private let requestLock = OSAllocatedUnfairLock<TransformRequestCapture?>(initialState: nil)
     var streamTokens: [String] = ["polished"]
     var streamError: Error?
 
@@ -396,11 +432,26 @@ final class MockTransformLLMService: LLMServiceProtocol, @unchecked Sendable {
         lock.withLock { $0 }
     }
 
+    var capturedInferenceSettings: PromptInferenceSettings? {
+        requestLock.withLock { $0?.inferenceSettings }
+    }
+
+    var capturedModelOverride: String? {
+        requestLock.withLock { $0?.modelOverride }
+    }
+
     func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String { "" }
-    func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) async throws -> String { "" }
+    func chat(
+        question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource,
+        conversationID: UUID
+    ) async throws -> String { "" }
     func transform(text: String, prompt: String) async throws -> String { "" }
-    func formatTranscript(transcript: String, promptTemplate: String, source: TelemetryFormatterSource, defaultPromptUsed: Bool) async throws -> String { "" }
-    func formatTranscriptDetailed(transcript: String, promptTemplate: String, source: TelemetryFormatterSource, defaultPromptUsed: Bool) async throws -> LLMFormatterResult {
+    func formatTranscript(
+        transcript: String, promptTemplate: String, source: TelemetryFormatterSource, defaultPromptUsed: Bool
+    ) async throws -> String { "" }
+    func formatTranscriptDetailed(
+        transcript: String, promptTemplate: String, source: TelemetryFormatterSource, defaultPromptUsed: Bool
+    ) async throws -> LLMFormatterResult {
         LLMFormatterResult(
             result: LLMResult(output: "", provider: "mock", model: "mock", latencyMs: 0),
             operationID: "mock",
@@ -414,7 +465,10 @@ final class MockTransformLLMService: LLMServiceProtocol, @unchecked Sendable {
     func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { $0.finish() }
     }
-    func chatStream(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) -> AsyncThrowingStream<String, Error> {
+    func chatStream(
+        question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource,
+        conversationID: UUID
+    ) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { $0.finish() }
     }
     func transformStream(text: String, prompt: String) -> AsyncThrowingStream<String, Error> {
@@ -430,13 +484,35 @@ final class MockTransformLLMService: LLMServiceProtocol, @unchecked Sendable {
             continuation.finish()
         }
     }
+    func transformStream(
+        text: String,
+        prompt: String,
+        inferenceSettings: PromptInferenceSettings?,
+        modelOverride: String?
+    ) -> AsyncThrowingStream<String, Error> {
+        requestLock.withLock {
+            $0 = TransformRequestCapture(
+                inferenceSettings: inferenceSettings,
+                modelOverride: modelOverride
+            )
+        }
+        return transformStream(text: text, prompt: prompt)
+    }
     func generatePromptResultDetailed(transcript: String, systemPrompt: String?) async throws -> LLMResult {
         LLMResult(output: "", provider: "mock", model: "mock", latencyMs: 0)
     }
-    func chatDetailed(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) async throws -> LLMResult {
+    func chatDetailed(
+        question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource,
+        conversationID: UUID
+    ) async throws -> LLMResult {
         LLMResult(output: "", provider: "mock", model: "mock", latencyMs: 0)
     }
     func transformDetailed(text: String, prompt: String) async throws -> LLMResult {
         LLMResult(output: "", provider: "mock", model: "mock", latencyMs: 0)
     }
+}
+
+private struct TransformRequestCapture: Sendable {
+    let inferenceSettings: PromptInferenceSettings?
+    let modelOverride: String?
 }

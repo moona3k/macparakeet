@@ -1,0 +1,623 @@
+import Foundation
+
+struct OpenAICompatibleLLMHTTPAdapter: LLMHTTPAdapter {
+    let structuredOutputCapability = LLMStructuredOutputCapability.nativeJSONSchema
+
+    private let transport: LLMHTTPTransport
+
+    init(transport: LLMHTTPTransport) {
+        self.transport = transport
+    }
+
+    func chatCompletion(
+        messages: [ChatMessage],
+        config: LLMProviderConfig,
+        options: ChatCompletionOptions
+    ) async throws -> ChatCompletionResponse {
+        let request = try buildRequest(messages: messages, config: config, options: options, stream: false)
+
+        let (data, response) = try await transport.data(for: request)
+
+        guard let http = response as? HTTPURLResponse else {
+            throw LLMError.connectionFailed("Invalid response.")
+        }
+
+        guard (200...299).contains(http.statusCode) else {
+            throw LLMHTTPErrorMapper.mapError(statusCode: http.statusCode, data: data)
+        }
+
+        guard let openAIResponse = try? JSONDecoder().decode(OpenAIResponse.self, from: data) else {
+            throw LLMError.invalidResponse
+        }
+
+        let content = openAIResponse.choices.first?.message.content ?? ""
+
+        let usage: TokenUsage?
+        if let u = openAIResponse.usage {
+            usage = TokenUsage(promptTokens: u.prompt_tokens, completionTokens: u.completion_tokens)
+        } else {
+            usage = nil
+        }
+
+        return ChatCompletionResponse(
+            content: content,
+            reasoningContent: openAIResponse.choices.first?.message.reasoning_content,
+            finishReason: openAIResponse.choices.first?.finish_reason,
+            model: openAIResponse.model,
+            usage: usage,
+            effectiveInferenceSettings: options.effectiveInferenceSettings
+        )
+    }
+
+    func chatCompletionStream(
+        messages: [ChatMessage],
+        config: LLMProviderConfig,
+        options: ChatCompletionOptions
+    ) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let request = try buildRequest(messages: messages, config: config, options: options, stream: true)
+
+                    let (bytes, response) = try await transport.bytes(for: request)
+
+                    guard let http = response as? HTTPURLResponse else {
+                        throw LLMError.connectionFailed("Invalid response.")
+                    }
+
+                    guard (200...299).contains(http.statusCode) else {
+                        // Collect error body from stream
+                        var errorData = Data()
+                        for try await byte in bytes {
+                            errorData.append(byte)
+                        }
+                        throw LLMHTTPErrorMapper.mapError(statusCode: http.statusCode, data: errorData)
+                    }
+
+                    // Process each line individually. Some providers (Gemini)
+                    // don't send blank line separators between SSE events,
+                    // so we parse each `data:` line as it arrives.
+                    var sawDone = false
+                    var yieldedAnyContent = false
+                    for try await line in bytes.lines {
+                        try Task.checkCancellation()
+
+                        switch parseSSELine(line) {
+                        case .content(let text):
+                            yieldedAnyContent = true
+                            continuation.yield(text)
+                        case .done:
+                            sawDone = true
+                            try validateStreamCompletion(
+                                providerID: config.id,
+                                sawSentinel: sawDone,
+                                yieldedAnyContent: yieldedAnyContent
+                            )
+                            continuation.finish()
+                            return
+                        case .error(let message):
+                            throw LLMHTTPErrorMapper.mapStreamingError(message: message)
+                        case .skip:
+                            break
+                        }
+                    }
+
+                    // Stream ended without `[DONE]`. For strict providers
+                    // (OpenAI, OpenRouter - both contractually emit `[DONE]`),
+                    // a missing sentinel means the connection dropped mid-
+                    // response and the user is looking at truncated output.
+                    // Lenient providers (Gemini, OpenAI-Compatible aggregators
+                    // like Together/Fireworks, LM Studio) frequently omit it,
+                    // so we accept a clean end-of-stream there.
+                    try validateStreamCompletion(
+                        providerID: config.id,
+                        sawSentinel: sawDone,
+                        yieldedAnyContent: yieldedAnyContent
+                    )
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+
+    func chatCompletionDetailedStream(
+        messages: [ChatMessage],
+        config: LLMProviderConfig,
+        options: ChatCompletionOptions
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let request = try buildRequest(messages: messages, config: config, options: options, stream: true)
+                    let (bytes, response) = try await transport.bytes(for: request)
+                    guard let http = response as? HTTPURLResponse else {
+                        throw LLMError.connectionFailed("Invalid response.")
+                    }
+                    guard (200...299).contains(http.statusCode) else {
+                        var errorData = Data()
+                        for try await byte in bytes { errorData.append(byte) }
+                        throw LLMHTTPErrorMapper.mapError(statusCode: http.statusCode, data: errorData)
+                    }
+
+                    var sawDone = false
+                    var yieldedAnyContent = false
+                    var model = config.modelName
+                    var stopReason: String?
+                    var usage: LLMUsage?
+                    for try await line in bytes.lines {
+                        try Task.checkCancellation()
+                        if let chunk = Self.decodeStreamChunk(line) {
+                            model = chunk.model ?? model
+                            stopReason = chunk.choices.first?.finish_reason ?? stopReason
+                            if let value = chunk.usage {
+                                usage = LLMUsage(
+                                    promptTokens: value.prompt_tokens,
+                                    completionTokens: value.completion_tokens,
+                                    totalTokens: value.total_tokens
+                                        ?? LLMUsage.derivedTotal(
+                                            promptTokens: value.prompt_tokens, completionTokens: value.completion_tokens
+                                        )
+                                )
+                            }
+                        }
+                        switch parseSSELine(line) {
+                        case .content(let text):
+                            yieldedAnyContent = true
+                            continuation.yield(.text(text))
+                        case .done:
+                            sawDone = true
+                            try validateStreamCompletion(
+                                providerID: config.id,
+                                sawSentinel: true,
+                                yieldedAnyContent: yieldedAnyContent
+                            )
+                            continuation.yield(
+                                .completed(
+                                    LLMStreamTerminal(
+                                        provider: config.id.rawValue,
+                                        model: model,
+                                        usage: usage,
+                                        stopReason: stopReason,
+                                        effectiveSettings: options.effectiveInferenceSettings
+                                    )))
+                            continuation.finish()
+                            return
+                        case .error(let message):
+                            throw LLMHTTPErrorMapper.mapStreamingError(message: message)
+                        case .skip:
+                            break
+                        }
+                    }
+                    try validateStreamCompletion(
+                        providerID: config.id,
+                        sawSentinel: sawDone,
+                        yieldedAnyContent: yieldedAnyContent
+                    )
+                    continuation.yield(
+                        .completed(
+                            LLMStreamTerminal(
+                                provider: config.id.rawValue,
+                                model: model,
+                                usage: usage,
+                                stopReason: stopReason,
+                                effectiveSettings: options.effectiveInferenceSettings
+                            )))
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    func testConnection(config: LLMProviderConfig) async throws {
+        let messages = [ChatMessage(role: .user, content: "Hi")]
+        // Models that use reasoning tokens (o1/o3/o4, gpt-5.x) need more budget since
+        // max_completion_tokens covers both reasoning and visible output.
+        // 128 is enough for a minimal response. Older models can use 1 to minimize cost.
+        let needsMoreTokens =
+            config.id != .lmstudio && Self.openAIRequiresMaxCompletionTokens(config.modelName)
+        let options = ChatCompletionOptions(maxTokens: needsMoreTokens ? 128 : 1)
+        _ = try await chatCompletion(messages: messages, config: config, options: options)
+    }
+
+    func listModels(config: LLMProviderConfig) async throws -> [String] {
+        let endpoint = config.id.modelListEndpoint
+        let url = LLMHTTPModelCatalog.modelsURL(for: config)
+        var request = URLRequest(url: url, timeoutInterval: 15)
+        request.httpMethod = "GET"
+
+        if endpoint == .ollama {
+            request.setValue("Bearer ollama", forHTTPHeaderField: "Authorization")
+        } else if endpoint == .openAICompatible {
+            if let key = config.apiKey {
+                request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            }
+        }
+        OpenCodeRequestHeaders.apply(to: &request)
+
+        let (data, response) = try await transport.data(for: request)
+
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw LLMError.connectionFailed("Failed to fetch models.")
+        }
+
+        if config.id.modelListEndpoint == .gemini,
+            let modelsResponse = try? JSONDecoder().decode(GeminiModelsListResponse.self, from: data)
+        {
+            return modelsResponse.models
+                .filter(LLMHTTPModelCatalog.isGeminiTextLLMModel)
+                .map { entry in
+                    entry.name.hasPrefix("models/") ? String(entry.name.dropFirst(7)) : entry.name
+                }
+                .sorted()
+        }
+
+        // Try OpenAI-compatible format: { "data": [{ "id": "..." }] }
+        if let modelsResponse = try? JSONDecoder().decode(ModelsListResponse.self, from: data) {
+            return LLMHTTPModelCatalog.filterListedModels(modelsResponse.data, for: config)
+                .map(\.id)
+                .sorted()
+        }
+
+        throw LLMError.invalidResponse
+    }
+
+    func buildRequest(
+        messages: [ChatMessage],
+        config: LLMProviderConfig,
+        options: ChatCompletionOptions,
+        stream: Bool
+    ) throws -> URLRequest {
+        try options.validateInferenceSettings(for: config)
+        let url = config.baseURL.appendingPathComponent("chat/completions")
+
+        // Local models need longer timeouts for cold starts (model loading from disk)
+        let timeout: TimeInterval
+        if config.isLocal {
+            timeout = stream ? 600 : 300
+        } else {
+            timeout = stream ? 120 : 30
+        }
+
+        var request = URLRequest(url: url, timeoutInterval: timeout)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        // Auth: use apiKey if present, inject "ollama" for Ollama when nil
+        let authToken: String?
+        if let key = config.apiKey {
+            authToken = key
+        } else if config.id == .ollama {
+            authToken = "ollama"
+        } else {
+            authToken = nil
+        }
+
+        if let token = authToken {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        OpenCodeRequestHeaders.apply(to: &request, conversationID: options.conversationID)
+
+        // OpenAI reasoning models reject max_tokens. Explicit temperature
+        // support varies by model and reasoning effort, so omit it for the
+        // GPT-5.x reasoning tier (gpt-5.5, gpt-5.4-mini, gpt-5.6-luna, ...);
+        // "-chat" variants still accept explicit values. Apply this from the
+        // model ID, including gateway prefixes such as `openai/gpt-5.6-sol`,
+        // rather than only the native OpenAI provider. Newer models also
+        // require max_completion_tokens instead of max_tokens. LM Studio's
+        // documented chat-completions contract still uses max_tokens and
+        // temperature even when a loaded model ID happens to look like GPT-5.
+        // Kimi K2.5+ / K3 also omit sampling: those models fix temperature.
+        let appliesLabWirePolicy = config.id != .lmstudio
+        let shouldOmitSampling =
+            appliesLabWirePolicy && ChatCompletionsModelPolicy.shouldOmitSampling(model: config.modelName)
+        let needsNewTokenParam =
+            appliesLabWirePolicy && Self.openAIRequiresMaxCompletionTokens(config.modelName)
+        let temperature = shouldOmitSampling ? nil : options.temperature
+        let topP: Double?
+        switch config.id {
+        case .openai, .openaiCompatible:
+            topP = shouldOmitSampling ? nil : options.topP
+        case .anthropic, .gemini, .openrouter, .moonshot, .deepseek, .qwen, .zai, .minimax, .ollama, .lmstudio,
+            .localCLI, .inProcessLocal:
+            topP = nil
+        }
+        let thinkingEncoding = ChatCompletionsModelPolicy.thinkingEncoding(
+            provider: config.id,
+            model: config.modelName,
+            thinkingMode: options.thinkingMode,
+            reasoningEffort: options.reasoningEffort,
+            usesPromptInferenceSettings: options.usesPromptInferenceSettings
+        )
+        let supportsCustomOpenAICompatibleOptions =
+            config.id == .openaiCompatible
+            && options.usesPromptInferenceSettings
+            && !needsNewTokenParam
+        let maxTokens = needsNewTokenParam ? nil : options.maxTokens
+        let maxCompletionTokens = needsNewTokenParam ? options.maxTokens : nil
+
+        // Ollama defaults to 2048-token context regardless of model capability.
+        // Inject num_ctx to use the model's actual context window.
+        let ollamaOptions: OllamaRequestOptions?
+        if config.id == .ollama {
+            ollamaOptions = OllamaRequestOptions(num_ctx: 8192)
+        } else {
+            ollamaOptions = nil
+        }
+
+        let thinking: OpenAIThinkingOptions?
+        let enableThinking: Bool?
+        let chatTemplateKwargs: OpenAIChatTemplateKwargs?
+        switch thinkingEncoding {
+        case .omit:
+            thinking = nil
+            enableThinking = nil
+            chatTemplateKwargs = nil
+        case .thinkingType(let type):
+            thinking = OpenAIThinkingOptions(type: type)
+            enableThinking = nil
+            chatTemplateKwargs = nil
+        case .enableThinking(let enabled):
+            thinking = nil
+            enableThinking = enabled
+            chatTemplateKwargs = nil
+        case .llamaCpp(let enable, let effort):
+            thinking = nil
+            enableThinking = nil
+            chatTemplateKwargs = OpenAIChatTemplateKwargs(enable_thinking: enable, reasoning_effort: effort)
+        }
+
+        let body = OpenAIRequestBody(
+            model: config.modelName,
+            messages: messages.map { OpenAIMessage(role: $0.role.rawValue, content: $0.content) },
+            stream: stream,
+            stream_options: config.id == .openai && stream ? OpenAIStreamOptions(include_usage: true) : nil,
+            temperature: temperature,
+            top_p: topP,
+            top_k: supportsCustomOpenAICompatibleOptions ? options.topK : nil,
+            max_tokens: maxTokens,
+            max_completion_tokens: maxCompletionTokens,
+            thinking: thinking,
+            enable_thinking: enableThinking,
+            chat_template_kwargs: chatTemplateKwargs,
+            response_format: Self.responseFormat(from: options.responseFormat),
+            options: ollamaOptions
+        )
+
+        request.httpBody = try JSONEncoder().encode(body)
+        return request
+    }
+
+    /// OpenAI reasoning models that reject temperature and max_tokens parameters.
+    static func isOpenAIReasoningModel(_ model: String) -> Bool {
+        OpenAIModelPolicy.isReasoningModelID(model)
+    }
+
+    /// OpenAI models for which MacParakeet omits explicit `temperature`: the
+    /// o-series and GPT-5.x+ reasoning tier, plus Kimi K2.5+ / K3. Chat-tier
+    /// variants (gpt-5.3-chat-latest) and pre-5.x models keep the caller's
+    /// value. Provider prefixes (`openai/gpt-5.6-luna`, `moonshotai/kimi-k2.6`)
+    /// are stripped first.
+    static func openAIShouldOmitTemperature(_ model: String) -> Bool {
+        ChatCompletionsModelPolicy.shouldOmitSampling(model: model)
+    }
+
+    /// Major version of a "gpt-<n>..." model ID ("gpt-5.5" → 5, "gpt-10" → 10),
+    /// or nil for IDs without a gpt- numeric prefix. Reads all leading digits so
+    /// future multi-digit major versions compare correctly. Accepts gateway
+    /// prefixes such as `openai/gpt-5.6-sol`.
+    static func gptMajorVersion(_ loweredModel: String) -> Int? {
+        OpenAIModelPolicy.gptMajorVersion(loweredModel)
+    }
+
+    /// OpenAI models that require max_completion_tokens instead of max_tokens.
+    /// Includes reasoning models and newer GPT models (5.x+), including
+    /// gateway IDs such as `openai/gpt-5.6-luna`.
+    static func openAIRequiresMaxCompletionTokens(_ model: String) -> Bool {
+        OpenAIModelPolicy.requiresMaxCompletionTokens(model: model)
+    }
+
+    static func isOpenAIReasoningModelID(_ model: String) -> Bool {
+        OpenAIModelPolicy.isReasoningModelID(model)
+    }
+
+    static func responseFormat(from format: ChatResponseFormat?) -> OpenAIResponseFormat? {
+        switch format {
+        case .none:
+            return nil
+        case .jsonSchema(let name, let schema):
+            return OpenAIResponseFormat(
+                type: "json_schema",
+                json_schema: OpenAIJSONSchemaSpec(
+                    name: name,
+                    schema: schema
+                )
+            )
+        }
+    }
+
+    enum SSEResult {
+        case content(String)
+        case done
+        case skip
+        case error(String)
+    }
+
+    func parseSSELine(_ line: String) -> SSEResult {
+        // Blank lines are SSE event separators
+        guard !line.isEmpty else { return .skip }
+
+        // Only process data: lines
+        guard line.hasPrefix("data: ") || line.hasPrefix("data:") else { return .skip }
+
+        let payload =
+            line.hasPrefix("data: ")
+            ? String(line.dropFirst(6))
+            : String(line.dropFirst(5))
+
+        let trimmed = payload.trimmingCharacters(in: .whitespaces)
+
+        // Stream terminator
+        if trimmed == "[DONE]" { return .done }
+
+        guard let data = trimmed.data(using: .utf8) else { return .skip }
+
+        // Local/OpenAI-compatible servers can emit provider errors mid-stream
+        // instead of returning a non-2xx response. LM Studio, for example,
+        // sends `event: error` followed by a `data:` JSON object whose
+        // `error` field is an object and whose top-level `message` carries
+        // the human-readable context-length failure. Surface those as errors
+        // instead of silently dropping the frame and accepting an empty EOF.
+        if let streamError = try? JSONDecoder().decode(StreamErrorResponse.self, from: data),
+            let errorMessage = streamError.error
+        {
+            return .error(errorMessage)
+        }
+
+        guard let chunk = try? JSONDecoder().decode(OpenAIStreamChunk.self, from: data) else {
+            return .skip
+        }
+
+        // Extract content delta, ignoring role-only and finish_reason frames
+        guard let delta = chunk.choices.first?.delta,
+            let content = delta.content,
+            !content.isEmpty
+        else {
+            return .skip
+        }
+
+        return .content(content)
+    }
+
+    func parseSSEEvent(_ lines: [String]) -> SSEResult {
+        guard !lines.isEmpty else { return .skip }
+
+        let payloadLines = lines.compactMap { line -> String? in
+            guard line.hasPrefix("data: ") || line.hasPrefix("data:") else { return nil }
+            return line.hasPrefix("data: ")
+                ? String(line.dropFirst(6))
+                : String(line.dropFirst(5))
+        }
+
+        guard !payloadLines.isEmpty else { return .skip }
+
+        let payload = payloadLines.joined(separator: "\n")
+        return parseSSELine("data: \(payload)")
+    }
+
+    private static func decodeStreamChunk(_ line: String) -> OpenAIStreamChunk? {
+        guard line.hasPrefix("data: ") || line.hasPrefix("data:") else { return nil }
+        let payload = line.hasPrefix("data: ") ? line.dropFirst(6) : line.dropFirst(5)
+        return try? JSONDecoder().decode(OpenAIStreamChunk.self, from: Data(payload.utf8))
+    }
+
+    func validateStreamCompletion(
+        providerID: LLMProviderID,
+        sawSentinel: Bool,
+        yieldedAnyContent: Bool
+    ) throws {
+        try LLMHTTPStreamCompletionPolicy.validateStreamCompletion(
+            providerID: providerID,
+            sawSentinel: sawSentinel,
+            yieldedAnyContent: yieldedAnyContent
+        )
+    }
+}
+
+// MARK: - OpenAI-Compatible Wire Types
+
+struct OpenAIRequestBody: Encodable {
+    let model: String
+    let messages: [OpenAIMessage]
+    let stream: Bool
+    let stream_options: OpenAIStreamOptions?
+    let temperature: Double?
+    let top_p: Double?
+    let top_k: Int?
+    let max_tokens: Int?
+    let max_completion_tokens: Int?
+    let thinking: OpenAIThinkingOptions?
+    let enable_thinking: Bool?
+    let chat_template_kwargs: OpenAIChatTemplateKwargs?
+    let response_format: OpenAIResponseFormat?
+    let options: OllamaRequestOptions?  // Ollama-specific: num_ctx etc.
+}
+
+struct OpenAIThinkingOptions: Encodable {
+    let type: String
+}
+
+struct OpenAIStreamOptions: Encodable {
+    let include_usage: Bool
+}
+
+struct OpenAIChatTemplateKwargs: Encodable {
+    let enable_thinking: Bool
+    let reasoning_effort: String?
+}
+
+struct OpenAIResponseFormat: Encodable {
+    let type: String
+    let json_schema: OpenAIJSONSchemaSpec?
+}
+
+struct OpenAIJSONSchemaSpec: Encodable {
+    let name: String
+    let schema: ChatJSONSchema
+}
+
+struct OpenAIMessage: Encodable {
+    let role: String
+    let content: String
+}
+
+struct OpenAIResponse: Decodable {
+    let model: String
+    let choices: [OpenAIChoice]
+    let usage: OpenAIUsage?
+
+    struct OpenAIChoice: Decodable {
+        let message: OpenAIChoiceMessage
+        let finish_reason: String?
+    }
+
+    struct OpenAIChoiceMessage: Decodable {
+        let content: String?
+        let reasoning_content: String?
+    }
+
+    struct OpenAIUsage: Decodable {
+        let prompt_tokens: Int
+        let completion_tokens: Int
+    }
+}
+
+struct OpenAIStreamChunk: Decodable {
+    let model: String?
+    let choices: [StreamChoice]
+    let usage: StreamUsage?
+
+    struct StreamChoice: Decodable {
+        let delta: StreamDelta?
+        let finish_reason: String?
+    }
+
+    struct StreamDelta: Decodable {
+        let role: String?
+        let content: String?
+    }
+
+    struct StreamUsage: Decodable {
+        let prompt_tokens: Int?
+        let completion_tokens: Int?
+        let total_tokens: Int?
+    }
+}

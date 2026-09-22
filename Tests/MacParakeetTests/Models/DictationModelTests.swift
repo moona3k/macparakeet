@@ -58,7 +58,14 @@ final class DictationModelTests: XCTestCase {
         XCTAssertEqual(Dictation.DictationStatus.recording.rawValue, "recording")
         XCTAssertEqual(Dictation.DictationStatus.processing.rawValue, "processing")
         XCTAssertEqual(Dictation.DictationStatus.completed.rawValue, "completed")
+        XCTAssertEqual(Dictation.DictationStatus.cancelled.rawValue, "cancelled")
         XCTAssertEqual(Dictation.DictationStatus.error.rawValue, "error")
+    }
+
+    func testDictationStatusUnknownValueDecodesAsCompleted() throws {
+        let json = Data(#""future-status""#.utf8)
+        let decoded = try JSONDecoder().decode(Dictation.DictationStatus.self, from: json)
+        XCTAssertEqual(decoded, .completed)
     }
 
     func testProcessingModeHelpers() {

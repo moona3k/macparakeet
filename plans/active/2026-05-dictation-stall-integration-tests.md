@@ -77,9 +77,22 @@ future experiments and regression forensics. A failed VPIO hardware test is
 therefore a false positive for raw meeting/dictation release readiness unless a
 release deliberately re-enables VPIO.
 
-Follow-up test hygiene: split the real-platform suite so raw-path hardware tests
-remain under `MACPARAKEET_HARDWARE_TESTS=1`, while VPIO teardown/promotion tests
-move behind a stricter opt-in such as `MACPARAKEET_VPIO_EXPERIMENT_TESTS=1`.
+The initial follow-up proposal was to split VPIO teardown/promotion tests behind
+a stricter opt-in. The teardown-order result below fixed their shared lifecycle
+failure instead, so they remain useful in the normal hardware subset.
+
+### 2026-07-22 teardown-order result
+
+A Bluetooth/input-readiness audit reproduced the same VPIO → stop → raw
+`-10868` failure on both the working branch and its prior committed revision.
+The platform teardown was disabling VPIO before stopping the engine, although
+Core Audio only permits `setVoiceProcessingEnabled` while stopped. Reordering
+teardown to remove the tap → stop → disable VPIO → replace the engine fixed the
+immediate transition without a delay: the focused hardware case passed five
+consecutive runs, followed by the complete normal hardware subset (10 passed,
+3 opt-in tests skipped). Keep the VPIO tests in the normal hardware subset as
+lifecycle regression coverage; VPIO remains outside the shipped raw meeting
+path.
 
 ## Context
 

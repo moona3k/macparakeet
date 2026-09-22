@@ -1,7 +1,13 @@
 import Foundation
 @testable import MacParakeetCore
 
-public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, SpeechEngineRoutedTranscribing, STTLiveDictationTranscribing, SpeechEngineSwitching {
+private struct PreviewCallWaiter {
+    let id: UUID
+    let minimumCount: Int
+    let continuation: CheckedContinuation<Bool, Never>
+}
+
+public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, SpeechEngineRoutedTranscribing, STTLiveDictationTranscribing, SpeechEngineSwitching, SpeechEngineTelemetryAttributing, SpeechEngineRoutedWarmUpManaging {
     public var transcribeResult: STTResult?
     public var transcribeError: Error?
     public var transcribeCallCount = 0
@@ -12,6 +18,8 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
     public var speechEngineSelections: [SpeechEngineSelection] = []
     public var warmUpCalled = false
     public var warmUpCallCount = 0
+    public var routedWarmUpSelections: [SpeechEngineSelection] = []
+    public var routedReadinessSelections: [SpeechEngineSelection] = []
     /// Counts calls to `backgroundWarmUp()` itself (before its internal dedup),
     /// so a test can assert the *ViewModel* didn't re-enter — `warmUpCallCount`
     /// alone is masked by this mock's own `backgroundWarmUpTask != nil` guard.
@@ -25,6 +33,12 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
     public var speechEngineSwitches: [SpeechEnginePreference] = []
     public var speechEngineSwitchError: Error?
     public var speechEngineSwitchProgressMessages: [String] = []
+    public var speechEngineSwitchHangIndefinitely = false
+    private var speechEngineSwitchHangContinuations: [CheckedContinuation<Void, Error>] = []
+    /// Set only after a hung switch resumes and cooperative cancellation is
+    /// checked — models `STTRuntime` persisting the new engine. Leave-then-late
+    /// success must leave this nil.
+    public var committedSpeechEnginePreference: SpeechEnginePreference?
     public var parakeetModelVariantSwitches: [ParakeetModelVariant] = []
     public var parakeetModelVariantSwitchError: Error?
     public var nemotronModelVariantSwitches: [NemotronModelVariant] = []
@@ -45,11 +59,14 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
     public var previewSamples: [[Float]] = []
     public var previewSelections: [SpeechEngineSelection] = []
     public var liveEnabled = false
+    public var telemetryAttribution: SpeechEngineTelemetryAttribution?
     private var warmUpState: STTWarmUpState = .idle
     private var warmUpObservers: [UUID: AsyncStream<STTWarmUpState>.Continuation] = [:]
     private var backgroundWarmUpTask: Task<Void, Never>?
     private var queuedTranscribeResults: [STTResult] = []
     private var queuedTranscribeErrors: [Error] = []
+    private var queuedPreviewResults: [STTResult] = []
+    private var transcribeProgressUpdates: [(current: Int, total: Int)] = []
     private var liveSessionID: UUID?
     private var livePartialHandler: (@Sendable (String) -> Void)?
     private var liveAppendsHeld = false
@@ -57,8 +74,23 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
     private var previewHeld = false
     private var previewReleasesOnCancel = true
     private var previewHoldContinuations: [CheckedContinuation<Void, Never>] = []
+    private var previewCallWaiters: [PreviewCallWaiter] = []
+
+    private var transcribeHook: (@Sendable () async -> Void)?
+
+    public func setTranscribeHook(_ hook: @escaping @Sendable () async -> Void) {
+        transcribeHook = hook
+    }
 
     public init() {}
+
+    public func configureTelemetryAttribution(_ attribution: SpeechEngineTelemetryAttribution?) {
+        telemetryAttribution = attribution
+    }
+
+    public func currentSpeechEngineTelemetryAttribution() async -> SpeechEngineTelemetryAttribution? {
+        telemetryAttribution
+    }
 
     public func configure(result: STTResult) {
         self.transcribeResult = result
@@ -88,6 +120,10 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
         self.transcribeResult = nil
     }
 
+    public func configureTranscribeProgress(_ updates: [(current: Int, total: Int)]) {
+        transcribeProgressUpdates = updates
+    }
+
     public func configureWarmUp(error: Error? = nil, progressPhases: [String]? = nil) {
         self.warmUpError = error
         self.warmUpProgressPhases = progressPhases
@@ -103,16 +139,44 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
         self.warmUpHangIndefinitely = true
     }
 
+    /// Make `setSpeechEngine` wait on a continuation until
+    /// `completeHungSpeechEngineSwitch` resumes it. Models a Core ML compile
+    /// that has not returned yet (issue #952).
+    public func configureSpeechEngineSwitchHang() {
+        speechEngineSwitchHangIndefinitely = true
+    }
+
+    public func completeHungSpeechEngineSwitch(error: Error? = nil) {
+        let continuations = speechEngineSwitchHangContinuations
+        speechEngineSwitchHangContinuations.removeAll()
+        for continuation in continuations {
+            if let error {
+                continuation.resume(throwing: error)
+            } else {
+                continuation.resume()
+            }
+        }
+    }
+
+    public func committedSpeechEnginePreferenceSnapshot() -> SpeechEnginePreference? {
+        committedSpeechEnginePreference
+    }
+
     public func transcribe(
         audioPath: String,
         job: STTJobKind,
         onProgress: (@Sendable (Int, Int) -> Void)? = nil
     ) async throws -> STTResult {
         transcribeCallCount += 1
+        await transcribeHook?()
         lastAudioPath = audioPath
         lastJob = job
         audioPaths.append(audioPath)
         jobs.append(job)
+
+        for update in transcribeProgressUpdates {
+            onProgress?(update.current, update.total)
+        }
 
         if !queuedTranscribeErrors.isEmpty {
             throw queuedTranscribeErrors.removeFirst()
@@ -142,6 +206,72 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
     public func configurePreview(result: STTResult? = nil, error: Error? = nil) {
         previewResult = result
         previewError = error
+        queuedPreviewResults = []
+        resetPreviewTracking()
+    }
+
+    public func configurePreview(results: [STTResult]) {
+        previewResult = nil
+        previewError = nil
+        queuedPreviewResults = results
+        resetPreviewTracking()
+    }
+
+    public func waitForPreviewCallCount(
+        _ minimumCount: Int,
+        timeout: Duration = .seconds(2)
+    ) async -> Bool {
+        guard previewCallCount < minimumCount else { return true }
+
+        let id = UUID()
+        return await withTaskGroup(of: Bool.self) { group in
+            group.addTask {
+                await self.registerPreviewCallWaiter(id: id, minimumCount: minimumCount)
+            }
+            group.addTask {
+                try? await Task.sleep(for: timeout)
+                return await self.timeOutPreviewCallWaiter(id: id, minimumCount: minimumCount)
+            }
+
+            let result = await group.next() ?? false
+            group.cancelAll()
+            return result
+        }
+    }
+
+    private func registerPreviewCallWaiter(id: UUID, minimumCount: Int) async -> Bool {
+        guard previewCallCount < minimumCount else { return true }
+
+        return await withCheckedContinuation { continuation in
+            if previewCallCount >= minimumCount {
+                continuation.resume(returning: true)
+            } else {
+                previewCallWaiters.append(
+                    PreviewCallWaiter(
+                        id: id,
+                        minimumCount: minimumCount,
+                        continuation: continuation
+                    ))
+            }
+        }
+    }
+
+    private func timeOutPreviewCallWaiter(id: UUID, minimumCount: Int) -> Bool {
+        guard previewCallCount < minimumCount else { return true }
+        guard let index = previewCallWaiters.firstIndex(where: { $0.id == id }) else {
+            return previewCallCount >= minimumCount
+        }
+        let waiter = previewCallWaiters.remove(at: index)
+        waiter.continuation.resume(returning: false)
+        return false
+    }
+
+    private func resetPreviewTracking() {
+        let waiters = previewCallWaiters
+        previewCallWaiters = []
+        for waiter in waiters {
+            waiter.continuation.resume(returning: false)
+        }
         previewCallCount = 0
         previewCancelCallCount = 0
         previewSamples = []
@@ -157,6 +287,7 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
         previewCallCount += 1
         previewSamples.append(samples)
         previewSelections.append(speechEngine)
+        resumePreviewCallWaiters()
         if previewHeld {
             await withCheckedContinuation { continuation in
                 previewHoldContinuations.append(continuation)
@@ -166,7 +297,18 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
         if let previewError {
             throw previewError
         }
+        if !queuedPreviewResults.isEmpty {
+            return queuedPreviewResults.removeFirst()
+        }
         return previewResult ?? STTResult(text: "preview", words: [], engine: speechEngine.engine)
+    }
+
+    private func resumePreviewCallWaiters() {
+        let ready = previewCallWaiters.filter { $0.minimumCount <= previewCallCount }
+        previewCallWaiters.removeAll { $0.minimumCount <= previewCallCount }
+        for waiter in ready {
+            waiter.continuation.resume(returning: true)
+        }
     }
 
     public func holdPreviewTranscription(releaseOnCancel: Bool = true) {
@@ -311,6 +453,14 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
         ready = true
     }
 
+    public func warmUp(
+        speechEngine: SpeechEngineSelection,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
+        routedWarmUpSelections.append(speechEngine)
+        try await warmUp(onProgress: onProgress)
+    }
+
     public func backgroundWarmUp() async {
         backgroundWarmUpCallCount += 1
         if case .ready = warmUpState { return }
@@ -375,6 +525,11 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
         ready
     }
 
+    public func isReady(speechEngine: SpeechEngineSelection) async -> Bool {
+        routedReadinessSelections.append(speechEngine)
+        return ready
+    }
+
     public func configureSpeechEngineSwitch(error: Error?) {
         speechEngineSwitchError = error
     }
@@ -385,6 +540,14 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
 
     public func warmUpCallCountSnapshot() -> Int {
         warmUpCallCount
+    }
+
+    public func routedWarmUpSelectionsSnapshot() -> [SpeechEngineSelection] {
+        routedWarmUpSelections
+    }
+
+    public func routedReadinessSelectionsSnapshot() -> [SpeechEngineSelection] {
+        routedReadinessSelections
     }
 
     public func backgroundWarmUpCallCountSnapshot() -> Int {
@@ -402,9 +565,18 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
         speechEngineSwitches.append(preference)
         onProgress?("Preparing \(preference.displayName)...")
         speechEngineSwitchProgressMessages.append("Preparing \(preference.displayName)...")
+        if speechEngineSwitchHangIndefinitely {
+            // Uncancellable wait, like Core ML / `aned`. Cancellation is observed
+            // only after the test resumes the continuation.
+            try await withCheckedThrowingContinuation { continuation in
+                speechEngineSwitchHangContinuations.append(continuation)
+            }
+        }
+        try Task.checkCancellation()
         if let speechEngineSwitchError {
             throw speechEngineSwitchError
         }
+        committedSpeechEnginePreference = preference
         ready = true
     }
 

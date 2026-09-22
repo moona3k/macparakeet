@@ -43,12 +43,21 @@ struct CalendarCommand: AsyncParsableCommand {
                 }
 
                 let raw = try await CalendarService.shared.fetchUpcomingEvents(days: max(1, days))
-                let events = raw.filter { passesFilter($0, filter: triggerFilter) }
+                let events = raw.filter { calendarUpcomingPassesFilter($0, filter: triggerFilter) }
+                let annotated = calendarUpcomingJSONEvents(
+                    events,
+                    skippedOccurrences: CalendarAutoStartPreferences.skippedOccurrences(
+                        defaults: macParakeetAppDefaults()
+                    ),
+                    skippedEvents: CalendarAutoStartPreferences.skippedEvents(
+                        defaults: macParakeetAppDefaults()
+                    )
+                )
 
                 if json {
-                    try printJSON(events)
+                    try printJSON(annotated)
                 } else {
-                    printHuman(events, filter: triggerFilter)
+                    printHuman(annotated, filter: triggerFilter)
                 }
             }
         }
@@ -62,15 +71,7 @@ struct CalendarCommand: AsyncParsableCommand {
             }
         }
 
-        private func passesFilter(_ event: CalendarEvent, filter: MeetingTriggerFilter) -> Bool {
-            switch filter {
-            case .allEvents: return !event.isAllDay
-            case .withParticipants: return !event.isAllDay && event.participants.count >= 1
-            case .withLink: return !event.isAllDay && event.meetUrl != nil
-            }
-        }
-
-        private func printHuman(_ events: [CalendarEvent], filter: MeetingTriggerFilter) {
+        private func printHuman(_ events: [CalendarUpcomingJSONEvent], filter: MeetingTriggerFilter) {
             let formatter = DateFormatter()
             formatter.dateStyle = .short
             formatter.timeStyle = .short
@@ -81,25 +82,30 @@ struct CalendarCommand: AsyncParsableCommand {
                 print("No matching events.")
                 return
             }
-            for event in events {
-                let when = formatter.string(from: event.startTime)
+            for row in events {
+                let when = formatter.string(from: row.startTime)
                 print()
-                print("• \(event.title)")
-                print("  Starts: \(when)  (\(event.durationMinutes) min)")
-                if let calendar = event.calendarName {
+                let skipMark = row.skipped ? " [skipped]" : ""
+                print("• \(row.title)\(skipMark)")
+                print("  Starts: \(when)  (\(durationMinutes(row)) min)")
+                if let calendar = row.calendarName {
                     print("  Calendar: \(calendar)")
                 }
-                if let meetUrl = event.meetUrl {
+                if let meetUrl = row.meetUrl {
                     let service = MeetingLinkParser.shared.identifyService(from: meetUrl) ?? "Link"
                     print("  \(service): \(meetUrl)")
                 }
-                if !event.participants.isEmpty {
-                    print("  Participants: \(event.participants.count)")
+                if !row.participants.isEmpty {
+                    print("  Participants: \(row.participants.count)")
                 }
-                if let status = event.userStatus, status != .accepted {
+                if let status = row.userStatus, status != .accepted {
                     print("  Your status: \(status.rawValue)")
                 }
             }
+        }
+
+        private func durationMinutes(_ event: CalendarUpcomingJSONEvent) -> Int {
+            Int(event.endTime.timeIntervalSince(event.startTime) / 60)
         }
     }
 }
@@ -115,5 +121,92 @@ private enum CalendarCLIError: Error, LocalizedError {
         case .calendarPermissionNotDetermined:
             return "Calendar access not yet requested. Launch MacParakeet, run onboarding (or visit Settings → Calendar), then retry."
         }
+    }
+}
+
+/// Flat CLI JSON for `calendar upcoming`. Same fields as today's
+/// `CalendarEvent` encoding plus skip annotations. Omits `isRecurring`.
+struct CalendarUpcomingJSONEvent: Encodable, Equatable {
+    let id: String
+    let title: String
+    let startTime: Date
+    let endTime: Date
+    let location: String?
+    let meetUrl: String?
+    let participants: [EventParticipant]
+    let organizer: EventParticipant?
+    let isAllDay: Bool
+    let calendarName: String?
+    let calendarIdentifier: String?
+    let userStatus: EventParticipant.ParticipantStatus?
+    let externalId: String?
+    let syncedAt: Date
+    let skipped: Bool
+    let skipScope: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, startTime, endTime, location, meetUrl, participants
+        case organizer, isAllDay, calendarName, calendarIdentifier, userStatus
+        case externalId, syncedAt, skipped, skipScope
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .title)
+        try container.encode(startTime, forKey: .startTime)
+        try container.encode(endTime, forKey: .endTime)
+        try container.encodeIfPresent(location, forKey: .location)
+        try container.encodeIfPresent(meetUrl, forKey: .meetUrl)
+        try container.encode(participants, forKey: .participants)
+        try container.encodeIfPresent(organizer, forKey: .organizer)
+        try container.encode(isAllDay, forKey: .isAllDay)
+        try container.encodeIfPresent(calendarName, forKey: .calendarName)
+        try container.encodeIfPresent(calendarIdentifier, forKey: .calendarIdentifier)
+        try container.encodeIfPresent(userStatus, forKey: .userStatus)
+        try container.encodeIfPresent(externalId, forKey: .externalId)
+        try container.encode(syncedAt, forKey: .syncedAt)
+        try container.encode(skipped, forKey: .skipped)
+        try container.encode(skipScope, forKey: .skipScope)
+    }
+}
+
+func calendarUpcomingPassesFilter(_ event: CalendarEvent, filter: MeetingTriggerFilter) -> Bool {
+    switch filter {
+    case .allEvents: return !event.isAllDay
+    case .withParticipants: return !event.isAllDay && event.participants.count >= 1
+    case .withLink: return !event.isAllDay && event.meetUrl != nil
+    }
+}
+
+func calendarUpcomingJSONEvents(
+    _ events: [CalendarEvent],
+    skippedOccurrences: Set<String>,
+    skippedEvents: Set<String>
+) -> [CalendarUpcomingJSONEvent] {
+    events.map { event in
+        let scope = CalendarSkip.matches(
+            event,
+            occurrences: skippedOccurrences,
+            events: skippedEvents
+        )
+        return CalendarUpcomingJSONEvent(
+            id: event.id,
+            title: event.title,
+            startTime: event.startTime,
+            endTime: event.endTime,
+            location: event.location,
+            meetUrl: event.meetUrl,
+            participants: event.participants,
+            organizer: event.organizer,
+            isAllDay: event.isAllDay,
+            calendarName: event.calendarName,
+            calendarIdentifier: event.calendarIdentifier,
+            userStatus: event.userStatus,
+            externalId: event.externalId,
+            syncedAt: event.syncedAt,
+            skipped: scope != nil,
+            skipScope: scope?.rawValue
+        )
     }
 }

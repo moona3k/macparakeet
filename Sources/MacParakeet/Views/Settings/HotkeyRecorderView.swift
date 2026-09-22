@@ -107,8 +107,8 @@ struct HotkeyRecorderView: View {
             }
             .menuStyle(.borderlessButton)
             .help(trigger.isDisabled
-                ? "Hotkey options, including restoring the default shortcut or recording a specific modifier key."
-                : "Advanced hotkey options, including resetting to default or recording a specific modifier key.")
+                ? "Hotkey options, including restoring the default shortcut or recording modifier-only shortcuts."
+                : "Advanced hotkey options, including resetting to default or recording modifier-only shortcuts.")
         }
     }
 
@@ -117,7 +117,7 @@ struct HotkeyRecorderView: View {
     private var recordingView: some View {
         HStack(spacing: 8) {
             if pendingModifierComponents.isEmpty {
-                Text("Press any key...")
+                Text("Press a key or shortcut...")
                     .font(DesignSystem.Typography.body)
                     .foregroundStyle(.secondary)
             } else {

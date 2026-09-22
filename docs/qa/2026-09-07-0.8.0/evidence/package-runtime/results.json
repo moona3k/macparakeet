@@ -1,0 +1,165 @@
+[
+  {
+    "name": "app-notary-info",
+    "argv": [
+      "xcrun",
+      "notarytool",
+      "info",
+      "52abbad6-6f63-49a6-a3de-4fd7f7ba2cb3",
+      "--keychain-profile",
+      "AC_PASSWORD",
+      "--output-format",
+      "json"
+    ],
+    "started_at_utc": "2026-09-07T23:33:50.841038+00:00",
+    "elapsed_seconds": 0.962,
+    "exit_code": 0,
+    "timed_out": false,
+    "log": "app-notary-info.log",
+    "apple_result": {
+      "name": "MacParakeet.app.zip",
+      "id": "52abbad6-6f63-49a6-a3de-4fd7f7ba2cb3",
+      "message": "Successfully received submission info",
+      "createdDate": "2026-09-07T23:28:55.173Z",
+      "status": "Accepted"
+    }
+  },
+  {
+    "name": "dmg-notary-info",
+    "argv": [
+      "xcrun",
+      "notarytool",
+      "info",
+      "faa10966-3c5d-41e1-990f-bf2f9bafa45f",
+      "--keychain-profile",
+      "AC_PASSWORD",
+      "--output-format",
+      "json"
+    ],
+    "started_at_utc": "2026-09-07T23:33:51.803012+00:00",
+    "elapsed_seconds": 0.474,
+    "exit_code": 0,
+    "timed_out": false,
+    "log": "dmg-notary-info.log",
+    "apple_result": {
+      "status": "Accepted",
+      "message": "Successfully received submission info",
+      "name": "MacParakeet.dmg",
+      "id": "faa10966-3c5d-41e1-990f-bf2f9bafa45f",
+      "createdDate": "2026-09-07T23:30:22.395Z"
+    }
+  },
+  {
+    "name": "cli-version",
+    "argv": [
+      "<REPO>/dist/MacParakeet.app/Contents/MacOS/macparakeet-cli",
+      "--version"
+    ],
+    "started_at_utc": "2026-09-07T23:33:52.276816+00:00",
+    "elapsed_seconds": 1.521,
+    "exit_code": 0,
+    "timed_out": false,
+    "log": "cli-version.log"
+  },
+  {
+    "name": "ffmpeg-version",
+    "argv": [
+      "<REPO>/dist/MacParakeet.app/Contents/Resources/ffmpeg",
+      "-nostdin",
+      "-version"
+    ],
+    "started_at_utc": "2026-09-07T23:33:53.798167+00:00",
+    "elapsed_seconds": 0.661,
+    "exit_code": 0,
+    "timed_out": false,
+    "log": "ffmpeg-version.log"
+  },
+  {
+    "name": "ytdlp-version",
+    "argv": [
+      "<REPO>/dist/MacParakeet.app/Contents/Resources/yt-dlp",
+      "--ignore-config",
+      "--no-cache-dir",
+      "--version"
+    ],
+    "started_at_utc": "2026-09-07T23:33:54.459105+00:00",
+    "elapsed_seconds": 8.02,
+    "exit_code": 0,
+    "timed_out": false,
+    "log": "ytdlp-version.log"
+  },
+  {
+    "name": "node-version",
+    "argv": [
+      "<REPO>/dist/MacParakeet.app/Contents/Resources/node",
+      "--version"
+    ],
+    "started_at_utc": "2026-09-07T23:34:02.479227+00:00",
+    "elapsed_seconds": 0.901,
+    "exit_code": 0,
+    "timed_out": false,
+    "log": "node-version.log"
+  },
+  {
+    "name": "app-signature-details",
+    "argv": [
+      "codesign",
+      "--display",
+      "--verbose=4",
+      "<REPO>/dist/MacParakeet.app"
+    ],
+    "started_at_utc": "2026-09-07T23:34:03.380969+00:00",
+    "elapsed_seconds": 0.036,
+    "exit_code": 0,
+    "timed_out": false,
+    "log": "app-signature-details.log"
+  },
+  {
+    "name": "app-staple-validation",
+    "argv": [
+      "xcrun",
+      "stapler",
+      "validate",
+      "<REPO>/dist/MacParakeet.app"
+    ],
+    "started_at_utc": "2026-09-07T23:34:03.417572+00:00",
+    "elapsed_seconds": 0.271,
+    "exit_code": 0,
+    "timed_out": false,
+    "log": "app-staple-validation.log"
+  },
+  {
+    "name": "app-gatekeeper",
+    "argv": [
+      "spctl",
+      "--assess",
+      "--type",
+      "execute",
+      "--verbose=4",
+      "<REPO>/dist/MacParakeet.app"
+    ],
+    "started_at_utc": "2026-09-07T23:34:03.689377+00:00",
+    "elapsed_seconds": 0.189,
+    "exit_code": 0,
+    "timed_out": false,
+    "log": "app-gatekeeper.log"
+  },
+  {
+    "name": "binary-dependencies",
+    "argv": [
+      "otool",
+      "-L",
+      "<REPO>/dist/MacParakeet.app/Contents/MacOS/MacParakeet",
+      "<REPO>/dist/MacParakeet.app/Contents/MacOS/macparakeet-cli",
+      "<REPO>/dist/MacParakeet.app/Contents/Resources/ffmpeg",
+      "<REPO>/dist/MacParakeet.app/Contents/Resources/yt-dlp",
+      "<REPO>/dist/MacParakeet.app/Contents/Resources/node",
+      "<REPO>/dist/MacParakeet.app/Contents/Frameworks/liblocalvqe.dylib"
+    ],
+    "started_at_utc": "2026-09-07T23:34:03.878721+00:00",
+    "elapsed_seconds": 0.084,
+    "exit_code": 0,
+    "timed_out": false,
+    "log": "binary-dependencies.log"
+  }
+]

@@ -2,6 +2,20 @@ import XCTest
 @testable import MacParakeetCore
 
 final class STTSchedulerTests: XCTestCase {
+    func testRoutedWarmUpAndReadinessPreserveExplicitSelection() async throws {
+        let runtime = MockSTTRuntime()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+        let selection = SpeechEngineSelection(engine: .cohere, language: "ja")
+
+        try await scheduler.warmUp(speechEngine: selection, onProgress: nil)
+        _ = await scheduler.isReady(speechEngine: selection)
+
+        let routedWarmUps = await runtime.routedWarmUpSelectionSnapshots()
+        let routedReadinessChecks = await runtime.routedReadinessSelectionSnapshots()
+        XCTAssertEqual(routedWarmUps, [selection])
+        XCTAssertEqual(routedReadinessChecks, [selection])
+    }
+
     func testDictationRunsWhileBackgroundSlotIsBusy() async throws {
         let runtime = MockSTTRuntime()
         await runtime.block(path: "meeting-live")
@@ -43,7 +57,8 @@ final class STTSchedulerTests: XCTestCase {
             _ = try await scheduler.transcribe(audioPath: "dictation", job: .dictation)
             XCTFail("Expected live dictation to occupy the interactive slot")
         } catch let error as STTError {
-            if case .engineBusy = error {} else {
+            if case .engineBusy = error {
+            } else {
                 XCTFail("Expected engineBusy, got \(error)")
             }
         } catch {
@@ -60,10 +75,86 @@ final class STTSchedulerTests: XCTestCase {
         let result = try await scheduler.finishLiveDictationTranscription(sessionID: sessionID)
 
         XCTAssertEqual(result.text, "live dictation")
+        XCTAssertEqual(result.engine, .nemotron)
         let liveDictationSamples = await runtime.liveDictationSamples
         XCTAssertEqual(liveDictationSamples, [[0.1, 0.2]])
         let finalAvailability = await scheduler.engineSwitchAvailability()
         XCTAssertEqual(finalAvailability, .available)
+    }
+
+    func testLiveDictationBeginAllowsParakeetSelectionForUnifiedRuntime() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.setCurrentSelection(
+            SpeechEngineSelection(engine: .parakeet),
+            capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.unified))
+        )
+        let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 8)
+
+        let sessionID = try await scheduler.beginLiveDictationTranscription { _ in }
+
+        try await scheduler.appendLiveDictationSamples([0.1, 0.2], sessionID: sessionID)
+        let result = try await scheduler.finishLiveDictationTranscription(sessionID: sessionID)
+
+        XCTAssertEqual(result.text, "live dictation")
+        XCTAssertEqual(result.engine, .parakeet)
+        let liveDictationSamples = await runtime.liveDictationSamples
+        XCTAssertEqual(liveDictationSamples, [[0.1, 0.2]])
+    }
+
+    func testTelemetryAttributionUsesSingleRuntimeSnapshot() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.setCurrentSelection(
+            SpeechEngineSelection(engine: .whisper, language: "en"),
+            capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .whisper(.largeV3Turbo632MB))
+        )
+        let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 8)
+
+        let maybeAttribution = await scheduler.currentSpeechEngineTelemetryAttribution()
+        let attribution = try XCTUnwrap(maybeAttribution)
+        let readCounts = await runtime.readCounts()
+
+        XCTAssertEqual(attribution.speechEngine, .whisper)
+        XCTAssertEqual(attribution.engineVariant, WhisperModelVariant.largeV3Turbo632MB.rawValue)
+        XCTAssertEqual(attribution.language, "en")
+        XCTAssertEqual(readCounts.telemetryAttribution, 1)
+        XCTAssertEqual(readCounts.selection, 0)
+        XCTAssertEqual(readCounts.capabilities, 0)
+    }
+
+    func testLiveDictationBeginRejectsParakeetTDTCapabilityBeforeRuntimeBegin() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.setCurrentSelection(
+            SpeechEngineSelection(engine: .parakeet),
+            capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3))
+        )
+        let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 8)
+
+        do {
+            _ = try await scheduler.beginLiveDictationTranscription { _ in }
+            XCTFail("Expected Parakeet TDT to be rejected by the capability gate")
+        } catch let error as STTLiveDictationTranscriptionError {
+            XCTAssertEqual(error, .unsupportedEngine(.parakeet))
+        } catch {
+            XCTFail("Expected unsupportedEngine, got \(error)")
+        }
+
+        let hasActiveSession = await runtime.hasActiveLiveDictationSession
+        XCTAssertFalse(hasActiveSession)
+    }
+
+    func testSessionLeaseCarriesCurrentCapabilities() async {
+        let runtime = MockSTTRuntime()
+        await runtime.setCurrentSelection(
+            SpeechEngineSelection(engine: .whisper, language: "ko"),
+            capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .whisper(.largeV3Turbo632MB))
+        )
+        let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 8)
+
+        let lease = await scheduler.beginSpeechEngineSession()
+
+        XCTAssertEqual(lease.selection, SpeechEngineSelection(engine: .whisper, language: "ko"))
+        XCTAssertEqual(lease.capabilities?.key, .whisper(.largeV3Turbo632MB))
+        await scheduler.endSpeechEngineSession(lease)
     }
 
     func testLiveDictationFinalizationIgnoresConcurrentCancel() async throws {
@@ -498,6 +589,31 @@ final class STTSchedulerTests: XCTestCase {
         try await scheduler.setSpeechEngine(.whisper)
     }
 
+    func testSetSpeechEngineFailsWhileDefaultTranscribeAdmissionIsInFlight() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockNextSelectionRead()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let transcribeTask = Task {
+            try await scheduler.transcribe(audioPath: "dictation", job: .dictation)
+        }
+        try await waitForHeldSelectionRead(runtime: runtime, count: 1)
+
+        do {
+            try await scheduler.setSpeechEngine(.whisper)
+            XCTFail("Expected engine switch to fail while transcribe admission is in flight")
+        } catch let error as STTError {
+            XCTAssertEqual(error.localizedDescription, STTError.engineBusy.localizedDescription)
+        }
+
+        await runtime.releaseSelectionRead()
+        _ = try await transcribeTask.value
+        let switches = await runtime.setSpeechEngineCallCount
+        XCTAssertEqual(switches, 0, "No switch may reach the runtime mid-admission")
+
+        try await scheduler.setSpeechEngine(.whisper)
+    }
+
     /// Same AUDIT-071 window, via the Parakeet variant-swap path that shares
     /// the engine-switch guard.
     func testSetParakeetModelVariantFailsWhileSessionBeginIsInFlight() async throws {
@@ -777,6 +893,34 @@ final class STTSchedulerTests: XCTestCase {
         XCTAssertEqual(count, 2)
     }
 
+    func testCancelledSpeechEngineSwitchDoesNotCommitLateSuccess() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.holdNextSpeechEngineSwitchUntilReleased()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let switchTask = Task {
+            try await scheduler.setSpeechEngine(.whisper)
+        }
+        try await waitForSpeechEngineSwitch(runtime: runtime, count: 1)
+
+        switchTask.cancel()
+        try await Task.sleep(for: .milliseconds(20))
+        await runtime.releaseSpeechEngineSwitch()
+        do {
+            try await value(switchTask)
+            XCTFail("Expected cancelled engine switch to throw")
+        } catch is CancellationError {
+            // Expected: prepare resumed successfully, then checkCancellation threw.
+        }
+
+        let selection = await runtime.currentSpeechEngineSelection()
+        XCTAssertEqual(selection.engine, .parakeet)
+
+        try await scheduler.setSpeechEngine(.whisper)
+        let committed = await runtime.currentSpeechEngineSelection()
+        XCTAssertEqual(committed.engine, .whisper)
+    }
+
     func testSpeechEngineSessionLeaseUsesRuntimeSelection() async {
         let runtime = MockSTTRuntime()
         await runtime.setCurrentSelection(SpeechEngineSelection(engine: .whisper, language: "KO"))
@@ -801,6 +945,44 @@ final class STTSchedulerTests: XCTestCase {
 
         let routedSelection = await runtime.routedSelection(for: "meeting-final")
         XCTAssertEqual(routedSelection, SpeechEngineSelection(engine: .whisper, language: "ko"))
+    }
+
+    func testDefaultTranscribePinsCurrentSpeechEngineSelection() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.setCurrentSelection(SpeechEngineSelection(engine: .cohere, language: "JA"))
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        _ = try await scheduler.transcribe(audioPath: "dictation", job: .dictation)
+
+        let routedSelection = await runtime.routedSelection(for: "dictation")
+        XCTAssertEqual(routedSelection, SpeechEngineSelection(engine: .cohere, language: "ja"))
+    }
+
+    func testCohereJobsAreSingleFlightAcrossSchedulerSlots() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.setCurrentSelection(SpeechEngineSelection(engine: .cohere))
+        await runtime.block(path: "file")
+        let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 8)
+
+        let fileTask = Task {
+            try await scheduler.transcribe(audioPath: "file", job: .fileTranscription)
+        }
+        try await waitForStartedPaths(runtime: runtime, count: 1)
+
+        let dictationTask = Task {
+            try await scheduler.transcribe(audioPath: "dictation", job: .dictation)
+        }
+        try await Task.sleep(for: .milliseconds(100))
+
+        let startedWhileFileBlocked = await runtime.startedPaths()
+        XCTAssertEqual(startedWhileFileBlocked, ["file"])
+
+        await runtime.release(path: "file")
+        _ = try await fileTask.value
+        _ = try await dictationTask.value
+
+        let finalStartedPaths = await runtime.startedPaths()
+        XCTAssertEqual(finalStartedPaths, ["file", "dictation"])
     }
 
     func testProgressIsScopedPerJobAcrossSlots() async throws {
@@ -1177,6 +1359,7 @@ final class STTSchedulerTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(20))
         }
     }
+
 }
 
 private final class STTRuntimeUnhealthySpy: TelemetryServiceProtocol, @unchecked Sendable {
@@ -1263,6 +1446,9 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     private var progressScripts: [String: [Int]] = [:]
     private var started: [String] = []
     private var routedSelections: [String: SpeechEngineSelection] = [:]
+    private var routedWarmUpSelections: [SpeechEngineSelection] = []
+    private var routedReadinessSelections: [SpeechEngineSelection] = []
+    private var routedCapabilitySelections: [SpeechEngineSelection] = []
 
     private(set) var warmUpCallCount = 0
     private(set) var isReadyCallCount = 0
@@ -1273,14 +1459,21 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     private(set) var parakeetModelVariantSwitches: [ParakeetModelVariant] = []
     private(set) var nemotronModelVariantSwitches: [NemotronModelVariant] = []
     private var selection = SpeechEngineSelection(engine: .parakeet)
+    private var capabilities = SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3))
     private var ready = false
     private var shouldBlockNextSpeechEngineSwitch = false
+    /// When true, a blocked engine switch stays suspended after `Task.cancel()`
+    /// until `releaseSpeechEngineSwitch()` — models uncancellable Core ML.
+    private var holdSpeechEngineSwitchUntilReleased = false
     private var shouldBlockNextClearModelCache = false
     private var ignoreCancellation = false
     private var speechEngineSwitchContinuation: CheckedContinuation<Void, Never>?
     private var shouldBlockNextSelectionRead = false
     private var selectionReadContinuation: CheckedContinuation<Void, Never>?
     private(set) var heldSelectionReadCount = 0
+    private(set) var selectionReadCount = 0
+    private(set) var capabilitiesReadCount = 0
+    private(set) var telemetryAttributionReadCount = 0
     private var clearModelCacheContinuation: CheckedContinuation<Void, Never>?
     private var liveDictationSessionID: UUID?
     private(set) var liveDictationSamples: [[Float]] = []
@@ -1417,7 +1610,7 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
             }
         }
         liveDictationSessionID = nil
-        return STTResult(text: "live dictation", words: [], engine: .nemotron)
+        return STTResult(text: "live dictation", words: [], engine: selection.engine)
     }
 
     func cancelLiveDictationTranscription(sessionID: UUID) async {
@@ -1468,6 +1661,15 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
         onProgress?("Ready")
     }
 
+    func warmUp(
+        speechEngine: SpeechEngineSelection,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
+        routedWarmUpSelections.append(speechEngine)
+        ready = true
+        onProgress?("Ready")
+    }
+
     func backgroundWarmUp() async {}
 
     func observeWarmUpProgress() async -> (id: UUID, stream: AsyncStream<STTWarmUpState>) {
@@ -1483,6 +1685,19 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     func isReady() async -> Bool {
         isReadyCallCount += 1
         return ready
+    }
+
+    func isReady(speechEngine: SpeechEngineSelection) async -> Bool {
+        routedReadinessSelections.append(speechEngine)
+        return ready
+    }
+
+    func routedWarmUpSelectionSnapshots() -> [SpeechEngineSelection] {
+        routedWarmUpSelections
+    }
+
+    func routedReadinessSelectionSnapshots() -> [SpeechEngineSelection] {
+        routedReadinessSelections
     }
 
     func shutdown() async {
@@ -1504,18 +1719,26 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
         setSpeechEngineCallCount += 1
         if shouldBlockNextSpeechEngineSwitch {
             shouldBlockNextSpeechEngineSwitch = false
-            await withTaskCancellationHandler {
+            let holdUntilReleased = holdSpeechEngineSwitchUntilReleased
+            holdSpeechEngineSwitchUntilReleased = false
+            if holdUntilReleased {
                 await withCheckedContinuation { continuation in
                     speechEngineSwitchContinuation = continuation
                 }
-            } onCancel: {
-                Task {
-                    await self.releaseSpeechEngineSwitch()
+            } else {
+                await withTaskCancellationHandler {
+                    await withCheckedContinuation { continuation in
+                        speechEngineSwitchContinuation = continuation
+                    }
+                } onCancel: {
+                    Task {
+                        await self.releaseSpeechEngineSwitch()
+                    }
                 }
             }
             try Task.checkCancellation()
         }
-        selection = SpeechEngineSelection(engine: preference)
+        updateSelection(SpeechEngineSelection(engine: preference))
         ready = false
     }
 
@@ -1545,7 +1768,10 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
             }
             try Task.checkCancellation()
         }
-        selection = SpeechEngineSelection(engine: .parakeet)
+        updateSelection(
+            SpeechEngineSelection(engine: .parakeet),
+            capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(variant))
+        )
     }
 
     func setNemotronModelVariant(
@@ -1565,10 +1791,14 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
             }
             try Task.checkCancellation()
         }
-        selection = SpeechEngineSelection(engine: .nemotron)
+        updateSelection(
+            SpeechEngineSelection(engine: .nemotron),
+            capabilities: SpeechEngineCapabilityRegistry.capabilities(for: .nemotron(variant))
+        )
     }
 
     func currentSpeechEngineSelection() async -> SpeechEngineSelection {
+        selectionReadCount += 1
         if shouldBlockNextSelectionRead {
             shouldBlockNextSelectionRead = false
             heldSelectionReadCount += 1
@@ -1579,8 +1809,56 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
         return selection
     }
 
-    func setCurrentSelection(_ selection: SpeechEngineSelection) {
+    func currentSpeechEngineCapabilities() async -> SpeechEngineCapabilities {
+        capabilitiesReadCount += 1
+        return capabilities
+    }
+
+    func speechEngineCapabilities(
+        for selection: SpeechEngineSelection
+    ) async -> SpeechEngineCapabilities {
+        routedCapabilitySelections.append(selection)
+        return Self.defaultCapabilities(for: selection.engine)
+    }
+
+    func routedCapabilitySelectionSnapshots() -> [SpeechEngineSelection] {
+        routedCapabilitySelections
+    }
+
+    func currentSpeechEngineTelemetryAttribution() async -> SpeechEngineTelemetryAttribution {
+        telemetryAttributionReadCount += 1
+        return SpeechEngineTelemetryAttribution(
+            speechEngine: selection.engine,
+            engineVariant: capabilities.telemetryIdentity.engineVariant.value(),
+            language: selection.language
+        )
+    }
+
+    func readCounts() -> (selection: Int, capabilities: Int, telemetryAttribution: Int) {
+        (
+            selection: selectionReadCount,
+            capabilities: capabilitiesReadCount,
+            telemetryAttribution: telemetryAttributionReadCount
+        )
+    }
+
+    func setCurrentSelection(
+        _ selection: SpeechEngineSelection,
+        capabilities: SpeechEngineCapabilities? = nil
+    ) {
+        updateSelection(selection, capabilities: capabilities)
+    }
+
+    private func updateSelection(
+        _ selection: SpeechEngineSelection,
+        capabilities: SpeechEngineCapabilities? = nil
+    ) {
         self.selection = selection
+        self.capabilities = capabilities ?? Self.defaultCapabilities(for: selection.engine)
+    }
+
+    private static func defaultCapabilities(for engine: SpeechEnginePreference) -> SpeechEngineCapabilities {
+        SpeechEngineCapabilityRegistry.capabilities(for: engine)!
     }
 
     func blockNextSelectionRead() {
@@ -1594,6 +1872,14 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
 
     func blockNextSpeechEngineSwitch() {
         shouldBlockNextSpeechEngineSwitch = true
+        holdSpeechEngineSwitchUntilReleased = false
+    }
+
+    /// Block the next engine switch without auto-resuming on cancel. Models
+    /// Core ML: cancel is observed only after `releaseSpeechEngineSwitch()`.
+    func holdNextSpeechEngineSwitchUntilReleased() {
+        shouldBlockNextSpeechEngineSwitch = true
+        holdSpeechEngineSwitchUntilReleased = true
     }
 
     func releaseSpeechEngineSwitch() {

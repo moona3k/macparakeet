@@ -1,1359 +1,349 @@
 # MacParakeet: Architecture
 
-> Status: **ACTIVE** - Authoritative, current
-> The definitive technical stack and system design for MacParakeet.
-
----
+> Status: **ACTIVE** — implementation map, audited 2026-09-07.
+> Source presence describes development capability. The
+> [release and flag table](README.md#release-channels-and-feature-flags)
+> governs availability; this document is not release qualification.
 
 ## System Overview
 
-```
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│                              MACPARAKEET                                          │
-│                          macOS Native App                                         │
-├──────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                  │
-│  ┌────────────────────────────────────────────────────────────────────────────┐  │
-│  │                             UI LAYER                                       │  │
-│  │                           (SwiftUI)                                        │  │
-│  │  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐  ┌───────────┐  │  │
-│  │  │  Main Window  │  │   Menu Bar    │  │   Dictation   │  │ Settings  │  │  │
-│  │  │  (Capture Hub │  │   (Status +   │  │   Overlay     │  │   View    │  │  │
-│  │  │  + Library)   │  │    Quick      │  │  (Recording   │  │           │  │  │
-│  │  │               │  │    Actions)   │  │   Indicator)  │  │           │  │  │
-│  │  └───────┬───────┘  └───────┬───────┘  └───────┬───────┘  └─────┬─────┘  │  │
-│  │          └──────────────────┴──────────────────┴─────────────────┘         │  │
-│  └──────────────────────────────────────┬─────────────────────────────────────┘  │
-│                                         │                                        │
-│                                         ▼                                        │
-│  ┌────────────────────────────────────────────────────────────────────────────┐  │
-│  │                        MacParakeetCore                                     │  │
-│  │                     (Library — No SwiftUI Views)                           │  │
-│  │                                                                            │  │
-│  │  ┌─────────────────┐  ┌────────────────────┐  ┌──────────────────┐      │  │
-│  │  │ DictationService│  │TranscriptionService│  │MeetingRecording  │      │  │
-│  │  └────────┬────────┘  └─────────┬──────────┘  │   Service        │      │  │
-│  │           │                     │              └────────┬─────────┘      │  │
-│  │           │                     │                       │                │  │
-│  │  ┌────────▼─────────────────────▼──────┐  ┌────────────▼────────────┐   │  │
-│  │  │         AudioProcessor              │  │  MeetingAudioCapture    │   │  │
-│  │  │  (Format conversion, resampling)    │  │  (ScreenCaptureKit +   │   │  │
-│  │  │                                     │  │   AVAudioEngine)       │   │  │
-│  │  └──────────────────┬──────────────────┘  └────────────┬────────────┘   │  │
-│  │                               │                                           │  │
-│  │                     ┌─────────▼─────────┐  ┌────────────────────────────┐ │  │
-│  │                     │   STT Scheduler   │  │  TextProcessingPipeline   │ │  │
-│  │                     │   + Runtime       │  │  (Deterministic cleanup)  │ │  │
-│  │                     └─────────┬─────────┘  └────────────────────────────┘ │  │
-│  │                               │                                           │  │
-│  │  ┌──────────────┐  ┌────────▼──────────────────────────────────────────┐ │  │
-│  │  │ExportService │  │               Data Layer                          │ │  │
-│  │  │(7 formats)   │  │  Models: Dictation, Transcription, Prompt,       │ │  │
-│  │  └──────────────┘  │          PromptResult, ChatConversation,         │ │  │
-│  │                     │          QuickPrompt, TransformHistory, LLMRun,  │ │  │
-│  │                     │          CustomWord, TextSnippet                 │ │  │
-│  │                     │  Repos:  DictationRepository,                    │ │  │
-│  │                     │          TranscriptionRepository,                │ │  │
-│  │                     │          PromptRepository, PromptResultRepository,│ │  │
-│  │                     │          QuickPromptRepository,                  │ │  │
-│  │                     │          ChatConversationRepository,             │ │  │
-│  │                     │          TransformHistoryRepository,             │ │  │
-│  │                     │          LLMRunRepository,                       │ │  │
-│  │                     │          CustomWordRepository,                   │ │  │
-│  │                     │          TextSnippetRepository                   │ │  │
-│  │                     │  DB:     GRDB (SQLite, single file)             │ │  │
-│  │                     └──────────────────────────────────────────────────┘ │  │
-│  └────────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                  │
-├──────────────────────────────────────────────────────────────────────────────────┤
-│                          LOCAL SPEECH ENGINES                                    │
-│                                                                                  │
-│  ┌──────────────────────────────┐                                                │
-│  │   Parakeet STT (default)     │                                                │
-│  │   FluidAudio CoreML on ANE   │                                                │
-│  │   ~66 MB working RAM         │                                                │
-│  │   ~2.5% WER, 155x realtime   │                                                │
-│  └──────────────────────────────┘                                                │
-│  ┌──────────────────────────────┐                                                │
-│  │   Nemotron STT (optional)    │                                                │
-│  │   FluidAudio CoreML, Beta    │                                                │
-│  │   Multilingual + English     │                                                │
-│  └──────────────────────────────┘                                                │
-│  ┌──────────────────────────────┐                                                │
-│  │   WhisperKit STT (optional)  │                                                │
-│  │   Local multilingual engine  │                                                │
-│  │   Explicit model download    │                                                │
-│  └──────────────────────────────┘                                                │
-│                                                                                  │
-├──────────────────────────────────────────────────────────────────────────────────┤
-│                          SYSTEM INTEGRATIONS                                     │
-│                                                                                  │
-│  ┌──────────┐  ┌──────────┐  ┌─────────────┐  ┌──────────────┐  ┌─────────┐│
-│  │AVAudio   │  │ CGEvent  │  │NSPasteboard │  │Accessibility │  │Screen   ││
-│  │Engine    │  │(Global   │  │(Clipboard   │  │(Permission   │  │Audio    ││
-│  │(Mic)     │  │ Hotkey)  │  │ Paste)      │  │ Control)     │  │Capture  ││
-│  └──────────┘  └──────────┘  └─────────────┘  └──────────────┘  └─────────┘│
-│                                                                                  │
-│  Parakeet working RAM: ~66 MB per active inference slot on ANE                  │
-│  Whisper cache: ~/Library/Application Support/MacParakeet/models/stt/whisper/   │
-│  Recommended: 8 GB RAM (Apple Silicon only).                                    │
-└──────────────────────────────────────────────────────────────────────────────────┘
+MacParakeet has two executable products: the SwiftUI macOS app and the public
+`macparakeet-cli`. Both use Core services and the same local database model.
+The app composes one microphone source and one speech scheduler/runtime;
+a separate CLI process owns its own connections and speech runtime.
+
+```mermaid
+flowchart TD
+    App[MacParakeet app: SwiftUI and AppKit coordinators] --> VM[MacParakeetViewModels]
+    App --> Core[MacParakeetCore services]
+    VM --> Core
+    CLI[macparakeet-cli] --> Core
+    Core --> DB[GRDB repositories and SQLite]
+    Core --> Files[Local audio and meeting artifacts]
+    Core --> Speech[STTScheduler and STTRuntime]
+    Speech --> Fluid[FluidAudio: Parakeet, Nemotron, Cohere]
+    Speech --> Whisper[WhisperKit]
+    Core --> AI[RoutingLLMClient: configured HTTP or Local CLI]
+    App -. opt-in build and developer gate .-> MLX[MacParakeetLocalLLM]
 ```
 
-**Core STT runs on-device.** Optional LLM features use configured providers or Local CLI tools, and telemetry/crash reporting are opt-out. The app supports a fully local setup, but it is not network-free in every configuration.
+### Target and composition boundaries
 
-### Concurrency Model (ADR-015 + ADR-016)
+[Package.swift](../Package.swift) defines the build graph. The app composition
+root is [AppEnvironment](../Sources/MacParakeet/App/AppEnvironment.swift), with
+app-level wiring in `AppEnvironmentConfigurer` and the app delegates/coordinators.
 
-The diagram below shows the ADR-015/ADR-016 architecture. Dictation and meeting recording run concurrently as independent feature pipelines, while microphone capture fans out from one shared engine and STT routes through one scheduler/runtime owner:
+| Target | Ownership |
+|---|---|
+| `MacParakeetCore` | Audio, STT, deterministic processing, database models/repositories, meeting settlement/recovery/artifacts, speaker corrections, retrieval, exports, LLM routing and system adapters. No SwiftUI view ownership; small AppKit adapters are allowed. |
+| `MacParakeetViewModels` | Testable `@Observable` presentation state, library and prompt flows, live and saved notes, async selection/context coordination. Depends on Core; some presentation helpers use AppKit/SwiftUI. |
+| `MacParakeet` | SwiftUI views, windows/panels, hotkey and menu integration, app lifecycle, dependency composition and feature coordinators. It is not literally free of orchestration logic. |
+| `CLI` | Argument parsing, stable automation output and command orchestration over Core. GUI hotkeys and live recording controls are outside its current contract. |
+| `MacParakeetObjCShims` | Small Objective-C exception-catching bridge for platform operations Swift `do/catch` cannot catch. |
+| `MacParakeetLocalLLM` | Optional in-process MLX implementation; linked only with `MACPARAKEET_ENABLE_MLX_LOCAL_LLM=1`. Normal package builds do not resolve this dependency graph. |
+| `MacParakeetTests`, `CLITests` | App/Core/ViewModel and public CLI verification. |
 
-```text
-┌─ Shared Microphone Capture ───────────────┐
-│ SharedMicrophoneStream (one AVAudioEngine)│
-│ → AudioRecorder + MicrophoneCapture       │
-└───────────────────────────────────────────┘
+Use injectable protocols at service boundaries and explicit ownership of
+process-wide resources. This is not a claim that every type has a protocol or
+that no shared helpers exist. Keep slow I/O, model work and process execution
+off `@MainActor`; await work whose result or ordering affects user state.
 
-┌─ Dictation Pipeline ──────────────────────┐
-│ AudioRecorder subscriber                  │
-│ → DictationService                        │
-└───────────────────────────────────────────┘
+## Capture and speech control
 
-┌─ Meeting Pipeline ────────────────────────┐
-│ MicrophoneCapture subscriber              │
-│ + SystemAudioStream (ScreenCaptureKit)    │
-│ → MeetingRecordingService                 │
-└───────────────────────────────────────────┘
+### Shared microphone, independent sessions
 
-┌─ File / URL Pipeline ─────────────────────┐
-│ FFmpeg / AudioConverter / yt-dlp          │
-│ → TranscriptionService                    │
-└───────────────────────────────────────────┘
+`SharedMicrophoneStream`, owned by `AppEnvironment`, fans out microphone
+buffers to dictation's `AudioRecorder` and meeting `MicrophoneCapture`; consumers
+own downstream copies.
+`AudioProcessor` wraps the dictation recorder and `AudioFileConverter`; feature
+services do not install independent microphone engines. System meeting audio
+comes through `SystemAudioStream` using ScreenCaptureKit.
 
-                │
-                ▼
-      STT Scheduler / Control Plane
-      ├── Interactive slot  → dictation
-      └── Background slot   → meeting + file transcription
-                │
-                ▼
-     STT Runtime (Parakeet AsrManagers + optional WhisperEngine)
+Meeting source selection is mic, system, or both. Mic-only recording requires
+no Screen Recording permission. The shipping microphone processing mode is
+raw; VPIO is explicit opt-in plumbing. Meeting echo suppression runs after
+stop on derived audio and does not change the live microphone sent to a call.
+
+Dictation and meeting recording can run concurrently. Source lifecycle repair
+belongs to the source owners, which require actual replacement buffers before
+claiming recovery. Silence by itself is not proof of a dead source. See the
+[Audio subsystem guide](../Sources/MacParakeetCore/Audio/README.md),
+[audio pipeline](05-audio-pipeline.md), [ADR-015](adr/015-concurrent-dictation-meeting.md)
+and [ADR-025](adr/025-meeting-capture-reliability.md).
+
+### One speech control plane per process
+
+`STTScheduler` owns admission, cancellation, queueing, progress and meeting
+leases. `STTRuntime` owns engine/model lifecycle. GUI services receive the shared
+scheduler; `STTClient` is the self-contained CLI/test facade, not a second
+runtime for app features.
+
+| Lane | Work and policy |
+|---|---|
+| Interactive | Reserved for dictation. Native live dictation sessions occupy it for their lifetime. |
+| Background | `meetingFinalize` > `meetingLiveChunk` > `fileTranscription` among pending work. An already running file job is not preempted by meeting stop. |
+| Display preview | Parakeet TDT tail-window preview uses a bounded single-flight path outside those job slots; it has cancellation/drain and engine-switch guards. |
+
+Cohere is a scheduler-wide single-flight resource even though two semantic
+lanes exist. On macOS 14, `ANEInferenceGate` also serializes guarded Neural
+Engine inference; it is a no-op on macOS 15+. Diarization is outside STT job
+admission but shares that inference guard. Model download must not monopolize
+it; see [ADR-010's model-preparation contract](adr/010-speaker-diarization.md).
+
+There are two user-facing routes over this control plane:
+
+- **Live Speech** serves dictation and eligible meeting preview.
+- **Final Transcription** inherits Live Speech unless explicitly overridden;
+  it serves files/media and post-stop meeting STT.
+
+A meeting captures an immutable `MeetingSpeechPlan` and live-engine lease at
+start. The lease is released at durable stop/cancel; queued finalization uses
+the captured final route. File/media jobs snapshot their resolved route too.
+An unavailable captured model leaves a retryable failure rather than silently
+substituting a different engine.
+
+| Engine | Runtime and capability |
+|---|---|
+| Parakeet v3/v2 | FluidAudio TDT; v3 standard-path default, v2 English-only opt-in; word timings and display-only tail preview. |
+| Parakeet Unified | FluidAudio `StreamingUnifiedAsrManager`, English-only opt-in; native partials and token-derived word timings. |
+| Nemotron | FluidAudio multilingual/English streaming variants; opt-in Beta, native partials and token-derived timings. |
+| Whisper | WhisperKit, broad multilingual coverage; locale-aware CJK/Korean onboarding may select it. Live dictation preview remains default-off. |
+| Cohere | FluidAudio `CoherePipeline`, explicit local download, batch-only; no word timings, diarization alignment or live preview. |
+
+The capability registry, selected variants and supported language policies are
+in the [STT spec](06-stt-engine.md) and [STT subsystem guide](../Sources/MacParakeetCore/STT/README.md).
+[ADR-026](adr/026-asr-engine-strategy.md) governs runtime expansion. Benchmark
+results in [benchmarks/asr](../benchmarks/asr/) describe their recorded hardware,
+datasets and builds; they are not current-release speed/memory guarantees.
+
+## Durable workflow paths
+
+### Dictation
+
+Hotkey/overlay coordinators call `DictationService`, which records through
+`AudioProcessor` and submits stop-time audio to the shared scheduler. Live
+partials are display-only: final paste and history use recorded-file STT.
+The Raw/Clean preference selects deterministic refinement, after which the
+separately enabled AI formatter may run. Persistence, insertion and post-paste
+actions use the owning service's result and failure paths.
+
+The pure `TextProcessingPipeline` takes text, words and snippets as values; it
+does not fetch repositories. Clean processing runs filler removal, custom-word
+replacement, trailing-action extraction, snippet expansion, then whitespace
+cleanup/insertion styling. Raw still extracts configured terminal actions.
+Meetings reuse only the custom-word step. See [text processing](07-text-processing.md)
+and [ADR-004](adr/004-deterministic-pipeline.md).
+
+### Files and media URLs
+
+`TranscriptionService` coordinates local-file conversion or media download,
+route snapshotting, STT, optional diarization, refinement and completion.
+`AudioFileConverter` owns format/track conversion; `YouTubeDownloader` and the
+podcast helpers own user-initiated remote imports. Network download does not
+occupy an STT slot. GUI local-file batches are sequential and preserve already
+completed Library items when cancelled.
+
+Completion uses `TranscriptionRepository.savePreservingUserMetadata`: merge
+against current user notes, names, favorites, artifact/audio pointers and other
+user metadata inside the write transaction. Publish the returned row. A missing
+row aborts completion instead of recreating an item deleted during processing.
+See the [database guide](../Sources/MacParakeetCore/Database/README.md) and
+[file audio-track contract](contracts/file-transcription-audio-tracks.md).
+
+`MeetingImportService` is the shared app/CLI boundary for turning one external
+recording into a managed meeting. It normalizes the first/default audio stream
+under the meeting-recordings root while holding the media mutation lease,
+publishes the ordinary recovery lock before the database stub, then delegates
+to `TranscriptionService`, `MeetingRecordingSettlement`, and
+`SavedAudioAutoPromptCompletionService`. The source path never becomes owned
+meeting state. `createdAt` preserves historical chronology, while
+`audioRetentionStartedAt` ages only the managed copy. See
+[ADR-030](adr/030-external-meeting-import.md) and the
+[meeting import contract](contracts/meeting-import-v1.md).
+
+### Meeting stop, finalization and recovery
+
+```mermaid
+flowchart LR
+    Capture[Raw source audio and recording.lock] --> Stop[Stop and settle writers]
+    Stop --> Durable[Durable audio, lock and processing Library row]
+    Durable --> Queue[Queued meetingFinalize work]
+    Queue --> Final[Source-aware STT and effective transcript]
+    Final --> Artifacts[Meeting artifacts and optional prompt results]
+    Stop -. failure preserves recoverable data .-> Recovery[Recovery service]
+    Queue -. failure remains retryable .-> Recovery
 ```
 
-- **Shared microphone engine** — dictation and meeting mic capture subscribe to one process-wide `SharedMicrophoneStream`; downstream feature pipelines stay independent after copying buffers.
-- **Meeting mic processing** — meeting mic capture ships as raw mic capture by default to avoid degrading the live call mic heard by other participants; VPIO remains explicit opt-in plumbing, and consumers extract channel 0 if VPIO is engaged.
-- **No mutual exclusion** — dictation and meeting recording can both be active.
-- **Centralized STT ownership** — one runtime owner manages lifecycle, warm-up, shutdown, and Parakeet/Whisper dispatch.
-- **Explicit scheduling** — the STT stack uses a reserved dictation slot plus a shared background slot; within the background slot, finalize beats live preview, and file transcription waits.
-- **Meeting engine lease** — a recording pins the active speech engine/language at start and blocks engine switching until stop/cancel.
-- **Menu bar icon priority** — meeting > dictation > file-transcription > idle.
+The recorder can return to idle once durable stop succeeds, allowing another
+meeting while final STT waits. That does not create a new speech lane. Raw mic
+and system sources remain the evidence; optional `microphone-cleaned.m4a` is a
+fail-soft AEC derivative. The finalizer aligns source transcripts, applies
+vocabulary and optional system-side diarization, and persists capture quality
+independently of whether STT returned text.
 
----
+`MeetingRecordingSettlement`, `MeetingRecordingRecoveryService`, source writer
+ownership and the lock-file store protect audio during stop, retry and discard.
+A lock is protective metadata, not sufficient proof that a session is orphaned.
+The [recovery/retention contract](contracts/meeting-recovery-retention.md) owns
+deadlines, active-writer guards, empty-session handling and explicit discard;
+[meeting artifacts v1](contracts/meeting-artifacts-v1.md) owns filenames,
+alignment, capture reports and compatibility. [ADR-028](adr/028-meeting-echo-cancellation.md)
+owns the AEC decision. Never infer successful dual-source capture from a
+successful transcript or absent telemetry alone.
 
-## Components Detail
+## Transcript evidence and derived views
 
-### 1. MacParakeet App (GUI — SwiftUI)
+The durable transcript is not the same thing as every rendered or indexed
+view of it. Current development adds a cross-cutting correction layer:
 
-The UI layer. Thin shell over MacParakeetCore. No business logic lives here.
-
-#### Main Window
-
-**Responsibility:** Primary in-app navigation shell. Hosts the Transcribe capture hub, Library, Dictations, Vocabulary, Transforms, Feedback, Settings, and Discover surfaces. File/URL transcription, meeting recording, transcript browse, dictation history, prompt actions, Transforms, and settings all route through this window.
-
-**Key Types:**
-- `MainWindowView` — `NavigationSplitView` sidebar (Transcribe / Library / Dictations / Vocabulary / Transforms / Feedback / Settings) plus pinned Discover card and a global transcription progress bar
-- `TranscribeView` — YouTube card, file drop card, Meeting Recording tile, and transcript detail / progress surfaces
-- `TranscriptionLibraryView` — file, YouTube, meeting, and favorite transcript browse with search/sort/filter support
-- `TranscriptResultView` — Scrollable text with optional word-level timestamps
-- `DictationHistoryView` — Flat chronological list with bottom bar audio player
-
-**Shared Components** (`Views/Components/`):
-- `DesignSystem` — Centralized design tokens (Colors, Typography, Spacing, Layout, Animation)
-- `BreathWaveLogo` / `BreathWaveIcon.brandMark` — Inline parakeet brand mark
-  surfaces backed by the bundled canonical PNG; vector/promo assets live in
-  `brand-assets/` and are not runtime dependencies.
-- `SacredGeometry` — Shared sacred geometry components:
-  - `TriangleShape` — Equilateral triangle Shape
-  - `SpinnerRingView` — Compact merkaba spinner
-  - `MeditativeMerkabaView` — Large, slow merkaba for empty states
-  - `SacredGeometryDivider` — Thin line with centered diamond ornament
-
-**Dependencies:** `TranscriptionService`, `TranscriptionLibraryViewModel`, `ExportService`, `MeetingRecordingPillViewModel`, feature-gated meeting recording coordinators
-
-**Data Flow:**
-```
-File/URL/meeting action -> MainWindowView/TranscribeView -> TranscriptionService or MeetingRecordingFlowCoordinator
-                                                                |
-                                                                v
-                                                  TranscriptResultView / Library
+```mermaid
+flowchart TD
+    Original[Automatic words, timings and source evidence] --> Attribution[SpeakerAttributionReadService]
+    Corrections[Transcript-scoped speaker correction log and cursor] --> Attribution
+    Attribution --> Display[Timed display and rich AI context]
+    Attribution --> Export[Exports and meeting artifacts]
+    Attribution --> Segments[Derived segments and FTS search]
+    Segments --> Cards[Validated knowledge cards]
 ```
 
-#### Menu Bar
-
-**Responsibility:** Always-visible status indicator. Quick access to dictation, recent files, and settings.
-
-**Key Types:**
-- `AppDelegate` — NSStatusItem setup + NSMenu, main window lifecycle (NSWindow + NSHostingView)
-
-**Dependencies:** `DictationService`, app state
-
-#### Dictation Overlay
-
-**Responsibility:** Floating, non-activating panel that shows recording state. Appears near the cursor or in a fixed position. Does not steal focus from the active app.
-
-**Key Types:**
-- `DictationOverlayView` — Waveform visualization + status text
-- `DictationOverlayController` — NSPanel (non-activating) lifecycle
-
-**Dependencies:** `DictationService` (observes state)
-
-**Design Notes:**
-- Uses `NSPanel` with `.nonactivatingPanel` collection behavior so it never steals keyboard focus
-- Subclass `NSPanel` as `KeylessPanel` with `canBecomeKey → false` (overlay should never steal focus)
-- Audio level visualization driven by `DictationService` publishing amplitude values
-
-#### Settings View
-
-**Responsibility:** User preferences and diagnostics. Four-tab settings shell for modes, local speech engines, optional AI, appearance, system permissions, storage, updates, and retained entitlement diagnostics.
-
-**Key Types:**
-- `SettingsView` — Tabbed/searchable shell (`Modes`, `Engine`, `AI`, `System`) with per-tab scroll bodies
-- `SettingsRootViewModel` — Owns active-tab persistence and search state
-- `SettingsTab` — Stable tab identifiers shared by search and view routing
-- `SettingsSearchIndex` — Cross-tab search entries; includes calendar rows while `AppFeatures.calendarEnabled` is `true`, and hides them when the flag is off
-- `SettingsViewModel` — Manages settings state, appearance preference, permissions, model status, speech-engine selection, calendar preferences, and legacy entitlement state
-
-**Dependencies:** `UserDefaults`, `CustomWordRepository`, `TextSnippetRepository`, `STTModelManager`, `WhisperModelManager`, `SPUUpdater`
-
-#### Feedback View
-
-**Responsibility:** User feedback submission and community link.
-
-**Key Types:**
-- `FeedbackView` — Card-based scrollable container with category selection, form, and community link
-- `FeedbackViewModel` — Form state, submission lifecycle, screenshot attachment
-- `FeedbackService` — POSTs feedback JSON to `macparakeet.com/api/feedback` (Cloudflare Worker → GitHub Issues)
-
-**Dependencies:** `FeedbackService`
-
----
-
-### 2. MacParakeetCore (Library — No SwiftUI Dependencies)
-
-The shared core. All business logic, all data access, all service orchestration. Imported by the GUI app and `macparakeet-cli`.
-Core may use AppKit for small macOS adapter services (for example pasteboard, System Settings deep links, app termination notification, document export), but does not own SwiftUI views.
-
-#### 2.1 DictationService
-
-**Responsibility:** Orchestrates the full dictation lifecycle: hotkey detection, audio capture, STT, text processing, and text insertion.
-
-**Key Types/Protocols:**
-```swift
-protocol DictationServiceProtocol: Sendable {
-    var state: DictationState { get async }     // .idle, .recording, .processing, .success, .error
-    var audioLevel: Float { get async }         // 0.0–1.0, published for overlay waveform
-    func startRecording() async throws
-    func stopRecording() async throws -> Dictation
-    func cancelRecording() async
-}
-
-enum DictationState: Sendable {
-    case idle
-    case recording
-    case processing
-    case success(Dictation)
-    case cancelled
-    case error(String)
-}
-```
-
-**Dependencies:** `AudioProcessor`, shared `STTManaging` scheduler/runtime path, `DictationRepository`, `ClipboardService`
-
-**Data Flow:**
-```
-Hotkey pressed
-    │
-    ▼
-DictationService.startRecording()
-    │ ── AVAudioEngine installs tap on input node
-    │ ── Audio buffer accumulates in memory
-    │ ── Publishes audioLevel for overlay
-    │
-Hotkey released (or toggle stop)
-    │
-    ▼
-DictationService.stopRecording()
-    │ ── Writes buffer to temp WAV (16kHz mono)
-    │ ── Submits a `dictation` job to the shared STT scheduler
-    │ ── Receives raw transcript
-    │ ── Runs TextProcessingPipeline (if mode == .clean)
-    │ ── Saves to DictationRepository
-    │ ── Inserts via NSPasteboard + simulated Cmd+V, then restores clipboard
-    │
-    ▼
-DictationResult returned
-```
-
-#### 2.2 TranscriptionService
-
-**Responsibility:** Orchestrates file and URL transcription: download/convert audio, run STT, apply optional deterministic cleanup, persist results, emit UI progress phases, and retranscribe saved library items.
-
-**Key Types/Protocols:**
-```swift
-protocol TranscriptionServiceProtocol: Sendable {
-    func transcribe(fileURL: URL) async throws -> Transcription
-    func transcribeURL(urlString: String, onProgress: (@Sendable (String) -> Void)?) async throws -> Transcription
-}
-```
-
-**Dependencies:** `AudioProcessor`, shared `STTManaging` scheduler/runtime path, `TranscriptionRepository`, `YouTubeDownloader`, storage prefs (`saveTranscriptionAudio`, `saveMeetingAudio`)
-
-**Data Flow:**
-```
-File transcription:
-File URL
-    │
-    ▼
-AudioProcessor.convert(fileURL:) → 16kHz mono WAV in temp dir
-    │
-    ▼
-STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → raw transcript + word timestamps
-    │
-    ▼
-TranscriptionRepository.save() → persisted to database
-    │
-    ▼
-Transcription returned to UI
-
-Saved meeting retranscription from the library:
-Saved meeting audio file
-    │
-    ▼
-AudioProcessor.convert(fileURL:) → 16kHz mono WAV in temp dir
-    │
-    ▼
-STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → queued background-slot work
-    │
-    ▼
-Updated Transcription persisted with sourceType still = .meeting
-
-YouTube URL transcription:
-YouTube URL
-    │
-    ▼
-YouTubeDownloader.download(url:, onProgress:) → emits download %
-    │
-    ▼
-AudioProcessor.convert(fileURL:) → 16kHz mono WAV in temp dir
-    │
-    ▼
-STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → emits chunk %
-    │
-    ▼
-TranscriptionRepository.save() with sourceURL (+ filePath when retention enabled)
-    │
-    ▼
-Transcription returned to UI
-```
-
-#### 2.3 TextProcessingPipeline
-
-**Responsibility:** Deterministic, rule-based text cleanup. Runs after STT, before display. Fast, predictable, repeatable.
-
-**Key Types/Protocols:**
-```swift
-protocol TextProcessingPipelineProtocol {
-    func process(_ text: String) -> String
-}
-
-// Pipeline stages (executed in order):
-// 1. Filler removal (verbal fillers: um, uh, you know, etc.)
-// 2. Custom word replacements (vocabulary anchors + corrections)
-// 3. Snippet expansion (trigger → expansion)
-// 4. Whitespace cleanup (collapse spaces, fix punctuation, capitalize)
-```
-
-**Dependencies:** `CustomWordRepository`, `TextSnippetRepository`
-
-**Design Notes:**
-- All stages are pure functions over strings — trivially testable
-- Custom words loaded once and cached; refreshed on repository change
-- Pipeline is synchronous — no async overhead for a few hundred microseconds of work
-
-#### 2.4 AudioProcessor
-
-**Responsibility:** Audio format conversion and resampling. Converts supported input formats to 16kHz mono WAV for the selected local STT engine. Also handles microphone audio buffer management for dictation.
-
-**Key Types/Protocols:**
-```swift
-protocol AudioProcessorProtocol: Sendable {
-    func convert(fileURL: URL) async throws -> URL   // → 16kHz mono WAV
-    func startCapture() async throws                  // mic recording
-    func stopCapture() async throws -> URL            // → saved WAV
-    var audioLevel: Float { get async }               // current amplitude (0.0–1.0)
-    var isRecording: Bool { get async }               // capture state
-}
-```
-
-**Dependencies:** AVFoundation (mic capture), FFmpeg (file conversion — via bundled binary)
-
-**Design Notes:**
-- FFmpeg invoked as a subprocess (`Process`), not linked as a library
-- Temp files written to app-scoped temp directory, cleaned after use
-- Microphone capture uses `AVAudioEngine` with a tap on the input node
-- Dictation capture writes temp WAV output and validates minimum samples before STT
-- Supports: MP3, WAV, M4A, FLAC, OGG, OPUS, MP4, MOV, MKV, WebM, AVI
-
-#### 2.5 STT Runtime + Scheduler
-
-**Responsibility:** The shared STT stack owns one process-wide runtime actor plus one explicit scheduler. `STTRuntime` owns FluidAudio model lifecycle, the slot-scoped Parakeet `AsrManager` set for the selected Parakeet build (`v3` default, `v2` opt-in), optional `WhisperEngine` lifecycle, and engine dispatch. `STTScheduler` owns admission, slot assignment, in-slot priority, backpressure, cancellation, request-scoped progress, speech-engine leases, and guarded Parakeet model-variant switching. `STTClient` remains as a compatibility facade, not as an app-owned second runtime.
-
-**Key Types/Protocols:**
-```swift
-public enum STTJobKind: Sendable, Equatable {
-    case dictation
-    case meetingFinalize
-    case meetingLiveChunk
-    case fileTranscription
-}
-
-public enum STTWarmUpState: Sendable, Equatable {
-    case idle
-    case working(message: String, progress: Double?)
-    case ready
-    case failed(message: String)
-}
-
-public protocol STTTranscribing: Sendable {
-    func transcribe(
-        audioPath: String,
-        job: STTJobKind,
-        onProgress: (@Sendable (Int, Int) -> Void)?
-    ) async throws -> STTResult
-}
-
-public protocol SpeechEngineRoutedTranscribing: STTTranscribing {
-    func transcribe(
-        audioPath: String,
-        job: STTJobKind,
-        speechEngine: SpeechEngineSelection,
-        onProgress: (@Sendable (Int, Int) -> Void)?
-    ) async throws -> STTResult
-}
-
-public protocol STTRuntimeManaging: Sendable {
-    func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws
-    func backgroundWarmUp() async
-    func observeWarmUpProgress() async -> (id: UUID, stream: AsyncStream<STTWarmUpState>)
-    func removeWarmUpObserver(id: UUID) async
-    func clearModelCache() async
-    func isReady() async -> Bool
-    func shutdown() async
-}
-
-public typealias STTManaging = STTTranscribing & STTRuntimeManaging
-public typealias STTClientProtocol = STTManaging
-
-public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
-    case parakeet
-    case nemotron
-    case whisper
-}
-
-public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
-    case v3
-    case v2
-}
-
-public struct SpeechEngineSelection: Codable, Equatable, Sendable {
-    let engine: SpeechEnginePreference
-    let language: String?
-}
-
-public struct SpeechEngineLease: Equatable, Sendable {
-    let id: UUID
-    let selection: SpeechEngineSelection
-}
-
-public protocol SpeechEngineSwitching: Sendable {
-    func setSpeechEngine(_ preference: SpeechEnginePreference) async throws
-    func setParakeetModelVariant(_ variant: ParakeetModelVariant) async throws
-}
-
-public protocol SpeechEngineSessionManaging: Sendable {
-    func beginSpeechEngineSession() async -> SpeechEngineLease
-    func endSpeechEngineSession(_ lease: SpeechEngineLease) async
-}
-
-struct STTResult: Sendable {
-    let text: String
-    let words: [TimestampedWord]
-    let language: String?
-}
-
-struct TimestampedWord: Sendable {
-    let word: String
-    let startMs: Int          // milliseconds
-    let endMs: Int            // milliseconds
-    let confidence: Double
-}
-```
-
-**Dependencies:** FluidAudio SDK (CoreML, runs on ANE) and optional WhisperKit.
-
-**Architecture:**
-```
-CPU:  MacParakeet app (UI, hotkeys, clipboard, history)
-ANE:  Parakeet STT (via FluidAudio/CoreML) — dedicated ML accelerator
-CPU/GPU/CoreML as selected by WhisperKit: optional multilingual STT
-```
-
-**API:**
-```swift
-import FluidAudio
-
-let selectedVersion: AsrModelVersion = .v3 // or .v2 for English-only
-let models = try await AsrModels.downloadAndLoad(version: selectedVersion)
-let manager = AsrManager(config: .default)
-try await manager.initialize(models: models)
-
-let result = try await manager.transcribe(samples, source: .system)
-// result.text, result.tokenTimings (word-level timestamps + confidence)
-```
-
-**Approved Target Ownership Model:**
-```
-Feature services (Dictation / Meeting / File / URL)
-    │
-    ▼
-STTScheduler
-    ├── interactive slot → dictation
-    └── background slot  → meetingFinalize > meetingLiveChunk > fileTranscription
-    │
-    ▼
-STTRuntime
-    ├── interactive slot → Parakeet AsrManager
-    ├── background slot  → Parakeet AsrManager
-    └── optional WhisperEngine selected by routed jobs/preferences
-```
-
-**Model Lifecycle:**
-```
-App Launch
-    │
-    ▼
-STTRuntime.warmUp() called (lazy, on first use or from onboarding)
-    │
-    ├── Check: Are Parakeet CoreML models downloaded?
-    │     │
-    │     ├── Yes → initialize slot managers → Runtime ready (~162ms warm load)
-    │     │
-    │     └── No ──► AsrModels.downloadAndLoad() (~465 MB download)
-    │                  CoreML compilation (~3.4s first time)
-    │                  initialize slot managers
-    │
-    ▼
-Slot managers ready — scheduler admits transcription jobs
-
-Whisper is downloaded explicitly and does not block Parakeet readiness. Switching engines is refused while STT jobs are queued/running or a meeting speech-engine lease is active.
-```
-
-Product-level readiness can coordinate additional services beyond the two STT slots. In particular, speaker diarization remains outside the speech scheduler, but onboarding should still account for its required assets before declaring default-on file-transcription features fully ready.
-
-#### 2.6 ExportService
-
-**Responsibility:** Convert transcription results into various output formats.
-
-**Key Types/Protocols:**
-```swift
-protocol ExportServiceProtocol: Sendable {
-    func exportToTxt(transcription: Transcription, url: URL) throws
-    func formatForClipboard(transcription: Transcription) -> String
-}
-
-// v0.1: .txt only. SRT/VTT/JSON added in v0.3.
-```
-
-**Dependencies:** Foundation (file I/O), `NSPasteboard` (clipboard)
-
-**Data Flow:**
-```
-Transcription (from DB or in-memory)
-    │
-    ▼
-ExportService.exportToTxt(transcription:, url: outputURL)
-    │ ── Formats header (filename, duration)
-    │ ── Appends transcript text
-    │ ── Writes to file
-    │
-    ▼
-File saved at outputURL
-```
-
-#### 2.7 Models
-
-All models conform to GRDB's `Codable` + `FetchableRecord` + `PersistableRecord` protocols.
-
-```swift
-struct Dictation: Codable, Identifiable, Sendable {
-    var id: UUID
-    var createdAt: Date
-    var durationMs: Int
-    var rawTranscript: String
-    var cleanTranscript: String?
-    var audioPath: String?
-    var pastedToApp: String?        // bundle ID of target app
-    var processingMode: ProcessingMode  // .raw, .clean
-    var status: DictationStatus     // .recording, .processing, .completed, .error
-    var errorMessage: String?
-    var updatedAt: Date
-}
-
-struct Transcription: Codable, Identifiable, Sendable {
-    var id: UUID
-    var createdAt: Date
-    var fileName: String
-    var filePath: String?
-    var fileSizeBytes: Int?
-    var durationMs: Int?
-    var rawTranscript: String?
-    var cleanTranscript: String?
-    var wordTimestamps: [WordTimestamp]?  // JSON-encoded in DB
-    var language: String?
-    var speakerCount: Int?
-    var speakers: [String]?
-    var status: TranscriptionStatus  // .processing, .completed, .error, .cancelled
-    var errorMessage: String?
-    var exportPath: String?
-    var sourceURL: String?           // YouTube/web URL (v0.3)
-    var updatedAt: Date
-}
-
-// CustomWord and TextSnippet models are v0.2+
-struct CustomWord: Codable, Identifiable {
-    let id: UUID
-    var word: String                // what to match (case-insensitive)
-    var replacement: String?        // what to replace with (nil = vocabulary anchor)
-    var source: Source              // .manual, .learned
-    var isEnabled: Bool
-    let createdAt: Date
-    var updatedAt: Date
-}
-
-struct TextSnippet: Codable, Identifiable {
-    let id: UUID
-    var trigger: String             // e.g., "my address" (natural phrase, not abbreviation)
-    var expansion: String           // e.g., "123 Main St, Springfield, IL"
-    var isEnabled: Bool
-    var useCount: Int
-    let createdAt: Date
-    var updatedAt: Date
-}
-```
-
-#### 2.8 Repositories
-
-One repository per table. All use GRDB and follow the same pattern.
-
-```swift
-// Canonical pattern (DictationRepository shown):
-protocol DictationRepositoryProtocol: Sendable {
-    func save(_ dictation: Dictation) throws
-    func fetch(id: UUID) throws -> Dictation?
-    func fetchAll(limit: Int?) throws -> [Dictation]
-    func search(query: String, limit: Int?) throws -> [Dictation]
-    func delete(id: UUID) throws -> Bool
-    func deleteAll() throws
-    func stats() throws -> DictationStats
-}
-
-protocol TranscriptionRepositoryProtocol: Sendable {
-    func save(_ transcription: Transcription) throws
-    func fetch(id: UUID) throws -> Transcription?
-    func fetchAll(limit: Int?) throws -> [Transcription]
-    func delete(id: UUID) throws -> Bool
-    func deleteAll() throws
-    func updateStatus(id: UUID, status: Transcription.TranscriptionStatus, errorMessage: String?) throws
-}
-
-// CustomWordRepository and TextSnippetRepository follow the same pattern (v0.2+)
-```
-
-**Dependencies:** GRDB (`DatabaseQueue`)
-
-**Design Notes:**
-- All repositories take a `DatabaseQueue` via init (dependency injection)
-- Tests use in-memory SQLite: `DatabaseQueue()` with no path
-- Repositories are `final class` (synchronous GRDB calls, thread safety via DatabaseQueue)
-- Migrations run inline on app startup (no migration files)
-
----
-
-### 3. Local STT Engines
-
-Speech recognition runs in the app process. Parakeet via FluidAudio CoreML on the Neural Engine is the default engine family: v3 is the multilingual default and v2 is an English-only opt-in. Two optional local engines extend coverage: Nemotron 3.5 (Beta), a fast FluidAudio CoreML streaming engine with a multilingual default build and an English-only build, and WhisperKit for broader language coverage.
-
-**Responsibility:** Speech-to-text transcription using the user's selected local engine.
-
-**Key Details:**
-
-| Property | Value |
-|----------|-------|
-| Model | Parakeet TDT 0.6B (`v3` multilingual default, `v2` English-only opt-in) |
-| WER | ~2.5% (v3) / ~2.1% (v2) |
-| Speed | ~155x realtime on Apple Silicon |
-| Working RAM | ~66 MB (~130 MB with vocab boosting) |
-| Runs on | Neural Engine (ANE) via CoreML |
-| Input | 16kHz mono Float32 samples |
-| Output | Text + word-level timestamps + confidence |
-| Model download | ~465 MB CoreML bundle per build; v2 and v3 cache independently |
-
-| Optional Engine (Nemotron, Beta) | Value |
-|-----------------|-------|
-| Model | Nemotron 3.5 ASR Streaming 0.6B (`nemotron-multilingual-1120ms`, default) / Nemotron Speech Streaming EN 0.6B (`nemotron-english-1120ms`, English-only) |
-| Runtime | FluidAudio CoreML streaming path |
-| Sizes | ~1.5 GB (multilingual) / ~600 MB (English) |
-| Output | Text + detected/specified language; no word-level timestamps surfaced |
-| Model cache | FluidAudio cache (`nemotron-multilingual/` and `nemotron-streaming/<tier>ms`) |
-| Selection | Settings speech-engine + Nemotron Model picker, or CLI `--engine nemotron --nemotron-model <id>` |
-
-| Optional Engine (WhisperKit) | Value |
-|-----------------|-------|
-| Model | Whisper large-v3 turbo CoreML variant by default |
-| Runtime | WhisperKit |
-| Languages | Broad multilingual coverage including languages Parakeet does not cover |
-| Model cache | `~/Library/Application Support/MacParakeet/models/stt/whisper/` |
-| Selection | Settings speech-engine picker or CLI `--engine whisper --language <code>` |
-
-**Why In-Process (Not Daemon)?**
-- FluidAudio provides native Swift async/await API — no IPC overhead
-- CoreML models run on the ANE, leaving GPU free for the rest of macOS
-- Simpler lifecycle: download models once, initialize, call transcribe()
-- No Python, no subprocess, no JSON-RPC for STT — pure Swift local engines
-
-```
-~/Library/Application Support/MacParakeet/
-    └── models/
-        └── stt/
-            └── whisper/        # WhisperKit model cache
-
-Parakeet's FluidAudio cache is managed by FluidAudio per selected build. `models/stt/whisper/` is the MacParakeet-owned cache for WhisperKit downloads.
-```
-
----
-
-## Data Flow Diagrams
-
-### 1. Dictation Flow: Hotkey -> Record -> STT -> Pipeline -> Paste
-
-```
-┌─────────┐      ┌─────────────────┐      ┌────────────────┐
-│  User    │      │  DictationService│      │  AudioProcessor │
-│ (Hotkey) │      │                  │      │                 │
-└────┬─────┘      └────────┬────────┘      └────────┬────────┘
-     │                     │                        │
-     │  Press hotkey       │                        │
-     │ ──────────────────> │                        │
-     │                     │  startCapture()        │
-     │                     │ ─────────────────────> │
-     │                     │                        │ ── AVAudioEngine
-     │                     │                        │    tap on input
-     │                     │    audioLevel updates  │
-     │                     │ <───────────────────── │
-     │   overlay updates   │                        │
-     │ <────────────────── │                        │
-     │                     │                        │
-     │  Release hotkey     │                        │
-     │ ──────────────────> │                        │
-     │                     │  stopCapture() → WAV   │
-     │                     │ ─────────────────────> │
-     │                     │                        │
-     │                     │      ┌──────────────┐   │
-     │                     │ ───> │STTScheduler  │   │
-     │                     │      └──────┬───────┘   │
-     │                     │             │           │
-     │                     │             │  transcribe(wav, .dictation)
-     │                     │             │ ────────────────────┐
-     │                     │           │                     │
-     │                     │             │    ┌──────────────▼──────┐
-     │                     │             │    │ STTRuntime +        │
-     │                     │             │    │ selected engine     │
-     │                     │             │    └─────────────────────┘
-     │                     │           │                     │
-     │                     │             │  raw transcript     │
-     │                     │             │ <───────────────────┘
-     │                     │             │
-     │                     │  raw text │
-     │                     │ <──────── │
-     │                     │
-     │                     │      ┌──────────────────────┐
-     │                     │ ───> │TextProcessingPipeline│
-     │                     │      └──────────┬───────────┘
-     │                     │                 │
-     │                     │  clean text     │
-     │                     │ <───────────────┘
-     │                     │
-     │                     │  Save to DictationRepository
-     │                     │  Copy to NSPasteboard
-     │                     │  Simulate Cmd+V via CGEvent
-     │                     │
-     │   text pasted       │
-     │ <────────────────── │
-     │                     │
-```
-
-### 2. File Transcription Flow: File -> AudioProcessor -> STT -> Display
-
-```
-┌──────────────┐    ┌──────────────────────┐    ┌────────────────┐
-│  MainWindow  │    │ TranscriptionService │    │ AudioProcessor │
-│  (Drop Zone) │    │                      │    │                │
-└──────┬───────┘    └──────────┬───────────┘    └───────┬────────┘
-       │                       │                        │
-       │  File dropped         │                        │
-       │ ────────────────────> │                        │
-       │                       │  convert(fileURL:)      │
-       │                       │ ─────────────────────> │
-       │                       │                        │ ── FFmpeg subprocess
-       │                       │  16kHz mono WAV        │    input → WAV
-       │                       │ <───────────────────── │
-       │                       │
-       │                       │     ┌──────────────┐
-       │                       │ ──> │STTScheduler  │ ──> STTRuntime + selected engine
-       │                       │     └─────┬────────┘
-       │                       │           │
-       │                       │  STTResult (text + timestamps)
-       │                       │ <──────── │
-       │                       │
-       │                       │  Save to TranscriptionRepository
-       │                       │
-       │  TranscriptionResult  │
-       │ <──────────────────── │
-       │                       │
-       │  Display transcript   │
-       │  in TranscriptView    │
-       │                       │
-```
-
-### 3. Export Flow: Transcription -> Format -> File
-
-```
-┌──────────────┐    ┌───────────────┐    ┌───────────────┐
-│  MainWindow  │    │ ExportService │    │  File System  │
-└──────┬───────┘    └───────┬───────┘    └───────┬───────┘
-       │                    │                    │
-       │ User clicks Export │                    │
-       │ Selects format     │                    │
-       │ (e.g., .srt)      │                    │
-       │                    │                    │
-       │ export(transcription, .srt, outputURL)  │
-       │ ─────────────────> │                    │
-       │                    │                    │
-       │                    │  Read word timestamps
-       │                    │  from transcription
-       │                    │                    │
-       │                    │  Format as SRT:    │
-       │                    │  ┌───────────────┐ │
-       │                    │  │ 1             │ │
-       │                    │  │ 00:00:00,000  │ │
-       │                    │  │ --> 00:00:00, │ │
-       │                    │  │ 500           │ │
-       │                    │  │ Hello world   │ │
-       │                    │  └───────────────┘ │
-       │                    │                    │
-       │                    │  Write to file     │
-       │                    │ ─────────────────> │
-       │                    │                    │
-       │  Success           │                    │
-       │ <───────────────── │                    │
-       │                    │                    │
-```
-
----
-
-## Database Architecture
-
-Single SQLite file via GRDB. All data in one place. No external database processes.
-
-**Location:** `~/Library/Application Support/MacParakeet/macparakeet.db`
-
-### Representative Schema Excerpt
-
-See [01-data-model.md](01-data-model.md) for the full current schema. The excerpt below highlights the core tables and columns most relevant to the architecture discussion.
-
-```sql
--- Dictation history (voice-to-text sessions)
--- Note: GRDB Codable uses camelCase column names by default
-CREATE TABLE dictations (
-    id              TEXT PRIMARY KEY,       -- UUID
-    createdAt       TEXT NOT NULL,          -- ISO 8601
-    durationMs      INTEGER NOT NULL,       -- recording duration in milliseconds
-    rawTranscript   TEXT NOT NULL,          -- exact STT output
-    cleanTranscript TEXT,                   -- after TextProcessingPipeline (v0.2+)
-    audioPath       TEXT,                   -- relative path to saved audio (nullable)
-    pastedToApp     TEXT,                   -- bundle ID of target app
-    processingMode  TEXT NOT NULL DEFAULT 'raw', -- 'raw' (v0.1) or 'clean' (v0.2 default via UserDefaults)
-    hidden          BOOLEAN NOT NULL DEFAULT 0,  -- private dictation mode (v0.5)
-    wordCount       INTEGER NOT NULL DEFAULT 0,  -- cached for voice stats (v0.5)
-    engine          TEXT,                   -- STT engine attribution (v0.8)
-    engineVariant   TEXT,                   -- engine-specific model variant (v0.8)
-    status          TEXT NOT NULL DEFAULT 'completed', -- 'recording' | 'processing' | 'completed' | 'error'
-    errorMessage    TEXT,                   -- non-null if status == 'error'
-    updatedAt       TEXT NOT NULL
-);
-CREATE INDEX idx_dictations_created_at ON dictations(createdAt);
-
--- File transcription history
-CREATE TABLE transcriptions (
-    id              TEXT PRIMARY KEY,       -- UUID
-    createdAt       TEXT NOT NULL,          -- ISO 8601
-    fileName        TEXT NOT NULL,          -- original file name
-    filePath        TEXT,                   -- original file path
-    fileSizeBytes   INTEGER,               -- original file size
-    durationMs      INTEGER,               -- audio duration in milliseconds
-    rawTranscript   TEXT,                   -- exact STT output
-    cleanTranscript TEXT,                   -- after TextProcessingPipeline (v0.2+)
-    wordTimestamps  TEXT,                   -- JSON: [{"word":...,"startMs":...,"endMs":...,"confidence":...}]
-    diarizationSegments TEXT,               -- JSON speaker segments (v0.4+)
-    language        TEXT DEFAULT 'en',      -- detected language
-    speakerCount    INTEGER,               -- number of speakers (v0.4+)
-    speakers        TEXT,                   -- JSON: [{"id":"S1","label":"Speaker 1"}, ...] (v0.4+)
-    sourceType      TEXT NOT NULL DEFAULT 'file', -- file | youtube | meeting (v0.6)
-    thumbnailURL    TEXT,                   -- YouTube thumbnail URL (v0.5)
-    channelName     TEXT,                   -- YouTube channel name (v0.5)
-    videoDescription TEXT,                  -- YouTube video description (v0.5)
-    isFavorite      BOOLEAN NOT NULL DEFAULT 0, -- favorite marker (v0.5)
-    recoveredFromCrash BOOLEAN NOT NULL DEFAULT 0, -- recovered interrupted meeting (v0.7.5)
-    isTranscriptEdited BOOLEAN NOT NULL DEFAULT 0, -- user-edited transcript flag (v0.7.7)
-    userNotes       TEXT,                   -- meeting notes (v0.8)
-    engine          TEXT,                   -- STT engine attribution (v0.8)
-    engineVariant   TEXT,                   -- engine-specific model variant (v0.8)
-    derivedTitle    TEXT,                   -- cached display title (v0.9)
-    derivedSnippet  TEXT,                   -- cached display preview (v0.9)
-    status          TEXT NOT NULL DEFAULT 'processing', -- 'processing' | 'completed' | 'error' | 'cancelled'
-    errorMessage    TEXT,                   -- non-null if status == 'error'
-    exportPath      TEXT,                   -- path to exported file
-    sourceURL       TEXT,                   -- YouTube/web URL (v0.3)
-    updatedAt       TEXT NOT NULL
-);
-CREATE INDEX idx_transcriptions_created_at ON transcriptions(createdAt);
-
--- Additional active tables omitted here for brevity:
--- custom_words, text_snippets, chat_conversations, prompts, summaries (PromptResult),
--- lifetime_dictation_stats, quick_prompts
-```
-
-### Migrations
-
-Migrations run inline on app startup (not separate files). Pattern:
-
-```swift
-var migrator = DatabaseMigrator()
-
-migrator.registerMigration("v0.1-dictations") { db in
-    try db.create(table: "dictations") { t in
-        t.column("id", .text).primaryKey()
-        t.column("createdAt", .text).notNull()
-        t.column("durationMs", .integer).notNull()
-        t.column("rawTranscript", .text).notNull()
-        t.column("cleanTranscript", .text)
-        t.column("audioPath", .text)
-        t.column("pastedToApp", .text)
-        t.column("processingMode", .text).notNull().defaults(to: "raw")
-        t.column("status", .text).notNull().defaults(to: "completed")
-        t.column("errorMessage", .text)
-        t.column("updatedAt", .text).notNull()
-    }
-    // Historical note: v0.1 also created an FTS5 table + sync triggers.
-    // Those were removed in v0.5 after the app standardized on LIKE search.
-}
-
-migrator.registerMigration("v0.1-transcriptions") { db in
-    try db.create(table: "transcriptions") { ... }
-}
-
-try migrator.migrate(dbQueue)
-```
-
-### Entity-Relationship Diagram
-
-```
-dictations ──logical update──> lifetime_dictation_stats
-     │
-     └──optional FK from llm_runs for persisted formatter metadata
-
-transcriptions
-     ├──< chat_conversations
-     ├──< summaries / PromptResult
-     └──optional FK from llm_runs for persisted formatter metadata
-
-summaries / PromptResult ───────optional FK from llm_runs
-chat_conversations ─────────────optional FK from llm_runs
-transform_history ──────────────optional FK from llm_runs
-
-prompts
-     ├──category "summary"   -> prompt library / summary generation
-     └──category "transform" -> Transforms tab + CLI `transforms`
-
-quick_prompts  -> live meeting Ask shortcut pills
-custom_words   -> vocabulary anchors/corrections
-text_snippets  -> text snippets + trailing action snippets
-daily_dictation_stats -> per-day Stats heatmap/streak rollup
-```
-
-`spec/01-data-model.md` is the canonical schema reference. This architecture
-document shows only relationships that matter to service boundaries: feature
-tables own their full content, while `llm_runs` stores metadata-only source
-links for durable LLM operations and cascades away when its source row is
-deleted.
-
----
-
-## File Locations
-
-| Item | Path |
-|------|------|
-| App bundle | `/Applications/MacParakeet.app` |
-| Database | `~/Library/Application Support/MacParakeet/macparakeet.db` |
-| Dictation audio | `~/Library/Application Support/MacParakeet/dictations/` |
-| Transcription exports | `~/Library/Application Support/MacParakeet/transcriptions/` |
-| Parakeet STT models | FluidAudio-managed CoreML cache (~465 MB per build) |
-| Whisper STT models | `~/Library/Application Support/MacParakeet/models/stt/whisper/` |
-| yt-dlp binary | `~/Library/Application Support/MacParakeet/bin/yt-dlp` |
-| FFmpeg binary | `~/Library/Application Support/MacParakeet/bin/ffmpeg` |
-| Logs | `~/Library/Logs/MacParakeet/` |
-| Temp audio | `$TMPDIR/macparakeet/` (cleaned after use) |
-| Settings | `UserDefaults` (standard `com.macparakeet.MacParakeet.plist`) |
-
-### Directory Layout
-
-```
-~/Library/Application Support/MacParakeet/
-    ├── macparakeet.db              # SQLite database (all app data)
-    ├── dictations/                 # Saved dictation audio files
-    │   ├── {uuid}.wav              # Flat storage, no date subdirectories
-    │   └── ...
-    ├── models/                     # MacParakeet-owned downloaded ML models
-    │   └── stt/
-    │       └── whisper/            # WhisperKit models
-    └── bin/                        # Standalone binaries
-        ├── yt-dlp                  # YouTube downloader (~35 MB, self-updating)
-        └── ffmpeg                  # Video demuxing (~80 MB)
-```
-
----
+`SpeakerCorrectionService` applies commands against a transcript fingerprint
+and revision. Add/rename/assign/split/merge/remove/reset and Undo/Redo preserve
+recognized words and automatic evidence. Correction writes, derived segment
+replacement and card invalidation commit atomically. Replacement transcript evidence is fingerprinted again; corrections tied to a
+different fingerprint do not replay. A failed attempt preserves the prior
+transcript/corrections. Async display/context reads must reject stale
+same-ID snapshots and revisions. Consumers use effective attribution through
+`SpeakerAttributionReadService`, rather than modifying baseline speaker arrays.
+See [ADR-010](adr/010-speaker-diarization.md) and the
+[data model](01-data-model.md#speaker_corrections--speaker_correction_states-v032).
+
+`KnowledgeSegmenter` derives rebuildable `segments` and FTS search for meeting
+and file/URL transcripts. Dictation history remains a separate search surface.
+`CardGenerationService` validates bounded JSON and citations, then checks source
+freshness again after provider latency and inside persistence. Failed generation
+does not erase the previous valid card. `KnowledgeLayerMutationService` owns
+cross-table invalidation/replacement. Corpus-wide Ask, semantic retrieval and
+cross-file speaker identity are not implied by these components.
+
+Saved meeting notes are user-authored SQLite state. `SavedMeetingNotesViewModel`
+and `SavedMeetingNotesCoordinator` debounce saves and flush before dependent
+AI/navigation/quit operations; artifact refreshes are serialized per meeting.
+Result prompts can explicitly include notes, and persist what was actually
+sent. [ADR-020](adr/020-live-meeting-notepad-and-memo-summaries.md) governs these
+boundaries; notes are never silently replaced by generated results.
+
+## Optional AI and presentation
+
+`LLMService` builds operations over `RoutingLLMClient`. Configured HTTP adapters
+support cloud and local endpoints; Local CLI uses a managed subprocess and is
+not a guarantee that the invoked tool performs inference locally. The optional
+MLX target supplies a separate in-process runtime. Visibility requires both
+runtime availability and the product/developer gate.
+
+`prompts` owns stable identity and operational metadata; immutable
+`prompt_versions` owns content, requested settings and model override.
+`PromptRepository` resolves the active-version join; `PromptEditingService`
+coordinates transactional saves and restores without rewriting history. Optional
+`prompt_collections` organize prompts. `PromptLabelApplicabilityResolver` applies
+transcription-label policies for manual selection and source-aware auto-run;
+legacy meeting-type policies are compatibility data only.
+
+Prompt definitions and versions remain in the same GRDB database; completed `PromptResult` values retain
+the compatibility table name `summaries`. Result prompts snapshot prompt
+content, included notes and effective inference settings so a later edit does
+not rewrite a historical request receipt. Default/unsupported provider settings
+follow [spec 14](14-per-prompt-inference-settings.md), not arbitrary passthrough.
+Transforms have separate selected-text capture/replacement and history semantics.
+See [LLM integration](11-llm-integration.md), [processing layer](12-processing-layer.md)
+and [ADR-022](adr/022-transforms-system-wide-rewrite.md).
+
+App-owned Markdown views render static and streaming results/chat using the
+pinned `SwiftStreamingMarkdown` dependency. They preserve the original Markdown
+for copy/export. Rich rendering is presentation, not transcript mutation;
+[UI patterns](04-ui-patterns.md#llm-markdown-content) owns interaction details.
+`ExportService` supports TXT, Markdown, SRT, VTT, DAPT, DOCX, PDF and JSON; timing
+and speaker behavior depend on the effective transcript projection. Automatic
+text can use word timing, a corrected line can use only its segment envelope,
+and a transcript without word timestamps or with a legacy whole-text replacement
+is untimed. The
+[DAPT contract](contracts/dapt-export-v1.md) defines the same alignment boundary.
+
+## Storage and external boundaries
+
+| Data | Owner/location |
+|---|---|
+| Library, dictations, vocabulary, prompts/results, corrections, retrieval, cards, run metadata | GRDB `DatabaseManager` / repositories; normally `~/Library/Application Support/MacParakeet/macparakeet.db`. |
+| Preferences and provider metadata | `AppRuntimePreferences` / `UserDefaults`; provider configuration excludes API-key contents. |
+| Provider credentials | Per-provider Keychain entries through `LLMConfigStore`. |
+| Meeting audio, locks, metadata and materialized artifacts | Configured meeting artifact root plus `{uuid}/` (default `~/Library/Application Support/MacParakeet/meeting-recordings/`); retained artifact folder pointers survive managed audio removal. |
+| Dictation/file/media retained audio | App-managed paths and workflow-specific retention preferences; see `AppPaths` and storage contracts. |
+| Speech models and downloaded helper binaries | FluidAudio-managed caches, MacParakeet's Whisper cache and app `bin/` paths. |
+| Optional local LLM models | Explicitly downloaded `LLMModels/` directory; no model bundled or automatically downloaded. |
+| Diagnostics | Bounded local audio log, OSLog and explicit exports; governed separately from transmitted telemetry. |
+
+SQLite is the canonical structured record store, not a complete backup of all
+app state. `DatabaseManager(path:)` uses process-serialized migrations and a
+five-second busy timeout; CLI `health` uses read-only, non-migrating probes.
+Migration identifiers are historical schema labels, not app or CLI release
+versions. See [data model](01-data-model.md) and [AppPaths](../Sources/MacParakeetCore/Services/AppPaths.swift).
+
+Core STT has no network dependency after model setup. Other surfaces include
+configured AI, model/helper/media downloads, updates, opt-out telemetry/crash
+reporting, default-on Discover with its own opt-out, explicit submissions and
+retained activation plumbing, including startup validation of an existing
+legacy license (see [ADR-006](adr/006-trial-and-license-activation.md)). Calendar
+reads local EventKit data. The
+[local-only ADR](adr/002-local-only.md) enumerates these boundaries; neither
+telemetry opt-out nor hiding Discover is a global network switch.
+
+The app ships by Developer ID signing, notarization and DMG/Sparkle delivery,
+not as an App Store sandbox configuration. Use the actual entitlements and
+[distribution guide](../docs/distribution.md) for packaging. Microphone,
+Accessibility, system-audio and Calendar permissions are requested in the
+appropriate product flows; see [ADR-005](adr/005-onboarding-first-run.md).
 
 ## Dependencies
 
-### Swift Packages
+Package requirements below describe this audited revision; `Package.swift` and
+`Package.resolved` own requested and resolved versions respectively.
 
-| Package | SPM ID | Purpose | Notes |
-|---------|--------|---------|-------|
-| FluidAudio | `FluidAudio` | Default STT engine (Parakeet TDT via CoreML/ANE) + diarization | Apache 2.0. Use `FluidAudio` product only — NOT `FluidAudioEspeak` (GPL-3.0, would require open-sourcing). |
-| WhisperKit | `argmax-oss-swift` | Optional local multilingual STT engine | Exact 0.18.0 when enabled; `MACPARAKEET_SKIP_WHISPERKIT=1` skips the package for compatibility checks. |
-| GRDB.swift | `GRDB` | SQLite database | v6.29.0+, single-file storage, migrations, Codable records |
-| swift-argument-parser | `ArgumentParser` | CLI (implemented) | `macparakeet-cli transcribe`, `history`, `health`, `models`, `vocab`, `transforms` |
+| Dependency | Requirement and use |
+|---|---|
+| FluidAudio | Exact `0.15.7`; local STT and offline diarization. Deliberate upgrades require speech/diarization validation. |
+| GRDB.swift | From `7.0.0`; database access and migrations. |
+| swift-argument-parser | From `1.3.0`; public CLI. |
+| Sparkle | From `2.9.0`; app updates and embedded framework packaging. |
+| yyjson | Exact `0.12.0`; exposed by FluidAudio's module graph. |
+| WhisperKit / argmax-oss-swift | Exact `0.18.0`; optional compatibility-build exclusion. |
+| SwiftStreamingMarkdown fork | Immutable revision pinned in `Package.swift`; app/test rendering and transitive macro plugin. |
+| MLX packages and Tokenizers | Opt-in graph only: exact `mlx-swift-lm 3.31.4`, `mlx-swift 0.31.4`, `swift-transformers 1.1.6..<1.2.0`. |
 
-### Bundled / Downloaded Binaries
-
-| Tool | Purpose | Notes |
-|------|---------|-------|
-| yt-dlp | YouTube audio download | Standalone macOS binary (~35 MB), self-updates via `--update` |
-| FFmpeg | Video file demuxing | Extracts audio from video containers (mp4/mov/mkv/webm/avi) |
-
-### System Frameworks
-
-| Framework | Purpose |
-|-----------|---------|
-| AVFoundation / AVAudioEngine | Microphone capture |
-| CoreGraphics (CGEvent) | Global hotkey detection, simulated keystrokes (Cmd+V) |
-| AppKit (NSPasteboard) | Clipboard read/write for paste |
-| Accessibility (AXUIElement) | Global hotkey, paste simulation |
-| SwiftUI | All UI |
-| UniformTypeIdentifiers | File type detection for drag-and-drop |
-
----
-
-## Security & Privacy
-
-### Permissions Required
-
-| Permission | Reason | When Requested | Required? |
-|------------|--------|----------------|-----------|
-| Microphone | Dictation recording | First dictation attempt | Yes (for dictation) |
-| Accessibility | Global hotkey + simulated paste + read selection | First dictation attempt | Yes (for dictation) |
-
-### Permission Flow
-
-```
-First Launch
-    │
-    ▼
-Show onboarding: explain what permissions are needed and why
-    │
-    ▼
-User triggers first dictation
-    │
-    ├── Microphone permission dialog (system)
-    │     ├── Granted → continue
-    │     └── Denied → show "enable in System Settings" guidance
-    │
-    ├── Accessibility permission dialog (system)
-    │     ├── Granted → continue
-    │     └── Denied → show guidance (hotkey + paste won't work)
-    │
-    ▼
-Dictation ready
-```
-
-### Privacy Guarantees
-
-1. **No cloud STT** — Speech recognition stays local. Network is used only for explicit surfaces such as model downloads, update checks, optional LLM providers, optional telemetry/crash reporting, retained purchase activation endpoints if explicitly invoked, and user-initiated YouTube downloads.
-2. **Temp files cleaned** — Audio files in `$TMPDIR` deleted immediately after transcription
-3. **No accounts** — No login, no email, no user tracking
-4. **Telemetry is opt-out** — Self-hosted usage analytics and crash reporting run only while telemetry is enabled
-5. **Audio storage is opt-in** — Dictation audio only saved if user enables "Keep audio" in settings
-6. **Local AI only** — All ML inference happens on-device: STT on the ANE via CoreML
-
-### Runtime Permissions
-
-| Permission | Required For | User Flow |
-|------------|--------------|-----------|
-| Microphone | Dictation, onboarding mic test, meeting recording mic capture | Requested during onboarding or first dictation/meeting use |
-| Accessibility | Global hotkey paste simulation | Requested during onboarding or first dictation use |
-| Screen & System Audio Recording | ScreenCaptureKit system-audio capture for meeting recording | Optional during onboarding; otherwise requested on first meeting recording attempt; recording stays blocked until granted |
-| Calendar | Calendar reminders and optional meeting auto-start | Requested from onboarding or Settings calendar controls |
-
-### Sandboxing (App Store)
-
-For App Store distribution, the app needs:
-
-| Entitlement | Required For |
-|-------------|-------------|
-| `com.apple.security.device.audio-input` | Microphone access |
-| `com.apple.security.personal-information.calendars` | Calendar event access |
-| `com.apple.security.temporary-exception.apple-events` | Accessibility (paste simulation) |
-| `com.apple.security.files.user-selected.read-write` | File drag-and-drop |
-| `com.apple.security.files.downloads.read-write` | Export to Downloads |
-| Hardened Runtime | Code signing requirement |
-
-**Sandboxing Challenges:**
-- Accessibility API (`AXUIElement`) requires the app to be in the Accessibility allow-list, which is a system-level permission, not an entitlement
-- FFmpeg and yt-dlp subprocesses need careful path handling within the sandbox container
-- CoreML runs in-process — no subprocess restrictions apply to STT
-- Direct distribution (notarized DMG) avoids most sandbox restrictions
-
----
-
-## Performance
-
-### Memory Budget
-
-```
-┌────────────────────────────────────────────────────────────┐
-│                    Memory at Peak                           │
-├────────────────────────────────────────────────────────────┤
-│  Parakeet STT (CoreML/ANE)       ~66 MB per active slot    │
-│  Optional WhisperKit engine      model-dependent           │
-│  App process (UI + services)     ~100 MB                   │
-│  Audio buffers                   ~50 MB                    │
-│  ──────────────────────────────────────                    │
-│  Total peak                      depends on active engines │
-│                                                            │
-│  Minimum system RAM: 8 GB (Apple Silicon)                  │
-└────────────────────────────────────────────────────────────┘
-```
-
-### Startup Performance
-
-| Phase | Target | Strategy |
-|-------|--------|----------|
-| App window visible | <1 second | SwiftUI, no heavy init |
-| Dictation ready | <2 seconds | Post-onboarding (models pre-warmed) |
-| First STT result | <3 seconds | Default Parakeet model warm-up on first transcribe call |
-
-**Model Readiness Strategy:**
-```
-First Launch ────────> Onboarding model setup step
-                           └── Download + warm Parakeet STT
-                           ▼
-                       Ready state unlocked
-                           │
-Subsequent Launches ──> Window shown (fast)
-                           │
-                           ▼
-                       Dictation runs immediately
-```
-
-After initial warm-up, subsequent dictations are near-instant because the shared runtime keeps its slot managers initialized and ready between requests.
-
-### Transcription Speed
-
-| Audio Length | Transcription Time (M1) | Transcription Time (M1 Pro+) |
-|-------------|------------------------|-------------------------------|
-| 1 minute | ~0.4 seconds | ~0.2 seconds |
-| 10 minutes | ~4 seconds | ~2 seconds |
-| 1 hour | ~23 seconds | ~12 seconds |
-| 4 hours (max) | ~93 seconds | ~46 seconds |
-
-Parakeet TDT 0.6B throughput varies by device class: v3 is approximately 155x realtime on baseline M1 and up to ~300x on M1 Pro+ hardware via FluidAudio CoreML/ANE; v2 is slightly faster on English-only audio.
-
-### Memory Management
-
-- **Parakeet model:** One shared runtime owner keeps its managers initialized after first use. Budget ~66 MB working RAM per active inference slot on the ANE path. Real total memory depends on how many managers are loaded/active in the current implementation, whether the background capacity stays lazy in the final design, and whether diarization models are also resident.
-- **Whisper model:** Loaded only when selected; model size and runtime memory are variant-dependent. Default cache is `models/stt/whisper/`.
-- **Audio buffers:** Dictation writes temp WAV on stop; meeting recording writes fragmented source M4A files and lock files during capture. Completed meeting audio is retained by default but can be detached from the transcript through GUI/CLI cleanup. No recording duration limit beyond disk space and practical UI constraints.
-- **Database:** GRDB uses WAL mode by default. No connection pooling needed (single-user app).
-
-### Background Model Pre-warming
-
-After the user's first dictation session, pre-warm models in the background:
-
-```
-First dictation completes
-    │
-    ▼
-Schedule background task (low priority):
-    └── If Parakeet model not loaded → initialize the shared runtime's slot managers
-```
-
-This ensures subsequent interactions feel instant without bloating initial startup.
-
----
+`MACPARAKEET_SKIP_WHISPERKIT=1` also excludes the Markdown dependency graph for
+the first-party Swift 6 compatibility build. Normal builds include both.
+`yt-dlp` and FFmpeg are helper executables, not additional speech runtimes.
 
 ## Testing Strategy
 
-### Philosophy
+Use [spec 09](09-testing.md) and subsystem guides for focused behavioral checks.
+Database fixtures should use `DatabaseManager()` to apply the actual migrations
+to isolated in-memory storage. Do not copy a partial schema into a purported
+canonical test fixture. Hardware capture, permissions, model accuracy and signed
+upgrades need their own evidence; mocked service tests do not establish them.
 
-"Write tests. Not too many. Mostly integration."
-
-MacParakeet has a small surface area compared to Oatmeal. Focus testing on the core pipeline, not on UI chrome.
-
-### Test Categories
-
-| Category | What | How | Example |
-|----------|------|-----|---------|
-| Unit | Pure logic, models, pipeline stages | XCTest, fast, no I/O | `TextProcessingPipelineTests` |
-| Database | CRUD, queries, migrations | In-memory SQLite via GRDB | `DictationRepositoryTests` |
-| Integration | Service boundaries, multi-step flows | Protocol mocks, DI | `TranscriptionServiceTests` |
-| Manual | Audio capture, paste, hotkeys | Real hardware | Checklist-based |
-
-### What We Test
-
-- **TextProcessingPipeline** — Every stage, edge cases, custom word matching, snippet expansion
-- **Models** — Codable round-trip, validation, edge cases
-- **Repositories** — CRUD operations, search queries, migration correctness
-- **ExportService** — Format generation (TXT in v0.1; SRT, VTT, JSON in v0.3)
-- **STT scheduler/runtime boundary** — mock the `STTClientProtocol` interface (`STTManaging`) rather than real FluidAudio
-- **AudioProcessor** — Format detection, conversion parameter correctness (mock FFmpeg)
-
-### What We Skip
-
-- **SwiftUI views** — Test ViewModels, not views
-- **AVAudioEngine** — Requires real hardware microphone
-- **CGEvent / Accessibility** — Requires system permissions, not testable in CI
-- **Parakeet model accuracy** — That is the model's problem, not ours
-
-### Test Infrastructure
-
-```swift
-// In-memory database for tests (canonical pattern):
-func makeTestDatabase() throws -> DatabaseQueue {
-    let dbQueue = try DatabaseQueue()
-    var migrator = DatabaseMigrator()
-    // Register all migrations
-    registerMigrations(&migrator)
-    try migrator.migrate(dbQueue)
-    return dbQueue
-}
-
-// Protocol-based mocking:
-actor MockSTTClient: STTClientProtocol {
-    var transcribeResult: STTResult?
-    var transcribeError: Error?
-    var ready = true
-
-    func configure(result: STTResult) { transcribeResult = result; transcribeError = nil }
-    func configure(error: Error) { transcribeError = error; transcribeResult = nil }
-
-    func transcribe(
-        audioPath: String,
-        job: STTJobKind,
-        onProgress: (@Sendable (Int, Int) -> Void)? = nil
-    ) async throws -> STTResult {
-        if let error = transcribeError { throw error }
-        guard let result = transcribeResult else { throw STTError.modelNotLoaded }
-        return result
-    }
-    func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws {}
-    func backgroundWarmUp() async {}
-    func observeWarmUpProgress() async -> (id: UUID, stream: AsyncStream<STTWarmUpState>) {
-        (UUID(), AsyncStream { continuation in
-            continuation.yield(.idle)
-            continuation.finish()
-        })
-    }
-    func removeWarmUpObserver(id: UUID) async {}
-    func clearModelCache() async {}
-    func isReady() async -> Bool { ready }
-    func shutdown() async {}
-}
-```
-
-### Running Tests
-
-```bash
-# All tests (unit + database + integration)
-swift test
-
-# Parallel execution
-swift test --parallel
-
-# Filter to specific test class
-swift test --filter TextProcessingPipelineTests
-```
-
-Note: `swift test` works for all tests. Use `xcodebuild` for building the GUI app.
-
----
+For documentation-only changes, verify source claims, local links and the diff.
+For code, iterate with focused tests and run the full suite at most once as the
+final gate, with one owner across the task and release workflow.
 
 ## Build & Run
 
-### Commands
-
-```bash
-# Build GUI app
-xcodebuild build \
-    -scheme MacParakeet \
-    -destination 'platform=OS X' \
-    -derivedDataPath .build/xcode
-
-# Run GUI app
-.build/xcode/Build/Products/Debug/MacParakeet.app/Contents/MacOS/MacParakeet
-
-# Run tests (swift test works fine for tests)
-swift test
-
-# Open in Xcode
-open Package.swift
+```sh
+swift build
+swift test --filter TextProcessingPipelineTests
+scripts/dev/run_app.sh
+swift run macparakeet-cli --help
 ```
 
----
-
-## Architecture Principles
-
-1. **MacParakeetCore has no SwiftUI/view ownership.** Core is primarily Foundation + GRDB + FluidAudio + optional WhisperKit. AppKit is limited to small macOS adapter services with no Foundation-only alternative (clipboard, permission deep links, app termination notification, export). This keeps business logic testable without moving platform shims into SwiftUI views.
-
-2. **Protocol-first services.** Every service has a protocol. Tests inject mocks. No singletons.
-
-3. **Local-only for user data.** Core speech inference has no cloud or API-key dependency. Network is only for model artifacts, optional LLM providers, update/telemetry surfaces, retained purchase activation/validation if explicitly invoked, and user-initiated media downloads.
-
-4. **Fast launch + onboarding pre-warm.** App launch stays lightweight; first-run onboarding prepares STT model so core features feel ready immediately afterward.
-
-5. **Single database file.** All persistent state in one SQLite file. Easy to backup, easy to debug, easy to reset.
-
-6. **Deterministic pipeline.** `TextProcessingPipeline` is rule-based and repeatable. Users choose raw or clean mode.
-
-7. **Crash gracefully.** If CoreML fails, retry. If paste fails, copy to clipboard and notify. Never lose the transcript.
-
----
-
-*Last updated: 2026-06-14*
+Run from the worktree that owns the change. The development script owns GUI
+bundle preparation and `-skipMacroValidation` for the Markdown dependency; do
+not reconstruct a partial Xcode invocation from an old architecture example.
+Use isolated app state for QA as documented in the distribution/testing guides.

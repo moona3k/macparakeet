@@ -1,0 +1,824 @@
+2026-06-17T18:05:17.312Z dictation_diagnostics_session_start pid=87704 version=0.6.23 build=20260615125112 source=dist-xcodebuild-release commit=16e3f865f9f6
+2026-06-23T19:36:23.897Z dictation_preview_started engine=parakeet
+2026-06-23T19:36:23.908Z dictation_capture_start permission_status=3
+2026-06-23T19:36:24.061Z dictation_capture_starting
+2026-06-23T19:36:25.079Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=4.112 ducking_ms=0.000 output_format_ms=0.052 install_tap_ms=0.668 audio_engine_start_ms=403.105 total_ms=1001.201
+2026-06-23T19:36:25.083Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=1005.303
+2026-06-23T19:36:25.091Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T19:36:25.095Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-06-23T19:36:25.182Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T19:36:25.292Z dictation_preview_failed engine=parakeet error_type=STTError.transcriptionFailed error_detail="Transcription failed: Invalid audio data provided. Must be at least 300ms of 16kHz audio."
+2026-06-23T19:36:26.996Z dictation_preview_pass engine=parakeet ms=718 samples=17600 chars=0
+2026-06-23T19:36:27.657Z dictation_preview_pass engine=parakeet ms=375 samples=33600 chars=0
+2026-06-23T19:36:28.799Z dictation_preview_pass engine=parakeet ms=420 samples=51200 chars=0
+2026-06-23T19:36:29.791Z dictation_preview_pass engine=parakeet ms=404 samples=67200 chars=18
+2026-06-23T19:36:30.141Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:36:30.867Z dictation_preview_pass engine=parakeet ms=386 samples=84800 chars=18
+2026-06-23T19:36:31.842Z dictation_preview_pass engine=parakeet ms=263 samples=102400 chars=33
+2026-06-23T19:36:33.079Z dictation_preview_pass engine=parakeet ms=498 samples=118400 chars=35
+2026-06-23T19:36:34.100Z dictation_preview_pass engine=parakeet ms=420 samples=136000 chars=37
+2026-06-23T19:36:35.164Z dictation_capture_heartbeat input_buffers=100 input_frames=480000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:36:35.223Z dictation_preview_pass engine=parakeet ms=445 samples=153600 chars=50
+2026-06-23T19:36:36.199Z dictation_preview_pass engine=parakeet ms=418 samples=169600 chars=50
+2026-06-23T19:36:37.378Z dictation_preview_pass engine=parakeet ms=498 samples=187200 chars=57
+2026-06-23T19:36:38.407Z dictation_preview_pass engine=parakeet ms=425 samples=204800 chars=60
+2026-06-23T19:36:39.751Z dictation_preview_pass engine=parakeet ms=770 samples=220800 chars=63
+2026-06-23T19:36:40.212Z dictation_capture_heartbeat input_buffers=151 input_frames=724800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:36:40.643Z dictation_preview_pass engine=parakeet ms=562 samples=238400 chars=69
+2026-06-23T19:36:41.660Z dictation_preview_pass engine=parakeet ms=481 samples=240000 chars=76
+2026-06-23T19:36:42.679Z dictation_preview_pass engine=parakeet ms=497 samples=240000 chars=84
+2026-06-23T19:36:43.845Z dictation_preview_pass engine=parakeet ms=564 samples=240000 chars=93
+2026-06-23T19:36:44.868Z dictation_preview_pass engine=parakeet ms=489 samples=240000 chars=94
+2026-06-23T19:36:45.225Z dictation_capture_heartbeat input_buffers=201 input_frames=964800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:36:45.924Z dictation_preview_pass engine=parakeet ms=543 samples=240000 chars=94
+2026-06-23T19:36:46.925Z dictation_preview_pass engine=parakeet ms=444 samples=240000 chars=82
+2026-06-23T19:36:48.059Z dictation_preview_pass engine=parakeet ms=481 samples=240000 chars=98
+2026-06-23T19:36:49.183Z dictation_preview_pass engine=parakeet ms=602 samples=240000 chars=98
+2026-06-23T19:36:50.107Z dictation_preview_pass engine=parakeet ms=421 samples=240000 chars=90
+2026-06-23T19:36:50.263Z dictation_capture_heartbeat input_buffers=251 input_frames=1204800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:36:51.459Z dictation_preview_pass engine=parakeet ms=681 samples=240000 chars=105
+2026-06-23T19:36:52.340Z dictation_preview_pass engine=parakeet ms=559 samples=240000 chars=110
+2026-06-23T19:36:53.256Z dictation_preview_pass engine=parakeet ms=375 samples=240000 chars=117
+2026-06-23T19:36:54.309Z dictation_preview_pass engine=parakeet ms=330 samples=240000 chars=118
+2026-06-23T19:36:55.308Z dictation_capture_heartbeat input_buffers=302 input_frames=1449600 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:36:55.490Z dictation_preview_pass engine=parakeet ms=509 samples=240000 chars=118
+2026-06-23T19:36:56.564Z dictation_preview_pass engine=parakeet ms=484 samples=240000 chars=112
+2026-06-23T19:36:57.692Z dictation_preview_pass engine=parakeet ms=512 samples=240000 chars=121
+2026-06-23T19:36:58.689Z dictation_preview_pass engine=parakeet ms=507 samples=240000 chars=134
+2026-06-23T19:36:59.841Z dictation_preview_pass engine=parakeet ms=559 samples=240000 chars=122
+2026-06-23T19:37:00.363Z dictation_capture_heartbeat input_buffers=352 input_frames=1689600 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:37:01.083Z dictation_preview_pass engine=parakeet ms=698 samples=240000 chars=124
+2026-06-23T19:37:01.928Z dictation_preview_pass engine=parakeet ms=547 samples=240000 chars=136
+2026-06-23T19:37:02.983Z dictation_preview_pass engine=parakeet ms=503 samples=240000 chars=142
+2026-06-23T19:37:04.200Z dictation_preview_pass engine=parakeet ms=621 samples=240000 chars=144
+2026-06-23T19:37:05.042Z dictation_preview_pass engine=parakeet ms=461 samples=240000 chars=133
+2026-06-23T19:37:05.383Z dictation_capture_heartbeat input_buffers=403 input_frames=1934400 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:37:06.335Z dictation_preview_pass engine=parakeet ms=654 samples=240000 chars=147
+2026-06-23T19:37:07.283Z dictation_preview_pass engine=parakeet ms=505 samples=240000 chars=144
+2026-06-23T19:37:08.424Z dictation_preview_pass engine=parakeet ms=637 samples=240000 chars=153
+2026-06-23T19:37:09.479Z dictation_preview_pass engine=parakeet ms=599 samples=240000 chars=157
+2026-06-23T19:37:10.424Z dictation_capture_heartbeat input_buffers=453 input_frames=2174400 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:37:10.611Z dictation_preview_pass engine=parakeet ms=632 samples=240000 chars=165
+2026-06-23T19:37:11.745Z dictation_preview_pass engine=parakeet ms=754 samples=240000 chars=171
+2026-06-23T19:37:12.635Z dictation_preview_pass engine=parakeet ms=555 samples=240000 chars=167
+2026-06-23T19:37:13.848Z dictation_preview_pass engine=parakeet ms=669 samples=240000 chars=144
+2026-06-23T19:37:15.379Z dictation_preview_pass engine=parakeet ms=1197 samples=240000 chars=147
+2026-06-23T19:37:15.463Z dictation_capture_heartbeat input_buffers=503 input_frames=2414400 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:37:16.027Z dictation_preview_pass engine=parakeet ms=644 samples=240000 chars=147
+2026-06-23T19:37:17.024Z dictation_preview_pass engine=parakeet ms=550 samples=240000 chars=145
+2026-06-23T19:37:17.897Z dictation_preview_pass engine=parakeet ms=420 samples=240000 chars=151
+2026-06-23T19:37:19.224Z dictation_preview_pass engine=parakeet ms=739 samples=240000 chars=163
+2026-06-23T19:37:20.257Z dictation_preview_pass engine=parakeet ms=678 samples=240000 chars=163
+2026-06-23T19:37:20.481Z dictation_capture_heartbeat input_buffers=554 input_frames=2659200 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:37:21.263Z dictation_preview_pass engine=parakeet ms=681 samples=240000 chars=170
+2026-06-23T19:37:22.309Z dictation_preview_pass engine=parakeet ms=629 samples=240000 chars=157
+2026-06-23T19:37:23.316Z dictation_preview_pass engine=parakeet ms=537 samples=240000 chars=163
+2026-06-23T19:37:24.562Z dictation_preview_pass engine=parakeet ms=781 samples=240000 chars=169
+2026-06-23T19:37:25.451Z dictation_preview_pass engine=parakeet ms=571 samples=240000 chars=172
+2026-06-23T19:37:25.515Z dictation_capture_heartbeat input_buffers=604 input_frames=2899200 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:37:26.662Z dictation_preview_pass engine=parakeet ms=683 samples=240000 chars=178
+2026-06-23T19:37:27.792Z dictation_preview_pass engine=parakeet ms=811 samples=240000 chars=182
+2026-06-23T19:37:28.681Z dictation_preview_pass engine=parakeet ms=602 samples=240000 chars=173
+2026-06-23T19:37:29.933Z dictation_preview_pass engine=parakeet ms=753 samples=240000 chars=184
+2026-06-23T19:37:30.547Z dictation_capture_heartbeat input_buffers=654 input_frames=3139200 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:37:30.946Z dictation_preview_pass engine=parakeet ms=764 samples=240000 chars=179
+2026-06-23T19:37:31.877Z dictation_preview_pass engine=parakeet ms=596 samples=240000 chars=177
+2026-06-23T19:37:33.061Z dictation_preview_pass engine=parakeet ms=682 samples=240000 chars=167
+2026-06-23T19:37:34.060Z dictation_preview_pass engine=parakeet ms=679 samples=240000 chars=167
+2026-06-23T19:37:35.061Z dictation_preview_pass engine=parakeet ms=581 samples=240000 chars=172
+2026-06-23T19:37:35.565Z dictation_capture_heartbeat input_buffers=704 input_frames=3379200 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:37:36.313Z dictation_preview_pass engine=parakeet ms=734 samples=240000 chars=171
+2026-06-23T19:37:37.143Z dictation_preview_pass engine=parakeet ms=562 samples=240000 chars=176
+2026-06-23T19:37:38.245Z dictation_preview_pass engine=parakeet ms=565 samples=240000 chars=167
+2026-06-23T19:37:39.492Z dictation_preview_pass engine=parakeet ms=714 samples=240000 chars=160
+2026-06-23T19:37:40.307Z dictation_preview_pass engine=parakeet ms=525 samples=240000 chars=157
+2026-06-23T19:37:40.594Z dictation_capture_heartbeat input_buffers=755 input_frames=3624000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:37:41.346Z dictation_preview_pass engine=parakeet ms=466 samples=240000 chars=152
+2026-06-23T19:37:42.707Z dictation_preview_pass engine=parakeet ms=723 samples=240000 chars=147
+2026-06-23T19:37:43.658Z dictation_preview_pass engine=parakeet ms=675 samples=240000 chars=154
+2026-06-23T19:37:44.575Z dictation_preview_pass engine=parakeet ms=495 samples=240000 chars=152
+2026-06-23T19:37:45.609Z dictation_capture_heartbeat input_buffers=805 input_frames=3864000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:37:45.696Z dictation_preview_pass engine=parakeet ms=518 samples=240000 chars=155
+2026-06-23T19:37:46.759Z dictation_preview_pass engine=parakeet ms=578 samples=240000 chars=142
+2026-06-23T19:37:47.747Z dictation_preview_pass engine=parakeet ms=467 samples=240000 chars=145
+2026-06-23T19:37:48.977Z dictation_preview_pass engine=parakeet ms=599 samples=240000 chars=125
+2026-06-23T19:37:49.981Z dictation_preview_pass engine=parakeet ms=599 samples=240000 chars=142
+2026-06-23T19:37:50.633Z dictation_capture_heartbeat input_buffers=855 input_frames=4104000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:37:51.077Z dictation_preview_pass engine=parakeet ms=597 samples=240000 chars=143
+2026-06-23T19:37:52.110Z dictation_preview_pass engine=parakeet ms=531 samples=240000 chars=141
+2026-06-23T19:37:53.201Z dictation_preview_pass engine=parakeet ms=620 samples=240000 chars=117
+2026-06-23T19:37:54.305Z dictation_preview_pass engine=parakeet ms=623 samples=240000 chars=112
+2026-06-23T19:37:55.311Z dictation_preview_pass engine=parakeet ms=532 samples=240000 chars=99
+2026-06-23T19:37:55.663Z dictation_capture_heartbeat input_buffers=905 input_frames=4344000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:37:56.232Z dictation_preview_pass engine=parakeet ms=451 samples=240000 chars=98
+2026-06-23T19:37:57.414Z dictation_preview_pass engine=parakeet ms=534 samples=240000 chars=96
+2026-06-23T19:37:58.448Z dictation_preview_pass engine=parakeet ms=470 samples=240000 chars=91
+2026-06-23T19:37:59.564Z dictation_preview_pass engine=parakeet ms=583 samples=240000 chars=78
+2026-06-23T19:38:00.614Z dictation_preview_pass engine=parakeet ms=533 samples=240000 chars=67
+2026-06-23T19:38:00.708Z dictation_capture_heartbeat input_buffers=956 input_frames=4588800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:38:01.749Z dictation_preview_pass engine=parakeet ms=570 samples=240000 chars=67
+2026-06-23T19:38:02.663Z dictation_preview_pass engine=parakeet ms=482 samples=240000 chars=61
+2026-06-23T19:38:03.815Z dictation_preview_pass engine=parakeet ms=534 samples=240000 chars=65
+2026-06-23T19:38:04.857Z dictation_preview_pass engine=parakeet ms=478 samples=240000 chars=67
+2026-06-23T19:38:05.714Z dictation_capture_heartbeat input_buffers=1006 input_frames=4828800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:38:05.794Z dictation_preview_pass engine=parakeet ms=413 samples=240000 chars=57
+2026-06-23T19:38:06.973Z dictation_preview_pass engine=parakeet ms=493 samples=240000 chars=58
+2026-06-23T19:38:07.984Z dictation_preview_pass engine=parakeet ms=405 samples=240000 chars=74
+2026-06-23T19:38:09.175Z dictation_preview_pass engine=parakeet ms=594 samples=240000 chars=88
+2026-06-23T19:38:10.256Z dictation_preview_pass engine=parakeet ms=576 samples=240000 chars=101
+2026-06-23T19:38:10.725Z dictation_capture_heartbeat input_buffers=1056 input_frames=5068800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:38:11.309Z dictation_preview_pass engine=parakeet ms=531 samples=240000 chars=125
+2026-06-23T19:38:12.358Z dictation_preview_pass engine=parakeet ms=576 samples=240000 chars=137
+2026-06-23T19:38:13.459Z dictation_preview_pass engine=parakeet ms=579 samples=240000 chars=151
+2026-06-23T19:38:14.851Z dictation_preview_pass engine=parakeet ms=872 samples=240000 chars=162
+2026-06-23T19:38:15.696Z dictation_preview_pass engine=parakeet ms=715 samples=240000 chars=190
+2026-06-23T19:38:15.744Z dictation_capture_heartbeat input_buffers=1106 input_frames=5308800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:38:16.827Z dictation_preview_pass engine=parakeet ms=747 samples=240000 chars=193
+2026-06-23T19:38:17.944Z dictation_preview_pass engine=parakeet ms=766 samples=240000 chars=212
+2026-06-23T19:38:18.992Z dictation_preview_pass engine=parakeet ms=811 samples=240000 chars=208
+2026-06-23T19:38:20.076Z dictation_preview_pass engine=parakeet ms=787 samples=240000 chars=194
+2026-06-23T19:38:20.798Z dictation_capture_heartbeat input_buffers=1157 input_frames=5553600 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:38:21.029Z dictation_preview_pass engine=parakeet ms=650 samples=240000 chars=172
+2026-06-23T19:38:21.932Z dictation_preview_pass engine=parakeet ms=552 samples=240000 chars=183
+2026-06-23T19:38:23.049Z dictation_preview_pass engine=parakeet ms=569 samples=240000 chars=152
+2026-06-23T19:38:24.214Z dictation_preview_pass engine=parakeet ms=634 samples=240000 chars=160
+2026-06-23T19:38:25.298Z dictation_preview_pass engine=parakeet ms=717 samples=240000 chars=162
+2026-06-23T19:38:25.807Z dictation_capture_heartbeat input_buffers=1207 input_frames=5793600 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:38:26.234Z dictation_preview_pass engine=parakeet ms=554 samples=240000 chars=151
+2026-06-23T19:38:27.374Z dictation_preview_pass engine=parakeet ms=595 samples=240000 chars=129
+2026-06-23T19:38:28.456Z dictation_preview_pass engine=parakeet ms=674 samples=240000 chars=111
+2026-06-23T19:38:29.443Z dictation_preview_pass engine=parakeet ms=562 samples=240000 chars=114
+2026-06-23T19:38:30.511Z dictation_preview_pass engine=parakeet ms=533 samples=240000 chars=111
+2026-06-23T19:38:30.847Z dictation_capture_heartbeat input_buffers=1257 input_frames=6033600 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:38:31.517Z dictation_preview_pass engine=parakeet ms=536 samples=240000 chars=118
+2026-06-23T19:38:32.545Z dictation_preview_pass engine=parakeet ms=465 samples=240000 chars=106
+2026-06-23T19:38:33.760Z dictation_preview_pass engine=parakeet ms=582 samples=240000 chars=126
+2026-06-23T19:38:34.660Z dictation_preview_pass engine=parakeet ms=478 samples=240000 chars=123
+2026-06-23T19:38:35.783Z dictation_preview_pass engine=parakeet ms=503 samples=240000 chars=124
+2026-06-23T19:38:35.877Z dictation_capture_heartbeat input_buffers=1308 input_frames=6278400 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:38:36.923Z dictation_preview_pass engine=parakeet ms=540 samples=240000 chars=136
+2026-06-23T19:38:37.928Z dictation_preview_pass engine=parakeet ms=547 samples=240000 chars=129
+2026-06-23T19:38:39.012Z dictation_preview_pass engine=parakeet ms=532 samples=240000 chars=135
+2026-06-23T19:38:40.351Z dictation_preview_pass engine=parakeet ms=773 samples=240000 chars=112
+2026-06-23T19:38:40.900Z dictation_capture_heartbeat input_buffers=1358 input_frames=6518400 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:38:41.144Z dictation_preview_pass engine=parakeet ms=562 samples=240000 chars=106
+2026-06-23T19:38:42.179Z dictation_preview_pass engine=parakeet ms=500 samples=240000 chars=107
+2026-06-23T19:38:43.165Z dictation_preview_pass engine=parakeet ms=386 samples=240000 chars=132
+2026-06-23T19:38:44.262Z dictation_preview_pass engine=parakeet ms=482 samples=240000 chars=123
+2026-06-23T19:38:45.617Z dictation_preview_pass engine=parakeet ms=737 samples=240000 chars=120
+2026-06-23T19:38:45.929Z dictation_capture_heartbeat input_buffers=1408 input_frames=6758400 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:38:46.749Z dictation_preview_pass engine=parakeet ms=768 samples=240000 chars=127
+2026-06-23T19:38:47.694Z dictation_preview_pass engine=parakeet ms=712 samples=240000 chars=140
+2026-06-23T19:38:48.843Z dictation_preview_pass engine=parakeet ms=762 samples=240000 chars=141
+2026-06-23T19:38:49.878Z dictation_preview_pass engine=parakeet ms=698 samples=240000 chars=145
+2026-06-23T19:38:50.833Z dictation_preview_pass engine=parakeet ms=650 samples=240000 chars=154
+2026-06-23T19:38:50.982Z dictation_capture_heartbeat input_buffers=1459 input_frames=7003200 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:38:52.064Z dictation_preview_pass engine=parakeet ms=781 samples=240000 chars=166
+2026-06-23T19:38:53.191Z dictation_preview_pass engine=parakeet ms=812 samples=240000 chars=186
+2026-06-23T19:38:54.092Z dictation_preview_pass engine=parakeet ms=703 samples=240000 chars=177
+2026-06-23T19:38:55.208Z dictation_preview_pass engine=parakeet ms=726 samples=240000 chars=200
+2026-06-23T19:38:56.031Z dictation_capture_heartbeat input_buffers=1509 input_frames=7243200 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:38:56.295Z dictation_preview_pass engine=parakeet ms=713 samples=240000 chars=199
+2026-06-23T19:38:57.209Z dictation_preview_pass engine=parakeet ms=627 samples=240000 chars=197
+2026-06-23T19:38:58.313Z dictation_preview_pass engine=parakeet ms=633 samples=240000 chars=182
+2026-06-23T19:38:59.476Z dictation_preview_pass engine=parakeet ms=697 samples=240000 chars=177
+2026-06-23T19:39:00.555Z dictation_preview_pass engine=parakeet ms=771 samples=240000 chars=165
+2026-06-23T19:39:01.044Z dictation_capture_heartbeat input_buffers=1559 input_frames=7483200 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:39:01.407Z dictation_preview_pass engine=parakeet ms=528 samples=240000 chars=155
+2026-06-23T19:39:02.763Z dictation_preview_pass engine=parakeet ms=784 samples=240000 chars=136
+2026-06-23T19:39:03.458Z dictation_preview_pass engine=parakeet ms=478 samples=240000 chars=135
+2026-06-23T19:39:04.766Z dictation_preview_pass engine=parakeet ms=686 samples=240000 chars=127
+2026-06-23T19:39:05.662Z dictation_preview_pass engine=parakeet ms=483 samples=240000 chars=114
+2026-06-23T19:39:06.056Z dictation_capture_heartbeat input_buffers=1609 input_frames=7723200 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:39:06.825Z dictation_preview_pass engine=parakeet ms=638 samples=240000 chars=101
+2026-06-23T19:39:07.848Z dictation_preview_pass engine=parakeet ms=568 samples=240000 chars=94
+2026-06-23T19:39:08.846Z dictation_preview_pass engine=parakeet ms=468 samples=240000 chars=84
+2026-06-23T19:39:09.906Z dictation_preview_pass engine=parakeet ms=525 samples=240000 chars=60
+2026-06-23T19:39:10.966Z dictation_preview_pass engine=parakeet ms=487 samples=240000 chars=67
+2026-06-23T19:39:11.099Z dictation_capture_heartbeat input_buffers=1660 input_frames=7968000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:39:12.092Z dictation_preview_pass engine=parakeet ms=513 samples=240000 chars=67
+2026-06-23T19:39:12.990Z dictation_preview_pass engine=parakeet ms=409 samples=240000 chars=70
+2026-06-23T19:39:14.414Z dictation_preview_pass engine=parakeet ms=734 samples=240000 chars=86
+2026-06-23T19:39:15.314Z dictation_preview_pass engine=parakeet ms=618 samples=240000 chars=76
+2026-06-23T19:39:16.224Z dictation_capture_heartbeat input_buffers=1710 input_frames=8208000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:39:16.378Z dictation_preview_pass engine=parakeet ms=596 samples=240000 chars=82
+2026-06-23T19:39:17.397Z dictation_preview_pass engine=parakeet ms=517 samples=240000 chars=101
+2026-06-23T19:39:18.642Z dictation_preview_pass engine=parakeet ms=663 samples=240000 chars=117
+2026-06-23T19:39:19.614Z dictation_preview_pass engine=parakeet ms=633 samples=240000 chars=127
+2026-06-23T19:39:20.710Z dictation_preview_pass engine=parakeet ms=630 samples=240000 chars=126
+2026-06-23T19:39:21.273Z dictation_capture_heartbeat input_buffers=1761 input_frames=8452800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:39:21.724Z dictation_preview_pass engine=parakeet ms=545 samples=240000 chars=139
+2026-06-23T19:39:22.793Z dictation_preview_pass engine=parakeet ms=613 samples=240000 chars=140
+2026-06-23T19:39:23.797Z dictation_preview_pass engine=parakeet ms=518 samples=240000 chars=138
+2026-06-23T19:39:24.900Z dictation_preview_pass engine=parakeet ms=522 samples=240000 chars=136
+2026-06-23T19:39:26.012Z dictation_preview_pass engine=parakeet ms=631 samples=240000 chars=148
+2026-06-23T19:39:26.310Z dictation_capture_heartbeat input_buffers=1812 input_frames=8697600 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:39:27.046Z dictation_preview_pass engine=parakeet ms=566 samples=240000 chars=155
+2026-06-23T19:39:28.159Z dictation_preview_pass engine=parakeet ms=580 samples=240000 chars=152
+2026-06-23T19:39:29.227Z dictation_preview_pass engine=parakeet ms=647 samples=240000 chars=139
+2026-06-23T19:39:30.363Z dictation_preview_pass engine=parakeet ms=683 samples=240000 chars=157
+2026-06-23T19:39:31.256Z dictation_preview_pass engine=parakeet ms=478 samples=240000 chars=154
+2026-06-23T19:39:31.334Z dictation_capture_heartbeat input_buffers=1862 input_frames=8937600 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:39:32.347Z dictation_preview_pass engine=parakeet ms=567 samples=240000 chars=144
+2026-06-23T19:39:33.497Z dictation_preview_pass engine=parakeet ms=617 samples=240000 chars=148
+2026-06-23T19:39:34.614Z dictation_preview_pass engine=parakeet ms=635 samples=240000 chars=171
+2026-06-23T19:39:35.713Z dictation_preview_pass engine=parakeet ms=732 samples=240000 chars=180
+2026-06-23T19:39:36.383Z dictation_capture_heartbeat input_buffers=1912 input_frames=9177600 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:39:36.692Z dictation_preview_pass engine=parakeet ms=612 samples=240000 chars=177
+2026-06-23T19:39:37.932Z dictation_preview_pass engine=parakeet ms=754 samples=240000 chars=190
+2026-06-23T19:39:38.917Z dictation_preview_pass engine=parakeet ms=736 samples=240000 chars=203
+2026-06-23T19:39:40.100Z dictation_preview_pass engine=parakeet ms=820 samples=240000 chars=218
+2026-06-23T19:39:41.165Z dictation_preview_pass engine=parakeet ms=787 samples=240000 chars=218
+2026-06-23T19:39:41.393Z dictation_capture_heartbeat input_buffers=1963 input_frames=9422400 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:39:42.046Z dictation_preview_pass engine=parakeet ms=665 samples=240000 chars=241
+2026-06-23T19:39:43.307Z dictation_preview_pass engine=parakeet ms=826 samples=240000 chars=260
+2026-06-23T19:39:44.346Z dictation_preview_pass engine=parakeet ms=767 samples=240000 chars=263
+2026-06-23T19:39:45.239Z dictation_preview_pass engine=parakeet ms=658 samples=240000 chars=242
+2026-06-23T19:39:46.274Z dictation_preview_pass engine=parakeet ms=594 samples=240000 chars=259
+2026-06-23T19:39:46.398Z dictation_capture_heartbeat input_buffers=2013 input_frames=9662400 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:39:47.592Z dictation_preview_pass engine=parakeet ms=813 samples=240000 chars=252
+2026-06-23T19:39:48.475Z dictation_preview_pass engine=parakeet ms=695 samples=240000 chars=237
+2026-06-23T19:39:49.775Z dictation_preview_pass engine=parakeet ms=895 samples=240000 chars=229
+2026-06-23T19:39:50.696Z dictation_preview_pass engine=parakeet ms=717 samples=240000 chars=227
+2026-06-23T19:39:51.428Z dictation_capture_heartbeat input_buffers=2063 input_frames=9902400 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:39:51.612Z dictation_preview_pass engine=parakeet ms=631 samples=240000 chars=215
+2026-06-23T19:39:52.680Z dictation_preview_pass engine=parakeet ms=600 samples=240000 chars=197
+2026-06-23T19:39:53.800Z dictation_preview_pass engine=parakeet ms=622 samples=240000 chars=183
+2026-06-23T19:39:54.825Z dictation_preview_pass engine=parakeet ms=644 samples=240000 chars=160
+2026-06-23T19:39:55.867Z dictation_preview_pass engine=parakeet ms=587 samples=240000 chars=156
+2026-06-23T19:39:56.464Z dictation_capture_heartbeat input_buffers=2113 input_frames=10142400 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:39:56.963Z dictation_preview_pass engine=parakeet ms=585 samples=240000 chars=155
+2026-06-23T19:39:58.047Z dictation_preview_pass engine=parakeet ms=666 samples=240000 chars=154
+2026-06-23T19:39:58.989Z dictation_preview_pass engine=parakeet ms=505 samples=240000 chars=137
+2026-06-23T19:40:00.276Z dictation_preview_pass engine=parakeet ms=697 samples=240000 chars=147
+2026-06-23T19:40:01.281Z dictation_preview_pass engine=parakeet ms=701 samples=240000 chars=134
+2026-06-23T19:40:01.500Z dictation_capture_heartbeat input_buffers=2164 input_frames=10387200 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:40:02.193Z dictation_preview_pass engine=parakeet ms=514 samples=240000 chars=121
+2026-06-23T19:40:03.274Z dictation_preview_pass engine=parakeet ms=497 samples=240000 chars=108
+2026-06-23T19:40:04.177Z dictation_preview_pass engine=parakeet ms=397 samples=240000 chars=91
+2026-06-23T19:40:05.357Z dictation_preview_pass engine=parakeet ms=478 samples=240000 chars=70
+2026-06-23T19:40:06.540Z dictation_preview_pass engine=parakeet ms=562 samples=240000 chars=74
+2026-06-23T19:40:06.540Z dictation_capture_heartbeat input_buffers=2214 input_frames=10627200 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:40:07.483Z dictation_preview_pass engine=parakeet ms=503 samples=240000 chars=83
+2026-06-23T19:40:08.614Z dictation_preview_pass engine=parakeet ms=534 samples=240000 chars=75
+2026-06-23T19:40:09.722Z dictation_preview_pass engine=parakeet ms=543 samples=240000 chars=85
+2026-06-23T19:40:10.699Z dictation_preview_pass engine=parakeet ms=519 samples=240000 chars=85
+2026-06-23T19:40:11.576Z dictation_capture_heartbeat input_buffers=2264 input_frames=10867200 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:40:11.783Z dictation_preview_pass engine=parakeet ms=504 samples=240000 chars=75
+2026-06-23T19:40:12.913Z dictation_preview_pass engine=parakeet ms=535 samples=240000 chars=82
+2026-06-23T19:40:13.959Z dictation_preview_pass engine=parakeet ms=579 samples=240000 chars=106
+2026-06-23T19:40:15.016Z dictation_preview_pass engine=parakeet ms=536 samples=240000 chars=120
+2026-06-23T19:40:16.179Z dictation_preview_pass engine=parakeet ms=601 samples=240000 chars=120
+2026-06-23T19:40:16.589Z dictation_capture_heartbeat input_buffers=2315 input_frames=11112000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:40:17.146Z dictation_preview_pass engine=parakeet ms=565 samples=240000 chars=129
+2026-06-23T19:40:18.300Z dictation_preview_pass engine=parakeet ms=620 samples=240000 chars=129
+2026-06-23T19:40:19.483Z dictation_preview_pass engine=parakeet ms=704 samples=240000 chars=145
+2026-06-23T19:40:20.395Z dictation_preview_pass engine=parakeet ms=614 samples=240000 chars=152
+2026-06-23T19:40:21.459Z dictation_preview_pass engine=parakeet ms=580 samples=240000 chars=148
+2026-06-23T19:40:21.606Z dictation_capture_heartbeat input_buffers=2365 input_frames=11352000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:40:22.560Z dictation_preview_pass engine=parakeet ms=582 samples=240000 chars=170
+2026-06-23T19:40:23.799Z dictation_preview_pass engine=parakeet ms=818 samples=240000 chars=188
+2026-06-23T19:40:24.727Z dictation_preview_pass engine=parakeet ms=647 samples=240000 chars=191
+2026-06-23T19:40:25.797Z dictation_preview_pass engine=parakeet ms=619 samples=240000 chars=178
+2026-06-23T19:40:26.617Z dictation_capture_heartbeat input_buffers=2415 input_frames=11592000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:40:26.727Z dictation_preview_pass engine=parakeet ms=547 samples=240000 chars=170
+2026-06-23T19:40:27.879Z dictation_preview_pass engine=parakeet ms=597 samples=240000 chars=152
+2026-06-23T19:40:29.057Z dictation_preview_pass engine=parakeet ms=673 samples=240000 chars=164
+2026-06-23T19:40:29.994Z dictation_preview_pass engine=parakeet ms=613 samples=240000 chars=135
+2026-06-23T19:40:31.028Z dictation_preview_pass engine=parakeet ms=549 samples=240000 chars=149
+2026-06-23T19:40:31.637Z dictation_capture_heartbeat input_buffers=2465 input_frames=11832000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:40:32.067Z dictation_preview_pass engine=parakeet ms=489 samples=240000 chars=153
+2026-06-23T19:40:33.146Z dictation_preview_pass engine=parakeet ms=566 samples=240000 chars=158
+2026-06-23T19:40:34.232Z dictation_preview_pass engine=parakeet ms=552 samples=240000 chars=150
+2026-06-23T19:40:35.508Z dictation_preview_pass engine=parakeet ms=729 samples=240000 chars=163
+2026-06-23T19:40:36.423Z dictation_preview_pass engine=parakeet ms=642 samples=240000 chars=162
+2026-06-23T19:40:36.676Z dictation_capture_heartbeat input_buffers=2515 input_frames=12072000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:40:37.518Z dictation_preview_pass engine=parakeet ms=638 samples=240000 chars=170
+2026-06-23T19:40:38.562Z dictation_preview_pass engine=parakeet ms=583 samples=240000 chars=167
+2026-06-23T19:40:39.726Z dictation_preview_pass engine=parakeet ms=745 samples=240000 chars=177
+2026-06-23T19:40:40.822Z dictation_preview_pass engine=parakeet ms=742 samples=240000 chars=196
+2026-06-23T19:40:41.716Z dictation_capture_heartbeat input_buffers=2566 input_frames=12316800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:40:41.928Z dictation_preview_pass engine=parakeet ms=750 samples=240000 chars=207
+2026-06-23T19:40:42.947Z dictation_preview_pass engine=parakeet ms=765 samples=240000 chars=200
+2026-06-23T19:40:43.924Z dictation_preview_pass engine=parakeet ms=643 samples=240000 chars=193
+2026-06-23T19:40:45.081Z dictation_preview_pass engine=parakeet ms=703 samples=240000 chars=188
+2026-06-23T19:40:46.024Z dictation_preview_pass engine=parakeet ms=644 samples=240000 chars=183
+2026-06-23T19:40:46.730Z dictation_capture_heartbeat input_buffers=2616 input_frames=12556800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:40:47.300Z dictation_preview_pass engine=parakeet ms=821 samples=240000 chars=200
+2026-06-23T19:40:48.357Z dictation_preview_pass engine=parakeet ms=780 samples=240000 chars=220
+2026-06-23T19:40:49.463Z dictation_capture_stop sample_count=4227200 duration_s=264.200 file_bytes=16912896 input_buffers=2643 output_buffers=2642 input_frames=12686400 max_rms=0.181505 max_level=0.908 non_silent_buffers=1818 missing_float_buffers=0 invalid_format_buffers=0
+2026-06-23T19:40:49.463Z dictation_preview_pass engine=parakeet ms=882 samples=240000 chars=235
+2026-06-23T19:40:49.475Z dictation_transcribe_begin file_bytes=16912896
+2026-06-23T19:40:49.581Z shared_mic_engine_stopped
+2026-06-23T19:40:49.583Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T19:40:54.892Z dictation_transcribe_complete chars=2542 words=527 engine=parakeet variant=v3
+2026-06-23T19:41:47.335Z dictation_preview_started engine=parakeet
+2026-06-23T19:41:47.339Z dictation_capture_start permission_status=3
+2026-06-23T19:41:47.348Z dictation_capture_starting
+2026-06-23T19:41:47.891Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.044 ducking_ms=0.000 output_format_ms=0.041 install_tap_ms=0.016 audio_engine_start_ms=236.160 total_ms=533.804
+2026-06-23T19:41:47.907Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=552.278
+2026-06-23T19:41:47.910Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T19:41:47.916Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-06-23T19:41:47.990Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T19:41:48.721Z dictation_preview_pass engine=parakeet ms=338 samples=6400 chars=5
+2026-06-23T19:41:49.645Z dictation_preview_pass engine=parakeet ms=246 samples=22400 chars=15
+2026-06-23T19:41:50.589Z dictation_preview_pass engine=parakeet ms=201 samples=38400 chars=15
+2026-06-23T19:41:51.608Z dictation_preview_pass engine=parakeet ms=218 samples=54400 chars=15
+2026-06-23T19:41:52.729Z dictation_preview_pass engine=parakeet ms=240 samples=72000 chars=15
+2026-06-23T19:41:52.934Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:41:53.978Z dictation_preview_pass engine=parakeet ms=389 samples=89600 chars=15
+2026-06-23T19:41:54.831Z dictation_preview_pass engine=parakeet ms=242 samples=105600 chars=15
+2026-06-23T19:41:55.917Z dictation_preview_pass engine=parakeet ms=227 samples=123200 chars=15
+2026-06-23T19:41:57.057Z dictation_preview_pass engine=parakeet ms=269 samples=140800 chars=15
+2026-06-23T19:41:57.975Z dictation_capture_heartbeat input_buffers=100 input_frames=480000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:41:58.086Z dictation_preview_pass engine=parakeet ms=295 samples=156800 chars=31
+2026-06-23T19:41:59.447Z dictation_preview_pass engine=parakeet ms=558 samples=174400 chars=47
+2026-06-23T19:42:00.644Z dictation_preview_pass engine=parakeet ms=655 samples=192000 chars=52
+2026-06-23T19:42:01.575Z dictation_preview_pass engine=parakeet ms=584 samples=208000 chars=73
+2026-06-23T19:42:02.764Z dictation_preview_pass engine=parakeet ms=673 samples=225600 chars=75
+2026-06-23T19:42:03.007Z dictation_capture_heartbeat input_buffers=151 input_frames=724800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:42:03.791Z dictation_preview_pass engine=parakeet ms=599 samples=240000 chars=80
+2026-06-23T19:42:04.849Z dictation_preview_pass engine=parakeet ms=557 samples=240000 chars=69
+2026-06-23T19:42:05.942Z dictation_preview_pass engine=parakeet ms=650 samples=240000 chars=84
+2026-06-23T19:42:06.361Z dictation_capture_stop sample_count=292800 duration_s=18.300 file_bytes=1175296 input_buffers=184 output_buffers=183 input_frames=883200 max_rms=0.062839 max_level=0.314 non_silent_buffers=87 missing_float_buffers=0 invalid_format_buffers=0
+2026-06-23T19:42:06.363Z dictation_transcribe_begin file_bytes=1175296
+2026-06-23T19:42:06.430Z shared_mic_engine_stopped
+2026-06-23T19:42:06.433Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T19:42:07.680Z dictation_transcribe_complete chars=100 words=23 engine=parakeet variant=v3
+2026-06-23T19:42:37.207Z dictation_preview_started engine=parakeet
+2026-06-23T19:42:37.211Z dictation_capture_start permission_status=3
+2026-06-23T19:42:37.213Z dictation_capture_starting
+2026-06-23T19:42:37.841Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.010 ducking_ms=0.000 output_format_ms=0.023 install_tap_ms=0.010 audio_engine_start_ms=201.731 total_ms=624.964
+2026-06-23T19:42:37.843Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=626.611
+2026-06-23T19:42:37.845Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T19:42:37.847Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-06-23T19:42:37.941Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T19:42:38.475Z dictation_preview_pass engine=parakeet ms=235 samples=4800 chars=0
+2026-06-23T19:42:39.462Z dictation_preview_pass engine=parakeet ms=219 samples=20800 chars=0
+2026-06-23T19:42:40.526Z dictation_preview_pass engine=parakeet ms=185 samples=38400 chars=16
+2026-06-23T19:42:41.587Z dictation_preview_pass engine=parakeet ms=244 samples=54400 chars=16
+2026-06-23T19:42:42.728Z dictation_preview_pass engine=parakeet ms=286 samples=72000 chars=16
+2026-06-23T19:42:42.857Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:42:43.748Z dictation_preview_pass engine=parakeet ms=206 samples=89600 chars=16
+2026-06-23T19:42:44.557Z dictation_capture_stop sample_count=105600 duration_s=6.600 file_bytes=426496 input_buffers=67 output_buffers=66 input_frames=321600 max_rms=0.017866 max_level=0.089 non_silent_buffers=13 missing_float_buffers=0 invalid_format_buffers=0
+2026-06-23T19:42:44.621Z shared_mic_engine_stopped
+2026-06-23T19:42:44.624Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T19:42:44.697Z dictation_transcribe_begin file_bytes=426496
+2026-06-23T19:42:44.997Z dictation_transcribe_complete chars=16 words=4 engine=parakeet variant=v3
+2026-06-23T19:43:14.609Z dictation_preview_started engine=parakeet
+2026-06-23T19:43:14.614Z dictation_capture_start permission_status=3
+2026-06-23T19:43:14.624Z dictation_capture_starting
+2026-06-23T19:43:15.113Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.016 ducking_ms=0.000 output_format_ms=0.034 install_tap_ms=0.027 audio_engine_start_ms=174.919 total_ms=472.604
+2026-06-23T19:43:15.116Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=475.629
+2026-06-23T19:43:15.129Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T19:43:15.132Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-06-23T19:43:15.213Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T19:43:16.069Z dictation_preview_pass engine=parakeet ms=352 samples=8000 chars=5
+2026-06-23T19:43:17.089Z dictation_preview_pass engine=parakeet ms=276 samples=25600 chars=0
+2026-06-23T19:43:18.165Z dictation_preview_pass engine=parakeet ms=350 samples=41600 chars=0
+2026-06-23T19:43:19.142Z dictation_preview_pass engine=parakeet ms=228 samples=59200 chars=0
+2026-06-23T19:43:20.147Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:43:20.279Z dictation_preview_pass engine=parakeet ms=266 samples=76800 chars=0
+2026-06-23T19:43:21.366Z dictation_preview_pass engine=parakeet ms=350 samples=92800 chars=0
+2026-06-23T19:43:22.424Z dictation_preview_pass engine=parakeet ms=310 samples=110400 chars=0
+2026-06-23T19:43:23.649Z dictation_preview_pass engine=parakeet ms=436 samples=128000 chars=10
+2026-06-23T19:43:24.625Z dictation_preview_pass engine=parakeet ms=409 samples=144000 chars=33
+2026-06-23T19:43:25.158Z dictation_capture_heartbeat input_buffers=100 input_frames=480000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:43:25.729Z dictation_preview_pass engine=parakeet ms=415 samples=161600 chars=40
+2026-06-23T19:43:26.770Z dictation_preview_pass engine=parakeet ms=355 samples=179200 chars=46
+2026-06-23T19:43:27.873Z dictation_preview_pass engine=parakeet ms=458 samples=195200 chars=46
+2026-06-23T19:43:28.934Z dictation_preview_pass engine=parakeet ms=419 samples=212800 chars=71
+2026-06-23T19:43:30.071Z dictation_preview_pass engine=parakeet ms=456 samples=230400 chars=90
+2026-06-23T19:43:30.171Z dictation_capture_heartbeat input_buffers=150 input_frames=720000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:43:31.182Z dictation_preview_pass engine=parakeet ms=566 samples=240000 chars=93
+2026-06-23T19:43:32.278Z dictation_preview_pass engine=parakeet ms=564 samples=240000 chars=108
+2026-06-23T19:43:33.349Z dictation_preview_pass engine=parakeet ms=536 samples=240000 chars=123
+2026-06-23T19:43:34.478Z dictation_preview_pass engine=parakeet ms=662 samples=240000 chars=144
+2026-06-23T19:43:35.210Z dictation_capture_heartbeat input_buffers=200 input_frames=960000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:43:35.579Z dictation_preview_pass engine=parakeet ms=666 samples=240000 chars=145
+2026-06-23T19:43:36.757Z dictation_preview_pass engine=parakeet ms=744 samples=240000 chars=156
+2026-06-23T19:43:37.659Z dictation_preview_pass engine=parakeet ms=644 samples=240000 chars=174
+2026-06-23T19:43:38.874Z dictation_preview_pass engine=parakeet ms=761 samples=240000 chars=174
+2026-06-23T19:43:40.115Z dictation_preview_pass engine=parakeet ms=969 samples=240000 chars=180
+2026-06-23T19:43:40.246Z dictation_capture_heartbeat input_buffers=251 input_frames=1204800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:43:40.932Z dictation_preview_pass engine=parakeet ms=717 samples=240000 chars=182
+2026-06-23T19:43:41.967Z dictation_preview_pass engine=parakeet ms=653 samples=240000 chars=173
+2026-06-23T19:43:43.127Z dictation_preview_pass engine=parakeet ms=714 samples=240000 chars=189
+2026-06-23T19:43:44.013Z dictation_preview_pass engine=parakeet ms=598 samples=240000 chars=166
+2026-06-23T19:43:45.280Z dictation_capture_heartbeat input_buffers=301 input_frames=1444800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:43:45.376Z dictation_preview_pass engine=parakeet ms=862 samples=240000 chars=163
+2026-06-23T19:43:46.153Z dictation_preview_pass engine=parakeet ms=539 samples=240000 chars=169
+2026-06-23T19:43:47.121Z dictation_preview_pass engine=parakeet ms=505 samples=240000 chars=158
+2026-06-23T19:43:48.237Z dictation_preview_pass engine=parakeet ms=523 samples=240000 chars=159
+2026-06-23T19:43:49.339Z dictation_preview_pass engine=parakeet ms=527 samples=240000 chars=150
+2026-06-23T19:43:50.333Z dictation_capture_heartbeat input_buffers=352 input_frames=1689600 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:43:50.493Z dictation_preview_pass engine=parakeet ms=678 samples=240000 chars=168
+2026-06-23T19:43:52.030Z dictation_preview_pass engine=parakeet ms=1116 samples=240000 chars=193
+2026-06-23T19:43:52.659Z dictation_preview_pass engine=parakeet ms=627 samples=240000 chars=192
+2026-06-23T19:43:53.778Z dictation_preview_pass engine=parakeet ms=667 samples=240000 chars=178
+2026-06-23T19:43:54.781Z dictation_preview_pass engine=parakeet ms=667 samples=240000 chars=174
+2026-06-23T19:43:55.394Z dictation_capture_heartbeat input_buffers=402 input_frames=1929600 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T19:43:55.929Z dictation_preview_pass engine=parakeet ms=717 samples=240000 chars=176
+2026-06-23T19:43:57.173Z dictation_preview_pass engine=parakeet ms=958 samples=240000 chars=172
+2026-06-23T19:43:57.947Z dictation_preview_pass engine=parakeet ms=633 samples=240000 chars=158
+2026-06-23T19:43:58.645Z dictation_capture_stop sample_count=694400 duration_s=43.400 file_bytes=2781696 input_buffers=435 output_buffers=434 input_frames=2088000 max_rms=0.124950 max_level=0.625 non_silent_buffers=278 missing_float_buffers=0 invalid_format_buffers=0
+2026-06-23T19:43:58.762Z shared_mic_engine_stopped
+2026-06-23T19:43:58.782Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T19:43:58.941Z dictation_transcribe_begin file_bytes=2781696
+2026-06-23T19:44:00.574Z dictation_transcribe_complete chars=400 words=80 engine=parakeet variant=v3
+2026-06-23T20:04:24.448Z dictation_diagnostics_session_start pid=92499 version=0.6.24 build=20260621193207 source=dist-xcodebuild-release commit=390e5eeda65b
+2026-06-23T20:12:24.563Z dictation_preview_started engine=parakeet
+2026-06-23T20:12:24.566Z dictation_capture_start permission_status=3
+2026-06-23T20:12:24.605Z dictation_capture_starting
+2026-06-23T20:12:24.870Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.426 ducking_ms=0.000 output_format_ms=0.014 install_tap_ms=0.046 audio_engine_start_ms=96.607 total_ms=261.726
+2026-06-23T20:12:24.871Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=263.228
+2026-06-23T20:12:24.872Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T20:12:24.873Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-06-23T20:12:24.971Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T20:12:25.929Z dictation_preview_pass engine=parakeet ms=362 samples=9600 chars=0
+2026-06-23T20:12:26.684Z dictation_preview_pass engine=parakeet ms=113 samples=25600 chars=0
+2026-06-23T20:12:27.687Z dictation_preview_pass engine=parakeet ms=114 samples=41600 chars=10
+2026-06-23T20:12:28.689Z dictation_preview_pass engine=parakeet ms=113 samples=57600 chars=13
+2026-06-23T20:12:29.803Z dictation_preview_pass engine=parakeet ms=128 samples=75200 chars=36
+2026-06-23T20:12:29.884Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:12:30.807Z dictation_preview_pass engine=parakeet ms=130 samples=91200 chars=26
+2026-06-23T20:12:31.890Z dictation_preview_pass engine=parakeet ms=114 samples=108800 chars=26
+2026-06-23T20:12:33.006Z dictation_preview_pass engine=parakeet ms=131 samples=126400 chars=26
+2026-06-23T20:12:34.017Z dictation_preview_pass engine=parakeet ms=139 samples=142400 chars=26
+2026-06-23T20:12:34.983Z dictation_capture_heartbeat input_buffers=101 input_frames=484800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:12:35.102Z dictation_preview_pass engine=parakeet ms=126 samples=160000 chars=26
+2026-06-23T20:12:36.212Z dictation_preview_pass engine=parakeet ms=137 samples=177600 chars=26
+2026-06-23T20:12:37.211Z dictation_preview_pass engine=parakeet ms=134 samples=193600 chars=26
+2026-06-23T20:12:38.325Z dictation_preview_pass engine=parakeet ms=147 samples=211200 chars=52
+2026-06-23T20:12:39.413Z dictation_preview_pass engine=parakeet ms=138 samples=228800 chars=66
+2026-06-23T20:12:40.286Z dictation_capture_heartbeat input_buffers=154 input_frames=739200 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:12:40.438Z dictation_preview_pass engine=parakeet ms=161 samples=240000 chars=66
+2026-06-23T20:12:41.530Z dictation_preview_pass engine=parakeet ms=154 samples=240000 chars=64
+2026-06-23T20:12:42.618Z dictation_preview_pass engine=parakeet ms=142 samples=240000 chars=55
+2026-06-23T20:12:43.642Z dictation_preview_pass engine=parakeet ms=165 samples=240000 chars=55
+2026-06-23T20:12:44.722Z dictation_preview_pass engine=parakeet ms=146 samples=240000 chars=47
+2026-06-23T20:12:45.684Z dictation_capture_heartbeat input_buffers=208 input_frames=998400 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:12:45.817Z dictation_preview_pass engine=parakeet ms=142 samples=240000 chars=39
+2026-06-23T20:12:46.830Z dictation_preview_pass engine=parakeet ms=152 samples=240000 chars=59
+2026-06-23T20:12:47.930Z dictation_preview_pass engine=parakeet ms=154 samples=240000 chars=69
+2026-06-23T20:12:49.059Z dictation_preview_pass engine=parakeet ms=184 samples=240000 chars=94
+2026-06-23T20:12:50.057Z dictation_preview_pass engine=parakeet ms=179 samples=240000 chars=112
+2026-06-23T20:12:50.982Z dictation_capture_heartbeat input_buffers=261 input_frames=1252800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:12:51.146Z dictation_preview_pass engine=parakeet ms=170 samples=240000 chars=111
+2026-06-23T20:12:52.263Z dictation_preview_pass engine=parakeet ms=188 samples=240000 chars=116
+2026-06-23T20:12:53.240Z dictation_preview_pass engine=parakeet ms=163 samples=240000 chars=103
+2026-06-23T20:12:54.341Z dictation_preview_pass engine=parakeet ms=165 samples=240000 chars=83
+2026-06-23T20:12:55.448Z dictation_preview_pass engine=parakeet ms=173 samples=240000 chars=83
+2026-06-23T20:12:56.286Z dictation_capture_heartbeat input_buffers=314 input_frames=1507200 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:12:56.448Z dictation_preview_pass engine=parakeet ms=170 samples=240000 chars=83
+2026-06-23T20:12:57.542Z dictation_preview_pass engine=parakeet ms=166 samples=240000 chars=83
+2026-06-23T20:12:58.652Z dictation_preview_pass engine=parakeet ms=177 samples=240000 chars=104
+2026-06-23T20:12:59.646Z dictation_preview_pass engine=parakeet ms=169 samples=240000 chars=112
+2026-06-23T20:13:00.765Z dictation_preview_pass engine=parakeet ms=189 samples=240000 chars=127
+2026-06-23T20:13:01.686Z dictation_capture_heartbeat input_buffers=368 input_frames=1766400 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:13:01.855Z dictation_preview_pass engine=parakeet ms=179 samples=240000 chars=119
+2026-06-23T20:13:02.845Z dictation_preview_pass engine=parakeet ms=167 samples=240000 chars=119
+2026-06-23T20:13:03.952Z dictation_preview_pass engine=parakeet ms=176 samples=240000 chars=110
+2026-06-23T20:13:05.047Z dictation_preview_pass engine=parakeet ms=173 samples=240000 chars=108
+2026-06-23T20:13:06.045Z dictation_preview_pass engine=parakeet ms=168 samples=240000 chars=104
+2026-06-23T20:13:06.983Z dictation_capture_heartbeat input_buffers=421 input_frames=2020800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:13:07.156Z dictation_preview_pass engine=parakeet ms=180 samples=240000 chars=108
+2026-06-23T20:13:08.263Z dictation_preview_pass engine=parakeet ms=189 samples=240000 chars=121
+2026-06-23T20:13:09.244Z dictation_preview_pass engine=parakeet ms=167 samples=240000 chars=138
+2026-06-23T20:13:10.365Z dictation_preview_pass engine=parakeet ms=190 samples=240000 chars=159
+2026-06-23T20:13:11.468Z dictation_preview_pass engine=parakeet ms=193 samples=240000 chars=160
+2026-06-23T20:13:12.233Z dictation_capture_heartbeat input_buffers=473 input_frames=2270400 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:13:12.485Z dictation_preview_pass engine=parakeet ms=208 samples=240000 chars=175
+2026-06-23T20:13:13.568Z dictation_preview_pass engine=parakeet ms=193 samples=240000 chars=174
+2026-06-23T20:13:14.715Z dictation_preview_pass engine=parakeet ms=240 samples=240000 chars=189
+2026-06-23T20:13:15.690Z dictation_preview_pass engine=parakeet ms=212 samples=240000 chars=205
+2026-06-23T20:13:16.844Z dictation_preview_pass engine=parakeet ms=268 samples=240000 chars=213
+2026-06-23T20:13:17.482Z dictation_capture_heartbeat input_buffers=526 input_frames=2524800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:13:17.891Z dictation_preview_pass engine=parakeet ms=216 samples=240000 chars=213
+2026-06-23T20:13:18.987Z dictation_preview_pass engine=parakeet ms=309 samples=240000 chars=205
+2026-06-23T20:13:19.979Z dictation_preview_pass engine=parakeet ms=203 samples=240000 chars=189
+2026-06-23T20:13:21.098Z dictation_preview_pass engine=parakeet ms=223 samples=240000 chars=204
+2026-06-23T20:13:22.393Z dictation_preview_pass engine=parakeet ms=516 samples=240000 chars=217
+2026-06-23T20:13:22.486Z dictation_capture_heartbeat input_buffers=576 input_frames=2764800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:13:23.219Z dictation_preview_pass engine=parakeet ms=242 samples=240000 chars=233
+2026-06-23T20:13:24.317Z dictation_preview_pass engine=parakeet ms=242 samples=240000 chars=254
+2026-06-23T20:13:25.301Z dictation_preview_pass engine=parakeet ms=224 samples=240000 chars=230
+2026-06-23T20:13:26.401Z dictation_preview_pass engine=parakeet ms=225 samples=240000 chars=236
+2026-06-23T20:13:27.502Z dictation_preview_pass engine=parakeet ms=227 samples=240000 chars=243
+2026-06-23T20:13:27.523Z dictation_capture_heartbeat input_buffers=626 input_frames=3004800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:13:28.493Z dictation_preview_pass engine=parakeet ms=216 samples=240000 chars=221
+2026-06-23T20:13:29.599Z dictation_preview_pass engine=parakeet ms=224 samples=240000 chars=203
+2026-06-23T20:13:30.649Z dictation_preview_pass engine=parakeet ms=173 samples=240000 chars=174
+2026-06-23T20:13:30.934Z shared_mic_engine_stopped
+2026-06-23T20:13:30.936Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T20:13:30.938Z dictation_capture_stop sample_count=1054400 effective_sample_count=1054400 duration_s=65.900 wall_duration_s=66.065 file_bytes=4221696 input_buffers=660 output_buffers=659 input_frames=3168000 max_rms=0.079576 max_level=0.398 non_silent_buffers=395 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-06-23T20:13:30.941Z dictation_transcribe_begin file_bytes=4221696
+2026-06-23T20:13:31.338Z dictation_transcribe_complete chars=563 words=112 engine=parakeet variant=v3
+2026-06-23T20:14:45.351Z dictation_preview_started engine=parakeet
+2026-06-23T20:14:45.355Z dictation_capture_start permission_status=3
+2026-06-23T20:14:45.367Z dictation_capture_starting
+2026-06-23T20:14:45.812Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.061 ducking_ms=0.000 output_format_ms=0.026 install_tap_ms=0.020 audio_engine_start_ms=183.261 total_ms=437.603
+2026-06-23T20:14:45.814Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=443.123
+2026-06-23T20:14:45.834Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T20:14:45.844Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-06-23T20:14:45.911Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T20:14:46.679Z dictation_preview_pass engine=parakeet ms=267 samples=8000 chars=0
+2026-06-23T20:14:47.680Z dictation_preview_pass engine=parakeet ms=169 samples=25600 chars=0
+2026-06-23T20:14:48.665Z dictation_preview_pass engine=parakeet ms=151 samples=41600 chars=5
+2026-06-23T20:14:49.762Z dictation_preview_pass engine=parakeet ms=151 samples=59200 chars=13
+2026-06-23T20:14:50.898Z dictation_preview_pass engine=parakeet ms=187 samples=76800 chars=29
+2026-06-23T20:14:51.165Z dictation_capture_heartbeat input_buffers=53 input_frames=254400 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:14:51.942Z dictation_preview_pass engine=parakeet ms=229 samples=92800 chars=29
+2026-06-23T20:14:53.093Z dictation_preview_pass engine=parakeet ms=280 samples=110400 chars=47
+2026-06-23T20:14:54.171Z dictation_preview_pass engine=parakeet ms=260 samples=128000 chars=49
+2026-06-23T20:14:55.188Z dictation_preview_pass engine=parakeet ms=274 samples=144000 chars=50
+2026-06-23T20:14:56.219Z dictation_capture_heartbeat input_buffers=104 input_frames=499200 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:14:56.301Z dictation_preview_pass engine=parakeet ms=289 samples=161600 chars=56
+2026-06-23T20:14:57.440Z dictation_preview_pass engine=parakeet ms=329 samples=179200 chars=58
+2026-06-23T20:14:58.344Z dictation_preview_pass engine=parakeet ms=230 samples=195200 chars=69
+2026-06-23T20:14:59.614Z dictation_preview_pass engine=parakeet ms=402 samples=212800 chars=82
+2026-06-23T20:15:00.630Z dictation_preview_pass engine=parakeet ms=320 samples=230400 chars=94
+2026-06-23T20:15:01.262Z dictation_capture_heartbeat input_buffers=154 input_frames=739200 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:15:01.635Z dictation_preview_pass engine=parakeet ms=322 samples=240000 chars=94
+2026-06-23T20:15:02.695Z dictation_preview_pass engine=parakeet ms=281 samples=240000 chars=107
+2026-06-23T20:15:03.860Z dictation_preview_pass engine=parakeet ms=349 samples=240000 chars=102
+2026-06-23T20:15:04.909Z dictation_preview_pass engine=parakeet ms=392 samples=240000 chars=99
+2026-06-23T20:15:05.945Z dictation_preview_pass engine=parakeet ms=333 samples=240000 chars=83
+2026-06-23T20:15:06.316Z dictation_capture_heartbeat input_buffers=205 input_frames=984000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:15:07.060Z dictation_preview_pass engine=parakeet ms=345 samples=240000 chars=84
+2026-06-23T20:15:08.054Z dictation_preview_pass engine=parakeet ms=340 samples=240000 chars=74
+2026-06-23T20:15:09.210Z dictation_preview_pass engine=parakeet ms=398 samples=240000 chars=84
+2026-06-23T20:15:10.281Z dictation_preview_pass engine=parakeet ms=370 samples=240000 chars=108
+2026-06-23T20:15:11.348Z dictation_preview_pass engine=parakeet ms=435 samples=240000 chars=123
+2026-06-23T20:15:11.348Z dictation_capture_heartbeat input_buffers=255 input_frames=1224000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:15:12.402Z dictation_preview_pass engine=parakeet ms=390 samples=240000 chars=114
+2026-06-23T20:15:13.491Z dictation_preview_pass engine=parakeet ms=380 samples=240000 chars=110
+2026-06-23T20:15:14.648Z dictation_preview_pass engine=parakeet ms=535 samples=240000 chars=113
+2026-06-23T20:15:15.671Z dictation_preview_pass engine=parakeet ms=458 samples=240000 chars=100
+2026-06-23T20:15:16.416Z dictation_capture_heartbeat input_buffers=306 input_frames=1468800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:15:16.718Z dictation_preview_pass engine=parakeet ms=407 samples=240000 chars=112
+2026-06-23T20:15:17.755Z dictation_preview_pass engine=parakeet ms=441 samples=240000 chars=115
+2026-06-23T20:15:18.817Z dictation_preview_pass engine=parakeet ms=404 samples=240000 chars=107
+2026-06-23T20:15:19.895Z dictation_preview_pass engine=parakeet ms=384 samples=240000 chars=99
+2026-06-23T20:15:20.878Z dictation_preview_pass engine=parakeet ms=365 samples=240000 chars=102
+2026-06-23T20:15:21.451Z dictation_capture_heartbeat input_buffers=356 input_frames=1708800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:15:22.013Z dictation_preview_pass engine=parakeet ms=401 samples=240000 chars=120
+2026-06-23T20:15:23.127Z dictation_preview_pass engine=parakeet ms=416 samples=240000 chars=147
+2026-06-23T20:15:24.189Z dictation_preview_pass engine=parakeet ms=475 samples=240000 chars=127
+2026-06-23T20:15:25.216Z dictation_preview_pass engine=parakeet ms=404 samples=240000 chars=115
+2026-06-23T20:15:26.299Z dictation_preview_pass engine=parakeet ms=388 samples=240000 chars=122
+2026-06-23T20:15:26.731Z dictation_capture_heartbeat input_buffers=409 input_frames=1963200 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:15:27.369Z dictation_preview_pass engine=parakeet ms=455 samples=240000 chars=127
+2026-06-23T20:15:28.381Z dictation_preview_pass engine=parakeet ms=369 samples=240000 chars=108
+2026-06-23T20:15:29.497Z dictation_preview_pass engine=parakeet ms=387 samples=240000 chars=123
+2026-06-23T20:15:30.474Z dictation_preview_pass engine=parakeet ms=361 samples=240000 chars=124
+2026-06-23T20:15:31.602Z dictation_preview_pass engine=parakeet ms=390 samples=240000 chars=119
+2026-06-23T20:15:31.780Z dictation_capture_heartbeat input_buffers=459 input_frames=2203200 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:15:32.644Z dictation_preview_pass engine=parakeet ms=334 samples=240000 chars=104
+2026-06-23T20:15:33.728Z dictation_preview_pass engine=parakeet ms=414 samples=240000 chars=121
+2026-06-23T20:15:34.756Z dictation_preview_pass engine=parakeet ms=344 samples=240000 chars=134
+2026-06-23T20:15:35.943Z dictation_preview_pass engine=parakeet ms=432 samples=240000 chars=154
+2026-06-23T20:15:36.835Z dictation_capture_heartbeat input_buffers=510 input_frames=2448000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:15:37.004Z dictation_preview_pass engine=parakeet ms=490 samples=240000 chars=164
+2026-06-23T20:15:38.188Z dictation_preview_pass engine=parakeet ms=576 samples=240000 chars=162
+2026-06-23T20:15:39.182Z dictation_preview_pass engine=parakeet ms=471 samples=240000 chars=173
+2026-06-23T20:15:40.156Z dictation_preview_pass engine=parakeet ms=443 samples=240000 chars=179
+2026-06-23T20:15:41.335Z dictation_preview_pass engine=parakeet ms=523 samples=240000 chars=189
+2026-06-23T20:15:41.926Z dictation_capture_heartbeat input_buffers=561 input_frames=2692800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:15:42.369Z dictation_preview_pass engine=parakeet ms=459 samples=240000 chars=187
+2026-06-23T20:15:43.519Z dictation_preview_pass engine=parakeet ms=605 samples=240000 chars=193
+2026-06-23T20:15:44.528Z dictation_preview_pass engine=parakeet ms=516 samples=240000 chars=172
+2026-06-23T20:15:45.651Z dictation_preview_pass engine=parakeet ms=541 samples=240000 chars=188
+2026-06-23T20:15:46.623Z dictation_preview_pass engine=parakeet ms=510 samples=240000 chars=204
+2026-06-23T20:15:47.221Z dictation_capture_heartbeat input_buffers=614 input_frames=2947200 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:15:47.789Z dictation_preview_pass engine=parakeet ms=577 samples=240000 chars=222
+2026-06-23T20:15:49.102Z dictation_preview_pass engine=parakeet ms=792 samples=240000 chars=223
+2026-06-23T20:15:49.754Z dictation_preview_pass engine=parakeet ms=441 samples=240000 chars=215
+2026-06-23T20:15:51.044Z dictation_preview_pass engine=parakeet ms=633 samples=240000 chars=233
+2026-06-23T20:15:51.911Z dictation_preview_pass engine=parakeet ms=400 samples=240000 chars=200
+2026-06-23T20:15:52.229Z dictation_capture_heartbeat input_buffers=664 input_frames=3187200 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:15:52.855Z dictation_preview_pass engine=parakeet ms=342 samples=240000 chars=176
+2026-06-23T20:15:54.026Z dictation_preview_pass engine=parakeet ms=413 samples=240000 chars=167
+2026-06-23T20:15:55.034Z dictation_preview_pass engine=parakeet ms=323 samples=240000 chars=143
+2026-06-23T20:15:56.213Z dictation_preview_pass engine=parakeet ms=500 samples=240000 chars=127
+2026-06-23T20:15:57.266Z dictation_capture_heartbeat input_buffers=714 input_frames=3427200 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:15:57.288Z dictation_preview_pass engine=parakeet ms=475 samples=240000 chars=132
+2026-06-23T20:15:58.383Z dictation_preview_pass engine=parakeet ms=472 samples=240000 chars=149
+2026-06-23T20:15:59.657Z dictation_preview_pass engine=parakeet ms=743 samples=240000 chars=172
+2026-06-23T20:16:00.880Z dictation_preview_pass engine=parakeet ms=868 samples=240000 chars=201
+2026-06-23T20:16:01.720Z dictation_preview_pass engine=parakeet ms=609 samples=240000 chars=191
+2026-06-23T20:16:02.330Z dictation_capture_heartbeat input_buffers=765 input_frames=3672000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:16:02.664Z dictation_preview_pass engine=parakeet ms=551 samples=240000 chars=189
+2026-06-23T20:16:03.786Z dictation_preview_pass engine=parakeet ms=574 samples=240000 chars=180
+2026-06-23T20:16:04.827Z dictation_preview_pass engine=parakeet ms=516 samples=240000 chars=179
+2026-06-23T20:16:05.815Z dictation_preview_pass engine=parakeet ms=502 samples=240000 chars=179
+2026-06-23T20:16:06.918Z dictation_preview_pass engine=parakeet ms=506 samples=240000 chars=185
+2026-06-23T20:16:07.333Z dictation_capture_heartbeat input_buffers=815 input_frames=3912000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:16:08.041Z dictation_preview_pass engine=parakeet ms=530 samples=240000 chars=194
+2026-06-23T20:16:09.111Z dictation_preview_pass engine=parakeet ms=598 samples=240000 chars=207
+2026-06-23T20:16:09.978Z dictation_preview_pass engine=parakeet ms=366 samples=240000 chars=206
+2026-06-23T20:16:11.227Z dictation_preview_pass engine=parakeet ms=516 samples=240000 chars=231
+2026-06-23T20:16:12.188Z dictation_preview_pass engine=parakeet ms=476 samples=240000 chars=251
+2026-06-23T20:16:12.348Z dictation_capture_heartbeat input_buffers=865 input_frames=4152000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:16:13.062Z dictation_preview_pass engine=parakeet ms=250 samples=240000 chars=236
+2026-06-23T20:16:14.159Z dictation_preview_pass engine=parakeet ms=249 samples=240000 chars=235
+2026-06-23T20:16:15.807Z dictation_preview_pass engine=parakeet ms=893 samples=240000 chars=207
+2026-06-23T20:16:16.584Z dictation_preview_pass engine=parakeet ms=573 samples=240000 chars=223
+2026-06-23T20:16:17.399Z dictation_capture_heartbeat input_buffers=915 input_frames=4392000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:16:17.692Z dictation_preview_pass engine=parakeet ms=580 samples=240000 chars=207
+2026-06-23T20:16:18.725Z dictation_preview_pass engine=parakeet ms=612 samples=240000 chars=199
+2026-06-23T20:16:19.842Z dictation_preview_pass engine=parakeet ms=630 samples=240000 chars=223
+2026-06-23T20:16:20.885Z dictation_preview_pass engine=parakeet ms=574 samples=240000 chars=217
+2026-06-23T20:16:21.984Z dictation_preview_pass engine=parakeet ms=670 samples=240000 chars=221
+2026-06-23T20:16:22.428Z dictation_capture_heartbeat input_buffers=966 input_frames=4636800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:16:23.028Z dictation_preview_pass engine=parakeet ms=616 samples=240000 chars=231
+2026-06-23T20:16:24.109Z dictation_preview_pass engine=parakeet ms=599 samples=240000 chars=174
+2026-06-23T20:16:25.141Z dictation_preview_pass engine=parakeet ms=625 samples=240000 chars=243
+2026-06-23T20:16:26.229Z dictation_preview_pass engine=parakeet ms=617 samples=240000 chars=185
+2026-06-23T20:16:27.319Z dictation_preview_pass engine=parakeet ms=609 samples=240000 chars=174
+2026-06-23T20:16:27.465Z dictation_capture_heartbeat input_buffers=1016 input_frames=4876800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:16:28.252Z dictation_preview_pass engine=parakeet ms=539 samples=240000 chars=161
+2026-06-23T20:16:29.430Z dictation_preview_pass engine=parakeet ms=618 samples=240000 chars=195
+2026-06-23T20:16:30.469Z dictation_preview_pass engine=parakeet ms=558 samples=240000 chars=197
+2026-06-23T20:16:31.355Z shared_mic_engine_stopped
+2026-06-23T20:16:31.366Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T20:16:31.368Z dictation_capture_stop sample_count=1684800 effective_sample_count=1684800 duration_s=105.300 wall_duration_s=105.532 file_bytes=6743296 input_buffers=1054 output_buffers=1053 input_frames=5059200 max_rms=0.135762 max_level=0.679 non_silent_buffers=740 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-06-23T20:16:31.438Z dictation_transcribe_begin file_bytes=6743296
+2026-06-23T20:16:33.494Z dictation_transcribe_complete chars=1082 words=195 engine=parakeet variant=v3
+2026-06-23T20:35:36.868Z dictation_preview_started engine=parakeet
+2026-06-23T20:35:36.872Z dictation_capture_start permission_status=3
+2026-06-23T20:35:36.887Z dictation_capture_starting
+2026-06-23T20:35:37.094Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.925 ducking_ms=0.000 output_format_ms=0.014 install_tap_ms=0.043 audio_engine_start_ms=105.888 total_ms=203.956
+2026-06-23T20:35:37.095Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=205.247
+2026-06-23T20:35:37.096Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T20:35:37.096Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-06-23T20:35:37.195Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-06-23T20:35:38.258Z dictation_preview_pass engine=parakeet ms=359 samples=11200 chars=0
+2026-06-23T20:35:39.108Z dictation_preview_pass engine=parakeet ms=110 samples=28800 chars=0
+2026-06-23T20:35:40.210Z dictation_preview_pass engine=parakeet ms=113 samples=46400 chars=0
+2026-06-23T20:35:41.215Z dictation_preview_pass engine=parakeet ms=116 samples=62400 chars=0
+2026-06-23T20:35:42.123Z dictation_capture_heartbeat input_buffers=50 input_frames=240000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:35:42.321Z dictation_preview_pass engine=parakeet ms=124 samples=80000 chars=0
+2026-06-23T20:35:43.436Z dictation_preview_pass engine=parakeet ms=139 samples=97600 chars=17
+2026-06-23T20:35:44.443Z dictation_preview_pass engine=parakeet ms=144 samples=113600 chars=36
+2026-06-23T20:35:45.547Z dictation_preview_pass engine=parakeet ms=148 samples=131200 chars=47
+2026-06-23T20:35:46.642Z dictation_preview_pass engine=parakeet ms=146 samples=148800 chars=50
+2026-06-23T20:35:47.153Z dictation_capture_heartbeat input_buffers=100 input_frames=480000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:35:47.647Z dictation_preview_pass engine=parakeet ms=148 samples=164800 chars=65
+2026-06-23T20:35:48.752Z dictation_preview_pass engine=parakeet ms=154 samples=182400 chars=71
+2026-06-23T20:35:49.857Z dictation_preview_pass engine=parakeet ms=161 samples=200000 chars=71
+2026-06-23T20:35:50.863Z dictation_preview_pass engine=parakeet ms=165 samples=216000 chars=89
+2026-06-23T20:35:51.969Z dictation_preview_pass engine=parakeet ms=171 samples=233600 chars=89
+2026-06-23T20:35:52.201Z dictation_capture_heartbeat input_buffers=151 input_frames=724800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:35:53.072Z dictation_preview_pass engine=parakeet ms=176 samples=240000 chars=93
+2026-06-23T20:35:54.077Z dictation_preview_pass engine=parakeet ms=178 samples=240000 chars=92
+2026-06-23T20:35:55.169Z dictation_preview_pass engine=parakeet ms=171 samples=240000 chars=92
+2026-06-23T20:35:56.265Z dictation_preview_pass engine=parakeet ms=168 samples=240000 chars=92
+2026-06-23T20:35:57.220Z dictation_capture_heartbeat input_buffers=201 input_frames=964800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:35:57.270Z dictation_preview_pass engine=parakeet ms=172 samples=240000 chars=92
+2026-06-23T20:35:58.362Z dictation_preview_pass engine=parakeet ms=164 samples=240000 chars=74
+2026-06-23T20:35:59.454Z dictation_preview_pass engine=parakeet ms=156 samples=240000 chars=57
+2026-06-23T20:36:00.453Z dictation_preview_pass engine=parakeet ms=154 samples=240000 chars=68
+2026-06-23T20:36:01.551Z dictation_preview_pass engine=parakeet ms=153 samples=240000 chars=78
+2026-06-23T20:36:02.271Z dictation_capture_heartbeat input_buffers=251 input_frames=1204800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:36:02.649Z dictation_preview_pass engine=parakeet ms=153 samples=240000 chars=68
+2026-06-23T20:36:03.643Z dictation_preview_pass engine=parakeet ms=144 samples=240000 chars=61
+2026-06-23T20:36:04.746Z dictation_preview_pass engine=parakeet ms=148 samples=240000 chars=66
+2026-06-23T20:36:05.831Z dictation_preview_pass engine=parakeet ms=134 samples=240000 chars=48
+2026-06-23T20:36:06.844Z dictation_preview_pass engine=parakeet ms=145 samples=240000 chars=49
+2026-06-23T20:36:07.307Z dictation_capture_heartbeat input_buffers=302 input_frames=1449600 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:36:07.962Z dictation_preview_pass engine=parakeet ms=164 samples=240000 chars=46
+2026-06-23T20:36:09.062Z dictation_preview_pass engine=parakeet ms=166 samples=240000 chars=56
+2026-06-23T20:36:10.048Z dictation_preview_pass engine=parakeet ms=149 samples=240000 chars=56
+2026-06-23T20:36:11.149Z dictation_preview_pass engine=parakeet ms=151 samples=240000 chars=65
+2026-06-23T20:36:12.244Z dictation_preview_pass engine=parakeet ms=148 samples=240000 chars=73
+2026-06-23T20:36:12.317Z dictation_capture_heartbeat input_buffers=352 input_frames=1689600 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:36:13.260Z dictation_preview_pass engine=parakeet ms=161 samples=240000 chars=80
+2026-06-23T20:36:14.433Z dictation_preview_pass engine=parakeet ms=236 samples=240000 chars=98
+2026-06-23T20:36:15.473Z dictation_preview_pass engine=parakeet ms=177 samples=240000 chars=99
+2026-06-23T20:36:16.455Z dictation_preview_pass engine=parakeet ms=156 samples=240000 chars=84
+2026-06-23T20:36:17.331Z dictation_capture_heartbeat input_buffers=402 input_frames=1929600 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:36:17.558Z dictation_preview_pass engine=parakeet ms=161 samples=240000 chars=83
+2026-06-23T20:36:18.666Z dictation_preview_pass engine=parakeet ms=169 samples=240000 chars=90
+2026-06-23T20:36:19.659Z dictation_preview_pass engine=parakeet ms=160 samples=240000 chars=87
+2026-06-23T20:36:20.754Z dictation_preview_pass engine=parakeet ms=156 samples=240000 chars=86
+2026-06-23T20:36:21.855Z dictation_preview_pass engine=parakeet ms=159 samples=240000 chars=89
+2026-06-23T20:36:22.359Z dictation_capture_heartbeat input_buffers=452 input_frames=2169600 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:36:22.867Z dictation_preview_pass engine=parakeet ms=169 samples=240000 chars=90
+2026-06-23T20:36:23.955Z dictation_preview_pass engine=parakeet ms=158 samples=240000 chars=88
+2026-06-23T20:36:25.054Z dictation_preview_pass engine=parakeet ms=158 samples=240000 chars=113
+2026-06-23T20:36:26.057Z dictation_preview_pass engine=parakeet ms=158 samples=240000 chars=114
+2026-06-23T20:36:27.167Z dictation_preview_pass engine=parakeet ms=169 samples=240000 chars=125
+2026-06-23T20:36:27.384Z dictation_capture_heartbeat input_buffers=502 input_frames=2409600 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:36:28.266Z dictation_preview_pass engine=parakeet ms=170 samples=240000 chars=139
+2026-06-23T20:36:29.266Z dictation_preview_pass engine=parakeet ms=167 samples=240000 chars=130
+2026-06-23T20:36:30.368Z dictation_preview_pass engine=parakeet ms=171 samples=240000 chars=116
+2026-06-23T20:36:31.467Z dictation_preview_pass engine=parakeet ms=171 samples=240000 chars=131
+2026-06-23T20:36:32.416Z dictation_capture_heartbeat input_buffers=553 input_frames=2654400 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:36:32.480Z dictation_preview_pass engine=parakeet ms=181 samples=240000 chars=157
+2026-06-23T20:36:33.584Z dictation_preview_pass engine=parakeet ms=187 samples=240000 chars=154
+2026-06-23T20:36:34.677Z dictation_preview_pass engine=parakeet ms=181 samples=240000 chars=161
+2026-06-23T20:36:35.697Z dictation_preview_pass engine=parakeet ms=198 samples=240000 chars=183
+2026-06-23T20:36:36.781Z dictation_preview_pass engine=parakeet ms=183 samples=240000 chars=183
+2026-06-23T20:36:37.448Z dictation_capture_heartbeat input_buffers=603 input_frames=2894400 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:36:37.881Z dictation_preview_pass engine=parakeet ms=185 samples=240000 chars=187
+2026-06-23T20:36:38.912Z dictation_preview_pass engine=parakeet ms=213 samples=240000 chars=197
+2026-06-23T20:36:39.974Z dictation_preview_pass engine=parakeet ms=176 samples=240000 chars=173
+2026-06-23T20:36:41.110Z dictation_preview_pass engine=parakeet ms=214 samples=240000 chars=185
+2026-06-23T20:36:42.094Z dictation_preview_pass engine=parakeet ms=195 samples=240000 chars=182
+2026-06-23T20:36:42.490Z dictation_capture_heartbeat input_buffers=653 input_frames=3134400 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:36:43.197Z dictation_preview_pass engine=parakeet ms=199 samples=240000 chars=181
+2026-06-23T20:36:44.281Z dictation_preview_pass engine=parakeet ms=185 samples=240000 chars=180
+2026-06-23T20:36:45.286Z dictation_preview_pass engine=parakeet ms=187 samples=240000 chars=186
+2026-06-23T20:36:46.385Z dictation_preview_pass engine=parakeet ms=187 samples=240000 chars=184
+2026-06-23T20:36:47.486Z dictation_preview_pass engine=parakeet ms=190 samples=240000 chars=168
+2026-06-23T20:36:47.532Z dictation_capture_heartbeat input_buffers=704 input_frames=3379200 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:36:48.474Z dictation_preview_pass engine=parakeet ms=175 samples=240000 chars=166
+2026-06-23T20:36:49.578Z dictation_preview_pass engine=parakeet ms=181 samples=240000 chars=162
+2026-06-23T20:36:50.678Z dictation_preview_pass engine=parakeet ms=181 samples=240000 chars=140
+2026-06-23T20:36:51.674Z dictation_preview_pass engine=parakeet ms=175 samples=240000 chars=140
+2026-06-23T20:36:52.571Z dictation_capture_heartbeat input_buffers=754 input_frames=3619200 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:36:52.774Z dictation_preview_pass engine=parakeet ms=176 samples=240000 chars=137
+2026-06-23T20:36:53.888Z dictation_preview_pass engine=parakeet ms=192 samples=240000 chars=147
+2026-06-23T20:36:54.866Z dictation_preview_pass engine=parakeet ms=167 samples=240000 chars=142
+2026-06-23T20:36:55.976Z dictation_preview_pass engine=parakeet ms=178 samples=240000 chars=115
+2026-06-23T20:36:57.056Z dictation_preview_pass engine=parakeet ms=160 samples=240000 chars=111
+2026-06-23T20:36:57.599Z dictation_capture_heartbeat input_buffers=805 input_frames=3864000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:36:58.069Z dictation_preview_pass engine=parakeet ms=170 samples=240000 chars=78
+2026-06-23T20:36:59.158Z dictation_preview_pass engine=parakeet ms=160 samples=240000 chars=101
+2026-06-23T20:37:00.268Z dictation_preview_pass engine=parakeet ms=172 samples=240000 chars=112
+2026-06-23T20:37:01.273Z dictation_preview_pass engine=parakeet ms=174 samples=240000 chars=102
+2026-06-23T20:37:02.361Z dictation_preview_pass engine=parakeet ms=164 samples=240000 chars=92
+2026-06-23T20:37:02.632Z dictation_capture_heartbeat input_buffers=855 input_frames=4104000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:37:03.464Z dictation_preview_pass engine=parakeet ms=168 samples=240000 chars=81
+2026-06-23T20:37:04.469Z dictation_preview_pass engine=parakeet ms=171 samples=240000 chars=94
+2026-06-23T20:37:05.565Z dictation_preview_pass engine=parakeet ms=167 samples=240000 chars=118
+2026-06-23T20:37:06.670Z dictation_preview_pass engine=parakeet ms=174 samples=240000 chars=136
+2026-06-23T20:37:07.657Z dictation_capture_heartbeat input_buffers=905 input_frames=4344000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:37:07.681Z dictation_preview_pass engine=parakeet ms=183 samples=240000 chars=134
+2026-06-23T20:37:08.766Z dictation_preview_pass engine=parakeet ms=169 samples=240000 chars=121
+2026-06-23T20:37:09.863Z dictation_preview_pass engine=parakeet ms=167 samples=240000 chars=106
+2026-06-23T20:37:10.873Z dictation_preview_pass engine=parakeet ms=174 samples=240000 chars=109
+2026-06-23T20:37:11.970Z dictation_preview_pass engine=parakeet ms=173 samples=240000 chars=106
+2026-06-23T20:37:12.672Z dictation_capture_heartbeat input_buffers=955 input_frames=4584000 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:37:13.059Z dictation_preview_pass engine=parakeet ms=163 samples=240000 chars=106
+2026-06-23T20:37:14.072Z dictation_preview_pass engine=parakeet ms=174 samples=240000 chars=92
+2026-06-23T20:37:15.162Z dictation_preview_pass engine=parakeet ms=164 samples=240000 chars=64
+2026-06-23T20:37:16.262Z dictation_preview_pass engine=parakeet ms=167 samples=240000 chars=74
+2026-06-23T20:37:17.273Z dictation_preview_pass engine=parakeet ms=174 samples=240000 chars=99
+2026-06-23T20:37:17.708Z dictation_capture_heartbeat input_buffers=1006 input_frames=4828800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:37:18.380Z dictation_preview_pass engine=parakeet ms=183 samples=240000 chars=118
+2026-06-23T20:37:19.480Z dictation_preview_pass engine=parakeet ms=184 samples=240000 chars=103
+2026-06-23T20:37:20.465Z dictation_preview_pass engine=parakeet ms=166 samples=240000 chars=103
+2026-06-23T20:37:21.572Z dictation_preview_pass engine=parakeet ms=175 samples=240000 chars=89
+2026-06-23T20:37:22.660Z dictation_preview_pass engine=parakeet ms=164 samples=240000 chars=89
+2026-06-23T20:37:22.733Z dictation_capture_heartbeat input_buffers=1056 input_frames=5068800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:37:23.658Z dictation_preview_pass engine=parakeet ms=160 samples=240000 chars=89
+2026-06-23T20:37:24.766Z dictation_preview_pass engine=parakeet ms=169 samples=240000 chars=89
+2026-06-23T20:37:25.875Z dictation_preview_pass engine=parakeet ms=178 samples=240000 chars=86
+2026-06-23T20:37:26.882Z dictation_preview_pass engine=parakeet ms=183 samples=240000 chars=106
+2026-06-23T20:37:27.756Z dictation_capture_heartbeat input_buffers=1106 input_frames=5308800 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:37:27.964Z dictation_preview_pass engine=parakeet ms=167 samples=240000 chars=127
+2026-06-23T20:37:29.186Z dictation_preview_pass engine=parakeet ms=290 samples=240000 chars=127
+2026-06-23T20:37:30.092Z dictation_preview_pass engine=parakeet ms=193 samples=240000 chars=146
+2026-06-23T20:37:31.183Z dictation_preview_pass engine=parakeet ms=186 samples=240000 chars=137
+2026-06-23T20:37:32.280Z dictation_preview_pass engine=parakeet ms=184 samples=240000 chars=111
+2026-06-23T20:37:32.791Z dictation_capture_heartbeat input_buffers=1157 input_frames=5553600 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:37:33.281Z dictation_preview_pass engine=parakeet ms=182 samples=240000 chars=92
+2026-06-23T20:37:34.373Z dictation_preview_pass engine=parakeet ms=175 samples=240000 chars=89
+2026-06-23T20:37:35.458Z dictation_preview_pass engine=parakeet ms=162 samples=240000 chars=60
+2026-06-23T20:37:36.460Z dictation_preview_pass engine=parakeet ms=161 samples=240000 chars=91
+2026-06-23T20:37:37.570Z dictation_preview_pass engine=parakeet ms=172 samples=240000 chars=103
+2026-06-23T20:37:37.837Z dictation_capture_heartbeat input_buffers=1207 input_frames=5793600 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:37:38.681Z dictation_preview_pass engine=parakeet ms=185 samples=240000 chars=119
+2026-06-23T20:37:39.838Z dictation_preview_pass engine=parakeet ms=339 samples=240000 chars=141
+2026-06-23T20:37:40.786Z dictation_preview_pass engine=parakeet ms=189 samples=240000 chars=153
+2026-06-23T20:37:41.870Z dictation_preview_pass engine=parakeet ms=174 samples=240000 chars=128
+2026-06-23T20:37:42.868Z dictation_preview_pass engine=parakeet ms=169 samples=240000 chars=119
+2026-06-23T20:37:42.880Z dictation_capture_heartbeat input_buffers=1257 input_frames=6033600 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:37:43.962Z dictation_preview_pass engine=parakeet ms=164 samples=240000 chars=116
+2026-06-23T20:37:45.061Z dictation_preview_pass engine=parakeet ms=165 samples=240000 chars=94
+2026-06-23T20:37:46.072Z dictation_preview_pass engine=parakeet ms=174 samples=240000 chars=110
+2026-06-23T20:37:47.193Z dictation_preview_pass engine=parakeet ms=195 samples=240000 chars=140
+2026-06-23T20:37:47.932Z dictation_capture_heartbeat input_buffers=1308 input_frames=6278400 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:37:48.277Z dictation_preview_pass engine=parakeet ms=181 samples=240000 chars=144
+2026-06-23T20:37:49.270Z dictation_preview_pass engine=parakeet ms=171 samples=240000 chars=144
+2026-06-23T20:37:50.390Z dictation_preview_pass engine=parakeet ms=193 samples=240000 chars=144
+2026-06-23T20:37:51.481Z dictation_preview_pass engine=parakeet ms=185 samples=240000 chars=119
+2026-06-23T20:37:52.474Z dictation_preview_pass engine=parakeet ms=176 samples=240000 chars=104
+2026-06-23T20:37:52.976Z dictation_capture_heartbeat input_buffers=1358 input_frames=6518400 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:37:53.573Z dictation_preview_pass engine=parakeet ms=175 samples=240000 chars=87
+2026-06-23T20:37:54.627Z dictation_preview_pass engine=parakeet ms=131 samples=240000 chars=0
+2026-06-23T20:37:55.663Z dictation_preview_pass engine=parakeet ms=164 samples=240000 chars=57
+2026-06-23T20:37:56.764Z dictation_preview_pass engine=parakeet ms=167 samples=240000 chars=62
+2026-06-23T20:37:57.853Z dictation_preview_pass engine=parakeet ms=157 samples=240000 chars=59
+2026-06-23T20:37:58.008Z dictation_capture_heartbeat input_buffers=1409 input_frames=6763200 isRunning=true default_input=present default_input_transport=built-in
+2026-06-23T20:37:58.873Z dictation_preview_pass engine=parakeet ms=174 samples=240000 chars=89
+2026-06-23T20:37:59.965Z dictation_preview_pass engine=parakeet ms=168 samples=240000 chars=87
+2026-06-23T20:38:01.050Z dictation_preview_pass engine=parakeet ms=154 samples=240000 chars=72
+2026-06-23T20:38:02.035Z dictation_preview_pass engine=parakeet ms=137 samples=240000 chars=35
+2026-06-23T20:38:02.784Z shared_mic_engine_stopped
+2026-06-23T20:38:02.786Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-06-23T20:38:02.788Z dictation_capture_stop sample_count=2328000 effective_sample_count=2328000 duration_s=145.500 wall_duration_s=145.691 file_bytes=9316096 input_buffers=1456 output_buffers=1455 input_frames=6988800 max_rms=0.378959 max_level=1.000 non_silent_buffers=768 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-06-23T20:38:02.790Z dictation_transcribe_begin file_bytes=9316096
+2026-06-23T20:38:04.344Z dictation_transcribe_complete chars=1023 words=211 engine=parakeet variant=v3

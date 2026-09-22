@@ -1,9 +1,11 @@
+import MacParakeetCore
 import SwiftUI
 
 @MainActor @Observable
 public final class MeetingRecordingPillViewModel {
     public enum PillState: Equatable {
         case idle
+        case starting
         case recording
         /// Capture intentionally paused. The pill rosette dims and freezes;
         /// stop / discard remain available.
@@ -18,20 +20,36 @@ public final class MeetingRecordingPillViewModel {
     public var elapsedSeconds: Int = 0
     public var micLevel: Float = 0
     public var systemLevel: Float = 0
-    /// True once the stop+transcribe flow has a finalized recording on disk,
-    /// i.e. the in-flight final transcription can be safely aborted (issue
-    /// #487). Gates the tile's Stop button and the pill menu item so neither
-    /// fires while the recording is still being finalized.
-    public var canAbortTranscription: Bool = false
+    public var captureHealth: MeetingCaptureHealthSummary = .notRecording
+    public var backgroundTranscriptionCount: Int = 0
+    public private(set) var showsAudioSavedConfirmation = false
     public var onStop: (() -> Void)?
     public var onPauseToggle: (() -> Void)?
-    /// Opens the stop-transcription confirmation (Keep Audio / Delete
-    /// Recording). Bound by the flow coordinator while a meeting flow is
-    /// active; shared by the Transcribe-tab tile and the floating pill menu.
-    public var onAbortTranscription: (() -> Void)?
     public var onCompletionAnimationFinished: (() -> Void)?
 
+    @ObservationIgnored private var audioSavedConfirmationTask: Task<Void, Never>?
+
     public init() {}
+
+    deinit {
+        audioSavedConfirmationTask?.cancel()
+    }
+
+    public func showAudioSavedConfirmation(duration: Duration = .seconds(4)) {
+        showsAudioSavedConfirmation = true
+        audioSavedConfirmationTask?.cancel()
+        audioSavedConfirmationTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: duration)
+            guard !Task.isCancelled else { return }
+            self?.showsAudioSavedConfirmation = false
+        }
+    }
+
+    public func clearAudioSavedConfirmation() {
+        audioSavedConfirmationTask?.cancel()
+        audioSavedConfirmationTask = nil
+        showsAudioSavedConfirmation = false
+    }
 
     public var formattedElapsed: String {
         let minutes = elapsedSeconds / 60
@@ -43,7 +61,7 @@ public final class MeetingRecordingPillViewModel {
         switch state {
         case .recording, .paused:
             return true
-        case .idle, .completing, .transcribing, .completed, .error:
+        case .idle, .starting, .completing, .transcribing, .completed, .error:
             return false
         }
     }
@@ -51,5 +69,30 @@ public final class MeetingRecordingPillViewModel {
     public var isPaused: Bool {
         if case .paused = state { return true }
         return false
+    }
+
+    public var mirroredSourceHealthWarning: MeetingSourceHealthChip? {
+        switch state {
+        case .recording, .paused:
+            return MeetingSourceHealthChip.primaryDegraded(for: captureHealth)
+        case .idle, .starting, .completing, .transcribing, .completed, .error:
+            return nil
+        }
+    }
+
+    public var mirroredActionableSourceHealthWarning: MeetingSourceHealthChip? {
+        switch state {
+        case .recording, .paused:
+            return MeetingSourceHealthChip.primaryActionableWarning(for: captureHealth)
+        case .idle, .starting, .completing, .transcribing, .completed, .error:
+            return nil
+        }
+    }
+
+    /// Product-policy filtered health shared by the pill and its mirrored tile.
+    public var mirroredVisibleSourceHealthWarning: MeetingSourceHealthChip? {
+        AppFeatures.meetingSourceHealthUIEnabled
+            ? mirroredSourceHealthWarning
+            : mirroredActionableSourceHealthWarning
     }
 }

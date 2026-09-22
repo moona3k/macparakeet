@@ -97,6 +97,155 @@ final class MicrophoneEngineRealPlatformTests: XCTestCase {
         )
     }
 
+    /// Prepared-start case: pay device/format setup while stopped, then verify
+    /// the matching start produces real input buffers through the prepared tap.
+    func testPreparedStartDeliversBuffers() async throws {
+        platform.stopEngine()
+        platform = try makePreparablePlatform()
+        let preparedHandlerCounter = OSAllocatedUnfairLock(initialState: 0)
+        let activeHandlerCounter = OSAllocatedUnfairLock(initialState: 0)
+        let preparedHandler: @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void = { _, _ in
+            preparedHandlerCounter.withLock { $0 += 1 }
+        }
+        let activeHandler: @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void = { _, _ in
+            activeHandlerCounter.withLock { $0 += 1 }
+        }
+
+        platform.prepare(
+            vpioEnabled: false,
+            bufferSize: Self.bufferSize,
+            tapHandler: preparedHandler
+        )
+        XCTAssertTrue(
+            platform.preparedEngineStateForTesting.prepared,
+            "Resolved System Default should prepare without becoming an explicit device pin."
+        )
+
+        let configureStartedAt = ContinuousClock.now
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: Self.bufferSize,
+            tapHandler: activeHandler
+        )
+        let configureDuration = configureStartedAt.duration(to: .now)
+        XCTAssertLessThan(
+            configureDuration,
+            .milliseconds(500),
+            "Prepared configure should use the start-only fast path, not the full cold path."
+        )
+
+        let count = try await awaitCounterIncrease(
+            counter: activeHandlerCounter,
+            from: 0,
+            timeout: Self.firstBufferDeadline
+        )
+        XCTAssertGreaterThan(count, 0, "A matching prepared start should deliver microphone buffers.")
+        XCTAssertEqual(
+            preparedHandlerCounter.withLock { $0 },
+            0,
+            "Prepared starts must dispatch through the latest configureAndStart handler."
+        )
+    }
+
+    /// Some devices deliver the setup notification after `prepare()` returns.
+    /// If the actual route and format stayed unchanged, keep the prepared graph.
+    func testDelayedUnchangedConfigurationChangeKeepsPreparedEngine() throws {
+        platform.stopEngine()
+        platform = try makePreparablePlatform()
+
+        platform.prepare(
+            vpioEnabled: false,
+            bufferSize: Self.bufferSize,
+            tapHandler: { _, _ in }
+        )
+        let before = platform.preparedEngineStateForTesting
+        XCTAssertTrue(before.prepared)
+
+        NotificationCenter.default.post(
+            name: .AVAudioEngineConfigurationChange,
+            object: before.engine
+        )
+        _ = platform.isEngineRunning  // queue sync flushes observer invalidation
+
+        let after = platform.preparedEngineStateForTesting
+        XCTAssertTrue(after.prepared)
+        XCTAssertTrue(
+            before.engine === after.engine,
+            "An unchanged delayed setup notification must keep the prepared engine."
+        )
+    }
+
+    /// Selecting an input can itself emit a configuration-change notification.
+    /// That setup event must not discard the preparation before it can be used;
+    /// idle changes after preparation remain covered by the preceding test.
+    func testConfigurationChangeDuringDeviceSetupKeepsPreparedEngine() throws {
+        platform.stopEngine()
+
+        let builtInDeviceID = AudioDeviceManager.builtInMicrophone()
+        let deviceID = builtInDeviceID ?? AudioDeviceManager.defaultInputDevice()
+        guard let deviceID else {
+            throw XCTSkip("Need a resolved input device for stopped-engine preparation.")
+        }
+        guard AudioDeviceManager.bluetoothInputState(deviceID) == false else {
+            throw XCTSkip(
+                "Stopped-engine preparation is intentionally disabled for Bluetooth or unresolved inputs."
+            )
+        }
+        let source: MeetingInputDeviceAttempt.Source = builtInDeviceID == nil ? .systemDefault : .builtIn
+        let attempt = MeetingInputDeviceAttempt(source: source, deviceID: deviceID)
+        platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: { [attempt] in [attempt] },
+            inputDeviceSetter: { deviceID, engine in
+                guard AudioDeviceManager.setInputDevice(deviceID, on: engine) else { return false }
+                NotificationCenter.default.post(
+                    name: .AVAudioEngineConfigurationChange,
+                    object: engine
+                )
+                return true
+            }
+        )
+
+        platform.prepare(
+            vpioEnabled: false,
+            bufferSize: Self.bufferSize,
+            tapHandler: { _, _ in }
+        )
+        XCTAssertTrue(
+            platform.preparedEngineStateForTesting.prepared,
+            "A configuration notification caused by device setup must not discard preparation."
+        )
+    }
+
+    /// Mismatch case: a prepared tap must be torn down before falling back to
+    /// full configuration, otherwise AVAudioEngine rejects the second tap.
+    func testPreparedStartWithDifferentBufferSizeFallsBackCleanly() async throws {
+        platform.stopEngine()
+        platform = try makePreparablePlatform()
+        let counter = OSAllocatedUnfairLock(initialState: 0)
+        let handler: @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void = { _, _ in
+            counter.withLock { $0 += 1 }
+        }
+
+        platform.prepare(
+            vpioEnabled: false,
+            bufferSize: Self.bufferSize,
+            tapHandler: handler
+        )
+
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: Self.bufferSize / 2,
+            tapHandler: handler
+        )
+
+        let count = try await awaitCounterIncrease(
+            counter: counter,
+            from: 0,
+            timeout: Self.firstBufferDeadline
+        )
+        XCTAssertGreaterThan(count, 0, "A mismatched prepared start should fall back and deliver buffers.")
+    }
+
     /// VPIO transition case: subscribe with VPIO enabled (simulates meeting
     /// recording starting), then with VPIO disabled (simulates dictation).
     /// This is the path the journal originally suspected before the
@@ -306,7 +455,7 @@ final class MicrophoneEngineRealPlatformTests: XCTestCase {
         )
 
         guard let originalDefault = AudioDeviceManager.defaultInputDevice(),
-              let alternate = alternateInputDevice(excluding: originalDefault)
+            let alternate = alternateInputDevice(excluding: originalDefault)
         else {
             throw XCTSkip("Need at least two input devices to run default-input mutation.")
         }
@@ -414,6 +563,26 @@ final class MicrophoneEngineRealPlatformTests: XCTestCase {
             counter: counter,
             from: 0,
             timeout: Self.firstBufferDeadline
+        )
+    }
+
+    private func makePreparablePlatform() throws -> AVAudioEngineMicrophonePlatform {
+        let deviceID = AudioDeviceManager.defaultInputDevice()
+        guard let deviceID else {
+            throw XCTSkip("Need a resolved input device for stopped-engine preparation.")
+        }
+        guard AudioDeviceManager.bluetoothInputState(deviceID) == false else {
+            throw XCTSkip(
+                "Stopped-engine preparation is intentionally disabled for Bluetooth or unresolved inputs."
+            )
+        }
+        let attempt = MeetingInputDeviceAttempt.implicitSystemDefault(resolvedDeviceID: deviceID)
+        return AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: { [attempt] in [attempt] },
+            // If preparation accidentally converts System Default into an
+            // explicit CurrentDevice write, fail the best-effort prepare so
+            // the prepared-state assertion catches the routing regression.
+            inputDeviceSetter: { _, _ in false }
         )
     }
 

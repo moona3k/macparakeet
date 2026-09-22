@@ -4,30 +4,110 @@ import PackageDescription
 import Foundation
 
 let skipWhisperKit = ProcessInfo.processInfo.environment["MACPARAKEET_SKIP_WHISPERKIT"] == "1"
+// The existing no-WhisperKit mode is the repository's first-party Swift 6
+// compatibility build. Omit the Swift 5-only Markdown dependency graph there
+// as well; normal release, concurrency, and test builds still compile it.
+let skipStreamingMarkdown = skipWhisperKit
+let enableMLXLocalLLM = ProcessInfo.processInfo.environment["MACPARAKEET_ENABLE_MLX_LOCAL_LLM"] == "1"
+
+let streamingMarkdownPackageDependencies: [Package.Dependency] = skipStreamingMarkdown ? [] : [
+    // Shared SwiftUI renderer for static and streaming LLM Markdown output.
+    // v0.7.0 transitively pins two dependencies by revision, so SwiftPM rejects
+    // the stable-version requirement. The fork removes one trailing argument
+    // comma that Swift 6.0 / Xcode 16.1 cannot parse and restores selectable
+    // macOS table cells with named actions. Keep these fixes immutably pinned.
+    .package(
+        url: "https://github.com/alfred-sa/SwiftStreamingMarkdown",
+        revision: "1f10d5286985349b63145e1193f4f6ad5f7fdfe1"
+    )
+]
 
 let packageDependencies: [Package.Dependency] = [
     // GRDB for SQLite (dictation history + transcription records)
     .package(url: "https://github.com/groue/GRDB.swift", from: "7.0.0"),
-    // FluidAudio for Parakeet and Nemotron STT on CoreML/ANE
-    .package(url: "https://github.com/FluidInference/FluidAudio", .upToNextMinor(from: "0.15.2")),
+    // FluidAudio for Parakeet, Nemotron, and Cohere STT plus offline speaker
+    // diarization on CoreML/ANE. Pinned exact: the STT engines depend on the
+    // registry's model file names and the ModelHub download API, and the
+    // diarizer's clustering semantics changed between minor releases
+    // (0.15.5 / 0.15.6 clustering, 0.15.7 speaker-cap dual-census / FluidAudio
+    // #891; see ADR-010). Bump deliberately with an STT regression pass and a
+    // diarization before/after comparison.
+    .package(url: "https://github.com/FluidInference/FluidAudio", exact: "0.15.7"),
     // ArgumentParser for CLI
     .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
     // Sparkle for auto-updates (non-App Store distribution)
-    .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.0")
-] + (skipWhisperKit ? [] : [
+    .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.0"),
+    // FluidAudio's Swift module exposes yyjson under current Xcode/Swift.
+    .package(url: "https://github.com/ibireme/yyjson.git", exact: "0.12.0"),
     // WhisperKit for multilingual STT fallback (Korean + 95 other languages).
     // Argmax is not Swift 6 language-mode clean yet, so CI can omit this package
-    // only for the first-party Swift 6 syntax/concurrency compile check.
+    // as a target dependency for the first-party Swift 6 syntax/concurrency
+    // compile check without removing its lockfile pins.
     .package(url: "https://github.com/argmaxinc/argmax-oss-swift", exact: "0.18.0")
-])
+] + streamingMarkdownPackageDependencies + (enableMLXLocalLLM ? [
+    // Opt-in only. mlx-swift-lm currently needs Swift tools 6.1 and Xcode-built
+    // Metal shaders, so plain `swift build` / `swift test` / CI must not resolve it.
+    .package(url: "https://github.com/ml-explore/mlx-swift-lm", exact: "3.31.4"),
+    // Direct pin holds mlx-swift-lm's transitive MLX dependency at 0.31.4; the
+    // resolver would otherwise pick 0.31.6, which requires Swift tools 6.3.
+    .package(url: "https://github.com/ml-explore/mlx-swift", exact: "0.31.4"),
+    // Only the Tokenizers product is used (local-directory tokenizer loading).
+    // Held to 1.1.x because argmax-oss-swift (WhisperKit) cannot resolve
+    // alongside swift-transformers 1.3 in the gated dependency graph.
+    .package(url: "https://github.com/huggingface/swift-transformers", "1.1.6" ..< "1.2.0"),
+] : [])
 
 let coreDependencies: [Target.Dependency] = [
     .product(name: "GRDB", package: "GRDB.swift"),
     .product(name: "FluidAudio", package: "FluidAudio"),
+    .product(name: "yyjson", package: "yyjson"),
     "MacParakeetObjCShims"
 ] + (skipWhisperKit ? [] : [
     .product(name: "WhisperKit", package: "argmax-oss-swift")
 ])
+
+let whisperKitSwiftSettings: [SwiftSetting] = skipWhisperKit ? [] : [
+    .define("MACPARAKEET_HAS_WHISPERKIT")
+]
+
+let mlxLocalLLMSwiftSettings: [SwiftSetting] = enableMLXLocalLLM ? [
+    .define("MACPARAKEET_HAS_MLX_LOCAL_LLM")
+] : []
+
+let streamingMarkdownTargetDependencies: [Target.Dependency] = skipStreamingMarkdown ? [] : [
+    .product(name: "SwiftStreamingMarkdown", package: "SwiftStreamingMarkdown")
+]
+let appDependencies: [Target.Dependency] = [
+    "MacParakeetCore",
+    "MacParakeetViewModels",
+    .product(name: "Sparkle", package: "Sparkle"),
+] + streamingMarkdownTargetDependencies + (enableMLXLocalLLM ? [
+    "MacParakeetLocalLLM"
+] : [])
+
+let appTestDependencies: [Target.Dependency] = [
+    "MacParakeet",
+    "MacParakeetCore",
+    "MacParakeetViewModels",
+    "MacParakeetObjCShims",
+] + streamingMarkdownTargetDependencies + (enableMLXLocalLLM ? [
+    "MacParakeetLocalLLM"
+] : [])
+
+let mlxLocalLLMTargets: [Target] = enableMLXLocalLLM ? [
+    .target(
+        name: "MacParakeetLocalLLM",
+        dependencies: [
+            "MacParakeetCore",
+            .product(name: "MLXLLM", package: "mlx-swift-lm"),
+            .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
+            .product(name: "MLXHuggingFace", package: "mlx-swift-lm"),
+            .product(name: "Tokenizers", package: "swift-transformers"),
+        ],
+        path: "Sources/MacParakeetLocalLLM",
+        swiftSettings: mlxLocalLLMSwiftSettings
+    )
+] : []
 
 let package = Package(
     name: "MacParakeet",
@@ -47,13 +127,10 @@ let package = Package(
         // Main GUI app
         .executableTarget(
             name: "MacParakeet",
-            dependencies: [
-                "MacParakeetCore",
-                "MacParakeetViewModels",
-                .product(name: "Sparkle", package: "Sparkle")
-            ],
+            dependencies: appDependencies,
             path: "Sources/MacParakeet",
-            resources: [.process("Resources")]
+            resources: [.process("Resources")],
+            swiftSettings: mlxLocalLLMSwiftSettings
         ),
         // macparakeet-cli — versioned public surface (semver, Sources/CLI/CHANGELOG.md).
         // Consumed by the macOS app, scripted callers, and downstream agent skills
@@ -65,7 +142,7 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
             ],
             path: "Sources/CLI",
-            exclude: ["CHANGELOG.md"]
+            exclude: ["CHANGELOG.md", "README.md"]
         ),
         // Objective-C shim target for catching NSException in Swift.
         // Swift's `do/try/catch` cannot catch Objective-C exceptions raised by
@@ -83,12 +160,15 @@ let package = Package(
             path: "Sources/MacParakeetCore",
             exclude: [
                 "Audio/README.md",
+                "Calendar/README.md",
                 "Database/README.md",
                 "Licensing/README.md",
                 "Resources",
+                "Services/System/README.md",
                 "STT/README.md",
                 "TextProcessing/README.md",
-            ]
+            ],
+            swiftSettings: whisperKitSwiftSettings
         ),
         // ViewModels library (testable, depends on Core + AppKit/SwiftUI)
         .target(
@@ -99,13 +179,14 @@ let package = Package(
         // Tests
         .testTarget(
             name: "MacParakeetTests",
-            dependencies: ["MacParakeet", "MacParakeetCore", "MacParakeetViewModels", "MacParakeetObjCShims"],
-            path: "Tests/MacParakeetTests"
+            dependencies: appTestDependencies,
+            path: "Tests/MacParakeetTests",
+            swiftSettings: whisperKitSwiftSettings + mlxLocalLLMSwiftSettings
         ),
         .testTarget(
             name: "CLITests",
             dependencies: ["CLI", "MacParakeetCore"],
             path: "Tests/CLITests"
         )
-    ]
+    ] + mlxLocalLLMTargets
 )

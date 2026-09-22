@@ -1,6 +1,10 @@
 # Runtime Revalidation Checklist (macOS Local LLM)
 
-> Status: **HISTORICAL** - The on-device Qwen3-8B / MLX-Swift runtime documented here was removed 2026-02-23. Current LLM support uses external providers or local CLI instead.
+> Status: **HISTORICAL** - The original on-device Qwen3-8B runtime documented
+> here was removed 2026-02-23. Current provider support, including the separate
+> developer-gated Local MLX path, is governed by
+> [ADR-011](../spec/adr/011-llm-cloud-and-local-providers.md). This is not its validation
+> checklist or evidence of release readiness.
 
 Last updated: 2026-02-13
 

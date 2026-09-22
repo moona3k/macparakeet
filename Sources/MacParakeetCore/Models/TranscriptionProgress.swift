@@ -5,6 +5,7 @@ import Foundation
 public enum TranscriptionProgress: Sendable {
     case converting
     case downloading(percent: Int)
+    case preparingSpeechModel
     case transcribing(percent: Int)
     case identifyingSpeakers
     case finalizing
@@ -14,7 +15,7 @@ public enum TranscriptionProgress: Sendable {
         switch self {
         case .downloading(let percent), .transcribing(let percent):
             return min(Double(percent), 100) / 100
-        case .converting, .identifyingSpeakers, .finalizing:
+        case .converting, .preparingSpeechModel, .identifyingSpeakers, .finalizing:
             return nil
         }
     }

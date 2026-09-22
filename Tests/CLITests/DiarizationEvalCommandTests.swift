@@ -74,12 +74,12 @@ final class DiarizationEvalCommandTests: XCTestCase {
 
         let recordedURLs = await service.audioURLs
         XCTAssertEqual(recordedURLs.map(\.lastPathComponent), Array(repeating: "system.wav", count: 4))
-        let recordedOptions = await service.options
-        XCTAssertEqual(recordedOptions.map(\.speakerCountHint), [
+        let recordedConstraints = await service.speakerConstraints
+        XCTAssertEqual(recordedConstraints, [
             nil,
-            SpeakerCountHint(exact: 2),
-            SpeakerCountHint(minimum: 2),
-            SpeakerCountHint(maximum: 2),
+            .exact(2),
+            .range(min: 2, max: nil),
+            .range(min: nil, max: 2),
         ])
     }
 
@@ -145,7 +145,7 @@ private actor RecordingEvalDiarizationService: DiarizationServiceProtocol {
     private let result: MacParakeetDiarizationResult
     private let error: Error?
     var audioURLs: [URL] = []
-    var options: [DiarizationOptions] = []
+    var speakerConstraints: [SpeakerDiarizationConstraint?] = []
 
     init(
         result: MacParakeetDiarizationResult = MacParakeetDiarizationResult(segments: [], speakerCount: 0, speakers: []),
@@ -155,9 +155,12 @@ private actor RecordingEvalDiarizationService: DiarizationServiceProtocol {
         self.error = error
     }
 
-    func diarize(audioURL: URL, options: DiarizationOptions) async throws -> MacParakeetDiarizationResult {
+    func diarize(
+        audioURL: URL,
+        speakerConstraint: SpeakerDiarizationConstraint?
+    ) async throws -> MacParakeetDiarizationResult {
         audioURLs.append(audioURL)
-        self.options.append(options)
+        speakerConstraints.append(speakerConstraint)
         if let error {
             throw error
         }

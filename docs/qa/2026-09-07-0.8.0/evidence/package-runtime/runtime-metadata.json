@@ -1,0 +1,9 @@
+{
+  "recorded_at_utc": "2026-09-07T23:34:45.650426+00:00",
+  "dependency_entries": 155,
+  "external_nonportable_dependency_entries": [],
+  "platform": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83\n",
+  "architecture": "arm64",
+  "notarytool_version": "1.1.1 (40)",
+  "zip_sha256_after_checks": "e67736b71c162e05c6adb6967175a5b4cb18cb321c926fe4d3832aa4d7e523ad"
+}

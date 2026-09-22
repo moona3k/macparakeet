@@ -5,6 +5,20 @@ import XCTest
 
 final class CLITelemetryTests: XCTestCase {
 
+    func testSuccessfulThrownExitHasNoTelemetryError() {
+        let result: Result<Void, Error> = .failure(ExitCode.success)
+        XCTAssertEqual(result.cliTelemetryOutcome, .success)
+        XCTAssertEqual(result.cliTelemetryExitCode, 0)
+        XCTAssertNil(result.cliTelemetryErrorType)
+    }
+
+    func testRuntimeFailureStillHasTelemetryError() {
+        let result: Result<Void, Error> = .failure(ExitCode.failure)
+        XCTAssertEqual(result.cliTelemetryOutcome, .failure)
+        XCTAssertEqual(result.cliTelemetryExitCode, 1)
+        XCTAssertNotNil(result.cliTelemetryErrorType)
+    }
+
     // MARK: - decideOverride: explicit MACPARAKEET_TELEMETRY
 
     func testDecideOverrideExplicitForceOffAccepts0FalseNoOff() {
@@ -213,6 +227,21 @@ final class CLITelemetryTests: XCTestCase {
 
         XCTAssertEqual(metadata.command, "transcribe")
         XCTAssertEqual(metadata.inputKind, .media)
+        XCTAssertEqual(metadata.outputFormat, "json")
+        XCTAssertEqual(metadata.json, true)
+    }
+
+    func testRetranscribeEnvelopeMetadataUsesJSONOutputFormat() throws {
+        let command = try CLI.parseAsRoot([
+            "retranscribe",
+            "abcd",
+            "--update",
+            "--envelope",
+        ])
+
+        let metadata = CLITelemetry.metadata(for: command)
+
+        XCTAssertEqual(metadata.command, "retranscribe")
         XCTAssertEqual(metadata.outputFormat, "json")
         XCTAssertEqual(metadata.json, true)
     }

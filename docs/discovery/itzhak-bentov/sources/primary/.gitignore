@@ -1,0 +1,3 @@
+# Primary-source PDFs are rehydratable via download-sources.sh (see MANIFEST.md).
+# Kept out of git to avoid ~33 MB of binaries in a public repo's history.
+*.pdf

@@ -44,10 +44,10 @@ import os
 ///    first; the engine may reuse the underlying memory immediately after
 ///    return.
 ///
-/// 7. **Engine death is observable.** When a deferred-VPIO promotion's
-///    `tearDown → setVoiceProcessingEnabled → start` sequence fails, the
-///    engine is left stopped. `diagnostics.engineRunning` reflects this,
-///    remaining subscriptions are invalidated, and each captured
+/// 7. **Engine death is observable.** When a deferred-VPIO promotion fails,
+///    or the platform exhausts bounded recovery after a live configuration
+///    change, the engine is left stopped. `diagnostics.engineRunning` reflects
+///    this, remaining subscriptions are invalidated, and each captured
 ///    `onEngineDeath` callback fires (off-lock, off the engine queue) so
 ///    consumers can surface a stall to the user instead of silently going
 ///    quiet.
@@ -131,13 +131,51 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
     private let callbackQueue = DispatchQueue(label: "com.macparakeet.shared-mic-stream.callbacks")
     private let platform: any MicrophoneEnginePlatform
     private let bufferSize: AVAudioFrameCount
+    private let makeQueueWaitDiagnostics: @Sendable (Bool, AVAudioFrameCount) -> AudioEngineLifecycleDiagnostics
+    private let prewarmRefreshDebounce: TimeInterval
+    private let prewarmRefreshGeneration = OSAllocatedUnfairLock(initialState: 0)
+    /// When true, the engine re-prepares the raw (non-VPIO) dictation path each
+    /// time the stream goes idle, so the next dictation press only pays
+    /// `audioEngine.start()`. See `prewarmDictation()`.
+    private let autoPrewarmWhenIdle: Bool
 
-    public init(
+    public convenience init(
         platform: any MicrophoneEnginePlatform,
-        bufferSize: AVAudioFrameCount = 4096
+        bufferSize: AVAudioFrameCount = 4096,
+        autoPrewarmWhenIdle: Bool = false,
+        prewarmRefreshDebounce: TimeInterval = 0.5
+    ) {
+        self.init(
+            platform: platform,
+            bufferSize: bufferSize,
+            autoPrewarmWhenIdle: autoPrewarmWhenIdle,
+            prewarmRefreshDebounce: prewarmRefreshDebounce,
+            makeQueueWaitDiagnostics: { wantsVPIO, bufferSize in
+                AudioEngineLifecycleDiagnostics(
+                    operation: .start,
+                    scope: .sharedSubscriptionQueue,
+                    vpioEnabled: wantsVPIO,
+                    bufferSize: bufferSize
+                )
+            }
+        )
+    }
+
+    init(
+        platform: any MicrophoneEnginePlatform,
+        bufferSize: AVAudioFrameCount = 4096,
+        autoPrewarmWhenIdle: Bool = false,
+        prewarmRefreshDebounce: TimeInterval = 0.5,
+        makeQueueWaitDiagnostics: @escaping @Sendable (Bool, AVAudioFrameCount) -> AudioEngineLifecycleDiagnostics
     ) {
         self.platform = platform
         self.bufferSize = bufferSize
+        self.makeQueueWaitDiagnostics = makeQueueWaitDiagnostics
+        self.autoPrewarmWhenIdle = autoPrewarmWhenIdle
+        self.prewarmRefreshDebounce = max(0, prewarmRefreshDebounce)
+        platform.setUnexpectedStopHandler { [weak self] in
+            self?.handleUnexpectedPlatformStop()
+        }
     }
 
     // MARK: - Public API
@@ -162,6 +200,42 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
                 vpioDeferred: state.vpioDeferred,
                 vpioDeferralCount: state.vpioDeferralCount
             )
+        }
+    }
+
+    /// Pre-warm the raw (non-VPIO) dictation engine while idle so the next
+    /// dictation press only pays `audioEngine.start()` instead of the full
+    /// device-acquisition + format-negotiation cold path. Best-effort: skips
+    /// when any subscriber is active or the engine is already running, and the
+    /// platform itself declines on Bluetooth inputs. Serialized through
+    /// `engineQueue` so it can never race a real subscribe/unsubscribe.
+    public func prewarmDictation() {
+        engineQueue.async { [weak self] in
+            guard let self else { return }
+            self.prepareDictationIfIdle()
+        }
+    }
+
+    /// Rebuild an idle preparation after microphone-route notifications settle.
+    /// Bursts are trailing-debounced so Bluetooth profile churn does not cause
+    /// repeated device acquisition. If capture starts meanwhile, its eventual
+    /// unsubscribe performs the normal auto-prewarm against the final route.
+    public func refreshIdlePrewarm() {
+        guard autoPrewarmWhenIdle else { return }
+        let generation = prewarmRefreshGeneration.withLock { value in
+            value += 1
+            return value
+        }
+        engineQueue.asyncAfter(deadline: .now() + prewarmRefreshDebounce) { [weak self] in
+            guard let self,
+                self.prewarmRefreshGeneration.withLock({ $0 }) == generation
+            else { return }
+            let idle = self.lock.withLock { state in
+                state.subscribers.isEmpty && !state.engineRunning
+            }
+            guard idle else { return }
+            self.platform.stopEngine()
+            self.prepareDictationIfIdle()
         }
     }
 
@@ -191,7 +265,12 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
         handler: @escaping BufferHandler
     ) async throws -> SubscriberToken {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<SubscriberToken, Error>) in
+            // Idle preparation can block this upstream queue before native-start
+            // observation begins. Retain the user workflow when the request queues.
+            let queueWaitDiagnostics = blocksVPIOPromotion ? makeQueueWaitDiagnostics(wantsVPIO, bufferSize) : nil
             engineQueue.async { [weak self] in
+                // Only measure waiting for queue entry; native work has its own recorder.
+                queueWaitDiagnostics?.finish()
                 guard let self else {
                     cont.resume(throwing: SubscribeError.engineStartFailed("stream deallocated"))
                     return
@@ -371,6 +450,12 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
                         wantsVPIO: nil,
                         blocksVPIOPromotion: nil
                     )
+                    // Engine just stopped and no subscribers remain: re-prepare
+                    // the raw dictation path so the next press is warm. Re-checks
+                    // idle on the engine queue, so a racing subscribe wins.
+                    if action == .stopEngine, self.autoPrewarmWhenIdle {
+                        self.prewarmDictation()
+                    }
                 } catch {
                     switch action {
                     case .reconfigureToVPIO, .restartEngine:
@@ -444,6 +529,29 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
             for callback in callbacks {
                 callback()
             }
+        }
+    }
+
+    /// Reconcile the stream's desired/logical state after the platform has
+    /// exhausted recovery for a post-start engine death. The callback enters
+    /// through the stream's serialization queue so it cannot interleave with
+    /// subscribe/unsubscribe state transitions. A platform restart that wins
+    /// the race suppresses this now-stale notification.
+    private func handleUnexpectedPlatformStop() {
+        engineQueue.async { [weak self] in
+            guard let self, !self.platform.isEngineRunning else { return }
+            let shouldInvalidate = self.lock.withLock { state in
+                state.engineRunning || !state.subscribers.isEmpty
+            }
+            guard shouldInvalidate else { return }
+
+            let deathCallbacks = self.invalidateSubscribersAfterEngineDeath()
+            self.emitDiagnosticsLog(
+                transition: "platform_engine_dead",
+                wantsVPIO: nil,
+                blocksVPIOPromotion: nil
+            )
+            self.fireEngineDeathCallbacks(deathCallbacks)
         }
     }
 
@@ -586,6 +694,18 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
         state.vpioEngaged = wantsVPIO
         state.engineRunning = true
         return .restartEngine(vpio: wantsVPIO)
+    }
+
+    private func prepareDictationIfIdle() {
+        let idle = lock.withLock { state in
+            state.subscribers.isEmpty && !state.engineRunning
+        }
+        guard idle else { return }
+        platform.prepare(
+            vpioEnabled: false,
+            bufferSize: bufferSize,
+            tapHandler: makeFanOut()
+        )
     }
 
     // MARK: - Engine ops (called from engineQueue, off-lock)

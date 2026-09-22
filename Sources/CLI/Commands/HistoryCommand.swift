@@ -18,6 +18,7 @@ struct HistoryCommand: AsyncParsableCommand {
             FavoritesSubcommand.self,
             FavoriteSubcommand.self,
             UnfavoriteSubcommand.self,
+            RenameSubcommand.self,
         ],
         defaultSubcommand: DictationsSubcommand.self
     )
@@ -66,7 +67,8 @@ struct DictationsSubcommand: ParsableCommand {
                 // the CLI matches what the GUI shows for the same row.
                 let text = d.displayText
                 let preview = text.count > 80 ? String(text.prefix(80)) + "..." : text
-                print("[\(date)] (\(seconds)s) \(preview)  (\(d.id.uuidString.prefix(8)))")
+                let statusLabel = d.status == .cancelled ? " [cancelled]" : ""
+                print("[\(date)] (\(seconds)s)\(statusLabel) \(preview)  (\(d.id.uuidString.prefix(8)))")
             }
 
             let stats = try repo.stats()
@@ -96,10 +98,12 @@ struct TranscriptionsSubcommand: ParsableCommand {
             try AppPaths.ensureDirectories()
             let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
             let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
-            let transcriptions = try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(
-                limit: limit,
-                includeProcessing: true
-            )).items
+            let transcriptions = try repo.fetchLibraryPage(
+                query: TranscriptionLibraryQuery(
+                    limit: limit,
+                    includeProcessing: true
+                )
+            ).items
 
             if json {
                 try printJSON(transcriptions)
@@ -207,13 +211,16 @@ struct SearchTranscriptionsSubcommand: ParsableCommand {
             let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
             let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
             let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-            let results = trimmedQuery.isEmpty
+            let results =
+                trimmedQuery.isEmpty
                 ? []
-                : try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(
-                    searchText: trimmedQuery,
-                    limit: limit,
-                    includeProcessing: true
-                )).items
+                : try repo.fetchLibraryPage(
+                    query: TranscriptionLibraryQuery(
+                        searchText: trimmedQuery,
+                        limit: limit,
+                        includeProcessing: true
+                    )
+                ).items
 
             if json {
                 try printJSON(results)
@@ -257,24 +264,33 @@ struct DeleteDictationSubcommand: ParsableCommand {
     @Argument(help: "The UUID (or prefix) of the dictation to delete.")
     var id: String
 
+    @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+    var json: Bool = false
+
     @Option(help: "Path to SQLite database file (defaults to the app database).")
     var database: String?
 
     func run() throws {
-        try AppPaths.ensureDirectories()
-        let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
-        let repo = DictationRepository(dbQueue: dbManager.dbQueue)
+        try emitJSONOrRethrow(json: json) {
+            try AppPaths.ensureDirectories()
+            let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
+            let repo = DictationRepository(dbQueue: dbManager.dbQueue)
 
-        let dictation = try findDictation(id: id, repo: repo)
-        if let path = dictation.audioPath {
-            try removeOwnedDictationAudio(at: path)
+            let dictation = try findDictation(id: id, repo: repo)
+            if let path = dictation.audioPath {
+                try removeOwnedDictationAudio(at: path)
+            }
+            let deleted = try repo.delete(id: dictation.id)
+            guard deleted else {
+                throw CLILookupError.notFound("No dictation matching '\(id)'")
+            }
+            if json {
+                try printJSON(HistoryDeleteResult(ok: true, kind: "dictation", id: dictation.id))
+            } else {
+                let preview = String(dictation.rawTranscript.prefix(60))
+                print("Deleted dictation: \"\(preview)\"")
+            }
         }
-        let deleted = try repo.delete(id: dictation.id)
-        guard deleted else {
-            throw CLILookupError.notFound("No dictation matching '\(id)'")
-        }
-        let preview = String(dictation.rawTranscript.prefix(60))
-        print("Deleted dictation: \"\(preview)\"")
     }
 }
 
@@ -307,58 +323,82 @@ struct DeleteTranscriptionSubcommand: ParsableCommand {
     @Argument(help: "The UUID (or prefix) of the transcription to delete.")
     var id: String
 
+    @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+    var json: Bool = false
+
     @Option(help: "Path to SQLite database file (defaults to the app database).")
     var database: String?
 
     func run() throws {
-        try AppPaths.ensureDirectories()
-        let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
-        let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
+        try emitJSONOrRethrow(json: json) {
+            try AppPaths.ensureDirectories()
+            let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
+            let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
 
-        let transcription = try findTranscription(id: id, repo: repo)
-        try TranscriptionAssetCleanup.removeOwnedAssets(for: transcription)
-        let deleted = try repo.delete(id: transcription.id)
-        guard deleted else {
-            throw CLILookupError.notFound("No transcription matching '\(id)'")
+            let transcription = try findTranscription(id: id, repo: repo)
+            let deleted = try TranscriptionDeletionCoordinator.delete(transcription, repository: repo)
+            guard deleted else {
+                throw CLILookupError.notFound("No transcription matching '\(id)'")
+            }
+            if json {
+                try printJSON(HistoryDeleteResult(ok: true, kind: "transcription", id: transcription.id))
+            } else {
+                print("Deleted transcription: \"\(transcription.fileName)\"")
+            }
         }
-        print("Deleted transcription: \"\(transcription.fileName)\"")
     }
 }
 
 struct DeleteMeetingAudioSubcommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "delete-meeting-audio",
-        abstract: "Delete stored audio for a meeting transcript while keeping the transcript."
+        abstract: "Delete stored audio for a meeting transcript while keeping the transcript.",
+        discussion: "This permanently removes audio needed for re-transcription and speaker detection/backfill."
     )
 
     @Argument(help: "The UUID, UUID prefix, or file name of the meeting transcription.")
     var id: String
 
+    @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+    var json: Bool = false
+
     @Option(help: "Path to SQLite database file (defaults to the app database).")
     var database: String?
 
     func run() throws {
-        try AppPaths.ensureDirectories()
-        let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
-        let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
+        try emitJSONOrRethrow(json: json) {
+            try AppPaths.ensureDirectories()
+            let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
+            let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
 
-        let transcription = try findTranscription(id: id, repo: repo)
-        guard transcription.sourceType == .meeting else {
-            throw ValidationError("Transcription '\(id)' is not a meeting recording.")
-        }
+            let transcription = try findTranscription(id: id, repo: repo)
+            guard transcription.sourceType == .meeting else {
+                throw ValidationError("Transcription '\(id)' is not a meeting recording.")
+            }
 
-        let result = try TranscriptionAssetCleanup.detachOwnedMeetingAudio(
-            for: transcription,
-            repository: repo
-        )
-        guard result.detached else {
-            throw ValidationError(TranscriptionAssetCleanup.unmanagedMeetingAudioMessage)
-        }
+            let result = try TranscriptionAssetCleanup.detachOwnedMeetingAudio(
+                for: transcription,
+                repository: repo
+            )
+            guard result.detached else {
+                throw ValidationError(TranscriptionAssetCleanup.unmanagedMeetingAudioMessage)
+            }
 
-        if result.removedOwnedAudio {
-            print("Detached managed meeting audio for: \"\(transcription.fileName)\"")
-        } else {
-            print("No meeting audio attached for: \"\(transcription.fileName)\"")
+            if json {
+                try printJSON(
+                    HistoryMeetingAudioDeleteResult(
+                        ok: true,
+                        id: transcription.id,
+                        removedOwnedAudio: result.removedOwnedAudio,
+                        hadAudioPath: result.hadAudioPath
+                    ))
+            } else if result.removedOwnedAudio {
+                print(
+                    "Detached managed meeting audio for: \"\(transcription.fileName)\". Audio was permanently removed; re-transcription and speaker detection/backfill are no longer possible for this recording."
+                )
+            } else {
+                print("No meeting audio attached for: \"\(transcription.fileName)\"")
+            }
         }
     }
 }
@@ -372,40 +412,52 @@ struct ClearMeetingAudioSubcommand: ParsableCommand {
     @Option(help: "Path to SQLite database file (defaults to the app database).")
     var database: String?
 
+    @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+    var json: Bool = false
+
     @Option(name: .long, help: .hidden)
     var meetingRecordingsDirectory: String?
 
     func run() throws {
-        try AppPaths.ensureDirectories()
-        let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
-        let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
-        let fm = FileManager.default
-        let dir = try resolvedMeetingRecordingsDirectory()
+        try emitJSONOrRethrow(json: json) {
+            try AppPaths.ensureDirectories()
+            let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
+            let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
+            let fm = FileManager.default
+            let dir = try resolvedMeetingRecordingsDirectory()
 
-        // A live meeting session (in a running app — likely this user's GUI)
-        // writes into meeting-recordings/{sessionID}/. Wiping that out from
-        // under the active writer loses the in-progress recording. The GUI
-        // refuses while its pill is active; the CLI can't see the pill, so it
-        // checks the same disk signal the recovery path trusts: a lock file
-        // whose owning process is still alive. Crashed/stale sessions (dead
-        // pid) stay clearable, matching the GUI's clear-all behavior.
-        let lockStore = MeetingRecordingLockFileStore()
-        let activeSessions = try lockStore.discoverActiveSessions(
-            meetingsRoot: URL(fileURLWithPath: dir, isDirectory: true)
-        )
-        guard activeSessions.isEmpty else {
-            throw ValidationError(
-                "A meeting recording is currently in progress. Stop it before clearing meeting audio."
+            // Any lock means the folder may still contain audio that has not been
+            // finalized into a transcript yet. This includes dead-owner
+            // `.awaitingTranscription` sessions: recovery, not retention, owns
+            // deciding whether that audio can be deleted.
+            let lockStore = MeetingRecordingLockFileStore()
+            let protectedSessions = try lockStore.discoverAnySessions(
+                meetingsRoot: URL(fileURLWithPath: dir, isDirectory: true)
             )
-        }
+            guard protectedSessions.isEmpty else {
+                throw ValidationError(
+                    "A meeting recording is in progress or awaiting transcription/recovery. Finish or discard it before clearing meeting audio."
+                )
+            }
 
-        if fm.fileExists(atPath: dir) {
-            try fm.removeItem(atPath: dir)
-        }
-        try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
-        try repo.clearStoredAudioPathsForMeetingTranscriptions(under: dir)
+            try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            let affectedIDs = try TranscriptionAssetCleanup.clearManagedMeetingAudio(
+                under: dir,
+                repository: repo,
+                fileManager: fm
+            )
 
-        print("Deleted all stored meeting audio. Saved meeting transcripts remain.")
+            if json {
+                try printJSON(
+                    HistoryMeetingAudioClearResult(
+                        ok: true,
+                        deletedCount: affectedIDs.count,
+                        ids: affectedIDs
+                    ))
+            } else {
+                print("Deleted all stored meeting audio. Saved meeting transcripts remain.")
+            }
+        }
     }
 
     private func resolvedMeetingRecordingsDirectory() throws -> String {
@@ -438,11 +490,13 @@ struct FavoritesSubcommand: ParsableCommand {
             try AppPaths.ensureDirectories()
             let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
             let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
-            let favorites = try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(
-                favoritesOnly: true,
-                limit: Int.max,
-                includeProcessing: true
-            )).items
+            let favorites = try repo.fetchLibraryPage(
+                query: TranscriptionLibraryQuery(
+                    favoritesOnly: true,
+                    limit: Int.max,
+                    includeProcessing: true
+                )
+            ).items
 
             if json {
                 try printJSON(favorites)
@@ -485,17 +539,26 @@ struct FavoriteSubcommand: ParsableCommand {
     @Argument(help: "The UUID (or prefix) of the transcription.")
     var id: String
 
+    @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+    var json: Bool = false
+
     @Option(help: "Path to SQLite database file (defaults to the app database).")
     var database: String?
 
     func run() throws {
-        try AppPaths.ensureDirectories()
-        let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
-        let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
+        try emitJSONOrRethrow(json: json) {
+            try AppPaths.ensureDirectories()
+            let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
+            let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
 
-        let transcription = try findTranscription(id: id, repo: repo)
-        try repo.updateFavorite(id: transcription.id, isFavorite: true)
-        print("Favorited: \"\(transcription.fileName)\"")
+            let transcription = try findTranscription(id: id, repo: repo)
+            try repo.updateFavorite(id: transcription.id, isFavorite: true)
+            if json {
+                try printJSON(HistoryFavoriteResult(ok: true, id: transcription.id, isFavorite: true))
+            } else {
+                print("Favorited: \"\(transcription.fileName)\"")
+            }
+        }
     }
 }
 
@@ -508,16 +571,141 @@ struct UnfavoriteSubcommand: ParsableCommand {
     @Argument(help: "The UUID (or prefix) of the transcription.")
     var id: String
 
+    @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+    var json: Bool = false
+
     @Option(help: "Path to SQLite database file (defaults to the app database).")
     var database: String?
 
     func run() throws {
-        try AppPaths.ensureDirectories()
-        let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
-        let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
+        try emitJSONOrRethrow(json: json) {
+            try AppPaths.ensureDirectories()
+            let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
+            let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
 
-        let transcription = try findTranscription(id: id, repo: repo)
-        try repo.updateFavorite(id: transcription.id, isFavorite: false)
-        print("Unfavorited: \"\(transcription.fileName)\"")
+            let transcription = try findTranscription(id: id, repo: repo)
+            try repo.updateFavorite(id: transcription.id, isFavorite: false)
+            if json {
+                try printJSON(HistoryFavoriteResult(ok: true, id: transcription.id, isFavorite: false))
+            } else {
+                print("Unfavorited: \"\(transcription.fileName)\"")
+            }
+        }
     }
+}
+
+struct RenameSubcommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "rename",
+        abstract: "Rename a meeting title or a local file transcription display title."
+    )
+
+    @Argument(help: "The UUID (or prefix) of the transcription.")
+    var id: String
+
+    @Option(name: .long, help: "New title.")
+    var title: String
+
+    @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+    var json: Bool = false
+
+    @Option(help: "Path to SQLite database file (defaults to the app database).")
+    var database: String?
+
+    func validate() throws {
+        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ValidationError("--title must not be empty.")
+        }
+    }
+
+    func run() async throws {
+        try await emitJSONOrRethrow(json: json) {
+            try AppPaths.ensureDirectories()
+            let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
+            let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
+            let transcription = try findTranscription(id: id, repo: repo)
+            let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            let updated: Transcription
+            let kind: String
+            switch transcription.sourceType {
+            case .meeting:
+                if transcription.fileName == trimmed {
+                    updated = transcription
+                } else {
+                    guard let persisted = try repo.updateFileName(id: transcription.id, fileName: trimmed) else {
+                        throw CLILookupError.notFound("No transcription matching '\(id)'")
+                    }
+                    await refreshMeetingArtifacts(
+                        transcriptionID: persisted.id,
+                        attributionReader: SpeakerAttributionReadService(dbQueue: dbManager.dbQueue),
+                        resultRepo: PromptResultRepository(dbQueue: dbManager.dbQueue),
+                        db: dbManager
+                    )
+                    updated = persisted
+                }
+                kind = "meeting"
+            case .file:
+                if transcription.effectiveDisplayTitle == trimmed {
+                    updated = transcription
+                } else {
+                    try repo.updateTitleOverride(id: transcription.id, titleOverride: trimmed)
+                    guard let persisted = try repo.fetch(id: transcription.id) else {
+                        throw CLILookupError.notFound("No transcription matching '\(id)'")
+                    }
+                    updated = persisted
+                }
+                kind = "file"
+            case .youtube, .podcast:
+                throw ValidationError(
+                    "history rename only supports meetings and local files, not \(transcription.sourceType.rawValue) sources."
+                )
+            }
+
+            if json {
+                try printJSON(
+                    HistoryRenameResult(
+                        ok: true,
+                        kind: kind,
+                        id: updated.id,
+                        title: updated.effectiveDisplayTitle
+                    )
+                )
+            } else {
+                print("Renamed: \"\(updated.effectiveDisplayTitle)\"")
+            }
+        }
+    }
+}
+
+private struct HistoryDeleteResult: Encodable {
+    let ok: Bool
+    let kind: String
+    let id: UUID
+}
+
+private struct HistoryMeetingAudioDeleteResult: Encodable {
+    let ok: Bool
+    let id: UUID
+    let removedOwnedAudio: Bool
+    let hadAudioPath: Bool
+}
+
+private struct HistoryMeetingAudioClearResult: Encodable {
+    let ok: Bool
+    let deletedCount: Int
+    let ids: [UUID]
+}
+
+private struct HistoryFavoriteResult: Encodable {
+    let ok: Bool
+    let id: UUID
+    let isFavorite: Bool
+}
+
+private struct HistoryRenameResult: Encodable {
+    let ok: Bool
+    let kind: String
+    let id: UUID
+    let title: String
 }

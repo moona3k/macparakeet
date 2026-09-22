@@ -34,9 +34,9 @@ audit recorded green at `92c3dfdfb` and CI runs the full suite on every push.
 
 | Plan | Title | Priority | Effort | Status |
 |------|-------|----------|--------|--------|
-| [2026-06-12-telemetry-allowlist-ci-guard.md](2026-06-12-telemetry-allowlist-ci-guard.md) | Wire the cross-repo telemetry allowlist guard into CI | P2 | S | TODO |
+| [2026-06-12-telemetry-allowlist-ci-guard.md](2026-06-12-telemetry-allowlist-ci-guard.md) | Wire the cross-repo telemetry allowlist guard into CI | P2 | S | DONE (feat/telemetry-agent-debug) |
 | [2026-06-12-june-churn-regression-tests.md](2026-06-12-june-churn-regression-tests.md) | Regression tests for mic self-heal + Nemotron live dictation | P2 | M | TODO |
-| [2026-06-onboarding-stall-watchdog-test.md](2026-06-onboarding-stall-watchdog-test.md) | Make the warm-up stall watchdog testable and test it | P1 | S–M | DONE (`test/onboarding-stall-watchdog`, 2026-06-14) |
+| [2026-06-onboarding-stall-watchdog-test.md](../completed/2026-06-onboarding-stall-watchdog-test.md) | Make the warm-up stall watchdog testable and test it | P1 | S–M | DONE (#518, 2026-06-14) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) |
 REJECTED (one-line rationale). Plans are independent — no ordering
@@ -79,7 +79,7 @@ original `f8e28be91` form via unrelated doc-bundling commits (#487/#509). The
    existing guard pattern (guard `acceptsNewJobs` in `beginSpeechEngineSession`;
    have `quiesce` refuse or drain while leases are active).
 2. **Echo-suppression simultaneous-echo over-suppression (tuning, not a bug)**:
-   `MeetingTranscriptNoiseFilter.swift:142-162` drops a mic run ≥5 words at
+   `MeetingTranscriptSourceReconciler.swift` drops a mic run ≥5 words at
    ≥80% fuzzy-LCS overlap with concurrent system audio. A user who agrees-and-
    extends a system phrase can have the whole utterance dropped. Don't change
    the threshold speculatively — add telemetry on drop counts / validate

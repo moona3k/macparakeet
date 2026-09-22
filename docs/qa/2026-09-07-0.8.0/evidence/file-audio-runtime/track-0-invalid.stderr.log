@@ -1,0 +1,3 @@
+Error: --audio-track must be at least 1.
+Usage: macparakeet-cli transcribe [<options>] [<inputs> ...]
+  See 'macparakeet-cli transcribe --help' for more information.

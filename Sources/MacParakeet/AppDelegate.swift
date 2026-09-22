@@ -34,6 +34,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Runtime Services
 
     private var appEnvironment: AppEnvironment?
+    private var shareStopObserver: NSObjectProtocol?
+    private let shareManagementViewModel: ShareManagementViewModel? =
+        AppFeatures.isShareLinksAvailable() ? ShareManagementViewModel() : nil
     private var hotkeyCoordinator: AppHotkeyCoordinator?
     private var dictationFlowCoordinator: DictationFlowCoordinator?
     private var meetingRecordingFlowCoordinator: MeetingRecordingFlowCoordinator?
@@ -43,10 +46,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `TransformsHotkeyRegistry` + dispatch from registered hotkeys to the
     /// `TransformExecutor` pipeline. Gated on `AppFeatures.transformsEnabled`.
     private var transformsCoordinator: TransformsCoordinator?
+    private var voiceControlCoordinator: VoiceControlCoordinator?
     private var hasPresentedHotkeyUnavailableAlert = false
     private var hasPresentedHotkeyConflictAlert = false
     private var environmentSetupTask: Task<Void, Never>?
     private var meetingQuitTask: Task<Void, Never>?
+    private let savedMeetingNotesCoordinator = SavedMeetingNotesCoordinator.shared
+    private var isPresentingQuitAlert = false
     private var speechPreWarmTask: Task<Void, Never>?
     private var instantDictationPreferenceTask: Task<Void, Never>?
     #if DEBUG
@@ -68,8 +74,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let feedbackViewModel = FeedbackViewModel()
     private let discoverViewModel = DiscoverViewModel()
     private let libraryViewModel = TranscriptionLibraryViewModel()
+    /// One shared app-owned handle for native Split and transcribe: created
+    /// eagerly (before `AppEnvironment` exists) and `configure`d once it does,
+    /// so a single running batch survives the sheet closing and is reachable
+    /// from every entry point (`TranscriptResultView`, `TranscriptionLibraryView`,
+    /// `MeetingsView`) without duplicating state per view.
+    private let meetingSplitViewModel = MeetingSplitViewModel()
+    private let meetingImportViewModel = MeetingImportViewModel()
     private let meetingsLibraryViewModel = TranscriptionLibraryViewModel(scope: .meetings)
     private let llmSettingsViewModel = LLMSettingsViewModel()
+    /// Its service arrives from `setupEnvironment`: building it with one here
+    /// would capture whatever `appEnvironment` held at first access, which can
+    /// be nil, leaving a screen that silently reads and deletes nothing.
+    private let voiceProfilesViewModel = VoiceProfilesViewModel()
     private let chatViewModel = TranscriptChatViewModel()
     private let promptResultsViewModel = PromptResultsViewModel()
     private let promptsViewModel = PromptsViewModel()
@@ -94,6 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Coordinators
 
     private let startupBootstrapper = AppStartupBootstrapper()
+    private let meetingAudioRetentionSweepCoordinator = MeetingAudioRetentionSweepCoordinator()
 
     private lazy var environmentConfigurer = AppEnvironmentConfigurer(
         transcriptionViewModel: transcriptionViewModel,
@@ -171,9 +189,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         },
         onPresentRecoveredTranscription: { [weak self] transcription in
             guard let self else { return }
-            // Recovered meetings are exempt from keep-meeting-audio deletion:
-            // choosing Recover (over Discard) in the recovery dialog is an
-            // explicit "keep this" — see presentCompletedTranscription.
+            // Keep recovery input intact while it is turned back into a
+            // transcript; the scheduled retention sweep can apply after the
+            // lock is gone.
             self.transcriptionViewModel.presentCompletedTranscription(
                 transcription,
                 autoSave: true,
@@ -191,6 +209,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         historyViewModel: historyViewModel,
         settingsViewModel: settingsViewModel,
         llmSettingsViewModel: llmSettingsViewModel,
+        voiceProfilesViewModel: voiceProfilesViewModel,
         chatViewModel: chatViewModel,
         promptResultsViewModel: promptResultsViewModel,
         promptsViewModel: promptsViewModel,
@@ -203,6 +222,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         libraryViewModel: libraryViewModel,
         meetingsWorkspaceViewModel: meetingsWorkspaceViewModel,
         meetingPillViewModel: meetingPillViewModel,
+        meetingSplitViewModel: meetingSplitViewModel,
+        meetingImportViewModel: meetingImportViewModel,
+        shareManagementViewModel: shareManagementViewModel,
         updaterController: updaterController,
         onRecordMeeting: { [weak self] in
             self?.toggleMeetingRecording(originatesFromWindow: true)
@@ -222,9 +244,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if isRecording {
                 self?.hotkeyCoordinator?.suspend()
                 self?.transformsCoordinator?.suspendHotkeys()
+                self?.voiceControlCoordinator?.suspendHotkey()
             } else {
                 self?.hotkeyCoordinator?.resume()
                 self?.transformsCoordinator?.resumeHotkeys()
+                self?.voiceControlCoordinator?.installHotkey()
             }
         },
         onQuit: { [weak self] in
@@ -243,7 +267,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.appEnvironment
         },
         hotkeyMenuTitleProvider: { [weak self] in
-            self?.hotkeyMenuTitle ?? AppHotkeyCoordinator.menuTitle(handsFree: .defaultDictation, pushToTalk: .defaultPushToTalk)
+            self?.hotkeyMenuTitle
+                ?? AppHotkeyCoordinator.menuTitle(handsFree: .defaultDictation, pushToTalk: .defaultPushToTalk)
         },
         meetingHotkeyTriggerProvider: { [weak self] in
             self?.settingsViewModel.meetingHotkeyTrigger ?? .defaultMeetingRecording
@@ -256,6 +281,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         },
         meetingRecordingActiveProvider: { [weak self] in
             self?.meetingRecordingFlowCoordinator?.isMeetingRecordingActive == true
+        },
+        liveMeetingPanelAvailableProvider: { [weak self] in
+            self?.meetingRecordingFlowCoordinator?.canPresentLiveMeetingPanel == true
         },
         dictationCaptureActiveProvider: { [weak self] in
             self?.dictationFlowCoordinator?.isCapturingAudio == true
@@ -278,6 +306,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         },
         onToggleMeetingRecording: { [weak self] in
             self?.toggleMeetingRecording(originatesFromWindow: false)
+        },
+        onOpenLiveMeetingPanel: { [weak self] in
+            self?.meetingRecordingFlowCoordinator?.presentLiveMeetingPanel()
         },
         onCreateTransform: { [weak self] in
             self?.mainWindowState.beginCreatingTransform()
@@ -319,14 +350,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         onMenuBarOnlyModeChanged: { [weak self] in
             self?.windowCoordinator.applyActivationPolicyFromSettings()
         },
+        onMenuBarIconVisibilityChanged: { [weak self] in
+            guard let self else { return }
+            self.menuBarCoordinator.setMenuBarIconVisible(self.settingsViewModel.showMenuBarIcon)
+        },
         onShowIdlePillChanged: { [weak self] in
             self?.handleShowIdlePillChange()
+        },
+        onShowDiscoverChanged: { [weak self] in
+            self?.setupDiscoverContent()
+        },
+        onShowMeetingRecordingPillChanged: { [weak self] in
+            self?.handleShowMeetingRecordingPillChange()
         },
         onInstantDictationChanged: { [weak self] in
             self?.applyInstantDictationPreference(refreshWarmCapture: false)
         },
         onMicrophoneSelectionChanged: { [weak self] in
             self?.applyInstantDictationPreference(refreshWarmCapture: true)
+        },
+        onMeetingAudioRetentionChanged: { [weak self] in
+            self?.scheduleMeetingAudioRetentionSweepForPreferenceChange()
         }
     )
 
@@ -351,7 +395,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         applyAppAppearance()
         startEnvironmentSetup()
         menuBarCoordinator.setupMainMenu()
-        menuBarCoordinator.setupMenuBar()
+        menuBarCoordinator.setMenuBarIconVisible(settingsViewModel.showMenuBarIcon)
         settingsObserverCoordinator.startObserving()
         windowCoordinator.applyActivationPolicyFromSettings()
         setupDiscoverContent()
@@ -361,15 +405,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        if let shareStopObserver {
+            DistributedNotificationCenter.default().removeObserver(shareStopObserver)
+            self.shareStopObserver = nil
+        }
         // Telemetry.flushForTermination() is handled by TelemetryService's own
         // NSApplicationWillTerminateNotification observer — calling it here too
         // would send duplicate appQuit events and double the termination delay.
         dictationFlowCoordinator?.releaseMediaPauseForTermination()
         dictationFlowCoordinator?.hideIdlePill()
+        // Tear down the floating meeting pill so it can't outlive the app as a
+        // draggable-but-dead window during the final moments of termination.
+        meetingRecordingFlowCoordinator?.dismissFloatingPillForQuit()
         hotkeyCoordinator?.stopAll()
         meetingAutoStartCoordinator?.stop()
         meetingAutoStopCoordinator?.stop()
         transformsCoordinator?.stop()
+        voiceControlCoordinator?.shutdown()
         settingsObserverCoordinator.stopObserving()
         environmentSetupTask?.cancel()
         speechPreWarmTask?.cancel()
@@ -402,6 +454,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // Repeated Quit commands share the original deferred decision. Do not
+        // replace its completion or cancel it while notes are being saved.
+        if savedMeetingNotesCoordinator.isPreparingToQuit { return .terminateLater }
+        guard !isPresentingQuitAlert else { return .terminateCancel }
+        if savedMeetingNotesCoordinator.prepareToQuit(completion: { [weak self, weak sender] saved in
+            guard let sender else { return }
+            guard let self else {
+                sender.reply(toApplicationShouldTerminate: false)
+                return
+            }
+            if !saved {
+                sender.reply(toApplicationShouldTerminate: false)
+                self.presentMeetingNotesQuitFailure(sender)
+            } else if self.meetingRecordingFlowCoordinator?.quitState != nil {
+                // Resume the existing recording-specific confirmation only
+                // after saved-meeting drafts are durable. Its completion calls
+                // terminate again after recording finalization.
+                sender.reply(toApplicationShouldTerminate: false)
+                _ = self.presentActiveMeetingQuitAlert()
+            } else {
+                sender.reply(toApplicationShouldTerminate: true)
+            }
+        }) {
+            return .terminateLater
+        }
+
         guard meetingRecordingFlowCoordinator?.quitState != nil else {
             return .terminateNow
         }
@@ -413,6 +491,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return presentActiveMeetingQuitAlert()
     }
 
+    private func presentMeetingNotesQuitFailure(_ sender: NSApplication) {
+        guard !isPresentingQuitAlert else { return }
+        isPresentingQuitAlert = true
+        sender.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Meeting Notes Could Not Be Saved"
+        alert.informativeText =
+            "MacParakeet is staying open to preserve your notes. Retry saving before quitting, or keep the app open and return to the meeting."
+        alert.addButton(withTitle: "Retry & Quit")
+        alert.addButton(withTitle: "Keep Open")
+        let response = alert.runModal()
+        isPresentingQuitAlert = false
+        if response == .alertFirstButtonReturn {
+            sender.terminate(nil)
+        }
+    }
+
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows _: Bool) -> Bool {
         windowCoordinator.handleAppReopen()
     }
@@ -422,7 +518,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
+        settingsViewModel.refreshPermissions()
         onboardingCoordinator.handleApplicationDidBecomeActive(environment: appEnvironment)
+        if let appEnvironment {
+            meetingAudioRetentionSweepCoordinator.scheduleForegroundSweepIfDue(environment: appEnvironment)
+        }
+        if let sharing = shareManagementViewModel { Task { await sharing.refresh() } }
     }
 
     // MARK: - Startup
@@ -445,6 +546,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupEnvironment(_ env: AppEnvironment) {
         appEnvironment = env
+        if let shareStopObserver {
+            DistributedNotificationCenter.default().removeObserver(shareStopObserver)
+            self.shareStopObserver = nil
+        }
+        if let coordinator = env.shareCoordinator, let sharing = shareManagementViewModel {
+            shareStopObserver = DistributedNotificationCenter.default().addObserver(
+                forName: .macParakeetShareStopQueued, object: nil, queue: .main
+            ) { _ in
+                Task { await coordinator.resumePendingWork() }
+            }
+            let reader = env.speakerAttributionReader
+            let results = env.promptResultRepo
+            sharing.configure(service: coordinator) { id in
+                try await Task.detached(priority: .userInitiated) {
+                    guard let projection = try reader.resolve(transcriptionId: id) else {
+                        return nil as ShareDraftSource?
+                    }
+                    let source = projection.effectiveTranscription
+                    let summaries = try results.fetchAll(transcriptionId: id).map {
+                        ShareDraftSource.Summary(id: $0.id, title: $0.promptName, markdown: $0.content)
+                    }
+                    return ShareDraftSource(
+                        transcription: source, title: source.effectiveDisplayTitle, summaries: summaries)
+                }.value
+            }
+            Task { await sharing.refresh() }
+        }
+        voiceProfilesViewModel.configure(
+            // Always wired: the management screen must be able to delete
+            // voices that an earlier run stored, whatever this build allows.
+            service: env.speakerVoiceprintService
+        )
+        settingsViewModel.onAccessibilityGranted = { [weak self] in
+            self?.handleAccessibilityGrant()
+        }
+        meetingSplitViewModel.configure(
+            service: env.meetingSplitService,
+            recordingLookup: { [repository = env.transcriptionRepo] id in try repository.fetch(id: id) },
+            onChildrenPublished: { [weak self] in
+                self?.libraryViewModel.loadTranscriptions()
+                self?.meetingsWorkspaceViewModel.refreshRecentMeetings()
+            }
+        )
+        meetingImportViewModel.configure(
+            service: env.meetingImportService,
+            onMeetingPublished: { [weak self] _ in
+                self?.libraryViewModel.loadTranscriptions()
+                self?.meetingsWorkspaceViewModel.refreshRecentMeetings()
+            }
+        )
 
         let runtime = environmentConfigurer.configure(
             environment: env,
@@ -517,6 +668,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             llmServiceProvider: llmServiceProvider,
             promptRepository: env.promptRepo,
             historyRepository: env.transformHistoryRepo,
+            activeModelNameProvider: { [weak configStore] in
+                try? configStore?.loadConfig()?.modelName
+            },
             reservedHotkeysProvider: { [weak self] in
                 self?.transformReservedHotkeysForTransforms() ?? []
             },
@@ -527,12 +681,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         transforms.start()
         transformsCoordinator = transforms
 
+        if AppFeatures.isVoiceControlAvailable() {
+            let control = VoiceControlCoordinator(
+                sharedMicStream: env.sharedMicStream,
+                scheduler: env.sttScheduler,
+                adapter: NativeVoiceControlAdapter(
+                    screenText: UserDefaults.standard.bool(forKey: AppFeatures.voiceControlScreenTextDefaultsKey)
+                        ? VisionScreenTextReader() : nil),
+                rewrite: { [llmService = env.llmService] text, instruction in
+                    guard UserDefaults.standard.bool(forKey: "voiceControl.writingConsent.v1") else {
+                        throw VoiceControlWritingConsentRequired()
+                    }
+                    return try await llmService.transform(text: text, prompt: instruction)
+                },
+                onShortcutRecording: { [weak self] recording in
+                    if recording {
+                        self?.hotkeyCoordinator?.suspend()
+                        self?.transformsCoordinator?.suspendHotkeys()
+                    } else {
+                        self?.hotkeyCoordinator?.resume()
+                        self?.transformsCoordinator?.resumeHotkeys()
+                    }
+                },
+                onShortcutChanged: { [weak self] in self?.transformsCoordinator?.reloadBindings() },
+                isStartSuppressed: { [weak self] in self?.onboardingWindowController.isVisible ?? true },
+                conflictingHotkeys: { [weak self] in
+                    guard let self else { return [] }
+                    let transforms = (try? env.promptRepo.fetchVisible(category: .transform)) ?? []
+                    return [self.settingsViewModel.hotkeyTrigger, self.settingsViewModel.pushToTalkHotkeyTrigger,
+                            self.settingsViewModel.meetingHotkeyTrigger, self.settingsViewModel.fileTranscriptionHotkeyTrigger,
+                            self.settingsViewModel.youtubeTranscriptionHotkeyTrigger]
+                        + transforms.compactMap { $0.shortcut?.hotkeyTrigger }
+                }
+            )
+            voiceControlCoordinator = control
+            menuBarCoordinator.onVoiceControl = { [weak control] in control?.show() }
+            menuBarCoordinator.onInteractionBusy = { [weak control] in control?.explainInteractionBusy() }
+            dictationFlowCoordinator?.onInteractionBusy = { [weak control] in control?.explainInteractionBusy() }
+            control.installHotkey()
+        }
+
         menuBarCoordinator.refreshHotkeyTitle()
         menuBarCoordinator.refreshMeetingHotkeyShortcut()
         menuBarCoordinator.refreshTranscriptionHotkeyShortcuts()
         onboardingCoordinator.maybeShow(environment: env)
         scheduleDeferredSpeechPreWarm(environment: env)
-        meetingRecoveryCoordinator.scheduleLaunchRecoveryScanIfReady(environment: env)
+        let recoveryTask = meetingRecoveryCoordinator.scheduleLaunchRecoveryScanIfReady(environment: env)
+        meetingAudioRetentionSweepCoordinator.scheduleLaunchSweep(environment: env, after: recoveryTask)
+    }
+
+    private func scheduleMeetingAudioRetentionSweepForPreferenceChange() {
+        guard let appEnvironment else { return }
+        meetingAudioRetentionSweepCoordinator.schedulePreferenceChangeSweep(environment: appEnvironment)
     }
 
     private func scheduleDeferredSpeechPreWarm(environment env: AppEnvironment) {
@@ -547,10 +747,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.speechPreWarmTask = nil
             }
 
-            try? await Task.sleep(for: .milliseconds(deferralMs))
-            guard !Task.isCancelled else { return }
             let onboardingDone = UserDefaults.standard.string(forKey: onboardingCompletedKey) != nil
             guard onboardingDone else { return }
+
+            // Queue microphone preparation immediately. It runs off the main
+            // actor and independently of the slower speech-model warm-up, so an
+            // early first dictation does not wait for model initialization.
+            if await env.permissionService.checkMicrophonePermission() == .granted {
+                env.sharedMicStream.prewarmDictation()
+            }
+
+            try? await Task.sleep(for: .milliseconds(deferralMs))
+            guard !Task.isCancelled else { return }
             await sttRuntime.backgroundWarmUp()
 
             // Universal VAD model availability (Phase 4.5,
@@ -600,8 +808,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func setupDiscoverContent() {
+        // Respect the user preference before touching the network. When
+        // Discover is hidden the feed is neither loaded nor fetched, so the
+        // app makes no request to the Discover endpoint at launch.
+        guard settingsViewModel.showDiscover else {
+            discoverViewModel.cancelDiscover()
+            if mainWindowState.selectedItem == .discover {
+                mainWindowState.selectedItem = .transcribe
+            }
+            return
+        }
         guard let fallbackURL = Bundle.module.url(forResource: "discover-fallback", withExtension: "json"),
-              let data = try? Data(contentsOf: fallbackURL) else { return }
+            let data = try? Data(contentsOf: fallbackURL)
+        else { return }
 
         let service = DiscoverService(fallbackData: data)
         discoverViewModel.configure(service: service)
@@ -618,9 +837,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showMoveToApplicationsAlert() {
         let alert = NSAlert()
         alert.messageText = "Move to Applications"
-        alert.informativeText = "MacParakeet must be in your Applications folder to work correctly. " +
-            "Running from a disk image prevents macOS from granting microphone and accessibility permissions.\n\n" +
-            "Drag MacParakeet to the Applications folder in the DMG window, then launch it from there."
+        alert.informativeText =
+            "MacParakeet must be in your Applications folder to work correctly. "
+            + "Running from a disk image prevents macOS from granting microphone and accessibility permissions.\n\n"
+            + "Drag MacParakeet to the Applications folder in the DMG window, then launch it from there."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Quit")
         alert.runModal()
@@ -630,11 +850,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Event Handlers
 
+    private func handleAccessibilityGrant() {
+        // Startup may have discarded every event tap before access was granted.
+        // Reuse the normal refresh path, which preserves recorder suspension.
+        hotkeyCoordinator?.refreshAllHotkeys()
+        if !isHotkeyRecorderActive {
+            transformsCoordinator?.resumeHotkeys()
+        }
+    }
+
     private func handleHotkeyTriggerChange() {
         hotkeyCoordinator?.refreshAllHotkeys()
         menuBarCoordinator.refreshHotkeyTitle()
         menuBarCoordinator.refreshMeetingHotkeyShortcut()
         transformsCoordinator?.reloadBindings()
+        voiceControlCoordinator?.installHotkey()
     }
 
     /// Any auxiliary hotkey change refreshes all three auxiliary hotkeys so a
@@ -663,6 +893,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBarCoordinator.refreshMeetingHotkeyShortcut()
         menuBarCoordinator.refreshTranscriptionHotkeyShortcuts()
         transformsCoordinator?.reloadBindings()
+        voiceControlCoordinator?.installHotkey()
     }
 
     private func transformReservedHotkeysForTransforms() -> [TransformShortcutReservedHotkey] {
@@ -677,11 +908,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 trigger: settingsViewModel.pushToTalkHotkeyTrigger,
                 conflictMode: .bareModifierDictation
             ),
-            TransformShortcutReservedHotkey(name: "file transcription", trigger: settingsViewModel.fileTranscriptionHotkeyTrigger),
-            TransformShortcutReservedHotkey(name: "video URL transcription", trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger),
+            TransformShortcutReservedHotkey(
+                name: "file transcription", trigger: settingsViewModel.fileTranscriptionHotkeyTrigger),
+            TransformShortcutReservedHotkey(
+                name: "video URL transcription", trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger),
         ]
         if AppFeatures.meetingRecordingEnabled {
-            reserved.append(TransformShortcutReservedHotkey(name: "meeting recording", trigger: settingsViewModel.meetingHotkeyTrigger))
+            reserved.append(
+                TransformShortcutReservedHotkey(
+                    name: "meeting recording", trigger: settingsViewModel.meetingHotkeyTrigger))
+        }
+        if AppFeatures.isVoiceControlAvailable() {
+            reserved.append(TransformShortcutReservedHotkey(name: "Voice Control", trigger: VoiceControlCoordinator.configuredHoldTrigger))
         }
         return reserved.filter { !$0.trigger.isDisabled }
     }
@@ -704,6 +942,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func handleShowMeetingRecordingPillChange() {
+        meetingRecordingFlowCoordinator?.refreshFloatingPillVisibility()
+    }
+
     private func applyInstantDictationPreference(refreshWarmCapture: Bool) {
         guard let env = appEnvironment else { return }
         instantDictationPreferenceGeneration += 1
@@ -721,8 +963,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.instantDictationPreferenceGeneration == generation
             }
             guard shouldRefresh, !Task.isCancelled else { return }
-            if refreshWarmCapture, enabled {
-                await env.audioProcessor.refreshInstantDictationWarmCapture()
+            if refreshWarmCapture {
+                if enabled {
+                    await env.audioProcessor.refreshInstantDictationWarmCapture()
+                } else {
+                    env.sharedMicStream.refreshIdlePrewarm()
+                }
             }
         }
     }
@@ -800,15 +1046,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        meetingRecordingFlowCoordinator?.startRecording(trigger: .manual)
+        meetingRecordingFlowCoordinator?.startRecording(
+            trigger: .manual,
+            presentLivePanelWhenReady: true
+        )
     }
 
     private func presentActiveMeetingQuitAlert() -> NSApplication.TerminateReply {
+        guard meetingQuitTask == nil, !isPresentingQuitAlert else {
+            return .terminateCancel
+        }
         guard let quitState = meetingRecordingFlowCoordinator?.quitState else {
             return .terminateNow
         }
+        isPresentingQuitAlert = true
+        defer { isPresentingQuitAlert = false }
 
         NSApp.activate(ignoringOtherApps: true)
+
+        // Hide the floating pill while the quit alert is up. It joins all
+        // Spaces, so during this app-modal alert it would otherwise linger as a
+        // draggable, non-interactive window — and if the alert lands on another
+        // Space the pill is all the user sees, reading as a frozen ghost.
+        // Restored below if the user keeps the app open.
+        meetingRecordingFlowCoordinator?.dismissFloatingPillForQuit()
+        var committedToQuit = false
 
         let alert = NSAlert()
         alert.alertStyle = .warning
@@ -823,12 +1085,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 alert.buttons[0].hasDestructiveAction = true
             }
             if alert.runModal() == .alertFirstButtonReturn {
+                committedToQuit = true
                 finishMeetingThenQuit(discard: true)
             }
 
-        case .recording:
-            alert.messageText = "Meeting Recording in Progress"
-            alert.informativeText = "End and transcribe the meeting before quitting, discard the recording, or keep MacParakeet open."
+        case .capturing:
+            alert.messageText = "Meeting Recording Is Starting"
+            alert.informativeText =
+                "Audio may already be saving. End and save any captured audio, discard the recording, or keep MacParakeet open."
             alert.addButton(withTitle: "End & Transcribe")
             alert.addButton(withTitle: "Discard Recording")
             alert.addButton(withTitle: "Cancel Quit")
@@ -837,8 +1101,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             switch alert.runModal() {
             case .alertFirstButtonReturn:
+                committedToQuit = true
                 finishMeetingThenQuit(discard: false)
             case .alertSecondButtonReturn:
+                committedToQuit = true
+                finishMeetingThenQuit(discard: true)
+            default:
+                break
+            }
+
+        case .recording:
+            alert.messageText = "Meeting Recording in Progress"
+            alert.informativeText =
+                "End and transcribe the meeting before quitting, discard the recording, or keep MacParakeet open."
+            alert.addButton(withTitle: "End & Transcribe")
+            alert.addButton(withTitle: "Discard Recording")
+            alert.addButton(withTitle: "Cancel Quit")
+            if alert.buttons.indices.contains(1) {
+                alert.buttons[1].hasDestructiveAction = true
+            }
+            switch alert.runModal() {
+            case .alertFirstButtonReturn:
+                committedToQuit = true
+                finishMeetingThenQuit(discard: false)
+            case .alertSecondButtonReturn:
+                committedToQuit = true
                 finishMeetingThenQuit(discard: true)
             default:
                 break
@@ -846,12 +1133,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         case .finishing:
             alert.messageText = "Meeting Transcription in Progress"
-            alert.informativeText = "MacParakeet is saving the meeting. Finish transcription before quitting, or keep the app open."
+            alert.informativeText =
+                "MacParakeet is saving the meeting. Finish transcription before quitting, or keep the app open."
             alert.addButton(withTitle: "Finish & Quit")
             alert.addButton(withTitle: "Cancel Quit")
             if alert.runModal() == .alertFirstButtonReturn {
+                committedToQuit = true
                 finishMeetingThenQuit(discard: false)
             }
+        }
+
+        if !committedToQuit {
+            meetingRecordingFlowCoordinator?.restoreFloatingPillIfRecording()
         }
 
         return .terminateCancel
@@ -859,6 +1152,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func finishMeetingThenQuit(discard: Bool) {
         guard let coordinator = meetingRecordingFlowCoordinator else { return }
+
+        // The user committed to quitting — tear the floating pill down now so it
+        // doesn't sit on screen as a non-interactive window while the final
+        // transcription finishes in the background ahead of `NSApp.terminate`.
+        coordinator.dismissFloatingPillForQuit()
 
         meetingQuitTask?.cancel()
         meetingQuitTask = Task { @MainActor [weak self, coordinator] in
@@ -903,8 +1201,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.alertStyle = .warning
         alert.messageText = "Global Hotkey Unavailable"
         alert.informativeText =
-            "MacParakeet couldn’t enable the system-wide hotkey because Accessibility access is missing. " +
-            "You can still open the app manually, but dictation shortcuts won’t work until this is enabled."
+            "MacParakeet couldn’t enable the system-wide hotkey because Accessibility access is missing. "
+            + "You can still open the app manually, but dictation shortcuts won’t work until this is enabled."
         alert.addButton(withTitle: "Open Settings")
         alert.addButton(withTitle: "Not Now")
 
@@ -926,8 +1224,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.alertStyle = .warning
         alert.messageText = "Hotkey Conflict"
         alert.informativeText =
-            "\(trigger.displayName) overlaps with \(conflictNames), so one of these shortcuts was not enabled. " +
-            "Open Settings to choose distinct shortcuts."
+            "\(trigger.displayName) overlaps with \(conflictNames), so one of these shortcuts was not enabled. "
+            + "Open Settings to choose distinct shortcuts."
         alert.addButton(withTitle: "Open Settings")
         alert.addButton(withTitle: "Not Now")
 

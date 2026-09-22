@@ -7,22 +7,35 @@ import Foundation
 ///   bypassing the process-wide singleton that ADR-016 requires.
 ///   **App code must never instantiate this type directly.**
 ///   Use the shared ``STTScheduler`` from `AppEnvironment` instead.
-public actor STTClient: STTManaging, STTDictationPreviewTranscribing, SpeechEngineRoutedTranscribing, SpeechEngineSwitching, SpeechEngineSwitchAvailabilityProviding, SpeechEngineSessionManaging {
+public actor STTClient: STTManaging, STTDictationPreviewTranscribing, SpeechEngineRoutedTranscribing, SpeechEngineSwitching, SpeechEngineSwitchAvailabilityProviding, SpeechEngineSessionManaging, SpeechEngineRoutedWarmUpManaging {
     private let scheduler: STTScheduler
 
     public init(
-        modelVersion: AsrModelVersion = .v3,
+        parakeetModelVariant: ParakeetModelVariant = .v3,
         speechEngine: SpeechEnginePreference = .parakeet,
         nemotronModelVariant: NemotronModelVariant = SpeechEnginePreference.defaultNemotronModelVariant,
         whisperModelVariant: String = SpeechEnginePreference.defaultWhisperModelVariant,
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        customWordRepository: (any CustomWordRepositoryProtocol)? = nil,
+        customVocabularyRescorer: (any CustomVocabularyRescoring)? = nil,
+        customVocabularyRecognitionBoostingEnabled: (@Sendable () -> Bool)? = nil
     ) {
+        let customVocabularyProvider = customWordRepository.map {
+            RepositoryCustomVocabularyBoostingTermProvider(repository: $0)
+        }
+        let runtimePreferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
+        let recognitionBoostingEnabled = customVocabularyRecognitionBoostingEnabled ?? {
+            runtimePreferences.customVocabularyRecognitionBoostingEnabled
+        }
         let runtime = STTRuntime(
-            modelVersion: modelVersion,
+            parakeetModelVariant: parakeetModelVariant,
             speechEngine: speechEngine,
             nemotronModelVariant: nemotronModelVariant,
             whisperModelVariant: whisperModelVariant,
-            defaults: defaults
+            defaults: defaults,
+            customVocabularyProvider: customVocabularyProvider,
+            customVocabularyRescorer: customVocabularyRescorer,
+            customVocabularyRecognitionBoostingEnabled: recognitionBoostingEnabled
         )
         self.scheduler = STTScheduler(runtime: runtime)
     }
@@ -64,6 +77,13 @@ public actor STTClient: STTManaging, STTDictationPreviewTranscribing, SpeechEngi
         try await scheduler.warmUp(onProgress: onProgress)
     }
 
+    public func warmUp(
+        speechEngine: SpeechEngineSelection,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
+        try await scheduler.warmUp(speechEngine: speechEngine, onProgress: onProgress)
+    }
+
     public func backgroundWarmUp() async {
         await scheduler.backgroundWarmUp()
     }
@@ -78,6 +98,10 @@ public actor STTClient: STTManaging, STTDictationPreviewTranscribing, SpeechEngi
 
     public func isReady() async -> Bool {
         await scheduler.isReady()
+    }
+
+    public func isReady(speechEngine: SpeechEngineSelection) async -> Bool {
+        await scheduler.isReady(speechEngine: speechEngine)
     }
 
     public func clearModelCache() async {

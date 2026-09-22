@@ -47,6 +47,9 @@ regardless of exit code. When `--json` is passed, both success and post-parse
 failure print a JSON object to stdout; the exit code remains the source of
 truth for branching.
 
+The canonical automation contract for stdout/stderr, envelopes, exit codes,
+and `spec --json` lives in `spec/contracts/cli-json-v1.md`.
+
 ### `--json` failure envelope
 
 Any command that accepts `--json` emits this envelope on stdout when the
@@ -84,7 +87,7 @@ ArgumentParser's plain-text stderr path with exit code `2`. Downstream
 agents that branch on `errorType` should also handle the parse-error case
 by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
-## Unreleased
+## [Unreleased]
 
 ### Added
 
@@ -106,6 +109,645 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   `rawProviderSpeakerId`, and `labelSource` fields so agents can distinguish
   model-default labels from user-renamed speakers and trace meeting system
   speakers back to the upstream diarizer ID.
+
+## [4.5.0] — 2026-09-20
+
+### Added
+
+- `voice-control replay <session.json> [--goal …] [--observation N]
+  [--history op:targetID[:receipt],…] [--jev] [--json]` routes an instruction
+  against a saved Voice Control observation (`latest.json` or
+  `sessions/*.json`) without touching the screen. Reports the compiled local
+  action or the Jev request the router would have sent; with `--jev` and
+  `JEV_API_KEY`, also the per-head probability distribution. Experimental:
+  the Voice Control feature itself is a DEBUG-only app experiment, and this
+  command's JSON shape may change while it is.
+
+## [4.4.0] — 2026-09-18
+
+### Added
+
+- `parakeet-model` accepts `orukeet`. `config set parakeet-model orukeet`,
+  `transcribe` / `retranscribe --parakeet-model orukeet`, and
+  `models download|select|delete parakeet-orukeet` address that preview.
+  `models list` may include the additive `parakeet-orukeet` entry (engine
+  `parakeet`, variant `orukeet`). The default remains `v3`. Transcription
+  results from this build report `engineVariant` `orukeet`. Native streaming,
+  tail-window dictation preview, and recognition-time vocabulary boosting stay
+  off.
+- Inline `--provider` accepts `moonshot` (aliases `kimi`, `moonshotai`),
+  `deepseek`, `qwen` (aliases `alibaba`, `dashscope`), `zai` (aliases `zhipu`,
+  `z.ai`, `glm`), and `minimax`. Default env keys are `MOONSHOT_API_KEY` /
+  `KIMI_API_KEY`, `DEEPSEEK_API_KEY`, `DASHSCOPE_API_KEY` / `QWEN_API_KEY`,
+  `ZAI_API_KEY` / `ZHIPU_API_KEY`, and `MINIMAX_API_KEY`.
+- `meetings corrections rename|assign|merge-speakers` wrap the existing speaker
+  identity journal (same `--expected-revision` and JSON transcript payload as
+  timed-text corrections).
+- `history rename --title` matches the GUI gates: meetings update `fileName`
+  (and refresh artifacts best-effort); local files update `titleOverride`.
+  YouTube/podcast rows are rejected.
+- `history favorite` / `history unfavorite` accept `--json`.
+- `vocab words add` and `vocab snippets add` accept `--json` and return the
+  saved row, including its id.
+- `config get|set|list` includes `custom-vocabulary-boosting` (`on`/`off`,
+  default off). It writes the existing Parakeet TDT recognition-boosting
+  preference. Settings shows boosting status but has no toggle; the runtime
+  stays off unless this key (or a direct defaults write) turns it on.
+
+### Changed
+
+- Homebrew/standalone `cards generate` and meeting import/split auto-prompts
+  now read the shared app preference suite for LLM provider config, matching
+  the GUI.
+- `spec --json` documents `transcribe --no-diarize`.
+- Identical `history rename --title` values succeed without writing. Identical
+  `meetings corrections rename` labels succeed without inserting a journal row.
+
+## [4.3.0] — 2026-09-16
+
+### Added
+
+- `config` key `remove-um-filler` (`on|off`, default `on`). Clean processing
+  strips standalone English hesitation `um`. Portuguese and German users
+  should set this to `off`.
+- `config get|set|list` includes `preserve-discarded-dictations` (`on`/`off`,
+  default off). When on, cancelled dictations are transcribed into History
+  instead of being deleted. Nothing is pasted, including menu-bar Paste Last.
+  History JSON may now include `"status": "cancelled"`; the human-readable
+  list marks those rows `[cancelled]`. Older CLI builds that decode
+  `DictationStatus` strictly will fail on those rows until upgraded.
+- `config get|set|list` includes `start-meetings-muted` (`on`/`off`, default
+  off). While on, every microphone-capturing meeting starts muted until the
+  setting is turned off; unmute from the live meeting panel.
+  System-audio-only capture ignores it.
+
+### Changed
+
+- `vocab process` and Clean-mode dictation/file transcription now strip
+  standalone `um` by default. The previous multilingual-safe default is the
+  off value of `remove-um-filler`. Meetings stay verbatim: they do not run
+  filler removal.
+
+## [4.2.0] — 2026-09-15
+
+### Added
+
+- `calendar upcoming --json` annotates each event with additive `skipped` and
+  `skipScope` (`occurrence` | `event` | `null`). Recurrence stays internal.
+  Membership, `--filter`, and the rest of the event object are unchanged.
+
+## [4.1.0] — 2026-09-14
+
+### Added
+
+- `meetings show --json` and `meetings transcript --format json` expose
+  additive `textCorrectionsApplied` and `transcriptTextAlignment` fields.
+  Effective transcript segments may include `isTextEdited: true`; automatic
+  word text and timing remain available as original evidence.
+- `meetings corrections edit-line|merge-lines|undo|redo|reset` gives agents
+  optimistic, revision-checked access to the same reversible timed transcript
+  journal as the app. Successful JSON writes return the updated effective
+  transcript and revision.
+- Meeting list previews now use the effective corrected transcript. One-to-one
+  text edits retain the durable segment ID; structural edits include additive
+  `anchorTranscriptSegmentIDs`. Transcripts without word timestamps report
+  `transcriptTextAlignment: "untimed"`.
+- `meetings import <path>` imports one supported local audio or video file as
+  a managed meeting. It accepts optional `--title` and historical
+  `--started-at`, supports `--json` and `--envelope`, keeps progress on stderr,
+  and returns a stable `MeetingImportRecord`. Complete and transcript-saved
+  partial results exit zero; a retryable transcription prints its saved
+  meeting record before exiting one. Callers should open that saved meeting and
+  retry its transcription rather than running another import, which would
+  create a second meeting. SIGINT after publication also prints the durable
+  record before exiting `130`.
+- `meetings split preview|create|status|resume|discard` splits a saved
+  meeting recording into independent parts, each receiving its own first
+  transcription and normal enabled completion automation. `preview` is
+  read-only; `create` supports `--dry-run`, `--key`, `--expected-identity`
+  and idempotent retry (including after the original recording has been
+  deleted, once committed); `status --source` accepts an exact source UUID
+  even after that recording is gone. A completed operation with any failed
+  child still prints its full result, then exits non-zero. `create`/`resume`
+  honor Ctrl-C (SIGINT): in-flight work finishes settling before the process
+  exits `130`, per the CLI's existing exit-code contract.
+
+### Changed
+
+- Meeting JSON, prompt context, and exports use the effective timed-text
+  correction projection. Corrected lines retain segment-envelope timing and
+  are never represented as word-aligned; legacy whole-text edits remain
+  untimed.
+- `transcribe` and `retranscribe` still use the same `--speaker-count` /
+  `--speaker-min` / `--speaker-max` flags and JSON speaker fields. The engines
+  now run FluidAudio 0.15.7. Exact / max caps are held against both cluster
+  censuses (FluidAudio #891). Flags, defaults, and JSON schema are unchanged.
+  Auto speaker detection is unchanged and still not an exact count.
+
+### Fixed
+
+- `history clear-meeting-audio` now holds one meeting-media mutation lease
+  across both managed-file removal and database path detachment, so concurrent
+  split publication cannot observe a partially cleared recording library.
+- `meetings split create`/`resume` now resolve the meeting-recordings root
+  from the CLI's own shared app preferences domain instead of always
+  `.standard`, so a non-default `meetingArtifactsFolder` preference is
+  honored.
+- `meetings split preview`'s `hasRawMicrophone`/`hasRawSystem`/
+  `hasCleanedMicrophone` now describe whether that track will actually be
+  exported (file *and* usable alignment metadata), not merely whether the
+  file exists on disk.
+- `meetings split create` now rejects empty and whitespace-only part titles
+  before invoking the shared split service; the Core boundary enforces the
+  same rule for non-CLI callers.
+- `meetings split create` retrying an already-discarded idempotency key, and
+  `meetings split resume` of a discarded or still-preparing operation, now
+  surface a specific actionable message (a discarded key/operation needs a
+  fresh `--key`; a still-preparing operation should be retried with `create`)
+  instead of a generic status error.
+
+## [4.0.0] — 2026-09-07
+
+### Added
+
+- `meetings labels set` renames existing labels, chooses a color, or resets
+  to the automatic color with `--automatic-color`. Existing label IDs and
+  assignments are preserved; `--json` supports agent workflows.
+
+- `prompts collections list|add|rename|delete|reorder` manages the same local
+  prompt collections as the app. Collection mutations use full UUIDs, JSON
+  returns saved collection records, deletion unfiles prompts without deleting
+  their histories, and reorder accepts the complete current UUID order.
+- `prompts add --collection UUID` and `prompts set --collection UUID` /
+  `--no-collection` assign or clear prompt organization. Collection-only
+  changes do not create a prompt version; combined versioned settings commit
+  membership alongside one new version atomically. `prompts add --json` now
+  returns the saved prompt record.
+- Immutable prompt history, version-aware `prompts show`, source/settings diff,
+  restore-as-new-version, recoverable deletion, and optional prompt collections.
+  Built-in and custom prompts share the same mutation rights. `prompts set`
+  persists versioned inference settings with `--temperature`, `--top-p`,
+  `--top-k`, `--max-tokens`, `--thinking-mode`, `--reasoning-effort`, and
+  `--provider-default-settings`; `--model` / `--active-model` set or clear a
+  model override. Prompt JSON adds active-version metadata and model override;
+  saved results retain optional prompt/version identity and provider/model
+  receipts.
+- Meeting classification commands expose labels and legacy meeting types.
+  Labels control prompt availability across transcription sources; legacy types
+  remain compatibility metadata. See `spec/contracts/cli-json-v1.md`.
+
+### Changed
+
+- Gemini 3 prompt generation and `llm summarize` inherit provider sampling
+  defaults instead of injecting temperature 0.7. Explicit saved overrides and
+  historical execution receipts retain their values; CLI flags and JSON shapes
+  are unchanged.
+
+- Prompt availability can be updated with `prompts set --label LABEL` or
+  `--all-labels`, plus `--available`/`--unavailable`. Writes now affect the same
+  label rules used by execution and preserve existing exceptions. JSON returns
+  the saved label policy. Source auto-run remains a separate setting.
+- The obsolete fork-only `--meeting-type`/`--all-meeting-types` policy flags
+  fail with migration guidance instead of successfully writing inactive rules.
+
+### Added
+
+- Speaker-aware export and meeting JSON include additive
+  `speakerCorrectionsApplied` and `speakerCorrectionRevision` metadata.
+- Exports, meeting artifacts and CLI prompt input use effective speaker corrections.
+
+- Saved-meeting notes autosave and can be explicitly included in result-prompt
+  context. `prompts set` accepts mutually exclusive `--include-meeting-notes`
+  and `--no-include-meeting-notes`. Prompt JSON adds `includeMeetingNotes`;
+  result JSON adds `includeMeetingNotesSnapshot`, both defaulting to false.
+  Transform prompts reject the setting. `{{userNotes}}` remains available
+  independently; using both mechanisms does not duplicate notes.
+
+### Breaking
+
+- `export --stdout --format txt` now matches TXT file export, including the
+  default metadata header, timestamps, and speaker labels. Use the transcript
+  text fields in JSON when automation needs only the stored text. This also
+  affects `export <id> --stdout`, because TXT is the default format. For example,
+  use `export <id> --format json --stdout | jq -r '.cleanTranscript // .rawTranscript'`
+  to select stored transcript text.
+
+### Changed
+
+- `prompts run` uses rich timestamped, speaker-aware input when timings exist;
+  edited transcripts and recordings without timings use their text fallback.
+- TXT/Markdown paragraphs with no assigned speaker remain separate and may
+  display `Unassigned` when other speakers exist. Original word attribution in
+  JSON, subtitles, and DAPT remains unchanged when no corrections are active.
+
+### Fixed
+
+- OpenAI-compatible gateways (including Vercel AI Gateway model IDs such as
+  `openai/gpt-5.6-luna` and `openai/gpt-5.6-sol`) now use the same GPT-5.x
+  request policy as native OpenAI: omit unsupported sampling, send
+  `max_completion_tokens`, and surface parameter-compatibility 400s as provider
+  errors instead of a false context-limit failure.
+
+## [3.3.0] — 2026-09-06
+
+### Added
+
+- Prompt JSON gains additive optional inference metadata. `prompts list/show`
+  (and prompt objects returned by `prompts set`) expose `inferenceSettings`
+  with optional `temperature`, `topP`, `topK`, `maxTokens`, and a
+  `thinkingMode` value, plus optional `reasoningEffort` (`low`, `medium`,
+  `high`, or `xhigh`) when thinking is enabled. LLM result envelopes,
+  including `prompts run --json`,
+  gain optional `effectiveSettings`; when present it reports the normalized
+  settings actually sent after provider/model filtering. Existing callers may
+  ignore both fields, and unset/legacy values omit them. Meeting result
+  JSON and materialized `prompt-results.json` also preserve that receipt as
+  additive optional `inferenceSettingsSnapshot`.
+  Settings are configured in the result-prompt GUI; the CLI preserves and runs
+  them, but adds no inference-setting flags or Transform support. Receipts
+  contain effective settings only, not requested settings or omission metadata.
+
+### Fixed
+
+- Invalid inference numbers now fail at persistence and execution boundaries,
+  including native Anthropic's effective temperature limit of 1. Ollama
+  streaming error envelopes fail the run rather than becoming a successful
+  receipt after partial output; clean content-bearing EOF remains supported.
+- Provider receipt and Cards batch token totals use checked arithmetic; overflow
+  remains unknown instead of crashing or becoming a misleading partial total.
+  Missing receipt totals are derived when both component counts are available,
+  while explicit provider totals retain precedence.
+- Native OpenAI streaming requests usage metadata without adding that option to
+  compatible third-party endpoints.
+- Ollama result-prompt input budgeting shares its 8,192-token request window
+  and reserves explicit output allowances.
+- Local CLI output normalizes line endings: CRLF collapses to a single LF and
+  a bare CR is rewritten to LF instead of passing through unsanitized. This
+  closes a terminal-overwrite gap in the existing sanitizer (a wrapped CLI
+  could no longer emit a bare CR to visually overwrite prior sanitized
+  output); readable content, including intentional newlines, is preserved.
+- `meetingCaptureReport.quality` no longer reports `partial` solely because a
+  selected source is `silent`: a fully captured self-note or other one-sided
+  recording now reports `healthy`. Coverage shortfall, interruption, capture
+  failure, and unavailable media still make `quality` partial and now
+  outrank `silent` in source-status precedence. Reports stored before this
+  change normalize the same way on read. Field names, types, and JSON shape
+  are unchanged; see `spec/contracts/meeting-artifacts-v1.md`.
+
+## [3.2.0] — 2026-09-04
+
+### Added
+
+- `meetings artifact --json` and envelope output may now include the additive
+  optional `meetingCaptureReport` field with frame-derived meeting capture
+  quality, elapsed/playable durations, and per-source coverage. Legacy meetings
+  omit it; omission means unknown rather than healthy.
+  Reports may now use source status `silent` when a selected system-audio track
+  delivered buffers but remained at exact digital silence for an actionable
+  meeting; consumers must treat unknown future status values defensively.
+- `export --format dapt` and `transcribe --format dapt` now emit W3C DAPT 1.0
+  `originalTranscript` documents through the shared exporter. File output uses
+  `.dapt.xml`; stdout is supported by both commands. Aligned word timing and
+  speaker labels are preserved when present, while undiarized transcripts omit
+  character agents and timestampless or edited transcripts remain untimed.
+
+### Fixed
+
+- OpenCode Go requests now carry an opaque per-conversation session header.
+  Probe and one-shot IDs are isolated; unsupported endpoints do not receive the
+  session identity. Unapproved redirects are refused so credentials and prompt
+  content cannot be forwarded outside the allowed endpoints (#948).
+- Local CLI output strips valid two-byte terminal escapes as well as CSI/OSC
+  sequences. Failure stderr is sanitized before error classification and
+  presentation, matching successful-output handling.
+- Default `health` inspects required directories without creating them and
+  opens existing databases read-only without running migrations. Repair flags
+  remain explicit opt-ins; JSON field names and exit codes are unchanged.
+
+## [3.1.0] — 2026-07-19
+
+### Added
+
+- `transcribe --audio-track <N>` selects a one-based embedded audio track for
+  local files and folders. The option is rejected for downloaded media and
+  podcast inputs; omitting it preserves automatic selection.
+
+### Fixed
+
+- TXT and Markdown file exports now group word-timed transcripts into
+  deterministic reading paragraphs with at most one timestamp per paragraph;
+  Markdown stdout uses the same formatting. SRT, VTT, and JSON output are
+  unchanged.
+- Bundled CLI commands no longer emit a Foundation UserDefaults suite warning
+  on otherwise successful invocations. The standalone CLI continues sharing
+  the MacParakeet app's preferences.
+- Native OpenAI LLM calls omit `temperature` for GPT-5.x reasoning-tier
+  models (e.g. `gpt-5.5`, `gpt-5.4-mini`), preventing HTTP 400 responses
+  from model and reasoning-effort combinations that do not accept non-default
+  sampling temperatures. Chat-tier variants (`gpt-5.3-chat-latest`) and
+  non-o-series pre-5.x models retain the caller's temperature; o-series
+  reasoning models continue using their existing omission behavior.
+- Local-file titles in `search`, `transcript`, and `cards list` now preserve
+  the original media filename unless the user explicitly renamed the
+  transcription, matching the Mac app and avoiding transcript-opening words as
+  unstable source identifiers. JSON field names and shapes are unchanged.
+- Clean processing now preserves `um` because it carries meaning in supported
+  languages such as Portuguese and German.
+- Transcription and retranscription progress now reports
+  `Preparing speech model...` while the local engine loads instead of printing
+  a synthetic 0% update before measurable work begins. JSON stdout is unchanged.
+
+## [3.0.0] — 2026-07-14
+
+### Changed
+
+- Inline Anthropic and OpenRouter LLM commands now default to Claude Sonnet 5.
+
+### Removed
+
+- **Breaking:** removed the `prefer-built-in-mic-bluetooth-output` configuration
+  key because capture no longer rewrites microphone routing based on the audio
+  output device. Existing stored values are ignored. This breaking removal is
+  the reason for the 3.0.0 major release.
+
+### Fixed
+
+- Native Anthropic LLM calls omit `temperature` for newer and unknown Claude
+  models, preventing HTTP 400 responses from models that reject non-default
+  sampling parameters. Known compatible legacy models retain the caller's
+  temperature. The `--model` help example now references Claude Sonnet 5.
+- Cohere Transcribe CLI paths now enforce the same 16 GB memory floor recorded
+  in the speech-engine capability registry. `config set speech-engine cohere`,
+  `models download cohere-transcribe`, `models select cohere-transcribe`, and
+  explicit Cohere transcription/retranscription fail through the existing
+  validation-error path on unsupported Macs; `--engine app-default` falls back
+  to Parakeet with a stderr warning when a stale saved Cohere default cannot
+  run on the current machine.
+
+## [2.14.0] — 2026-07-11
+
+### Added
+
+- `cards list [--since --until --source --limit] [--json|--ndjson]` exposes
+  compact per-recording knowledge cards with provenance and deterministic
+  title/date/duration/source/attendee joins. Nullable public fields are emitted
+  explicitly as `null`; date-only bounds follow the existing local-day search
+  convention and compose with source filters.
+- `cards generate [--all|--stale|<id>] [--json]` backfills cards through the
+  configured LLM provider, reports progress on stderr, preserves JSON stdout,
+  aggregates provider token usage, exits `1` when any selected recording fails,
+  and leaves `estimatedCostUSD: null` because the provider layer does not
+  maintain a trustworthy live price table.
+- CLI version `2.14.0` adds the cards command family without changing existing
+  command output shapes.
+- Card listing suppresses stale provenance, `cards generate --stale` reports
+  only its prefiltered stale/missing subset as selected, and card backfill
+  rebuilds the synopsis/topic FTS index for integrity recovery.
+- Regenerated meeting artifact manifests and Markdown now populate
+  `rawMicrophoneAudioPath` and `rawSystemAudioPath` for retained meeting folders
+  that still use the legacy `microphone.m4a` and `system.m4a` raw-audio
+  filenames.
+
+## [2.13.0] -- 2026-07-10
+
+### Added
+
+- New top-level `search <query>` searches normalized meeting and file/URL
+  transcript segments with FTS5 `bm25` ranking and recency tie-breaking. It
+  supports date/source/speaker filters, JSON envelopes, quoted phrases, prefix
+  terms, and `AND`/`OR`. Han/Kana/Thai queries automatically use an unranked
+  substring fallback.
+- `search-reindex` deterministically rebuilds the derived segment table and
+  external-content FTS index from canonical saved transcription JSON/text.
+- New top-level `transcript <id>` reads indexed segment slices for meetings and
+  file/URL captures with `--around`/`--window` or
+  `--around-seq`/`--context`, plus JSON and envelope output.
+
+### Changed
+
+- `search --since/--until` now interprets bare `yyyy-MM-dd` values as local
+  calendar days: `--since` uses local start of day and `--until` includes the
+  full local day. Explicit ISO-8601 offsets and `Z` remain unchanged.
+- New file and URL transcriptions now persist durable `transcriptSegments`
+  alongside word timestamps. Retranscription replaces the affected recording's
+  normalized segments so search results cannot retain the previous transcript.
+
+## [2.12.0] -- 2026-07-06
+
+### Added
+
+- `health --json` now reports `database.status: "schema_skew"` with a clear
+  upgrade message when the shared SQLite database contains migration
+  identifiers unknown to this CLI build. This turns stale-CLI/newer-app
+  database skew into an actionable `macparakeet-cli` upgrade prompt instead of
+  a generic GRDB decode/read error.
+- Destructive local mutators now support `--json` success output: `history
+  delete-dictation`, `history delete-transcription`, `history
+  delete-meeting-audio`, `history clear-meeting-audio`, `models delete`,
+  `models clear`, `vocab words delete`, and `vocab snippets delete`. The new
+  payloads report affected record/model IDs and/or counts while preserving the
+  existing human-readable output when `--json` is omitted. `models clear` now
+  surfaces a whisper-cache removal failure through the standard failure
+  envelope (exit `1`) instead of reporting unconditional success.
+- `spec --json` now documents the registered `feedback` command and the new
+  JSON modes for the destructive mutators above.
+- `config get|set|list` now includes `meeting-speaker-detection`, the saved
+  app-default speaker-detection setting used for meeting recording and meeting
+  retranscription.
+- `meetings artifact <meeting> --json|--envelope` now materializes a
+  deterministic top-level `meeting.md` alongside the existing
+  `manifest.json`, `transcript.json`, notes, and prompt-result files. The
+  returned `MeetingArtifactSnapshot` includes additive `markdownPath` and
+  optional `rawMicrophoneAudioPath`, `cleanedMicrophoneAudioPath`,
+  `rawSystemAudioPath`, and `playbackAudioPath` fields.
+- `meetings show --json` and `meetings export --stdout --format json` now
+  include additive `artifactMarkdownPath` and optional
+  `rawMicrophoneAudioPath`, `cleanedMicrophoneAudioPath`,
+  `rawSystemAudioPath`, and `playbackAudioPath` fields for meeting rows with
+  resolvable artifact folders.
+- `meetings show --json` and `meetings export --stdout --format json` now
+  include an optional local-only `calendarEventSnapshot` for meeting recordings
+  started from a calendar event or probably overlapping the current calendar
+  poll cache. The snapshot can include attendee/organizer names and emails;
+  these fields remain local user data and are not telemetry.
+- Added `retranscribe <record> --update` to rerun STT against retained source
+  audio for an existing saved dictation, transcription, or meeting in place.
+  Records resolve by UUID/prefix, with exact transcription/meeting title
+  lookup where unambiguous; `--kind dictation|transcription|meeting` constrains
+  resolution. The command supports the same speech-engine, model, language,
+  processing-mode, and transcription/meeting speaker-detection overrides as
+  `transcribe` where applicable, and emits either `--json` or `--envelope`
+  machine-readable output.
+- `meetings show --json` and `meetings transcript --format json` now include
+  additive `transcriptSegments` for meetings finalized with durable segments.
+  Each segment carries a UUID, start/end time, speaker/source label, text, and
+  a word-index range into `wordTimestamps`, so agents can cite stable meeting
+  transcript segments without deriving boundaries themselves.
+- `meetings show --json` and meeting JSON exports now include optional
+  `startContext` for rows recorded by versions that capture the local meeting
+  start snapshot. The field reports the trigger kind, configured source mode,
+  and frontmost app bundle id/name captured at recording start.
+
+### Changed
+
+- In DEBUG builds with `MACPARAKEET_DEBUG_APP_STATE_DIR` set, FluidAudio
+  speech/speaker models now resolve under that throwaway state root, and
+  `models clear` removes only that root instead of FluidAudio's global cache.
+  Destructive model commands (`models delete`, `models clear`) therefore no
+  longer touch the real user cache during scoped test runs. Release builds and
+  runs without the override are unchanged.
+- Meeting artifact audio filenames are now role-explicit: `microphone.m4a` →
+  `microphone-raw.m4a`, `system.m4a` → `system-raw.m4a`, and `meeting.m4a` →
+  `meeting-playback.m4a`. Paths surfaced through `MeetingArtifactSnapshot` and
+  meeting JSON output (`rawMicrophoneAudioPath`, `cleanedMicrophoneAudioPath`,
+  `rawSystemAudioPath`, `playbackAudioPath`, and `filePath` for playback) use
+  the new names for newly captured recordings. Archive loading, retranscription,
+  recovery, and cleanup continue to read the old filenames for recordings
+  created by earlier releases.
+- `retranscribe --kind meeting --speaker-detection app-default` now follows
+  the saved meeting speaker-detection preference. `transcribe` and
+  transcription retranscription continue to follow the saved file/URL
+  `speaker-detection` preference; explicit `--speaker-detection on|off`
+  remains a per-run override.
+- `transcribe` / `retranscribe` now apply local recognition-time custom
+  vocabulary boosting when the selected engine is Parakeet TDT (`v3` or `v2`)
+  and enabled `vocab words` entries have no replacement text. Unsupported
+  engines and empty vocabularies keep the previous unboosted path.
+- Human-readable `vocab words list` output now reports whether the current
+  app-default engine supports recognition-time vocabulary boosting. `--json`
+  output is unchanged.
+- `meetings export --format md --stdout` now uses the same shared Markdown
+  renderer as `meeting.md`, including YAML frontmatter, notes, transcript,
+  prompt-result index, artifact paths, and `speakerLabelsIncluded` metadata.
+- `spec --json` now documents `meetings export` JSON stdout mode as
+  `--stdout --format json`, matching the command's file-output default.
+- `transcribe` and transcription `retranscribe` app-default speaker detection
+  now resolve to `on` for a fresh file/URL preference store. `config get
+  speaker-detection` reports `on` when unset; meeting retranscription uses the
+  new `meeting-speaker-detection` app-default value. An explicit saved `off`,
+  `--speaker-detection off`, or `--no-diarize` still disables diarization for
+  the relevant workflow.
+- Plain-text `retranscribe` validation/misuse failures now use exit code `2`,
+  matching the JSON envelope path and the public exit-code contract.
+
+### Fixed
+
+- `vocab snippets delete <id>` now enforces the documented minimum
+  four-character UUID prefix, matching `vocab words delete` and the CLI lookup
+  contract. One-character snippet delete prefixes were a legacy loophole, not a
+  documented surface.
+- `transcribe --format json` now shields native STT diagnostics emitted
+  directly to stdout during inference and teardown, then restores stdout before
+  printing the payload. This keeps CoreML/E5RT runtime warnings from corrupting
+  JSON pipelines.
+
+## [2.11.0] -- 2026-06-28
+
+### Added
+
+- `transcribe --engine` now accepts `cohere` as an explicit on-device Cohere
+  Transcribe selection. `--language` is used as Cohere's required language hint
+  when provided; otherwise the saved Cohere language preference is used.
+- `config get|set|list` now includes `cohere-language`, the saved language used
+  by explicit `--engine cohere` and app-default Cohere transcription when
+  `--language` is omitted.
+- `models list`/`select`/`download`/`delete`/`status` include Cohere Transcribe
+  model availability alongside Parakeet, Nemotron, and Whisper.
+- Cohere transcription now fails fast when the local Cohere model is missing;
+  use `models download cohere-transcribe` for the explicit ~2.1 GB download.
+- `transcribe --format` now accepts `srt` and `vtt` in addition to `text`,
+  `transcript`, and `json`. Both emit timed subtitles through the same renderer
+  as `export --format srt|vtt`, so output is byte-identical between the two
+  paths. This lets `transcribe clip.mp3 --format vtt --output-dir .` write
+  `clip.vtt` in a single step instead of `transcribe` then `export <id>`. A
+  single input without `--output-dir` prints the subtitle to stdout (redirect
+  with `> clip.vtt`); multiple inputs or `--output-dir` write one file each.
+- `transcribe` now prints a short stderr hint after a saved single-input run
+  (text/transcript output), naming the new library record id and the `export`
+  command to turn it into a file. Suppressed for `--no-history`,
+  `--format json|srt|vtt`, and batch runs. stdout is unchanged.
+- `config get|set|list` now includes `auto-meeting-titles`, the shared
+  on/off preference for LLM-generated meeting recording titles.
+- `config get|set|list` now includes `meeting-audio-retention`:
+  `keep-forever`, `delete-after-<1-365>-days`, `<1-365>d`, or
+  `delete-immediately`.
+  The older `save-meeting-audio` key remains supported as a legacy alias:
+  `on` maps to `keep-forever`, and `off` maps to `delete-immediately`.
+- `config get|set|list` now includes `meeting-audio-source`:
+  `microphone-and-system` (default), `microphone-only`, or `system-only`.
+- `config get|set|list` now includes
+  `prefer-built-in-mic-bluetooth-output`, `voice-return-enabled`, and
+  `voice-return-triggers`, so support scripts can reproduce Bluetooth headset
+  routing and Voice Return settings without opening the GUI.
+- `prompts set --source file|youtube|podcast|meeting` scopes `--auto-run` /
+  `--no-auto-run` to one transcription source, matching the app's
+  source-scoped auto-run controls.
+- `transforms restore-defaults` can re-show hidden built-in Transforms, re-seed
+  deleted built-ins, or reset one built-in with `--transform <id-or-name>`.
+- `vocab words set <id> --enabled|--disabled` and
+  `vocab snippets edit <id> --enabled|--disabled` expose the same vocabulary
+  enablement controls shown in the app. Both support `--json` success output.
+
+### Changed
+
+- `transcribe --parakeet-model unified` and `retranscribe --parakeet-model
+  unified` now use Parakeet Unified's native 2080ms streaming export for final
+  transcription, so Unified results include word timestamps for JSON output,
+  exports, and speaker alignment. `models download parakeet-unified` prepares
+  the same timestamp-capable export instead of the older offline batch export.
+- `models delete cohere-transcribe` now removes an incomplete Cohere cache
+  directory as well as a fully downloaded model, so cancelled or failed
+  downloads can be cleaned up from the CLI.
+- `history clear-meeting-audio` now refuses to run while **any** meeting
+  recording lock file is present, including dead-owner sessions still
+  `.awaitingTranscription` in the background queue or pending crash recovery.
+  Previously it only refused while a recording's owning process was still
+  alive. This protects captured audio that has not yet been finalized into a
+  transcript (back-to-back meeting recording stops the recorder while final
+  transcription runs in the background). Stop, finish, or discard the pending
+  recording before clearing.
+- `history clear-meeting-audio` now removes retained meeting audio files while
+  preserving meeting artifact folders (`manifest.json`, `transcript.json`,
+  `notes.md`, and prompt-result files) and their discoverability from saved
+  meeting JSON output. `meetings list/show/artifact` continue to report the
+  artifact folder path after `filePath` has been cleared by audio deletion or
+  retention.
+- `prompts restore-defaults` continues to re-show hidden built-in Transforms
+  during the 2.x compatibility window. Use `transforms restore-defaults` for the
+  newer Transform-specific restore/reset surface.
+- `meeting-vad-sim` is now hidden from `--help`. It is an internal Phase-0
+  diagnostic that was never part of the `spec --json` agent surface; hiding it
+  aligns the human command listing with the machine catalog. The command still
+  runs when invoked by name.
+
+### Fixed
+
+- `prompts add --from-file <path>` and `transforms create --from-file <path>`
+  now expand a leading `~` in the path, matching `quick-prompts add --from-file`.
+  Previously `~/notes/prompt.md` failed with a "no such file" error.
+- `vocab words delete <id>` now applies the same trimming and minimum
+  4-character prefix guard as `vocab words set`. An empty or too-short id is
+  rejected with a validation error (exit `2`) instead of falling through to a
+  bare-prefix match that could delete the only word in the list.
+
+## [2.10.0] -- 2026-06-17
+
+### Added
+
+- New Parakeet model id **`parakeet-unified`** (NVIDIA Parakeet Unified EN
+  0.6B — English-only, ~565 MB int8). It is a selectable Parakeet build
+  alongside `parakeet-v3`/`parakeet-v2`:
+  - `transcribe --parakeet-model unified` transcribes the run with the Unified
+    offline build (strong English offline accuracy with punctuation and
+    capitalization). `app-default`/`v3`/`v2` are unchanged.
+  - `config set parakeet-model unified` persists it as the default Parakeet
+    build (aliases: `english-unified`, `unified-offline`). `config get
+    parakeet-model` returns `unified`.
+  - `models list`/`status` show it; `models download parakeet-unified`,
+    `models select parakeet-unified`, and `models delete parakeet-unified`
+    manage it. Alias spellings (`parakeet:unified`, `parakeet-english-unified`)
+    resolve the same. `models select` requires the model downloaded first.
+  - Additive only — no existing flag, id, or default behavior changes.
 
 ## [2.9.0] -- 2026-06-11
 
@@ -132,7 +774,8 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   first-class meeting session folder contract and returns a
   `MeetingArtifactSnapshot`. The folder contains `manifest.json`,
   `transcript.json`, `notes.md` when notes exist, `prompt-results.json`, and
-  per-result Markdown files under `prompt-results/`.
+  per-result Markdown files under `prompt-results/`. The canonical folder
+  contract lives in `spec/contracts/meeting-artifacts-v1.md`.
 - `config get|set|list` now includes `meeting-artifacts-folder`, which controls
   the root for future meeting session folders. Use `default` to clear the
   override and return to Application Support.
@@ -322,10 +965,11 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 - `meetings results list|add` exposes saved meeting PromptResults through the
   CLI. `add` stores externally generated output as a `PromptResult` without
   invoking an LLM, preserving the meeting transcript as the canonical object.
-- `meetings list --json`, `meetings show --json`, and `meetings export --format json`
-  now include `hasPromptResults` and `promptResultCount`, and Markdown exports
-  include the same count in metadata, so agents can tell whether structured
-  meeting outputs already exist before fetching result rows.
+- `meetings list --json`, `meetings show --json`, and `meetings export` with
+  `--stdout --format json` now include `hasPromptResults` and
+  `promptResultCount`, and Markdown exports include the same count in metadata,
+  so agents can tell whether structured meeting outputs already exist before
+  fetching result rows.
 - `llm` commands using `--provider lmstudio` now honor optional LM Studio API
   tokens via `--api-key`, `--api-key-env`, or `LM_API_TOKEN`.
 - `vocab snippets edit <id> --trigger ... --expansion ...` updates an existing
@@ -390,8 +1034,8 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
     [--json]` — headless install of a new Transform.
     Shortcut format: `opt+1`, `cmd+shift+P`, etc. Refuses bare-key
     bindings (must include a modifier).
-  - `transforms delete <id|name> [--json]` — deletes a custom
-    Transform. Built-ins are protected.
+  - `transforms delete <id|name> [--json]` — soft-deletes a custom or
+    built-in Transform through the same recoverable prompt lifecycle.
   - `transforms list/show/create --json` use a snake-cased `TransformDTO`
     payload (`id`, `name`, `shortcut`, `is_built_in`,
     `prompt`, `created_at`, `updated_at`). `transforms run --json`
@@ -686,7 +1330,7 @@ complete enough to commit to. This release marks that commitment.
 - Command abstract reframed from "internal developer CLI" to a public surface.
   The CLI is now positioned as the canonical Swift-native interface to
   Parakeet TDT on Apple Silicon, with the macOS app as one consumer of it.
-  Strategic context: `plans/active/cli-as-canonical-parakeet-surface.md`.
+  Strategic context: `plans/completed/cli-as-canonical-parakeet-surface.md`.
 
 ### Compatibility notes
 

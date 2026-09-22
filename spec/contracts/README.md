@@ -1,0 +1,58 @@
+# Boundary Contracts
+
+> Status: ACTIVE - canonical home for tested boundary contracts.
+
+Boundary contracts describe repo surfaces that other code, the CLI, local
+automation, support workflows, or future agents depend on. They sit between
+ADRs and tests: ADRs explain why a design exists, while these files define the
+stable shape that must not drift accidentally.
+
+## Format
+
+Each contract document should include:
+
+- Purpose: what boundary is being protected.
+- Producers: code paths that create or mutate the boundary.
+- Consumers: code paths, tools, or workflows that read it.
+- Stable fields: names, filenames, states, exit codes, or semantics tests must
+  protect.
+- Non-stable fields: timestamps, generated paths, ordering, copy, or other
+  values that may change without breaking the contract.
+- Versioning and compatibility: how additive and breaking changes are handled.
+- Tests that enforce this: exact XCTest classes or focused test names.
+- When this changes: docs, changelog, tests, or migration work required in the
+  same PR.
+
+## Rules
+
+- A PR that changes a listed boundary updates the matching contract doc and
+  focused tests in the same change.
+- Tests should pin semantic stability, not incidental formatting. Do not freeze
+  generated timestamps, absolute user paths, or unrelated pretty-print details.
+- Additive fields are allowed when existing consumers continue to work. Removing
+  or renaming stable fields requires an explicit version bump and migration or
+  compatibility story.
+
+## Current Contracts
+
+Planned contracts are listed separately below; they do not describe available payloads.
+
+- [Voice Control](voice-control.md) — gated shared speech, consent, foreground ownership and revocable execution
+- [Meeting Import v1](meeting-import-v1.md) — one-file app/CLI import, managed-media ownership, recovery, and durable results
+- [Split and Transcribe](meeting-splitting.md) — implemented shared Core, native app, and public CLI lifecycle
+- [Saved-Audio Auto-Prompt Completion](saved-audio-auto-prompt-completion.md)
+
+- [Meeting Artifacts v1](meeting-artifacts-v1.md)
+- [Meeting Recovery and Retention Safety](meeting-recovery-retention.md)
+- [CLI JSON v1](cli-json-v1.md)
+- [DAPT Export v1](dapt-export-v1.md)
+- [File Transcription Audio Tracks](file-transcription-audio-tracks.md)
+- [Custom Word Deletion](custom-word-deletion.md)
+- [Transcript Correction Submission](speaker-correction-view-model.md)
+- [Telemetry and Diagnostic Evidence](telemetry-v1.md)
+- [Share Link and Bundle v1](share-link-bundle-v1.md)
+- [Share Service v1](share-service-v1.md)
+
+## Planned Contracts
+
+- [Audio Speaker Timeline v1](audio-speaker-timeline-v1.md) — #836, independent detected audio turns for untimed transcripts; implementation and enforcement tests pending.

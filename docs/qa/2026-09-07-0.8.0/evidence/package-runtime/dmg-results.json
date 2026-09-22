@@ -1,0 +1,102 @@
+[
+  {
+    "name": "app-strict-signature",
+    "argv": [
+      "codesign",
+      "--verify",
+      "--deep",
+      "--strict",
+      "--verbose=2",
+      "<REPO>/dist/MacParakeet.app"
+    ],
+    "started_at_utc": "2026-09-07T23:35:40.809001+00:00",
+    "elapsed_seconds": 0.65,
+    "exit_code": 0,
+    "log": "app-strict-signature.log"
+  },
+  {
+    "name": "dmg-strict-signature",
+    "argv": [
+      "codesign",
+      "--verify",
+      "--strict",
+      "--verbose=2",
+      "<REPO>/dist/MacParakeet.dmg"
+    ],
+    "started_at_utc": "2026-09-07T23:35:41.459299+00:00",
+    "elapsed_seconds": 0.089,
+    "exit_code": 0,
+    "log": "dmg-strict-signature.log"
+  },
+  {
+    "name": "dmg-staple-validation",
+    "argv": [
+      "xcrun",
+      "stapler",
+      "validate",
+      "<REPO>/dist/MacParakeet.dmg"
+    ],
+    "started_at_utc": "2026-09-07T23:35:41.548714+00:00",
+    "elapsed_seconds": 0.27,
+    "exit_code": 0,
+    "log": "dmg-staple-validation.log"
+  },
+  {
+    "name": "dmg-gatekeeper",
+    "argv": [
+      "spctl",
+      "--assess",
+      "--type",
+      "open",
+      "--context",
+      "context:primary-signature",
+      "--verbose=4",
+      "<REPO>/dist/MacParakeet.dmg"
+    ],
+    "started_at_utc": "2026-09-07T23:35:41.818730+00:00",
+    "elapsed_seconds": 0.197,
+    "exit_code": 0,
+    "log": "dmg-gatekeeper.log"
+  },
+  {
+    "name": "dmg-image-verification",
+    "argv": [
+      "hdiutil",
+      "verify",
+      "<REPO>/dist/MacParakeet.dmg"
+    ],
+    "started_at_utc": "2026-09-07T23:35:42.015575+00:00",
+    "elapsed_seconds": 3.987,
+    "exit_code": 0,
+    "log": "dmg-image-verification.log"
+  },
+  {
+    "name": "dmg-attach-readonly",
+    "argv": [
+      "hdiutil",
+      "attach",
+      "<REPO>/dist/MacParakeet.dmg",
+      "-readonly",
+      "-nobrowse",
+      "-mountpoint",
+      "<QA>/package-runtime/dmg-readonly-omzzez5m",
+      "-plist"
+    ],
+    "started_at_utc": "2026-09-07T23:35:46.002601+00:00",
+    "elapsed_seconds": 0.353,
+    "exit_code": 0,
+    "log": "dmg-attach-readonly.log"
+  },
+  {
+    "name": "dmg-detach-owned-mount",
+    "argv": [
+      "hdiutil",
+      "detach",
+      "<QA>/package-runtime/dmg-readonly-omzzez5m"
+    ],
+    "started_at_utc": "2026-09-07T23:35:46.355972+00:00",
+    "elapsed_seconds": 0.195,
+    "exit_code": 0,
+    "log": "dmg-detach-owned-mount.log"
+  }
+]

@@ -14,6 +14,18 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         )
     }
 
+    func testWhisperModelVariantNormalizationRejectsUnsupportedVariants() {
+        XCTAssertEqual(
+            SpeechEnginePreference.normalizeModelVariant("whisper-large-v3-v20240930-turbo-632MB"),
+            SpeechEnginePreference.defaultWhisperModelVariant
+        )
+        XCTAssertEqual(
+            SpeechEnginePreference.normalizeModelVariant("whisper-large-v3-v20240930-Turbo-632MB"),
+            SpeechEnginePreference.defaultWhisperModelVariant
+        )
+        XCTAssertNil(SpeechEnginePreference.normalizeModelVariant("whisper-small"))
+    }
+
     func testEngineAlternativesPreserveStableParakeetToWhisperPath() {
         XCTAssertEqual(SpeechEnginePreference.parakeet.alternative, .whisper)
         XCTAssertEqual(SpeechEnginePreference.nemotron.alternative, .whisper)
@@ -33,6 +45,123 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         let whisperRuntime = STTRuntime(speechEngine: .whisper, defaults: defaults)
         let whisperSelection = await whisperRuntime.currentSpeechEngineSelection()
         XCTAssertEqual(whisperSelection, SpeechEngineSelection(engine: .whisper, language: "ko"))
+    }
+
+    func testTranscriptionEngineInheritsDictationEngineUntilExplicitlySeparated() {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        SpeechEnginePreference.whisper.save(to: defaults)
+        SpeechEnginePreference.saveWhisperDefaultLanguage("KO_kr", defaults: defaults)
+
+        XCTAssertEqual(SpeechEnginePreference.transcription(defaults: defaults), .whisper)
+        XCTAssertEqual(
+            SpeechEngineSelection.transcription(defaults: defaults),
+            SpeechEngineSelection(engine: .whisper, language: "ko")
+        )
+    }
+
+    func testTranscriptionEnginePersistsWithoutChangingDictationEngine() {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        SpeechEnginePreference.parakeet.save(to: defaults)
+        SpeechEnginePreference.cohere.saveForTranscriptions(to: defaults)
+        SpeechEnginePreference.saveCohereDefaultLanguage("fr", defaults: defaults)
+
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: defaults), .parakeet)
+        XCTAssertEqual(SpeechEnginePreference.transcription(defaults: defaults), .cohere)
+        XCTAssertEqual(
+            SpeechEngineSelection.transcription(defaults: defaults),
+            SpeechEngineSelection(engine: .cohere, language: "fr")
+        )
+    }
+
+    func testFinalTranscriptionWithoutOverrideFollowsLaterLiveSpeechChanges() {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        SpeechEnginePreference.parakeet.save(to: defaults)
+        XCTAssertFalse(SpeechEnginePreference.hasFinalTranscriptionOverride(defaults: defaults))
+        XCTAssertEqual(SpeechEnginePreference.finalTranscription(defaults: defaults), .parakeet)
+
+        SpeechEnginePreference.whisper.save(to: defaults)
+
+        XCTAssertFalse(SpeechEnginePreference.hasFinalTranscriptionOverride(defaults: defaults))
+        XCTAssertEqual(SpeechEnginePreference.finalTranscription(defaults: defaults), .whisper)
+    }
+
+    func testFinalTranscriptionOverrideRemainsIndependentFromLiveSpeech() {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        SpeechEnginePreference.parakeet.save(to: defaults)
+        SpeechEnginePreference.saveFinalTranscriptionOverride(.cohere, defaults: defaults)
+        SpeechEnginePreference.whisper.save(to: defaults)
+
+        XCTAssertTrue(SpeechEnginePreference.hasFinalTranscriptionOverride(defaults: defaults))
+        XCTAssertEqual(SpeechEnginePreference.finalTranscription(defaults: defaults), .cohere)
+    }
+
+    func testClearingFinalTranscriptionOverrideRestoresLiveSpeechInheritance() {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        SpeechEnginePreference.whisper.save(to: defaults)
+        SpeechEnginePreference.saveFinalTranscriptionOverride(.parakeet, defaults: defaults)
+
+        SpeechEnginePreference.saveFinalTranscriptionOverride(nil, defaults: defaults)
+
+        XCTAssertFalse(SpeechEnginePreference.hasFinalTranscriptionOverride(defaults: defaults))
+        XCTAssertNil(defaults.object(forKey: SpeechEnginePreference.transcriptionDefaultsKey))
+        XCTAssertEqual(SpeechEnginePreference.finalTranscription(defaults: defaults), .whisper)
+    }
+
+    func testEqualValuedFinalOverrideIsStillExplicitByKeyPresence() {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        SpeechEnginePreference.parakeet.save(to: defaults)
+        SpeechEnginePreference.saveFinalTranscriptionOverride(.parakeet, defaults: defaults)
+
+        XCTAssertTrue(SpeechEnginePreference.hasFinalTranscriptionOverride(defaults: defaults))
+
+        SpeechEnginePreference.whisper.save(to: defaults)
+        XCTAssertEqual(SpeechEnginePreference.finalTranscription(defaults: defaults), .parakeet)
+    }
+
+    func testMaterializedEqualFinalRouteMigratesBackToInheritanceOnce() {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        SpeechEnginePreference.parakeet.save(to: defaults)
+        SpeechEnginePreference.parakeet.saveForTranscriptions(to: defaults)
+
+        SpeechEnginePreference.migrateMaterializedFinalTranscriptionOverrideIfNeeded(
+            defaults: defaults
+        )
+
+        XCTAssertFalse(SpeechEnginePreference.hasFinalTranscriptionOverride(defaults: defaults))
+        XCTAssertNil(defaults.object(forKey: SpeechEnginePreference.transcriptionDefaultsKey))
+
+        SpeechEnginePreference.saveFinalTranscriptionOverride(.parakeet, defaults: defaults)
+        SpeechEnginePreference.migrateMaterializedFinalTranscriptionOverrideIfNeeded(
+            defaults: defaults
+        )
+        XCTAssertTrue(SpeechEnginePreference.hasFinalTranscriptionOverride(defaults: defaults))
+    }
+
+    func testMaterializedMigrationPreservesDifferentFinalRoute() {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        SpeechEnginePreference.parakeet.save(to: defaults)
+        SpeechEnginePreference.whisper.saveForTranscriptions(to: defaults)
+
+        SpeechEnginePreference.migrateMaterializedFinalTranscriptionOverrideIfNeeded(
+            defaults: defaults
+        )
+
+        XCTAssertTrue(SpeechEnginePreference.hasFinalTranscriptionOverride(defaults: defaults))
+        XCTAssertEqual(SpeechEnginePreference.finalTranscription(defaults: defaults), .whisper)
     }
 
     // MARK: - Whisper optimized-variant tracking
@@ -90,13 +219,24 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         XCTAssertTrue(SpeechEnginePreference.hasOptimizedWhisper(variant: bare, defaults: defaults))
     }
 
-    func testWhisperOptimizedIsTrackedPerVariant() {
+    func testWhisperOptimizedIgnoresUnsupportedVariants() {
         let (defaults, suite) = makeIsolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
 
-        SpeechEnginePreference.markWhisperOptimized(variant: "large-v3-turbo", defaults: defaults)
+        SpeechEnginePreference.markWhisperOptimized(variant: "small", defaults: defaults)
 
-        XCTAssertTrue(SpeechEnginePreference.hasOptimizedWhisper(variant: "large-v3-turbo", defaults: defaults))
+        XCTAssertFalse(SpeechEnginePreference.hasOptimizedWhisper(variant: "small", defaults: defaults))
+        XCTAssertNil(defaults.stringArray(forKey: SpeechEnginePreference.whisperOptimizedVariantsKey))
+    }
+
+    func testWhisperOptimizedRequiresSupportedVariant() {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let supported = SpeechEnginePreference.defaultWhisperModelVariant
+        SpeechEnginePreference.markWhisperOptimized(variant: supported, defaults: defaults)
+
+        XCTAssertTrue(SpeechEnginePreference.hasOptimizedWhisper(variant: supported, defaults: defaults))
         XCTAssertFalse(SpeechEnginePreference.hasOptimizedWhisper(variant: "small", defaults: defaults))
     }
 
@@ -112,17 +252,16 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         XCTAssertFalse(SpeechEnginePreference.hasOptimizedWhisper(variant: variant, defaults: defaults))
     }
 
-    func testClearWhisperOptimizedLeavesOtherVariantsIntact() {
+    func testClearWhisperOptimizedIgnoresUnsupportedVariants() {
         let (defaults, suite) = makeIsolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
 
-        SpeechEnginePreference.markWhisperOptimized(variant: "large-v3-turbo", defaults: defaults)
-        SpeechEnginePreference.markWhisperOptimized(variant: "small", defaults: defaults)
+        let supported = SpeechEnginePreference.defaultWhisperModelVariant
+        SpeechEnginePreference.markWhisperOptimized(variant: supported, defaults: defaults)
 
-        SpeechEnginePreference.clearWhisperOptimized(variant: "large-v3-turbo", defaults: defaults)
+        SpeechEnginePreference.clearWhisperOptimized(variant: "small", defaults: defaults)
 
-        XCTAssertFalse(SpeechEnginePreference.hasOptimizedWhisper(variant: "large-v3-turbo", defaults: defaults))
-        XCTAssertTrue(SpeechEnginePreference.hasOptimizedWhisper(variant: "small", defaults: defaults))
+        XCTAssertTrue(SpeechEnginePreference.hasOptimizedWhisper(variant: supported, defaults: defaults))
     }
 
     func testClearWhisperOptimizedIsIdempotentWhenAbsent() {
@@ -179,6 +318,56 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         XCTAssertEqual(ParakeetModelVariant.v2.alternative, .v3)
     }
 
+    // MARK: - Parakeet Unified variant (issue #520)
+
+    func testParakeetUnifiedVariantRoundTrips() {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        SpeechEnginePreference.saveParakeetModelVariant(.unified, defaults: defaults)
+        XCTAssertEqual(SpeechEnginePreference.parakeetModelVariant(defaults: defaults), .unified)
+        XCTAssertEqual(ParakeetModelVariant(rawValue: "unified"), .unified)
+    }
+
+    func testParakeetUnifiedHasNoAsrModelVersionAndUsesUnifiedEngine() {
+        // Unified is a separate FluidAudio runtime — no TDT `AsrModelVersion`.
+        XCTAssertNil(ParakeetModelVariant.unified.asrModelVersion)
+        XCTAssertTrue(ParakeetModelVariant.unified.usesUnifiedEngine)
+        XCTAssertFalse(ParakeetModelVariant.v2.usesUnifiedEngine)
+        XCTAssertFalse(ParakeetModelVariant.v3.usesUnifiedEngine)
+    }
+
+    func testParakeetUnifiedIsEnglishOnlyAndListed() {
+        XCTAssertTrue(ParakeetModelVariant.unified.isEnglishOnly)
+        // Surfaced as a selectable Parakeet build everywhere `.allCases` drives a
+        // picker (Settings, `models list`).
+        XCTAssertTrue(ParakeetModelVariant.allCases.contains(.unified))
+        XCTAssertEqual(ParakeetModelVariant.unified.modelName, "Parakeet Unified 0.6B")
+    }
+
+    func testSpeechModelVariantSummariesStayUserFacing() {
+        XCTAssertEqual(
+            ParakeetModelVariant.v3.coverageSummary,
+            "Fast local default for English and supported European languages. Includes word timestamps."
+        )
+        XCTAssertEqual(
+            ParakeetModelVariant.v2.coverageSummary,
+            "English-only option for stable meetings and exports. Includes word timestamps."
+        )
+        XCTAssertEqual(
+            ParakeetModelVariant.unified.coverageSummary,
+            "Readable English with live preview. Includes word timestamps for exports."
+        )
+        XCTAssertEqual(
+            NemotronModelVariant.multilingual1120.coverageSummary,
+            "Beta multilingual live preview. Broader coverage, quality varies by language."
+        )
+        XCTAssertEqual(
+            NemotronModelVariant.english1120.coverageSummary,
+            "Beta English live preview. Quality is still being validated."
+        )
+    }
+
     // MARK: - Nemotron model variant
 
     func testNemotronModelVariantDefaultsToMultilingual1120() {
@@ -225,13 +414,14 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         let (defaults, suite) = makeIsolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
 
-        SpeechEnginePreference.saveWhisperModelVariant("small", defaults: defaults)
+        let supported = SpeechEnginePreference.defaultWhisperModelVariant
+        SpeechEnginePreference.saveWhisperModelVariant(supported, defaults: defaults)
 
         XCTAssertFalse(SpeechEnginePreference.isColdSwitch(to: .parakeet, defaults: defaults))
         XCTAssertFalse(SpeechEnginePreference.isColdSwitch(to: .nemotron, defaults: defaults))
         XCTAssertTrue(SpeechEnginePreference.isColdSwitch(to: .whisper, defaults: defaults))
 
-        SpeechEnginePreference.markWhisperOptimized(variant: "small", defaults: defaults)
+        SpeechEnginePreference.markWhisperOptimized(variant: supported, defaults: defaults)
 
         XCTAssertFalse(SpeechEnginePreference.isColdSwitch(to: .whisper, defaults: defaults))
     }

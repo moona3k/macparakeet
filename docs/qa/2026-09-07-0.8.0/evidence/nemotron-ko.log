@@ -1,0 +1,21 @@
+Transcribing ko_kr_0000.wav with nemotron...
+Converting audio...
+Preparing speech model...
+[15:01:26.341] [INFO] [FluidAudio.NemotronMultilingualStreaming] Using cached multilingual variant at /tmp/macparakeet-080-qa/isolated-home/Library/Application Support/FluidAudio/Models/nemotron-multilingual/multilingual/1120ms
+[15:01:26.341] [INFO] [FluidAudio.NemotronMultilingualStreaming] Preloading shared Nemotron multilingual models from /tmp/macparakeet-080-qa/isolated-home/Library/Application Support/FluidAudio/Models/nemotron-multilingual/multilingual/1120ms...
+[15:01:26.341] [INFO] [FluidAudio.NemotronMultilingualStreaming] Loaded multilingual config: 1120ms chunks, vocab=13087, 128 prompts
+[15:01:46.323] [INFO] [FluidAudio.NemotronMultilingualStreaming] Loaded shared decoder.mlmodelc
+[15:01:46.465] [INFO] [FluidAudio.NemotronMultilingualStreaming] Loaded shared joint.mlmodelc
+[15:01:46.748] [INFO] [FluidAudio.NemotronMultilingualStreaming] Loaded shared decoder_joint.mlmodelc
+[15:01:46.772] [INFO] [FluidAudio.NemotronMultilingualStreaming] Shared models preload complete — ready for N consumers
+[15:01:46.805] [INFO] [FluidAudio.NemotronMultilingualStreaming] Nemotron multilingual manager initialized from shared models (1120ms chunks).
+[15:01:46.832] [INFO] [FluidAudio.NemotronMultilingualStreaming] Nemotron multilingual manager initialized from shared models (1120ms chunks).
+[15:01:46.834] [INFO] [FluidAudio.NemotronMultilingualStreaming] Prompt id set to 14 for language ko
+[15:01:46.837] [INFO] [FluidAudio.NemotronMultilingualStreaming] Prompt id set to 14 for language ko
+Transcribing... 0%
+[15:01:46.846] [INFO] [FluidAudio.NemotronMultilingualStreaming] Prompt id set to 14 for language ko
+Transcribing... 25%
+Transcribing... 90%
+Transcribing... 99%
+[15:01:47.793] [INFO] [FluidAudio.NemotronMultilingualStreaming] StreamingNemotronMultilingualAsrManager resources cleaned up
+[15:01:47.810] [INFO] [FluidAudio.NemotronMultilingualStreaming] StreamingNemotronMultilingualAsrManager resources cleaned up

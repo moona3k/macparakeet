@@ -1,0 +1,17 @@
+Transcribing 1089-134686-0000.flac with parakeet...
+Converting audio...
+Preparing speech model...
+[14:57:02.919] [INFO] [FluidAudio.DownloadUtils] Host environment: macOS Version 26.6.2 (Build 25G83), arch=arm64, chip=Apple M4 Pro, cores=14/14, mem=48 GB, rosetta=false
+[14:57:02.922] [INFO] [FluidAudio.DownloadUtils] Found parakeet-unified-en-0.6b locally, no download needed
+[14:57:02.922] [INFO] [FluidAudio.UnifiedStreaming] Loading Parakeet Unified CoreML models from /tmp/macparakeet-080-qa/isolated-home/Library/Application Support/FluidAudio/Models/parakeet-unified-en-0.6b...
+[14:57:15.052] [INFO] [FluidAudio.UnifiedStreaming] Parakeet Unified models loaded (latency 2080ms).
+[14:57:15.053] [INFO] [FluidAudio.DownloadUtils] Found parakeet-unified-en-0.6b locally, no download needed
+[14:57:15.053] [INFO] [FluidAudio.UnifiedStreaming] Loading Parakeet Unified CoreML models from /tmp/macparakeet-080-qa/isolated-home/Library/Application Support/FluidAudio/Models/parakeet-unified-en-0.6b...
+[14:57:15.145] [INFO] [FluidAudio.UnifiedStreaming] Parakeet Unified models loaded (latency 2080ms).
+Transcribing... 0%
+Transcribing... 20%
+Transcribing... 87%
+Transcribing... 90%
+Transcribing... 99%
+[14:57:15.757] [INFO] [FluidAudio.UnifiedStreaming] StreamingUnifiedAsrManager resources cleaned up
+[14:57:15.769] [INFO] [FluidAudio.UnifiedStreaming] StreamingUnifiedAsrManager resources cleaned up

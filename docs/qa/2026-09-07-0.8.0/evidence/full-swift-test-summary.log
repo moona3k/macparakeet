@@ -1,0 +1,82 @@
+Command: MACPARAKEET_TELEMETRY=0 swift test
+Product candidate: 96b20252; documentation HEAD b7dfbb680d1d73a0ac0ca11b307e678ca93151f2
+Exit status: 0
+One full-suite invocation; no repeat.
+Raw log SHA256: a985f70ce0a76e2b5d3bee6c41dae9f1e880a2fdd60ddc25023229f95e3116b2
+
+Tests/MacParakeetTests/STT/CohereTranscribeEngineTests.swift:332: -[MacParakeetTests.CohereTranscribeEngineTests testLongDictationIsNotTruncated] : Test skipped - Set COHERE_E2E_CLIP to a long (>98-token) .wav to run this on-device check.
+Tests/MacParakeetTests/Benchmarks/LongMeetingPipelineBenchmarkTests.swift:45: -[MacParakeetTests.LongMeetingPipelineBenchmarkTests testDefaultDualTrackMeetingPostStopPipelineBenchmark] : Test skipped - Set MACPARAKEET_LONG_MEETING_PIPELINE_BENCH=1 to run the long-meeting full-pipeline benchmark.
+Tests/MacParakeetTests/Services/LLM/MLXLocalLLMIntegrationTests.swift:11: -[MacParakeetTests.MLXLocalLLMIntegrationTests testRealMLXConnectionSmokeWhenGatedBuildAndLocalModelArePresent] : Test skipped - Set MACPARAKEET_RUN_MLX_LOCAL_LLM_INTEGRATION=1 to run the real MLX local LLM smoke.
+Tests/MacParakeetTests/Services/Capture/MeetingAecModelScoringTests.swift:130: -[MacParakeetTests.MeetingAecModelScoringTests testLocalVQEModelDecisionGate] : Test skipped - Set MACPARAKEET_TEST_LOCALVQE_LIBRARY and MACPARAKEET_TEST_LOCALVQE_MODELS to score real LocalVQE models.
+Tests/MacParakeetTests/Services/Capture/MeetingAecRenderThroughputTests.swift:20: -[MacParakeetTests.MeetingAecRenderThroughputTests testLocalVQECleanedMicRenderThroughput] : Test skipped - Set MACPARAKEET_TEST_LOCALVQE_LIBRARY and MACPARAKEET_TEST_LOCALVQE_MODEL to measure real LocalVQE render throughput.
+Tests/MacParakeetTests/Services/Capture/MeetingEchoSuppressionRuntimeTests.swift:276: -[MacParakeetTests.MeetingEchoSuppressionRuntimeTests testRealLocalVQERuntimeLoadsWhenTestAssetsAreProvided] : Test skipped - Set MACPARAKEET_TEST_LOCALVQE_LIBRARY and MACPARAKEET_TEST_LOCALVQE_MODEL to run real LocalVQE load verification.
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingCrashRecoveryTests.swift:17: -[MacParakeetTests.MeetingRecordingCrashRecoveryTests testKillNineMidRecordingProducesPlayableFiles] : Test skipped - Set MACPARAKEET_CRASH_RECOVERY_TESTS=1 to run the kill-9 crash-recovery integration test.
+Tests/MacParakeetTests/Audio/MicrophoneEngineRealPlatformTests.swift:58: -[MacParakeetTests.MicrophoneEngineRealPlatformTests testColdStartDeliversBuffers] : Test skipped - Set MACPARAKEET_HARDWARE_TESTS=1 to run real-platform integration tests.
+Tests/MacParakeetTests/Audio/MicrophoneEngineRealPlatformTests.swift:58: -[MacParakeetTests.MicrophoneEngineRealPlatformTests testConcurrentVPIODeliversBuffersToLateNonVPIOSubscriber] : Test skipped - Set MACPARAKEET_HARDWARE_TESTS=1 to run real-platform integration tests.
+Tests/MacParakeetTests/Audio/MicrophoneEngineRealPlatformTests.swift:58: -[MacParakeetTests.MicrophoneEngineRealPlatformTests testConfigurationChangeDuringDeviceSetupKeepsPreparedEngine] : Test skipped - Set MACPARAKEET_HARDWARE_TESTS=1 to run real-platform integration tests.
+Tests/MacParakeetTests/Audio/MicrophoneEngineRealPlatformTests.swift:58: -[MacParakeetTests.MicrophoneEngineRealPlatformTests testDefaultInputSwitchWhileSharedStreamRunningKeepsDeliveringBuffers] : Test skipped - Set MACPARAKEET_HARDWARE_TESTS=1 to run real-platform integration tests.
+Tests/MacParakeetTests/Audio/MicrophoneEngineRealPlatformTests.swift:58: -[MacParakeetTests.MicrophoneEngineRealPlatformTests testDeferredVPIOPromotionDeliversBuffersAfterRawSubscriberLeaves] : Test skipped - Set MACPARAKEET_HARDWARE_TESTS=1 to run real-platform integration tests.
+Tests/MacParakeetTests/Audio/MicrophoneEngineRealPlatformTests.swift:58: -[MacParakeetTests.MicrophoneEngineRealPlatformTests testDelayedUnchangedConfigurationChangeKeepsPreparedEngine] : Test skipped - Set MACPARAKEET_HARDWARE_TESTS=1 to run real-platform integration tests.
+Tests/MacParakeetTests/Audio/MicrophoneEngineRealPlatformTests.swift:58: -[MacParakeetTests.MicrophoneEngineRealPlatformTests testIdleGapDeliversBuffers] : Test skipped - Set MACPARAKEET_HARDWARE_TESTS=1 to run real-platform integration tests.
+Tests/MacParakeetTests/Audio/MicrophoneEngineRealPlatformTests.swift:58: -[MacParakeetTests.MicrophoneEngineRealPlatformTests testPostCycleDeliversBuffers] : Test skipped - Set MACPARAKEET_HARDWARE_TESTS=1 to run real-platform integration tests.
+Tests/MacParakeetTests/Audio/MicrophoneEngineRealPlatformTests.swift:58: -[MacParakeetTests.MicrophoneEngineRealPlatformTests testPostVPIODeliversBuffers] : Test skipped - Set MACPARAKEET_HARDWARE_TESTS=1 to run real-platform integration tests.
+Tests/MacParakeetTests/Audio/MicrophoneEngineRealPlatformTests.swift:58: -[MacParakeetTests.MicrophoneEngineRealPlatformTests testPreparedStartDeliversBuffers] : Test skipped - Set MACPARAKEET_HARDWARE_TESTS=1 to run real-platform integration tests.
+Tests/MacParakeetTests/Audio/MicrophoneEngineRealPlatformTests.swift:58: -[MacParakeetTests.MicrophoneEngineRealPlatformTests testPreparedStartWithDifferentBufferSizeFallsBackCleanly] : Test skipped - Set MACPARAKEET_HARDWARE_TESTS=1 to run real-platform integration tests.
+Tests/MacParakeetTests/Audio/MicrophoneEngineRealPlatformTests.swift:58: -[MacParakeetTests.MicrophoneEngineRealPlatformTests testStressFiftySharedStreamCycles] : Test skipped - Set MACPARAKEET_HARDWARE_TESTS=1 to run real-platform integration tests.
+Tests/MacParakeetTests/Audio/MicrophoneEngineRealPlatformTests.swift:58: -[MacParakeetTests.MicrophoneEngineRealPlatformTests testStressTenCycles] : Test skipped - Set MACPARAKEET_HARDWARE_TESTS=1 to run real-platform integration tests.
+
+◇ Test "does not classify arbitrary custom descriptions as error types" started.
+◇ Test "classifies CancellationError" started.
+◇ Test "redacts quoted credential values without leaking their suffix" started.
+◇ Test "redacts complete paths containing spaces and punctuation" started.
+◇ Test "errorDetail replaces temp paths with <path>" started.
+◇ Test "classifies NSError with a known platform domain and code" started.
+◇ Test "omits identifier-shaped private NSError domains" started.
+◇ Test "classifies AudioProcessorError cases with case name" started.
+◇ Test "errorDetail replaces file:// URLs with <path>" started.
+◇ Test "classifies STTError cases with case name" started.
+◇ Test "preserves CoreAudio status in the microphone engine start wrapper" started.
+◇ Test "does not scrape arbitrary numeric data from microphone errors" started.
+◇ Test "errorDetail truncates to 512 characters" started.
+◇ Test "preserves the allowlisted Foundation and CoreAudio domain codes" started.
+◇ Test "rejects NSError domains containing paths or user content" started.
+◇ Test "input_kind serializes to the enum case name; no path/URL substrings leak into any prop value" started.
+◇ Test "cli_operation prop keys stay within the documented allowlist" started.
+◇ Test "cli_operation never emits forbidden keys, even with a YouTube input_kind" started.
+◇ Test "errorDetail handles multiple paths in one message" started.
+◇ Test "preserves the fixed interrupted-subscribe diagnostic without free-form text" started.
+◇ Test "errorDetail replaces user home paths with <path>" started.
+◇ Test "preserves useful technical dimensions" started.
+✔ Test "wordCount counts whitespace-delimited words without changing semantics" passed after 0.001 seconds.
+✔ Test "classifies URLError with code name" passed after 0.001 seconds.
+✔ Test "classifies CancellationError" passed after 0.001 seconds.
+✔ Test "omits identifier-shaped private NSError domains" passed after 0.001 seconds.
+✔ Test "classifies NSError with a known platform domain and code" passed after 0.001 seconds.
+✔ Test "classifies STTError cases with case name" passed after 0.001 seconds.
+✔ Test "preserves the allowlisted Foundation and CoreAudio domain codes" passed after 0.001 seconds.
+✔ Test "input_kind serializes to the enum case name; no path/URL substrings leak into any prop value" passed after 0.001 seconds.
+✔ Test "does not classify arbitrary custom descriptions as error types" passed after 0.001 seconds.
+✔ Test "classifies DictationServiceError cases with case name" passed after 0.001 seconds.
+✔ Test "rejects NSError domains containing paths or user content" passed after 0.001 seconds.
+✔ Test "cli_operation never emits forbidden keys, even with a YouTube input_kind" passed after 0.001 seconds.
+✔ Test "classifies AudioProcessorError cases with case name" passed after 0.001 seconds.
+✔ Test "cli_operation prop keys stay within the documented allowlist" passed after 0.001 seconds.
+✔ Test "preserves the fixed interrupted-subscribe diagnostic without free-form text" passed after 0.001 seconds.
+✔ Test "errorDetail handles multiple paths in one message" passed after 0.001 seconds.
+✔ Test "errorDetail returns localizedDescription" passed after 0.001 seconds.
+✔ Test "preserves useful technical dimensions" passed after 0.001 seconds.
+✔ Test "does not scrape arbitrary numeric data from microphone errors" passed after 0.001 seconds.
+✔ Test "errorDetail replaces http(s) URLs with <url>" passed after 0.001 seconds.
+✔ Test "file URI redaction preserves words ending in file" passed after 0.001 seconds.
+✔ Test "errorDetail replaces user home paths with <path>" passed after 0.001 seconds.
+✔ Test "errorDetail replaces temp paths with <path>" passed after 0.001 seconds.
+✔ Test "errorDetail truncates to 512 characters" passed after 0.001 seconds.
+✔ Test "errorDetail replaces file:// URLs with <path>" passed after 0.001 seconds.
+✔ Suite "cli_operation privacy schema" passed after 0.002 seconds.
+✔ Suite "Observability" passed after 0.002 seconds.
+✔ Test "redacts email addresses and recognizable credentials" passed after 0.002 seconds.
+✔ Test "redacts complete paths containing spaces and punctuation" passed after 0.002 seconds.
+✔ Test "redacts quoted credential values without leaking their suffix" passed after 0.002 seconds.
+✔ Test "preserves CoreAudio status in the microphone engine start wrapper" passed after 0.006 seconds.
+✔ Suite "TelemetryErrorClassifier" passed after 0.007 seconds.
+✔ Test run with 29 tests in 3 suites passed after 0.007 seconds.

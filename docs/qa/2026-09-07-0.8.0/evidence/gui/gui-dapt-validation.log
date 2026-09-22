@@ -1,0 +1,3 @@
+INFO:root:Validating /tmp/macparakeet-080-qa/isolated-home/Downloads/two-tracks.dapt.xml
+INFO:root:Writing results to /tmp/macparakeet-080-qa/evidence/gui-dapt-bbc.json
+INFO:root:Document appears to be valid DAPT.

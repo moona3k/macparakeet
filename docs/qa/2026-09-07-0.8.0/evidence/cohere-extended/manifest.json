@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "description": "Public FLEURS Cohere follow-ups. Content and metadata retained; absolute QA and fixture roots replaced with documented placeholders. Source hashes identify original local files; curated hashes identify these sanitized copies.",
+  "binarySHA256": "f8a62b79ece6045909d15ece2fd086eed7e10ca04ebc870d9fc50ed76774f095",
+  "compiledSource": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0 plus c506d7ef7d4cf98f3986cfb5de84ced6b4ce701e",
+  "placeholders": {
+    "<QA_ROOT>": "Owned release-QA temporary root",
+    "<PUBLIC_FLEURS>": "Local public FLEURS fixture directory"
+  },
+  "artifacts": [
+    {
+      "path": "ja-result.json",
+      "sourceRelativePath": "result.json",
+      "sourceSHA256": "92ed71f8ff5d47fc1b66e2e88e137305d2e71bf92b2b1253772e71b35ff8c937",
+      "curatedSHA256": "f253408eb4fd293823faaafaa67c0d74b5b4b4b15e2ad08fd2097c7e182afa3c",
+      "sizeBytes": 2032,
+      "transformation": "Replace absolute QA and public fixture roots only; all transcript/log content retained."
+    },
+    {
+      "path": "ja-stdout.json",
+      "sourceRelativePath": "stdout.json",
+      "sourceSHA256": "f6c878f3ece0fcaef299a8740850b6964576426f3e0c429b2c7968840cc066d7",
+      "curatedSHA256": "84179bd3d2bb439c2f0e9e755390648e7c6a5817405b5fac0672b991850d1d88",
+      "sizeBytes": 999,
+      "transformation": "Replace the JSON-escaped absolute public fixture root with <PUBLIC_FLEURS>; every other decoded value unchanged."
+    },
+    {
+      "path": "ja-stderr.log",
+      "sourceRelativePath": "stderr.log",
+      "sourceSHA256": "dfe70a40caed3cd1547a60b93bd04dbb7456f68fe0bcc78f3e339ad3f027c55a",
+      "curatedSHA256": "ebca40f76b21145ff7008c46c6a8ea026a6cd4dcb056edfb770c0099b870bf4c",
+      "sizeBytes": 624,
+      "transformation": "Replace absolute QA and public fixture roots only; all transcript/log content retained."
+    },
+    {
+      "path": "ko-result.json",
+      "sourceRelativePath": "ko/result.json",
+      "sourceSHA256": "d2f55bda6f25796057119b522c030b09ed3c67b7ad9c14fe7bc30403296cc914",
+      "curatedSHA256": "bb8dbc9367c19b97b5d722d4f7104eab4158e497d5ac84fd390af0c478dc0764",
+      "sizeBytes": 2098,
+      "transformation": "Replace absolute QA and public fixture roots only; all transcript/log content retained."
+    },
+    {
+      "path": "ko-stdout.json",
+      "sourceRelativePath": "ko/stdout.json",
+      "sourceSHA256": "9c2ed9b7afabc12b42de9e98adaa33dfa4186869cb8b1c735707bb58b8fc1216",
+      "curatedSHA256": "20c5202dac221e9deb6d680b32aa8b3398b34bdd36e0873a48d018e706f50d67",
+      "sizeBytes": 1031,
+      "transformation": "Replace the JSON-escaped absolute public fixture root with <PUBLIC_FLEURS>; every other decoded value unchanged."
+    },
+    {
+      "path": "ko-stderr.log",
+      "sourceRelativePath": "ko/stderr.log",
+      "sourceSHA256": "6ef2a3459edc8c0e57354207877a760c1200a633714ae8ee86596f3a5fdbfc92",
+      "curatedSHA256": "cf94b721de5072f3567db1de35940998306d41e4267e5af009e6812a221836d9",
+      "sizeBytes": 624,
+      "transformation": "Replace absolute QA and public fixture roots only; all transcript/log content retained."
+    },
+    {
+      "path": "zh-result.json",
+      "sourceRelativePath": "zh/result.json",
+      "sourceSHA256": "0ca2ceb862c3019028c70012789e578cd087c599801c5b3c6a94d8690e37e0a1",
+      "curatedSHA256": "c754e382c155377a1aff87addeba55109502137239f337be8e45cd2bcecd5eff",
+      "sizeBytes": 2035,
+      "transformation": "Replace absolute QA and public fixture roots only; all transcript/log content retained."
+    },
+    {
+      "path": "zh-stdout.json",
+      "sourceRelativePath": "zh/stdout.json",
+      "sourceSHA256": "73bb1244ac45ab597a864cb8754e94a383a6bdfe608057ea912515f28e5e6955",
+      "curatedSHA256": "553d5d00b41b075c510c616cede71f0c3ef74da9d62acdb9a55308d44aa8dd52",
+      "sizeBytes": 825,
+      "transformation": "Replace the JSON-escaped absolute public fixture root with <PUBLIC_FLEURS>; every other decoded value unchanged."
+    },
+    {
+      "path": "zh-stderr.log",
+      "sourceRelativePath": "zh/stderr.log",
+      "sourceSHA256": "186983fc6d29f10cb952eb9986fed761b1191da5aade48c4af435b319cbd0835",
+      "curatedSHA256": "051e5d2c282bf7961092a9b55e836ca07645f6bcbc4651e3c262fc640e98e340",
+      "sizeBytes": 630,
+      "transformation": "Replace absolute QA and public fixture roots only; all transcript/log content retained."
+    },
+    {
+      "path": "summary.json",
+      "sourceRelativePath": "summary.json",
+      "sourceSHA256": "9a94f0e5be2bf60eb3c21d7663c0a7c227c8137e6880f9b800de849f0842738d",
+      "curatedSHA256": "ea41089ebca176b4212648ebe97f6f5bee52021c6c33024a195c5b58fd639141",
+      "sizeBytes": 1568,
+      "transformation": "Rewrite case result links to curated relative paths; append hash-provenance note."
+    }
+  ]
+}

@@ -109,7 +109,10 @@ struct DiarizationEvalCommand: AsyncParsableCommand {
         scoringOptions: DiarizationScoringOptions
     ) async -> DiarizationEvalRunReport {
         do {
-            let result = try await service.diarize(audioURL: audioURL, options: options)
+            let result = try await service.diarize(
+                audioURL: audioURL,
+                speakerConstraint: options.speakerConstraint
+            )
             let hypothesis = result.segments.map(LabeledSegment.init)
             let der = reference.map {
                 DiarizationMetrics.der(reference: $0, hypothesis: hypothesis, options: scoringOptions)

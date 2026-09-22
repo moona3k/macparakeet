@@ -33,10 +33,9 @@ final class MockDictationRepository: DictationRepositoryProtocol, @unchecked Sen
 
     func search(query: String, limit: Int?) throws -> [Dictation] {
         let filtered = dictations.filter {
-            !$0.hidden && (
-                $0.rawTranscript.localizedCaseInsensitiveContains(query)
-                || ($0.cleanTranscript?.localizedCaseInsensitiveContains(query) ?? false)
-            )
+            !$0.hidden
+                && ($0.rawTranscript.localizedCaseInsensitiveContains(query)
+                    || ($0.cleanTranscript?.localizedCaseInsensitiveContains(query) ?? false))
         }
         let sorted = filtered.sorted { $0.createdAt > $1.createdAt }
         if let limit { return Array(sorted.prefix(limit)) }
@@ -132,12 +131,39 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
     var deleteAllCalled = false
     var deleteResult = true
     var deleteError: Error?
+    var onDelete: (@Sendable (UUID) -> Void)?
     var updateFileNameCalls: [(id: UUID, fileName: String)] = []
+    var updateTitleOverrideCalls: [(id: UUID, titleOverride: String?)] = []
     var updateChatMessagesCalls: [(id: UUID, chatMessages: [ChatMessage]?)] = []
     var updateSpeakersCalls: [(id: UUID, speakers: [SpeakerInfo]?)] = []
     var updateFilePathCalls: [(id: UUID, filePath: String?)] = []
+    var updateMeetingArtifactFolderPathCalls: [(id: UUID, folderPath: String?)] = []
+    var fetchMeetingsWithStatusCalls: [Transcription.TranscriptionStatus] = []
+    var fetchAllCalls: [Int?] = []
+    var fetchAllError: Error?
+    var fetchError: Error?
+    var fetchAllHandler: (@Sendable (Int?) throws -> [Transcription])?
+    var fetchMeetingsWithStatusHandler: (@Sendable (Transcription.TranscriptionStatus) throws -> [Transcription])?
+    var updateTitleOverrideError: Error?
+    var updateFileNameError: Error?
     var updateFilePathError: Error?
+    var updateSpeakersError: Error?
+    var updateSpeakersHandler: (@Sendable (UUID, [SpeakerInfo]?) throws -> Void)?
+    var userNotesReadBackError: Error?
+    var userNotesUpdateHandler: (@Sendable () throws -> Void)?
+    private var failNextUserNotesReadBack = false
     var saveError: Error?
+
+    func savePreservingUserMetadata(
+        _ transcription: Transcription, originalFileName: String
+    ) throws -> Transcription {
+        // This fixture's callers serialize access, as they do for save/update.
+        let merged = try mergingCompletionForTest(
+            transcription, current: fetch(id: transcription.id), originalFileName: originalFileName
+        )
+        try save(merged)
+        return merged
+    }
 
     func save(_ transcription: Transcription) throws {
         if let saveError {
@@ -151,13 +177,36 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
     }
 
     func fetch(id: UUID) throws -> Transcription? {
-        transcriptions.first(where: { $0.id == id })
+        if let fetchError { throw fetchError }
+        if failNextUserNotesReadBack, let userNotesReadBackError {
+            failNextUserNotesReadBack = false
+            throw userNotesReadBackError
+        }
+        return transcriptions.first(where: { $0.id == id })
     }
 
     func fetchAll(limit: Int?) throws -> [Transcription] {
+        fetchAllCalls.append(limit)
+        if let fetchAllError {
+            throw fetchAllError
+        }
+        if let fetchAllHandler {
+            return try fetchAllHandler(limit)
+        }
         let sorted = transcriptions.sorted { $0.createdAt > $1.createdAt }
         if let limit { return Array(sorted.prefix(limit)) }
         return sorted
+    }
+
+    func fetchMeetings(withStatus status: Transcription.TranscriptionStatus) throws -> [Transcription] {
+        fetchMeetingsWithStatusCalls.append(status)
+        if let fetchMeetingsWithStatusHandler {
+            return try fetchMeetingsWithStatusHandler(status)
+        }
+        return
+            transcriptions
+            .filter { $0.sourceType == .meeting && $0.status == status }
+            .sorted { $0.createdAt > $1.createdAt }
     }
 
     func fetchCompletedByVideoID(_ videoID: String) throws -> Transcription? {
@@ -170,6 +219,7 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
 
     func delete(id: UUID) throws -> Bool {
         deleteCalledWith.append(id)
+        onDelete?(id)
         if let deleteError {
             throw deleteError
         }
@@ -191,10 +241,28 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
         }
     }
 
-    func updateFileName(id: UUID, fileName: String) throws {
+    @discardableResult
+    func updateFileName(id: UUID, fileName: String) throws -> Transcription? {
         updateFileNameCalls.append((id: id, fileName: fileName))
+        if let updateFileNameError {
+            throw updateFileNameError
+        }
+        guard let idx = transcriptions.firstIndex(where: { $0.id == id }) else { return nil }
+        transcriptions[idx].fileName = fileName
+        transcriptions[idx].derivedTitle = fileName
+        transcriptions[idx].updatedAt = Date()
+        return transcriptions[idx]
+    }
+
+    func updateTitleOverride(id: UUID, titleOverride: String?) throws {
+        let normalizedTitle = Transcription.normalizedTitleOverride(from: titleOverride)
+        updateTitleOverrideCalls.append((id: id, titleOverride: normalizedTitle))
+        if let updateTitleOverrideError {
+            throw updateTitleOverrideError
+        }
         if let idx = transcriptions.firstIndex(where: { $0.id == id }) {
-            transcriptions[idx].fileName = fileName
+            guard transcriptions[idx].sourceType == .file else { return }
+            transcriptions[idx].titleOverride = normalizedTitle
             transcriptions[idx].updatedAt = Date()
         }
     }
@@ -209,10 +277,33 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
 
     func updateSpeakers(id: UUID, speakers: [SpeakerInfo]?) throws {
         updateSpeakersCalls.append((id: id, speakers: speakers))
+        if let updateSpeakersHandler {
+            try updateSpeakersHandler(id, speakers)
+        }
+        if let updateSpeakersError {
+            throw updateSpeakersError
+        }
         if let idx = transcriptions.firstIndex(where: { $0.id == id }) {
             transcriptions[idx].speakers = speakers
+            transcriptions[idx].transcriptSegments = TranscriptSegmentRecord.updatingSpeakerLabels(
+                in: transcriptions[idx].transcriptSegments,
+                using: speakers
+            )
             transcriptions[idx].updatedAt = Date()
         }
+    }
+
+    @discardableResult
+    func updateUserNotes(id: UUID, userNotes: String?) throws -> Bool {
+        try userNotesUpdateHandler?()
+        guard var transcription = transcriptions.first(where: { $0.id == id }) else {
+            return false
+        }
+        transcription.userNotes = userNotes
+        transcription.updatedAt = Date()
+        try save(transcription)
+        failNextUserNotesReadBack = userNotesReadBackError != nil
+        return true
     }
 
     func updateFilePath(id: UUID, filePath: String?) throws {
@@ -226,6 +317,15 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
         }
     }
 
+    func updateMeetingArtifactFolderPath(id: UUID, folderPath: String?) throws {
+        updateMeetingArtifactFolderPathCalls.append((id: id, folderPath: folderPath))
+        if let idx = transcriptions.firstIndex(where: { $0.id == id }) {
+            guard transcriptions[idx].sourceType == .meeting else { return }
+            transcriptions[idx].meetingArtifactFolderPath = folderPath
+            transcriptions[idx].updatedAt = Date()
+        }
+    }
+
     func clearStoredAudioPathsForURLTranscriptions() throws {
         for i in transcriptions.indices {
             if transcriptions[i].sourceURL != nil {
@@ -234,15 +334,23 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
         }
     }
 
-    func clearStoredAudioPathsForMeetingTranscriptions(under directoryPath: String) throws {
+    @discardableResult
+    func clearStoredAudioPathsForMeetingTranscriptions(under directoryPath: String) throws -> [UUID] {
         let root = URL(fileURLWithPath: directoryPath, isDirectory: true).standardizedFileURL.path
+        var clearedIDs: [UUID] = []
         for i in transcriptions.indices {
             guard transcriptions[i].sourceType == .meeting,
-                  let filePath = transcriptions[i].filePath else { continue }
+                let filePath = transcriptions[i].filePath
+            else { continue }
             let target = URL(fileURLWithPath: filePath).standardizedFileURL.path
             guard target.hasPrefix(root + "/") else { continue }
+            transcriptions[i].meetingArtifactFolderPath =
+                transcriptions[i].meetingArtifactFolderPath
+                ?? URL(fileURLWithPath: filePath).deletingLastPathComponent().standardizedFileURL.path
             transcriptions[i].filePath = nil
+            clearedIDs.append(transcriptions[i].id)
         }
+        return clearedIDs
     }
 
     func updateFavorite(id: UUID, isFavorite: Bool) throws {
@@ -342,20 +450,37 @@ final class MockLaunchAtLoginService: LaunchAtLoginControlling {
 
 // MARK: - MockTranscriptionService
 
-actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
+actor MockTranscriptionService: SpeakerConfiguredRetranscriptionService {
+    private var transcribeHook: (@Sendable () async -> Void)?
+
+    func setTranscribeHook(_ hook: @escaping @Sendable () async -> Void) {
+        transcribeHook = hook
+    }
+
     var transcribeResult: Transcription?
     var transcribeError: Error?
+    var meetingFinalizationError: Error?
     var transcribeCallCount = 0
     var lastFileURL: URL?
     var lastSource: TelemetryTranscriptionSource?
     var lastMeetingRecording: MeetingRecordingOutput?
     var lastSpeechEngineOverride: SpeechEngineSelection?
+    var lastRetranscriptionSpeakerSelection: RetranscriptionSpeakerSelection?
     var transcribeProgressPhases: [TranscriptionProgress] = []
     var transcribeDelayMs: UInt64 = 0
     var transcribeURLCallCount = 0
     var lastURLString: String?
     var transcribeURLProgressPhases: [TranscriptionProgress] = []
     var transcribeURLDelayMs: UInt64 = 0
+    var prepareMeetingCallCount = 0
+    var finalizeMeetingCallCount = 0
+    var preparedMeetingRecordings: [MeetingRecordingOutput] = []
+    var finalizedMeetingRecordings: [MeetingRecordingOutput] = []
+    var finalizedMeetingTranscriptionIDs: [UUID] = []
+    private var preparedMeetingSaveHook: (@Sendable (Transcription) -> Void)?
+    private var finalizedMeetingSaveHook: (@Sendable (Transcription) -> Void)?
+    private var meetingFinalizationHeld = false
+    private var meetingFinalizationContinuations: [CheckedContinuation<Void, Never>] = []
     /// Per-file overrides for batch tests, keyed by `fileURL.lastPathComponent`.
     /// `errorsByFileName` wins over `resultsByFileName`, which wins over the
     /// shared `transcribeError`/`transcribeResult`.
@@ -378,6 +503,10 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
         self.transcribeResult = nil
     }
 
+    func configureMeetingFinalization(error: Error?) {
+        meetingFinalizationError = error
+    }
+
     func configureURLProgress(phases: [TranscriptionProgress]) {
         self.transcribeURLProgressPhases = phases
     }
@@ -394,12 +523,35 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
         self.transcribeURLDelayMs = milliseconds
     }
 
+    func holdMeetingFinalization() {
+        meetingFinalizationHeld = true
+    }
+
+    func persistFinalizedMeetings(to repository: any TranscriptionRepositoryProtocol) {
+        preparedMeetingSaveHook = { transcription in
+            try? repository.save(transcription)
+        }
+        finalizedMeetingSaveHook = { transcription in
+            try? repository.save(transcription)
+        }
+    }
+
+    func releaseMeetingFinalization() {
+        meetingFinalizationHeld = false
+        let continuations = meetingFinalizationContinuations
+        meetingFinalizationContinuations = []
+        for continuation in continuations {
+            continuation.resume()
+        }
+    }
+
     func transcribe(
         fileURL: URL,
         source: TelemetryTranscriptionSource,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
         transcribeCallCount += 1
+        await transcribeHook?()
         lastFileURL = fileURL
         lastSource = source
         let fileName = fileURL.lastPathComponent
@@ -423,11 +575,12 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
             return result
         }
 
-        return transcribeResult ?? Transcription(
-            fileName: fileName,
-            rawTranscript: "Mock transcription",
-            status: .completed
-        )
+        return transcribeResult
+            ?? Transcription(
+                fileName: fileName,
+                rawTranscript: "Mock transcription",
+                status: .completed
+            )
     }
 
     func transcribeTransient(
@@ -443,6 +596,7 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
         transcribeCallCount += 1
+        await transcribeHook?()
         lastMeetingRecording = recording
         lastSource = .meeting
 
@@ -458,13 +612,85 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
             throw error
         }
 
-        return transcribeResult ?? Transcription(
+        return transcribeResult
+            ?? Transcription(
+                fileName: recording.displayName,
+                filePath: recording.mixedAudioURL.path,
+                rawTranscript: "Mock meeting transcription",
+                status: .completed,
+                sourceType: .meeting
+            )
+    }
+
+    func prepareMeetingTranscription(
+        recording: MeetingRecordingOutput
+    ) async throws -> Transcription {
+        prepareMeetingCallCount += 1
+        preparedMeetingRecordings.append(recording)
+        lastMeetingRecording = recording
+        lastSource = .meeting
+
+        if let error = transcribeError {
+            throw error
+        }
+
+        let transcription = Transcription(
             fileName: recording.displayName,
             filePath: recording.mixedAudioURL.path,
-            rawTranscript: "Mock meeting transcription",
-            status: .completed,
+            meetingArtifactFolderPath: recording.folderURL.path,
+            durationMs: Int((recording.durationSeconds * 1000).rounded()),
+            rawTranscript: nil,
+            status: .processing,
             sourceType: .meeting
         )
+        preparedMeetingSaveHook?(transcription)
+        return transcription
+    }
+
+    func finalizeMeetingTranscription(
+        recording: MeetingRecordingOutput,
+        updating transcriptionID: UUID,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        finalizeMeetingCallCount += 1
+        finalizedMeetingRecordings.append(recording)
+        finalizedMeetingTranscriptionIDs.append(transcriptionID)
+        lastMeetingRecording = recording
+        lastSource = .meeting
+
+        for phase in transcribeProgressPhases {
+            onProgress?(phase)
+        }
+
+        if meetingFinalizationHeld {
+            await withCheckedContinuation { continuation in
+                meetingFinalizationContinuations.append(continuation)
+            }
+        }
+
+        if transcribeDelayMs > 0 {
+            try await Task.sleep(nanoseconds: transcribeDelayMs * 1_000_000)
+        }
+
+        if let error = meetingFinalizationError ?? transcribeError {
+            throw error
+        }
+
+        var result =
+            transcribeResult
+            ?? Transcription(
+                fileName: recording.displayName,
+                filePath: recording.mixedAudioURL.path,
+                rawTranscript: "Mock meeting transcription",
+                status: .completed,
+                sourceType: .meeting
+            )
+        result.id = transcriptionID
+        result.filePath = result.filePath ?? recording.mixedAudioURL.path
+        result.meetingArtifactFolderPath = result.meetingArtifactFolderPath ?? recording.folderURL.path
+        result.sourceType = .meeting
+        finalizedMeetingSaveHook?(result)
+        return result
     }
 
     func retranscribe(
@@ -488,7 +714,34 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
         return try await transcribeMeeting(recording: recording, onProgress: onProgress)
     }
 
-    func transcribeURL(urlString: String, onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil) async throws -> Transcription {
+    func retranscribe(
+        existing transcription: Transcription,
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        speechEngineOverride: SpeechEngineSelection?,
+        speakerSelection: RetranscriptionSpeakerSelection,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription {
+        lastSpeechEngineOverride = speechEngineOverride
+        lastRetranscriptionSpeakerSelection = speakerSelection
+        return try await transcribe(fileURL: fileURL, source: source, onProgress: onProgress)
+    }
+
+    func retranscribeMeeting(
+        existing transcription: Transcription,
+        recording: MeetingRecordingOutput,
+        speechEngineOverride: SpeechEngineSelection?,
+        speakerSelection: RetranscriptionSpeakerSelection,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription {
+        lastSpeechEngineOverride = speechEngineOverride
+        lastRetranscriptionSpeakerSelection = speakerSelection
+        return try await transcribeMeeting(recording: recording, onProgress: onProgress)
+    }
+
+    func transcribeURL(urlString: String, onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil) async throws
+        -> Transcription
+    {
         transcribeURLCallCount += 1
         lastURLString = urlString
 
@@ -504,12 +757,13 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
             throw error
         }
 
-        return transcribeResult ?? Transcription(
-            fileName: "YouTube Video",
-            rawTranscript: "Mock transcription",
-            status: .completed,
-            sourceURL: urlString
-        )
+        return transcribeResult
+            ?? Transcription(
+                fileName: "YouTube Video",
+                rawTranscript: "Mock transcription",
+                status: .completed,
+                sourceURL: urlString
+            )
     }
 
     func transcribeURLTransient(
@@ -524,6 +778,9 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
 
 final class MockCustomWordRepository: CustomWordRepositoryProtocol, @unchecked Sendable {
     var words: [CustomWord] = []
+    var deleteError: Error?
+    var fetchAllError: Error?
+    var beforeBatchDelete: (@Sendable () async -> Void)?
 
     func save(_ word: CustomWord) throws {
         if let idx = words.firstIndex(where: { $0.id == word.id }) {
@@ -538,7 +795,8 @@ final class MockCustomWordRepository: CustomWordRepositoryProtocol, @unchecked S
     }
 
     func fetchAll() throws -> [CustomWord] {
-        words.sorted { $0.word.localizedCaseInsensitiveCompare($1.word) == .orderedAscending }
+        if let fetchAllError { throw fetchAllError }
+        return words.sorted { $0.word.localizedCaseInsensitiveCompare($1.word) == .orderedAscending }
     }
 
     func fetchEnabled() throws -> [CustomWord] {
@@ -550,6 +808,14 @@ final class MockCustomWordRepository: CustomWordRepositoryProtocol, @unchecked S
         let before = words.count
         words.removeAll { $0.id == id }
         return words.count < before
+    }
+
+    func delete(ids: Set<UUID>) async throws -> Int {
+        await beforeBatchDelete?()
+        if let deleteError { throw deleteError }
+        let before = words.count
+        words.removeAll { ids.contains($0.id) }
+        return before - words.count
     }
 
     func deleteAll() throws {
@@ -618,6 +884,8 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var streamTokens: [String] = ["Hello", " world"]
     var streamTokenBatches: [[String]] = []
     var streamDelayNs: UInt64 = 0
+    var streamEffectiveSettings: PromptInferenceSettings?
+    var streamEmitsTerminal = true
     var errorToThrow: Error?
     var summarizeCallCount = 0
     var chatCallCount = 0
@@ -629,10 +897,16 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var lastChatUserNotes: String?
     var lastChatSource: TelemetryChatSource?
     var lastSummarySystemPrompt: String?
+    var lastSummaryInferenceSettings: PromptInferenceSettings?
+    var lastSummaryModelOverride: String?
     var lastFormattedTranscript: String?
     var lastFormatterPromptTemplate: String?
     var lastFormatterSource: TelemetryFormatterSource?
     var lastFormatterDefaultPromptUsed: Bool?
+    /// Optional per-call sequencing for `generatePromptResultDetailed(...inferenceSettings:)`.
+    /// Consumed FIFO when non-empty; falls back to `summarizeResult`/`errorToThrow`
+    /// when empty so existing single-outcome tests are unaffected.
+    var detailedResultsQueue: [Result<LLMResult, Error>] = []
 
     func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String {
         summarizeCallCount += 1
@@ -642,7 +916,10 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         return summarizeResult
     }
 
-    func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) async throws -> String {
+    func chat(
+        question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource,
+        conversationID: UUID
+    ) async throws -> String {
         chatCallCount += 1
         lastChatQuestion = question
         lastChatTranscript = transcript
@@ -663,8 +940,35 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         return LLMResult(output: output, provider: "mock", model: "mock-model", latencyMs: 0)
     }
 
-    func chatDetailed(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) async throws -> LLMResult {
-        let output = try await chat(question: question, transcript: transcript, userNotes: userNotes, history: history, source: source)
+    func generatePromptResultDetailed(
+        transcript: String,
+        systemPrompt: String?,
+        inferenceSettings: PromptInferenceSettings?
+    ) async throws -> LLMResult {
+        lastSummaryInferenceSettings = inferenceSettings
+        if !detailedResultsQueue.isEmpty {
+            summarizeCallCount += 1
+            lastSummaryTranscript = transcript
+            lastSummarySystemPrompt = systemPrompt
+            return try detailedResultsQueue.removeFirst().get()
+        }
+        let output = try await generatePromptResult(transcript: transcript, systemPrompt: systemPrompt)
+        return LLMResult(
+            output: output,
+            provider: "mock",
+            model: "mock-model",
+            latencyMs: 0,
+            effectiveSettings: streamEffectiveSettings
+        )
+    }
+
+    func chatDetailed(
+        question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource,
+        conversationID: UUID
+    ) async throws -> LLMResult {
+        let output = try await chat(
+            question: question, transcript: transcript, userNotes: userNotes, history: history, source: source,
+            conversationID: conversationID)
         return LLMResult(output: output, provider: "mock", model: "mock-model", latencyMs: 0)
     }
 
@@ -748,7 +1052,71 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         }
     }
 
-    func chatStream(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) -> AsyncThrowingStream<String, Error> {
+    func generatePromptResultDetailedStream(
+        transcript: String,
+        systemPrompt: String?,
+        inferenceSettings: PromptInferenceSettings?
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error> {
+        summarizeCallCount += 1
+        lastSummaryTranscript = transcript
+        lastSummarySystemPrompt = systemPrompt
+        lastSummaryInferenceSettings = inferenceSettings
+        let tokens: [String]
+        if streamTokenBatches.isEmpty {
+            tokens = streamTokens
+        } else {
+            tokens = streamTokenBatches.removeFirst()
+        }
+        let error = errorToThrow
+        let delay = streamDelayNs
+        let effectiveSettings = streamEffectiveSettings
+        let emitsTerminal = streamEmitsTerminal
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                if let error {
+                    continuation.finish(throwing: error)
+                    return
+                }
+                for token in tokens {
+                    if delay > 0 {
+                        try? await Task.sleep(nanoseconds: delay)
+                    }
+                    guard !Task.isCancelled else { return }
+                    continuation.yield(.text(token))
+                }
+                if emitsTerminal {
+                    continuation.yield(
+                        .completed(
+                            LLMStreamTerminal(
+                                provider: "mock",
+                                model: "mock-model",
+                                effectiveSettings: effectiveSettings
+                            )))
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    func generatePromptResultDetailedStream(
+        transcript: String,
+        systemPrompt: String?,
+        inferenceSettings: PromptInferenceSettings?,
+        modelOverride: String?
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error> {
+        lastSummaryModelOverride = modelOverride
+        return generatePromptResultDetailedStream(
+            transcript: transcript,
+            systemPrompt: systemPrompt,
+            inferenceSettings: inferenceSettings
+        )
+    }
+
+    func chatStream(
+        question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource,
+        conversationID: UUID
+    ) -> AsyncThrowingStream<String, Error> {
         chatCallCount += 1
         lastChatQuestion = question
         lastChatTranscript = transcript
@@ -799,6 +1167,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
 
 final class MockPromptRepository: PromptRepositoryProtocol, @unchecked Sendable {
     var prompts: [Prompt] = []
+    var deletedPrompts: [Prompt] = []
     var fetchAutoRunPromptsError: Error?
 
     func save(_ prompt: Prompt) throws {
@@ -811,6 +1180,14 @@ final class MockPromptRepository: PromptRepositoryProtocol, @unchecked Sendable 
 
     func fetch(id: UUID) throws -> Prompt? {
         prompts.first(where: { $0.id == id })
+    }
+
+    func fetchIncludingDeleted(id: UUID) throws -> Prompt? {
+        prompts.first(where: { $0.id == id }) ?? deletedPrompts.first(where: { $0.id == id })
+    }
+
+    func fetchDeleted() throws -> [Prompt] {
+        deletedPrompts
     }
 
     func fetchAll() throws -> [Prompt] {
@@ -842,9 +1219,11 @@ final class MockPromptRepository: PromptRepositoryProtocol, @unchecked Sendable 
     }
 
     func delete(id: UUID) throws -> Bool {
-        let before = prompts.count
-        prompts.removeAll { $0.id == id }
-        return prompts.count < before
+        guard let index = prompts.firstIndex(where: { $0.id == id }) else { return false }
+        var prompt = prompts.remove(at: index)
+        prompt.deletedAt = Date()
+        deletedPrompts.append(prompt)
+        return true
     }
 
     func toggleVisibility(id: UUID) throws {
@@ -864,6 +1243,13 @@ final class MockPromptRepository: PromptRepositoryProtocol, @unchecked Sendable 
             prompts[index].isVisible = true
             prompts[index].appliesToSources = nil
         }
+        prompts[index].updatedAt = Date()
+    }
+
+    func setIncludeMeetingNotes(id: UUID, enabled: Bool) throws {
+        guard let index = prompts.firstIndex(where: { $0.id == id }) else { return }
+        guard prompts[index].category == .result else { return }
+        prompts[index].includeMeetingNotes = enabled
         prompts[index].updatedAt = Date()
     }
 
@@ -900,6 +1286,144 @@ final class MockPromptRepository: PromptRepositoryProtocol, @unchecked Sendable 
             prompts[index].isVisible = true
             prompts[index].updatedAt = Date()
         }
+    }
+}
+
+// MARK: - MockPromptMeetingPolicyRepository
+
+final class MockPromptMeetingPolicyRepository: PromptMeetingPolicyRepositoryProtocol, @unchecked Sendable {
+    private let stateLock = NSLock()
+    private var storedPolicies: [UUID: [PromptMeetingPolicy]] = [:]
+    private var storedBulkFetchHandler: ((Set<UUID>) throws -> [PromptMeetingPolicy])?
+    private var storedBulkFetchCallCount = 0
+    private var storedSingleFetchCallCount = 0
+    private var storedMutationRanOnMainThread = false
+
+    var policiesByPromptID: [UUID: [PromptMeetingPolicy]] {
+        get { stateLock.withLock { storedPolicies } }
+        set { stateLock.withLock { storedPolicies = newValue } }
+    }
+
+    var bulkFetchHandler: ((Set<UUID>) throws -> [PromptMeetingPolicy])? {
+        get { stateLock.withLock { storedBulkFetchHandler } }
+        set { stateLock.withLock { storedBulkFetchHandler = newValue } }
+    }
+
+    var bulkFetchCallCount: Int { stateLock.withLock { storedBulkFetchCallCount } }
+    var singleFetchCallCount: Int { stateLock.withLock { storedSingleFetchCallCount } }
+    var mutationRanOnMainThread: Bool { stateLock.withLock { storedMutationRanOnMainThread } }
+
+    func save(_ policy: PromptMeetingPolicy) throws {
+        stateLock.withLock { saveLocked(policy) }
+    }
+
+    // Call with stateLock held so a scope replacement is one atomic mutation,
+    // matching the production repository's GRDB transaction.
+    private func saveLocked(_ policy: PromptMeetingPolicy) {
+        var policies = storedPolicies[policy.promptId] ?? []
+        if let index = policies.firstIndex(where: { $0.id == policy.id }) {
+            policies[index] = policy
+        } else {
+            policies.append(policy)
+        }
+        storedPolicies[policy.promptId] = policies
+    }
+
+    func fetch(id: UUID) throws -> PromptMeetingPolicy? {
+        stateLock.withLock { storedPolicies.values.lazy.flatMap { $0 }.first(where: { $0.id == id }) }
+    }
+
+    func fetchPolicies(promptId: UUID) throws -> [PromptMeetingPolicy] {
+        stateLock.withLock {
+            storedSingleFetchCallCount += 1
+            return storedPolicies[promptId] ?? []
+        }
+    }
+
+    func fetchPolicies(promptIds: Set<UUID>) throws -> [PromptMeetingPolicy] {
+        let handler = stateLock.withLock {
+            storedBulkFetchCallCount += 1
+            return storedBulkFetchHandler
+        }
+        // A test hook may suspend a stale read while a newer write completes,
+        // or read this mock's snapshot. Never invoke it while holding the lock.
+        if let handler {
+            return try handler(promptIds)
+        }
+        return stateLock.withLock { promptIds.flatMap { storedPolicies[$0] ?? [] } }
+    }
+
+    func fetchEffectivePolicy(promptId: UUID, meetingTypeId: UUID?) throws -> PromptMeetingPolicy? {
+        stateLock.withLock {
+            let policies = storedPolicies[promptId] ?? []
+            if let meetingTypeId,
+                let exact = policies.first(where: { $0.scopeKind == .type && $0.meetingTypeId == meetingTypeId })
+            {
+                return exact
+            }
+            return policies.first(where: { $0.scopeKind == .all && $0.meetingTypeId == nil })
+        }
+    }
+
+    func setAllMeetingsPolicy(
+        promptId: UUID,
+        isAvailable: Bool,
+        isAutoRun: Bool,
+        sortOrder: Int?
+    ) throws -> PromptMeetingPolicy {
+        stateLock.withLock {
+            storedMutationRanOnMainThread = Thread.isMainThread
+            storedPolicies[promptId]?.removeAll {
+                $0.scopeKind == .all && $0.meetingTypeId == nil
+            }
+            let policy = PromptMeetingPolicy.allMeetings(
+                promptId: promptId,
+                isAvailable: isAvailable,
+                isAutoRun: isAutoRun,
+                sortOrder: sortOrder
+            )
+            saveLocked(policy)
+            return policy
+        }
+    }
+
+    func setPolicy(
+        promptId: UUID,
+        meetingTypeId: UUID,
+        isAvailable: Bool,
+        isAutoRun: Bool,
+        sortOrder: Int?
+    ) throws -> PromptMeetingPolicy {
+        stateLock.withLock {
+            storedMutationRanOnMainThread = Thread.isMainThread
+            storedPolicies[promptId]?.removeAll {
+                $0.scopeKind == .type && $0.meetingTypeId == meetingTypeId
+            }
+            let policy = PromptMeetingPolicy.meetingType(
+                promptId: promptId,
+                meetingTypeId: meetingTypeId,
+                isAvailable: isAvailable,
+                isAutoRun: isAutoRun,
+                sortOrder: sortOrder
+            )
+            saveLocked(policy)
+            return policy
+        }
+    }
+
+    func delete(id: UUID) throws -> Bool {
+        stateLock.withLock {
+            for promptID in storedPolicies.keys {
+                let previousCount = storedPolicies[promptID]?.count ?? 0
+                storedPolicies[promptID]?.removeAll { $0.id == id }
+                if storedPolicies[promptID]?.count != previousCount { return true }
+            }
+            return false
+        }
+    }
+
+    func deletePolicies(promptId: UUID) throws {
+        stateLock.withLock { storedPolicies[promptId] = nil }
     }
 }
 
@@ -1037,6 +1561,7 @@ final class MockPermissionService: PermissionServiceProtocol, @unchecked Sendabl
     var requestAccessibilityResult: Bool = true
     var requestMicrophonePermissionCallCount = 0
     var checkScreenRecordingPermissionCallCount = 0
+    var checkAccessibilityPermissionCallCount = 0
     var openMicrophoneSettingsCallCount = 0
     var screenRecordingPermissionSequence: [Bool] = []
 
@@ -1071,7 +1596,8 @@ final class MockPermissionService: PermissionServiceProtocol, @unchecked Sendabl
     func openScreenRecordingSettings() {}
 
     func checkAccessibilityPermission() -> Bool {
-        accessibilityPermission
+        checkAccessibilityPermissionCallCount += 1
+        return accessibilityPermission
     }
 
     func requestAccessibilityPermission(prompt: Bool) -> Bool {

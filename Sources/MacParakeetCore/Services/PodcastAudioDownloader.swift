@@ -55,7 +55,7 @@ public actor PodcastAudioDownloader: PodcastAudioFetching {
     ) async throws -> URL {
         let trimmed = audioURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url = URL(string: trimmed), let scheme = url.scheme?.lowercased(),
-              scheme == "http" || scheme == "https"
+            scheme == "http" || scheme == "https"
         else {
             throw PodcastAudioFetchError.invalidURL
         }
@@ -67,7 +67,14 @@ public actor PodcastAudioDownloader: PodcastAudioFetching {
         }
 
         var request = URLRequest(url: url)
-        request.setValue("MacParakeet/1.0 (podcast-fetch)", forHTTPHeaderField: "User-Agent")
+        request.setValue(
+            "MacParakeet/1.0 (+https://macparakeet.com)",
+            forHTTPHeaderField: "User-Agent"
+        )
+        request.setValue(
+            "audio/*, application/octet-stream;q=0.9, */*;q=0.8",
+            forHTTPHeaderField: "Accept"
+        )
 
         // Download to a temporary file with native streaming; the delegate
         // reports progress and hands back the temp file + final response.
@@ -92,6 +99,21 @@ public actor PodcastAudioDownloader: PodcastAudioFetching {
 
         if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
             try? fm.removeItem(at: tempURL)
+            let server = AudioCaptureDiagnostics.sanitizedLogValue(
+                http.value(forHTTPHeaderField: "Server") ?? "unknown"
+            )
+            let retryAfter = AudioCaptureDiagnostics.sanitizedLogValue(
+                http.value(forHTTPHeaderField: "Retry-After") ?? "none"
+            )
+            let cfRayPresent = http.value(forHTTPHeaderField: "CF-RAY") != nil
+            let authenticationChallengePresent =
+                http.value(forHTTPHeaderField: "WWW-Authenticate") != nil
+            AudioCaptureDiagnostics.append(
+                "podcast_audio_fetch_failed status=\(http.statusCode) server=\"\(server)\" retry_after=\"\(retryAfter)\" cf_ray_present=\(cfRayPresent) authentication_challenge_present=\(authenticationChallengePresent)"
+            )
+            logger.error(
+                "podcast_audio_fetch_failed status=\(http.statusCode, privacy: .public) server=\(server, privacy: .public) retry_after=\(retryAfter, privacy: .public) cf_ray_present=\(cfRayPresent, privacy: .public) authentication_challenge_present=\(authenticationChallengePresent, privacy: .public)"
+            )
             throw PodcastAudioFetchError.requestFailed("HTTP \(http.statusCode)")
         }
 
@@ -154,7 +176,8 @@ public actor PodcastAudioDownloader: PodcastAudioFetching {
         guard let raw else { return "Podcast Episode" }
         var disallowed = CharacterSet(charactersIn: "/:\\\"")
         disallowed.formUnion(.controlCharacters)
-        let cleaned = raw
+        let cleaned =
+            raw
             .components(separatedBy: disallowed)
             .joined(separator: " ")
             .components(separatedBy: .whitespacesAndNewlines)
@@ -226,7 +249,7 @@ private final class DownloadDelegate: NSObject, URLSessionDownloadDelegate, @unc
         task: URLSessionTask,
         didCompleteWithError error: Error?
     ) {
-        guard let error else { return } // success already resumed in didFinishDownloadingTo
+        guard let error else { return }  // success already resumed in didFinishDownloadingTo
         if (error as NSError).code == NSURLErrorCancelled {
             resume(.failure(CancellationError()))
         } else {

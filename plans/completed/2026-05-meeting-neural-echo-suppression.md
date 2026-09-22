@@ -1,6 +1,10 @@
 # Meeting Neural Echo Suppression
 
-> Status: ✅ COMPLETED — shipped via #480/#485 (`c1f3b141f`, on `main`). Archived 2026-06-13.
+> Status: ✅ COMPLETED for pipeline hardening — shipped via #480/#485
+> (`c1f3b141f`, on `main`). Archived 2026-06-13.
+> Note: this did not complete production AEC for speaker-mode meetings. The
+> LocalVQE runtime/model packaging, real speaker-call validation, cleaned final
+> mic artifact decision, and release gates remain follow-up work.
 > Date: 2026-05-22
 > Updated: 2026-06-10
 > Scope: meeting recording microphone cleanup, source separation, and release packaging.
@@ -22,7 +26,7 @@ safety net is hardened; the LocalVQE validation experiment is unblocked:
   future work if live tests show residual delay mismatch.
 - `MicConditioning.flush()` drains held samples; `CaptureOrchestrator` drains
   before synthetic-silence pairs (ordering) and on pending-pair flush.
-- `MeetingTranscriptNoiseFilter` gained a confidence-independent
+- `MeetingTranscriptSourceReconciler` gained a confidence-independent
   simultaneous-echo rule (>=5-word mic runs fuzzy-matching >=80% of the remote
   speaker's simultaneous words are dropped) — the final-transcript fix for
   high-confidence echo that the existing low-confidence rule missed.
@@ -90,7 +94,7 @@ The useful existing seams are:
 - `LiveChunkTranscriber`: performs source-aware live STT.
 - `TranscriptionService.transcribeMeetingAudio`: performs final source-aware
   batch transcription from retained source files.
-- `MeetingTranscriptNoiseFilter`: final transcript cleanup safety net.
+- `MeetingTranscriptSourceReconciler`: final transcript cleanup safety net.
 
 The first implementation should build around `MicConditioning` and
 `CaptureOrchestrator`, then decide whether final batch transcription needs a

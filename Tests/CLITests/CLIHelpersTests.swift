@@ -1,8 +1,61 @@
+import Darwin
+import Foundation
 import XCTest
 @testable import CLI
 @testable import MacParakeetCore
 
 final class CLIHelpersTests: XCTestCase {
+
+    func testBundledCLIUsesStandardDefaultsForAppPreferenceDomain() {
+        XCTAssertTrue(
+            macParakeetAppDefaults(bundleIdentifier: AppPaths.preferencesSuiteName)
+                === UserDefaults.standard
+        )
+    }
+
+    func testStandaloneCLIUsesSharedAppPreferenceDomain() {
+        let key = "CLIHelpersTests.standaloneDefaults.\(UUID().uuidString)"
+        let value = UUID().uuidString
+        let standaloneDefaults = macParakeetAppDefaults(bundleIdentifier: "com.macparakeet.cli-tests")
+        let sharedDefaults = AppPaths.sharedAppDefaults()
+        defer {
+            standaloneDefaults.removeObject(forKey: key)
+            sharedDefaults.removeObject(forKey: key)
+        }
+
+        standaloneDefaults.set(value, forKey: key)
+
+        XCTAssertEqual(sharedDefaults.string(forKey: key), value)
+    }
+
+    func testStandardOutputRedirectionRestoresStdoutPayload() throws {
+        let nullFileDescriptor = open("/dev/null", O_WRONLY)
+        XCTAssertGreaterThanOrEqual(nullFileDescriptor, 0)
+        defer { close(nullFileDescriptor) }
+
+        let output = try captureStandardOutput {
+            let redirection = try StandardOutputRedirection(to: nullFileDescriptor)
+            print("native-noise")
+            try redirection.restore()
+            print("payload")
+        }
+
+        XCTAssertEqual(output, "payload\n")
+    }
+
+    func testStandardOutputRedirectionSavedDescriptorClosesOnExec() throws {
+        let nullFileDescriptor = open("/dev/null", O_WRONLY)
+        XCTAssertGreaterThanOrEqual(nullFileDescriptor, 0)
+        defer { close(nullFileDescriptor) }
+
+        let redirection = try StandardOutputRedirection(to: nullFileDescriptor)
+        let savedStdout = try XCTUnwrap(redirection.savedStdoutFileDescriptorForTesting)
+        let flags = fcntl(savedStdout, F_GETFD)
+        XCTAssertGreaterThanOrEqual(flags, 0)
+        XCTAssertNotEqual(flags & FD_CLOEXEC, 0)
+
+        try redirection.restore()
+    }
 
     // MARK: - findTranscription
 
@@ -313,5 +366,38 @@ final class CLIHelpersTests: XCTestCase {
         let path = resolvedDatabasePath("~/macparakeet-test.db")
         XCTAssertFalse(path.hasPrefix("~"))
         XCTAssertTrue(path.hasSuffix("/macparakeet-test.db"))
+    }
+
+    // MARK: - stdout quarantine
+
+    func testRedirectStandardOutputToStandardErrorKeepsNativeNoiseOutOfStdout() async throws {
+        let output = try await captureStandardOutput {
+            let value = try await withStandardOutputRedirectedToStandardError {
+                fputs("native runtime diagnostic\n", stdout)
+                fflush(stdout)
+                return "payload"
+            }
+            try printJSON(["result": value])
+        }
+
+        XCTAssertFalse(output.contains("native runtime diagnostic"))
+        XCTAssertTrue(output.contains(#""result" : "payload""#), output)
+    }
+
+    func testMakeSharedLLMContextResolverReadsInjectedSuiteNotStandard() throws {
+        let suiteName = "cli.shared-llm.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        try LLMConfigStore(defaults: defaults).saveConfig(.localCLI())
+        let commandTemplate = "echo macparakeet-cli-parity-\(UUID().uuidString)"
+        try LocalCLIConfigStore(defaults: defaults).save(
+            LocalCLIConfig(commandTemplate: commandTemplate, timeoutSeconds: 90)
+        )
+
+        let context = try XCTUnwrap(try makeSharedLLMContextResolver(defaults: defaults).resolveContext())
+        XCTAssertEqual(context.providerConfig.id, .localCLI)
+        XCTAssertEqual(context.localCLIConfig?.commandTemplate, commandTemplate)
+        XCTAssertEqual(context.localCLIConfig?.timeoutSeconds, 90)
     }
 }

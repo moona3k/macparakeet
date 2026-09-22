@@ -4,6 +4,8 @@ import MacParakeetViewModels
 
 @MainActor
 final class AppHotkeyCoordinator {
+    static let holdToTalkStopTailMs = 200
+
     private let settingsViewModel: SettingsViewModel
     private let onStartDictation: (FnKeyStateMachine.RecordingMode) -> Void
     private let onStopDictation: () -> Void
@@ -77,15 +79,18 @@ final class AppHotkeyCoordinator {
             let trigger: HotkeyTrigger
             let gestureMode: HotkeyGestureController.Mode
             let startupDebounceMs: Int
+            let holdToTalkStopTailMs: Int
 
             init(
                 trigger: HotkeyTrigger,
                 gestureMode: HotkeyGestureController.Mode,
-                startupDebounceMs: Int = FnKeyStateMachine.defaultStartupDebounceMs
+                startupDebounceMs: Int = FnKeyStateMachine.defaultStartupDebounceMs,
+                holdToTalkStopTailMs: Int = 0
             ) {
                 self.trigger = trigger
                 self.gestureMode = gestureMode
                 self.startupDebounceMs = startupDebounceMs
+                self.holdToTalkStopTailMs = max(0, holdToTalkStopTailMs)
             }
         }
 
@@ -98,15 +103,7 @@ final class AppHotkeyCoordinator {
         let conflict: Conflict?
     }
 
-    struct HotkeyConflictCandidate: Equatable {
-        let trigger: HotkeyTrigger
-        let mode: HotkeyTrigger.ConflictMode
-
-        init(_ trigger: HotkeyTrigger, mode: HotkeyTrigger.ConflictMode = .exclusive) {
-            self.trigger = trigger
-            self.mode = mode
-        }
-    }
+    typealias HotkeyConflictCandidate = HotkeyConflictPolicy.Candidate
 
     static func menuTitle(for trigger: HotkeyTrigger) -> String {
         menuTitle(handsFree: trigger, pushToTalk: trigger)
@@ -150,7 +147,8 @@ final class AppHotkeyCoordinator {
                 specs: [
                     DictationHotkeyPlan.Spec(
                         trigger: handsFreeTrigger,
-                        gestureMode: .doubleTapAndHold
+                        gestureMode: .doubleTapAndHold,
+                        holdToTalkStopTailMs: holdToTalkStopTailMs
                     ),
                 ],
                 conflict: nil
@@ -191,7 +189,8 @@ final class AppHotkeyCoordinator {
                     startupDebounceMs: pushToTalkStartupDebounceMs(
                         handsFree: handsFreeTrigger,
                         pushToTalk: pushToTalkTrigger
-                    )
+                    ),
+                    holdToTalkStopTailMs: holdToTalkStopTailMs
                 )
             )
         }
@@ -226,6 +225,7 @@ final class AppHotkeyCoordinator {
                 trigger: spec.trigger,
                 gestureMode: spec.gestureMode,
                 startupDebounceMs: spec.startupDebounceMs,
+                holdToTalkStopTailMs: spec.holdToTalkStopTailMs,
                 resumeMode: Self.resumeMode(activeRecordingMode, for: spec.gestureMode),
                 suppressUntilReset: Self.shouldSuppressPeer(activeRecordingMode, for: spec.gestureMode)
             )
@@ -244,6 +244,7 @@ final class AppHotkeyCoordinator {
         trigger: HotkeyTrigger,
         gestureMode: HotkeyGestureController.Mode,
         startupDebounceMs: Int = FnKeyStateMachine.defaultStartupDebounceMs,
+        holdToTalkStopTailMs: Int = 0,
         resumeMode: FnKeyStateMachine.RecordingMode? = nil,
         suppressUntilReset: Bool = false
     ) -> HotkeyManager? {
@@ -252,7 +253,8 @@ final class AppHotkeyCoordinator {
         let manager = HotkeyManager(
             trigger: trigger,
             gestureMode: gestureMode,
-            startupDebounceMs: startupDebounceMs
+            startupDebounceMs: startupDebounceMs,
+            holdToTalkStopTailMs: holdToTalkStopTailMs
         )
         manager.onStartRecording = { [weak self, weak manager] mode in
             if let manager {
@@ -388,13 +390,7 @@ final class AppHotkeyCoordinator {
         for trigger: HotkeyTrigger,
         among conflicts: [HotkeyConflictCandidate]
     ) -> [HotkeyTrigger] {
-        conflicts.compactMap { conflict in
-            guard !conflict.trigger.isDisabled,
-                  trigger.conflicts(with: conflict.trigger, otherMode: conflict.mode) else {
-                return nil
-            }
-            return conflict.trigger
-        }
+        HotkeyConflictPolicy.conflictingTriggers(for: trigger, among: conflicts)
     }
 
     private static func uniqueTriggers(_ triggers: [HotkeyTrigger]) -> [HotkeyTrigger] {

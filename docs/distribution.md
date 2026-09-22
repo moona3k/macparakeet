@@ -2,7 +2,11 @@
 
 > Status: **ACTIVE** - Build, sign, notarize, and auto-update workflow
 
-This repo is SwiftPM-based, so we assemble a `.app` bundle manually for Developer ID distribution.
+This repo uses Swift packages. App distribution builds those packages through
+Xcode and assembles a `.app` bundle for Developer ID distribution. Xcode compiles
+asset catalogs and generates resource lookups that work after installation on
+another Mac. `BUILD_SYSTEM=swiftpm` is rejected for app distribution; ordinary
+`swift build`, `swift test`, and SwiftPM CLI builds remain supported.
 
 ## 1) Build the app bundle
 
@@ -32,6 +36,93 @@ to `~/Library/Application Support/MacParakeet/bin/yt-dlp` before first YouTube
 transcription so future helper updates never mutate the signed app bundle. To
 use a pre-fetched helper in release builds, set `YTDLP_PATH`; set
 `BUNDLE_YTDLP=0` only for diagnostic builds.
+
+Meeting echo suppression assets are optional for local/dev bundles, but
+AEC-ready release builds should require them. With
+`REQUIRE_MEETING_ECHO_ASSETS=1`, the bundle script builds the pinned LocalVQE
+runtime from source and downloads the selected v1.4 echo-only GGUF into
+`.build/meeting-echo-assets/` when explicit asset paths are not supplied:
+
+```bash
+export REQUIRE_MEETING_ECHO_ASSETS=1
+VERSION=X.Y.Z scripts/dist/build_app_bundle.sh
+```
+
+The default model is `localvqe-v1.4-aec-200K-f32.gguf`
+(`SHA256=b6e43138588a83bfe903ab5e143b4020b91c1e1629f5a575ac5855ff0003c731`).
+It is roughly 2.9 MB before compression. The source-built runtime is copied to
+`Contents/Frameworks/liblocalvqe.dylib`, and the selected model is copied under
+`Contents/Resources/MeetingEchoSuppression/`. Release bundles must contain
+exactly one GGUF model so asset verification and runtime model resolution cannot
+drift.
+
+The native CMake build uses host parallelism by default; if that build fails,
+the script cleans the build directory and retries once with `-j1`. If an
+interrupted prior build leaves a Git index lock in the default generated
+LocalVQE source checkout under `.build/`, the prep script discards that generated
+checkout and clones it again. Custom `LOCALVQE_SOURCE_DIR` checkouts are left in
+place and require manual cleanup on lock errors.
+
+`prepare_meeting_echo_assets.sh` passes `CMAKE_OSX_DEPLOYMENT_TARGET` to the
+LocalVQE build, aligned with the app's `MIN_MACOS_VERSION` (default `14.2`) so
+the shipped `liblocalvqe.dylib` never requires a newer macOS than the app
+advertises support for. `build_app_bundle.sh` propagates its own
+`MIN_MACOS_VERSION` into the auto-prepared build automatically. The runtime
+cache stamp keys on the deployment target, so changing it (or picking up this
+fix over an older cached build) forces a rebuild rather than reusing a stale
+dylib.
+
+For a deliberately serialized release build, set:
+
+```bash
+export LOCALVQE_CMAKE_BUILD_JOBS=1
+export REQUIRE_MEETING_ECHO_ASSETS=1
+VERSION=X.Y.Z scripts/dist/build_app_bundle.sh
+```
+
+To use prebuilt assets instead of the pinned auto-prep path, set both source
+paths explicitly:
+
+```bash
+export MACPARAKEET_MEETING_ECHO_LIBRARY=/absolute/path/to/liblocalvqe.dylib
+export MACPARAKEET_MEETING_ECHO_MODEL=/absolute/path/to/localvqe-v1.4-aec-200K-f32.gguf
+export MACPARAKEET_MEETING_ECHO_MODEL_SHA256=b6e43138588a83bfe903ab5e143b4020b91c1e1629f5a575ac5855ff0003c731
+export REQUIRE_MEETING_ECHO_ASSETS=1
+VERSION=X.Y.Z scripts/dist/build_app_bundle.sh
+```
+
+`build_app_bundle.sh` preserves the source GGUF filename by default; override
+with `MACPARAKEET_MEETING_ECHO_MODEL_NAME=<filename>.gguf` only when the source
+path is not the intended bundled name. Set
+`MACPARAKEET_MEETING_ECHO_AUTO_PREPARE=0` to force explicit prebuilt paths and
+fail if they are absent.
+
+`scripts/dist/verify_meeting_echo_assets.sh dist/MacParakeet.app` is the release
+gate. With `REQUIRE_MEETING_ECHO_ASSETS=1`, it fails if either asset is missing,
+if the model checksum does not match, if `liblocalvqe.dylib` is not executable,
+if required LocalVQE C symbols are not exported, or if `otool -L` shows
+non-portable dylib references outside `@rpath`, `@loader_path`, `/System/Library`,
+or `/usr/lib`. Without `REQUIRE_MEETING_ECHO_ASSETS=1`, missing assets are
+accepted and the app intentionally runs the meeting echo path as passthrough.
+
+The verifier also inspects every bundled LocalVQE dylib (`liblocalvqe.dylib`
+and any dependency copied into `Contents/Frameworks/`) and every architecture
+slice of each, reading the Mach-O minimum-OS-version load command
+(`LC_BUILD_VERSION minos`, or legacy `LC_VERSION_MIN_MACOSX`) and rejecting
+any slice higher than the app's `LSMinimumSystemVersion`. A missing/malformed
+version is always a hard failure; a missing `otool`/`lipo` is a hard failure
+only under `STRICT_MEETING_ECHO_ASSETS=1` (implied by
+`REQUIRE_MEETING_ECHO_ASSETS=1`) and otherwise a skipped-check warning. When
+run as part of `build_app_bundle.sh`, the expected minimum is the build's
+`MIN_MACOS_VERSION`; run standalone against an already-built bundle, it reads
+`LSMinimumSystemVersion` from the bundle's `Info.plist`.
+`MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION` can supply or tighten this: it
+is used on its own if the bundle has no `Info.plist` yet, but once the
+bundle's `Info.plist` exists, it must contain a valid minimum even when an
+override is supplied. The effective ceiling is the lower of the
+override and `LSMinimumSystemVersion` — an override can only make the check
+stricter, never raise it above what the bundle's `Info.plist` actually
+advertises.
 
 Retained purchase activation config (normally unset in current free builds):
 
@@ -74,7 +165,7 @@ Then:
 scripts/dist/sign_notarize.sh
 ```
 
-The script defaults `NOTARYTOOL_PROFILE` to `AC_PASSWORD`. Override with `NOTARYTOOL_PROFILE="other" scripts/dist/sign_notarize.sh` if needed.
+The script defaults `NOTARYTOOL_PROFILE` to `AC_PASSWORD`. Override with `NOTARYTOOL_PROFILE="other" scripts/dist/sign_notarize.sh` if needed. It submits with `--no-wait --no-progress --no-s3-acceleration`; see gotcha #1 if a submit crashes.
 
 Outputs:
 - `dist/MacParakeet.app` (signed + stapled)
@@ -127,6 +218,17 @@ Before building, verify the codebase is ready:
 # All tests must pass
 swift test
 
+# The app bundle includes the public CLI. If Sources/CLI/CHANGELOG.md has
+# non-empty Unreleased entries, promote them to the required semver release and
+# bump CLI.cliVersion before building the app candidate.
+swift test --filter CLIVersionTests
+
+# Fresh SwiftPM checkouts must be able to update package submodules. The bundle
+# script automatically lends xcodebuild the shell Git helper path when needed.
+{ test -n "${GIT_EXEC_PATH:-}" && test -x "$GIT_EXEC_PATH/git-submodule"; } || \
+  test -x "$(xcrun git --exec-path)/git-submodule" || \
+  test -x "$(env -u GIT_EXEC_PATH git --exec-path)/git-submodule"
+
 # Distribution privacy/entitlement guard runs after signing, but this source
 # file is the expected entitlement surface for the final app.
 plutil -p scripts/dist/MacParakeet.entitlements
@@ -136,6 +238,11 @@ curl -s "https://macparakeet.com/appcast.xml" | grep -E "sparkle:version|sparkle
 ```
 
 Decide on the version number (see Version bumping below).
+
+Do not ship new CLI behavior under a previously published CLI version. The
+standalone Homebrew formula may remain on the prior version until its matching
+signed/notarized archive is published, but the CLI embedded in a new app bundle
+must report the promoted semver from `Sources/CLI/CHANGELOG.md`.
 
 ### Version bumping
 
@@ -160,7 +267,13 @@ scripts/dist/build_app_bundle.sh                   # local/dev only: VERSION def
 VERSION=X.Y.Z scripts/dist/build_app_bundle.sh
 ```
 
-Verify: Look for `Embedded Sparkle.framework` and `Adding @executable_path/../Frameworks to rpath` in the output. The script will `exit 1` if Sparkle is missing.
+Verify: Look for `Embedded Sparkle.framework` and `Adding @executable_path/../Frameworks to rpath` in the output. For AEC-ready releases, also look for `Meeting echo assets verified`; the explicit post-build check is:
+
+```bash
+REQUIRE_MEETING_ECHO_ASSETS=1 scripts/dist/verify_meeting_echo_assets.sh dist/MacParakeet.app
+```
+
+The script will `exit 1` if Sparkle is missing or required echo assets fail verification.
 
 ### Step 2: Sign + notarize
 
@@ -168,7 +281,7 @@ Verify: Look for `Embedded Sparkle.framework` and `Adding @executable_path/../Fr
 scripts/dist/sign_notarize.sh
 ```
 
-The script defaults `NOTARYTOOL_PROFILE` to `AC_PASSWORD`. Both app and DMG are signed, notarized, and stapled. The script submits and polls for completion — **never use `notarytool submit --wait`** (it crashes with a bus error; see gotcha #1 below).
+The script defaults `NOTARYTOOL_PROFILE` to `AC_PASSWORD`. It first refuses dev/sentinel bundle versions such as `0.0.0`, `dev`, or `*pdx*`; rebuild with `VERSION=X.Y.Z` before signing. For explicit local diagnostic signing only, set `MACPARAKEET_ALLOW_DEV_VERSION_SIGNING=1`. Both app and DMG are signed, notarized, and stapled. The script submits with `--no-wait --no-progress --no-s3-acceleration --output-format json` and polls for `Accepted`. **Never use `notarytool submit --wait`**, and do not poll a history ID that appeared after a SIGBUS/exit 138 — that upload did not finish (gotcha #1).
 
 Verify:
 ```bash
@@ -177,6 +290,11 @@ spctl --assess --type execute --verbose=4 dist/MacParakeet.app
 
 dist/MacParakeet.app/Contents/Resources/yt-dlp --version
 # Expected: prints a yt-dlp version, not a [PYI:ERROR] Python shared library failure
+
+scripts/dev/release_demo_smoke.sh \
+  --cli dist/MacParakeet.app/Contents/MacOS/macparakeet-cli \
+  --output-dir ".codex/release-demo-smoke/release-X.Y.Z"
+# Expected: local health, transcription, and export smoke passes with evidence
 ```
 
 ### Step 3: Upload DMG to R2
@@ -211,17 +329,17 @@ sparkle:edSignature="..." length="..."
 
 ### Step 5: Update appcast.xml
 
-Edit `~/code/macparakeet-website/public/appcast.xml`. **Prepend** a new `<item>` at the top of the channel (keep all previous items — Sparkle shows release notes for ALL versions newer than the user's installed version, so users who skip versions see the full changelog).
+Edit `~/code/macparakeet-website/public/appcast.xml`. **Prepend** a new `<item>` at the top of the channel and keep previous items for compatibility/fallback metadata. Sparkle 2 shows the selected newest item's `<description>` only; it does not concatenate descriptions from skipped intermediate releases. Write the newest item's release notes so they stand on their own for users upgrading from any older supported build.
 
 New item needs:
 - `sparkle:version` = build number from `dist/MacParakeet.app/Contents/Info.plist` (`CFBundleVersion`)
 - `sparkle:shortVersionString` = version from Info.plist (`CFBundleShortVersionString`)
 - `sparkle:edSignature` and `length` from Step 4
 - `pubDate` in RFC 2822 format: `date -R`
-- Release notes in `<description>` CDATA block — only what's new in THIS version (don't duplicate notes from previous items)
+- Release notes in `<description>` CDATA block — standalone notes for this update, including the important user-facing changes since the previous public release
 - **Enclosure URL must include a cache-busting query param:** `?v={BUILD_NUMBER}`. Cloudflare CDN caches by full URL including query params, so without this Sparkle may download a stale cached DMG and fail with "improperly signed". R2 ignores query params and serves the correct object.
 
-Keep ~10 most recent items. Prune older ones when the list gets long. Only the newest item's enclosure URL is used for download — old items just provide their release notes.
+Keep ~10 most recent items. Prune older ones when the list gets long. Only the selected newest item's enclosure URL is used for download; older items preserve compatibility metadata and historical notes, but their descriptions are not shown to skip-version users.
 
 Get build info:
 ```bash
@@ -255,7 +373,9 @@ curl -s "https://macparakeet.com/appcast.xml?ts=$(date +%s)" | grep "sparkle:ver
    tag path, **not** the filename. BrewTestBot cannot autobump the cask until
    that plain-named asset exists on the new tag. (Attaching only a
    `MacParakeet-X.Y.Z.dmg` is not enough; v0.6.20 shipped without the plain
-   `MacParakeet.dmg` and the cask could not bump to it.)
+   `MacParakeet.dmg` and the cask could not bump to it.) Create the GitHub
+   release **without** the DMG, then attach the verified R2 object from Linux
+   curl — do not `gh release upload` the 174 MB file from this Mac (gotcha #1b).
 
 ## Standalone CLI Homebrew release
 
@@ -300,7 +420,8 @@ npx wrangler r2 object put macparakeet-downloads/MacParakeet.dmg \
 # → cd ~/code/macparakeet-website && git add -A && git commit && git push
 # → npx astro build && npx wrangler pages deploy dist --project-name macparakeet-website --branch main
 # → Verify: curl -s "https://macparakeet.com/appcast.xml?ts=$(date +%s)" | grep sparkle:version
-# → Upload/copy the GitHub release asset as MacParakeet-X.Y.Z.dmg for Homebrew
+# → gh release create vX.Y.Z --notes-file notes.md   # no DMG yet
+# → attach MacParakeet.dmg from Ubuntu curl of the verified R2 object (gotcha #1b)
 ```
 
 ### Common pitfalls
@@ -310,11 +431,14 @@ npx wrangler r2 object put macparakeet-downloads/MacParakeet.dmg \
 | App crashes at launch (dyld) | Sparkle.framework missing from bundle | Build script should catch this. If bypassed, re-run `build_app_bundle.sh` |
 | "Improperly signed" update error | R2 file doesn't match appcast signature, OR Cloudflare CDN cached an old DMG | Re-upload the **exact same DMG** you ran `sign_update` on. Verify sizes match. **Always use `?v={BUILD_NUMBER}` in the appcast enclosure URL** to bust Cloudflare's CDN cache |
 | Appcast not updating | Cloudflare Pages cache / build not triggered | Deploy manually: `npx wrangler pages deploy dist --project-name macparakeet-website` |
-| Homebrew cask stays behind appcast | GitHub release is missing `MacParakeet-X.Y.Z.dmg`, even if `MacParakeet.dmg` exists | Upload the exact shipped DMG to the GitHub release with the versioned filename, then wait for BrewTestBot's autobump cycle |
+| Homebrew cask stays behind appcast | GitHub release is missing `MacParakeet.dmg` on the new `vX.Y.Z` tag | Attach the exact shipped DMG as `MacParakeet.dmg` via Ubuntu curl of the verified R2 object (gotcha #1b), then wait for BrewTestBot |
 | `notarytool` auth failure | Keychain profile missing | Run `xcrun notarytool store-credentials "AC_PASSWORD"` (see Step 2 above) |
 | Update found but same version | Build number in appcast ≤ installed build | Ensure `sparkle:version` (build number) is strictly greater |
-| `notarytool` bus error / crash | Using `--wait` flag | **Never use `xcrun notarytool submit --wait`.** Submit without `--wait`, then poll with `xcrun notarytool info <submission-id>`. See gotcha #1 below. |
-| `notarytool` stays `In Progress` beyond the normal window | Apple accepted upload but the submission is likely stale/stuck | Stop local pollers, discard release artifacts, rebuild/sign from scratch, and submit a fresh archive. Do not continue from orphaned `In Progress` submissions. See gotcha #1a below. |
+| Fresh SwiftPM dependency checkout fails with `git: 'submodule' is not a git command` | Xcode's Apple Git cannot find `git-submodule`, even though the shell Git may have it | Re-run `build_app_bundle.sh`; it now detects this mismatch and lends xcodebuild the shell Git helper path. If neither Git has the helper, repair Xcode/Command Line Tools or export `GIT_EXEC_PATH` to a directory containing `git-submodule`. |
+| `notarytool` bus error / crash | Default submit (progress / S3 accel) SIGBUS-crashes; Apple may list a ghost `In Progress` ID | Preserve `dist/`. Resubmit the **same** zip/DMG with `--no-wait --no-progress --no-s3-acceleration --output-format json`. Do not poll the crash-era ID. See gotcha #1. |
+| `notarytool` stays `In Progress` after `Successfully uploaded file` | Apple has the archive; processing has not reached a final result | Poll that exact ID with a deadline. Do not rebuild. See gotcha #1a. |
+| `notarytool` stays `In Progress` after SIGBUS / exit 138 | Incomplete upload reservation, not a slow job | Start fresh on the transport: same bytes, safe flags. See gotcha #1. |
+| GitHub `MacParakeet.dmg` upload 500 / TLS stall | ~174 MB from this Mac’s LibreSSL/`gh` to `uploads.github.com` is unreliable | Create the release without the asset; attach from Ubuntu curl of the verified R2 object. See gotcha #1b. |
 | TCC permissions silently fail | User ran app from DMG volume instead of /Applications | DMG must include Applications symlink. See gotcha #3 below. |
 | YouTube transcription fails with `[PYI:ERROR] Failed to load Python shared library ... different Team IDs` | Bundled `yt-dlp_macos` was re-signed with hardened runtime but without disabling library validation | Sign `yt-dlp` with `com.apple.security.cs.disable-library-validation=true`, smoke-test `Contents/Resources/yt-dlp --version`, and repair any bad managed copy in Application Support |
 
@@ -322,46 +446,84 @@ npx wrangler r2 object put macparakeet-downloads/MacParakeet.dmg \
 
 These are bugs and edge cases discovered during actual releases. Read before your first release.
 
-#### 1. `notarytool --wait` crashes with bus error
+#### 1. A `notarytool` crash is an incomplete upload — resubmit the same bytes
 
-**Never use the `--wait` flag** with `xcrun notarytool submit`. It crashes with a bus error (EXC_BAD_ACCESS) on some macOS versions. This is an Apple bug that has persisted across multiple Xcode releases.
+**Do not use `--wait`.** Default `notarytool submit` (progress + S3 acceleration)
+also SIGBUS-crashes on this Mac (exit 138) *without* `--wait`. Apple then lists
+a new ID that can stay `In Progress` indefinitely because the file never
+finished uploading. That history row is a reservation, not a receipt. Polling
+it cannot converge. 0.8.5 burned ~55 minutes this way; 0.8.4 morning left seven
+ghost DMG IDs before one Accepted. Evidence:
+[`docs/audits/2026-09-17-0.8.5-release-postmortem.md`](audits/2026-09-17-0.8.5-release-postmortem.md).
 
-**Instead:** Submit without `--wait` and poll for completion:
-
-```bash
-# Submit (returns a submission ID)
-xcrun notarytool submit dist/MacParakeet.dmg --keychain-profile "AC_PASSWORD"
-# Note the submission ID from the output
-
-# Poll until status is "Accepted" or "Invalid"
-xcrun notarytool info <SUBMISSION_ID> --keychain-profile "AC_PASSWORD"
-```
-
-The `sign_notarize.sh` script already handles this correctly — it submits and polls in a loop. If you're running notarization manually, never add `--wait`.
-
-#### 1a. Restart from clean artifacts if notarization stalls
-
-Normal notarization usually returns `Accepted` in roughly 2-5 minutes. If a
-fresh app or DMG submission stays `In Progress` well beyond that window, treat
-the submission as stale instead of waiting indefinitely. This can happen even
-when `notarytool submit` produced a valid submission ID.
-
-For a clean restart:
+**Instead:** submit with the flags that printed `Successfully uploaded file`
+and Accepted in under a minute:
 
 ```bash
-# Stop any local release pollers first.
-ps -axo pid,ppid,etime,command | rg 'notarytool|sign_notarize|build_app_bundle|hdiutil'
+xcrun notarytool submit dist/MacParakeet.app.zip \
+  --keychain-profile "AC_PASSWORD" \
+  --no-wait --no-progress --no-s3-acceleration \
+  --output-format json
+# Expect: {"id":"...","message":"Successfully uploaded file",...}
 
-# Then discard generated release artifacts and rebuild/sign fresh.
-rm -rf dist/MacParakeet.app dist/MacParakeet.app.zip \
-  dist/MacParakeet.dmg dist/MacParakeet-rw.dmg dist/.dmg-staging
-VERSION=X.Y.Z scripts/dist/build_app_bundle.sh
-SKIP_NOTARIZE=1 CREATE_DMG=0 scripts/dist/sign_notarize.sh
+xcrun notarytool info <SUBMISSION_ID> \
+  --keychain-profile "AC_PASSWORD" --output-format json
 ```
 
-Submit the newly-created archive and poll that exact fresh submission ID. Only
-staple, DMG, upload, or update Sparkle after a clean `Accepted` response for the
-artifact you are actually shipping.
+After SIGBUS / exit 138 / any submit without `Successfully uploaded file`:
+
+1. Preserve `dist/` (do not rebuild, do not re-sign).
+2. Do **not** poll the crash-era history ID.
+3. Resubmit the **same** zip or DMG with the flags above.
+4. Staple only after that new ID is `Accepted`.
+
+`sign_notarize.sh` now uses those flags and refuses to poll a submit that did
+not report a finished upload. Rerunning the whole script still re-signs; if
+submit crashed, call `notarytool submit` on the existing artifact instead of
+starting the script over.
+
+#### 1a. Bound polling only after the upload actually finished
+
+Gotcha #1a applies **after** `Successfully uploaded file`. Then `In Progress`
+is real Apple processing, not a ghost. Apple notes that some uploads take
+longer. [Apple Developer Technical Support](https://developer.apple.com/forums/thread/818575).
+
+Poll that exact ID at a sensible interval, for example once per 60 seconds for
+up to 30 minutes. Stop on `Accepted`, `Invalid`, or `Rejected`. The script's
+polling timeout and interval are `NOTARY_TIMEOUT_SECONDS` and
+`NOTARY_POLL_INTERVAL_SECONDS`.
+
+If the deadline expires while Apple still reports `In Progress` **on an ID
+that already printed `Successfully uploaded file`**, stop the local poller,
+preserve the artifact and ID, and check
+[Apple's service status](https://developer.apple.com/system-status/).
+Do not blindly rebuild. Resume bounded read-only polling of the same ID.
+
+For `Invalid` or `Rejected`, retrieve `notarytool log <SUBMISSION_ID>` with the
+same profile, fix the artifact, and submit a new archive. Only staple or
+distribute the exact artifact whose submission is `Accepted`. Never treat an
+older candidate's acceptance as approval of a new build.
+
+#### 1b. Attach the GitHub DMG from Linux curl of the verified R2 object
+
+Sparkle downloads from R2. GitHub needs the same bytes named exactly
+`MacParakeet.dmg` so Homebrew can autobump. On this Mac, local
+`gh release upload` of the ~174 MB DMG fails (HTTP 500, `tls: bad record MAC`,
+LibreSSL stall around 18 MB). `gh release upload` from GitHub Actions also hung
+for 18 minutes with no asset.
+
+Working path for 0.8.5:
+
+1. Upload `dist/MacParakeet.dmg` to R2 and confirm `content-length` plus SHA-256.
+2. `gh release create vX.Y.Z --notes-file notes.md` **with no files**.
+3. From a GitHub-hosted Ubuntu job, download the R2 object, check size and
+   SHA-256 against the local values, then POST to
+   `https://uploads.github.com/repos/moona3k/macparakeet/releases/<id>/assets?name=MacParakeet.dmg`
+   with `Content-Type: application/x-apple-diskimage`. 0.8.5 finished in 29 s
+   ([run 35253733335](https://github.com/moona3k/macparakeet/actions/runs/35253733335)).
+
+Do not combine tag creation with the DMG upload: a TLS failure then delays the
+public tag. Delete one-shot upload branches after the asset lands.
 
 #### 2. Cloudflare CDN caches R2 objects — Sparkle cache-busting is mandatory
 
@@ -485,7 +647,7 @@ Template for a new item (prepend to existing items in `appcast.xml`):
     </item>
 ```
 
-**Important:** Don't replace existing items — prepend the new one. Sparkle shows all items newer than the user's installed version. Keep ~10 items for users who skip versions.
+**Important:** Don't replace existing items — prepend the new one. Sparkle 2 shows only the selected newest item's description, so the new item's notes must stand on their own for users who skip versions. Keep ~10 items for compatibility/fallback metadata and release history.
 
 ### Signing an update
 
@@ -527,6 +689,10 @@ codesigning to catch drift before notarization.
 | System audio capture | `NSAudioCaptureUsageDescription` | macOS TCC prompt, no app entitlement |
 | Calendar event read access | `NSCalendarsFullAccessUsageDescription` | `com.apple.security.personal-information.calendars` |
 
+Microphone-only meeting capture uses only the Microphone permission and never
+triggers the System Audio (Screen Recording) prompt; system audio is requested
+only for source modes that capture it.
+
 ### Settings UI
 
 Users can control auto-update behavior in Settings > Updates:
@@ -549,4 +715,4 @@ UNIVERSAL=1 scripts/dist/build_app_bundle.sh
 - **Users must install to /Applications before launching.** Running directly from a mounted DMG (`/Volumes/MacParakeet/`) will not register with macOS TCC — the app won't appear in System Settings > Privacy & Security > Microphone, and permission requests will silently fail. The DMG includes an Applications symlink for drag-to-install.
 - If a user's microphone permission gets stuck as "Denied", reset it with: `tccutil reset Microphone com.macparakeet.MacParakeet`
 - The Cloudflare R2 bucket uses a custom domain via `wrangler r2 bucket domain add`. The `r2.dev` public URL is also enabled as a fallback.
-- Cloudflare Pages has a 25MB file size limit, so the DMG (27MB) cannot be hosted directly in the website repo's `public/` folder.
+- Cloudflare Pages has a 25MB file size limit, so release DMGs that exceed this limit cannot be hosted directly in the website repo's `public/` folder.

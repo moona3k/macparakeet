@@ -36,9 +36,15 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     case openaiCompatible
     case gemini
     case openrouter
+    case moonshot
+    case deepseek
+    case qwen
+    case zai
+    case minimax
     case ollama
     case lmstudio
     case localCLI
+    case inProcessLocal
 
     public var descriptor: LLMProviderDescriptor {
         switch self {
@@ -52,10 +58,11 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
                 requiresAPIKey: true,
                 requiresCustomEndpoint: false,
                 modelListEndpoint: .anthropic,
-                defaultModelName: "claude-sonnet-4-6",
+                defaultModelName: "claude-sonnet-5",
                 fallbackModels: [
-                    "claude-sonnet-4-6",
-                    "claude-opus-4-7",
+                    "claude-sonnet-5",
+                    "claude-fable-5",
+                    "claude-opus-4-8",
                     "claude-haiku-4-5",
                 ]
             )
@@ -124,11 +131,12 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
                 requiresAPIKey: true,
                 requiresCustomEndpoint: false,
                 modelListEndpoint: .openAICompatible,
-                defaultModelName: "anthropic/claude-sonnet-4.6",
+                defaultModelName: "anthropic/claude-sonnet-5",
                 fallbackModels: [
-                    "anthropic/claude-sonnet-4.6",
-                    "anthropic/claude-opus-4.7",
-                    "anthropic/claude-haiku-4-5",
+                    "anthropic/claude-sonnet-5",
+                    "anthropic/claude-fable-5",
+                    "anthropic/claude-opus-4.8",
+                    "anthropic/claude-haiku-4.5",
                     "openai/gpt-5.5",
                     "openai/gpt-5.5-pro",
                     "openai/gpt-5.4",
@@ -150,6 +158,91 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
                     "meta-llama/llama-4-scout",
                     "cohere/command-a",
                     "minimax/minimax-m2.7",
+                ]
+            )
+        case .moonshot:
+            return LLMProviderDescriptor(
+                id: self,
+                displayName: "Moonshot (Kimi)",
+                defaultBaseURL: "https://api.moonshot.ai/v1",
+                isLocal: false,
+                supportsAPIKey: true,
+                requiresAPIKey: true,
+                requiresCustomEndpoint: false,
+                modelListEndpoint: .openAICompatible,
+                defaultModelName: "kimi-k2.6",
+                fallbackModels: [
+                    "kimi-k3",
+                    "kimi-k2.7-code",
+                    "kimi-k2.6",
+                    "kimi-k2.5",
+                ]
+            )
+        case .deepseek:
+            return LLMProviderDescriptor(
+                id: self,
+                displayName: "DeepSeek",
+                defaultBaseURL: "https://api.deepseek.com/v1",
+                isLocal: false,
+                supportsAPIKey: true,
+                requiresAPIKey: true,
+                requiresCustomEndpoint: false,
+                modelListEndpoint: .openAICompatible,
+                defaultModelName: "deepseek-v4-flash",
+                fallbackModels: [
+                    "deepseek-v4-pro",
+                    "deepseek-v4-flash",
+                ]
+            )
+        case .qwen:
+            return LLMProviderDescriptor(
+                id: self,
+                displayName: "Qwen",
+                defaultBaseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+                isLocal: false,
+                supportsAPIKey: true,
+                requiresAPIKey: true,
+                requiresCustomEndpoint: false,
+                modelListEndpoint: .openAICompatible,
+                defaultModelName: "qwen3.7-max",
+                fallbackModels: [
+                    "qwen3.7-max",
+                    "qwen-plus",
+                    "qwen-flash",
+                ]
+            )
+        case .zai:
+            return LLMProviderDescriptor(
+                id: self,
+                displayName: "Z.AI",
+                defaultBaseURL: "https://api.z.ai/api/paas/v4",
+                isLocal: false,
+                supportsAPIKey: true,
+                requiresAPIKey: true,
+                requiresCustomEndpoint: false,
+                modelListEndpoint: .openAICompatible,
+                defaultModelName: "glm-5.1",
+                fallbackModels: [
+                    "glm-5.2",
+                    "glm-5.1",
+                    "glm-4.7",
+                ]
+            )
+        case .minimax:
+            return LLMProviderDescriptor(
+                id: self,
+                displayName: "MiniMax",
+                defaultBaseURL: "https://api.minimax.io/v1",
+                isLocal: false,
+                supportsAPIKey: true,
+                requiresAPIKey: true,
+                requiresCustomEndpoint: false,
+                modelListEndpoint: .openAICompatible,
+                defaultModelName: "MiniMax-M2.7",
+                fallbackModels: [
+                    "MiniMax-M3",
+                    "MiniMax-M2.7",
+                    "MiniMax-M2.5",
                 ]
             )
         case .ollama:
@@ -199,7 +292,46 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
                 defaultModelName: "",
                 fallbackModels: []
             )
+        case .inProcessLocal:
+            return LLMProviderDescriptor(
+                id: self,
+                displayName: "Local MLX",
+                defaultBaseURL: "inprocess://local",
+                isLocal: true,
+                supportsAPIKey: false,
+                requiresAPIKey: false,
+                requiresCustomEndpoint: false,
+                modelListEndpoint: .none,
+                defaultModelName: "mlx-community/Qwen3-4B-Instruct-2507-DDWQ",
+                fallbackModels: [
+                    "mlx-community/Qwen3-4B-Instruct-2507-DDWQ"
+                ]
+            )
         }
+    }
+
+    public static var userSelectableProviderIDs: [LLMProviderID] {
+        userSelectableProviderIDs()
+    }
+
+    public static func userSelectableProviderIDs(
+        inProcessLocalLLMVisible: Bool = AppFeatures.isInProcessLocalLLMVisible()
+    ) -> [LLMProviderID] {
+        [
+            .lmstudio,
+            .ollama,
+            .anthropic,
+            .openai,
+            .gemini,
+            .openrouter,
+            .moonshot,
+            .deepseek,
+            .qwen,
+            .zai,
+            .minimax,
+            .openaiCompatible,
+            .localCLI,
+        ] + (inProcessLocalLLMVisible ? [.inProcessLocal] : [])
     }
 
     public var displayName: String {
@@ -247,6 +379,27 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
         descriptor.defaultModelName
     }
 
+    /// Chat Completions over the shared OpenAI-compatible adapter.
+    public var usesOpenAICompatibleChatCompletions: Bool {
+        switch self {
+        case .openai, .openaiCompatible, .gemini, .openrouter, .moonshot, .deepseek, .qwen, .zai, .minimax, .lmstudio:
+            return true
+        case .anthropic, .ollama, .localCLI, .inProcessLocal:
+            return false
+        }
+    }
+
+    /// International OpenAI-compatible lab endpoints (Moonshot, DeepSeek, Qwen, Z.AI, MiniMax).
+    public var isChinaLabCloud: Bool {
+        switch self {
+        case .moonshot, .deepseek, .qwen, .zai, .minimax:
+            return true
+        case .anthropic, .openai, .openaiCompatible, .gemini, .openrouter, .ollama, .lmstudio, .localCLI,
+            .inProcessLocal:
+            return false
+        }
+    }
+
 }
 
 // MARK: - Provider Configuration
@@ -277,7 +430,7 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
         baseURL = try container.decode(URL.self, forKey: .baseURL)
         modelName = try container.decode(String.self, forKey: .modelName)
         isLocal = try container.decode(Bool.self, forKey: .isLocal)
-        apiKey = nil // Excluded from Codable — hydrated from Keychain separately
+        apiKey = nil  // Excluded from Codable — hydrated from Keychain separately
     }
 
     // MARK: - Factory Methods
@@ -313,14 +466,15 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
     public static func openaiCompatible(
         apiKey: String? = nil,
         model: String,
-        baseURL: URL
+        baseURL: URL,
+        isLocal: Bool? = nil
     ) -> LLMProviderConfig {
         LLMProviderConfig(
             id: .openaiCompatible,
             baseURL: baseURL,
             apiKey: apiKey,
             modelName: model,
-            isLocal: Self.isLoopbackEndpoint(baseURL)
+            isLocal: isLocal ?? Self.isLoopbackEndpoint(baseURL)
         )
     }
 
@@ -346,6 +500,61 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
         LLMProviderConfig(
             id: .openrouter,
             baseURL: baseURL ?? URL(string: LLMProviderID.openrouter.defaultBaseURL)!,
+            apiKey: apiKey,
+            modelName: model,
+            isLocal: false
+        )
+    }
+
+    public static func moonshot(
+        apiKey: String,
+        model: String = LLMProviderID.moonshot.defaultModelName,
+        baseURL: URL? = nil
+    ) -> LLMProviderConfig {
+        chinaLabCloud(id: .moonshot, apiKey: apiKey, model: model, baseURL: baseURL)
+    }
+
+    public static func deepseek(
+        apiKey: String,
+        model: String = LLMProviderID.deepseek.defaultModelName,
+        baseURL: URL? = nil
+    ) -> LLMProviderConfig {
+        chinaLabCloud(id: .deepseek, apiKey: apiKey, model: model, baseURL: baseURL)
+    }
+
+    public static func qwen(
+        apiKey: String,
+        model: String = LLMProviderID.qwen.defaultModelName,
+        baseURL: URL? = nil
+    ) -> LLMProviderConfig {
+        chinaLabCloud(id: .qwen, apiKey: apiKey, model: model, baseURL: baseURL)
+    }
+
+    public static func zai(
+        apiKey: String,
+        model: String = LLMProviderID.zai.defaultModelName,
+        baseURL: URL? = nil
+    ) -> LLMProviderConfig {
+        chinaLabCloud(id: .zai, apiKey: apiKey, model: model, baseURL: baseURL)
+    }
+
+    public static func minimax(
+        apiKey: String,
+        model: String = LLMProviderID.minimax.defaultModelName,
+        baseURL: URL? = nil
+    ) -> LLMProviderConfig {
+        chinaLabCloud(id: .minimax, apiKey: apiKey, model: model, baseURL: baseURL)
+    }
+
+    private static func chinaLabCloud(
+        id: LLMProviderID,
+        apiKey: String,
+        model: String,
+        baseURL: URL?
+    ) -> LLMProviderConfig {
+        LLMProviderConfig(
+            id: id,
+            baseURL: baseURL ?? URL(string: id.defaultBaseURL)!,
             apiKey: apiKey,
             modelName: model,
             isLocal: false
@@ -386,9 +595,80 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
         )
     }
 
+    public static func inProcessLocal(
+        model: String = LLMProviderID.inProcessLocal.defaultModelName
+    ) -> LLMProviderConfig {
+        LLMProviderConfig(
+            id: .inProcessLocal,
+            baseURL: URL(string: LLMProviderID.inProcessLocal.defaultBaseURL)!,
+            apiKey: nil,
+            modelName: model,
+            isLocal: true
+        )
+    }
+
     public static func isLoopbackEndpoint(_ url: URL) -> Bool {
         guard let host = url.host?.lowercased() else { return false }
         return host == "localhost" || host == "::1" || host.hasPrefix("127.")
     }
 
+}
+
+/// A model override checked against the provider rules that can be evaluated
+/// without making a network request. Endpoint-specific providers deliberately
+/// retain arbitrary non-empty model IDs for the generation endpoint to verify.
+public enum LLMModelOverrideResolution: Sendable, Equatable {
+    case resolved(LLMProviderConfig)
+    case invalid(model: String, reason: String)
+}
+
+public extension LLMProviderConfig {
+    /// Produces a request-scoped configuration without mutating stored settings.
+    /// The same rule is used before dispatch and when presenting prompt settings.
+    func resolvingModelOverride(_ rawModelOverride: String?) -> LLMModelOverrideResolution {
+        guard let rawModelOverride else { return .resolved(self) }
+        let modelOverride = rawModelOverride.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !modelOverride.isEmpty else {
+            return .invalid(model: rawModelOverride, reason: "the model name is empty.")
+        }
+        guard Self.isLocallyCompatible(modelOverride, with: id) else {
+            return .invalid(
+                model: modelOverride,
+                reason: "the model identifier does not match this provider."
+            )
+        }
+        guard modelOverride != modelName else { return .resolved(self) }
+        guard id != .localCLI else {
+            return .invalid(
+                model: modelOverride,
+                reason: "the configured CLI command controls its model. "
+                    + "Remove the override or change the command in Settings."
+            )
+        }
+        return .resolved(
+            LLMProviderConfig(
+                id: id,
+                baseURL: baseURL,
+                apiKey: apiKey,
+                modelName: modelOverride,
+                isLocal: isLocal
+            )
+        )
+    }
+
+    private static func isLocallyCompatible(_ model: String, with provider: LLMProviderID) -> Bool {
+        switch provider {
+        case .anthropic:
+            return model.hasPrefix("claude-")
+        case .gemini:
+            let lowered = model.lowercased()
+            return lowered.hasPrefix("gemini-") || lowered.hasPrefix("gemma-")
+        case .openrouter:
+            let components = model.split(separator: "/", omittingEmptySubsequences: false)
+            return components.count == 2 && components.allSatisfy { !$0.isEmpty }
+        case .openai, .openaiCompatible, .moonshot, .deepseek, .qwen, .zai, .minimax, .ollama, .lmstudio, .localCLI,
+            .inProcessLocal:
+            return true
+        }
+    }
 }

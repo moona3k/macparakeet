@@ -16,11 +16,13 @@ Raw STT Text → Filler Removal → Custom Words → Trailing Action Extraction 
 
 ### Step 1: Filler Removal
 
-Removes only always-safe hesitation sounds:
+Removes hesitation sounds that are safe for English Clean processing:
 
-- "um", "uh", "umm", "uhh"
+- Always: "uh", "umm", "uhh"
+- By default: "um" (English hesitation). Turn **Also remove “um”** off in
+  Vocabulary if you dictate Portuguese or German, where `um` is a real word.
 
-Implementation uses `NSRegularExpression` with word boundaries (`\b`) to avoid partial matches. Words like "like", "so", "right", and phrases like "you know" are intentionally not stripped by default because they can carry meaning.
+Implementation uses `NSRegularExpression` with word boundaries (`\b`) to avoid partial matches. Words like "like", "so", "right", and phrases like "you know" are intentionally not stripped because they can carry meaning.
 
 ### Step 2: Custom Word Replacements
 
@@ -37,11 +39,23 @@ Two categories:
 - **Disabled** words are skipped (user can toggle without deleting)
 - Applied in the order they appear in the database
 
+**Meetings (REQ-PIPE-003):** these custom-word corrections also run on
+finalized meeting transcripts — applied to both the plain text and the
+per-word timestamp tokens that drive the speaker-segmented transcript view and
+the SRT/VTT/speaker-paragraph exports. Meeting correction is **always-on**,
+independent of the Raw/Clean processing mode (custom words a user entered are
+intentional corrections, and the default mode is Raw). Only this custom-word
+step is reused; filler removal, snippet expansion, and insertion styling stay
+dictation-only so the verbatim meeting record is preserved. The shared
+matching logic lives in `CustomWordReplacer`; the meeting entry point is
+`MeetingTranscriptVocabularyApplier`.
+
 ### Step 3: Trailing Action Extraction
 
-If the user's text ends with an enabled action-snippet trigger, the trigger is stripped and the action is returned through `TextProcessingResult.postPasteAction`. This is how Voice Return-style behavior can simulate Return after paste without leaving "press return" in the transcript.
+If the user's text ends with an enabled action-snippet trigger, the trigger is stripped and the action is returned through `TextProcessingResult.postPasteAction`. This is how Voice Return-style behavior can simulate Return after paste without leaving a configured trigger phrase such as "press return" or "zatwierdź" in the transcript.
 
 - Action snippets are matched longest-first, case-insensitive, and punctuation-tolerant at the end of the text.
+- Voice Return can inject multiple configured trigger phrases for the same Return action.
 - Extraction happens before normal snippet expansion so a plain snippet cannot consume or rewrite the action trigger.
 - Raw mode skips the full clean pipeline, but still performs this terminal action extraction so Voice Return works in both Raw and Clean.
 
@@ -72,19 +86,23 @@ Final normalization pass:
 
 | Mode | Processing | Engine | Latency |
 |------|-----------|--------|---------|
-| Raw | None | N/A | 0ms |
+| Raw (default) | Configured terminal action extraction only | TextProcessingPipeline | Not separately measured |
 | Clean | Deterministic pipeline | TextProcessingPipeline | <1ms |
 
 ### Mode Details
 
-**Raw**: No processing. The exact text output from Parakeet is used as-is. Useful for debugging or when the user wants full control.
+**Raw** (default): Skip cleanup and insertion styling. Preserve engine output except for configured trailing action extraction, so Voice Return works without enabling Clean processing.
 
-**Clean** (default): The deterministic 5-step pipeline runs. Fast and predictable. Good for most dictation use cases.
+**Clean** (opt-in): Run the deterministic 5-step pipeline, including trailing action extraction.
 
 Clean dictation also has an insertion-style preference. Sentence style keeps
 the historical sentence-shaped output. Inline style keeps the same deterministic
 pipeline but shapes the final output for selected-text replacement, search
 fields, forms, terminal commands, and hybrid typing.
+
+Clean filler removal includes standalone `um` by default (English hesitation).
+Portuguese and German speakers can turn **Also remove “um”** off in Vocabulary
+so counting words and prepositions stay in the transcript.
 
 ---
 
@@ -103,6 +121,11 @@ Stores user-defined vocabulary anchors and corrections.
 | isEnabled | BOOLEAN | Whether this word is active |
 | createdAt | DATETIME | When created |
 | updatedAt | DATETIME | When last modified |
+
+Custom word management supports confirmed deletion of selected rules, including
+all search matches. Deletion changes future vocabulary application; it does not
+rewrite existing transcripts or delete other user data. See the
+[deletion contract](contracts/custom-word-deletion.md).
 
 ### text_snippets
 
@@ -127,7 +150,7 @@ Stores trigger-to-expansion mappings.
 
 ```bash
 # Run clean processing on text
-macparakeet-cli vocab process "um hello kubernetes is great"
+macparakeet-cli vocab process "uh hello kubernetes is great"
 # → "Hello Kubernetes is great."
 
 # Process and copy to clipboard

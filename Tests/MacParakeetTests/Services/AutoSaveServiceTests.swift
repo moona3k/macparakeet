@@ -99,11 +99,14 @@ final class AutoSaveServiceTests: XCTestCase {
         let transcription = makeTranscription()
         let service = makeService()
 
-        service.saveIfEnabled(transcription)
+        let result = service.saveIfEnabled(transcription)
 
         let files = try! FileManager.default.contentsOfDirectory(atPath: tempDir.path)
         XCTAssertEqual(files.count, 1)
         XCTAssertTrue(files[0].hasSuffix(".md"))
+        let content = try! String(contentsOf: tempDir.appendingPathComponent(files[0]), encoding: .utf8)
+        XCTAssertTrue(content.contains("# test-audio.mp3"))
+        XCTAssertEqual(result, .saved)
     }
 
     func testSaveIfEnabledWritesTxtFile() {
@@ -140,6 +143,20 @@ final class AutoSaveServiceTests: XCTestCase {
         let files = try! FileManager.default.contentsOfDirectory(atPath: tempDir.path)
         XCTAssertEqual(files.count, 1)
         XCTAssertTrue(files[0].hasSuffix(".vtt"))
+    }
+
+    func testSaveIfEnabledWritesDAPTFile() {
+        configureAutoSave(enabled: true, format: .dapt)
+        let transcription = makeTranscription()
+
+        let result = makeService().saveIfEnabled(transcription)
+
+        XCTAssertEqual(result, .saved)
+        let files = try! FileManager.default.contentsOfDirectory(atPath: tempDir.path)
+        XCTAssertEqual(files.count, 1)
+        XCTAssertTrue(files[0].hasSuffix(".dapt.xml"))
+        let content = try! String(contentsOf: tempDir.appendingPathComponent(files[0]), encoding: .utf8)
+        XCTAssertTrue(content.contains("daptm:scriptType=\"originalTranscript\""))
     }
 
     func testSaveIfEnabledWritesJSONFile() {
@@ -229,10 +246,13 @@ final class AutoSaveServiceTests: XCTestCase {
         }
     }
 
-    func testFormatRawValueMatchesFileExtension() {
-        for format in AutoSaveFormat.allCases {
-            XCTAssertEqual(format.rawValue, format.fileExtension)
-        }
+    func testFormatFileExtensions() {
+        XCTAssertEqual(AutoSaveFormat.txt.fileExtension, "txt")
+        XCTAssertEqual(AutoSaveFormat.md.fileExtension, "md")
+        XCTAssertEqual(AutoSaveFormat.srt.fileExtension, "srt")
+        XCTAssertEqual(AutoSaveFormat.vtt.fileExtension, "vtt")
+        XCTAssertEqual(AutoSaveFormat.dapt.fileExtension, "dapt.xml")
+        XCTAssertEqual(AutoSaveFormat.json.fileExtension, "json")
     }
 
     // MARK: - Folder Bookmark
@@ -273,14 +293,37 @@ final class AutoSaveServiceTests: XCTestCase {
         XCTAssertTrue(content.contains("This is a test transcript"))
     }
 
-    func testDeletedFolderDoesNotCrash() {
+    func testDeletedFolderReturnsUnavailable() {
         configureAutoSave(enabled: true, format: .txt)
         // Remove the target folder after configuring — bookmark resolution will fail
         try! FileManager.default.removeItem(at: tempDir)
 
         let service = makeService()
-        // Should not crash; auto-save silently skips when folder is gone
-        service.saveIfEnabled(makeTranscription())
+        let result = service.saveIfEnabled(makeTranscription())
+
+        XCTAssertEqual(result, .folderUnavailable)
+    }
+
+    func testFileDestinationReturnsFailure() throws {
+        let fileURL = tempDir.appendingPathComponent("not-a-folder")
+        try Data().write(to: fileURL)
+        defaults.set(true, forKey: AutoSaveService.enabledKey)
+        defaults.set(AutoSaveFormat.txt.rawValue, forKey: AutoSaveService.formatKey)
+        XCTAssertNotNil(AutoSaveService.storeFolder(fileURL, defaults: defaults))
+
+        let result = makeService().saveIfEnabled(makeTranscription())
+
+        XCTAssertEqual(result, .failed)
+    }
+
+    func testFolderUsabilityRequiresExistingDirectory() async throws {
+        let existingFolderIsUsable = await AutoSaveService.isFolderUsable(tempDir)
+
+        try FileManager.default.removeItem(at: tempDir)
+        let deletedFolderIsUsable = await AutoSaveService.isFolderUsable(tempDir)
+
+        XCTAssertTrue(existingFolderIsUsable)
+        XCTAssertFalse(deletedFolderIsUsable)
     }
 
     func testDeletedFolderEmitsUnavailableOperation() {
@@ -348,6 +391,61 @@ final class AutoSaveServiceTests: XCTestCase {
         let files = try! FileManager.default.contentsOfDirectory(atPath: tempDir.path)
         XCTAssertEqual(files.count, 1)
         XCTAssertTrue(files[0].hasSuffix(".md"))
+        let content = try! String(contentsOf: tempDir.appendingPathComponent(files[0]), encoding: .utf8)
+        XCTAssertTrue(content.contains("# test-audio.mp3"))
+    }
+
+    func testMeetingScopeWritesDAPTFile() {
+        configureMeetingAutoSave(enabled: true, format: .dapt)
+        let transcription = makeTranscription(sourceType: .meeting)
+
+        let result = makeService().saveIfEnabled(transcription, scope: .meeting)
+
+        XCTAssertEqual(result, .saved)
+        let files = try! FileManager.default.contentsOfDirectory(atPath: tempDir.path)
+        XCTAssertEqual(files.count, 1)
+        XCTAssertTrue(files[0].hasSuffix(".dapt.xml"))
+    }
+
+    func testMeetingScopeAppliesPlainTextContentOptions() throws {
+        configureMeetingAutoSave(enabled: true, format: .txt)
+        defaults.set(false, forKey: AutoSaveService.meetingIncludeTimestampsKey)
+        defaults.set(false, forKey: AutoSaveService.meetingIncludeSpeakerLabelsKey)
+        defaults.set(false, forKey: AutoSaveService.meetingIncludeMetadataKey)
+        let transcription = Transcription(
+            fileName: "Roadmap Sync",
+            durationMs: 2_000,
+            rawTranscript: "First. Second.",
+            wordTimestamps: [
+                WordTimestamp(
+                    word: "First.",
+                    startMs: 0,
+                    endMs: 400,
+                    confidence: 0.99,
+                    speakerId: "S1"
+                ),
+                WordTimestamp(
+                    word: "Second.",
+                    startMs: 500,
+                    endMs: 900,
+                    confidence: 0.99,
+                    speakerId: "S2"
+                ),
+            ],
+            speakers: [
+                SpeakerInfo(id: "S1", label: "Alice"),
+                SpeakerInfo(id: "S2", label: "Bob"),
+            ],
+            status: .completed,
+            sourceType: .meeting
+        )
+
+        let result = makeService().saveIfEnabled(transcription, scope: .meeting)
+
+        let fileName = try XCTUnwrap(FileManager.default.contentsOfDirectory(atPath: tempDir.path).first)
+        let content = try String(contentsOf: tempDir.appendingPathComponent(fileName), encoding: .utf8)
+        XCTAssertEqual(result, .saved)
+        XCTAssertEqual(content, "First.\n\nSecond.")
     }
 
     func testMeetingFileNameUsesCalendarEventTitle() {

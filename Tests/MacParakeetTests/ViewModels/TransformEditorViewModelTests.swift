@@ -4,20 +4,7 @@ import XCTest
 
 @MainActor
 final class TransformEditorViewModelTests: XCTestCase {
-
-    private final class StubCollisionChecker: TransformShortcutCollisionChecking {
-        var result: TransformShortcutCollision?
-        var receivedReservedHotkeys: [TransformShortcutReservedHotkey]?
-        func checkForEditor(
-            candidate: KeyboardShortcut,
-            existing: [UUID: KeyboardShortcut],
-            excludingPromptID: UUID?,
-            reservedHotkeys: [TransformShortcutReservedHotkey]
-        ) -> TransformShortcutCollision? {
-            receivedReservedHotkeys = reservedHotkeys
-            return result
-        }
-    }
+    private let checker = TransformsHotkeyCollisionChecker()
 
     private let opt1 = KeyboardShortcut(
         modifiers: KeyboardShortcut.ModifierFlag.option.rawValue,
@@ -70,7 +57,7 @@ final class TransformEditorViewModelTests: XCTestCase {
         vm.validate(
             existingPrompts: [],
             reservedHotkeys: [],
-            collisionChecker: StubCollisionChecker()
+            collisionChecker: checker
         )
         XCTAssertNotNil(vm.nameError)
         XCTAssertFalse(vm.isValid)
@@ -82,7 +69,7 @@ final class TransformEditorViewModelTests: XCTestCase {
         vm.validate(
             existingPrompts: [],
             reservedHotkeys: [],
-            collisionChecker: StubCollisionChecker()
+            collisionChecker: checker
         )
         XCTAssertNotNil(vm.contentError)
         XCTAssertFalse(vm.isValid)
@@ -101,7 +88,7 @@ final class TransformEditorViewModelTests: XCTestCase {
         vm.validate(
             existingPrompts: [other],
             reservedHotkeys: [],
-            collisionChecker: StubCollisionChecker()
+            collisionChecker: checker
         )
         XCTAssertNotNil(vm.nameError)
         XCTAssertFalse(vm.isValid)
@@ -120,7 +107,7 @@ final class TransformEditorViewModelTests: XCTestCase {
         vm.validate(
             existingPrompts: [summary],
             reservedHotkeys: [],
-            collisionChecker: StubCollisionChecker()
+            collisionChecker: checker
         )
         XCTAssertNotNil(vm.nameError)
         XCTAssertFalse(vm.isValid)
@@ -137,15 +124,12 @@ final class TransformEditorViewModelTests: XCTestCase {
         vm.validate(
             existingPrompts: [prompt],
             reservedHotkeys: [],
-            collisionChecker: StubCollisionChecker()
+            collisionChecker: checker
         )
         XCTAssertNil(vm.nameError, "Editing the same Transform with its existing name should not read as duplicate.")
     }
 
     func testShortcutCollisionSurfacesAsError() {
-        let stub = StubCollisionChecker()
-        stub.result = .missingModifier
-
         let vm = TransformEditorViewModel(mode: .create)
         vm.name = "Sharpen"
         vm.content = "Body"
@@ -153,17 +137,18 @@ final class TransformEditorViewModelTests: XCTestCase {
         vm.validate(
             existingPrompts: [],
             reservedHotkeys: [],
-            collisionChecker: stub
+            collisionChecker: checker
         )
-        XCTAssertNotNil(vm.shortcutError)
+        XCTAssertEqual(
+            vm.shortcutError,
+            "Shortcut must include a modifier key (\u{2303}, \u{2325}, \u{21E7}, or \u{2318})."
+        )
         XCTAssertFalse(vm.isValid)
     }
 
-    func testValidationPassesReservedHotkeysToCollisionChecker() {
-        let stub = StubCollisionChecker()
+    func testValidationRejectsReservedHotkeyCollision() {
         let reserved = [
-            TransformShortcutReservedHotkey(name: "hands-free dictation", trigger: .fn),
-            TransformShortcutReservedHotkey(name: "file transcription", trigger: .option),
+            TransformShortcutReservedHotkey(name: "file transcription", trigger: opt1.hotkeyTrigger)
         ]
 
         let vm = TransformEditorViewModel(mode: .create)
@@ -173,10 +158,10 @@ final class TransformEditorViewModelTests: XCTestCase {
         vm.validate(
             existingPrompts: [],
             reservedHotkeys: reserved,
-            collisionChecker: stub
+            collisionChecker: checker
         )
 
-        XCTAssertEqual(stub.receivedReservedHotkeys, reserved)
+        XCTAssertEqual(vm.shortcutError, "This shortcut conflicts with file transcription.")
     }
 
     func testNilShortcutIsValidDormantState() {
@@ -187,7 +172,7 @@ final class TransformEditorViewModelTests: XCTestCase {
         vm.validate(
             existingPrompts: [],
             reservedHotkeys: [],
-            collisionChecker: StubCollisionChecker()
+            collisionChecker: checker
         )
         XCTAssertNil(vm.shortcutError)
         XCTAssertTrue(vm.isValid, "A Transform with no shortcut is a valid dormant state.")
@@ -203,7 +188,7 @@ final class TransformEditorViewModelTests: XCTestCase {
         vm.validate(
             existingPrompts: [],
             reservedHotkeys: [],
-            collisionChecker: StubCollisionChecker()
+            collisionChecker: checker
         )
         XCTAssertNil(vm.buildSavable())
     }
@@ -217,7 +202,7 @@ final class TransformEditorViewModelTests: XCTestCase {
         vm.validate(
             existingPrompts: [],
             reservedHotkeys: [],
-            collisionChecker: StubCollisionChecker()
+            collisionChecker: checker
         )
         let saved = vm.buildSavable()
         XCTAssertNotNil(saved)
@@ -246,24 +231,26 @@ final class TransformEditorViewModelTests: XCTestCase {
         vm.validate(
             existingPrompts: [],
             reservedHotkeys: [],
-            collisionChecker: StubCollisionChecker()
+            collisionChecker: checker
         )
         let saved = vm.buildSavable()
         XCTAssertEqual(saved?.id, originalID)
         XCTAssertEqual(saved?.createdAt, originalCreatedAt)
         XCTAssertEqual(saved?.content, "New body")
-        XCTAssertTrue(saved?.isBuiltIn ?? false, "Built-in flag must survive editing — protects the row from custom-transform deletion semantics.")
+        XCTAssertTrue(
+            saved?.isBuiltIn ?? false,
+            "Built-in flag must survive editing — protects the row from custom-transform deletion semantics.")
     }
 
     func testBuildSavableEmptyRunningLabelEncodesNil() {
         let vm = TransformEditorViewModel(mode: .create)
         vm.name = "Sharpen"
         vm.content = "Body"
-        vm.runningLabel = "   " // whitespace only
+        vm.runningLabel = "   "  // whitespace only
         vm.validate(
             existingPrompts: [],
             reservedHotkeys: [],
-            collisionChecker: StubCollisionChecker()
+            collisionChecker: checker
         )
         XCTAssertNil(vm.buildSavable()?.runningLabel, "Whitespace-only running label normalizes to nil.")
     }

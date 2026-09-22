@@ -1,0 +1,8 @@
+role	split	file_id	rttm_speakers	rttm_end_s	rttm_speech_s	wav_relpath
+overseg_control	test	wibky	1	298.14	239.48	wav/test/wibky.wav
+overseg_control	test	sfdvy	1	326.4	321.54	wav/test/sfdvy.wav
+exact1_bind	test	bxcfq	2	196.44	201.38	wav/test/bxcfq.wav
+exact1_bind	test	gylzn	2	363.06	350.72	wav/test/gylzn.wav
+exact1_bind_long	test	ouvtt	2	718.41	708.66	wav/test/ouvtt.wav
+max2_ceiling	test	fyqoe	3	290.84	356.85	wav/test/fyqoe.wav
+max2_ceiling	test	ledhe	3	400.94	397.87	wav/test/ledhe.wav

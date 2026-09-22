@@ -1,0 +1,8 @@
+{
+  "recorded_at_utc": "2026-09-07T23:35:40.808540+00:00",
+  "path": "<REPO>/dist/MacParakeet.dmg",
+  "size_bytes": 167213899,
+  "sha256": "17fbf6c6a2a3ed6ada8ce3f0816adae041832f27d7b3a9a2ac9e3499859bcb22",
+  "notary_submission_id": "faa10966-3c5d-41e1-990f-bf2f9bafa45f",
+  "stage": "After root completed DMG stapling; before read-only validation."
+}

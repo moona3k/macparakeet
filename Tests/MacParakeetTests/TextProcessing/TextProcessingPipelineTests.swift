@@ -21,7 +21,7 @@ final class TextProcessingPipelineTests: XCTestCase {
         ]
 
         let result = pipeline.process(
-            text: "um kubernetes is great my signature",
+            text: "uh kubernetes is great my signature",
             customWords: words,
             snippets: snippets
         )
@@ -35,25 +35,90 @@ final class TextProcessingPipelineTests: XCTestCase {
         XCTAssertEqual(result.text, "Hello world")
     }
 
+    func testPipelinePreservesPortugueseUmWhenCounting() {
+        let result = pipeline.process(
+            text: "um, dois, três",
+            customWords: [],
+            snippets: [],
+            removeUmFiller: false
+        )
+        XCTAssertEqual(result.text, "Um, dois, três")
+    }
+
+    func testPipelineStripsEnglishUmByDefault() {
+        let result = pipeline.process(text: "I um think we should ship it", customWords: [], snippets: [])
+        XCTAssertEqual(result.text, "I think we should ship it")
+    }
+
+    func testPipelineStripsSentenceInitialUmWithComma() {
+        let result = pipeline.process(
+            text: "Um, I think we should ship it",
+            customWords: [],
+            snippets: []
+        )
+        XCTAssertEqual(result.text, "I think we should ship it")
+    }
+
+    func testPipelineStripsUmBetweenCommas() {
+        let result = pipeline.process(
+            text: "I think, um, we should ship it",
+            customWords: [],
+            snippets: []
+        )
+        XCTAssertEqual(result.text, "I think, we should ship it")
+    }
+
+    func testPipelineStripsSentenceMedialUmAfterPeriod() {
+        let result = pipeline.process(
+            text: "Hello. Um, we should ship it",
+            customWords: [],
+            snippets: []
+        )
+        XCTAssertEqual(result.text, "Hello. we should ship it")
+    }
+
+    func testPipelineStripsLineInitialUmAfterNewline() {
+        let result = pipeline.process(
+            text: "Hello.\nUm, we should ship it",
+            customWords: [],
+            snippets: []
+        )
+        XCTAssertEqual(result.text, "Hello.\nwe should ship it")
+    }
+
+    func testPipelineStripsSentenceInitialUhWithComma() {
+        let result = pipeline.process(text: "Uh, I think we should ship it", customWords: [], snippets: [])
+        XCTAssertEqual(result.text, "I think we should ship it")
+    }
+
+    func testPipelinePreservesGermanUmWhenUmFillerIsOff() {
+        let result = pipeline.process(
+            text: "treffe dich um drei",
+            customWords: [],
+            snippets: [],
+            removeUmFiller: false
+        )
+        XCTAssertEqual(result.text, "Treffe dich um drei")
+    }
+
     // MARK: - Step 1: Filler Removal
 
     func testAlwaysSafeFillerRemoval() {
-        let result = pipeline.removeFillers(from: "um hello uh world")
+        let result = pipeline.removeFillers(from: "uh hello uhh world")
         // After filler removal, we get "  hello  world" — whitespace cleanup is separate
-        XCTAssertFalse(result.contains("um"))
         XCTAssertFalse(result.contains("uh"))
+        XCTAssertFalse(result.contains("uhh"))
     }
 
     func testFillerRemovalPreservesPartialWords() {
-        // Word boundaries prevent "um" from matching inside "umbrella"
-        let result = pipeline.removeFillers(from: "umbrella this is humble")
-        XCTAssertTrue(result.contains("umbrella"))
-        XCTAssertTrue(result.contains("humble"))
+        // Word boundaries prevent active fillers from matching inside longer words.
+        let result = pipeline.removeFillers(from: "huh summer")
+        XCTAssertEqual(result, "huh summer")
     }
 
     func testFillerRemovalCaseInsensitive() {
-        let result = pipeline.removeFillers(from: "UM hello UHH world")
-        XCTAssertFalse(result.lowercased().contains("um"))
+        let result = pipeline.removeFillers(from: "UH hello UHH world")
+        XCTAssertFalse(result.lowercased().contains("uh"))
         XCTAssertFalse(result.lowercased().contains("uhh"))
     }
 
@@ -61,6 +126,22 @@ final class TextProcessingPipelineTests: XCTestCase {
         let result = pipeline.removeFillers(from: "umm this is uhh interesting")
         XCTAssertFalse(result.contains("umm"))
         XCTAssertFalse(result.contains("uhh"))
+    }
+
+    func testEnglishUmFillerRemovalIsOptOut() {
+        XCTAssertEqual(pipeline.removeFillers(from: "I um think"), "I  think")
+        XCTAssertEqual(
+            pipeline.removeFillers(from: "I um think", removeUmFiller: false),
+            "I um think"
+        )
+    }
+
+    func testAlwaysSafeFillersStillStripWhenUmIsOff() {
+        let result = pipeline.removeFillers(from: "uh um umm uhh hello", removeUmFiller: false)
+        XCTAssertFalse(result.contains("uh"))
+        XCTAssertFalse(result.contains("umm"))
+        XCTAssertFalse(result.contains("uhh"))
+        XCTAssertTrue(result.contains("um"))
     }
 
     // MARK: - Step 2: Custom Words
@@ -254,7 +335,7 @@ final class TextProcessingPipelineTests: XCTestCase {
             ("I'm ready.", "I'm ready"),
             ("I've got this.", "I've got this"),
             ("I'll go.", "I'll go"),
-            ("I'd agree.", "I'd agree")
+            ("I'd agree.", "I'd agree"),
         ]
         for (input, expected) in examples {
             let result = pipeline.process(
@@ -297,7 +378,7 @@ final class TextProcessingPipelineTests: XCTestCase {
         let examples = [
             ("kubernetes-based deployment.", "Kubernetes-based deployment"),
             ("kubernetes/helm setup.", "Kubernetes/helm setup"),
-            ("kubernetes(cluster) setup.", "Kubernetes(cluster) setup")
+            ("kubernetes(cluster) setup.", "Kubernetes(cluster) setup"),
         ]
 
         for (input, expected) in examples {
@@ -386,7 +467,8 @@ final class TextProcessingPipelineTests: XCTestCase {
             customWords: [],
             snippets: snippets
         )
-        XCTAssertTrue(result.text.contains("\n\n"), "Newlines must survive when followed by punctuation, got: \(result.text)")
+        XCTAssertTrue(
+            result.text.contains("\n\n"), "Newlines must survive when followed by punctuation, got: \(result.text)")
         XCTAssertFalse(result.text.contains(".."), "Must not collapse newlines into double period")
     }
 
@@ -455,6 +537,48 @@ final class TextProcessingPipelineTests: XCTestCase {
         XCTAssertEqual(result.postPasteAction, .returnKey)
     }
 
+    func testActionSnippetWithUnicodeTrailingPunctuation() {
+        let snippets = [
+            TextSnippet(trigger: "zatwierdź", expansion: "return", action: .returnKey)
+        ]
+        let result = pipeline.process(text: "git status zatwierdź！", customWords: [], snippets: snippets)
+        XCTAssertEqual(result.text, "Git status")
+        XCTAssertEqual(result.postPasteAction, .returnKey)
+    }
+
+    func testActionSnippetRequiresSeparateTerminalPhrase() {
+        let snippets = [
+            TextSnippet(trigger: "return", expansion: "return", action: .returnKey)
+        ]
+        let result = pipeline.process(text: "hello pre-return", customWords: [], snippets: snippets)
+        XCTAssertEqual(result.text, "Hello pre-return")
+        XCTAssertNil(result.postPasteAction)
+    }
+
+    func testActionSnippetSupportsPunctuationPrefixedTrigger() {
+        let snippets = [
+            TextSnippet(trigger: "/return", expansion: "return", action: .returnKey)
+        ]
+        let result = pipeline.process(text: "git status /return", customWords: [], snippets: snippets)
+        XCTAssertEqual(result.text, "Git status")
+        XCTAssertEqual(result.postPasteAction, .returnKey)
+    }
+
+    func testMultipleActionSnippetTriggersUseAnyTerminalPhrase() {
+        let snippets = [
+            TextSnippet(trigger: "press return", expansion: "return", action: .returnKey),
+            TextSnippet(trigger: "zatwierdź", expansion: "return", action: .returnKey),
+        ]
+
+        let english = pipeline.process(text: "git status press return", customWords: [], snippets: snippets)
+        XCTAssertEqual(english.text, "Git status")
+        XCTAssertEqual(english.postPasteAction, .returnKey)
+
+        let polish = pipeline.process(text: "git status zatwierdź", customWords: [], snippets: snippets)
+        XCTAssertEqual(polish.text, "Git status")
+        XCTAssertEqual(polish.postPasteAction, .returnKey)
+    }
+
     func testActionSnippetTracksExpandedID() {
         let snippet = TextSnippet(trigger: "return", expansion: "return", action: .returnKey)
         let result = pipeline.process(text: "hello return", customWords: [], snippets: [snippet])
@@ -472,7 +596,7 @@ final class TextProcessingPipelineTests: XCTestCase {
     func testTextAndActionSnippetsTogether() {
         let snippets = [
             TextSnippet(trigger: "my sig", expansion: "Best regards"),
-            TextSnippet(trigger: "return", expansion: "return", action: .returnKey)
+            TextSnippet(trigger: "return", expansion: "return", action: .returnKey),
         ]
         let result = pipeline.process(text: "my sig return", customWords: [], snippets: snippets)
         XCTAssertEqual(result.text, "Best regards")
@@ -516,11 +640,11 @@ final class TextProcessingPipelineTests: XCTestCase {
     }
 
     func testMultiWordTriggerWithFillerGap() {
-        // Filler removal can leave double spaces: "press um return" → "press  return"
+        // Filler removal can leave double spaces: "press uh return" → "press  return"
         let snippets = [
             TextSnippet(trigger: "press return", expansion: "return", action: .returnKey)
         ]
-        let result = pipeline.process(text: "git status press um return", customWords: [], snippets: snippets)
+        let result = pipeline.process(text: "git status press uh return", customWords: [], snippets: snippets)
         XCTAssertEqual(result.text, "Git status")
         XCTAssertEqual(result.postPasteAction, .returnKey)
     }

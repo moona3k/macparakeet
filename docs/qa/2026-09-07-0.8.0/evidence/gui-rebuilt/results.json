@@ -1,0 +1,48 @@
+{
+  "candidate": "3827999ddb84c8a8e0edcb3ac190e66813fc95fe",
+  "bundleID": "com.macparakeet.qa.release080",
+  "checks": [
+    {
+      "check": "ALPHA timed rows identify copper lantern",
+      "passed": true
+    },
+    {
+      "check": "QA 080 BRAVO navigation timed content belongs to active record",
+      "passed": true
+    },
+    {
+      "check": "QA 080 ALPHA navigation timed content belongs to active record",
+      "passed": true
+    },
+    {
+      "check": "QA 080 BRAVO navigation timed content belongs to active record",
+      "passed": true
+    },
+    {
+      "check": "LONG timed view opens with10000word metadata",
+      "passed": true
+    },
+    {
+      "check": "10000-word timed view reaches sentence1000 using native scroll bar",
+      "passed": true
+    },
+    {
+      "check": "Full summary Copy equals saved Markdown source",
+      "passed": true
+    },
+    {
+      "check": "Table Copy includes every fixture row",
+      "passed": true
+    },
+    {
+      "check": "Saved Markdown chat renders without configuring provider",
+      "passed": true
+    }
+  ],
+  "limitations": [
+    "Fixture content is synthetic; saved summary/chat does not prove live generation.",
+    "Navigation snapshots cannot force the async race; deterministic regression tests cover that ordering.",
+    "Code-block Copy did not produce verified content using this automation and is excluded.",
+    "Desktop window is inactive in some captures; pixel content and AX state were inspected."
+  ]
+}

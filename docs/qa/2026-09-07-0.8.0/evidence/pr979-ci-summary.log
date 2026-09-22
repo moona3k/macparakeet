@@ -1,0 +1,15 @@
+Run 34169966386 (push): SUCCESS
+https://github.com/moona3k/macparakeet/actions/runs/34169966386
+Head: 250bbe2994a4b60b4ef81ac257f0ee6bb70874d3
+Raw log SHA256: 022a1827af3f353b5ffd869bd4a24fee5e2cde219d6fb0763ed89d7f0e62e21f
+swift-test	Swift Test	2026-09-07T23:59:36.5341040Z [5563/5563] Testing MacParakeetTests.YouTubeURLValidatorTests/testYouTubeHomepage
+swift-test	Swift Test	2026-09-07T23:59:36.6128950Z ✔ Test run with 29 tests passed after 0.004 seconds.
+CI success and complete 5563-item parallel progress; denominator is not asserted to be a non-skipped pass count. Swift Testing explicitly reports 29 tests passed.
+
+Run 34169968359 (pull_request): SUCCESS
+https://github.com/moona3k/macparakeet/actions/runs/34169968359
+Head: 250bbe2994a4b60b4ef81ac257f0ee6bb70874d3
+Raw log SHA256: 77b52953643e41709378f9988a15cc634b5f98086a06b3905b5317c9a2e91882
+swift-test	Swift Test	2026-09-08T00:06:46.0257770Z [5563/5563] Testing MacParakeetTests.YouTubeURLValidatorTests/testWhitespaceOnly
+swift-test	Swift Test	2026-09-08T00:06:46.1441370Z ✔ Test run with 29 tests passed after 0.007 seconds.
+CI success and complete 5563-item parallel progress; denominator is not asserted to be a non-skipped pass count. Swift Testing explicitly reports 29 tests passed.

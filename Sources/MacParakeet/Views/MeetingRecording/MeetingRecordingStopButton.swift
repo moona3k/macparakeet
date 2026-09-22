@@ -112,6 +112,7 @@ struct StopRecordingButton: View {
 /// intentionally separate from pause.
 struct MeetingMicrophoneMuteButton: View {
     var isMuted: Bool
+    var isEnabled: Bool = true
     var onToggle: () -> Void
 
     @State private var isHovered = false
@@ -122,8 +123,18 @@ struct MeetingMicrophoneMuteButton: View {
         isMuted ? DesignSystem.Colors.errorRed : DesignSystem.Colors.accent
     }
 
+    var accessibilityLabelText: String {
+        if isMuted && !isEnabled {
+            return "Microphone muted"
+        }
+        return isMuted ? "Unmute microphone" : "Mute microphone"
+    }
+
     var body: some View {
-        Button(action: onToggle) {
+        Button(action: {
+            guard isEnabled else { return }
+            onToggle()
+        }) {
             Image(systemName: isMuted ? "mic.slash.fill" : "mic.fill")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(
@@ -160,15 +171,19 @@ struct MeetingMicrophoneMuteButton: View {
                 .contentTransition(.symbolEffect(.replace))
         }
         .buttonStyle(.plain)
+        .allowsHitTesting(isEnabled)
         .frame(height: Self.trackHeight)
-        .accessibilityLabel(isMuted ? "Unmute meeting microphone" : "Mute meeting microphone")
+        .accessibilityLabel(accessibilityLabelText)
+        .accessibilityIdentifier("meeting-microphone-mute-button")
         .help(
-            isMuted
-                ? "Unmute meeting microphone"
-                : "Mute your microphone in this recording — system audio keeps recording"
+            isMuted && !isEnabled
+                ? "Microphone starts muted. Unmute once capture is ready."
+                : isMuted
+                    ? "Unmute microphone"
+                    : "Mute your microphone in this recording — system audio keeps recording"
         )
         .onHover { hovering in
-            isHovered = hovering
+            isHovered = isEnabled && hovering
         }
     }
 }

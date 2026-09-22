@@ -72,6 +72,18 @@ struct MeetingRecordingPillView: View {
         switch viewModel.state {
         case .idle:
             EmptyView()
+        case .starting:
+            iconPill {
+                MerkabaPillIcon(isAnimating: false, audioLevel: 0)
+                    .opacity(0.45)
+            }
+            .onTapGesture { onTap?() }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Starting meeting audio capture")
+            .accessibilityAction { onTap?() }
+            .accessibilityAction(named: Text("Stop starting meeting")) {
+                viewModel.onStop?()
+            }
         case .recording, .paused:
             // Paused shares the recording pill structure (rosette + capsule
             // + hover badge) but renders the rosette dimmed with a pause
@@ -91,7 +103,8 @@ struct MeetingRecordingPillView: View {
             iconPill {
                 MeetingCompletionCheckmarkView()
             }
-            .transition(.scale(scale: 0.8).combined(with: .opacity).animation(.spring(response: 0.35, dampingFraction: 0.7)))
+            .transition(
+                .scale(scale: 0.8).combined(with: .opacity).animation(.spring(response: 0.35, dampingFraction: 0.7)))
         case .error(let message):
             statusPill(
                 icon: AnyView(
@@ -103,7 +116,7 @@ struct MeetingRecordingPillView: View {
         }
     }
 
-    /// Icon-only pill — used for transcribing (merkaba) and completed (checkmark).
+    /// Icon-only pill — used for starting, transcribing, and completed.
     private func iconPill<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
             .padding(12)
@@ -157,6 +170,7 @@ struct MeetingRecordingPillView: View {
 
     private var sacredRecordingPill: some View {
         let isPaused = viewModel.isPaused
+        let healthWarning = visibleSourceHealthWarning
         return VStack(spacing: 0) {
             ZStack {
                 MerkabaPillIcon(
@@ -187,11 +201,15 @@ struct MeetingRecordingPillView: View {
         .padding(.vertical, 6)
         .background(
             Capsule()
-                .fill(isHovered ? DesignSystem.Colors.meetingPillBackgroundHover : DesignSystem.Colors.meetingPillBackground)
+                .fill(
+                    isHovered
+                        ? DesignSystem.Colors.meetingPillBackgroundHover : DesignSystem.Colors.meetingPillBackground
+                )
                 .overlay(
                     Capsule()
                         .stroke(
-                            isHovered ? DesignSystem.Colors.meetingPillStrokeHover : DesignSystem.Colors.meetingPillStroke,
+                            isHovered
+                                ? DesignSystem.Colors.meetingPillStrokeHover : DesignSystem.Colors.meetingPillStroke,
                             lineWidth: 0.5
                         )
                 )
@@ -248,11 +266,17 @@ struct MeetingRecordingPillView: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.8)))
             }
         }
+        .overlay(alignment: .bottomTrailing) {
+            if let healthWarning {
+                MeetingSourceHealthGlyph(chip: healthWarning)
+                    .offset(x: 4, y: 4)
+            }
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             isPaused
-                ? "Meeting recording paused, \(viewModel.formattedElapsed) elapsed"
-                : "Recording meeting, \(viewModel.formattedElapsed) elapsed"
+                ? "Meeting recording paused, \(viewModel.formattedElapsed) elapsed\(healthSuffix(healthWarning))"
+                : "Recording meeting, \(viewModel.formattedElapsed) elapsed\(healthSuffix(healthWarning))"
         )
         .accessibilityAction {
             onTap?()
@@ -265,6 +289,10 @@ struct MeetingRecordingPillView: View {
         }
     }
 
+    var visibleSourceHealthWarning: MeetingSourceHealthChip? {
+        viewModel.mirroredVisibleSourceHealthWarning
+    }
+
     private var pillBackground: some View {
         RoundedRectangle(cornerRadius: 999)
             .fill(DesignSystem.Colors.pillBackground)
@@ -273,5 +301,9 @@ struct MeetingRecordingPillView: View {
                     .strokeBorder(DesignSystem.Colors.pillBorder, lineWidth: 1)
             )
             .cardShadow(DesignSystem.Shadows.meetingPill)
+    }
+
+    private func healthSuffix(_ warning: MeetingSourceHealthChip?) -> String {
+        warning.map { ", \($0.label)" } ?? ""
     }
 }

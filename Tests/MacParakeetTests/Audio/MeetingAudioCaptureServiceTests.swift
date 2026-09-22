@@ -2,6 +2,76 @@ import AVFAudio
 import XCTest
 @testable import MacParakeetCore
 
+// These established tests inspect buffers sent after startup. Supply a real,
+// silent first frame to establish readiness, and filter only that identifiable
+// fixture plus the new startup metadata from their observation helpers. The
+// independent-startup suite exercises all startup events without filtering.
+private let startupFixtureHostTime = UInt64.max - 1
+
+private func startupFixtureBuffer() -> AVAudioPCMBuffer {
+    let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
+    let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 1)!
+    buffer.frameLength = 1
+    buffer.floatChannelData![0][0] = 0
+    return buffer
+}
+
+private func isStartupFixtureOrMetadata(_ event: MeetingAudioCaptureEvent) -> Bool {
+    switch event {
+    case .captureStarting, .sourceStartupState, .microphoneStarted:
+        return true
+    case .microphoneBuffer(_, let time), .systemBuffer(_, let time):
+        return time.hostTime == startupFixtureHostTime
+    default:
+        return false
+    }
+}
+
+private extension MeetingAudioCaptureService {
+    func startForTesting(sourceMode: MeetingAudioSourceMode? = nil) async throws -> MeetingAudioCaptureStartReport {
+        let report = try await start(sourceMode: sourceMode)
+        try await waitForSystemStartupForTesting()
+        return report
+    }
+
+    func startForTesting(
+        sourceMode: MeetingAudioSourceMode? = nil,
+        handler: @escaping EventHandler
+    ) async throws -> MeetingAudioCaptureStartReport {
+        let report = try await start(sourceMode: sourceMode) { event in
+            guard !isStartupFixtureOrMetadata(event) else { return }
+            handler(event)
+        }
+        try await waitForSystemStartupForTesting()
+        return report
+    }
+
+    private func waitForSystemStartupForTesting() async throws {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(8))
+        while isSystemAudioStartPending {
+            guard ContinuousClock.now < deadline else {
+                throw MeetingAudioError.captureStartupTimedOut
+            }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+    }
+
+    var eventsForTesting: AsyncStream<MeetingAudioCaptureEvent> {
+        get async {
+            let input = await events
+            return AsyncStream { continuation in
+                let task = Task {
+                    for await event in input where !isStartupFixtureOrMetadata(event) {
+                        continuation.yield(event)
+                    }
+                    continuation.finish()
+                }
+                continuation.onTermination = { _ in task.cancel() }
+            }
+        }
+    }
+}
+
 private final class FactoryInvocationBox: @unchecked Sendable {
     private let lock = NSLock()
     private var count = 0
@@ -36,6 +106,139 @@ private final class MutableDateProvider: @unchecked Sendable {
     }
 }
 
+private final class BlockingDateProvider: @unchecked Sendable {
+    private let lock = NSLock()
+    private let entered = DispatchSemaphore(value: 0)
+    private let release = DispatchSemaphore(value: 0)
+    private var shouldBlock = false
+
+    func arm() { lock.withLock { shouldBlock = true } }
+
+    func value() -> Date {
+        let blocksThisCall = lock.withLock {
+            guard shouldBlock else { return false }
+            shouldBlock = false
+            return true
+        }
+        if blocksThisCall {
+            entered.signal()
+            release.wait()
+        }
+        return Date(timeIntervalSince1970: 1_000)
+    }
+
+    func waitUntilBlocked() -> DispatchTimeoutResult {
+        entered.wait(timeout: .now() + 5)
+    }
+
+    func resume() {
+        release.signal()
+    }
+}
+
+private final class CompletionFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var completed = false
+
+    func markCompleted() {
+        lock.withLock { completed = true }
+    }
+
+    var isCompleted: Bool {
+        lock.withLock { completed }
+    }
+}
+
+private final class MeetingAudioDiagnosticRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [String] = []
+
+    func record(_ event: String) {
+        lock.withLock { events.append(event) }
+    }
+
+    func snapshot() -> [String] {
+        lock.withLock { events }
+    }
+}
+
+private final class MicrophoneStartReportBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var report: MeetingMicrophoneCaptureStartReport?
+
+    func append(_ event: MeetingAudioCaptureEvent) {
+        guard case .microphoneStarted(let report) = event else { return }
+        lock.withLock { self.report = report }
+    }
+
+    func wait() async throws -> MeetingMicrophoneCaptureStartReport {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(8))
+        while ContinuousClock.now < deadline {
+            if let report = lock.withLock({ report }) { return report }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        throw MeetingAudioError.captureStartupTimedOut
+    }
+}
+
+/// Bounded collector so event tests fail instead of parking `xctest` on
+/// `AsyncStream.AsyncIterator.next()` when a forwarding task is starved.
+private final class MeetingCaptureEventBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [MeetingAudioCaptureEvent] = []
+
+    func append(_ event: MeetingAudioCaptureEvent) {
+        lock.withLock { events.append(event) }
+    }
+
+    func waitForFirst(timeout: Duration = .seconds(8)) async throws -> MeetingAudioCaptureEvent {
+        try await wait(timeout: timeout) { _ in true }
+    }
+
+    func wait(
+        timeout: Duration = .seconds(8),
+        where predicate: (MeetingAudioCaptureEvent) -> Bool
+    ) async throws -> MeetingAudioCaptureEvent {
+        let deadline = ContinuousClock.now.advanced(by: timeout)
+        while ContinuousClock.now < deadline {
+            if let event = lock.withLock({ events.first(where: predicate) }) {
+                return event
+            }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        throw MeetingAudioError.captureStartupTimedOut
+    }
+}
+
+private func waitUntil(
+    timeout: Duration = .seconds(8),
+    _ condition: @escaping () -> Bool
+) async throws {
+    let deadline = ContinuousClock.now.advanced(by: timeout)
+    while ContinuousClock.now < deadline {
+        if condition() { return }
+        try await Task.sleep(for: .milliseconds(5))
+    }
+    throw MeetingAudioError.captureStartupTimedOut
+}
+
+/// Stall interruption is only emitted after the microphone has delivered at
+/// least one buffer. CI can return from system-audio startup before the
+/// async microphone start has installed its stall observer.
+private func establishMicrophoneDelivery(
+    _ microphone: MockMeetingMicrophoneCapture,
+    events: MeetingCaptureEventBox
+) async throws {
+    try await waitUntil { microphone.isStallObserverInstalled }
+    microphone.emit(buffer: startupFixtureBuffer(), time: AVAudioTime(hostTime: 42))
+    _ = try await events.wait {
+        if case .microphoneBuffer(_, let time) = $0 {
+            return time.hostTime == 42
+        }
+        return false
+    }
+}
+
 private final class MeetingAudioTelemetrySpy: TelemetryServiceProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private var events: [TelemetryEventSpec] = []
@@ -66,6 +269,254 @@ private final class MeetingAudioTelemetrySpy: TelemetryServiceProtocol, @uncheck
 }
 
 final class MeetingAudioCaptureServiceTests: XCTestCase {
+    func testConcurrentStopWaitsForFailedStartCleanupOwner() async throws {
+        let systemCapture = FailingStartBlockingStopCapture()
+        defer { systemCapture.releaseStop() }
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: MockMeetingMicrophoneCapture(),
+            systemAudioCaptureFactory: { systemCapture }
+        )
+        let startTask = Task { try await service.startForTesting(sourceMode: .systemOnly) }
+        let stopCallObserved = await systemCapture.waitForStopCall()
+        XCTAssertTrue(stopCallObserved, "Timed out waiting for failed-start cleanup to call stop()")
+
+        let completion = CompletionFlag()
+        let stopTask = Task {
+            await service.stop()
+            completion.markCompleted()
+        }
+        try await Task.sleep(for: .milliseconds(20))
+        XCTAssertFalse(completion.isCompleted)
+
+        systemCapture.releaseStop()
+        await stopTask.value
+        XCTAssertTrue(completion.isCompleted)
+        do {
+            _ = try await startTask.value
+            XCTFail("Expected failed system start")
+        } catch MeetingAudioError.unsupportedPlatform {
+            // Expected.
+        }
+    }
+
+    func testFailedStartCleanupAllowsConcurrentStopCallersToFinish() async {
+        let capture = FailingStartBlockingStopCapture()
+        defer { capture.releaseStop() }
+        let first = Task { await capture.stop() }
+        let second = Task { await capture.stop() }
+        let stopCallObserved = await capture.waitForStopCall()
+        XCTAssertTrue(stopCallObserved, "Timed out waiting for concurrent stop() callers")
+        try? await Task.sleep(for: .milliseconds(20))
+        capture.releaseStop()
+        await first.value
+        await second.value
+    }
+
+    func testSystemFailureDuringInitialStartCannotTransitionDeadCaptureToRunning() async {
+        let systemCapture = FailureDuringStartSystemAudioCapture(
+            failure: .systemAudioStreamStopped("stream died before start completed")
+        )
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: MockMeetingMicrophoneCapture(),
+            systemAudioCaptureFactory: { systemCapture }
+        )
+        addTeardownBlock { await service.stop() }
+
+        do {
+            _ = try await service.startForTesting(sourceMode: .systemOnly)
+            XCTFail("A source failure delivered during start must fail the start attempt")
+        } catch let error as MeetingAudioError {
+            guard case .systemAudioStreamStopped(let reason) = error else {
+                return XCTFail("Expected typed stream-stop failure, got \(error)")
+            }
+            XCTAssertTrue(reason.contains("before start completed"))
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        XCTAssertEqual(systemCapture.stopCallCount, 1)
+    }
+
+    func testStopDuringMicrophoneStartPreservesLeaseAndAllowsSystemReplacement() async throws {
+        let microphone = BlockingMeetingMicrophoneCapture()
+        let systemCapture = MockMeetingSystemAudioCapture()
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioCaptureFactory: { systemCapture }
+        )
+        defer { microphone.releaseStart() }
+        let startTask = Task { try await service.startForTesting() }
+        await microphone.waitForStartCall()
+        _ = try await startTask.value
+
+        let completion = CompletionFlag()
+        let stopTask = Task {
+            await service.stop()
+            completion.markCompleted()
+        }
+        await microphone.waitForStopCall()
+        try await Task.sleep(for: .milliseconds(20))
+        XCTAssertTrue(completion.isCompleted)
+        XCTAssertEqual(systemCapture.startCallCount, 1)
+
+        let replacementReport = try await service.startForTesting(sourceMode: .systemOnly)
+        XCTAssertEqual(replacementReport.systemState, .ready)
+        XCTAssertEqual(microphone.stopCallCount, 1)
+        microphone.releaseStart()
+        try await Task.sleep(for: .milliseconds(20))
+        XCTAssertFalse(microphone.isRunning)
+        await stopTask.value
+        await service.stop()
+    }
+
+    func testStreamStartAfterStopUsesReplacementSessionStream() async throws {
+        let microphone = BlockingMeetingMicrophoneCapture()
+        let system = MockMeetingSystemAudioCapture()
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioCaptureFactory: { system }
+        )
+        defer { microphone.releaseStart() }
+        _ = await service.eventsForTesting
+        let firstStart = Task { try await service.startForTesting(sourceMode: .microphoneOnly) }
+        await microphone.waitForStartCall()
+        await service.stop()
+        do {
+            _ = try await firstStart.value
+            XCTFail("A stopped attempt cannot report startup success")
+        } catch is CancellationError {
+            // The native microphone remains pending independently.
+        }
+
+        let replacementEvents = await service.eventsForTesting
+        _ = try await service.startForTesting(sourceMode: .systemOnly)
+        let buffer = try XCTUnwrap(makeInterleavedFloatStereoBuffer(samples: [0.25, -0.25]))
+        system.emit(buffer: buffer, time: AVAudioTime(hostTime: 1))
+        await service.stop()
+        var iterator = replacementEvents.makeAsyncIterator()
+        guard case .systemBuffer? = await iterator.next() else {
+            return XCTFail("Replacement capture must publish into its own live event stream")
+        }
+    }
+
+    func testRetiredSessionCallbacksCannotEmitIntoReplacementSession() async throws {
+        let microphone = MockMeetingMicrophoneCapture()
+        let systemCapture = MockMeetingSystemAudioCapture()
+        let dateProvider = BlockingDateProvider()
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioCaptureFactory: { systemCapture },
+            micHealthNowProvider: { dateProvider.value() },
+            micHealthFeatureEnabled: true
+        )
+        addTeardownBlock {
+            await service.stop()
+        }
+        let buffer = try XCTUnwrap(
+            makeInterleavedFloatStereoBuffer(samples: [0.25, -0.25])
+        )
+        let sendableBuffer = UncheckedSendableAudioPCMBuffer(buffer)
+
+        _ = try await service.startForTesting { _ in }
+        let retiredMicrophoneCallbacks = try XCTUnwrap(
+            microphone.retainedCallbacks(forStartAt: 0)
+        )
+        dateProvider.arm()
+
+        let oldSystemCallbackFinished = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            systemCapture.emit(buffer: sendableBuffer.buffer, time: AVAudioTime(hostTime: 1))
+            oldSystemCallbackFinished.signal()
+        }
+        XCTAssertEqual(
+            dateProvider.waitUntilBlocked(),
+            .success,
+            "the old system callback should pause after its final generation check"
+        )
+
+        await service.stop()
+
+        let replacementMicrophoneBuffers = FactoryInvocationBox()
+        let replacementSystemBuffers = FactoryInvocationBox()
+        let replacementErrors = FactoryInvocationBox()
+        _ = try await service.startForTesting { event in
+            switch event {
+            case .microphoneBuffer:
+                replacementMicrophoneBuffers.increment()
+            case .systemBuffer:
+                replacementSystemBuffers.increment()
+            case .sourceInterrupted, .error:
+                replacementErrors.increment()
+            default:
+                break
+            }
+        }
+
+        retiredMicrophoneCallbacks.handler(buffer, AVAudioTime(hostTime: 2))
+        retiredMicrophoneCallbacks.stallObserver?(
+            .captureRuntimeFailure("retired microphone callback")
+        )
+        dateProvider.resume()
+        XCTAssertEqual(
+            oldSystemCallbackFinished.wait(timeout: .now() + 5),
+            .success
+        )
+
+        XCTAssertEqual(replacementMicrophoneBuffers.get(), 0)
+        XCTAssertEqual(replacementSystemBuffers.get(), 0)
+        XCTAssertEqual(replacementErrors.get(), 0)
+    }
+
+    func testStopDuringSystemStartRetiresSessionBeforeLateNativeStartReturns() async throws {
+        let microphone = MockMeetingMicrophoneCapture()
+        let systemCapture = BlockingMeetingSystemAudioCapture()
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioCaptureFactory: { systemCapture }
+        )
+        defer { systemCapture.releaseStart() }
+        let startTask = Task { try await service.startForTesting(sourceMode: .systemOnly) }
+        await systemCapture.waitForStartCall()
+        let completion = CompletionFlag()
+        let stopTask = Task {
+            await service.stop()
+            completion.markCompleted()
+        }
+        await systemCapture.waitForStopCall()
+        try await Task.sleep(for: .milliseconds(20))
+        XCTAssertTrue(completion.isCompleted)
+        XCTAssertEqual(microphone.stopCallCount, 0)
+        systemCapture.releaseStart()
+        do {
+            _ = try await startTask.value
+            XCTFail("A stopped start attempt must not report success")
+        } catch is CancellationError {
+            // Expected.
+        }
+        await stopTask.value
+    }
+
+    func testSecondStartIsRejectedWhileFirstAttemptOwnsService() async throws {
+        let microphone = BlockingMeetingMicrophoneCapture()
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioCaptureFactory: { MockMeetingSystemAudioCapture() }
+        )
+        defer { microphone.releaseStart() }
+        let firstStart = Task { try await service.startForTesting(sourceMode: .microphoneOnly) }
+        await microphone.waitForStartCall()
+        do {
+            _ = try await service.startForTesting()
+            XCTFail("Expected alreadyRunning while start is in flight")
+        } catch let error as MeetingAudioError {
+            guard case .alreadyRunning = error else {
+                return XCTFail("Expected alreadyRunning, got \(error)")
+            }
+        }
+        await service.stop()
+        _ = try? await firstStart.value
+    }
+
     func testFactoryInitUsesInjectedMicrophoneFactory() {
         let microphone = MockMeetingMicrophoneCapture()
         let systemCapture = MockMeetingSystemAudioCapture()
@@ -90,7 +541,7 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
             systemAudioCaptureFactory: { systemCapture }
         )
 
-        _ = try await service.start()
+        _ = try await service.startForTesting()
         await service.stop()
 
         XCTAssertEqual(microphone.requestedModes, [.raw])
@@ -105,7 +556,7 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         )
 
         let capturedBuffer = CapturedPCMBuffer()
-        _ = try await service.start { event in
+        _ = try await service.startForTesting { event in
             guard case let .microphoneBuffer(buffer, _) = event else { return }
             Task {
                 await capturedBuffer.store(buffer)
@@ -113,12 +564,13 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         }
         defer { Task { await service.stop() } }
 
-        let interleaved = try XCTUnwrap(makeInterleavedFloatStereoBuffer(samples: [
-            1.0, 0.0,
-            0.0, 1.0,
-            -1.0, 1.0,
-            0.5, -0.5,
-        ]))
+        let interleaved = try XCTUnwrap(
+            makeInterleavedFloatStereoBuffer(samples: [
+                1.0, 0.0,
+                0.0, 1.0,
+                -1.0, 1.0,
+                0.5, -0.5,
+            ]))
         microphone.emit(buffer: interleaved, time: AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 1.0)))
 
         var copiedBuffer: AVAudioPCMBuffer?
@@ -150,13 +602,14 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
             systemAudioCaptureFactory: { systemCapture }
         )
 
-        let events = await service.events
-        _ = try await service.start()
+        let events = await service.eventsForTesting
+        _ = try await service.startForTesting()
 
-        let burstBuffer = try XCTUnwrap(makeInterleavedFloatStereoBuffer(
-            sampleRate: 48_000,
-            samples: [Float](repeating: 0.25, count: 96)
-        ))
+        let burstBuffer = try XCTUnwrap(
+            makeInterleavedFloatStereoBuffer(
+                sampleRate: 48_000,
+                samples: [Float](repeating: 0.25, count: 96)
+            ))
 
         for _ in 0..<2_100 {
             systemCapture.emit(buffer: burstBuffer, time: AVAudioTime(hostTime: 1))
@@ -185,7 +638,7 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         )
 
         let capturedEvents = CapturedMeetingCaptureEvents()
-        let report = try await service.start { event in
+        let report = try await service.startForTesting { event in
             Task {
                 await capturedEvents.append(event)
             }
@@ -197,10 +650,11 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         XCTAssertTrue(microphone.requestedModes.isEmpty)
         XCTAssertEqual(systemCapture.startCallCount, 1)
 
-        let buffer = try XCTUnwrap(makeInterleavedFloatStereoBuffer(
-            sampleRate: 48_000,
-            samples: [0.25, 0.25, 0.25, 0.25]
-        ))
+        let buffer = try XCTUnwrap(
+            makeInterleavedFloatStereoBuffer(
+                sampleRate: 48_000,
+                samples: [0.25, 0.25, 0.25, 0.25]
+            ))
         microphone.emit(buffer: buffer, time: AVAudioTime(hostTime: 1))
         systemCapture.emit(buffer: buffer, time: AVAudioTime(hostTime: 1))
 
@@ -215,7 +669,89 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         XCTFail("Timed out waiting for system-only capture events")
     }
 
+    func testMicrophoneOnlyModeStartsMicrophoneWithoutSystemCapture() async throws {
+        let microphone = MockMeetingMicrophoneCapture()
+        let systemFactoryCallCount = FactoryInvocationBox()
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioCaptureFactory: {
+                systemFactoryCallCount.increment()
+                throw MeetingAudioError.unsupportedPlatform
+            },
+            sourceModeProvider: { .microphoneOnly }
+        )
+
+        let capturedEvents = CapturedMeetingCaptureEvents()
+        let report = try await service.startForTesting { event in
+            Task {
+                await capturedEvents.append(event)
+            }
+        }
+        defer { Task { await service.stop() } }
+
+        XCTAssertEqual(report.sourceMode, .microphoneOnly)
+        XCTAssertEqual(report.microphoneState, .ready)
+        XCTAssertEqual(microphone.requestedModes, [.raw])
+        XCTAssertEqual(systemFactoryCallCount.get(), 0)
+
+        let buffer = try XCTUnwrap(
+            makeInterleavedFloatStereoBuffer(
+                sampleRate: 48_000,
+                samples: [0.25, 0.25, 0.25, 0.25]
+            ))
+        microphone.emit(buffer: buffer, time: AVAudioTime(hostTime: 1))
+
+        for _ in 0..<20 {
+            let events = await capturedEvents.values()
+            if events.microphoneBufferCount == 1 {
+                XCTAssertEqual(events.systemBufferCount, 0)
+                return
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTFail("Timed out waiting for microphone-only capture events")
+    }
+
     func testMicHealthTelemetryReportsMissingMicOnce() async throws {
+        let microphone = MockMeetingMicrophoneCapture(emitsStartupBuffer: false)
+        let systemCapture = MockMeetingSystemAudioCapture()
+        let telemetry = MeetingAudioTelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer { Telemetry.configure(NoOpTelemetryService()) }
+
+        let now = MutableDateProvider(Date(timeIntervalSince1970: 1_800_000_000))
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioCaptureFactory: { systemCapture },
+            micHealthConfig: .init(systemActiveConfirmationSeconds: 0),
+            micHealthNowProvider: { now.value() }
+        )
+
+        _ = try await service.startForTesting()
+        defer { Task { await service.stop() } }
+
+        let buffer = try XCTUnwrap(
+            makeInterleavedFloatStereoBuffer(
+                sampleRate: 48_000,
+                samples: [0.25, 0.25, 0.25, 0.25]
+            ))
+        systemCapture.emit(buffer: buffer, time: AVAudioTime(hostTime: 1))
+        now.advance(by: 5)
+        systemCapture.emit(buffer: buffer, time: AVAudioTime(hostTime: 2))
+
+        let events = telemetry.snapshot().filter { $0.name == .micStallDetected }
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?.props?["signature"], "mic_missing")
+        XCTAssertEqual(events.first?.props?["elapsed_ms"], "0")
+        XCTAssertEqual(events.first?.props?["stall_count"], "1")
+    }
+
+    func testMicHealthTelemetryReportsFlappingSilentMicOnce() async throws {
+        // A listening (not speaking) participant produces a near-silent mic that
+        // momentarily crosses the non-silent threshold and back — the monitor
+        // recovers and re-trips `.micSilent` on every crossing. Without per-recording
+        // dedup this single recording emits hundreds of identical events (the field
+        // firehose: ~38k events from ~240 sessions). It must emit exactly once.
         let microphone = MockMeetingMicrophoneCapture()
         let systemCapture = MockMeetingSystemAudioCapture()
         let telemetry = MeetingAudioTelemetrySpy()
@@ -230,21 +766,38 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
             micHealthNowProvider: { now.value() }
         )
 
-        _ = try await service.start()
-        defer { Task { await service.stop() } }
+        _ = try await service.startForTesting()
 
-        let buffer = try XCTUnwrap(makeInterleavedFloatStereoBuffer(
-            sampleRate: 48_000,
-            samples: [0.25, 0.25, 0.25, 0.25]
-        ))
-        systemCapture.emit(buffer: buffer, time: AVAudioTime(hostTime: 1))
-        now.advance(by: 5)
-        systemCapture.emit(buffer: buffer, time: AVAudioTime(hostTime: 2))
+        let silent = try XCTUnwrap(makeInterleavedFloatStereoBuffer(samples: [0, 0, 0, 0]))
+        let loud = try XCTUnwrap(makeInterleavedFloatStereoBuffer(samples: [0.25, 0.25, 0.25, 0.25]))
+
+        // Mic delivers a silent buffer first (so the confirmed signature is mic_silent,
+        // not mic_missing), then system audio goes active and confirms the stall.
+        microphone.emit(buffer: silent, time: AVAudioTime(hostTime: 1))
+        systemCapture.emit(buffer: loud, time: AVAudioTime(hostTime: 1))
+
+        // Flap silent<->non-silent many times: each cycle recovers then re-trips
+        // `.micSilent`. Dedup must collapse all of these to the single first event.
+        for _ in 0..<10 {
+            microphone.emit(buffer: loud, time: AVAudioTime(hostTime: 1))
+            microphone.emit(buffer: silent, time: AVAudioTime(hostTime: 1))
+        }
 
         let events = telemetry.snapshot().filter { $0.name == .micStallDetected }
         XCTAssertEqual(events.count, 1)
-        XCTAssertEqual(events.first?.props?["signature"], "mic_missing")
-        XCTAssertEqual(events.first?.props?["elapsed_ms"], "0")
+        XCTAssertEqual(events.first?.props?["signature"], "mic_silent")
+        XCTAssertEqual(events.first?.props?["stall_count"], "1")
+        XCTAssertNil(events.first?.props?["total_stalled_seconds"])
+
+        await service.stop()
+
+        let stoppedEvents = telemetry.snapshot().filter { $0.name == .micStallDetected }
+        XCTAssertEqual(stoppedEvents.count, 2)
+        let summary = try XCTUnwrap(stoppedEvents.last)
+        XCTAssertNil(summary.props?["signature"])
+        XCTAssertNil(summary.props?["elapsed_ms"])
+        XCTAssertNotNil(summary.props?["total_stalled_seconds"])
+        XCTAssertGreaterThan(Int(summary.props?["stall_count"] ?? "0") ?? 0, 1)
     }
 
     func testMicHealthTelemetryDoesNotRunInSystemOnlyMode() async throws {
@@ -261,13 +814,14 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
             micHealthConfig: .init(systemActiveConfirmationSeconds: 0)
         )
 
-        _ = try await service.start()
+        _ = try await service.startForTesting()
         defer { Task { await service.stop() } }
 
-        let buffer = try XCTUnwrap(makeInterleavedFloatStereoBuffer(
-            sampleRate: 48_000,
-            samples: [0.25, 0.25, 0.25, 0.25]
-        ))
+        let buffer = try XCTUnwrap(
+            makeInterleavedFloatStereoBuffer(
+                sampleRate: 48_000,
+                samples: [0.25, 0.25, 0.25, 0.25]
+            ))
         systemCapture.emit(buffer: buffer, time: AVAudioTime(hostTime: 1))
 
         XCTAssertFalse(telemetry.snapshot().contains { $0.name == .micStallDetected })
@@ -287,34 +841,72 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
             micHealthFeatureEnabled: false
         )
 
-        _ = try await service.start()
+        _ = try await service.startForTesting()
         defer { Task { await service.stop() } }
 
-        let buffer = try XCTUnwrap(makeInterleavedFloatStereoBuffer(
-            sampleRate: 48_000,
-            samples: [0.25, 0.25, 0.25, 0.25]
-        ))
+        let buffer = try XCTUnwrap(
+            makeInterleavedFloatStereoBuffer(
+                sampleRate: 48_000,
+                samples: [0.25, 0.25, 0.25, 0.25]
+            ))
         systemCapture.emit(buffer: buffer, time: AVAudioTime(hostTime: 1))
 
         XCTAssertFalse(telemetry.snapshot().contains { $0.name == .micStallDetected })
     }
 
-    func testEmitsRuntimeErrorEventWhenMicrophoneStalls() async throws {
+    func testEmitsSourceInterruptedWhenMicrophoneStallsInDualSourceMode() async throws {
         let microphone = MockMeetingMicrophoneCapture()
         let service = MeetingAudioCaptureService(
             microphoneCapture: microphone,
             systemAudioCaptureFactory: { MockMeetingSystemAudioCapture() }
         )
 
-        let events = await service.events
-        _ = try await service.start()
+        let events = MeetingCaptureEventBox()
+        _ = try await service.startForTesting { events.append($0) }
         defer { Task { await service.stop() } }
 
-        microphone.emitStall(.captureRuntimeFailure("microphone capture started but delivered no buffers within 2 seconds"))
+        try await establishMicrophoneDelivery(microphone, events: events)
+        microphone.emitStall(
+            .captureRuntimeFailure("microphone capture started but delivered no buffers within 2 seconds"))
 
-        var iterator = events.makeAsyncIterator()
-        let emitted = await iterator.next()
-        guard case let .error(error)? = emitted else {
+        let emitted = try await events.wait {
+            if case .sourceInterrupted = $0 { return true }
+            return false
+        }
+        guard case let .sourceInterrupted(source, error) = emitted else {
+            XCTFail("Expected .sourceInterrupted event, got \(String(describing: emitted))")
+            return
+        }
+        XCTAssertEqual(source, .microphone)
+        guard case .captureRuntimeFailure(let message) = error else {
+            XCTFail("Expected captureRuntimeFailure, got \(error)")
+            return
+        }
+        XCTAssertTrue(message.contains("microphone capture started"))
+    }
+
+    func testEmitsRuntimeErrorWhenMicrophoneStallsInMicrophoneOnlyMode() async throws {
+        let microphone = MockMeetingMicrophoneCapture()
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioCaptureFactory: { MockMeetingSystemAudioCapture() },
+            sourceModeProvider: { .microphoneOnly }
+        )
+
+        let events = MeetingCaptureEventBox()
+        _ = try await service.startForTesting { events.append($0) }
+        defer { Task { await service.stop() } }
+
+        try await establishMicrophoneDelivery(microphone, events: events)
+        microphone.emitStall(
+            .captureRuntimeFailure("microphone capture started but delivered no buffers within 2 seconds")
+        )
+
+        let emitted = try await events.wait {
+            if case .error = $0 { return true }
+            return false
+        }
+        guard case let .error(error) = emitted else {
             XCTFail("Expected .error event, got \(String(describing: emitted))")
             return
         }
@@ -341,11 +933,13 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
             micProcessingMode: .vpioPreferred
         )
 
-        let report = try await service.start()
+        let reports = MicrophoneStartReportBox()
+        _ = try await service.start { reports.append($0) }
+        let report = try await reports.wait()
         await service.stop()
 
-        XCTAssertEqual(report.microphone.requestedMode, .vpioPreferred)
-        XCTAssertEqual(report.microphone.effectiveMode, .vpio)
+        XCTAssertEqual(report.requestedMode, .vpioPreferred)
+        XCTAssertEqual(report.effectiveMode, .vpio)
         XCTAssertEqual(microphone.requestedModes, [.vpioPreferred])
     }
 
@@ -365,11 +959,13 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
             micProcessingMode: .vpioPreferred
         )
 
-        let report = try await service.start()
+        let reports = MicrophoneStartReportBox()
+        _ = try await service.start { reports.append($0) }
+        let report = try await reports.wait()
         await service.stop()
 
-        XCTAssertTrue(report.microphone.fellBackToRaw)
-        XCTAssertEqual(report.microphone.effectiveMode, .raw)
+        XCTAssertTrue(report.fellBackToRaw)
+        XCTAssertEqual(report.effectiveMode, .raw)
     }
 
     func testStartThrowsWhenVPIOIsRequiredAndUnavailable() async {
@@ -389,7 +985,7 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         )
 
         do {
-            _ = try await service.start()
+            _ = try await service.startForTesting(sourceMode: .microphoneOnly)
             XCTFail("Expected start to throw")
         } catch let error as MeetingAudioError {
             guard case .microphoneProcessingUnavailable(let mode, _) = error else {
@@ -402,24 +998,23 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         }
     }
 
-    func testEmitsRuntimeErrorEventWhenMicrophoneBufferCopyFails() async throws {
+    func testInterruptsOnlyMicrophoneWhenItsBufferCopyFails() async throws {
         let microphone = MockMeetingMicrophoneCapture()
         let service = MeetingAudioCaptureService(
             microphoneCapture: microphone,
             systemAudioCaptureFactory: { MockMeetingSystemAudioCapture() }
         )
 
-        let events = await service.events
-        _ = try await service.start()
+        let events = MeetingCaptureEventBox()
+        _ = try await service.startForTesting { events.append($0) }
         defer { Task { await service.stop() } }
 
         let invalidBuffer = try XCTUnwrap(makeInterleavedFloat64StereoBuffer(samples: [0.5, 0.5]))
         microphone.emit(buffer: invalidBuffer, time: AVAudioTime(hostTime: 1))
 
-        var iterator = events.makeAsyncIterator()
-        let emitted = await iterator.next()
-        guard case let .error(error)? = emitted else {
-            XCTFail("Expected runtime error event, got \(String(describing: emitted))")
+        let emitted = try await events.waitForFirst()
+        guard case let .sourceInterrupted(.microphone, error) = emitted else {
+            XCTFail("Expected microphone interruption, got \(String(describing: emitted))")
             return
         }
 
@@ -429,24 +1024,23 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         }
     }
 
-    func testEmitsRuntimeErrorEventWhenNonInterleavedMicrophoneBufferCopyFails() async throws {
+    func testInterruptsOnlyMicrophoneWhenNonInterleavedBufferCopyFails() async throws {
         let microphone = MockMeetingMicrophoneCapture()
         let service = MeetingAudioCaptureService(
             microphoneCapture: microphone,
             systemAudioCaptureFactory: { MockMeetingSystemAudioCapture() }
         )
 
-        let events = await service.events
-        _ = try await service.start()
+        let events = MeetingCaptureEventBox()
+        _ = try await service.startForTesting { events.append($0) }
         defer { Task { await service.stop() } }
 
         let invalidBuffer = try XCTUnwrap(makeNonInterleavedFloat64MonoBuffer(frames: 4))
         microphone.emit(buffer: invalidBuffer, time: AVAudioTime(hostTime: 1))
 
-        var iterator = events.makeAsyncIterator()
-        let emitted = await iterator.next()
-        guard case let .error(error)? = emitted else {
-            XCTFail("Expected runtime error event, got \(String(describing: emitted))")
+        let emitted = try await events.waitForFirst()
+        guard case let .sourceInterrupted(.microphone, error) = emitted else {
+            XCTFail("Expected microphone interruption, got \(String(describing: emitted))")
             return
         }
 
@@ -456,7 +1050,7 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         }
     }
 
-    func testEmitsSourceInterruptedWhenSystemCaptureStallsInMicrophoneAndSystemMode() async throws {
+    func testEmitsSourceInterruptedForNonRecoverableSystemFailureInDualSourceMode() async throws {
         let microphone = MockMeetingMicrophoneCapture()
         let systemCapture = MockMeetingSystemAudioCapture()
         let service = MeetingAudioCaptureService(
@@ -464,15 +1058,14 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
             systemAudioCaptureFactory: { systemCapture }
         )
 
-        let events = await service.events
-        _ = try await service.start()
+        let events = MeetingCaptureEventBox()
+        _ = try await service.startForTesting { events.append($0) }
         defer { Task { await service.stop() } }
 
-        systemCapture.emitStall(.captureRuntimeFailure("system audio stream stopped delivering buffers (gap 6.0s)"))
+        systemCapture.emitStall(.captureRuntimeFailure("system audio capture stopped unexpectedly"))
 
-        var iterator = events.makeAsyncIterator()
-        let emitted = await iterator.next()
-        guard case let .sourceInterrupted(source, error)? = emitted else {
+        let emitted = try await events.waitForFirst()
+        guard case let .sourceInterrupted(source, error) = emitted else {
             XCTFail("Expected .sourceInterrupted event, got \(String(describing: emitted))")
             return
         }
@@ -481,10 +1074,603 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
             XCTFail("Expected captureRuntimeFailure, got \(error)")
             return
         }
-        XCTAssertTrue(message.contains("stopped delivering buffers"))
+        XCTAssertTrue(message.contains("stopped unexpectedly"))
     }
 
-    func testEmitsRuntimeErrorWhenSystemCaptureStallsInSystemOnlyMode() async throws {
+    func testRecoversSystemCaptureWithFreshInstanceAndDeliversReplacementBuffer() async throws {
+        let recoveryStarted = expectation(description: "system recovery starts")
+        let replacementStarted = expectation(description: "replacement system capture starts")
+        let replacementBufferDelivered = expectation(description: "replacement buffer is delivered")
+        let sourceRecovered = expectation(description: "system source recovers")
+        let terminalInterruption = expectation(description: "system source is not terminally interrupted")
+        terminalInterruption.isInverted = true
+        let microphone = MockMeetingMicrophoneCapture()
+        let stalledCapture = MockMeetingSystemAudioCapture()
+        let replacementCapture = MockMeetingSystemAudioCapture(
+            startExpectation: replacementStarted
+        )
+        let captures = SystemAudioCaptureFactorySequence([stalledCapture, replacementCapture])
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioCaptureFactory: { try captures.make() },
+            systemAudioRecoveryDelays: [.zero]
+        )
+        addTeardownBlock {
+            await service.stop()
+        }
+
+        _ = try await service.startForTesting { event in
+            switch event {
+            case .sourceRecoveryStarted(source: .system, error: .systemAudioStalled):
+                recoveryStarted.fulfill()
+            case .systemBuffer:
+                replacementBufferDelivered.fulfill()
+            case .sourceRecovered(source: .system):
+                sourceRecovered.fulfill()
+            case .sourceInterrupted(source: .system, error: _):
+                terminalInterruption.fulfill()
+            default:
+                break
+            }
+        }
+        stalledCapture.emitStall(
+            .systemAudioStalled(.bufferGap(seconds: 6))
+        )
+
+        await fulfillment(
+            of: [recoveryStarted, replacementStarted],
+            timeout: 1.0,
+            enforceOrder: true
+        )
+        let buffer = try XCTUnwrap(makeInterleavedFloatStereoBuffer(samples: [0.25, -0.25]))
+        replacementCapture.emit(buffer: buffer, time: AVAudioTime(hostTime: 42))
+        await fulfillment(
+            of: [replacementBufferDelivered, sourceRecovered],
+            timeout: 1.0,
+            enforceOrder: true
+        )
+        await fulfillment(of: [terminalInterruption], timeout: 0.02)
+
+        XCTAssertEqual(captures.makeCallCount, 2)
+        XCTAssertEqual(stalledCapture.startCallCount, 1)
+        XCTAssertEqual(stalledCapture.stopCallCount, 1)
+        XCTAssertEqual(replacementCapture.startCallCount, 1)
+        XCTAssertEqual(microphone.stopCallCount, 0)
+    }
+
+    func testUnexpectedSystemStreamStopUsesFreshCaptureRecovery() async throws {
+        let replacementStarted = expectation(description: "replacement system capture starts")
+        let sourceRecovered = expectation(description: "system source recovers")
+        let stalledCapture = MockMeetingSystemAudioCapture()
+        let replacementCapture = MockMeetingSystemAudioCapture(
+            startExpectation: replacementStarted
+        )
+        let captures = SystemAudioCaptureFactorySequence([stalledCapture, replacementCapture])
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: MockMeetingMicrophoneCapture(),
+            systemAudioCaptureFactory: { try captures.make() },
+            systemAudioRecoveryDelays: [.zero]
+        )
+        addTeardownBlock { await service.stop() }
+
+        _ = try await service.startForTesting { event in
+            if case .sourceRecovered(source: .system) = event {
+                sourceRecovered.fulfill()
+            }
+        }
+        stalledCapture.emitStall(
+            .systemAudioStreamStopped("ScreenCaptureKit stopped the stream")
+        )
+
+        await fulfillment(of: [replacementStarted], timeout: 1.0)
+        let buffer = try XCTUnwrap(
+            makeInterleavedFloatStereoBuffer(samples: [0.25, -0.25])
+        )
+        replacementCapture.emit(buffer: buffer, time: AVAudioTime(hostTime: 43))
+        await fulfillment(of: [sourceRecovered], timeout: 1.0)
+
+        XCTAssertEqual(captures.makeCallCount, 2)
+        XCTAssertEqual(stalledCapture.stopCallCount, 1)
+        XCTAssertEqual(replacementCapture.startCallCount, 1)
+    }
+
+    func testNonRecoverableSystemFailureRetiresGenerationBeforeAwaitingStop() async throws {
+        let terminalInterruption = expectation(description: "terminal system interruption")
+        let microphone = MockMeetingMicrophoneCapture()
+        let systemCapture = BlockingStopMeetingSystemAudioCapture()
+        let systemBufferCount = FactoryInvocationBox()
+        let terminalCount = FactoryInvocationBox()
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioCaptureFactory: { systemCapture }
+        )
+        addTeardownBlock { await service.stop() }
+
+        _ = try await service.startForTesting { event in
+            switch event {
+            case .systemBuffer:
+                systemBufferCount.increment()
+            case .sourceInterrupted(source: .system, error: _):
+                terminalCount.increment()
+                terminalInterruption.fulfill()
+            default:
+                break
+            }
+        }
+        let retiredCallbacks = try XCTUnwrap(systemCapture.retainedCallbacks)
+        systemCapture.emitStall(
+            .captureRuntimeFailure("system audio capture stopped unexpectedly")
+        )
+
+        for _ in 0..<20 where systemCapture.stopCallCount == 0 && terminalCount.get() == 0 {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        XCTAssertEqual(systemCapture.stopCallCount, 1)
+        XCTAssertEqual(terminalCount.get(), 0, "terminal publication must await capture teardown")
+
+        let buffer = try XCTUnwrap(
+            makeInterleavedFloatStereoBuffer(samples: [0.25, -0.25])
+        )
+        retiredCallbacks.handler(buffer, AVAudioTime(hostTime: 44))
+        retiredCallbacks.stallObserver?(
+            .captureRuntimeFailure("late retired callback")
+        )
+        systemCapture.releaseStop()
+
+        await fulfillment(of: [terminalInterruption], timeout: 1.0)
+        XCTAssertEqual(systemBufferCount.get(), 0)
+        XCTAssertEqual(terminalCount.get(), 1)
+        XCTAssertEqual(systemCapture.stopCallCount, 1)
+        XCTAssertEqual(microphone.stopCallCount, 0)
+    }
+
+    func testRecoveryRetriesFailureDeliveredAfterReplacementFirstBuffer() async throws {
+        let firstReplacementStarted = expectation(description: "first replacement starts")
+        let secondReplacementStarted = expectation(description: "second replacement starts")
+        let sourceRecovered = expectation(description: "second replacement recovers")
+        let buffer = try XCTUnwrap(
+            makeInterleavedFloatStereoBuffer(samples: [0.25, -0.25])
+        )
+        let stalledCapture = MockMeetingSystemAudioCapture()
+        let firstReplacement = FirstBufferThenFailureSystemAudioCapture(
+            buffer: buffer,
+            failure: .systemAudioStalled(.bufferGap(seconds: 6)),
+            startExpectation: firstReplacementStarted
+        )
+        let secondReplacement = MockMeetingSystemAudioCapture(
+            startExpectation: secondReplacementStarted
+        )
+        let captures = SystemAudioCaptureFactorySequence([
+            stalledCapture,
+            firstReplacement,
+            secondReplacement,
+        ])
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: MockMeetingMicrophoneCapture(),
+            systemAudioCaptureFactory: { try captures.make() },
+            systemAudioRecoveryDelays: [.zero, .zero]
+        )
+        addTeardownBlock { await service.stop() }
+
+        _ = try await service.startForTesting { event in
+            if case .sourceRecovered(source: .system) = event {
+                sourceRecovered.fulfill()
+            }
+        }
+        stalledCapture.emitStall(.systemAudioStalled(.bufferGap(seconds: 6)))
+
+        await fulfillment(
+            of: [firstReplacementStarted, secondReplacementStarted],
+            timeout: 1.0,
+            enforceOrder: true
+        )
+        secondReplacement.emit(buffer: buffer, time: AVAudioTime(hostTime: 2))
+        await fulfillment(of: [sourceRecovered], timeout: 1.0)
+
+        XCTAssertEqual(firstReplacement.stopCallCount, 1)
+        XCTAssertEqual(secondReplacement.startCallCount, 1)
+    }
+
+    func testRecoveryTerminatesWhenReplacementReportsNonRecoverableFailureAfterFirstBuffer() async throws {
+        let firstReplacementStarted = expectation(description: "first replacement starts")
+        let secondReplacementStarted = expectation(description: "second replacement does not start")
+        secondReplacementStarted.isInverted = true
+        let terminalInterruption = expectation(description: "system interruption is terminal")
+        let buffer = try XCTUnwrap(
+            makeInterleavedFloatStereoBuffer(samples: [0.25, -0.25])
+        )
+        let stalledCapture = MockMeetingSystemAudioCapture()
+        let firstReplacement = FirstBufferThenFailureSystemAudioCapture(
+            buffer: buffer,
+            failure: .captureRuntimeFailure("replacement failed permanently"),
+            startExpectation: firstReplacementStarted
+        )
+        let secondReplacement = MockMeetingSystemAudioCapture(
+            startExpectation: secondReplacementStarted
+        )
+        let captures = SystemAudioCaptureFactorySequence([
+            stalledCapture,
+            firstReplacement,
+            secondReplacement,
+        ])
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: MockMeetingMicrophoneCapture(),
+            systemAudioCaptureFactory: { try captures.make() },
+            systemAudioRecoveryDelays: [.zero, .zero]
+        )
+        addTeardownBlock { await service.stop() }
+
+        _ = try await service.startForTesting { event in
+            if case .sourceInterrupted(source: .system, error: .captureRuntimeFailure) = event {
+                terminalInterruption.fulfill()
+            }
+        }
+        stalledCapture.emitStall(.systemAudioStalled(.bufferGap(seconds: 6)))
+
+        await fulfillment(
+            of: [firstReplacementStarted, terminalInterruption],
+            timeout: 1.0,
+            enforceOrder: true
+        )
+        await fulfillment(of: [secondReplacementStarted], timeout: 0.02)
+
+        XCTAssertEqual(captures.makeCallCount, 2)
+        XCTAssertEqual(firstReplacement.stopCallCount, 1)
+        XCTAssertEqual(secondReplacement.startCallCount, 0)
+    }
+
+    func testRetriesWhenReplacementStartsButStallsBeforeFirstBuffer() async throws {
+        let recoveryStarted = expectation(description: "system recovery starts")
+        let silentReplacementStarted = expectation(description: "silent replacement starts")
+        let readyReplacementStarted = expectation(description: "fresh replacement starts")
+        let sourceRecovered = expectation(description: "fresh replacement becomes ready")
+        let terminalInterruption = expectation(description: "system source is not terminally interrupted")
+        terminalInterruption.isInverted = true
+        let stalledCapture = MockMeetingSystemAudioCapture()
+        let silentReplacement = MockMeetingSystemAudioCapture(
+            startExpectation: silentReplacementStarted
+        )
+        let readyReplacement = MockMeetingSystemAudioCapture(
+            startExpectation: readyReplacementStarted
+        )
+        let diagnostics = MeetingAudioDiagnosticRecorder()
+        let captures = SystemAudioCaptureFactorySequence([
+            stalledCapture,
+            silentReplacement,
+            readyReplacement,
+        ])
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: MockMeetingMicrophoneCapture(),
+            systemAudioCaptureFactory: { try captures.make() },
+            systemAudioRecoveryDelays: [.zero, .zero],
+            diagnosticSink: { event in diagnostics.record(event) }
+        )
+        addTeardownBlock {
+            await service.stop()
+        }
+
+        _ = try await service.startForTesting(sourceMode: .systemOnly) { event in
+            switch event {
+            case .sourceRecoveryStarted(source: .system, error: _):
+                recoveryStarted.fulfill()
+            case .sourceRecovered(source: .system):
+                sourceRecovered.fulfill()
+            case .error:
+                terminalInterruption.fulfill()
+            default:
+                break
+            }
+        }
+        stalledCapture.emitStall(.systemAudioStalled(.bufferGap(seconds: 6)))
+        await fulfillment(
+            of: [recoveryStarted, silentReplacementStarted],
+            timeout: 1,
+            enforceOrder: true
+        )
+
+        silentReplacement.emitStall(
+            .systemAudioStalled(.firstBufferTimeout(seconds: 2))
+        )
+        await fulfillment(of: [readyReplacementStarted], timeout: 1)
+        let buffer = try XCTUnwrap(
+            makeInterleavedFloatStereoBuffer(samples: [0.25, -0.25])
+        )
+        readyReplacement.emit(buffer: buffer, time: AVAudioTime(hostTime: 44))
+
+        await fulfillment(of: [sourceRecovered], timeout: 1)
+        await fulfillment(of: [terminalInterruption], timeout: 0.02)
+        XCTAssertEqual(captures.makeCallCount, 3)
+        XCTAssertEqual(stalledCapture.stopCallCount, 1)
+        XCTAssertEqual(silentReplacement.stopCallCount, 1)
+        XCTAssertEqual(readyReplacement.stopCallCount, 0)
+        XCTAssertEqual(
+            diagnostics.snapshot().map { $0.split(separator: " ").first.map(String.init) },
+            [
+                "system_audio_recovery_started",
+                "system_audio_recovery_attempt_started",
+                "system_audio_recovery_attempt_stalled",
+                "system_audio_recovery_attempt_started",
+                "system_audio_recovery_first_buffer",
+                "system_audio_recovery_succeeded",
+            ]
+        )
+        XCTAssertTrue(diagnostics.snapshot().contains { $0.contains("attempt=1") })
+        XCTAssertTrue(diagnostics.snapshot().contains { $0.contains("attempt=2") })
+        XCTAssertTrue(diagnostics.snapshot().contains { $0.contains("error_type=") })
+    }
+
+    func testEmitsTerminalSystemInterruptionOnlyAfterRecoveryAttemptsAreExhausted() async throws {
+        let recoveryStarted = expectation(description: "system recovery starts")
+        let firstAttemptStarted = expectation(description: "first recovery attempt starts")
+        let secondAttemptStarted = expectation(description: "second recovery attempt starts")
+        let terminalInterruption = expectation(description: "terminal interruption is emitted")
+        let sourceRecovered = expectation(description: "system source does not recover")
+        sourceRecovered.isInverted = true
+
+        let microphone = MockMeetingMicrophoneCapture()
+        let stalledCapture = MockMeetingSystemAudioCapture()
+        let firstFailedCapture = MockMeetingSystemAudioCapture(
+            startExpectation: firstAttemptStarted,
+            startError: .systemAudioCaptureFailed(
+                "route is still changing at /Users/alex/private/meeting.wav via https://example.com/private"
+            )
+        )
+        let secondFailedCapture = MockMeetingSystemAudioCapture(
+            startExpectation: secondAttemptStarted,
+            startError: .systemAudioCaptureFailed("route is still changing")
+        )
+        let diagnostics = MeetingAudioDiagnosticRecorder()
+        let captures = SystemAudioCaptureFactorySequence([
+            stalledCapture,
+            firstFailedCapture,
+            secondFailedCapture,
+        ])
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioCaptureFactory: { try captures.make() },
+            systemAudioRecoveryDelays: [.zero, .zero],
+            diagnosticSink: { event in diagnostics.record(event) }
+        )
+        addTeardownBlock {
+            await service.stop()
+        }
+
+        _ = try await service.startForTesting { event in
+            switch event {
+            case .sourceRecoveryStarted(source: .system, error: .systemAudioStalled):
+                recoveryStarted.fulfill()
+            case .sourceRecovered(source: .system):
+                sourceRecovered.fulfill()
+            case .sourceInterrupted(source: .system, error: .systemAudioStalled):
+                terminalInterruption.fulfill()
+            default:
+                break
+            }
+        }
+        stalledCapture.emitStall(.systemAudioStalled(.bufferGap(seconds: 6)))
+
+        await fulfillment(
+            of: [
+                recoveryStarted,
+                firstAttemptStarted,
+                secondAttemptStarted,
+                terminalInterruption,
+            ],
+            timeout: 1.0,
+            enforceOrder: true
+        )
+        await fulfillment(of: [sourceRecovered], timeout: 0.02)
+
+        XCTAssertEqual(captures.makeCallCount, 3)
+        XCTAssertEqual(stalledCapture.stopCallCount, 1)
+        XCTAssertEqual(firstFailedCapture.stopCallCount, 1)
+        XCTAssertEqual(secondFailedCapture.stopCallCount, 1)
+        XCTAssertEqual(microphone.stopCallCount, 0)
+        XCTAssertEqual(
+            diagnostics.snapshot().map { $0.split(separator: " ").first.map(String.init) },
+            [
+                "system_audio_recovery_started",
+                "system_audio_recovery_attempt_started",
+                "system_audio_recovery_start_failed",
+                "system_audio_recovery_attempt_started",
+                "system_audio_recovery_start_failed",
+                "system_audio_recovery_exhausted",
+            ]
+        )
+        XCTAssertTrue(
+            diagnostics.snapshot().last?.contains("attempts=2 error_type=") == true
+        )
+        XCTAssertFalse(diagnostics.snapshot().joined().contains("/Users/alex"))
+        XCTAssertFalse(diagnostics.snapshot().joined().contains("https://example.com"))
+    }
+
+    func testCoalescesDuplicateSystemStallSignalsIntoOneRecovery() async throws {
+        let recoveryStarted = expectation(description: "one system recovery starts")
+        recoveryStarted.assertForOverFulfill = true
+        let replacementStarted = expectation(description: "one replacement starts")
+        replacementStarted.assertForOverFulfill = true
+        let sourceRecovered = expectation(description: "system source recovers")
+        sourceRecovered.assertForOverFulfill = true
+
+        let stalledCapture = MockMeetingSystemAudioCapture()
+        let replacementCapture = MockMeetingSystemAudioCapture(
+            startExpectation: replacementStarted
+        )
+        let captures = SystemAudioCaptureFactorySequence([stalledCapture, replacementCapture])
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: MockMeetingMicrophoneCapture(),
+            systemAudioCaptureFactory: { try captures.make() },
+            systemAudioRecoveryDelays: [.zero]
+        )
+        addTeardownBlock {
+            await service.stop()
+        }
+
+        _ = try await service.startForTesting { event in
+            switch event {
+            case .sourceRecoveryStarted(source: .system, error: _):
+                recoveryStarted.fulfill()
+            case .sourceRecovered(source: .system):
+                sourceRecovered.fulfill()
+            default:
+                break
+            }
+        }
+        let stall = MeetingAudioError.systemAudioStalled(.bufferGap(seconds: 6))
+        stalledCapture.emitStall(stall)
+        stalledCapture.emitStall(stall)
+
+        await fulfillment(
+            of: [recoveryStarted, replacementStarted],
+            timeout: 1.0,
+            enforceOrder: true
+        )
+        let buffer = try XCTUnwrap(makeInterleavedFloatStereoBuffer(samples: [0.25, -0.25]))
+        replacementCapture.emit(buffer: buffer, time: AVAudioTime(hostTime: 43))
+        await fulfillment(of: [sourceRecovered], timeout: 1.0)
+        try await Task.sleep(for: .milliseconds(20))
+
+        XCTAssertEqual(captures.makeCallCount, 2)
+        XCTAssertEqual(stalledCapture.stopCallCount, 1)
+        XCTAssertEqual(replacementCapture.startCallCount, 1)
+    }
+
+    func testStopDuringSystemRecoveryPreventsLateReplacementRevival() async throws {
+        let recoveryStarted = expectation(description: "system recovery starts")
+        let sourceRecovered = expectation(description: "stopped source does not recover")
+        sourceRecovered.isInverted = true
+        let terminalInterruption = expectation(description: "stopped source is not terminally interrupted")
+        terminalInterruption.isInverted = true
+
+        let microphone = MockMeetingMicrophoneCapture()
+        let stalledCapture = MockMeetingSystemAudioCapture()
+        let blockingReplacement = BlockingMeetingSystemAudioCapture()
+        let nextSessionCapture = MockMeetingSystemAudioCapture()
+        let captures = SystemAudioCaptureFactorySequence([
+            stalledCapture,
+            blockingReplacement,
+            nextSessionCapture,
+        ])
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioCaptureFactory: { try captures.make() },
+            systemAudioRecoveryDelays: [.zero]
+        )
+        defer { blockingReplacement.releaseStart() }
+
+        _ = try await service.startForTesting { event in
+            switch event {
+            case .sourceRecoveryStarted(source: .system, error: _):
+                recoveryStarted.fulfill()
+            case .sourceRecovered(source: .system):
+                sourceRecovered.fulfill()
+            case .sourceInterrupted(source: .system, error: _):
+                terminalInterruption.fulfill()
+            default:
+                break
+            }
+        }
+
+        stalledCapture.emitStall(.systemAudioStalled(.bufferGap(seconds: 6)))
+        await fulfillment(of: [recoveryStarted], timeout: 1.0)
+        await blockingReplacement.waitForStartCall()
+
+        let completion = CompletionFlag()
+        let stopTask = Task {
+            await service.stop()
+            completion.markCompleted()
+        }
+        try await Task.sleep(for: .milliseconds(20))
+        XCTAssertFalse(completion.isCompleted)
+
+        blockingReplacement.releaseStart()
+        await stopTask.value
+        XCTAssertTrue(completion.isCompleted)
+        await fulfillment(of: [sourceRecovered, terminalInterruption], timeout: 0.02)
+
+        XCTAssertEqual(stalledCapture.stopCallCount, 1)
+        XCTAssertEqual(blockingReplacement.stopCallCount, 1)
+        XCTAssertEqual(microphone.stopCallCount, 1)
+
+        _ = try await service.startForTesting(sourceMode: .systemOnly)
+        XCTAssertEqual(captures.makeCallCount, 3)
+        XCTAssertEqual(nextSessionCapture.startCallCount, 1)
+        await service.stop()
+    }
+
+    func testStopWhileRecoveryWaitsForFirstBufferRetiresReplacementCallbacks() async throws {
+        let recoveryStarted = expectation(description: "system recovery starts")
+        let replacementStarted = expectation(description: "replacement starts")
+        let stalledCapture = MockMeetingSystemAudioCapture()
+        let waitingReplacement = MockMeetingSystemAudioCapture(
+            startExpectation: replacementStarted
+        )
+        let nextSessionCapture = MockMeetingSystemAudioCapture()
+        let captures = SystemAudioCaptureFactorySequence([
+            stalledCapture,
+            waitingReplacement,
+            nextSessionCapture,
+        ])
+        let retiredSessionEvents = FactoryInvocationBox()
+        let nextSessionBuffers = FactoryInvocationBox()
+        let diagnostics = MeetingAudioDiagnosticRecorder()
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: MockMeetingMicrophoneCapture(),
+            systemAudioCaptureFactory: { try captures.make() },
+            systemAudioRecoveryDelays: [.zero],
+            diagnosticSink: { event in diagnostics.record(event) }
+        )
+
+        _ = try await service.startForTesting(sourceMode: .systemOnly) { event in
+            switch event {
+            case .sourceRecoveryStarted(source: .system, error: _):
+                recoveryStarted.fulfill()
+            case .sourceRecovered, .sourceInterrupted, .error:
+                retiredSessionEvents.increment()
+            default:
+                break
+            }
+        }
+        stalledCapture.emitStall(.systemAudioStalled(.bufferGap(seconds: 6)))
+        await fulfillment(
+            of: [recoveryStarted, replacementStarted],
+            timeout: 1,
+            enforceOrder: true
+        )
+        let retiredCallbacks = try XCTUnwrap(waitingReplacement.retainedCallbacks(forStartAt: 0))
+
+        await service.stop()
+        XCTAssertEqual(waitingReplacement.stopCallCount, 1)
+        XCTAssertEqual(retiredSessionEvents.get(), 0)
+
+        _ = try await service.startForTesting(sourceMode: .systemOnly) { event in
+            if case .systemBuffer = event {
+                nextSessionBuffers.increment()
+            }
+        }
+        let buffer = try XCTUnwrap(
+            makeInterleavedFloatStereoBuffer(samples: [0.25, -0.25])
+        )
+        retiredCallbacks.handler(buffer, AVAudioTime(hostTime: 45))
+        retiredCallbacks.stallObserver?(
+            .systemAudioStalled(.firstBufferTimeout(seconds: 2))
+        )
+        try await Task.sleep(for: .milliseconds(20))
+
+        XCTAssertEqual(retiredSessionEvents.get(), 0)
+        XCTAssertEqual(nextSessionBuffers.get(), 0)
+        nextSessionCapture.emit(buffer: buffer, time: AVAudioTime(hostTime: 46))
+        XCTAssertEqual(nextSessionBuffers.get(), 1)
+        XCTAssertEqual(captures.makeCallCount, 3)
+        XCTAssertTrue(
+            diagnostics.snapshot().contains(
+                "system_audio_recovery_cancelled recovery_id=1 attempt=1 phase=waiting_for_first_buffer"
+            )
+        )
+        await service.stop()
+    }
+
+    func testEmitsRuntimeErrorForNonRecoverableSystemFailureInSystemOnlyMode() async throws {
         let microphone = MockMeetingMicrophoneCapture()
         let systemCapture = MockMeetingSystemAudioCapture()
         let service = MeetingAudioCaptureService(
@@ -492,16 +1678,16 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
             systemAudioCaptureFactory: { systemCapture },
             sourceModeProvider: { .systemOnly }
         )
+        addTeardownBlock {
+            await service.stop()
+        }
 
-        let events = await service.events
-        _ = try await service.start()
-        defer { Task { await service.stop() } }
+        let events = MeetingCaptureEventBox()
+        _ = try await service.startForTesting { events.append($0) }
+        systemCapture.emitStall(.captureRuntimeFailure("system audio capture stopped unexpectedly"))
 
-        systemCapture.emitStall(.captureRuntimeFailure("system audio stream stopped delivering buffers (gap 6.0s)"))
-
-        var iterator = events.makeAsyncIterator()
-        let emitted = await iterator.next()
-        guard case let .error(error)? = emitted else {
+        let emitted = try await events.waitForFirst()
+        guard case let .error(error) = emitted else {
             XCTFail("Expected .error event, got \(String(describing: emitted))")
             return
         }
@@ -509,22 +1695,25 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
             XCTFail("Expected captureRuntimeFailure, got \(error)")
             return
         }
-        XCTAssertTrue(message.contains("stopped delivering buffers"))
+        XCTAssertTrue(message.contains("stopped unexpectedly"))
     }
 
     private func makeInterleavedFloatStereoBuffer(
         sampleRate: Double = 16_000,
         samples: [Float]
     ) -> AVAudioPCMBuffer? {
-        guard let format = AVAudioFormat(
-            commonFormat: .pcmFormatFloat32,
-            sampleRate: sampleRate,
-            channels: 2,
-            interleaved: true
-        ), let buffer = AVAudioPCMBuffer(
-            pcmFormat: format,
-            frameCapacity: AVAudioFrameCount(samples.count / 2)
-        ) else {
+        guard
+            let format = AVAudioFormat(
+                commonFormat: .pcmFormatFloat32,
+                sampleRate: sampleRate,
+                channels: 2,
+                interleaved: true
+            ),
+            let buffer = AVAudioPCMBuffer(
+                pcmFormat: format,
+                frameCapacity: AVAudioFrameCount(samples.count / 2)
+            )
+        else {
             return nil
         }
 
@@ -540,15 +1729,18 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
     }
 
     private func makeInterleavedFloat64StereoBuffer(samples: [Double]) -> AVAudioPCMBuffer? {
-        guard let format = AVAudioFormat(
-            commonFormat: .pcmFormatFloat64,
-            sampleRate: 16_000,
-            channels: 2,
-            interleaved: true
-        ), let buffer = AVAudioPCMBuffer(
-            pcmFormat: format,
-            frameCapacity: AVAudioFrameCount(samples.count / 2)
-        ) else {
+        guard
+            let format = AVAudioFormat(
+                commonFormat: .pcmFormatFloat64,
+                sampleRate: 16_000,
+                channels: 2,
+                interleaved: true
+            ),
+            let buffer = AVAudioPCMBuffer(
+                pcmFormat: format,
+                frameCapacity: AVAudioFrameCount(samples.count / 2)
+            )
+        else {
             return nil
         }
 
@@ -564,12 +1756,14 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
     }
 
     private func makeNonInterleavedFloat64MonoBuffer(frames: AVAudioFrameCount) -> AVAudioPCMBuffer? {
-        guard let format = AVAudioFormat(
-            commonFormat: .pcmFormatFloat64,
-            sampleRate: 16_000,
-            channels: 1,
-            interleaved: false
-        ), let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames) else {
+        guard
+            let format = AVAudioFormat(
+                commonFormat: .pcmFormatFloat64,
+                sampleRate: 16_000,
+                channels: 1,
+                interleaved: false
+            ), let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)
+        else {
             return nil
         }
 
@@ -581,10 +1775,14 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
 private final class MockMeetingMicrophoneCapture: MeetingMicrophoneCapturing, @unchecked Sendable {
     private var handler: AudioBufferHandler?
     private var stallObserver: StallObserver?
+    private var retainedStartCallbacks: [(handler: AudioBufferHandler, stallObserver: StallObserver?)] = []
     private let startHandler: (MeetingMicProcessingMode) throws -> MeetingMicrophoneCaptureStartReport
+    private let emitsStartupBuffer: Bool
     private(set) var requestedModes: [MeetingMicProcessingMode] = []
+    private(set) var stopCallCount = 0
 
     init(
+        emitsStartupBuffer: Bool = true,
         startHandler: @escaping (MeetingMicProcessingMode) throws -> MeetingMicrophoneCaptureStartReport = { _ in
             MeetingMicrophoneCaptureStartReport(
                 requestedMode: .vpioPreferred,
@@ -593,6 +1791,7 @@ private final class MockMeetingMicrophoneCapture: MeetingMicrophoneCapturing, @u
         }
     ) {
         self.startHandler = startHandler
+        self.emitsStartupBuffer = emitsStartupBuffer
     }
 
     func start(
@@ -602,11 +1801,17 @@ private final class MockMeetingMicrophoneCapture: MeetingMicrophoneCapturing, @u
     ) async throws -> MeetingMicrophoneCaptureStartReport {
         self.handler = handler
         self.stallObserver = onStall
+        retainedStartCallbacks.append((handler, onStall))
         requestedModes.append(processingMode)
-        return try startHandler(processingMode)
+        let report = try startHandler(processingMode)
+        if emitsStartupBuffer {
+            handler(startupFixtureBuffer(), AVAudioTime(hostTime: startupFixtureHostTime))
+        }
+        return report
     }
 
-    func stop() {
+    func stop() async {
+        stopCallCount += 1
         handler = nil
         stallObserver = nil
     }
@@ -615,33 +1820,511 @@ private final class MockMeetingMicrophoneCapture: MeetingMicrophoneCapturing, @u
         handler?(buffer, time)
     }
 
+    var isStallObserverInstalled: Bool { stallObserver != nil }
+
     func emitStall(_ error: MeetingAudioError) {
         stallObserver?(error)
+    }
+
+    func retainedCallbacks(
+        forStartAt index: Int
+    ) -> (handler: AudioBufferHandler, stallObserver: StallObserver?)? {
+        guard retainedStartCallbacks.indices.contains(index) else { return nil }
+        return retainedStartCallbacks[index]
     }
 }
 
 private final class MockMeetingSystemAudioCapture: MeetingSystemAudioCapturing, @unchecked Sendable {
+    private let lock = NSLock()
     private var handler: AudioBufferHandler?
     private var stallObserver: StallObserver?
-    private(set) var startCallCount = 0
+    private var retainedStartCallbacks: [(handler: AudioBufferHandler, stallObserver: StallObserver?)] = []
+    private let startExpectation: XCTestExpectation?
+    private let startError: MeetingAudioError?
+    private var startCallCountStorage = 0
+    private var stopCallCountStorage = 0
+
+    init(
+        startExpectation: XCTestExpectation? = nil,
+        startError: MeetingAudioError? = nil
+    ) {
+        self.startExpectation = startExpectation
+        self.startError = startError
+    }
+
+    var startCallCount: Int {
+        lock.withLock { startCallCountStorage }
+    }
+
+    var stopCallCount: Int {
+        lock.withLock { stopCallCountStorage }
+    }
 
     func start(handler: @escaping AudioBufferHandler, onStall: StallObserver?) async throws {
-        startCallCount += 1
-        self.handler = handler
-        self.stallObserver = onStall
+        lock.withLock {
+            startCallCountStorage += 1
+            if startError == nil {
+                self.handler = handler
+                self.stallObserver = onStall
+                retainedStartCallbacks.append((handler, onStall))
+            }
+        }
+        startExpectation?.fulfill()
+        if let startError {
+            throw startError
+        }
+        // Recovery tests explicitly control the replacement's first buffer.
+        if startExpectation == nil {
+            handler(startupFixtureBuffer(), AVAudioTime(hostTime: startupFixtureHostTime))
+        }
     }
 
     func stop() async {
-        handler = nil
-        stallObserver = nil
+        lock.withLock {
+            stopCallCountStorage += 1
+            handler = nil
+            stallObserver = nil
+        }
     }
 
     func emit(buffer: AVAudioPCMBuffer, time: AVAudioTime) {
+        let handler = lock.withLock { self.handler }
         handler?(buffer, time)
     }
 
     func emitStall(_ error: MeetingAudioError) {
+        let stallObserver = lock.withLock { self.stallObserver }
         stallObserver?(error)
+    }
+
+    func retainedCallbacks(
+        forStartAt index: Int
+    ) -> (handler: AudioBufferHandler, stallObserver: StallObserver?)? {
+        lock.withLock {
+            guard retainedStartCallbacks.indices.contains(index) else { return nil }
+            return retainedStartCallbacks[index]
+        }
+    }
+}
+
+private final class FirstBufferThenFailureSystemAudioCapture: MeetingSystemAudioCapturing, @unchecked Sendable {
+    private let buffer: AVAudioPCMBuffer
+    private let failure: MeetingAudioError
+    private let startExpectation: XCTestExpectation
+    private let lock = NSLock()
+    private var stopCallCountStorage = 0
+
+    init(
+        buffer: AVAudioPCMBuffer,
+        failure: MeetingAudioError,
+        startExpectation: XCTestExpectation
+    ) {
+        self.buffer = buffer
+        self.failure = failure
+        self.startExpectation = startExpectation
+    }
+
+    var stopCallCount: Int {
+        lock.withLock { stopCallCountStorage }
+    }
+
+    func start(handler: @escaping AudioBufferHandler, onStall: StallObserver?) async throws {
+        startExpectation.fulfill()
+        handler(buffer, AVAudioTime(hostTime: 1))
+        onStall?(failure)
+    }
+
+    func stop() async {
+        lock.withLock { stopCallCountStorage += 1 }
+    }
+}
+
+private final class BlockingStopMeetingSystemAudioCapture: MeetingSystemAudioCapturing, @unchecked Sendable {
+    private let lock = NSLock()
+    private var callbacks: (handler: AudioBufferHandler, stallObserver: StallObserver?)?
+    private var stopContinuation: CheckedContinuation<Void, Never>?
+    private var stopReleased = false
+    private var stopCallCountStorage = 0
+
+    var retainedCallbacks: (handler: AudioBufferHandler, stallObserver: StallObserver?)? {
+        lock.withLock { callbacks }
+    }
+
+    var stopCallCount: Int {
+        lock.withLock { stopCallCountStorage }
+    }
+
+    func start(handler: @escaping AudioBufferHandler, onStall: StallObserver?) async throws {
+        lock.withLock {
+            callbacks = (handler, onStall)
+        }
+        handler(startupFixtureBuffer(), AVAudioTime(hostTime: startupFixtureHostTime))
+    }
+
+    func stop() async {
+        let shouldWait = lock.withLock {
+            stopCallCountStorage += 1
+            return !stopReleased
+        }
+        guard shouldWait else { return }
+        await withCheckedContinuation { continuation in
+            let resumeImmediately = lock.withLock {
+                if stopReleased {
+                    return true
+                }
+                stopContinuation = continuation
+                return false
+            }
+            if resumeImmediately {
+                continuation.resume()
+            }
+        }
+    }
+
+    func emitStall(_ error: MeetingAudioError) {
+        let observer = lock.withLock { callbacks?.stallObserver }
+        observer?(error)
+    }
+
+    func releaseStop() {
+        let continuation = lock.withLock { () -> CheckedContinuation<Void, Never>? in
+            stopReleased = true
+            let continuation = stopContinuation
+            stopContinuation = nil
+            return continuation
+        }
+        continuation?.resume()
+    }
+}
+
+private final class SystemAudioCaptureFactorySequence: @unchecked Sendable {
+    private let lock = NSLock()
+    private let captures: [any MeetingSystemAudioCapturing]
+    private var nextIndex = 0
+
+    init(_ captures: [any MeetingSystemAudioCapturing]) {
+        self.captures = captures
+    }
+
+    var makeCallCount: Int {
+        lock.withLock { nextIndex }
+    }
+
+    func make() throws -> any MeetingSystemAudioCapturing {
+        try lock.withLock {
+            guard nextIndex < captures.count else {
+                throw MeetingAudioError.systemAudioCaptureFailed("test capture factory exhausted")
+            }
+            defer { nextIndex += 1 }
+            return captures[nextIndex]
+        }
+    }
+}
+
+private final class BlockingMeetingMicrophoneCapture: MeetingMicrophoneCapturing, @unchecked Sendable {
+    private let lock = NSLock()
+    private var startContinuation: CheckedContinuation<Void, Never>?
+    private var startCallCount = 0
+    private var startWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+    private var stopWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+    private var stopCallCountStorage = 0
+    private var stoppedAttemptIDs = Set<Int>()
+    private var handlers: [Int: AudioBufferHandler] = [:]
+    private var activeAttemptID: Int?
+
+    var stopCallCount: Int {
+        lock.withLock { stopCallCountStorage }
+    }
+
+    var isRunning: Bool {
+        lock.withLock { activeAttemptID != nil }
+    }
+
+    func start(
+        processingMode: MeetingMicProcessingMode,
+        handler: @escaping AudioBufferHandler,
+        onStall: StallObserver?
+    ) async throws -> MeetingMicrophoneCaptureStartReport {
+        let startSnapshot = lock.withLock {
+            () -> (attemptID: Int, waiters: [CheckedContinuation<Void, Never>]) in
+            startCallCount += 1
+            handlers[startCallCount] = handler
+            let satisfied = startWaiters.filter { $0.count <= startCallCount }.map(\.continuation)
+            startWaiters.removeAll { $0.count <= startCallCount }
+            return (startCallCount, satisfied)
+        }
+        startSnapshot.waiters.forEach { $0.resume() }
+        if startSnapshot.attemptID == 1 {
+            await withCheckedContinuation { continuation in
+                lock.withLock {
+                    startContinuation = continuation
+                }
+            }
+        }
+        let wasStopped = lock.withLock {
+            guard !stoppedAttemptIDs.contains(startSnapshot.attemptID) else {
+                handlers[startSnapshot.attemptID] = nil
+                return true
+            }
+            activeAttemptID = startSnapshot.attemptID
+            return false
+        }
+        if wasStopped {
+            throw CancellationError()
+        }
+        handler(startupFixtureBuffer(), AVAudioTime(hostTime: startupFixtureHostTime))
+        return MeetingMicrophoneCaptureStartReport(
+            requestedMode: processingMode,
+            effectiveMode: .raw
+        )
+    }
+
+    func stop() async {
+        let waiters = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+            stopCallCountStorage += 1
+            let stoppedAttemptID = startCallCount
+            stoppedAttemptIDs.insert(stoppedAttemptID)
+            handlers[stoppedAttemptID] = nil
+            if activeAttemptID == stoppedAttemptID {
+                activeAttemptID = nil
+            }
+            let satisfied =
+                stopWaiters
+                .filter { $0.count <= stopCallCountStorage }
+                .map(\.continuation)
+            stopWaiters.removeAll { $0.count <= stopCallCountStorage }
+            return satisfied
+        }
+        waiters.forEach { $0.resume() }
+    }
+
+    func waitForStartCall(count: Int = 1) async {
+        let shouldWait = lock.withLock { startCallCount < count }
+        guard shouldWait else { return }
+        await withCheckedContinuation { continuation in
+            lock.withLock {
+                if startCallCount >= count {
+                    continuation.resume()
+                } else {
+                    startWaiters.append((count, continuation))
+                }
+            }
+        }
+    }
+
+    func waitForStopCall(count: Int = 1) async {
+        let shouldWait = lock.withLock { stopCallCountStorage < count }
+        guard shouldWait else { return }
+        await withCheckedContinuation { continuation in
+            lock.withLock {
+                if stopCallCountStorage >= count {
+                    continuation.resume()
+                } else {
+                    stopWaiters.append((count, continuation))
+                }
+            }
+        }
+    }
+
+    func emitActiveBuffer(_ buffer: AVAudioPCMBuffer, time: AVAudioTime) {
+        let handler = lock.withLock {
+            activeAttemptID.flatMap { handlers[$0] }
+        }
+        handler?(buffer, time)
+    }
+
+    func releaseStart() {
+        let continuation = lock.withLock { () -> CheckedContinuation<Void, Never>? in
+            let continuation = startContinuation
+            startContinuation = nil
+            return continuation
+        }
+        continuation?.resume()
+    }
+}
+
+private final class BlockingMeetingSystemAudioCapture: MeetingSystemAudioCapturing, @unchecked Sendable {
+    private let lock = NSLock()
+    private var startContinuations: [CheckedContinuation<Void, Never>] = []
+    private var startReleased = false
+    private var startCallCountStorage = 0
+    private var stopCallCountStorage = 0
+    private var startWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+    private var stopWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+
+    var stopCallCount: Int { lock.withLock { stopCallCountStorage } }
+
+    func start(handler: @escaping AudioBufferHandler, onStall: StallObserver?) async throws {
+        let waiters = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+            startCallCountStorage += 1
+            let satisfied = startWaiters.filter { $0.count <= startCallCountStorage }.map(\.continuation)
+            startWaiters.removeAll { $0.count <= startCallCountStorage }
+            return satisfied
+        }
+        waiters.forEach { $0.resume() }
+        let shouldWait = lock.withLock { !startReleased }
+        if shouldWait {
+            await withCheckedContinuation { continuation in
+                let resumeImmediately = lock.withLock { () -> Bool in
+                    if startReleased {
+                        return true
+                    }
+                    startContinuations.append(continuation)
+                    return false
+                }
+                if resumeImmediately {
+                    continuation.resume()
+                }
+            }
+        }
+        handler(startupFixtureBuffer(), AVAudioTime(hostTime: startupFixtureHostTime))
+    }
+
+    func stop() async {
+        let waiters = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+            stopCallCountStorage += 1
+            let satisfied =
+                stopWaiters
+                .filter { $0.count <= stopCallCountStorage }
+                .map(\.continuation)
+            stopWaiters.removeAll { $0.count <= stopCallCountStorage }
+            return satisfied
+        }
+        waiters.forEach { $0.resume() }
+    }
+
+    func waitForStartCall(count: Int = 1) async {
+        let shouldWait = lock.withLock { startCallCountStorage < count }
+        guard shouldWait else { return }
+        await withCheckedContinuation { continuation in
+            lock.withLock {
+                if startCallCountStorage >= count {
+                    continuation.resume()
+                } else {
+                    startWaiters.append((count, continuation))
+                }
+            }
+        }
+    }
+
+    func waitForStopCall(count: Int = 1) async {
+        let shouldWait = lock.withLock { stopCallCountStorage < count }
+        guard shouldWait else { return }
+        await withCheckedContinuation { continuation in
+            lock.withLock {
+                if stopCallCountStorage >= count {
+                    continuation.resume()
+                } else {
+                    stopWaiters.append((count, continuation))
+                }
+            }
+        }
+    }
+
+    func releaseStart() {
+        let continuations = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+            startReleased = true
+            let continuations = startContinuations
+            startContinuations.removeAll()
+            return continuations
+        }
+        continuations.forEach { $0.resume() }
+    }
+}
+
+private final class FailingStartBlockingStopCapture: MeetingSystemAudioCapturing, @unchecked Sendable {
+    private let lock = NSLock()
+    private var stopContinuations: [CheckedContinuation<Void, Never>] = []
+    private var stopWaiters: [CheckedContinuation<Bool, Never>] = []
+    private var stopCalled = false
+    private var stopReleased = false
+
+    func start(handler: @escaping AudioBufferHandler, onStall: StallObserver?) async throws {
+        throw MeetingAudioError.unsupportedPlatform
+    }
+
+    func stop() async {
+        let waiters = lock.withLock { () -> [CheckedContinuation<Bool, Never>] in
+            stopCalled = true
+            let waiters = stopWaiters
+            stopWaiters.removeAll()
+            return waiters
+        }
+        waiters.forEach { $0.resume(returning: true) }
+
+        let shouldWait = lock.withLock { !stopReleased }
+        guard shouldWait else { return }
+        await withCheckedContinuation { continuation in
+            let resumeImmediately = lock.withLock { () -> Bool in
+                if stopReleased {
+                    return true
+                }
+                stopContinuations.append(continuation)
+                return false
+            }
+            if resumeImmediately {
+                continuation.resume()
+            }
+        }
+    }
+
+    @discardableResult
+    func waitForStopCall() async -> Bool {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            let alreadyStopped = lock.withLock { () -> Bool in
+                if stopCalled {
+                    return true
+                }
+                stopWaiters.append(continuation)
+                return false
+            }
+            if alreadyStopped {
+                continuation.resume(returning: true)
+                return
+            }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 2) { [weak self] in
+                guard let self else { return }
+                let waiters = self.lock.withLock { () -> [CheckedContinuation<Bool, Never>] in
+                    guard !self.stopCalled else { return [] }
+                    let waiters = self.stopWaiters
+                    self.stopWaiters.removeAll()
+                    return waiters
+                }
+                waiters.forEach { $0.resume(returning: false) }
+            }
+        }
+    }
+
+    func releaseStop() {
+        let continuations = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+            stopReleased = true
+            let continuations = stopContinuations
+            stopContinuations.removeAll()
+            return continuations
+        }
+        continuations.forEach { $0.resume() }
+    }
+}
+
+private final class FailureDuringStartSystemAudioCapture: MeetingSystemAudioCapturing, @unchecked Sendable {
+    private let lock = NSLock()
+    private let failure: MeetingAudioError
+    private var stopCallCountStorage = 0
+
+    init(failure: MeetingAudioError) {
+        self.failure = failure
+    }
+
+    var stopCallCount: Int {
+        lock.withLock { stopCallCountStorage }
+    }
+
+    func start(handler: @escaping AudioBufferHandler, onStall: StallObserver?) async throws {
+        onStall?(failure)
+    }
+
+    func stop() async {
+        lock.withLock { stopCallCountStorage += 1 }
     }
 }
 
@@ -667,6 +2350,14 @@ private actor CapturedMeetingCaptureEvents {
             microphoneBufferCount += 1
         case .systemBuffer:
             systemBufferCount += 1
+        case .microphoneHealth:
+            break
+        case .captureStarting, .sourceStartupState, .microphoneStarted:
+            break
+        case .sourceRecoveryStarted:
+            break
+        case .sourceRecovered:
+            break
         case .sourceInterrupted:
             break
         case .error:
