@@ -108,6 +108,8 @@ public final class AppleIntelligenceLLMClient: LLMClientProtocol, Sendable {
             ),
             onPartial: onPartial
         )
+        // A generator can return after cancellation. Do not treat that text as success.
+        try Task.checkCancellation()
         guard !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw LLMError.invalidResponse
         }

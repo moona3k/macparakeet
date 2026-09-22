@@ -56,6 +56,9 @@ struct FoundationModelsAppleIntelligenceGenerator: AppleIntelligenceGenerating {
                         onPartial(delta)
                     }
                 }
+                // Foundation Models ends a cancelled stream by returning normally.
+                // Check again so that partial text is not reported as a finished answer.
+                try Task.checkCancellation()
                 // Last prefix-valid snapshot, not a rewritten final frame the UI never saw.
                 return reducer.emitted
             }

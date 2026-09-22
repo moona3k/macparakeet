@@ -225,6 +225,27 @@ final class AppleIntelligenceLLMClientTests: XCTestCase {
         XCTAssertEqual(response.content, "  Hello\n")
     }
 
+    func testGenerationThatReturnsAfterCancelIsNotSuccess() async {
+        let generator = CancelThenReturnGenerator()
+        let client = AppleIntelligenceLLMClient(generator: generator)
+        let task = Task {
+            try await client.chatCompletion(
+                messages: [ChatMessage(role: .user, content: "Hi")],
+                context: LLMExecutionContext(providerConfig: .appleIntelligence()),
+                options: .default
+            )
+        }
+        await generator.waitUntilStarted()
+        task.cancel()
+        do {
+            _ = try await task.value
+            XCTFail("Expected cancellation")
+        } catch is CancellationError {
+        } catch {
+            XCTFail("Unexpected error \(error)")
+        }
+    }
+
     func testTemperatureAboveOneIsRejectedBeforeGeneration() async {
         let client = AppleIntelligenceLLMClient(
             generator: StubAppleIntelligenceGenerator(availability: .available, chunks: ["should not run"])
@@ -302,6 +323,57 @@ final class AppleIntelligenceLLMClientTests: XCTestCase {
             XCTAssertTrue(availability.isUserSelectable)
             XCTAssertEqual(availability.canGenerate, availability == .available || availability == .localeLimited)
         }
+    }
+}
+
+private final class CancelThenReturnGenerator: AppleIntelligenceGenerating, @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var started = false
+
+    func waitUntilStarted() async {
+        await withCheckedContinuation { (waiter: CheckedContinuation<Void, Never>) in
+            if register(waiter) {
+                waiter.resume()
+            }
+        }
+    }
+
+    func currentAvailability() -> AppleIntelligenceAvailability {
+        .available
+    }
+
+    func generate(
+        request: AppleIntelligenceGenerationRequest,
+        onPartial: (@Sendable (String) -> Void)?
+    ) async throws -> String {
+        _ = request
+        markStarted()?.resume()
+        onPartial?("partial")
+        do {
+            try await Task.sleep(nanoseconds: 30_000_000_000)
+        } catch is CancellationError {
+            return "partial"
+        }
+        return "partial"
+    }
+
+    /// Returns true when generation has already started and the caller should resume `waiter`.
+    private func register(_ waiter: CheckedContinuation<Void, Never>) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        if started { return true }
+        continuation = waiter
+        return false
+    }
+
+    private func markStarted() -> CheckedContinuation<Void, Never>? {
+        lock.lock()
+        defer { lock.unlock() }
+        started = true
+        let waiter = continuation
+        continuation = nil
+        return waiter
     }
 }
 
