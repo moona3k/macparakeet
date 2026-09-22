@@ -789,6 +789,10 @@ struct SettingsView: View {
                 Spacer(minLength: DesignSystem.Spacing.md)
 
                 HStack(spacing: DesignSystem.Spacing.sm) {
+                    if !viewModel.microphoneGranted {
+                        microphonePermissionActionButton
+                    }
+
                     Picker("Microphone", selection: $viewModel.selectedMicrophoneDeviceUID) {
                         Text("System Default").tag(SettingsViewModel.systemDefaultMicrophoneSelection)
                         ForEach(viewModel.microphoneDeviceOptions) { device in
@@ -927,7 +931,11 @@ struct SettingsView: View {
     private var microphoneTestDetail: String {
         switch viewModel.microphoneTestState {
         case .idle:
-            return viewModel.microphoneGranted ? "Run a short level check before recording." : "Grant microphone permission before testing."
+            return viewModel.microphoneGranted
+                ? "Run a short level check before recording."
+                : viewModel.microphoneStatus == .notDetermined
+                    ? "Grant microphone access to test input. File transcription does not need it."
+                    : "Open System Settings → Privacy & Security → Microphone, then try again."
         case .testing:
             return "Speak into the selected microphone."
         case .succeeded:
@@ -1171,6 +1179,14 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
+                    title: "Preserve discarded dictations",
+                    detail: "When you cancel or the undo window expires, keep the transcript in History instead of deleting it. Audio follows Save audio recordings. Off by default. Requires Save dictation history. Nothing is pasted.",
+                    isOn: $viewModel.preserveDiscardedDictations
+                )
+
+                Divider()
+
+                settingsToggleRow(
                     title: "Auto-stop after silence",
                     detail: "Stops recording when speech pauses for the selected delay.",
                     isOn: $viewModel.silenceAutoStop
@@ -1221,6 +1237,14 @@ struct SettingsView: View {
                     title: "Keep dictation on clipboard",
                     detail: "Leaves the same text MacParakeet pastes on the clipboard, useful when remote desktops need a manual ⌘V. To skip paste entirely, use the Clipboard-only dictation shortcut.",
                     isOn: $viewModel.keepDictationOnClipboard
+                )
+
+                Divider()
+
+                settingsToggleRow(
+                    title: "Streaming cursor",
+                    detail: "Types the finished transcript into the app with a fast caret. Off keeps instant paste. Reduce Motion always pastes. ⌘Z may undo in pieces. Multi-line results still paste.",
+                    isOn: $viewModel.dictationStreamingCursorEnabled
                 )
             }
         }
@@ -1300,6 +1324,15 @@ struct SettingsView: View {
                     .pickerStyle(.menu)
                     .frame(minWidth: 220, idealWidth: 260, maxWidth: 320)
                 }
+
+                Divider()
+
+                settingsToggleRow(
+                    title: "Start meetings muted",
+                    detail: "Begin recording with your microphone off. Unmute from the meeting panel when you want to speak. System-audio-only capture ignores this. Changes apply to your next recording.",
+                    isOn: $viewModel.startMeetingsMuted
+                )
+                .disabled(!viewModel.meetingAudioSourceMode.capturesMicrophone)
 
                 Divider()
 
@@ -2527,7 +2560,7 @@ struct SettingsView: View {
     }
 
     /// Parakeet build picker (multilingual `v3`, English-only `v2`, and the
-    /// English-only Unified build). Only shown when Parakeet is the active
+    /// English-only Unified build, plus the optional Orukeet preview). Only shown when Parakeet is the active
     /// engine — symmetric to the Whisper Language card. English-only builds fix
     /// the v3 auto-detect mis-firing English as another language (issues #311,
     /// #398); Unified is the punctuated English streaming build (issue #520).
@@ -2548,6 +2581,8 @@ struct SettingsView: View {
                     parakeetModelOptionRow(.v2)
                     Divider()
                     parakeetModelOptionRow(.unified)
+                    Divider()
+                    parakeetModelOptionRow(.orukeet)
                 }
             }
             .transition(.opacity)
@@ -2942,6 +2977,12 @@ struct SettingsView: View {
     }
 
     private var engineSelectorCardStatus: SettingsCardStatus? {
+        if viewModel.engine.speechEngineSwitchStalled {
+            return SettingsCardStatus(.required, label: "Taking too long")
+        }
+        if viewModel.engine.speechEngineSwitchFinishingInBackground {
+            return SettingsCardStatus(.recommended, label: "Still compiling")
+        }
         if viewModel.engine.speechEngineSwitching {
             return SettingsCardStatus(.recommended, label: speechEngineSwitchTitle)
         }
@@ -2952,7 +2993,23 @@ struct SettingsView: View {
     }
 
     private var speechEngineSwitchBannerState: (title: String, detail: String)? {
+        if viewModel.engine.speechEngineSwitchFinishingInBackground,
+           !viewModel.engine.speechEngineSwitching,
+           let target = viewModel.engine.abandonedSpeechEngineSwitchTarget
+        {
+            return (
+                "Still compiling in the background",
+                EngineSettingsViewModel.finishingAbandonedSpeechEngineSwitchDetail(for: target)
+            )
+        }
         guard viewModel.engine.speechEngineSwitching else { return nil }
+        if viewModel.engine.speechEngineSwitchStalled {
+            let detail = viewModel.engine.speechEngineSwitchDetail
+                ?? EngineSettingsViewModel.stalledSpeechEngineSwitchDetail(
+                    for: currentSpeechEngineSwitchTarget
+                )
+            return ("This is taking too long", detail)
+        }
         let phase = viewModel.engine.speechEngineSwitchDetail ?? "Preparing speech engine..."
         return (
             speechEngineSwitchTitle,
@@ -3075,20 +3132,36 @@ struct SettingsView: View {
     }
 
     private func speechEngineSwitchBanner(title: String, detail: String) -> some View {
-        HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
-            ParakeetSpinner(.inline)
-                .frame(width: 18, height: 18)
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                if viewModel.engine.speechEngineSwitchStalled {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(DesignSystem.Colors.warningAmber)
+                        .frame(width: 18, height: 18)
+                } else {
+                    ParakeetSpinner(.inline)
+                        .frame(width: 18, height: 18)
+                }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(DesignSystem.Typography.bodySmall.weight(.semibold))
-                Text(detail)
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(DesignSystem.Typography.bodySmall.weight(.semibold))
+                    Text(detail)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: DesignSystem.Spacing.md)
             }
 
-            Spacer(minLength: DesignSystem.Spacing.md)
+            if viewModel.engine.speechEngineSwitchStalled {
+                Button("Use previous engine") {
+                    viewModel.engine.leaveStalledSpeechEngineSwitch()
+                }
+                .parakeetAction(.secondary)
+                .help("Restores the previous engine in Settings. Core ML keeps compiling and is not cancelled. Speech stays paused until that finishes.")
+            }
         }
         .padding(.horizontal, DesignSystem.Spacing.md)
         .padding(.vertical, DesignSystem.Spacing.sm)
@@ -3100,7 +3173,9 @@ struct SettingsView: View {
             RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
                 .strokeBorder(DesignSystem.Colors.warningAmber.opacity(0.28), lineWidth: 0.5)
         )
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(
+            children: viewModel.engine.speechEngineSwitchStalled ? .contain : .combine
+        )
     }
 
     /// Routes a tile click through a confirmation step. The VM's eventual
@@ -3523,8 +3598,8 @@ struct SettingsView: View {
 
     private var permissionsCard: some View {
         let permissionsSubtitle = AppFeatures.meetingRecordingEnabled
-            ? "Microphone and Accessibility are required. Screen Recording is needed for system-audio meetings."
-            : "Microphone and Accessibility are required."
+            ? "Microphone is needed for dictation and microphone meetings. Accessibility is required for the global hotkey and paste. Screen Recording is needed for system-audio meetings."
+            : "Microphone is needed for dictation. Accessibility is required for the global hotkey and paste."
 
         return SettingsCard(
             title: "Permissions",
@@ -3534,7 +3609,10 @@ struct SettingsView: View {
         ) {
             VStack(spacing: DesignSystem.Spacing.md) {
                 HStack {
-                    rowText(title: "Microphone", detail: "Required for voice capture.")
+                    rowText(
+                        title: "Microphone",
+                        detail: "Needed for dictation and microphone meetings. File transcription does not use it."
+                    )
                     Spacer()
                     permissionPill(granted: viewModel.microphoneGranted)
                 }
@@ -3563,9 +3641,13 @@ struct SettingsView: View {
                 let needsScreenRecordingAction = AppFeatures.meetingRecordingEnabled
                     && viewModel.meetingAudioSourceMode.capturesSystemAudio
                     && !viewModel.screenRecordingGranted
-                if !viewModel.accessibilityGranted || needsScreenRecordingAction {
+                if !viewModel.microphoneGranted || !viewModel.accessibilityGranted || needsScreenRecordingAction {
                     Divider()
                     HStack(spacing: DesignSystem.Spacing.sm) {
+                        if !viewModel.microphoneGranted {
+                            microphonePermissionActionButton
+                        }
+
                         if !viewModel.accessibilityGranted {
                             Button("Open Accessibility Settings") {
                                 openAccessibilitySettings()
@@ -4139,6 +4221,21 @@ struct SettingsView: View {
             "Model setup is currently running."
         case .failed:
             "The last model setup attempt failed."
+        }
+    }
+
+    @ViewBuilder
+    private var microphonePermissionActionButton: some View {
+        if viewModel.microphoneStatus == .notDetermined {
+            Button("Grant Microphone Access") {
+                viewModel.requestMicrophoneAccess()
+            }
+            .parakeetAction(.primaryProminent)
+        } else {
+            Button("Open Microphone Settings") {
+                viewModel.openMicrophoneSystemSettings()
+            }
+            .parakeetAction(.primaryProminent)
         }
     }
 

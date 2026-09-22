@@ -5,7 +5,8 @@ import FluidAudio
 /// layer so `SpeechEnginePreference.swift` never has to import CoreML/FluidAudio.
 extension ParakeetModelVariant {
     /// The FluidAudio TDT `AsrModelVersion` this variant loads, or `nil` for
-    /// ``unified`` — Parakeet Unified is a separate FluidAudio runtime with no
+    /// ``unified`` and ``orukeet``. Orukeet explicitly assembles local models;
+    /// it must not select NVIDIA's stock v3 download. Parakeet Unified is a separate FluidAudio runtime with no
     /// `AsrModelVersion` (see ``usesUnifiedEngine``). Returning an optional
     /// makes the compiler flag every `AsrManager`-keyed site that must special-
     /// case the unified build instead of silently mishandling it.
@@ -13,7 +14,7 @@ extension ParakeetModelVariant {
         switch self {
         case .v3: .v3
         case .v2: .v2
-        case .unified: nil
+        case .unified, .orukeet: nil
         }
     }
 

@@ -220,10 +220,16 @@ runs four Core ML `prediction()` calls on the same compiled models. That inner
 pool is what crashed Sonoma file / YouTube / meeting jobs with Apple's
 "asynchronous prediction using ML Program" error. `ParakeetTDTASRConfig.make()`
 sets `parallelChunkConcurrency: 1` when the ANE gate requires serialization
-(macOS 14) and keeps FluidAudio's default of 4 on macOS 15+. Dictation is
-unaffected (single window). Do not construct TDT `AsrManager(config: .default)`
-from a new site — go through `ParakeetTDTASRConfig`. Diagnosis:
-`docs/research/2026-09-09-issue-997-coreml-long-file-stt/`.
+(macOS 14) and keeps FluidAudio's default of 4 on macOS 15+. Serial chunks were
+not enough: Cluster A still SIGBUS/SIGSEGV minutes into Sonoma long-file TDT
+after 0.8.1. `ParakeetTDTASRConfig.encoderComputeUnits()` therefore moves the
+v3 conformer encoder to `.cpuAndGPU` on 14 (FluidAudio's documented override;
+preprocessor is already CPU). 15+ passes `nil` and stays on ANE. One shared
+model bundle, so Sonoma dictation uses the same encoder units. Do not construct
+TDT `AsrManager(config: .default)` from a new site — go through
+`ParakeetTDTASRConfig`. Diagnosis:
+`docs/research/2026-09-09-issue-997-coreml-long-file-stt/` and
+`docs/research/2026-09-17-085-cluster-a-residual.md`.
 
 **Engine routing is per-job.** Parakeet stays default. Settings persists Live
 Speech plus an optional Final Transcription override. Missing override state
@@ -279,3 +285,9 @@ real events into the controller's input shape.
   /path/to/japanese.m4a` and
   `swift run macparakeet-cli transcribe --engine whisper --language ja
   /path/to/japanese.m4a`, then confirm the requested engine is used.
+
+## Optional Orukeet preview
+
+`ParakeetModelVariant.orukeet` runs Oruk's Parakeet v3 adaptation through the same two TDT managers and inference gates. It explicitly assembles the portable Core ML components; it has no stock `AsrModelVersion` selector and its cache and result identity are separate from NVIDIA v3. Existing defaults are unchanged. Native streaming, tail-window dictation preview, and recognition-time vocabulary boosting are disabled for this preview.
+
+`OrukeetModelStore` installs the [Hugging Face model](https://huggingface.co/oruk/orukeet) at immutable revision `43142dd1897f9ddadcd70173fcb5ff45c08aa951`. It consumes the JSON integrity manifest, verifies archive size and SHA-256, and compiles the four portable components on the destination Mac. Cached loading is local. The weights use CC BY-SA 4.0.

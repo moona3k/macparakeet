@@ -20,9 +20,10 @@ private enum InlineLLMCompatibilityDefaults {
 
 func validateBaseURL(_ value: String) throws -> URL {
     guard let url = URL(string: value),
-          let scheme = url.scheme?.lowercased(),
-          ["http", "https"].contains(scheme),
-          url.host != nil else {
+        let scheme = url.scheme?.lowercased(),
+        ["http", "https"].contains(scheme),
+        url.host != nil
+    else {
         throw ValidationError("--base-url must be an absolute http:// or https:// URL")
     }
     return url
@@ -67,10 +68,18 @@ func readInput(_ path: String) throws -> String {
 
 /// Shared options for CLI commands that call an LLM provider directly (no Keychain).
 struct LLMInlineOptions: ParsableArguments {
-    @Option(name: .long, help: "Provider: anthropic, openai, openaiCompatible, gemini, openrouter, ollama, lmstudio, cli.")
+    @Option(
+        name: .long,
+        help:
+            "Provider: anthropic, openai, openaiCompatible, gemini, openrouter, moonshot, deepseek, qwen, zai, minimax, ollama, lmstudio, cli."
+    )
     var provider: String
 
-    @Option(name: .long, help: "API key literal. Prefer --api-key-env or provider env vars to avoid exposing secrets in process arguments.")
+    @Option(
+        name: .long,
+        help:
+            "API key literal. Prefer --api-key-env or provider env vars to avoid exposing secrets in process arguments."
+    )
     var apiKey: String?
 
     @Option(name: .long, help: "Environment variable name containing the API key.")
@@ -84,7 +93,8 @@ struct LLMInlineOptions: ParsableArguments {
 
     @Flag(
         name: .long,
-        help: "Allow non-loopback http:// base URLs for non-local providers. Prompt content and API keys may be sent without TLS."
+        help:
+            "Allow non-loopback http:// base URLs for non-local providers. Prompt content and API keys may be sent without TLS."
     )
     var allowInsecureHTTP: Bool = false
 
@@ -102,12 +112,18 @@ struct LLMInlineOptions: ParsableArguments {
             normalized = "localCLI"
         case "openaicompatible", "openai-compatible":
             normalized = "openaiCompatible"
+        case "kimi", "moonshotai":
+            normalized = "moonshot"
+        case "zhipu", "z.ai", "glm":
+            normalized = "zai"
+        case "alibaba", "dashscope":
+            normalized = "qwen"
         default:
             normalized = provider
         }
         guard let providerID = LLMProviderID(rawValue: normalized) else {
             throw ValidationError(
-                "Unknown provider '\(provider)'. Options: anthropic, openai, openaiCompatible, gemini, openrouter, ollama, lmstudio, cli"
+                "Unknown provider '\(provider)'. Options: anthropic, openai, openaiCompatible, gemini, openrouter, moonshot, deepseek, qwen, zai, minimax, ollama, lmstudio, cli"
             )
         }
         if providerID == .inProcessLocal {
@@ -122,15 +138,16 @@ struct LLMInlineOptions: ParsableArguments {
     ) throws -> InlineLLMExecutionContext {
         let providerID = try providerID()
 
-        let overrideURL: URL? = if let urlStr = baseURL {
-            try validateBaseURL(
-                urlStr,
-                providerID: providerID,
-                allowInsecureHTTP: allowInsecureHTTP
-            )
-        } else {
-            nil
-        }
+        let overrideURL: URL? =
+            if let urlStr = baseURL {
+                try validateBaseURL(
+                    urlStr,
+                    providerID: providerID,
+                    allowInsecureHTTP: allowInsecureHTTP
+                )
+            } else {
+                nil
+            }
         let client = RoutingLLMClient()
 
         var providerConfig: LLMProviderConfig
@@ -187,11 +204,47 @@ struct LLMInlineOptions: ParsableArguments {
                 model: model ?? InlineLLMCompatibilityDefaults.openRouterModel,
                 baseURL: overrideURL
             )
+        case .moonshot:
+            let key = try requiredAPIKey(
+                providerName: providerID.displayName,
+                defaultEnvNames: ["MOONSHOT_API_KEY", "KIMI_API_KEY"],
+                environment: environment
+            )
+            providerConfig = .moonshot(apiKey: key, model: model ?? providerID.defaultModelName, baseURL: overrideURL)
+        case .deepseek:
+            let key = try requiredAPIKey(
+                providerName: providerID.displayName,
+                defaultEnvNames: ["DEEPSEEK_API_KEY"],
+                environment: environment
+            )
+            providerConfig = .deepseek(apiKey: key, model: model ?? providerID.defaultModelName, baseURL: overrideURL)
+        case .qwen:
+            let key = try requiredAPIKey(
+                providerName: providerID.displayName,
+                defaultEnvNames: ["DASHSCOPE_API_KEY", "QWEN_API_KEY"],
+                environment: environment
+            )
+            providerConfig = .qwen(apiKey: key, model: model ?? providerID.defaultModelName, baseURL: overrideURL)
+        case .zai:
+            let key = try requiredAPIKey(
+                providerName: providerID.displayName,
+                defaultEnvNames: ["ZAI_API_KEY", "ZHIPU_API_KEY"],
+                environment: environment
+            )
+            providerConfig = .zai(apiKey: key, model: model ?? providerID.defaultModelName, baseURL: overrideURL)
+        case .minimax:
+            let key = try requiredAPIKey(
+                providerName: providerID.displayName,
+                defaultEnvNames: ["MINIMAX_API_KEY"],
+                environment: environment
+            )
+            providerConfig = .minimax(apiKey: key, model: model ?? providerID.defaultModelName, baseURL: overrideURL)
         case .ollama:
             providerConfig = .ollama(model: model ?? providerID.defaultModelName, baseURL: overrideURL)
         case .lmstudio:
             guard let rawModel = model?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !rawModel.isEmpty else {
+                !rawModel.isEmpty
+            else {
                 throw ValidationError("--model is required for LM Studio")
             }
             providerConfig = .lmstudio(
@@ -201,7 +254,8 @@ struct LLMInlineOptions: ParsableArguments {
             )
         case .localCLI:
             guard let rawCommand = command,
-                  !rawCommand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                !rawCommand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else {
                 throw ValidationError("--command is required for cli provider (e.g. 'claude -p')")
             }
             providerConfig = .localCLI()
@@ -223,9 +277,10 @@ struct LLMInlineOptions: ParsableArguments {
         }
 
         if emitWarnings,
-           allowInsecureHTTP,
-           let overrideURL,
-           Self.usesNonLoopbackHTTP(overrideURL, providerID: providerID) {
+            allowInsecureHTTP,
+            let overrideURL,
+            Self.usesNonLoopbackHTTP(overrideURL, providerID: providerID)
+        {
             Self.emitInsecureHTTPWarning(url: overrideURL, providerID: providerID)
         }
 
@@ -292,11 +347,11 @@ struct LLMInlineOptions: ParsableArguments {
 
     static func insecureHTTPWarning(url: URL, providerID: LLMProviderID) -> String {
         """
-            Warning: --allow-insecure-http is sending \(providerID.displayName) LLM traffic to \
-            \(url.absoluteString) without TLS. Prompt content and API keys may be visible on \
-            the network.
+        Warning: --allow-insecure-http is sending \(providerID.displayName) LLM traffic to \
+        \(url.absoluteString) without TLS. Prompt content and API keys may be visible on \
+        the network.
 
-            """
+        """
     }
 
     func buildConfig(

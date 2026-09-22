@@ -127,9 +127,9 @@ A horizontal strip on the Transcribe tab. Mirrors the floating recording pill's 
 States, all bound to the long-lived `MeetingRecordingPillViewModel` shared with the floating pill:
 
 - **Idle**: green rosette + stem (subtle 4s glow breathing), "Record Meeting" + subtitle, red "Start" capsule on the right.
-- **Starting**: capture is requested; pause/mute/elapsed stay inactive until the first usable buffer is accepted. Stop remains available and saves any audio already written. A selected source may still be pending.
+- **Starting**: capture is requested; pause/elapsed stay inactive until the first usable buffer is accepted. Mute stays non-toggleable until the microphone is ready. When **Start meetings muted** is on and the source captures a microphone, the live panel shows the muted mic control disabled during this state. Stop remains available and saves any audio already written. A selected source may still be pending.
 - **Recording**: rosette rotates (12s/turn — matches the floating pill exactly), audio halo grows with mic level, breathing red dot + monospaced MM:SS timer, white-on-red Stop button. Border picks up `recordingRed` opacity.
-- **Completing / Transcribing**: spinner replaces rosette; "Wrapping up..." then "Transcribing..." labels.
+- **Completing / Transcribing**: spinner replaces rosette; "Wrapping up..." then "Transcribing..." labels. Completing is the floating pill's ~1 s collapse flourish. If that pill is hidden (Settings, quit-time dismiss, or no window), the shared view model skips completing so the tile cannot stick on "Wrapping up...". Transcribing then completed still run for the saved-celebration and auto-revert to idle.
 - **Completed**: green checkmark + "Saved to Library"; auto-reverts to idle.
 - **Error**: amber triangle + recovery message; auto-dismisses through the recording flow coordinator.
 
@@ -494,7 +494,7 @@ Compact dark pill overlay, always-on-top, bottom-center of screen. This is the p
 
 - **Height:** 36px
 - **Corner radius:** 18px (fully rounded)
-- **Width:** Dynamic, fits content + 16px horizontal padding
+- **Width:** Dynamic, fits content. Persistent dictation recording and cancelled/Undo use 7pt horizontal padding, matching the 7pt vertical inset, so cancel/stop and the countdown/Undo controls sit in the capsule hemispheres. Hold-to-talk recording keeps 16pt — it has no end circles and the compact dot+timer+waveform cluster already looked right at the wider inset. Command recording and processing-with-copy keep 16pt.
 - **Position:** Bottom-center of main screen, 48px from bottom edge
 - **Background:** `#1C1C1E` (system dark) at 95% opacity
 - **Shadow:** 0 4px 12px rgba(0,0,0,0.3)
@@ -716,7 +716,7 @@ Default-on floating pill that appears during meeting recording unless the user d
 ### Behavior
 
 - **Appears** when meeting recording starts (after permissions granted) if `showMeetingRecordingPill` is enabled
-- **Starting** keeps pause/mute/elapsed inactive; Stop remains available and saves partial audio
+- **Starting** keeps pause/elapsed inactive and mute non-toggleable; Stop remains available and saves partial audio. When Start meetings muted is on, the live panel shows the muted mic control disabled until the microphone is ready.
 - **Quit** during Starting capture offers End & Transcribe or Discard, matching Stop-during-start. Quit during the permission prompt still only cancels.
 - **Persists** for the entire recording session while enabled — does not auto-dismiss
 - **Click** anywhere on the pill opens the meeting recording panel
@@ -758,8 +758,9 @@ Floating panel opened from the meeting recording pill. Shows live notes, live tr
 - **Dual audio level meters** — mic and system audio levels (visual feedback that both streams are capturing)
 - **Tabs** — Notes / Transcript / Ask, with ⌘1 / ⌘2 / ⌘3 shortcuts; Notes and Transcript are plain labels, Ask adds a streaming dot while `chatViewModel.isStreaming` and collapses that dot into the tooltip at narrow width
 - **Notes pane** — plaintext editor with slash commands, debounced auto-save through `MeetingRecordingService.updateNotes(_:)`, soft-cap warning at 7,500 words, and lock-file crash recovery
-- **Transcript pane** — scrolling live preview grouped into reading paragraphs, with one source label and timestamp per paragraph ([Me] = mic, [Them] = system audio); lag notice appears when preview chunks fall behind or are dropped
+- **Transcript pane** — scrolling live preview grouped into reading paragraphs, with one source label and timestamp per paragraph ([Me] = mic, [Them] = system audio); lag notice appears when preview chunks fall behind or are dropped. While listening, the empty state uses the slowly rotating seed-of-life. When live transcription is off (user opt-out or the live engine cannot preview), that mark sits still at rest pose with faded coral (no rotation or breathing pulse) so it does not read as "listening". Pause remains a full-color freeze of the living animation. "Live preview unavailable" (warm-up/runtime failure) keeps the living rosette. The Notes pane also keeps the living rosette because the meeting is still recording.
 - **Ask pane** — live chat against the rolling transcript using the configured LLM provider; follow-up state is handed off after finalization
+- **Mute control** — meeting-local microphone mute in the header, separate from pause (system audio keeps recording). Hidden until mute can be toggled, except when Start meetings muted armed the session: then it is visible and disabled during `.starting` and becomes tappable once the microphone is ready.
 - **Stop button** — stops recording, triggers batch transcription, navigates to result
 - **Meetings empty state copy** — one-line guidance: "For the cleanest separation between you and other participants, use headphones."
 - Notes and Ask own their own bottom UI; the shared footer is hidden on those tabs. The final saved meeting transcript remains authoritative even if live preview lagged.
@@ -1093,7 +1094,9 @@ The Vocabulary sidebar item is a dedicated panel for managing the text processin
 │                                                           │
 │  HOW IT WORKS                                             │
 │  ─────────────────────────────────────────────────────    │
-│  1. Filler Removal — Strips uh, umm, uhh                 │
+│  1. Filler Removal — Always strips uh, umm, uhh.        │
+│     Standalone um is on by default; turn off for PT/DE. │
+│     [Also remove “um” ●]  User toggle, not auto-detect  │
 │  2. Custom Words — Fixes domain terms STT gets wrong      │
 │  3. Text Snippets — Expands trigger phrases to full text  │
 │  4. Whitespace Cleanup — Normalizes spacing/punctuation   │
@@ -1263,7 +1266,7 @@ included in an app release.
 - Expanding the disclosure explains that one selected engine handles everything by default, then offers an inline `Recordings & files` menu. Its inherited option is named dynamically, for example `Same as Parakeet`. Choosing another eligible engine persists an override for the authoritative pass after meetings stop and for file/media/URL/retranscription jobs; it loads lazily and does not replace the live engine. Choosing the live engine from this menu collapses back to the inherited option.
 - When the two routes differ, the card subtitle names both engines, the live tile carries a filled `Live` chip, and the recordings/files tile carries an outlined `Recordings` chip. Relevant per-engine model cards add their route context.
 - Settings search results for the recordings/files engine expand the disclosure and scroll directly to it.
-- When meeting preview and final routes differ, the recording panel attributes both. When preview is disabled by the user or unsupported by the live engine, the panel says "Live transcription is off" and confirms audio is recording for transcription after stop. Settings explains that the live transcription toggle applies to the next recording.
+- When meeting preview and final routes differ, the recording panel attributes both. When preview is absent from the speech plan — the user turned live transcription off, or the live engine cannot preview — the panel says "Live transcription is off" and confirms audio is recording for transcription after stop. In that Transcript empty state the seed-of-life sits still and faded rather than spinning. A later live-preview failure uses the separate "Live preview unavailable" waiting state and keeps the living rosette. Settings explains that the live transcription toggle and Start meetings muted both apply to the next recording.
 - Engine picker options: Parakeet (default), Nemotron Beta, Whisper, and Cohere.
 - Whisper language picker is shown for the Whisper path. `Auto-detect` stores no explicit language; specific languages are normalized before saving.
 - Cohere language picker is shown for the Cohere path. Cohere has no auto-detect; `nil` falls back to English and explicit choices store supported primary subtags such as `en`, `ja`, or `zh`.

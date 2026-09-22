@@ -60,6 +60,7 @@ final class AppEnvironmentConfigurer {
     private let mainWindowState: MainWindowState
     private let meetingPillViewModel: MeetingRecordingPillViewModel
     private weak var liveMeetingCoordinator: MeetingRecordingFlowCoordinator?
+    private var dictationHistoryDidChangeObserver: NSObjectProtocol?
 
     init(
         transcriptionViewModel: TranscriptionViewModel,
@@ -218,6 +219,15 @@ final class AppEnvironmentConfigurer {
         settingsViewModel.onDictationStateChanged = { [weak self] in
             self?.historyViewModel.loadDictations()
         }
+        dictationHistoryDidChangeObserver = NotificationCenter.default.addObserver(
+            forName: .macParakeetDictationHistoryDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.historyViewModel.loadDictations()
+            }
+        }
         settingsViewModel.onTransformHistoryChanged = { [weak self] in
             Task {
                 await self?.transformsViewModel.loadHistory()
@@ -317,6 +327,7 @@ final class AppEnvironmentConfigurer {
 
         let dictationCoordinator = DictationFlowCoordinator(
             dictationService: env.dictationService,
+            mutationArbiter: .shared,
             clipboardService: env.clipboardService,
             entitlementsService: env.entitlementsService,
             dictationRepo: env.dictationRepo,
@@ -359,6 +370,7 @@ final class AppEnvironmentConfigurer {
             sttManager: env.sttScheduler,
             speechEngineSelectionProvider: { SpeechEngineSelection.liveSpeech() },
             meetingAudioSourceModeProvider: { env.runtimePreferences.meetingAudioSourceMode },
+            startMeetingsMutedProvider: { env.runtimePreferences.startMeetingsMuted },
             meetingTypeIDProvider: { [weak meetingsWorkspaceViewModel] in
                 meetingsWorkspaceViewModel?.recordingMeetingTypeID
             },
