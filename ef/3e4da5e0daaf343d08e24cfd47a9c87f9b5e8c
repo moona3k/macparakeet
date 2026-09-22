@@ -1,0 +1,19 @@
+spec/04-ui-patterns.md
+  s_3c56b434d7c1c7::t_97b99a2193ed84 974-979
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ef3e4da5e0daaf343d08e24cfd47a9c87f9b5e8c",
+  "prompts": {},
+  "sessions": {
+    "s_3c56b434d7c1c7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c40e2820-faf6-41e4-8277-046b75c94701",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
