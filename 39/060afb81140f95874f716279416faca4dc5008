@@ -1,0 +1,19 @@
+spec/adr/005-onboarding-first-run.md
+  s_1824ba4b8337eb::t_106c9b2a0e4291 98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "39060afb81140f95874f716279416faca4dc5008",
+  "prompts": {},
+  "sessions": {
+    "s_1824ba4b8337eb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cef2-7fb0-70d1-ac33-7769de698ba5",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
