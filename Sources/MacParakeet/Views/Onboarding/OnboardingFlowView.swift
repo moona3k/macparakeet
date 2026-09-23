@@ -8,6 +8,7 @@ struct OnboardingFlowView: View {
     /// Nil in previews, where the sheet is hidden and bindings come from
     /// UserDefaults.
     var settingsViewModel: SettingsViewModel?
+    var transformsViewModel: TransformsViewModel?
     let onFinish: () -> Void
     let onOpenSettings: () -> Void
     /// Arms/disarms the no-STT key rehearsal while the Try It card should
@@ -109,8 +110,14 @@ struct OnboardingFlowView: View {
                 onHotkeyPreviewDisarm()
             }
         }
-        .onChange(of: handsFreeTrigger) { _, _ in onShortcutBindingsChanged() }
-        .onChange(of: pushToTalkTrigger) { _, _ in onShortcutBindingsChanged() }
+        .onChange(of: handsFreeTrigger) { _, _ in
+            viewModel.practiceHotkeyBindingsChanged()
+            onShortcutBindingsChanged()
+        }
+        .onChange(of: pushToTalkTrigger) { _, _ in
+            viewModel.practiceHotkeyBindingsChanged()
+            onShortcutBindingsChanged()
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             viewModel.refresh()
         }
@@ -118,6 +125,7 @@ struct OnboardingFlowView: View {
             if let settingsViewModel {
                 OnboardingShortcutEditor(
                     settingsViewModel: settingsViewModel,
+                    transformsViewModel: transformsViewModel,
                     onRecordingStateChanged: onShortcutRecordingChanged,
                     onDone: { isEditingShortcut = false }
                 )
@@ -700,7 +708,7 @@ struct OnboardingFlowView: View {
                 doneLine(
                     icon: "exclamationmark.triangle.fill",
                     text:
-                        "The speech model did not finish. Open Settings > Speech Model to retry the download before you dictate."
+                        "The speech model did not finish. Open Settings > Local Models to retry the download before you dictate."
                 )
             case .idle, .working:
                 doneLine(

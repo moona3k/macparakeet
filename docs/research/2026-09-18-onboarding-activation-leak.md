@@ -285,8 +285,8 @@ never even `dictation_started` in that process.
   Preview can stay; it must not feel like success.
 
 If even half of today’s non-tryers attempt a dictation and try→success
-stays ~77%, T0 moves from ~33% toward the old ~45–50% band without
-inventing new acquisition.
+stays ~77%, T0 would move from ~33% to ~55% under that simplifying
+assumption. This is a scenario, not a forecast.
 
 ### P0 — Diagnose the 0.8 first-run regression
 

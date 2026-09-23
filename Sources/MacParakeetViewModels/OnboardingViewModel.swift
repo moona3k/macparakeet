@@ -506,6 +506,17 @@ public final class OnboardingViewModel {
         }
     }
 
+    /// A changed binding needs its own rehearsal. Keep any delivered practice
+    /// text, but return to the key beat before the box can listen again.
+    public func practiceHotkeyBindingsChanged() {
+        guard step == .practice else { return }
+        litKey = nil
+        hasLitHotkey = false
+        practicePhase = .hotkey
+        isPracticeBoxArmed = false
+        practiceActivity = .idle
+    }
+
     /// The click that turns a ready box into a dictation target.
     public func armPracticeBox() {
         guard step == .practice, practiceBoxState == .clickToStart else { return }

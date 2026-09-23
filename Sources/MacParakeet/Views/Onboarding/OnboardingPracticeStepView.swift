@@ -546,6 +546,7 @@ private extension View {
 /// as Settings, for the two keys the card draws.
 struct OnboardingShortcutEditor: View {
     @Bindable var settingsViewModel: SettingsViewModel
+    var transformsViewModel: TransformsViewModel?
     let onRecordingStateChanged: (Bool) -> Void
     let onDone: () -> Void
 
@@ -558,7 +559,7 @@ struct OnboardingShortcutEditor: View {
             youtubeTranscription: settingsViewModel.youtubeTranscriptionHotkeyTrigger,
             dictationAIPolish: settingsViewModel.dictationAIPolishHotkeyTrigger,
             dictationClipboard: settingsViewModel.dictationClipboardHotkeyTrigger,
-            transformHotkeys: [],
+            transformHotkeys: transformsViewModel?.transforms ?? [],
             meetingRecordingEnabled: AppFeatures.meetingRecordingEnabled
         )
     }

@@ -53,6 +53,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         sttClient: STTClientProtocol,
         diarizationService: DiarizationServiceProtocol? = nil,
         settingsViewModel: SettingsViewModel? = nil,
+        transformsViewModel: TransformsViewModel? = nil,
         onFinish: @escaping () -> Void,
         restartExistingRun: Bool = false,
         onHotkeyPreviewArm: @escaping () -> Void = {},
@@ -86,6 +87,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         let view = OnboardingFlowView(
             viewModel: vm,
             settingsViewModel: settingsViewModel,
+            transformsViewModel: transformsViewModel,
             onFinish: { [weak self] in
                 self?.allowCloseWithoutCompletion = true
                 self?.close()

@@ -525,6 +525,24 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertTrue(vm.hasLitHotkey, "the proof survives Back within this run")
     }
 
+    func testChangingPracticeBindingRequiresProofOfNewKey() async throws {
+        let vm = try await makeListeningPracticeViewModel()
+        vm.practiceDictationDelivered("First take.")
+        try await waitUntil { vm.hasPracticeResult }
+
+        vm.practiceHotkeyBindingsChanged()
+
+        XCTAssertEqual(vm.practicePhase, .hotkey)
+        XCTAssertFalse(vm.hasLitHotkey)
+        XCTAssertNil(vm.litKey)
+        XCTAssertFalse(vm.isPracticeListening)
+        XCTAssertFalse(vm.canContinueFromCurrentStep())
+        XCTAssertEqual(vm.practiceTranscript, "First take.", "changing a key does not erase the saved dictation")
+
+        vm.hotkeyRehearsalChanged(.handsFree)
+        XCTAssertTrue(vm.canContinueFromCurrentStep())
+    }
+
     func testPracticeKeyMapsRecordingModes() {
         XCTAssertEqual(OnboardingViewModel.PracticeKey(recordingMode: .holdToTalk), .pushToTalk)
         XCTAssertEqual(OnboardingViewModel.PracticeKey(recordingMode: .persistent), .handsFree)

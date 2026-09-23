@@ -6,6 +6,7 @@ import MacParakeetViewModels
 final class OnboardingCoordinator {
     private let onboardingWindowController: OnboardingWindowController
     private let settingsViewModel: SettingsViewModel?
+    private let transformsViewModel: TransformsViewModel?
     private let onRefreshHotkeys: () -> Void
     private let onOpenSettings: () -> Void
     private let onCompleted: () -> Void
@@ -19,6 +20,7 @@ final class OnboardingCoordinator {
     init(
         onboardingWindowController: OnboardingWindowController,
         settingsViewModel: SettingsViewModel? = nil,
+        transformsViewModel: TransformsViewModel? = nil,
         onRefreshHotkeys: @escaping () -> Void,
         onOpenSettings: @escaping () -> Void,
         onCompleted: @escaping () -> Void = {},
@@ -29,6 +31,7 @@ final class OnboardingCoordinator {
     ) {
         self.onboardingWindowController = onboardingWindowController
         self.settingsViewModel = settingsViewModel
+        self.transformsViewModel = transformsViewModel
         self.onRefreshHotkeys = onRefreshHotkeys
         self.onOpenSettings = onOpenSettings
         self.onCompleted = onCompleted
@@ -84,6 +87,7 @@ final class OnboardingCoordinator {
             sttClient: sttClient,
             diarizationService: diarizationService,
             settingsViewModel: settingsViewModel,
+            transformsViewModel: transformsViewModel,
             onFinish: { [weak self] in
                 self?.reopenOnNextActivate = false
                 self?.onRefreshHotkeys()

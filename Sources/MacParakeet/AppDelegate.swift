@@ -59,7 +59,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var debugDictationPreviewQA: DebugDictationPreviewQA?
     #endif
     private var instantDictationPreferenceGeneration = 0
-    private var isHotkeyRecorderActive = false
+    private var activeHotkeyRecorderSessions = 0
+    private var isHotkeyRecorderActive: Bool { activeHotkeyRecorderSessions > 0 }
     // Let first paint and onboarding routing settle before starting CoreML cache work.
     private let preWarmDeferralMs: Int = 1500
 
@@ -156,6 +157,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var onboardingCoordinator = OnboardingCoordinator(
         onboardingWindowController: onboardingWindowController,
         settingsViewModel: settingsViewModel,
+        transformsViewModel: transformsViewModel,
         onRefreshHotkeys: { [weak self] in
             self?.hotkeyCoordinator?.refreshAllHotkeys()
             self?.menuBarCoordinator.refreshHotkeyTitle()
@@ -177,16 +179,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.onboardingHotkeyPreviewController.disarm()
         },
         onShortcutRecordingChanged: { [weak self] isRecording in
-            guard let self else { return }
-            // Pause the rehearsal taps first so the recorder sees the keyDown,
-            // then stand the production taps down exactly as Settings does.
-            if isRecording {
-                self.onboardingHotkeyPreviewController.setCapturePaused(true)
-                self.setGlobalHotkeysSuspendedForRecorder(true)
-            } else {
-                self.setGlobalHotkeysSuspendedForRecorder(false)
-                self.onboardingHotkeyPreviewController.setCapturePaused(false)
-            }
+            self?.setGlobalHotkeysSuspendedForRecorder(isRecording)
         },
         onShortcutBindingsChanged: { [weak self] in
             self?.onboardingHotkeyPreviewController.refreshBindings()
@@ -1030,15 +1023,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// user's keyDown and silently fire their own actions (e.g. start a
     /// meeting recording from inside Settings).
     private func setGlobalHotkeysSuspendedForRecorder(_ isRecording: Bool) {
-        isHotkeyRecorderActive = isRecording
         if isRecording {
+            activeHotkeyRecorderSessions += 1
+            guard activeHotkeyRecorderSessions == 1 else { return }
+            // Every recorder, including Settings, pauses onboarding rehearsal
+            // before its local key monitor starts.
+            onboardingHotkeyPreviewController.setCapturePaused(true)
             hotkeyCoordinator?.suspend()
             transformsCoordinator?.suspendHotkeys()
             voiceControlCoordinator?.suspendHotkey()
         } else {
+            guard activeHotkeyRecorderSessions > 0 else { return }
+            activeHotkeyRecorderSessions -= 1
+            guard activeHotkeyRecorderSessions == 0 else { return }
             hotkeyCoordinator?.resume()
             transformsCoordinator?.resumeHotkeys()
             voiceControlCoordinator?.installHotkey()
+            onboardingHotkeyPreviewController.setCapturePaused(false)
         }
     }
 

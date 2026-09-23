@@ -108,6 +108,14 @@ final class OnboardingHotkeyPreviewController {
             }
             manager.onStopRecording = { [weak self] in self?.keyDidRest() }
             manager.onCancelRecording = { [weak self] in self?.keyDidRest() }
+            // A short first press can start provisionally, then be discarded
+            // while the manager still waits for a second tap. Clear the cap
+            // without resetting that gesture state.
+            manager.onDiscardRecording = { [weak self, weak manager] _ in
+                guard let self, let manager else { return }
+                self.setLitKey(nil)
+                self.resetPeers(of: manager)
+            }
             if manager.start() {
                 managers.append(manager)
             }
@@ -125,6 +133,12 @@ final class OnboardingHotkeyPreviewController {
     private func suppressPeers(of active: HotkeyManager) {
         for manager in managers where manager !== active {
             manager.suppressUntilReset()
+        }
+    }
+
+    private func resetPeers(of active: HotkeyManager) {
+        for manager in managers where manager !== active {
+            manager.resetToIdle()
         }
     }
 

@@ -51,7 +51,7 @@ This rehearsal never records, never touches STT, and runs while the model downlo
 
 Continue on this phase stays disabled until one cap has lit once (`hasLitHotkey`). Pressing Continue moves the screen to the box phase. It does not change steps.
 
-**Edit shortcut** opens a sheet with the production `HotkeyRecorderView` rows for push-to-talk and hands-free, the same conflict validation Settings uses, and Reset to default. While a recorder is capturing, the rehearsal taps and the production taps both stand down (the same suspension Settings uses). When the sheet changes a binding, the rehearsal rebuilds its taps from the new plan and the caps redraw.
+**Edit shortcut** opens a sheet with the production `HotkeyRecorderView` rows for push-to-talk and hands-free, the same conflict validation Settings uses, and Reset to default. While any recorder is capturing, the rehearsal taps and the production taps both stand down. Changing a binding clears the old key proof and returns to the key beat; the rehearsal rebuilds from the new plan. A delivered practice result is retained.
 
 If neither dictation key is set, the card says so and points at Edit shortcut. Skip stays available.
 
@@ -74,11 +74,11 @@ The practice dictation is the production dictation flow, not a copy of it. `isPr
 - `DictationFlowCoordinator.isStartSuppressed` lets starts through (it still blocks them for every other onboarding state).
 - The rehearsal controller is disarmed, which resumes the production hotkey taps. The production tap and a rehearsal tap never own the same key at once.
 
-The user's key starts the real capture, the overlay pill, STT, text processing, and paste. Paste posts Cmd+V to the key window. That window is onboarding, and the box is its first responder, so the words land in the box. This exercises the Accessibility grant for paste, which is the second thing the grant exists for.
+The user's key starts the real capture, the overlay pill, STT, text processing, and paste. While the onboarding box has focus, paste posts Cmd+V there. If the user moves focus to another app, normal dictation pastes at that app's cursor; a successful dictation still counts as practice and its transcript is shown in onboarding. This exercises the Accessibility grant for paste, which is the second thing the grant exists for.
 
 `DictationFlowCoordinator` gains two observer hooks: `onFlowStateChanged` (drives the lit cap inside the box and the "Listening" / "Transcribing" line) and `onDictationDelivered(text)` (fires after a successful insert or copy). The view model records the transcript as the practice result. If the box still does not contain that text after a short grace period (a slow or failed paste, or a clipboard-only trigger), the view model appends it. A dictation that succeeds therefore always shows up in the box, and Continue never waits on a paste race.
 
-The practice dictation is a real dictation. It is saved to history and emits normal dictation telemetry, with `pastedToApp` set to MacParakeet.
+The practice dictation is saved to history and emits normal dictation telemetry. `pastedToApp` names the app that received a normal paste; clipboard-only dictation has no pasted app.
 
 Once the box has started listening, the rehearsal is not re-armed while the user stays on this screen, so an in-flight hold-to-talk can never lose its release event to a suspended tap. Leaving the step (Back, Skip, Continue) does not suspend production taps either; the next step never arms rehearsal.
 
