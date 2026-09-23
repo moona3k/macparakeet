@@ -1,0 +1,21 @@
+spec/02-features.md
+  s_4a7be435ad07b2::t_37d7b6a63c6d59 391
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_4a7be435ad07b2::t_5af872fb747e2b 348,350-351
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "781ff50c75ac5f52702dbba3839b00621c7702ef",
+  "prompts": {},
+  "sessions": {
+    "s_4a7be435ad07b2": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "9da77b85-19e2-437b-ac09-b5f0a344c65b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
