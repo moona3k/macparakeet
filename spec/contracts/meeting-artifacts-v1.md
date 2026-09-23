@@ -155,6 +155,8 @@ also shows the output language policy (`not recorded` when absent).
 It also preserves the remaining prompt-result snapshots,
 including additive optional `inferenceSettingsSnapshot` and additive nullable
 `outputLanguagePolicySnapshot` (`follow-transcript` or a language code).
+`NULL` or omission means no policy was recorded, including for earlier and
+imported results.
 When present, `inferenceSettingsSnapshot` is
 the normalized effective provider/model-filtered inference receipt stored on
 the canonical database row. Its optional `reasoningEffort` is one of `low`,
