@@ -10,8 +10,16 @@ public actor MockAudioProcessor: AudioProcessorProtocol {
     private var _audioLevel: Float = 0.0
     private var _isRecording = false
     private var startCaptureDelayMs: UInt64 = 0
+    private var pauseNextStopCapture = false
+    private var strictStopRequiresRecording = false
+    private var stopCapturePaused = false
+    private var stopCapturePauseWaiter: CheckedContinuation<Void, Never>?
+    private var stopCaptureRelease: CheckedContinuation<Void, Never>?
     public var startCaptureCalled = false
+    public var startCaptureCallCount = 0
     public var stopCaptureCalled = false
+    public var stopCaptureCallCount = 0
+    public var successfulStopCaptureCount = 0
     public var convertCallCount = 0
     public var lastConvertURL: URL?
     public var lastAudioTrackOrdinal: Int?
@@ -44,6 +52,24 @@ public actor MockAudioProcessor: AudioProcessorProtocol {
 
     public func configureStartCaptureDelay(milliseconds: UInt64) {
         self.startCaptureDelayMs = milliseconds
+    }
+
+    public func pauseNextStopCaptureUntilReleased() {
+        pauseNextStopCapture = true
+    }
+
+    public func requireRecordingForStopCapture() {
+        strictStopRequiresRecording = true
+    }
+
+    public func waitUntilStopCaptureIsPaused() async {
+        if stopCapturePaused { return }
+        await withCheckedContinuation { stopCapturePauseWaiter = $0 }
+    }
+
+    public func releasePausedStopCapture() {
+        stopCaptureRelease?.resume()
+        stopCaptureRelease = nil
     }
 
     public func setAudioLevel(_ level: Float) {
@@ -85,6 +111,7 @@ public actor MockAudioProcessor: AudioProcessorProtocol {
 
     public func startCapture(sampleSink: DictationAudioSampleSink?) async throws {
         startCaptureCalled = true
+        startCaptureCallCount += 1
         if startCaptureDelayMs > 0 {
             try await Task.sleep(for: .milliseconds(Int(startCaptureDelayMs)))
         }
@@ -98,9 +125,22 @@ public actor MockAudioProcessor: AudioProcessorProtocol {
 
     public func stopCapture() async throws -> URL {
         stopCaptureCalled = true
+        stopCaptureCallCount += 1
+        if strictStopRequiresRecording && !_isRecording {
+            throw AudioProcessorError.recordingFailed("Not recording")
+        }
+        successfulStopCaptureCount += 1
         _isRecording = false
         liveSampleSink?.onFinish()
         liveSampleSink = nil
+        if pauseNextStopCapture {
+            pauseNextStopCapture = false
+            stopCapturePaused = true
+            stopCapturePauseWaiter?.resume()
+            stopCapturePauseWaiter = nil
+            await withCheckedContinuation { stopCaptureRelease = $0 }
+            stopCapturePaused = false
+        }
         if let error = captureError { throw error }
         return captureResult ?? URL(fileURLWithPath: "/tmp/recording.wav")
     }
