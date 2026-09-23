@@ -7,7 +7,7 @@ final class AppHotkeyCoordinator {
     static let holdToTalkStopTailMs = 200
 
     private let settingsViewModel: SettingsViewModel
-    private let onStartDictation: (FnKeyStateMachine.RecordingMode, Bool?, Bool) -> Void
+    private let onStartDictation: (FnKeyStateMachine.RecordingMode, Bool?, Bool) -> Bool
     private let onStopDictation: () -> Void
     private let onCancelDictation: () -> Void
     private let onDiscardRecording: (Bool) -> Void
@@ -36,7 +36,7 @@ final class AppHotkeyCoordinator {
 
     init(
         settingsViewModel: SettingsViewModel,
-        onStartDictation: @escaping (FnKeyStateMachine.RecordingMode, Bool?, Bool) -> Void,
+        onStartDictation: @escaping (FnKeyStateMachine.RecordingMode, Bool?, Bool) -> Bool,
         onStopDictation: @escaping () -> Void,
         onCancelDictation: @escaping () -> Void,
         onDiscardRecording: @escaping (Bool) -> Void,
@@ -221,60 +221,42 @@ final class AppHotkeyCoordinator {
             base = DictationHotkeyPlan(specs: [], conflict: nil)
         }
 
-        return appendingAIPolish(aiPolishTrigger, to: appendingClipboard(clipboardTrigger, to: base))
-    }
-
-    private static func appendingClipboard(
-        _ clipboard: HotkeyTrigger,
-        to plan: DictationHotkeyPlan
-    ) -> DictationHotkeyPlan {
-        guard !clipboard.isDisabled else { return plan }
-        let conflicting = plan.specs.map(\.trigger).filter { clipboard.overlaps(with: $0) }
-        if !conflicting.isEmpty {
-            return DictationHotkeyPlan(
-                specs: plan.specs,
-                conflict: plan.conflict
-                    ?? DictationHotkeyPlan.Conflict(
-                        trigger: clipboard,
-                        conflicts: conflicting
-                    )
-            )
-        }
-        var specs = plan.specs
-        specs.append(
+        let withClipboard = appending(
             DictationHotkeyPlan.Spec(
-                trigger: clipboard,
+                trigger: clipboardTrigger,
                 gestureMode: .singleTapToggle,
                 clipboardOnly: true
-            )
+            ),
+            to: base
         )
-        return DictationHotkeyPlan(specs: specs, conflict: plan.conflict)
+        return appending(
+            DictationHotkeyPlan.Spec(
+                trigger: aiPolishTrigger,
+                gestureMode: .singleTapToggle,
+                aiFormatterEnabled: true
+            ),
+            to: withClipboard
+        )
     }
 
-    private static func appendingAIPolish(
-        _ polish: HotkeyTrigger,
+    private static func appending(
+        _ spec: DictationHotkeyPlan.Spec,
         to plan: DictationHotkeyPlan
     ) -> DictationHotkeyPlan {
-        guard !polish.isDisabled else { return plan }
-        let conflicting = plan.specs.map(\.trigger).filter { polish.overlaps(with: $0) }
+        guard !spec.trigger.isDisabled else { return plan }
+        let conflicting = plan.specs.map(\.trigger).filter { spec.trigger.overlaps(with: $0) }
         if !conflicting.isEmpty {
             return DictationHotkeyPlan(
                 specs: plan.specs,
                 conflict: plan.conflict
                     ?? DictationHotkeyPlan.Conflict(
-                        trigger: polish,
+                        trigger: spec.trigger,
                         conflicts: conflicting
                     )
             )
         }
         var specs = plan.specs
-        specs.append(
-            DictationHotkeyPlan.Spec(
-                trigger: polish,
-                gestureMode: .singleTapToggle,
-                aiFormatterEnabled: true
-            )
-        )
+        specs.append(spec)
         return DictationHotkeyPlan(specs: specs, conflict: plan.conflict)
     }
 
@@ -347,13 +329,9 @@ final class AppHotkeyCoordinator {
             holdToTalkStopTailMs: spec.holdToTalkStopTailMs
         )
         manager.onStartRecording = { [weak self, weak manager] mode in
-            if let manager {
-                self?.suppressOtherDictationHotkeys(activeManager: manager)
-            }
-            self?.onStartDictation(mode, spec.aiFormatterEnabled, spec.clipboardOnly)
-            // A rapid restart can reset the previous take's hotkey state while
-            // handling onStartDictation. Record this take's owner afterward.
-            self?.activeDictationHotkey = spec
+            guard let manager else { return }
+            guard let self else { manager.resetToIdle(); return }
+            self.handleDictationHotkeyStart(manager: manager, spec: spec, mode: mode)
         }
         manager.onStopRecording = { [weak self] in
             self?.activeDictationHotkey = nil
@@ -391,6 +369,23 @@ final class AppHotkeyCoordinator {
             onHotkeyUnavailable()
             return nil
         }
+    }
+
+    func handleDictationHotkeyStart(
+        manager: HotkeyManager,
+        spec: DictationHotkeyPlan.Spec,
+        mode: FnKeyStateMachine.RecordingMode
+    ) {
+        guard onStartDictation(mode, spec.aiFormatterEnabled, spec.clipboardOnly) else {
+            // The gesture controller has already entered recording mode.
+            // A refused start must leave the next press able to start a take.
+            manager.resetToIdle()
+            return
+        }
+        suppressOtherDictationHotkeys(activeManager: manager)
+        // A rapid restart can reset the previous take's hotkey state while
+        // handling onStartDictation. Record this take's owner afterward.
+        activeDictationHotkey = spec
     }
 
     private func suppressOtherDictationHotkeys(activeManager: HotkeyManager) {

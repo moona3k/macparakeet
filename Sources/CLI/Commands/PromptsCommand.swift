@@ -1137,7 +1137,8 @@ extension PromptsCommand {
                         effectiveSettings: effectiveSettings,
                         providerSnapshot: providerSnapshot,
                         modelSnapshot: modelSnapshot,
-                        outputLanguagePolicySnapshot: outputLanguagePolicy.configurationValue
+                        outputLanguagePolicySnapshot: outputLanguagePolicy.configurationValue,
+                        sourceCorrectionRevision: projection.correctionRevision
                     )
                     try resultRepo.save(result)
                     await refreshMeetingArtifacts(
@@ -1168,7 +1169,8 @@ func makeStoredPromptRunResult(
     effectiveSettings: PromptInferenceSettings?,
     providerSnapshot: String? = nil,
     modelSnapshot: String? = nil,
-    outputLanguagePolicySnapshot: String? = nil
+    outputLanguagePolicySnapshot: String? = nil,
+    sourceCorrectionRevision: Int
 ) -> PromptResult {
     PromptResult(
         transcriptionId: transcript.id,
@@ -1183,7 +1185,8 @@ func makeStoredPromptRunResult(
         inferenceSettingsSnapshot: effectiveSettings,
         providerSnapshot: providerSnapshot,
         modelSnapshot: modelSnapshot,
-        outputLanguagePolicySnapshot: outputLanguagePolicySnapshot
+        outputLanguagePolicySnapshot: outputLanguagePolicySnapshot,
+        sourceCorrectionRevision: sourceCorrectionRevision
     )
 }
 

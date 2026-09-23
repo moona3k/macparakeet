@@ -36,7 +36,8 @@ final class PromptsCommandTests: XCTestCase {
             extraInstructions: nil,
             output: "Saved summary",
             userNotesSnapshot: input.effectiveTranscription.userNotes,
-            effectiveSettings: nil
+            effectiveSettings: nil,
+            sourceCorrectionRevision: input.correctionRevision
         )
         try results.save(result)
 
@@ -407,7 +408,8 @@ final class PromptsCommandTests: XCTestCase {
             extraInstructions: "Brief.",
             output: "Result",
             userNotesSnapshot: nil,
-            effectiveSettings: effective
+            effectiveSettings: effective,
+            sourceCorrectionRevision: 2
         )
 
         XCTAssertEqual(result.transcriptionId, transcript.id)
@@ -418,6 +420,12 @@ final class PromptsCommandTests: XCTestCase {
         XCTAssertFalse(result.includeMeetingNotesSnapshot)
         XCTAssertEqual(result.inferenceSettingsSnapshot, effective)
         XCTAssertNotEqual(result.inferenceSettingsSnapshot, requested)
+        XCTAssertEqual(result.sourceCorrectionRevision, 2)
+        XCTAssertFalse(
+            PromptResultFreshness.summaryNeedsUpdate(
+                sourceCorrectionRevision: result.sourceCorrectionRevision,
+                currentCorrectionRevision: 2
+            ))
     }
 
     func testStoredPromptRunResultUsesExactEffectiveNotesReceiptAndPreference() {
@@ -440,7 +448,8 @@ final class PromptsCommandTests: XCTestCase {
             extraInstructions: nil,
             output: "Result",
             userNotesSnapshot: effectiveNotes,
-            effectiveSettings: nil
+            effectiveSettings: nil,
+            sourceCorrectionRevision: 0
         )
 
         XCTAssertEqual(result.userNotesSnapshot, effectiveNotes)

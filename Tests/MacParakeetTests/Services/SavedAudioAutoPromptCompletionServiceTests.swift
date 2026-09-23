@@ -15,12 +15,14 @@ final class SavedAudioAutoPromptCompletionServiceTests: XCTestCase {
 
     private func makeService(
         cardGenerator: CardGenerating? = nil,
-        meetingArtifactStore: MeetingArtifactStoring? = nil
+        meetingArtifactStore: MeetingArtifactStoring? = nil,
+        speakerAttributionReader: SpeakerAttributionReading? = nil
     ) -> SavedAudioAutoPromptCompletionService {
         SavedAudioAutoPromptCompletionService(
             promptRepo: promptRepo,
             promptResultRepo: promptResultRepo,
             llmService: llm,
+            speakerAttributionReader: speakerAttributionReader,
             meetingArtifactStore: meetingArtifactStore,
             cardGenerator: cardGenerator
         )
@@ -284,6 +286,57 @@ final class SavedAudioAutoPromptCompletionServiceTests: XCTestCase {
         _ = try await completion.value
         let providerDidFinish = await cardGenerator.didFinish
         XCTAssertTrue(providerDidFinish)
+    }
+
+    func testAutoPromptKeepsInputRevisionWhenTranscriptChangesDuringCardGeneration() async throws {
+        let db = try DatabaseManager()
+        let words = [
+            WordTimestamp(word: "Hello", startMs: 0, endMs: 200, confidence: 1, speakerId: "S1"),
+            WordTimestamp(word: "world.", startMs: 220, endMs: 500, confidence: 1, speakerId: "S1"),
+        ]
+        let speakers = [SpeakerInfo(id: "S1", label: "Speaker 1")]
+        let child = Transcription(
+            fileName: "Meeting",
+            rawTranscript: "Hello world.",
+            wordTimestamps: words,
+            speakerCount: 1,
+            speakers: speakers,
+            transcriptSegments: TranscriptSegmenter.materializeSegments(words: words, speakers: speakers),
+            status: .completed,
+            sourceType: .meeting
+        )
+        try TranscriptionRepository(dbQueue: db.dbQueue).save(child)
+        let reader = SpeakerAttributionReadService(dbQueue: db.dbQueue)
+        let input = try XCTUnwrap(reader.resolve(transcriptionId: child.id))
+        XCTAssertEqual(input.correctionRevision, 0)
+
+        promptRepo.prompts = [Prompt(name: "Summary", content: "Summarize", isAutoRun: true)]
+        llm.summarizeResult = "Summary from the original reading"
+        let cardGenerator = BlockingCardGenerator()
+        let service = makeService(cardGenerator: cardGenerator, speakerAttributionReader: reader)
+        let completion = Task { try await service.completeAutoPrompts(for: child) }
+        await cardGenerator.waitUntilStarted()
+
+        _ = try await SpeakerCorrectionService(dbQueue: db.dbQueue).apply(
+            transcriptionId: child.id,
+            command: .rename(speakerID: "S1", label: "Alice"),
+            expectedFingerprint: input.attribution.fingerprint,
+            expectedRevision: input.correctionRevision
+        )
+        await cardGenerator.release()
+        _ = try await completion.value
+
+        let saved = try XCTUnwrap(promptResultRepo.promptResults.first)
+        let current = try XCTUnwrap(reader.resolve(transcriptionId: child.id))
+        XCTAssertTrue(llm.lastSummaryTranscript?.contains("Speaker 1") == true)
+        XCTAssertFalse(llm.lastSummaryTranscript?.contains("Alice") == true)
+        XCTAssertEqual(saved.sourceCorrectionRevision, input.correctionRevision)
+        XCTAssertEqual(current.correctionRevision, 1)
+        XCTAssertTrue(
+            PromptResultFreshness.summaryNeedsUpdate(
+                sourceCorrectionRevision: saved.sourceCorrectionRevision,
+                currentCorrectionRevision: current.correctionRevision
+            ))
     }
 
     func testCancellationDuringKnowledgeCardGenerationPropagatesWithoutAutoPrompts() async throws {

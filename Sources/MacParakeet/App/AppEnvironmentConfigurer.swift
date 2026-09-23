@@ -469,7 +469,7 @@ final class AppEnvironmentConfigurer {
                     trigger: .hotkey,
                     aiFormatterEnabled: aiFormatterEnabled,
                     clipboardOnly: clipboardOnly
-                )
+                ) ?? false
             },
             onStopDictation: {
                 coordinatorRefs.dictation?.stopDictation()
