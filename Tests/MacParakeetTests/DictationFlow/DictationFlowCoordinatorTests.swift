@@ -125,6 +125,75 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         )
     }
 
+    func testCaptureCuesPlayStartOnLiveCaptureAndStopWhenMicCloses() async throws {
+        let harness = try await makeRecordingHarness(captureSoundsEnabled: true)
+        await harness.stt.configure(result: STTResult(text: "hello"))
+
+        harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+        XCTAssertEqual(harness.cues.played, [.recordStart])
+
+        harness.coordinator.stopDictation()
+        let stopped = await waitUntil { harness.cues.played == [.recordStart, .recordStop] }
+        XCTAssertTrue(stopped, "Unexpected cues: \(harness.cues.played)")
+        let pasted = await waitUntilAsync {
+            await harness.clipboard.snapshot().pastedTexts.count == 1
+        }
+        XCTAssertTrue(pasted)
+        XCTAssertEqual(harness.cues.played, [.recordStart, .recordStop])
+    }
+
+    func testCaptureCuesPairOnCancel() async throws {
+        let harness = try await makeRecordingHarness(captureSoundsEnabled: true)
+
+        harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+
+        harness.coordinator.cancelDictation()
+        let stopped = await waitUntil { harness.cues.played == [.recordStart, .recordStop] }
+        XCTAssertTrue(stopped, "Cancel closes the mic, so it owes the stop cue: \(harness.cues.played)")
+        harness.coordinator.cancelDictation()
+        XCTAssertEqual(harness.cues.played, [.recordStart, .recordStop])
+    }
+
+    func testCaptureCuesStaySilentWhenPreferenceIsOff() async throws {
+        let harness = try await makeRecordingHarness()
+        await harness.stt.configure(result: STTResult(text: "hello"))
+
+        harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+        harness.coordinator.stopDictation()
+        let pasted = await waitUntilAsync {
+            await harness.clipboard.snapshot().pastedTexts.count == 1
+        }
+        XCTAssertTrue(pasted)
+
+        XCTAssertEqual(harness.cues.played, [])
+    }
+
+    func testStopDuringStartPlaysNeitherCue() async throws {
+        let harness = try await makeRecordingHarness(captureSoundsEnabled: true)
+        await harness.stt.configure(result: STTResult(text: "hello"))
+        await harness.audio.configureStartCaptureDelay(milliseconds: 150)
+
+        harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
+        let starting = await waitUntil {
+            if case .startingService = harness.coordinator.flowStateForTesting { return true }
+            return false
+        }
+        XCTAssertTrue(starting)
+        harness.coordinator.stopDictation()
+
+        let pasted = await waitUntilAsync {
+            await harness.clipboard.snapshot().pastedTexts.count == 1
+        }
+        XCTAssertTrue(pasted)
+        XCTAssertEqual(harness.cues.played, [], "A take that never announced itself must not play a lone stop cue")
+    }
+
     func testSuccessfulMicPermissionRequestContinuesIntoCapture() async throws {
         let harness = try await makeMicPermissionHarness(
             microphonePermission: .notDetermined,
@@ -523,7 +592,10 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         )
     }
 
-    private func makeRecordingHarness(mutationArbiter: GUIMutationArbiter? = nil) async throws -> RecordingHarness {
+    private func makeRecordingHarness(
+        mutationArbiter: GUIMutationArbiter? = nil,
+        captureSoundsEnabled: Bool = false
+    ) async throws -> RecordingHarness {
         let dbManager = try DatabaseManager()
         let audio = MockAudioProcessor()
         let stt = MockSTTClient()
@@ -538,14 +610,18 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         let settingsDefaults = makeTestDefaults(prefix: "recording-settings")
         settingsDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.showIdlePillKey)
         let settings = SettingsViewModel(defaults: settingsDefaults)
-        let preferences = UserDefaultsAppRuntimePreferences(
-            defaults: makeTestDefaults(prefix: "recording-preferences")
+        let preferencesDefaults = makeTestDefaults(prefix: "recording-preferences")
+        preferencesDefaults.set(
+            captureSoundsEnabled,
+            forKey: UserDefaultsAppRuntimePreferences.playDictationCaptureSoundsKey
         )
+        let preferences = UserDefaultsAppRuntimePreferences(defaults: preferencesDefaults)
         let entitlements = EntitlementsService(
             config: LicensingConfig(checkoutURL: nil, expectedVariantID: nil),
             store: InMemoryKeyValueStore(),
             api: StubLicenseAPI()
         )
+        let cues = CaptureCueSpy()
 
         let coordinator = DictationFlowCoordinator(
             dictationService: service,
@@ -557,6 +633,7 @@ final class DictationFlowCoordinatorTests: XCTestCase {
             sttRuntime: AlwaysReadySTTReadinessChecker(),
             runtimePreferences: preferences,
             permissionService: MockPermissionService(),
+            playCaptureCue: { cues.played.append($0) },
             overlayControllerFactory: { MicPermissionSpyDictationOverlayController(viewModel: $0) },
             onMenuBarIconUpdate: { _ in },
             onHistoryReload: {},
@@ -568,7 +645,8 @@ final class DictationFlowCoordinatorTests: XCTestCase {
             audio: audio,
             stt: stt,
             clipboard: clipboard,
-            repo: repo
+            repo: repo,
+            cues: cues
         )
     }
 
@@ -633,7 +711,13 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         let stt: MockSTTClient
         let clipboard: MockClipboardService
         let repo: DictationRepository
+        let cues: CaptureCueSpy
     }
+}
+
+@MainActor
+private final class CaptureCueSpy {
+    var played: [AppSound] = []
 }
 
 private struct AlwaysReadySTTReadinessChecker: DictationSTTReadinessChecking {

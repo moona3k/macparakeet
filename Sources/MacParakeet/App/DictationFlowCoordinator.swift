@@ -163,6 +163,7 @@ final class DictationFlowCoordinator {
     /// same source the menu bar reads.
     private let activeSpeechEngine: @MainActor () -> SpeechEnginePreference
     private let mediaPauseCoordinator: any DictationMediaPauseCoordinating
+    private let playCaptureCue: @MainActor (AppSound) -> Void
     private let overlayControllerFactory: @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling
     private let shouldSuppressIdlePill: () -> Bool
     /// When true, `startDictation` is a no-op. Used to gate real dictation while
@@ -243,6 +244,7 @@ final class DictationFlowCoordinator {
         captionTiming: DictationProcessingLoadCaptionTiming = .production,
         activeSpeechEngine: @escaping @MainActor () -> SpeechEnginePreference = { SpeechEnginePreference.current() },
         mediaPauseCoordinator: (any DictationMediaPauseCoordinating)? = nil,
+        playCaptureCue: @escaping @MainActor (AppSound) -> Void = { SoundManager.shared.play($0) },
         overlayControllerFactory: @escaping @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling = {
             DictationOverlayController(viewModel: $0)
         },
@@ -267,6 +269,7 @@ final class DictationFlowCoordinator {
         self.captionTiming = captionTiming
         self.activeSpeechEngine = activeSpeechEngine
         self.mediaPauseCoordinator = mediaPauseCoordinator ?? NoOpDictationMediaPauseCoordinator()
+        self.playCaptureCue = playCaptureCue
         self.overlayControllerFactory = overlayControllerFactory
         self.shouldSuppressIdlePill = shouldSuppressIdlePill
         self.mutationArbiter = mutationArbiter ?? GUIMutationArbiter()
@@ -276,7 +279,7 @@ final class DictationFlowCoordinator {
         self.onPresentEntitlementsAlert = onPresentEntitlementsAlert
         observeFormatterNotifications()
         observePreviewTextSizeNotifications()
-        observeDictationCaptureSoundNotifications()
+        observeDictationCaptureSoundNotifications(from: dictationService)
     }
 
     // MARK: - AI Formatter pill transitions
@@ -341,22 +344,34 @@ final class DictationFlowCoordinator {
     }
 
     private var dictationCaptureDidStopObserver: NSObjectProtocol?
+    /// Session whose start cue played and still owes its stop cue. Each
+    /// start cue gets exactly one stop cue, and a take that never played a
+    /// start cue (released during start, sounds off) never plays a stop cue.
+    private var captureCueSessionID: Int?
 
-    private func observeDictationCaptureSoundNotifications() {
+    private func observeDictationCaptureSoundNotifications(from dictationService: DictationService) {
         dictationCaptureDidStopObserver = NotificationCenter.default.addObserver(
             forName: .macParakeetDictationCaptureDidStop,
-            object: nil,
+            object: dictationService,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] note in
+            let sessionID = note.userInfo?[DictationCaptureNotificationKey.sessionID] as? Int
             Task { @MainActor [weak self] in
-                self?.playDictationCaptureSoundIfEnabled(.recordStop)
+                self?.playStopCueIfOwed(sessionID: sessionID)
             }
         }
     }
 
-    private func playDictationCaptureSoundIfEnabled(_ sound: AppSound) {
+    private func playStartCueIfEnabled(sessionID: Int) {
         guard runtimePreferences.playDictationCaptureSounds else { return }
-        SoundManager.shared.play(sound)
+        captureCueSessionID = sessionID
+        playCaptureCue(.recordStart)
+    }
+
+    private func playStopCueIfOwed(sessionID: Int?) {
+        guard let sessionID, sessionID == captureCueSessionID else { return }
+        captureCueSessionID = nil
+        playCaptureCue(.recordStop)
     }
 
     // NOTE: no `deinit` cleanup for `formatterDidStartObserver`,
@@ -1147,7 +1162,7 @@ final class DictationFlowCoordinator {
                 if case .recording = self.stateMachine.state,
                     self.stateMachine.generation == generation
                 {
-                    self.playDictationCaptureSoundIfEnabled(.recordStart)
+                    self.playStartCueIfEnabled(sessionID: sessionID)
                 }
                 await self.runRecordingLevelLoop()
             } catch is CancellationError {

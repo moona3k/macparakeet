@@ -1231,8 +1231,14 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Play sounds when dictation starts and stops",
-                    detail: "Short cues when capture is live and when it ends, so you know when to speak. Off by default. On speakers, the start cue can reach the mic — use headphones if you don't want it in the transcript.",
-                    isOn: $viewModel.playDictationCaptureSounds
+                    detail: "A short cue when the mic is live and another when it closes, so you know when to speak. Off by default. On speakers, the start cue can reach the mic — use headphones to keep it out of saved audio.",
+                    isOn: Binding(
+                        get: { viewModel.playDictationCaptureSounds },
+                        set: { isOn in
+                            viewModel.playDictationCaptureSounds = isOn
+                            if isOn { SoundManager.shared.play(.recordStart) }
+                        }
+                    )
                 )
 
                 Divider()

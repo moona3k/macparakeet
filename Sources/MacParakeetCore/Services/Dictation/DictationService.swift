@@ -316,12 +316,14 @@ public actor DictationService: DictationServiceProtocol {
             logger.notice(
                 "startRecording replacing stale recording old=\(self.activeSessionID) new=\(sessionID!, privacy: .public)"
             )
+            let replacedSession = activeSessionID
             await cancelLiveDictationTranscription(sessionID: activeSessionID)
             await cancelDisplayPreview(sessionID: activeSessionID, clearText: true)
-            if await audioProcessor.isRecording,
-                let url = try? await audioProcessor.stopCapture()
-            {
-                try? FileManager.default.removeItem(at: url)
+            if await audioProcessor.isRecording {
+                if let url = try? await audioProcessor.stopCapture() {
+                    try? FileManager.default.removeItem(at: url)
+                }
+                postCaptureDidStop(sessionID: replacedSession)
             }
         case .processing where sessionID != nil && sessionID != activeSessionID,
             .success where sessionID != nil && sessionID != activeSessionID:
@@ -498,15 +500,17 @@ public actor DictationService: DictationServiceProtocol {
         let capturedDurationMs = currentRecordingDurationMs()
         do {
             let captureStartedAt = Date()
-            let audioURL = try await audioProcessor.stopCapture()
+            let audioURL: URL
+            do {
+                audioURL = try await audioProcessor.stopCapture()
+            } catch {
+                postCaptureDidStop(sessionID: currentSession)
+                throw error
+            }
+            postCaptureDidStop(sessionID: currentSession)
             let captureMs = Self.elapsedMilliseconds(since: captureStartedAt)
             let captureHealth = await audioProcessor.lastCaptureHealth
             try rejectUnavailableCaptureIfNeeded(captureHealth, audioURL: audioURL)
-            // A newer session may have started while stopCapture was in flight.
-            // Don't play a stop cue over a live recording.
-            if activeSessionID == currentSession {
-                NotificationCenter.default.post(name: .macParakeetDictationCaptureDidStop, object: nil)
-            }
             let device = await audioProcessor.recordingDeviceInfo
             await cancelDisplayPreview(sessionID: currentSession, clearText: false)
             _ = await finishLiveDictationTranscription(sessionID: currentSession)
@@ -661,6 +665,7 @@ public actor DictationService: DictationServiceProtocol {
 
         cancelGeneration += 1
         let generation = cancelGeneration
+        let cancelledSession = activeSessionID
 
         pendingCancelReason = reason
         cancellationRequestedDuringStartSessionID = activeSessionID
@@ -669,6 +674,7 @@ public actor DictationService: DictationServiceProtocol {
         let capturedDurationMs = currentRecordingDurationMs()
         let captureStartedAt = Date()
         let audioURL = try? await audioProcessor.stopCapture()
+        postCaptureDidStop(sessionID: cancelledSession)
         // Capture finalization ends when stopCapture returns. Do not include the
         // later recordingDeviceInfo hop in pendingCancelledCaptureMs / undo e2e.
         let captureMs = audioURL == nil ? nil : Self.elapsedMilliseconds(since: captureStartedAt)
@@ -707,6 +713,7 @@ public actor DictationService: DictationServiceProtocol {
         cancelResetTask = nil
 
         if case .recording = _state {
+            let discardedSession = activeSessionID
             cancellationRequestedDuringStartSessionID = activeSessionID
             await cancelLiveDictationTranscription(sessionID: activeSessionID)
             await cancelDisplayPreview(sessionID: activeSessionID, clearText: true)
@@ -717,6 +724,7 @@ public actor DictationService: DictationServiceProtocol {
                 pendingCancelledDurationMs = capturedDurationMs
                 pendingCancelledCaptureMs = Self.elapsedMilliseconds(since: captureStartedAt)
             }
+            postCaptureDidStop(sessionID: discardedSession)
             _state = .cancelled
         }
 
@@ -946,6 +954,14 @@ public actor DictationService: DictationServiceProtocol {
         return try await Observability.withOperationContext(operationContext) {
             try await operation()
         }
+    }
+
+    private func postCaptureDidStop(sessionID: Int) {
+        NotificationCenter.default.post(
+            name: .macParakeetDictationCaptureDidStop,
+            object: self,
+            userInfo: [DictationCaptureNotificationKey.sessionID: sessionID]
+        )
     }
 
     private func rejectUnavailableCaptureIfNeeded(
