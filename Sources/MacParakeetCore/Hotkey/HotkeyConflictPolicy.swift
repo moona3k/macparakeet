@@ -10,6 +10,56 @@ public enum SettingsHotkeyConflictMessage {
     }
 }
 
+public enum SettingsDictationHotkeyConflictPolicy {
+    public static func validation(
+        candidate: HotkeyTrigger,
+        peer: HotkeyTrigger,
+        peerName: String
+    ) -> HotkeyTrigger.ValidationResult? {
+        guard
+            let conflict = HotkeyConflictPolicy.dictationPeerConflict(
+                candidate: candidate,
+                peer: peer,
+                peerName: peerName
+            )
+        else {
+            return nil
+        }
+        return .blocked(
+            SettingsHotkeyConflictMessage.blocked(
+                conflictingWith: conflict.name,
+                trigger: conflict.trigger
+            ))
+    }
+
+    public static func existingConflictMessage(
+        trigger: HotkeyTrigger,
+        peer: HotkeyTrigger,
+        peerName: String,
+        disablesTrigger: Bool
+    ) -> String? {
+        guard
+            let conflict = HotkeyConflictPolicy.dictationPeerConflict(
+                candidate: trigger,
+                peer: peer,
+                peerName: peerName
+            )
+        else {
+            return nil
+        }
+        if disablesTrigger {
+            return SettingsHotkeyConflictMessage.disabled(
+                conflictingWith: conflict.name,
+                trigger: conflict.trigger
+            )
+        }
+        return SettingsHotkeyConflictMessage.blocked(
+            conflictingWith: conflict.name,
+            trigger: conflict.trigger
+        )
+    }
+}
+
 public enum HotkeyConflictPolicy {
     public enum Surface: Equatable, Sendable {
         case handsFreeDictation
