@@ -41,6 +41,8 @@ Sources/MacParakeetCore/Services/LLM/LLMExecutionContext.swift
   s_673be8b32d8d6a::t_7295753562ced4 3-12,25-31,59-64,66-70
 Tests/MacParakeetTests/Services/LLM/LLMConfigStoreTests.swift
   s_673be8b32d8d6a::t_9a80c8ab11d527 238-257
+spec/02-features.md
+  s_697e594299b62c::t_4c486c409f40d3 1020
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -53,6 +55,14 @@ Tests/MacParakeetTests/Services/LLM/LLMConfigStoreTests.swift
         "tool": "cursor",
         "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
         "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_697e594299b62c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cbf1-51b1-7ea3-a7cc-7f0645829f47",
+        "model": "gpt-6-sol"
       },
       "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
     }
