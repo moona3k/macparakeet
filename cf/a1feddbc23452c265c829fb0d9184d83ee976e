@@ -1,0 +1,37 @@
+Sources/MacParakeetViewModels/LLMSettingsViewModel.swift
+  s_697e594299b62c::t_dddc0dbd530854 816-822,824-828
+  s_697e594299b62c::t_e9412a1c28ccba 750
+  s_697e594299b62c::t_59a179388255d9 455,712,731-736,738
+  s_697e594299b62c::t_751b5985c36201 289-293,295
+Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
+  s_697e594299b62c::t_34f4a8b78286ee 395
+  s_697e594299b62c::t_751b5985c36201 58-64
+Sources/MacParakeetCore/Services/LLM/LocalCLIExecutor.swift
+  s_697e594299b62c::t_dddc0dbd530854 146-153,155
+Tests/MacParakeetTests/Services/LLM/LLMConfigStoreTests.swift
+  s_697e594299b62c::t_36baa03be06d76 286-305
+  s_697e594299b62c::t_276ec9882982ad 250-285
+Sources/MacParakeetCore/Services/LLM/LLMConfigStore.swift
+  s_697e594299b62c::t_672bf36e140cef 16-20,26-34,180-190,193-199,201-222
+  s_697e594299b62c::t_352e4e3168c612 41-48,191-192,200,223
+spec/11-llm-integration.md
+  s_697e594299b62c::t_734457e4b5acf4 61-65
+Tests/MacParakeetTests/ViewModels/LLMSettingsViewModelTests.swift
+  s_697e594299b62c::t_9680aa8e4b53cb 101-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "cfa1feddbc23452c265c829fb0d9184d83ee976e",
+  "prompts": {},
+  "sessions": {
+    "s_697e594299b62c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cbf1-51b1-7ea3-a7cc-7f0645829f47",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
