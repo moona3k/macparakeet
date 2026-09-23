@@ -974,7 +974,8 @@ public final class PromptResultsViewModel {
             ),
             replacingPromptResultID: failed.replacingPromptResultID,
             runInBackground: failed.runsInBackground,
-            outputLanguagePolicy: failed.outputLanguagePolicy
+            outputLanguagePolicy: failed.outputLanguagePolicy,
+            sourceCorrectionRevision: failed.sourceCorrectionRevision
         )
     }
 
