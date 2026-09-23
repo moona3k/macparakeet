@@ -1,0 +1,70 @@
+spec/adr/032-llm-task-group-routing.md
+  s_673be8b32d8d6a::t_6ce324a6601561 179,182,184
+  s_673be8b32d8d6a::t_d37c6e41064f3e 3
+spec/README.md
+  s_673be8b32d8d6a::t_500556623a2ec4 160
+Tests/MacParakeetTests/Services/LLM/LLMExecutionContextResolverTests.swift
+  s_673be8b32d8d6a::t_97a0aaea5f0d2e 63-114
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_673be8b32d8d6a::t_2e7b985319fa67 1110,1118
+  s_673be8b32d8d6a::t_26ed8964caf85c 1455-1456
+  s_673be8b32d8d6a::t_f8e281ea4bdb14 1462-1467
+  s_673be8b32d8d6a::t_8c55fc697cb0ab 1500
+  s_673be8b32d8d6a::t_df5a85295c6193 1364
+  s_673be8b32d8d6a::t_a5c92a9d46cc75 1248
+Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
+  s_673be8b32d8d6a::t_3812b51442bf93 238-252
+  s_673be8b32d8d6a::t_b2932515213d3b 190
+Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
+  s_673be8b32d8d6a::t_717f96aa5a2dcc 55-59
+  s_673be8b32d8d6a::t_383e3fd9095cf2 273-322
+spec/11-llm-integration.md
+  s_673be8b32d8d6a::t_4be3157a5a0c76 38
+  s_673be8b32d8d6a::t_6529cce7df9037 5
+  s_673be8b32d8d6a::t_0427753f1daaab 27
+Sources/MacParakeetViewModels/LLMSettingsViewModel.swift
+  s_673be8b32d8d6a::t_d30708c9bc52bc 292-295
+  s_673be8b32d8d6a::t_d214fef28ab15b 1304
+  s_673be8b32d8d6a::t_4d36dde647c41f 1316
+  s_673be8b32d8d6a::t_e485b3dc329be7 1317,1319-1383
+  s_673be8b32d8d6a::t_a70f2b87ee78fd 699-702
+  s_673be8b32d8d6a::t_d1a7548e448ab0 170-175
+  s_673be8b32d8d6a::t_70ea0d9a228778 781
+  s_673be8b32d8d6a::t_229f9fd8369f98 887
+  s_673be8b32d8d6a::t_186e139adc8bab 1318
+Sources/MacParakeetCore/Services/LLM/LLMConfigStore.swift
+  s_673be8b32d8d6a::t_6118add1a7e46d 29-32
+  s_673be8b32d8d6a::t_ed05d9c594dc41 86-87
+  s_673be8b32d8d6a::t_660beda05bd790 14-20
+  s_673be8b32d8d6a::t_8d1025c5c3fad9 131-157
+Sources/MacParakeetCore/Services/LLM/LLMExecutionContext.swift
+  s_673be8b32d8d6a::t_7295753562ced4 3-12,25-31,59-64,66-70
+Tests/MacParakeetTests/Services/LLM/LLMConfigStoreTests.swift
+  s_673be8b32d8d6a::t_9a80c8ab11d527 238-257
+spec/02-features.md
+  s_697e594299b62c::t_4c486c409f40d3 1020
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "85ca81d589ef210a5aa9945a60687c85c912a446",
+  "prompts": {},
+  "sessions": {
+    "s_673be8b32d8d6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_697e594299b62c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cbf1-51b1-7ea3-a7cc-7f0645829f47",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
