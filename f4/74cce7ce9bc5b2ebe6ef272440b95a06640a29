@@ -1,0 +1,91 @@
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_697e594299b62c::t_dd17f59058d6d8 114-471,1117-1129
+  s_697e594299b62c::t_0910cdf4f04b98 1130
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_697e594299b62c::t_ced92a11fa8fb2 131,161-165,187-202,319-324,346-357,363-384,386,388-391,393-401,404,416-435,590-597,749-751,770-788,799-801,810,812,814-819,829-836,850-869,874,881,885,888,893-895,911,1064-1071
+  s_697e594299b62c::t_edfe0dbc853639 1072
+Sources/CLI/CHANGELOG.md
+  s_697e594299b62c::t_8831e7b14ac496 94-100,111-113
+Sources/CLI/Commands/MeetingsCommand.swift
+  s_697e594299b62c::t_3d9664ee8946e1 1342,1367
+Sources/CLI/Commands/VocabBundleCommands.swift
+  s_697e594299b62c::t_2de9294843ce88 14-17,45-47,63-70,76-79,92-94,100,117-119,122,131-133,153-154,185-191,193-194,196-202,204-208,215-221,226-227,231-232,243-245,257-258,271-274,310-316,318-374,386-394,397-404,414-463
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_697e594299b62c::t_c146713ae8b24d 635,3201-3206,3209-3211,3213-3214,3216-3217,3219-3238,3240-3246,3248-3263,3268-3274,3276-3289,3291-3302,3304-3305,3307-3315,3317-3318,3322-3342
+Sources/MacParakeet/Views/Vocabulary/VocabularyBackupSection.swift
+  s_697e594299b62c::t_2f5a90acb3958c 65-70,115-116,165-167,175-180
+Sources/MacParakeet/Views/Vocabulary/VocabularyImportPreviewSheet.swift
+  s_697e594299b62c::t_f6b8842bcb1255 17-21,132,134-168,173-174,178-183,185,188,191,194,196-197,200-205,207-248,263-284,328-329,332-336,343,345-354,365,370-373,378,392,394-406,409-418,423-443
+Sources/MacParakeetCore/Audio/README.md
+  s_697e594299b62c::t_5e094af64144cd 261-276
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_697e594299b62c::t_b8236bc50474e6 2331-2342
+Sources/MacParakeetCore/Database/PromptResultRepository.swift
+  s_697e594299b62c::t_842af1841b6385 6-7,49-68
+Sources/MacParakeetCore/Models/CustomWord.swift
+  s_697e594299b62c::t_fbb2bcd953a075 4,13
+Sources/MacParakeetCore/Models/PromptResult.swift
+  s_697e594299b62c::t_ab31bf2fd42566 35-38,42-43,65,85,103,116
+Sources/MacParakeetCore/Models/TextSnippet.swift
+  s_697e594299b62c::t_d013c2d48e3b22 4
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingArtifactStore.swift
+  s_697e594299b62c::t_1410e3bc4d6b77 803,817,830
+Sources/MacParakeetCore/Services/VocabularyImportExportService.swift
+  s_697e594299b62c::t_6710090a4adc17 36-37,44-45,52-56,64,75-82,90-93,113-114,122-124,132-133,212-217,227-238,247-252,257-259,263-295,311,357,396-398
+Sources/MacParakeetViewModels/PromptResultsViewModel.swift
+  s_697e594299b62c::t_297d8d0c13d285 120-122,411,463-465,485-546,570-572
+Sources/MacParakeetViewModels/VocabularyBackupViewModel.swift
+  s_697e594299b62c::t_e453e90a3af71c 112,130-135
+Tests/CLITests/MeetingsCommandTests.swift
+  s_697e594299b62c::t_bc1a5a6ca6533c 1034-1035,1062-1063,1083
+Tests/CLITests/VocabCommandTests.swift
+  s_697e594299b62c::t_0bbc807d91adbd 459,488-491,524-636
+Tests/MacParakeetTests/Audio/MockAudioProcessor.swift
+  s_697e594299b62c::t_2c91cce73c1090 13-17,19,21-22,57-58,61-62,65-72,88,114,128-132,136-143
+Tests/MacParakeetTests/Database/DatabaseManagerTests.swift
+  s_697e594299b62c::t_f3b55084fb189c 920-930
+Tests/MacParakeetTests/Database/PromptResultRepositoryTests.swift
+  s_697e594299b62c::t_89f82d4a20f7d0 103-165
+Tests/MacParakeetTests/Models/PromptCodableCompatibilityTests.swift
+  s_697e594299b62c::t_f17809b8295605 35-36,52,54-57,98,106
+Tests/MacParakeetTests/Services/Dictation/DictationServiceSessionTests.swift
+  s_697e594299b62c::t_f70d6037bc2ab4 52-53,69,90-96,99,101,106-107
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingArtifactStoreTests.swift
+  s_697e594299b62c::t_7f5794bd0aee82 229,244-271
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_697e594299b62c::t_093f2b111acf90 1258-1263
+Tests/MacParakeetTests/Services/VocabularyImportExportServiceTests.swift
+  s_697e594299b62c::t_22d5551dc0cb48 70,114,138,142,216,235,258,262,289-297,327-329,338-341,370,373-375,466-652
+Tests/MacParakeetTests/ViewModels/PromptResultsViewModelTests.swift
+  s_697e594299b62c::t_f2bf3d496c4e7e 46-282
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  s_697e594299b62c::t_363674782e8ddc 1435,1448-1459
+spec/01-data-model.md
+  s_697e594299b62c::t_9ee2b8f270d8af 697,711-714,1337,1703,1757
+spec/02-features.md
+  s_697e594299b62c::t_457aadc282626b 954-959,1132,2249
+spec/12-processing-layer.md
+  s_697e594299b62c::t_57b5daecb39f18 207,224,232
+spec/adr/013-prompt-library-multi-summary.md
+  s_697e594299b62c::t_6227f2a74c921e 16-21,106
+spec/contracts/cli-json-v1.md
+  s_697e594299b62c::t_9b3073a709a58a 204-206
+spec/contracts/meeting-artifacts-v1.md
+  s_697e594299b62c::t_75b3eb9c81ebc8 148-152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f474cce7ce9bc5b2ebe6ef272440b95a06640a29",
+  "prompts": {},
+  "sessions": {
+    "s_697e594299b62c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cbf1-51b1-7ea3-a7cc-7f0645829f47",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
