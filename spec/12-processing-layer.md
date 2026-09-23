@@ -200,12 +200,12 @@ public struct PromptResult: Codable, Identifiable, Sendable {
     public var promptName: String         // snapshot: "Summary"
     public var promptContent: String      // snapshot: the full prompt used
     public var extraInstructions: String?  // user's extra instructions (if any)
-    public var content: String            // the generated summary text
+    public var content: String            // saved result text, generated or imported
     public var userNotesSnapshot: String?  // exact bounded notes value supplied to assembly
     public var includeMeetingNotesSnapshot: Bool  // captured automatic-context opt-in
     public var inferenceSettingsSnapshot: PromptInferenceSettings?  // normalized effective settings sent
     public var outputLanguagePolicySnapshot: String?  // follow-transcript or language code
-    public var contentEditedAt: Date?  // last in-place user edit of content; nil = generated
+    public var contentEditedAt: Date?  // last in-place user edit; nil = no recorded edit
     public var createdAt: Date
     public var updatedAt: Date
 }

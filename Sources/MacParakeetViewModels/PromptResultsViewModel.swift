@@ -506,7 +506,17 @@ public final class PromptResultsViewModel {
         hasUnsavedPromptResultEdits && editingDraft.contains(where: { !$0.isWhitespace })
     }
 
+    public func canEditPromptResult(_ promptResult: PromptResult) -> Bool {
+        promptResults.contains(where: { $0.id == promptResult.id })
+            && !hasActiveReplacement(for: promptResult.id)
+    }
+
+    private func hasActiveReplacement(for resultID: UUID) -> Bool {
+        pendingGenerations.contains { $0.replacingPromptResultID == resultID && $0.state.isActive }
+    }
+
     public func beginEditingPromptResult(_ promptResult: PromptResult) {
+        guard canEditPromptResult(promptResult) else { return }
         editingPromptResultID = promptResult.id
         editingDraft = promptResult.content
         errorMessage = nil
@@ -577,7 +587,12 @@ public final class PromptResultsViewModel {
         sourceCorrectionRevision: Int? = nil
     ) -> UUID? {
         if editingPromptResultID == promptResult.id {
-            cancelEditingPromptResult()
+            errorMessage = "Save or cancel your result edit before regenerating."
+            return nil
+        }
+        if hasActiveReplacement(for: promptResult.id) {
+            errorMessage = "This result is already regenerating."
+            return nil
         }
         let prompt = Prompt(
             id: promptResult.promptId ?? UUID(),
@@ -838,6 +853,13 @@ public final class PromptResultsViewModel {
         guard generation.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
             throw LLMError.streamingError("prompt result returned an empty response")
         }
+        // An editor should be unable to open during regeneration, but keep its
+        // draft and original row if one was already open when work completed.
+        if let replacingID = generation.replacingPromptResultID,
+            editingPromptResultID == replacingID
+        {
+            throw LLMError.streamingError("Save or cancel the result edit before retrying regeneration.")
+        }
         let timestamp = Date()
         let promptResult = PromptResult(
             id: generation.id,
@@ -922,6 +944,12 @@ public final class PromptResultsViewModel {
               let index = pendingGenerations.firstIndex(where: { $0.id == id }),
               case .failed = pendingGenerations[index].state
         else { return nil }
+        if let replacingID = pendingGenerations[index].replacingPromptResultID,
+            editingPromptResultID == replacingID
+        {
+            errorMessage = "Save or cancel your result edit before retrying regeneration."
+            return nil
+        }
         let failed = pendingGenerations.remove(at: index)
         return enqueueGeneration(
             transcript: failed.transcript,

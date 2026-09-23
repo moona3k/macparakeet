@@ -146,8 +146,9 @@ The v1 folder can contain these stable filenames:
 Each `prompt-results.json` record preserves `userNotesSnapshot` and the
 additive Boolean `includeMeetingNotesSnapshot` (false for legacy/imported rows).
 An edited result also includes `contentEditedAt` as an ISO-8601 timestamp of
-the last user edit. The key is omitted when generation last wrote the content;
-consumers should treat an absent or null key as unedited.
+the last in-place user edit. An absent or null key means no in-place edit is
+recorded, including for generated, historical, and imported results; it does
+not establish who wrote the content.
 The per-result Markdown view states whether automatic notes context was enabled
 and whether `content` was last written by a user edit (`Content edited:`). It
 also shows the output language policy (`not recorded` when absent).
