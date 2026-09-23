@@ -247,11 +247,17 @@ final class TransformsCoordinator {
         _ target: SelectionCaptureTarget,
         timeout: Duration = .milliseconds(500),
         pollInterval: Duration = .milliseconds(10),
-        frontmostApplication: @MainActor () -> SelectionCaptureTarget?
+        frontmostApplication: (@MainActor () -> SelectionCaptureTarget?)? = nil
     ) async -> Bool {
         let deadline = ContinuousClock.now + timeout
         while !Task.isCancelled {
-            if let frontmost = frontmostApplication(),
+            let frontmost: SelectionCaptureTarget?
+            if let frontmostApplication {
+                frontmost = frontmostApplication()
+            } else {
+                frontmost = Self.frontmostCaptureTarget()
+            }
+            if let frontmost,
                 frontmost.processIdentifier == target.processIdentifier,
                 frontmost.bundleIdentifier == target.bundleIdentifier
             {
@@ -363,10 +369,7 @@ final class TransformsCoordinator {
                             }
                         }
                         guard
-                            await Self.waitForMenuCaptureTarget(
-                                target,
-                                frontmostApplication: Self.frontmostCaptureTarget
-                            )
+                            await Self.waitForMenuCaptureTarget(target)
                         else { throw TransformExecutorError.captureFailed(.targetNotFrontmost) }
                         preCaptured = await self.menuBarCaptureService.captureSelection(in: target)
                     } else {
