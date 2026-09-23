@@ -97,6 +97,9 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Added
 
+- Saved prompt-result JSON may include the additive `sourceTranscriptHash`
+  receipt for detecting retranscription even when the correction revision
+  resets. It is omitted for results with unknown source text.
 - `config get|set|list` includes `meeting-ai-output-language`
   (`follow-transcript` or `en|pl|de|es|fr|pt|ja|zh`, default `follow-transcript`). This
   controls the language of generated AI results, not speech recognition.

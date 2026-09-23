@@ -6,6 +6,13 @@ public protocol PromptResultRepositoryProtocol: Sendable {
     /// Updates an existing result only if its content still matches the editor's starting text.
     func updateContent(id: UUID, expectedContent: String, content: String, editedAt: Date) throws -> PromptResult?
     func replace(_ promptResult: PromptResult, deletingExistingID: UUID?) throws
+    /// Replaces a saved result only when its content and edit timestamp still match the caller's snapshot.
+    func replaceIfUnchanged(
+        _ replacement: PromptResult,
+        deletingExistingID: UUID,
+        expectedContent: String,
+        expectedContentEditedAt: Date?
+    ) throws -> Bool
     func fetchAll(transcriptionId: UUID) throws -> [PromptResult]
     func delete(id: UUID) throws -> Bool
     func deleteAll(transcriptionId: UUID) throws
@@ -74,6 +81,31 @@ public final class PromptResultRepository: PromptResultRepositoryProtocol {
             if let deletingExistingID, deletingExistingID != promptResult.id {
                 _ = try PromptResult.deleteOne(db, key: deletingExistingID)
             }
+        }
+    }
+
+    public func replaceIfUnchanged(
+        _ replacement: PromptResult,
+        deletingExistingID: UUID,
+        expectedContent: String,
+        expectedContentEditedAt: Date?
+    ) throws -> Bool {
+        guard replacement.id != deletingExistingID else { return false }
+
+        return try dbQueue.write { db in
+            guard let existing = try PromptResult.fetchOne(db, key: deletingExistingID),
+                existing.content == expectedContent,
+                existing.contentEditedAt == expectedContentEditedAt,
+                existing.transcriptionId == replacement.transcriptionId
+            else {
+                return false
+            }
+
+            var normalizedResult = replacement
+            normalizedResult.inferenceSettingsSnapshot = try replacement.inferenceSettingsSnapshot?.validated()
+            try normalizedResult.insert(db)
+            _ = try PromptResult.deleteOne(db, key: deletingExistingID)
+            return true
         }
     }
 

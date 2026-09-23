@@ -421,6 +421,7 @@ final class PromptsCommandTests: XCTestCase {
         XCTAssertEqual(result.inferenceSettingsSnapshot, effective)
         XCTAssertNotEqual(result.inferenceSettingsSnapshot, requested)
         XCTAssertEqual(result.sourceCorrectionRevision, 2)
+        XCTAssertEqual(result.sourceTranscriptHash, PromptResultFreshness.sourceTranscriptHash(for: transcript))
         XCTAssertFalse(
             PromptResultFreshness.summaryNeedsUpdate(
                 sourceCorrectionRevision: result.sourceCorrectionRevision,

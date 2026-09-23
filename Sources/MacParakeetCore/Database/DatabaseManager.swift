@@ -2424,6 +2424,18 @@ public final class DatabaseManager: Sendable {
             }
         }
 
+        // v0.48 — New results persist their source text receipt. Earlier
+        // results keep NULL: the transcript may already have changed, so
+        // assigning its current hash would falsely certify an old result.
+        migrator.registerMigration("v0.48-prompt-result-source-transcript") { db in
+            let columns = try db.columns(in: "summaries").map(\.name)
+            if !columns.contains("sourceTranscriptHash") {
+                try db.alter(table: "summaries") { t in
+                    t.add(column: "sourceTranscriptHash", .text)
+                }
+            }
+        }
+
         return migrator
     }
 

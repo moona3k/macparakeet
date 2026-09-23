@@ -696,6 +696,8 @@ CREATE TABLE summaries (
     inferenceSettingsSnapshot TEXT,                       -- v0.31: JSON effective settings actually sent
     outputLanguagePolicySnapshot TEXT,                    -- v0.47: meeting AI output-language policy used for this result
     contentEditedAt   TEXT,                                -- v0.45: when the user last edited `content`
+    sourceCorrectionRevision INTEGER,                      -- v0.45: transcript correction revision used
+    sourceTranscriptHash TEXT,                              -- v0.48: canonical transcript text receipt
     createdAt         TEXT NOT NULL,                       -- ISO 8601 timestamp
     updatedAt         TEXT NOT NULL                        -- ISO 8601 timestamp
 );
@@ -730,6 +732,12 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
   CLI and saved-audio auto-prompt runs. `NULL` means the result predates the
   receipt. A later transcript edit can then offer an update without
   regenerating on its own.
+- `sourceTranscriptHash` (v0.48) is SHA-256 of trimmed canonical
+  `cleanTranscript`, falling back to `rawTranscript`. It detects retranscription
+  even when correction revision returns to zero, without changing when titles,
+  notes, or plain/rich context presentation changes. Earlier rows keep `NULL`
+  because a result may already have become stale before migration. The app
+  treats an unknown source receipt as needing an update.
 - `inferenceSettingsSnapshot` (v0.31) stores the normalized effective settings
   actually sent after provider/model capability filtering, not merely the
   settings requested on the prompt. `NULL` preserves historical rows and means
@@ -1344,6 +1352,8 @@ struct PromptResult: Codable, Identifiable, Sendable {
     var includeMeetingNotesSnapshot: Bool
     var inferenceSettingsSnapshot: PromptInferenceSettings?
     var outputLanguagePolicySnapshot: String?
+    var sourceCorrectionRevision: Int?
+    var sourceTranscriptHash: String?
     var contentEditedAt: Date?
     var createdAt: Date
     var updatedAt: Date

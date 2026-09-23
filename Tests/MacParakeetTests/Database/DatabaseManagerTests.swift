@@ -688,6 +688,55 @@ final class DatabaseManagerTests: XCTestCase {
         XCTAssertNil(upgraded.meetingCaptureReport)
     }
 
+    func testPromptResultSourceTranscriptMigrationPreservesUnknownLegacySource() throws {
+        let dbPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("prompt_result_source_hash_upgrade_\(UUID().uuidString).db")
+            .path
+        defer { cleanupDatabaseFiles(atPath: dbPath) }
+
+        let originalManager = try DatabaseManager(path: dbPath)
+        let transcription = Transcription(
+            fileName: "Existing recording",
+            rawTranscript: "Canonical transcript text.",
+            cleanTranscript: "  Canonical transcript text.  ",
+            status: .completed,
+            sourceType: .meeting
+        )
+        let result = PromptResult(
+            transcriptionId: transcription.id,
+            promptName: "Summary",
+            promptContent: "Summarize.",
+            content: "Keep this saved result.",
+            sourceCorrectionRevision: 0
+        )
+        try TranscriptionRepository(dbQueue: originalManager.dbQueue).save(transcription)
+        try PromptResultRepository(dbQueue: originalManager.dbQueue).save(result)
+
+        try originalManager.dbQueue.write { db in
+            try db.execute(sql: "ALTER TABLE summaries DROP COLUMN sourceTranscriptHash")
+            try db.execute(
+                sql: "DELETE FROM grdb_migrations WHERE identifier = ?",
+                arguments: ["v0.48-prompt-result-source-transcript"]
+            )
+        }
+
+        let upgradedManager = try DatabaseManager(path: dbPath)
+        let upgraded = try XCTUnwrap(
+            PromptResultRepository(dbQueue: upgradedManager.dbQueue)
+                .fetchAll(transcriptionId: transcription.id)
+                .first
+        )
+        XCTAssertEqual(upgraded.content, result.content)
+        XCTAssertNil(upgraded.sourceTranscriptHash)
+        XCTAssertEqual(upgraded.sourceCorrectionRevision, 0)
+        XCTAssertTrue(PromptResultFreshness.summaryNeedsUpdate(
+            sourceCorrectionRevision: upgraded.sourceCorrectionRevision,
+            currentCorrectionRevision: 0,
+            sourceTranscriptHash: upgraded.sourceTranscriptHash,
+            currentTranscriptHash: PromptResultFreshness.sourceTranscriptHash(for: transcription)
+        ))
+    }
+
     func testPromptInferenceSettingsColumnsExist() throws {
         let manager = try DatabaseManager()
         try manager.dbQueue.read { db in

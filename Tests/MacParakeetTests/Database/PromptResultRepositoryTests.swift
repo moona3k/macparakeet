@@ -69,6 +69,98 @@ final class PromptResultRepositoryTests: XCTestCase {
         XCTAssertEqual(saved.first?.inferenceSettingsSnapshot, original.inferenceSettingsSnapshot)
     }
 
+    func testReplaceIfUnchangedPreservesEditedOriginalAndDoesNotInsertOnMismatch() throws {
+        let transcription = try makeTranscription()
+        let editDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let original = PromptResult(
+            transcriptionId: transcription.id,
+            promptName: "Summary",
+            promptContent: "Summarize",
+            content: "User's saved edit",
+            contentEditedAt: editDate
+        )
+        try repo.save(original)
+        let replacement = PromptResult(
+            transcriptionId: transcription.id,
+            promptName: "Regenerated summary",
+            promptContent: "Summarize",
+            content: "Regenerated output"
+        )
+
+        let didReplace = try repo.replaceIfUnchanged(
+            replacement,
+            deletingExistingID: original.id,
+            expectedContent: "Original output",
+            expectedContentEditedAt: nil
+        )
+
+        XCTAssertFalse(didReplace)
+        let saved = try repo.fetchAll(transcriptionId: transcription.id)
+        XCTAssertEqual(saved.map(\.id), [original.id])
+        XCTAssertEqual(saved.first?.content, "User's saved edit")
+        XCTAssertEqual(saved.first?.contentEditedAt, editDate)
+    }
+
+    func testReplaceIfUnchangedAtomicallyReplacesAnAlreadyEditedBaseline() throws {
+        let transcription = try makeTranscription()
+        let editDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let original = PromptResult(
+            transcriptionId: transcription.id,
+            promptName: "Summary",
+            promptContent: "Summarize",
+            content: "User's saved edit",
+            contentEditedAt: editDate
+        )
+        try repo.save(original)
+        let replacement = PromptResult(
+            transcriptionId: transcription.id,
+            promptName: "Regenerated summary",
+            promptContent: "Summarize",
+            content: "Regenerated output"
+        )
+
+        let didReplace = try repo.replaceIfUnchanged(
+            replacement,
+            deletingExistingID: original.id,
+            expectedContent: original.content,
+            expectedContentEditedAt: editDate
+        )
+
+        XCTAssertTrue(didReplace)
+        let saved = try repo.fetchAll(transcriptionId: transcription.id)
+        XCTAssertEqual(saved.map(\.id), [replacement.id])
+        XCTAssertEqual(saved.first?.content, "Regenerated output")
+    }
+
+    func testReplaceIfUnchangedRejectsCandidateForDifferentTranscription() throws {
+        let transcription = try makeTranscription()
+        let otherTranscription = try makeTranscription()
+        let original = PromptResult(
+            transcriptionId: transcription.id,
+            promptName: "Summary",
+            promptContent: "Summarize",
+            content: "Original output"
+        )
+        try repo.save(original)
+        let replacement = PromptResult(
+            transcriptionId: otherTranscription.id,
+            promptName: "Regenerated summary",
+            promptContent: "Summarize",
+            content: "Regenerated output"
+        )
+
+        let didReplace = try repo.replaceIfUnchanged(
+            replacement,
+            deletingExistingID: original.id,
+            expectedContent: original.content,
+            expectedContentEditedAt: original.contentEditedAt
+        )
+
+        XCTAssertFalse(didReplace)
+        XCTAssertEqual(try repo.fetchAll(transcriptionId: transcription.id).map(\.id), [original.id])
+        XCTAssertTrue(try repo.fetchAll(transcriptionId: otherTranscription.id).isEmpty)
+    }
+
     func testPromptExecutionProvenanceRoundTrips() throws {
         let transcription = try makeTranscription()
         let promptRepo = PromptRepository(dbQueue: manager.dbQueue)

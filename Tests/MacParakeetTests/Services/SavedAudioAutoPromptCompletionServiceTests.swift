@@ -331,6 +331,7 @@ final class SavedAudioAutoPromptCompletionServiceTests: XCTestCase {
         XCTAssertTrue(llm.lastSummaryTranscript?.contains("Speaker 1") == true)
         XCTAssertFalse(llm.lastSummaryTranscript?.contains("Alice") == true)
         XCTAssertEqual(saved.sourceCorrectionRevision, input.correctionRevision)
+        XCTAssertEqual(saved.sourceTranscriptHash, PromptResultFreshness.sourceTranscriptHash(for: child))
         XCTAssertEqual(current.correctionRevision, 1)
         XCTAssertTrue(
             PromptResultFreshness.summaryNeedsUpdate(

@@ -192,6 +192,7 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
                     prompt: prompt,
                     transcript: input.text,
                     sourceCorrectionRevision: input.correctionRevision,
+                    sourceTranscriptHash: PromptResultFreshness.sourceTranscriptHash(for: transcription),
                     transcription: transcription
                 )
                 outcomes.append(
@@ -223,6 +224,7 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
         prompt: Prompt,
         transcript: String,
         sourceCorrectionRevision: Int,
+        sourceTranscriptHash: String,
         transcription: Transcription
     ) async throws -> PromptResult {
         let outputLanguagePolicy = outputLanguagePolicyProvider()
@@ -257,7 +259,8 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
             providerSnapshot: result.provider,
             modelSnapshot: result.model,
             outputLanguagePolicySnapshot: outputLanguagePolicy.configurationValue,
-            sourceCorrectionRevision: sourceCorrectionRevision
+            sourceCorrectionRevision: sourceCorrectionRevision,
+            sourceTranscriptHash: sourceTranscriptHash
         )
         try promptResultRepo.save(promptResult)
         return promptResult

@@ -1468,7 +1468,8 @@ public final class TranscriptionViewModel {
             sourceType: transcription.sourceType,
             meetingTypeId: transcription.meetingTypeId,
             runInBackground: !selectTranscription,
-            sourceCorrectionRevision: correctionRevision ?? 0
+            sourceCorrectionRevision: correctionRevision ?? 0,
+            sourceTranscriptHash: PromptResultFreshness.sourceTranscriptHash(for: transcription)
         )
     }
 

@@ -205,11 +205,21 @@ public struct PromptResult: Codable, Identifiable, Sendable {
     public var includeMeetingNotesSnapshot: Bool  // captured automatic-context opt-in
     public var inferenceSettingsSnapshot: PromptInferenceSettings?  // normalized effective settings sent
     public var outputLanguagePolicySnapshot: String?  // follow-transcript or language code
+    public var sourceCorrectionRevision: Int?  // source correction receipt
+    public var sourceTranscriptHash: String?  // source text receipt
     public var contentEditedAt: Date?  // last in-place user edit; nil = no recorded edit
     public var createdAt: Date
     public var updatedAt: Date
 }
 ```
+
+Each generated result stores `sourceCorrectionRevision` plus a SHA-256
+`sourceTranscriptHash` of trimmed canonical `cleanTranscript` (falling back to
+`rawTranscript`). The text receipt catches retranscription even when the new
+transcript's correction revision resets to zero. Plain/rich context display
+settings and recording metadata do not affect this hash. Existing rows keep a
+`NULL` receipt in migration v0.48 because their source text cannot be proven
+from the current transcript; the app offers to update them.
 
 ```sql
 CREATE TABLE summaries (
@@ -223,6 +233,8 @@ CREATE TABLE summaries (
     includeMeetingNotesSnapshot INTEGER NOT NULL DEFAULT 0,
     inferenceSettingsSnapshot TEXT,
     outputLanguagePolicySnapshot TEXT,
+    sourceCorrectionRevision INTEGER,
+    sourceTranscriptHash TEXT,
     contentEditedAt   TEXT,
     createdAt         TEXT NOT NULL,
     updatedAt         TEXT NOT NULL
@@ -386,6 +398,7 @@ When a generation completes:
 - completed summaries render through the shared rich Markdown surface
 - generate appends a new completed summary tab every time
 - regenerate replaces only the specific summary the user chose, and only after the new result is durably saved
+- regeneration compares the original result's content and edit timestamp inside the replacement transaction; if either changed while generation ran, the user edit remains saved and replacement fails visibly
 - copy is available from both the pane and tab context menu
 - delete requires confirmation
 
