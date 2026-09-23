@@ -1,0 +1,27 @@
+docs/audits/2026-09-23-post-0.8.7-release-readiness.md
+  s_57f96c7e168713::t_69301c540b7d03 5-8,11,30,36-37,48
+  s_57f96c7e168713::t_24cbb809c8c9e7 32,34
+spec/contracts/saved-audio-auto-prompt-completion.md
+  s_57f96c7e168713::t_69301c540b7d03 47-49
+  s_57f96c7e168713::t_24cbb809c8c9e7 50-52
+Sources/MacParakeetCore/Hotkey/HotkeyConflictPolicy.swift
+  s_57f96c7e168713::t_8093c8c74e65df 13-62
+Tests/MacParakeetTests/Views/Settings/SettingsHotkeyConflictMessageTests.swift
+  s_57f96c7e168713::t_58a03d0c14e741 29-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3b5de41ab56c4417b33dee28de15350119510e96",
+  "prompts": {},
+  "sessions": {
+    "s_57f96c7e168713": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cd8c-0edf-7db2-b8e5-8dd9ef44ed55",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
