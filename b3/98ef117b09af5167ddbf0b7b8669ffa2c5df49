@@ -1,0 +1,24 @@
+Sources/MacParakeetViewModels/PromptResultsViewModel.swift
+  s_673be8b32d8d6a::t_d194584eb426cf 564-566
+  s_673be8b32d8d6a::t_a1555bb336cf3d 496-499
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_673be8b32d8d6a::t_4ea1ed987cc660 3220
+Tests/MacParakeetTests/ViewModels/PromptResultsViewModelTests.swift
+  s_673be8b32d8d6a::t_84fc65328ebd4f 183-257
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b398ef117b09af5167ddbf0b7b8669ffa2c5df49",
+  "prompts": {},
+  "sessions": {
+    "s_673be8b32d8d6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

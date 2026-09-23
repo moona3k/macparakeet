@@ -1,0 +1,39 @@
+Tests/CLITests/MeetingsCommandTests.swift
+  s_673be8b32d8d6a::t_fb382129533a10 1062-1063
+  s_673be8b32d8d6a::t_a9d160df675f44 1083
+  s_673be8b32d8d6a::t_06b621e0fc3a72 1034-1035
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingArtifactStoreTests.swift
+  s_673be8b32d8d6a::t_ddfb12aaec6ff2 246-269
+spec/adr/013-prompt-library-multi-summary.md
+  s_673be8b32d8d6a::t_e679502745ccb3 106
+  s_673be8b32d8d6a::t_a4314cec580c24 18-21
+Sources/CLI/CHANGELOG.md
+  s_673be8b32d8d6a::t_34f76d474babf4 104-106
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorLoadCaptionTests.swift
+  s_673be8b32d8d6a::t_2453f3ae7aba16 78-84,87,89-94,97
+  s_08070a5469009d::t_f7cfcbca6b75a1 101-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3322b2b5a683c94bc852fd7e3b5ef2a3847b2092",
+  "prompts": {},
+  "sessions": {
+    "s_08070a5469009d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e4ef9f5a-7c8e-42b5-8c32-482153280e11",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_673be8b32d8d6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
