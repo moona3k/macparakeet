@@ -15,12 +15,11 @@ private final class MouseTrackingView: NSView {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         trackingAreas.forEach { removeTrackingArea($0) }
-        addTrackingArea(
-            NSTrackingArea(
-                rect: bounds,
-                options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
-                owner: self
-            ))
+        addTrackingArea(NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
+            owner: self
+        ))
     }
 
     override func mouseEntered(with event: NSEvent) {
@@ -60,6 +59,21 @@ extension DictationOverlayControlling {
     func reposition() {}
 }
 
+extension NSPanel {
+    /// Centers the panel on the user's chosen dictation edge of the main screen.
+    func moveToDictationOverlayPosition(placement: DictationOverlayPlacement) {
+        guard let screen = NSScreen.main else { return }
+        let usable = DictationOverlayLayout.usableFrame(
+            screenFrame: screen.frame,
+            visibleFrame: screen.visibleFrame,
+            topInset: max(NSStatusBar.system.thickness, screen.safeAreaInsets.top)
+        )
+        setFrameOrigin(
+            DictationOverlayLayout.origin(in: usable, panelSize: frame.size, placement: placement)
+        )
+    }
+}
+
 // MARK: - Overlay Controller
 
 /// Manages the floating dictation overlay panel.
@@ -79,7 +93,8 @@ final class DictationOverlayController: DictationOverlayControlling {
     func show() {
         if panel != nil { return }
 
-        applyAnchors()
+        let placement = DictationOverlayPlacement.current()
+        overlayViewModel.anchorsToTop = placement.anchorsToTop
         let view = DictationOverlayView(viewModel: overlayViewModel)
         // No `.tint(...)` here — the overlay's controls are all custom-drawn,
         // so cascading the brand accent has no visible effect, and the typed
@@ -100,7 +115,7 @@ final class DictationOverlayController: DictationOverlayControlling {
         )
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = false  // SwiftUI handles shadows; system shadow creates visible outline
+        panel.hasShadow = false // SwiftUI handles shadows; system shadow creates visible outline
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.contentView = hosting
@@ -119,7 +134,7 @@ final class DictationOverlayController: DictationOverlayControlling {
         hosting.addSubview(tracker)
         trackingView = tracker
 
-        position(panel, width: panelWidth, height: panelHeight)
+        panel.moveToDictationOverlayPosition(placement: placement)
 
         panel.orderFront(nil)
         self.panel = panel
@@ -134,23 +149,10 @@ final class DictationOverlayController: DictationOverlayControlling {
     }
 
     func reposition() {
-        applyAnchors()
-        guard let panel, let hostingView else { return }
-        position(panel, width: hostingView.frame.width, height: hostingView.frame.height)
-    }
-
-    private func applyAnchors() {
-        overlayViewModel.anchorsToTop = DictationOverlayPlacement.current().anchorsToTop
-    }
-
-    private func position(_ panel: NSPanel, width: CGFloat, height: CGFloat) {
-        guard let screen = NSScreen.main else { return }
-        let origin = DictationOverlayLayout.origin(
-            in: screen.visibleFrame,
-            panelSize: CGSize(width: width, height: height),
-            placement: DictationOverlayPlacement.current()
-        )
-        panel.setFrameOrigin(origin)
+        guard let panel else { return }
+        let placement = DictationOverlayPlacement.current()
+        overlayViewModel.anchorsToTop = placement.anchorsToTop
+        panel.moveToDictationOverlayPosition(placement: placement)
     }
 
     /// Resign key window so CGEvent paste targets the user's app, not the overlay panel.
@@ -163,8 +165,7 @@ final class DictationOverlayController: DictationOverlayControlling {
     /// The pill is centered in the panel. Left zone = cancel, right zone = stop.
     private func updateHoverTooltip(at point: NSPoint, in bounds: NSRect) {
         guard case .recording = overlayViewModel.state,
-            overlayViewModel.recordingMode == .persistent
-        else {
+              overlayViewModel.recordingMode == .persistent else {
             // No hover tooltips in hold-to-talk (no buttons), ready, cancelled, processing, success, noSpeech, or error states
             overlayViewModel.hoverTooltip = nil
             return
@@ -189,8 +190,7 @@ final class DictationOverlayController: DictationOverlayControlling {
                 overlayViewModel.hoverTooltip = "Stop & apply (Fn+Control)"
             } else {
                 let trigger = HotkeyTrigger.current
-                overlayViewModel.hoverTooltip =
-                    trigger.isDisabled
+                overlayViewModel.hoverTooltip = trigger.isDisabled
                     ? "Stop & paste"
                     : "Stop & paste (\(trigger.displayName))"
             }

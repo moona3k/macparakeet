@@ -1,82 +1,66 @@
 import Foundation
 
-/// Screen-edge placement for the idle dictation pill and the live overlay.
-/// Both surfaces share this so the recording UI appears where the idle nub sat.
+/// Screen edge for the idle dictation pill and the live overlay. Both surfaces
+/// share it so recording starts exactly where the idle nub sat.
 public enum DictationOverlayPlacement: String, CaseIterable, Hashable, Sendable {
-    case bottomCenter
-    case bottomLeft
-    case bottomRight
-    case topCenter
-    case topLeft
-    case topRight
+    case bottom
+    case top
 
     public var displayTitle: String {
         switch self {
-        case .bottomCenter: return "Bottom center"
-        case .bottomLeft: return "Bottom left"
-        case .bottomRight: return "Bottom right"
-        case .topCenter: return "Top center"
-        case .topLeft: return "Top left"
-        case .topRight: return "Top right"
+        case .bottom: return "Bottom"
+        case .top: return "Top"
         }
     }
 
-    public var anchorsToTop: Bool {
-        switch self {
-        case .topLeft, .topCenter, .topRight: return true
-        case .bottomLeft, .bottomCenter, .bottomRight: return false
-        }
-    }
+    public var anchorsToTop: Bool { self == .top }
 
     public static func current(defaults: UserDefaults = .standard) -> DictationOverlayPlacement {
         guard let raw = defaults.string(forKey: UserDefaultsAppRuntimePreferences.dictationOverlayPlacementKey),
             let placement = DictationOverlayPlacement(rawValue: raw)
         else {
-            return .bottomCenter
+            return .bottom
         }
         return placement
     }
 }
 
-/// Geometry for parking a dictation panel inside `NSScreen.visibleFrame`.
+/// Geometry for parking a dictation panel centered on the chosen screen edge.
 public enum DictationOverlayLayout {
     public static let margin: CGFloat = 12
 
+    /// The region a dictation panel may occupy. `visibleFrame` already clears
+    /// the Dock and a shown menu bar, but it reaches the top edge when the menu
+    /// bar auto-hides or an app is full screen. The menu bar (or notch) then
+    /// slides over a top-anchored pill, so the top always reserves that height.
+    public static func usableFrame(
+        screenFrame: CGRect,
+        visibleFrame: CGRect,
+        topInset: CGFloat
+    ) -> CGRect {
+        let maxY = min(visibleFrame.maxY, screenFrame.maxY - topInset)
+        return CGRect(
+            x: visibleFrame.minX,
+            y: visibleFrame.minY,
+            width: visibleFrame.width,
+            height: max(0, maxY - visibleFrame.minY)
+        )
+    }
+
     public static func origin(
-        in visibleFrame: CGRect,
+        in usableFrame: CGRect,
         panelSize: CGSize,
         placement: DictationOverlayPlacement,
         margin: CGFloat = margin
     ) -> CGPoint {
-        let minX = visibleFrame.minX
-        let maxX = visibleFrame.maxX - panelSize.width
-        let minY = visibleFrame.minY
-        let maxY = visibleFrame.maxY - panelSize.height
-
-        let unclampedX: CGFloat
+        let x = usableFrame.midX - panelSize.width / 2
+        let y: CGFloat
         switch placement {
-        case .bottomLeft, .topLeft:
-            unclampedX = visibleFrame.minX + margin
-        case .bottomCenter, .topCenter:
-            unclampedX = visibleFrame.midX - panelSize.width / 2
-        case .bottomRight, .topRight:
-            unclampedX = visibleFrame.maxX - panelSize.width - margin
+        case .bottom:
+            y = usableFrame.minY + margin
+        case .top:
+            y = max(usableFrame.minY, usableFrame.maxY - panelSize.height - margin)
         }
-
-        let unclampedY: CGFloat
-        if placement.anchorsToTop {
-            unclampedY = visibleFrame.maxY - panelSize.height - margin
-        } else {
-            unclampedY = visibleFrame.minY + margin
-        }
-
-        return CGPoint(
-            x: clamped(unclampedX, lower: minX, upper: max(minX, maxX)),
-            y: clamped(unclampedY, lower: minY, upper: max(minY, maxY))
-        )
-    }
-
-    private static func clamped(_ value: CGFloat, lower: CGFloat, upper: CGFloat) -> CGFloat {
-        min(max(value, lower), upper)
+        return CGPoint(x: x, y: y)
     }
 }

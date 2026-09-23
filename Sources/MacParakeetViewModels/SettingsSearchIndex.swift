@@ -164,9 +164,12 @@ public enum SettingsSearchIndex {
         SettingsSearchEntry(
             id: "dictation.overlay.position",
             tab: .capture,
-            title: "Overlay position",
+            title: "Pill position",
             subtitle: "in Dictation",
-            keywords: ["overlay", "pill position", "corner", "top", "bottom", "left", "right", "handy", "notch"],
+            keywords: [
+                "overlay", "overlay position", "placement", "location", "move pill",
+                "top of screen", "bottom of screen",
+            ],
             cardAnchor: "dictation"
         ),
         SettingsSearchEntry(

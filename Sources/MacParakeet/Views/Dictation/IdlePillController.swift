@@ -24,12 +24,11 @@ private final class IdlePillTrackingView: NSView {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         trackingAreas.forEach { removeTrackingArea($0) }
-        addTrackingArea(
-            NSTrackingArea(
-                rect: bounds,
-                options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
-                owner: self
-            ))
+        addTrackingArea(NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
+            owner: self
+        ))
     }
 
     override func mouseEntered(with event: NSEvent) {
@@ -98,7 +97,6 @@ final class IdlePillController {
     func show() {
         if panel != nil { return }
 
-        viewModel.anchorsToTop = DictationOverlayPlacement.current().anchorsToTop
         let view = IdlePillView(viewModel: viewModel)
         // No `.tint(...)` — pill is fully custom-drawn (no .borderedProminent /
         // Toggle / ProgressView), and `hostingView: NSHostingView<IdlePillView>`
@@ -137,12 +135,33 @@ final class IdlePillController {
 
         hosting.addSubview(tracker)
         trackingView = tracker
-        applyPlacement(to: tracker, panelWidth: panelWidth, panelHeight: panelHeight)
-        position(panel, width: panelWidth, height: panelHeight)
-
-        panel.orderFront(nil)
         self.panel = panel
         self.hostingView = hosting
+        reposition()
+
+        panel.orderFront(nil)
+    }
+
+    func reposition() {
+        guard let panel, let trackingView else { return }
+        let placement = DictationOverlayPlacement.current()
+        viewModel.anchorsToTop = placement.anchorsToTop
+
+        // Hover zones hug the anchored edge: the nub (48×10 + targeting slack)
+        // collapsed, and the pill + tooltip once expanded.
+        let panelSize = panel.frame.size
+        func edgeRect(width: CGFloat, height: CGFloat) -> NSRect {
+            NSRect(
+                x: (panelSize.width - width) / 2,
+                y: placement.anchorsToTop ? panelSize.height - height : 0,
+                width: width,
+                height: height
+            )
+        }
+        trackingView.collapsedPillRect = edgeRect(width: 60, height: 24)
+        trackingView.expandedPillRect = edgeRect(width: 320, height: 80)
+
+        panel.moveToDictationOverlayPosition(placement: placement)
     }
 
     func hide() {
@@ -150,46 +169,5 @@ final class IdlePillController {
         panel = nil
         hostingView = nil
         trackingView = nil
-    }
-
-    func reposition() {
-        guard let panel, let hostingView else { return }
-        applyPlacement(
-            to: trackingView,
-            panelWidth: hostingView.frame.width,
-            panelHeight: hostingView.frame.height
-        )
-        position(panel, width: hostingView.frame.width, height: hostingView.frame.height)
-    }
-
-    private func applyPlacement(
-        to tracker: IdlePillTrackingView?,
-        panelWidth: CGFloat,
-        panelHeight: CGFloat
-    ) {
-        let placement = DictationOverlayPlacement.current()
-        viewModel.anchorsToTop = placement.anchorsToTop
-        guard let tracker else { return }
-
-        let collapsedW: CGFloat = 60
-        let collapsedH: CGFloat = 24
-        let collapsedX = (panelWidth - collapsedW) / 2
-        let expandedW: CGFloat = 320
-        let expandedH: CGFloat = 80
-        let expandedX = (panelWidth - expandedW) / 2
-        let collapsedY: CGFloat = placement.anchorsToTop ? panelHeight - collapsedH : 0
-        let expandedY: CGFloat = placement.anchorsToTop ? panelHeight - expandedH : 0
-        tracker.collapsedPillRect = NSRect(x: collapsedX, y: collapsedY, width: collapsedW, height: collapsedH)
-        tracker.expandedPillRect = NSRect(x: expandedX, y: expandedY, width: expandedW, height: expandedH)
-    }
-
-    private func position(_ panel: NSPanel, width: CGFloat, height: CGFloat) {
-        guard let screen = NSScreen.main else { return }
-        let origin = DictationOverlayLayout.origin(
-            in: screen.visibleFrame,
-            panelSize: CGSize(width: width, height: height),
-            placement: DictationOverlayPlacement.current()
-        )
-        panel.setFrameOrigin(origin)
     }
 }

@@ -340,8 +340,8 @@ final class DictationFlowCoordinator {
         }
     }
 
-    /// Move idle + live overlays when Settings placement changes or the
-    /// screen layout changes (built-in display vs external, Dock side).
+    /// Move idle + live overlays when Settings placement changes or displays
+    /// are added, removed, or rearranged.
     private var overlayPlacementObserver: NSObjectProtocol?
     private var screenParametersObserver: NSObjectProtocol?
 
@@ -374,7 +374,7 @@ final class DictationFlowCoordinator {
     // NOTE: no `deinit` cleanup for `formatterDidStartObserver`,
     // `previewTextSizeObserver`, `overlayPlacementObserver`, or
     // `screenParametersObserver`. This coordinator is effectively a singleton
-    // for the app's lifetime, both observer blocks capture `[weak self]`, and
+    // for the app's lifetime, every observer block captures `[weak self]`, and
     // Swift 6 forbids touching `@MainActor`-isolated stored properties from a
     // nonisolated deinit. NotificationCenter cleans up automatically when the
     // tokens drop.

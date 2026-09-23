@@ -1120,18 +1120,18 @@ struct SettingsView: View {
 
                 HStack(alignment: .center) {
                     rowText(
-                        title: "Overlay position",
-                        detail: "Where the idle pill and live dictation overlay sit on screen."
+                        title: "Pill position",
+                        detail: "Screen edge for the dictation pill and live preview."
                     )
                     Spacer(minLength: DesignSystem.Spacing.md)
-                    Picker("Overlay position", selection: $viewModel.dictationOverlayPlacement) {
+                    Picker("Pill position", selection: $viewModel.dictationOverlayPlacement) {
                         ForEach(DictationOverlayPlacement.allCases, id: \.self) { placement in
                             Text(placement.displayTitle).tag(placement)
                         }
                     }
                     .labelsHidden()
-                    .pickerStyle(.menu)
-                    .fixedSize()
+                    .pickerStyle(.segmented)
+                    .frame(width: 200)
                 }
 
                 Divider()
@@ -1151,7 +1151,7 @@ struct SettingsView: View {
                     HStack(alignment: .center) {
                         rowText(
                             title: "Preview text size",
-                            detail: "Text size for the live preview above or below the dictation pill."
+                            detail: "Text size for the live transcript preview."
                         )
                         Spacer(minLength: DesignSystem.Spacing.md)
                         Picker("Preview text size", selection: $viewModel.dictationPreviewTextSize) {

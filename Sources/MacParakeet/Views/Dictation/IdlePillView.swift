@@ -2,39 +2,36 @@ import SwiftUI
 import MacParakeetCore
 import MacParakeetViewModels
 
-/// Persistent floating pill shown when idle — click-to-dictate at the
-/// user-chosen screen edge.
+/// Persistent floating pill shown when idle, on the user's chosen screen edge.
 /// Expands on hover to show the available dictation entry points.
 struct IdlePillView: View {
     @Bindable var viewModel: IdlePillViewModel
 
     var body: some View {
-        Group {
+        // Tooltip sits on the screen-facing side of the pill.
+        VStack(spacing: 6) {
             if viewModel.anchorsToTop {
-                VStack(spacing: 6) {
-                    pill
-                        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.isHovered)
-                    tooltip
-                        .opacity(viewModel.isHovered ? 1 : 0)
-                        .scaleEffect(viewModel.isHovered ? 1 : 0.9)
-                        .animation(.easeOut(duration: 0.2), value: viewModel.isHovered)
-                }
-                .padding(.top, 8)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                animatedPill
+                animatedTooltip
             } else {
-                VStack(spacing: 6) {
-                    tooltip
-                        .opacity(viewModel.isHovered ? 1 : 0)
-                        .scaleEffect(viewModel.isHovered ? 1 : 0.9)
-                        .animation(.easeOut(duration: 0.2), value: viewModel.isHovered)
-
-                    pill
-                        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.isHovered)
-                }
-                .padding(.bottom, 8)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                animatedTooltip
+                animatedPill
             }
         }
+        .padding(viewModel.anchorsToTop ? .top : .bottom, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: viewModel.anchorsToTop ? .top : .bottom)
+    }
+
+    private var animatedTooltip: some View {
+        tooltip
+            .opacity(viewModel.isHovered ? 1 : 0)
+            .scaleEffect(viewModel.isHovered ? 1 : 0.9)
+            .animation(.easeOut(duration: 0.2), value: viewModel.isHovered)
+    }
+
+    private var animatedPill: some View {
+        pill
+            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.isHovered)
     }
 
     // MARK: - Pill
@@ -46,8 +43,7 @@ struct IdlePillView: View {
                 .fill(viewModel.isHovered ? DesignSystem.Colors.pillBackground : Color(white: 0.25, opacity: 0.9))
                 .overlay(
                     Capsule()
-                        .strokeBorder(
-                            DesignSystem.Colors.pillBorder.opacity(viewModel.isHovered ? 0.67 : 0.4), lineWidth: 0.5)
+                        .strokeBorder(DesignSystem.Colors.pillBorder.opacity(viewModel.isHovered ? 0.67 : 0.4), lineWidth: 0.5)
                 )
         }
         .frame(
@@ -132,18 +128,16 @@ struct IdlePillView: View {
 
 #Preview {
     VStack(spacing: 40) {
-        IdlePillView(
-            viewModel: {
-                let vm = IdlePillViewModel()
-                return vm
-            }())
+        IdlePillView(viewModel: {
+            let vm = IdlePillViewModel()
+            return vm
+        }())
 
-        IdlePillView(
-            viewModel: {
-                let vm = IdlePillViewModel()
-                vm.isHovered = true
-                return vm
-            }())
+        IdlePillView(viewModel: {
+            let vm = IdlePillViewModel()
+            vm.isHovered = true
+            return vm
+        }())
     }
     .padding(30)
     .frame(width: 400, height: 200)
