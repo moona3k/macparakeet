@@ -1,0 +1,25 @@
+docs/telemetry.md
+  s_697e594299b62c::t_5ccf01b3340be2 411
+Sources/MacParakeet/AppDelegate.swift
+  s_697e594299b62c::t_5ccf01b3340be2 987-988
+Tests/MacParakeetTests/App/AppHotkeyCoordinatorTests.swift
+  s_697e594299b62c::t_5ccf01b3340be2 112-122
+Sources/MacParakeet/App/AppHotkeyCoordinator.swift
+  s_697e594299b62c::t_5ccf01b3340be2 73-74,116-120,122-124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8c33560c88c75bccbfc6a1368726d0283b464b97",
+  "prompts": {},
+  "sessions": {
+    "s_697e594299b62c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cbf1-51b1-7ea3-a7cc-7f0645829f47",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
