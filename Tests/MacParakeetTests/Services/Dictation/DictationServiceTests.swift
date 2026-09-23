@@ -705,6 +705,80 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(result.operationID, operation["operation_id"])
     }
 
+    func testStopRecordingPostsCaptureDidStopForSession() async throws {
+        await mockSTT.configure(result: STTResult(text: "hello"))
+        let stops = observeCaptureDidStop()
+        defer { NotificationCenter.default.removeObserver(stops.observer) }
+
+        try await service.startRecording(sessionID: 7)
+        _ = try await service.stopRecording(sessionID: 7)
+
+        XCTAssertEqual(stops.recorder.sessionIDs, [7])
+    }
+
+    func testUnusableStopStillPostsCaptureDidStop() async throws {
+        let stops = observeCaptureDidStop()
+        defer { NotificationCenter.default.removeObserver(stops.observer) }
+
+        try await service.startRecording(sessionID: 3)
+        await mockAudio.configureCaptureError(AudioProcessorError.insufficientSamples)
+        do {
+            _ = try await service.stopRecording(sessionID: 3)
+            XCTFail("Expected insufficient samples")
+        } catch {}
+
+        XCTAssertEqual(stops.recorder.sessionIDs, [3])
+    }
+
+    func testCancelAndDiscardPostCaptureDidStopOncePerTake() async throws {
+        let stops = observeCaptureDidStop()
+        defer { NotificationCenter.default.removeObserver(stops.observer) }
+
+        try await service.startRecording(sessionID: 1)
+        await service.cancelRecording(reason: .hotkey, sessionID: 1)
+        await service.confirmCancel(sessionID: 1)
+
+        try await service.startRecording(sessionID: 2)
+        await service.confirmCancel(sessionID: 2)
+
+        XCTAssertEqual(stops.recorder.sessionIDs, [1, 2])
+    }
+
+    func testReplacingStaleRecordingPostsCaptureDidStopForReplacedSession() async throws {
+        let stops = observeCaptureDidStop()
+        defer { NotificationCenter.default.removeObserver(stops.observer) }
+
+        try await service.startRecording(sessionID: 4)
+        try await service.startRecording(sessionID: 5)
+
+        XCTAssertEqual(stops.recorder.sessionIDs, [4])
+        await service.cancelRecording(reason: .hotkey, sessionID: 5)
+        XCTAssertEqual(stops.recorder.sessionIDs, [4, 5])
+    }
+
+    func testCaptureDidStopIsNotPostedWhenNothingWasRecording() async throws {
+        let stops = observeCaptureDidStop()
+        defer { NotificationCenter.default.removeObserver(stops.observer) }
+
+        await service.cancelRecording(reason: .hotkey)
+        await service.confirmCancel()
+        _ = try? await service.stopRecording()
+
+        XCTAssertEqual(stops.recorder.sessionIDs, [])
+    }
+
+    private func observeCaptureDidStop() -> (observer: NSObjectProtocol, recorder: CaptureDidStopRecorder) {
+        let recorder = CaptureDidStopRecorder()
+        let observer = NotificationCenter.default.addObserver(
+            forName: .macParakeetDictationCaptureDidStop,
+            object: service,
+            queue: nil
+        ) { note in
+            recorder.record(note.userInfo?[DictationCaptureNotificationKey.sessionID] as? Int ?? -1)
+        }
+        return (observer, recorder)
+    }
+
     func testDurationUsesCapturedAudioDurationWhenWordsAreMissing() {
         let result = STTResult(text: "cohere final", words: [], engine: .cohere)
 
@@ -2419,5 +2493,22 @@ private actor StartInterruptedDelayedStopAudioProcessor: AudioProcessorProtocol 
     func allowStopCaptureToReturn() {
         stopRelease?.resume()
         stopRelease = nil
+    }
+}
+
+private final class CaptureDidStopRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [Int] = []
+
+    var sessionIDs: [Int] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
+
+    func record(_ sessionID: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        storage.append(sessionID)
     }
 }

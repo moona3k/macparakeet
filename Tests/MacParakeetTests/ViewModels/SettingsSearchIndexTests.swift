@@ -80,6 +80,16 @@ final class SettingsSearchIndexTests: XCTestCase {
         )
     }
 
+    func testCaptureSoundQueriesFindDictationToggle() {
+        for query in ["start sound", "stop sound", "tink"] {
+            let results = SettingsSearchIndex.matches(query)
+            XCTAssertTrue(
+                results.contains(where: { $0.id == "dictation.capture.sounds" }),
+                "Query \(query) should find dictation capture sounds"
+            )
+        }
+    }
+
     func testDarkModeQueryFindsAppearanceSetting() {
         let results = SettingsSearchIndex.matches("dark mode")
 

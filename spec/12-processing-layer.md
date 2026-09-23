@@ -264,7 +264,7 @@ When generating a result, the system prompt is assembled from the selected promp
 
 {delimited_meeting_notes_context}  ← only for enabled result prompts with notes and no {{userNotes}} token
 
-{outputLanguagePolicy}    ← follow-transcript or a fixed language; default English
+{outputLanguagePolicy}    ← follow-transcript by default, or a fixed language
 
 {extraInstructions}       ← only if user provided extra instructions; last so they can override language
 ```

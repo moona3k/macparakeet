@@ -29,6 +29,7 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(ConfigCommand.supportedKeys, [
             "telemetry",
             "processing-mode",
+            "spoken-punctuation",
             "remove-um-filler",
             "speech-engine",
             "parakeet-model",
@@ -43,6 +44,7 @@ final class ConfigCommandTests: XCTestCase {
             "meeting-ai-output-language",
             "voice-return-enabled",
             "voice-return-triggers",
+            "play-dictation-capture-sounds",
             "escape-cancels-dictation",
             "preserve-discarded-dictations",
             "save-transcription-audio",
@@ -86,6 +88,7 @@ final class ConfigCommandTests: XCTestCase {
 
     func testReadAgentDefaultsReflectGUIFallbacks() throws {
         XCTAssertEqual(try ConfigCommand.read(key: "processing-mode", defaults: defaults), "raw")
+        XCTAssertEqual(try ConfigCommand.read(key: "spoken-punctuation", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "remove-um-filler", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "speech-engine", defaults: defaults), "parakeet")
         XCTAssertEqual(try ConfigCommand.read(key: "parakeet-model", defaults: defaults), "v3")
@@ -97,9 +100,10 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(try ConfigCommand.read(key: "meeting-speaker-detection", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "custom-vocabulary-boosting", defaults: defaults), "off")
         XCTAssertEqual(try ConfigCommand.read(key: "auto-meeting-titles", defaults: defaults), "on")
-        XCTAssertEqual(try ConfigCommand.read(key: "meeting-ai-output-language", defaults: defaults), "en")
+        XCTAssertEqual(try ConfigCommand.read(key: "meeting-ai-output-language", defaults: defaults), "follow-transcript")
         XCTAssertEqual(try ConfigCommand.read(key: "voice-return-enabled", defaults: defaults), "off")
         XCTAssertEqual(try ConfigCommand.read(key: "voice-return-triggers", defaults: defaults), "press return")
+        XCTAssertEqual(try ConfigCommand.read(key: "play-dictation-capture-sounds", defaults: defaults), "off")
         XCTAssertEqual(try ConfigCommand.read(key: "save-transcription-audio", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "meeting-audio-retention", defaults: defaults), "keep-forever")
         XCTAssertEqual(try ConfigCommand.read(key: "meeting-audio-source", defaults: defaults), "microphone-and-system")
@@ -229,6 +233,11 @@ final class ConfigCommandTests: XCTestCase {
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.meetingAIOutputLanguagePolicyKey),
             "follow-transcript"
         )
+        XCTAssertEqual(try ConfigCommand.write(key: "spoken-punctuation", value: "off", defaults: defaults), "off")
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.spokenPunctuationEnabledKey) as? Bool,
+            false
+        )
 
         XCTAssertEqual(try ConfigCommand.write(key: "voice-return-enabled", value: "on", defaults: defaults), "on")
         XCTAssertEqual(defaults.object(forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey) as? Bool, true)
@@ -242,6 +251,12 @@ final class ConfigCommandTests: XCTestCase {
             ["press return", "submit"]
         )
         XCTAssertEqual(defaults.string(forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey), "press return")
+
+        XCTAssertEqual(try ConfigCommand.write(key: "play-dictation-capture-sounds", value: "on", defaults: defaults), "on")
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.playDictationCaptureSoundsKey) as? Bool,
+            true
+        )
 
         XCTAssertEqual(try ConfigCommand.write(key: "escape-cancels-dictation", value: "off", defaults: defaults), "off")
         XCTAssertEqual(

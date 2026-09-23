@@ -1206,6 +1206,103 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertEqual(LLMService.lmStudioContextBudget, 8_000)
     }
 
+    func testAppleIntelligenceContextBudget() {
+        XCTAssertEqual(LLMService.appleIntelligenceContextBudget, 12_000)
+    }
+
+    func testAppleIntelligenceUsesDedicatedBudgetNotLocalFallthrough() async throws {
+        mockConfigStore.config = .appleIntelligence()
+
+        let text = String(repeating: "word ", count: 4_000)  // 20_000 chars > 12_000 Apple budget
+        _ = try await service.summarize(transcript: text)
+
+        let userMessage = mockClient.capturedMessages.last!
+        XCTAssertTrue(userMessage.content.contains("[... content truncated ...]"))
+        XCTAssertLessThanOrEqual(userMessage.content.count, LLMService.appleIntelligenceContextBudget)
+    }
+
+    func testAppleIntelligenceKnowledgeCardReservesOutputTokens() async throws {
+        mockConfigStore.config = .appleIntelligence()
+        mockClient.responseContent = """
+            {"synopsis":"Short card.","topics":[],"decisions":[],"actions":[]}
+            """
+
+        let text = String(repeating: "word ", count: 4_000)
+        _ = try await service.generateKnowledgeCard(transcript: text, source: .file)
+
+        let totalInputCharacters = mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }
+        let reservedOutputCharacters = (700 * 7 / 2)
+        XCTAssertLessThanOrEqual(
+            totalInputCharacters,
+            LLMService.appleIntelligenceContextBudget - reservedOutputCharacters
+        )
+        XCTAssertEqual(mockClient.capturedOptions?.maxTokens, 700)
+        XCTAssertTrue(mockClient.capturedMessages.last?.content.contains("[... content truncated ...]") == true)
+    }
+
+    func testAppleIntelligenceTransformUsesRoundTripBudget() async throws {
+        mockConfigStore.config = .appleIntelligence()
+        XCTAssertEqual(LLMService.appleIntelligenceRoundTripBudget, 6_000)
+
+        let text = String(repeating: "word ", count: 2_000)  // 10_000 chars > 6_000 rewrite budget
+        _ = try await service.transformDetailed(text: text, prompt: "Polish")
+
+        let userMessage = try XCTUnwrap(mockClient.capturedMessages.last)
+        XCTAssertTrue(userMessage.content.contains("[... content truncated ...]"))
+        XCTAssertLessThanOrEqual(userMessage.content.count, LLMService.appleIntelligenceRoundTripBudget)
+    }
+
+    func testAppleIntelligencePromptResultRejectsMaxTokensThatConsumeTheInputBudget() async {
+        mockConfigStore.config = .appleIntelligence()
+        let maximum = LLMService.maximumOutputTokensLeavingInputRoom(
+            in: LLMService.appleIntelligenceContextBudget
+        )
+        do {
+            _ = try await service.generatePromptResultDetailed(
+                transcript: "input",
+                systemPrompt: "S",
+                inferenceSettings: PromptInferenceSettings(maxTokens: maximum + 1)
+            )
+            XCTFail("Expected max tokens past the input budget to fail")
+        } catch let error as PromptInferenceSettings.ValidationError {
+            XCTAssertEqual(error, .outOfRange(field: .maxTokens, minimum: 1, maximum: Double(maximum)))
+        } catch {
+            XCTFail("Unexpected error \(error)")
+        }
+        XCTAssertEqual(mockClient.chatCompletionCallCount, 0)
+    }
+
+    func testAppleIntelligenceFormatterUsesRoundTripBudget() async throws {
+        mockConfigStore.config = .appleIntelligence()
+        mockClient.responseContent = "Clean."
+
+        let text = String(repeating: "word ", count: 2_000)
+        _ = try await service.formatTranscriptDetailed(
+            transcript: text,
+            promptTemplate: AIFormatter.defaultPromptTemplate,
+            source: .transcription,
+            defaultPromptUsed: true
+        )
+
+        let totalMessageChars = mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }
+        XCTAssertLessThanOrEqual(totalMessageChars, LLMService.appleIntelligenceRoundTripBudget)
+        XCTAssertTrue(mockClient.capturedMessages.contains { $0.content.contains("[... content truncated ...]") })
+    }
+
+    func testOllamaKnowledgeCardKeepsTheLocalBudget() async throws {
+        mockConfigStore.config = .ollama(model: "llama3.2")
+        mockClient.responseContent = """
+            {"synopsis":"Short card.","topics":[],"decisions":[],"actions":[]}
+            """
+
+        let text = String(repeating: "word ", count: 8_000)  // 40_000 chars, inside 80k local budget
+        _ = try await service.generateKnowledgeCard(transcript: text, source: .file)
+
+        XCTAssertFalse(
+            mockClient.capturedMessages.contains { $0.content.contains("[... content truncated ...]") }
+        )
+    }
+
     func testLocalProviderUsesLocalBudget() async throws {
         mockConfigStore.config = .ollama(model: "llama3.2")
 

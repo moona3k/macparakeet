@@ -251,10 +251,18 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
             inferenceSettingsSnapshot: result.effectiveSettings,
             providerSnapshot: result.provider,
             modelSnapshot: result.model,
-            outputLanguagePolicySnapshot: outputLanguagePolicy.configurationValue
+            outputLanguagePolicySnapshot: outputLanguagePolicy.configurationValue,
+            sourceCorrectionRevision: correctionRevision(for: transcription)
         )
         try promptResultRepo.save(promptResult)
         return promptResult
+    }
+
+    private func correctionRevision(for transcription: Transcription) -> Int {
+        guard let speakerAttributionReader,
+            let projection = try? speakerAttributionReader.resolve(transcription: transcription)
+        else { return 0 }
+        return projection.correctionRevision
     }
 
     private func effectiveTranscript(for transcription: Transcription) -> String {

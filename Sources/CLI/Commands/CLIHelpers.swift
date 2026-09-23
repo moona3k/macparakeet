@@ -465,6 +465,7 @@ enum CLIErrorType {
             case .rateLimited: return rateLimit
             case .modelNotFound, .invalidModelOverride: return model
             case .contextTooLong: return context
+            case .contentFiltered: return provider
             case .formatterTruncated, .formatterEmptyResponse: return truncated
             case .providerError: return provider
             case .streamingError: return streaming

@@ -273,14 +273,14 @@ swift run macparakeet-cli config set voice-return-enabled on
 swift run macparakeet-cli config set voice-return-triggers "hey parakeet|okay parakeet"
 ```
 
-Supported keys: `telemetry`, `processing-mode`, `remove-um-filler`, `speech-engine`,
+Supported keys: `telemetry`, `processing-mode`, `spoken-punctuation`, `remove-um-filler`, `speech-engine`,
 `parakeet-model`, `nemotron-model`, `nemotron-language`, `whisper-language`,
 `cohere-language`, `speaker-detection`, `meeting-speaker-detection`,
 `auto-meeting-titles`, `meeting-ai-output-language`, `save-transcription-audio`, `meeting-audio-retention`,
 `meeting-audio-source`, `start-meetings-muted`, `save-meeting-audio`, `youtube-audio-quality`,
 `meeting-artifacts-folder`, `meeting-hook-enabled`, `meeting-hook-path`,
 `meeting-hook-timeout`, `voice-return-enabled`, `voice-return-triggers`,
-`escape-cancels-dictation`, `preserve-discarded-dictations`.
+`play-dictation-capture-sounds`, `escape-cancels-dictation`, `preserve-discarded-dictations`.
 Underscore aliases such as `youtube_audio_quality` are accepted on input; JSON
 output uses canonical hyphenated keys.
 

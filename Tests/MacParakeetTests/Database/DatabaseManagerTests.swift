@@ -290,6 +290,7 @@ final class DatabaseManagerTests: XCTestCase {
             ))
             XCTAssertTrue(tableSQL.contains("'editText'"))
             XCTAssertTrue(tableSQL.contains("'mergeSegments'"))
+            XCTAssertTrue(tableSQL.contains("'reviseText'"))
             XCTAssertTrue(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty)
         }
     }

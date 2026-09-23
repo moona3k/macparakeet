@@ -166,7 +166,9 @@ with human progress/status kept off stdout.
   its model identifiers and aliases during generation. Model discovery results
   are not an exhaustive allow-list. For the Local CLI provider, an override
   differing from the configured model is rejected before command execution:
-  changing a model string cannot reconfigure its command template.
+  changing a model string cannot reconfigure its command template. Apple
+  Intelligence likewise rejects a model override before generation; it always
+  uses the on-device system model.
 - LLM result JSON envelopes include additive optional `effectiveSettings` with
   the same object shape. For `prompts run --json`, a present value is the
   normalized adapter receipt after provider/model filtering. Absence means no

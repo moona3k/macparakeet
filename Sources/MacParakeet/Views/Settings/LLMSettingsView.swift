@@ -90,6 +90,8 @@ struct LLMSettingsView: View {
 
                 if viewModel.selectedProviderID == .localCLI {
                     cliSettingsSection
+                } else if viewModel.selectedProviderID == .appleIntelligence {
+                    appleIntelligenceStatusSection
                 } else {
                     if viewModel.selectedProviderID?.requiresCustomEndpoint == true {
                         HStack(alignment: .top) {
@@ -203,6 +205,7 @@ struct LLMSettingsView: View {
             aiFormatterSection
         }
         .task {
+            viewModel.refreshAppleIntelligenceAvailability()
             if viewModel.shouldShowInProcessLocalSetup {
                 await viewModel.inProcessModelManager.refresh()
             }
@@ -268,9 +271,11 @@ struct LLMSettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Current choice")
                         .font(DesignSystem.Typography.body)
-                    Text("Choose a local provider, an API key, or a command-line AI tool.")
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
+                    Text(
+                        "Choose on-device Apple Intelligence, a local provider, an API key, or a command-line AI tool."
+                    )
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: DesignSystem.Spacing.md)
                 Picker("AI option", selection: $viewModel.selectedProviderID) {
@@ -285,13 +290,27 @@ struct LLMSettingsView: View {
             }
 
             if viewModel.selectedProviderID == nil {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Local providers, API keys, and command-line tools are available from this menu.")
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
-                    Text("Dictation, transcription, and meeting recording work without AI setup.")
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Local providers, API keys, and command-line tools are available from this menu.")
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(.secondary)
+                        Text("Dictation, transcription, and meeting recording work without AI setup.")
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let offer = viewModel.appleIntelligenceOffer {
+                        Text(offer.message)
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if let url = offer.settingsURL {
+                            Button("Open System Settings") {
+                                openAppleIntelligenceSettings(url)
+                            }
+                            .parakeetAction(.secondary)
+                        }
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -300,6 +319,49 @@ struct LLMSettingsView: View {
 
     private var providerOrder: [LLMProviderID] {
         viewModel.selectableProviderIDs
+    }
+
+    private var appleIntelligenceStatusSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("On-device Apple Intelligence")
+                        .font(DesignSystem.Typography.body.weight(.semibold))
+                    Text(
+                        "Free, no download from MacParakeet, best for short prompts like Transforms and dictation cleanup. Long meeting summaries need a cloud or Ollama provider."
+                    )
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    Text(viewModel.appleIntelligenceStatusMessage)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 2)
+                }
+                Spacer(minLength: DesignSystem.Spacing.md)
+            }
+
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                if let url = viewModel.appleIntelligenceSettingsURL {
+                    Button("Open System Settings") {
+                        openAppleIntelligenceSettings(url)
+                    }
+                    .parakeetAction(.secondary)
+                }
+                Button("Refresh status") {
+                    viewModel.refreshAppleIntelligenceAvailability()
+                }
+                .parakeetAction(.secondary)
+            }
+        }
+    }
+
+    private func openAppleIntelligenceSettings(_ url: URL) {
+        let fallback = URL(string: "x-apple.systempreferences:")!
+        if NSWorkspace.shared.open(url) { return }
+        if url != fallback {
+            NSWorkspace.shared.open(fallback)
+        }
     }
 
     private var localAIUnavailableSection: some View {
@@ -1951,7 +2013,8 @@ struct LLMSettingsView: View {
                 privacyInfoMessage(
                     isLocal: isLocal,
                     isCLI: isCLI,
-                    usesInsecureHTTP: usesInsecureHTTP
+                    usesInsecureHTTP: usesInsecureHTTP,
+                    isAppleIntelligence: viewModel.selectedProviderID == .appleIntelligence
                 )
             )
             .font(DesignSystem.Typography.caption)
@@ -1968,10 +2031,15 @@ struct LLMSettingsView: View {
     private func privacyInfoMessage(
         isLocal: Bool,
         isCLI: Bool,
-        usesInsecureHTTP: Bool
+        usesInsecureHTTP: Bool,
+        isAppleIntelligence: Bool
     ) -> String {
         if usesInsecureHTTP {
             return "Transcript text is sent to your local AI endpoint over HTTP. Use a trusted network."
+        }
+        if isAppleIntelligence {
+            return
+                "Transcript text stays on this Mac. Apple Intelligence runs on-device and does not send it to the cloud."
         }
         if isLocal {
             return "Transcript text is sent only to your local AI endpoint."

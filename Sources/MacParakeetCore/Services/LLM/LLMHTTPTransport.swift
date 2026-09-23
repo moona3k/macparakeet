@@ -262,7 +262,7 @@ enum LLMHTTPStreamCompletionPolicy {
         case .openai, .openrouter, .anthropic, .deepseek, .qwen:
             return true
         case .openaiCompatible, .gemini, .moonshot, .zai, .minimax, .ollama, .lmstudio, .localCLI,
-            .inProcessLocal:
+            .inProcessLocal, .appleIntelligence:
             return false
         }
     }
@@ -348,7 +348,7 @@ enum LLMHTTPModelCatalog {
                     return isGeminiTextLLMModelID(entry.id)
                 case .openaiCompatible, .moonshot, .deepseek, .qwen, .zai, .minimax, .lmstudio, .ollama:
                     return !isClearlyNonTextModelID(entry.id)
-                case .localCLI, .inProcessLocal:
+                case .localCLI, .inProcessLocal, .appleIntelligence:
                     return false
                 }
             }

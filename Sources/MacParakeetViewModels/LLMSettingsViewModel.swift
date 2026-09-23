@@ -2,6 +2,11 @@ import Foundation
 import MacParakeetCore
 import OSLog
 
+public struct AppleIntelligenceOffer: Equatable, Sendable {
+    public let message: String
+    public let settingsURL: URL?
+}
+
 @MainActor
 @Observable
 public final class LLMSettingsViewModel {
@@ -229,7 +234,7 @@ public final class LLMSettingsViewModel {
             return "Z.AI API key"
         case .minimax:
             return "MiniMax API key"
-        case .ollama, .localCLI, .inProcessLocal, nil:
+        case .ollama, .localCLI, .inProcessLocal, .appleIntelligence, nil:
             return ""
         }
     }
@@ -265,6 +270,12 @@ public final class LLMSettingsViewModel {
         }
         if isConfigured {
             let displayName = savedAIOptionDisplayName ?? draftAIOptionDisplayName ?? "AI"
+            if savedProviderID == .appleIntelligence, !appleIntelligenceAvailability.canGenerate {
+                return .cannotConnect(
+                    displayName: displayName,
+                    message: appleIntelligenceAvailability.userMessage
+                )
+            }
             return .ready(displayName: displayName)
         }
         return .setUpNeeded
@@ -366,8 +377,58 @@ public final class LLMSettingsViewModel {
 
     public var selectableProviderIDs: [LLMProviderID] {
         LLMProviderID.userSelectableProviderIDs(
-            inProcessLocalLLMVisible: shouldShowInProcessLocalSetup
+            inProcessLocalLLMVisible: shouldShowInProcessLocalSetup,
+            appleIntelligenceVisible: appleIntelligenceAvailability.isUserSelectable
+                || draft.providerID == .appleIntelligence
+                || savedProviderID == .appleIntelligence
         )
+    }
+
+    public private(set) var appleIntelligenceAvailability: AppleIntelligenceAvailability =
+        AppleIntelligenceAvailability.current()
+
+    public var appleIntelligenceStatusMessage: String {
+        appleIntelligenceAvailability.userMessage
+    }
+
+    public var appleIntelligenceSettingsURL: URL? {
+        appleIntelligenceAvailability.settingsURL
+    }
+
+    /// Quiet prompt on the AI page when this Mac can use Apple Intelligence and
+    /// the user has not already chosen it. Older systems and ineligible Macs
+    /// stay silent.
+    public var appleIntelligenceOffer: AppleIntelligenceOffer? {
+        Self.appleIntelligenceOffer(
+            availability: appleIntelligenceAvailability,
+            selectedProviderID: selectedProviderID
+        )
+    }
+
+    public static func appleIntelligenceOffer(
+        availability: AppleIntelligenceAvailability,
+        selectedProviderID: LLMProviderID?
+    ) -> AppleIntelligenceOffer? {
+        guard selectedProviderID == nil else { return nil }
+        switch availability {
+        case .appleIntelligenceNotEnabled:
+            return AppleIntelligenceOffer(
+                message:
+                    "This Mac can run Apple Intelligence on device. Turn it on in System Settings, then choose it here.",
+                settingsURL: availability.settingsURL
+            )
+        case .modelNotReady:
+            return AppleIntelligenceOffer(
+                message: "Apple Intelligence is downloading on this Mac. Choose it here when it's ready.",
+                settingsURL: nil
+            )
+        case .unsupported, .deviceNotEligible, .available, .localeLimited:
+            return nil
+        }
+    }
+
+    public func refreshAppleIntelligenceAvailability() {
+        appleIntelligenceAvailability = AppleIntelligenceAvailability.current()
     }
 
     private var isInProcessLocalLLMRuntimeAvailable: Bool {
@@ -677,6 +738,7 @@ public final class LLMSettingsViewModel {
         )
         loadExistingConfig()
         loadAIFormatterProfiles()
+        refreshAppleIntelligenceAvailability()
         Task {
             await inProcessModelManager.refresh()
         }
@@ -1193,6 +1255,7 @@ public final class LLMSettingsViewModel {
             return
         }
         resetDiscoveredModels()
+        refreshAppleIntelligenceAvailability()
         let apiKey = providerID.supportsAPIKey ? ((try? configStore?.loadAPIKey(for: providerID)) ?? "") : ""
         let cliConfig = providerID == .localCLI ? cliConfigStore?.load() : nil
         var nextDraft = LLMSettingsDraft.defaults(

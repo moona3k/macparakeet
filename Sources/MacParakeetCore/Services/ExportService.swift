@@ -499,8 +499,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
     private func segmentTimedRecords(_ transcription: Transcription) -> [TranscriptSegmentRecord]? {
         guard transcription.transcriptTextAlignment == .segment,
-              let segments = transcription.transcriptSegments,
-              !segments.isEmpty
+              let segments = transcription.transcriptSegments
         else {
             return nil
         }

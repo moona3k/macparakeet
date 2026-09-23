@@ -2,9 +2,9 @@ import XCTest
 @testable import MacParakeetCore
 
 final class MeetingAIOutputLanguagePolicyTests: XCTestCase {
-    func testDefaultIsEnglish() {
-        XCTAssertEqual(MeetingAIOutputLanguagePolicy.default, .language("en"))
-        XCTAssertEqual(MeetingAIOutputLanguagePolicy.default.configurationValue, "en")
+    func testDefaultFollowsTranscript() {
+        XCTAssertEqual(MeetingAIOutputLanguagePolicy.default, .followTranscript)
+        XCTAssertEqual(MeetingAIOutputLanguagePolicy.default.configurationValue, "follow-transcript")
     }
 
     func testParsesFollowTranscriptAndLanguageCodes() {
@@ -21,18 +21,18 @@ final class MeetingAIOutputLanguagePolicyTests: XCTestCase {
         XCTAssertNil(MeetingAIOutputLanguagePolicy(configurationValue: "auto"))
     }
 
-    func testCurrentFallsBackToEnglishForMissingOrUnknownValues() {
+    func testCurrentFallsBackToTranscriptForMissingOrUnknownValues() {
         let suite = "meeting-ai-language-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
 
-        XCTAssertEqual(MeetingAIOutputLanguagePolicy.current(defaults: defaults), .english)
+        XCTAssertEqual(MeetingAIOutputLanguagePolicy.current(defaults: defaults), .followTranscript)
 
         defaults.set("follow-transcript", forKey: UserDefaultsAppRuntimePreferences.meetingAIOutputLanguagePolicyKey)
         XCTAssertEqual(MeetingAIOutputLanguagePolicy.current(defaults: defaults), .followTranscript)
 
         defaults.set("not-a-policy", forKey: UserDefaultsAppRuntimePreferences.meetingAIOutputLanguagePolicyKey)
-        XCTAssertEqual(MeetingAIOutputLanguagePolicy.current(defaults: defaults), .english)
+        XCTAssertEqual(MeetingAIOutputLanguagePolicy.current(defaults: defaults), .followTranscript)
     }
 
     func testSaveRoundTripsThroughUserDefaults() {

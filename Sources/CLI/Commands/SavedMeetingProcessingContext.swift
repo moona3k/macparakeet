@@ -45,6 +45,7 @@ struct SavedMeetingProcessingContext {
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
             processingMode: { preferences.processingMode },
+            spokenPunctuationEnabled: { preferences.spokenPunctuationEnabled },
             removeUmFiller: { preferences.removeUmFiller },
             llmService: llmService,
             llmRunRepo: LLMRunRepository(dbQueue: dbQueue),

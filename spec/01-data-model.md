@@ -385,7 +385,7 @@ CREATE TABLE speaker_corrections (
     operation TEXT NOT NULL CHECK (
         operation IN (
             'rename', 'add', 'assign', 'split', 'unsplit', 'merge', 'remove',
-            'editText', 'mergeSegments', 'reset'
+            'editText', 'mergeSegments', 'reviseText', 'reset'
         )
     ),
     payload TEXT NOT NULL,
@@ -421,7 +421,10 @@ marks the retained redo branch `abandoned` rather than deleting history.
 version so retranscription cannot silently replay stale ranges.
 
 `editText` replaces one current non-empty displayed line while retaining its
-segment time envelope. `mergeSegments` suppresses boundaries between adjacent
+segment time envelope. `reviseText` (v0.46) is one reading-view save: each
+change replaces a current passage with non-empty text or omits that passage
+from the effective transcript. Omitted passages keep their automatic words.
+Undo restores the whole save. `mergeSegments` suppresses boundaries between adjacent
 current ranges with one effective speaker assignment. Both commands use the
 same cursor as speaker changes. Their effective projection derives
 `transcriptTextAlignment` as `segment`; an unchanged projection with automatic
@@ -438,7 +441,9 @@ to their durable automatic segments.
 
 Migration `v0.44-timed-transcript-corrections` rebuilds both tables to widen
 the SQLite operation constraint, then copies all correction rows, parent links,
-and durable cursors before recreating the replay index.
+and durable cursors before recreating the replay index. Migration
+`v0.46-reading-transcript-corrections` rebuilds them again to admit
+`reviseText`.
 
 The state is deliberately not stored on `transcriptions`: whole-row saves of
 older `Transcription` values must not be able to overwrite correction history.
@@ -689,7 +694,7 @@ CREATE TABLE summaries (
     userNotesSnapshot TEXT,                                -- v0.8: notes used when generating this result
     includeMeetingNotesSnapshot INTEGER NOT NULL DEFAULT 0, -- v0.33-prompt-meeting-notes-context
     inferenceSettingsSnapshot TEXT,                       -- v0.31: JSON effective settings actually sent
-    outputLanguagePolicySnapshot TEXT,                    -- v0.45: meeting AI output-language policy used for this result
+    outputLanguagePolicySnapshot TEXT,                    -- v0.47: meeting AI output-language policy used for this result
     createdAt         TEXT NOT NULL,                       -- ISO 8601 timestamp
     updatedAt         TEXT NOT NULL                        -- ISO 8601 timestamp
 );
@@ -708,11 +713,15 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
   existed yet. Retry reuses its queued snapshot; regenerate reuses this Boolean
   receipt with the meeting's current committed notes. The column defaults false
   for historical results and is installed by migration v0.33.
-- `outputLanguagePolicySnapshot` (v0.45) records the meeting AI output-language
+- `outputLanguagePolicySnapshot` (v0.47) records the meeting AI output-language
   policy used for that generation (`follow-transcript` or a language code).
   `NULL` covers results created before the policy existed; regenerate then uses
   the current Settings value. Extra instructions still override the injected
   language request.
+- `sourceCorrectionRevision` (v0.45) records the transcript correction
+  revision used for that result. `NULL` means the result predates the receipt.
+  A later transcript edit can then offer an update without regenerating on
+  its own.
 - `inferenceSettingsSnapshot` (v0.31) stores the normalized effective settings
   actually sent after provider/model capability filtering, not merely the
   settings requested on the prompt. `NULL` preserves historical rows and means
@@ -1692,7 +1701,9 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 // v0.42-share-publications — local sharing ledger + durable outbox
 // v0.43-meeting-audio-retention — optional managed-audio retention clock
 // v0.44-timed-transcript-corrections — widen correction operations without discarding history
-// v0.45-meeting-ai-output-language — summaries.outputLanguagePolicySnapshot
+// v0.45-summary-source-correction-revision — summaries.sourceCorrectionRevision
+// v0.46-reading-transcript-corrections — widen correction operations for reading edits
+// v0.47-meeting-ai-output-language — summaries.outputLanguagePolicySnapshot
 ```
 
 ### Migration Rules
@@ -1746,7 +1757,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `speaker_embedding_candidates` | v0.41-speaker-embedding-candidates | Consent-gated temporary vectors with per-row seven-day expiry |
 | `prompts.includeMeetingNotes` | v0.33-prompt-meeting-notes-context | Result-prompt opt-in for automatic meeting-notes context; non-null, default false |
 | `summaries.includeMeetingNotesSnapshot` | v0.33-prompt-meeting-notes-context | Generation-time receipt of the prompt's notes-context opt-in; non-null, default false |
-| `summaries.outputLanguagePolicySnapshot` | v0.45-meeting-ai-output-language | Generation-time receipt of the meeting AI output-language policy (`follow-transcript` or a language code); nullable for pre-policy rows |
+| `summaries.outputLanguagePolicySnapshot` | v0.47-meeting-ai-output-language | Generation-time receipt of the meeting AI output-language policy (`follow-transcript` or a language code); nullable for pre-policy rows |
 | `lifetime_dictation_stats` | v0.7.4 | Singleton lifetime voice-stat counters |
 | `daily_dictation_stats` | v0.11 | Per-day rollup powering Stats-tab heatmap + daily streaks |
 | `transcriptions.recoveredFromCrash` | v0.7.5 | Interrupted meeting recovery marker |

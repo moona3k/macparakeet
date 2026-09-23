@@ -33,6 +33,9 @@ public struct PromptResult: Codable, Identifiable, Sendable {
     /// (`follow-transcript` or a language code). Nil for results created
     /// before the policy existed; regeneration then uses the current setting.
     public var outputLanguagePolicySnapshot: String?
+    /// Correction revision of the transcript this result was generated from.
+    /// Nil means the result predates that receipt.
+    public var sourceCorrectionRevision: Int?
     public var createdAt: Date
     public var updatedAt: Date
 
@@ -58,6 +61,7 @@ public struct PromptResult: Codable, Identifiable, Sendable {
         modelSnapshot = try container.decodeIfPresent(String.self, forKey: .modelSnapshot)
         outputLanguagePolicySnapshot = try container.decodeIfPresent(
             String.self, forKey: .outputLanguagePolicySnapshot)
+        sourceCorrectionRevision = try container.decodeIfPresent(Int.self, forKey: .sourceCorrectionRevision)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
@@ -77,6 +81,7 @@ public struct PromptResult: Codable, Identifiable, Sendable {
         providerSnapshot: String? = nil,
         modelSnapshot: String? = nil,
         outputLanguagePolicySnapshot: String? = nil,
+        sourceCorrectionRevision: Int? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -94,6 +99,7 @@ public struct PromptResult: Codable, Identifiable, Sendable {
         self.providerSnapshot = providerSnapshot
         self.modelSnapshot = modelSnapshot
         self.outputLanguagePolicySnapshot = outputLanguagePolicySnapshot
+        self.sourceCorrectionRevision = sourceCorrectionRevision
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -106,7 +112,7 @@ extension PromptResult: FetchableRecord, PersistableRecord {
         case id, transcriptionId, promptId, promptVersionId
         case promptName, promptContent, extraInstructions, content
         case userNotesSnapshot, includeMeetingNotesSnapshot, inferenceSettingsSnapshot
-        case providerSnapshot, modelSnapshot, outputLanguagePolicySnapshot
+        case providerSnapshot, modelSnapshot, outputLanguagePolicySnapshot, sourceCorrectionRevision
         case createdAt, updatedAt
     }
 }

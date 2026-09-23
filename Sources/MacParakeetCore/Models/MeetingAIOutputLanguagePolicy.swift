@@ -8,7 +8,7 @@ public enum MeetingAIOutputLanguagePolicy: Equatable, Hashable, Sendable, Identi
     case language(String)
 
     public static let english = MeetingAIOutputLanguagePolicy.language("en")
-    public static let `default` = english
+    public static let `default` = MeetingAIOutputLanguagePolicy.followTranscript
 
     public var id: String { configurationValue }
 
@@ -51,13 +51,13 @@ public enum MeetingAIOutputLanguagePolicy: Equatable, Hashable, Sendable, Identi
                 Write the result, including headings, in the predominant language of the transcript. \
                 Determine the language from the transcript text, not from these instructions or the meeting notes. \
                 If there is no clear predominant language, use English. Preserve names and necessary technical terms. \
-                If the prompt or additional instructions already specify an output language, follow that instead.
+                If additional instructions explicitly specify an output language, follow that instead.
                 """
         case .language(let code):
             let name = Self.displayName(for: code)
             return """
                 Write the result, including headings, in \(name). Preserve names and necessary technical terms. \
-                If the prompt or additional instructions already specify an output language, follow that instead.
+                If additional instructions explicitly specify an output language, follow that instead.
                 """
         }
     }

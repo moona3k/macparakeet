@@ -388,6 +388,7 @@ Space is always reserved for the tooltip (opacity toggle, not conditional render
 - [x] Undo during cancel window resumes processing
 - [x] Accessibility permission prompted gracefully on first use
 - [x] Audio saved to disk (if storage enabled in settings)
+- [x] Optional default-off start/stop capture cues (`playDictationCaptureSounds`): the start cue plays once capture is live, and every start cue gets one stop cue when that mic capture ends (stop, cancel, or discard, usable or not). A take that never went live, including release during start, plays neither. If a newer take goes live before the older capture finishes closing, the newer start cue replaces the older stop cue.
 - [x] Optional default-off preserve of cancelled dictations (`preserveDiscardedDictations`) saves the transcript to History without pasting. Requires Save dictation history. Menu-bar Paste Last stays completed-only.
 
 ---
@@ -988,6 +989,7 @@ CREATE TABLE text_snippets (
 - [x] Custom word replacements applied (case-insensitive matching)
 - [x] Trailing action snippets are extracted before text snippet expansion
 - [x] Snippet triggers expanded to full text
+- [x] Spoken punctuation commands (`question mark` / `exclamation mark`) convert in Clean mode, with a literal-phrase escape
 - [x] Whitespace normalized and punctuation fixed
 - [x] Processing completes in sub-millisecond
 - [x] Raw mode bypasses full cleanup but still supports terminal action extraction
@@ -1544,6 +1546,12 @@ are unaffected.
 - The older whole-transcript editor remains the fallback for transcripts without
   usable timing. Its replacement is explicitly untimed and is never silently
   aligned to automatic words.
+- The Text view of a timed transcript has **Edit**. It opens the same passages
+  for rewriting or removal, then **Done** saves them as one `reviseText`
+  correction. Removed passages stay out of the effective transcript. **Cancel**
+  discards the session. Undo restores it.
+- A prompt result generated from an older correction revision shows **Update
+  summary**. Regenerating records the revision it used.
 
 The governing behavior is [ADR-031](adr/031-timed-transcript-corrections.md).
 
@@ -2223,10 +2231,11 @@ surface against the [canonical status table](README.md#release-channels-and-feat
 | DAPT export | Timed speaker-attributed events at automatic word or corrected segment alignment; untimed fallback otherwise. | [DAPT contract](contracts/dapt-export-v1.md) |
 | Split and transcribe | User-approved cuts create independently owned saved meetings while preserving the original; sequential transcription and enabled completion can continue or resume from durable receipts in the app and public CLI. | [Split contract](contracts/meeting-splitting.md) |
 | Live transcription toggle | "Live transcription during recording" in Meeting Recording settings (`meetingLiveTranscriptionEnabled`, default on). Off skips the live STT pass entirely — recording is unaffected, and the final transcript still runs a full post-stop STT pass over the saved audio, same as when an engine can't support live preview at all. The Transcript empty-state seed-of-life sits still and faded while preview is off; it does not spin. | [ADR-014 §9](adr/014-meeting-recording.md), [UI patterns](04-ui-patterns.md#meeting-recording-panel-v06) |
-| AI result language | AI Settings picker and `meeting-ai-output-language` CLI key (`follow-transcript` or a fixed language, default English). Injected at prompt assembly from transcript text, not Parakeet metadata. Extra instructions are appended last so they can ask the model to override that request; this is not a hard runtime filter. Each result snapshots the policy used. | [Issue #975](https://github.com/moona3k/macparakeet/issues/975) |
+| AI result language | One AI Settings picker and the matching `meeting-ai-output-language` CLI key (`follow-transcript` by default, or a fixed language). Injected at prompt assembly from transcript text, not Parakeet metadata. Extra instructions are appended last so they can ask the model to override that request; this is not a hard runtime filter. Each result snapshots the policy used. | [Issue #975](https://github.com/moona3k/macparakeet/issues/975) |
 | Start meetings muted | Default-off Meeting Recording setting (`startMeetingsMuted`). While on, every microphone-capturing meeting starts with the mic off until the setting is turned off; unmute from the live panel. System-audio-only capture ignores it. | [F49](02-features.md#f49-start-meetings-muted), [ADR-014 §12](adr/014-meeting-recording.md) |
 | Escape cancels dictation | Default-on Dictation setting (`escapeCancelsDictation`). Off leaves Escape for other apps and does not cancel a live dictation. Pending gestures that have not started a take still clear. | [F1](02-features.md#f1-system-wide-dictation) |
 | Preserve discarded dictations | Default-off Dictation setting (`preserveDiscardedDictations`). Cancel and undo-window expiry transcribe into History as `cancelled` instead of deleting. Requires Save dictation history. Nothing is pasted, and menu-bar Paste Last / Recent Dictations stay completed-only. Voice stats still count only completed takes. | [F1](02-features.md#f1-system-wide-dictation) |
+| Dictation capture sounds | Default-off Dictation setting (`playDictationCaptureSounds`). A quiet system cue once capture is live and one when that capture ends, including cancel. Takes that never went live stay silent. Toggling it on previews the start cue. | [F1](02-features.md#f1-system-wide-dictation) |
 | Skip-microphone onboarding | First-run Microphone step stays visible, but Continue is not gated on grant. File-only users can skip it. Dictation and mic-backed meetings still request access on first use. | [ADR-005](adr/005-onboarding-first-run.md) |
 | AI Formatter routing | New installs leave “Use for transcripts” and “Use for dictation” off. Each surface has its own prompt. Inherited transcript-on stays on. | [F8](02-features.md#f8-ai-formatter) |
 | Streaming cursor | Optional Settings → Dictation insert path (default off). Finished text types at the caret; Reduce Motion, unknown IMEs, and newline/tab still paste. | [F1](02-features.md#f1-system-wide-dictation) |
