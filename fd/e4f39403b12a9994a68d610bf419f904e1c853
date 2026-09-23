@@ -1,0 +1,63 @@
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_b4de76bff4bf6a::t_11d28bcf2fe193 343-344
+  s_b4de76bff4bf6a::t_d78e531a8049f9 377
+Tests/MacParakeetTests/DictationFlow/DictationOverlayLayoutTests.swift
+  s_b4de76bff4bf6a::t_64f68e2b4596ea 2,9-11,16-17,19-20,23-38,40-41,44-51,53-57,60,64,66,68-69,71-72
+Sources/MacParakeet/Views/Dictation/DictationOverlayView.swift
+  s_b4de76bff4bf6a::t_2774f4ec39e1fd 932-946,950-953
+  s_b4de76bff4bf6a::t_795b082c96c3f7 947-949
+  s_b4de76bff4bf6a::t_30cddd284a6dbc 267-269,271-274,276-279,282-283
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_b4de76bff4bf6a::t_e060d51f561791 1123-1124,1127,1133-1134
+  s_b4de76bff4bf6a::t_7286598fb0bee8 1154
+Sources/MacParakeetCore/DictationFlow/DictationOverlayLayout.swift
+  s_b4de76bff4bf6a::t_815c719d2a4712 3-4,6-7,11-12,16,22,28,32-49,51,56-57,59-62,64
+Sources/MacParakeet/Views/Dictation/DictationOverlayController.swift
+  s_b4de76bff4bf6a::t_ecd61089d3d4a0 62-74
+  s_b4de76bff4bf6a::t_948d99183c81dc 137,152-155
+  s_b4de76bff4bf6a::t_18e3169645b4a0 96-97
+  s_b4de76bff4bf6a::t_c1f24a578883e3 75-76
+  s_b4de76bff4bf6a::t_8f1d65e685222e 18-22,118,168,193
+Sources/MacParakeet/Views/Dictation/IdlePillController.swift
+  s_b4de76bff4bf6a::t_06826866941ba0 140,142,146,149-164
+  s_9356391ef9ddc0::t_a5cbfeb6f557b8 27-31,167-171
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_b4de76bff4bf6a::t_33f80b6b35e633 167,169-172
+Sources/MacParakeet/Views/Dictation/LoadingCaptionView.swift
+  s_b4de76bff4bf6a::t_7293f50dbdefe7 32-34
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_b4de76bff4bf6a::t_ddf5844b2e3f9c 83-87
+Sources/MacParakeet/Views/Dictation/IdlePillView.swift
+  s_b4de76bff4bf6a::t_dff441489515ee 5,11-12,14-15,17-18,21-34
+  s_9356391ef9ddc0::t_212bbb59e0cbd6 46,131-134,136-140
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_b4de76bff4bf6a::t_9108faca7ad666 573-574,579,583,587,598
+spec/02-features.md
+  s_b4de76bff4bf6a::t_c74716ab9c47ee 316
+spec/04-ui-patterns.md
+  s_b4de76bff4bf6a::t_e3b43d30ff5d9a 426,431-432,464,491,498,555-556
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fde4f39403b12a9994a68d610bf419f904e1c853",
+  "prompts": {},
+  "sessions": {
+    "s_9356391ef9ddc0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cbce-b7b5-7a93-b778-b06cef1511a4",
+        "model": "unknown"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_b4de76bff4bf6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "a66d31a1-62da-420d-91c0-d6a7b581bc72",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
