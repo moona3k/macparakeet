@@ -44,6 +44,12 @@ retention. Callers own those effects.
 - Each generated `PromptResult` is saved with `transcriptionId` equal to
   the supplied `transcription.id`. No parent/original content is read or
   copied; the caller is responsible for passing the correct saved child.
+- The transcript text and `sourceCorrectionRevision` receipt come from the
+  same effective-attribution read before card generation or provider calls.
+  A correction made while those calls run leaves the saved result tied to its
+  original input revision, so the app can mark it stale. If no attribution
+  projection is available, the service uses the supplied transcript and
+  revision zero.
 - **First-processing retry dedup**: before generating a prompt, the service
   checks existing `PromptResult`s for the supplied transcription. If one
   already exists for that `promptId`, the prompt is skipped

@@ -437,7 +437,7 @@ final class DictationFlowCoordinator {
         guard !shouldSuppressIdlePill() else { return }
         let vm = IdlePillViewModel()
         vm.onStartDictation = { [weak self] in
-            self?.startDictation(mode: .persistent, trigger: .pillClick)
+            _ = self?.startDictation(mode: .persistent, trigger: .pillClick)
         }
         let controller = IdlePillController(viewModel: vm)
         controller.show()
@@ -453,28 +453,38 @@ final class DictationFlowCoordinator {
         sendEvent(.readyPillRequested)
     }
 
+    @discardableResult
     func startDictation(
         mode: FnKeyStateMachine.RecordingMode,
         trigger: TelemetryDictationTrigger = .hotkey,
         aiFormatterEnabled: Bool? = nil,
         clipboardOnly: Bool = false
-    ) {
+    ) -> Bool {
         // Suppressed while onboarding is up — the speech model isn't ready and
         // the hotkey step runs its own no-STT rehearsal. Covers hotkey + pill.
-        guard !isStartSuppressed() else { return }
+        guard !isStartSuppressed() else { return false }
+        var acquiredLease: GUIMutationArbiter.Lease?
         if interactionLease == nil {
-            guard let lease = mutationArbiter.acquire(.dictation) else { onInteractionBusy?(); return }
+            guard let lease = mutationArbiter.acquire(.dictation) else { onInteractionBusy?(); return false }
             interactionLease = lease
+            acquiredLease = lease
         }
         let stateBeforeStart = stateMachine.state
         sendEvent(.startRequested(mode: mode))
-        guard stateMachine.state != stateBeforeStart else { return }
+        guard stateMachine.state != stateBeforeStart else {
+            if let acquiredLease, interactionLease == acquiredLease {
+                mutationArbiter.release(acquiredLease)
+                interactionLease = nil
+            }
+            return false
+        }
         if trigger != .hotkey {
             onHotkeyRecordingEnded?()
         }
         currentTrigger = trigger
         sessionAIFormatterEnabled = aiFormatterEnabled
         pendingSessionClipboardOnly = clipboardOnly
+        return true
     }
 
     func stopDictation() {

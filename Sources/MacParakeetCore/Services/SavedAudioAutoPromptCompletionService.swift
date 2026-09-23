@@ -141,8 +141,8 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
         for transcription: Transcription,
         onProgress: (@Sendable (SavedAudioAutoPromptCompletionProgress) -> Void)? = nil
     ) async throws -> SavedAudioAutoPromptCompletionResult {
-        let transcript = effectiveTranscript(for: transcription)
-        guard transcript.contains(where: { !$0.isWhitespace }) else {
+        let input = effectiveTranscriptInput(for: transcription)
+        guard input.text.contains(where: { !$0.isWhitespace }) else {
             return SavedAudioAutoPromptCompletionResult()
         }
 
@@ -189,7 +189,11 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
 
             do {
                 let saved = try await generateAndSave(
-                    prompt: prompt, transcript: transcript, transcription: transcription)
+                    prompt: prompt,
+                    transcript: input.text,
+                    sourceCorrectionRevision: input.correctionRevision,
+                    transcription: transcription
+                )
                 outcomes.append(
                     .init(promptId: prompt.id, promptName: prompt.name, status: .generated(promptResultID: saved.id)))
             } catch is CancellationError {
@@ -218,6 +222,7 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
     private func generateAndSave(
         prompt: Prompt,
         transcript: String,
+        sourceCorrectionRevision: Int,
         transcription: Transcription
     ) async throws -> PromptResult {
         let outputLanguagePolicy = outputLanguagePolicyProvider()
@@ -252,26 +257,21 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
             providerSnapshot: result.provider,
             modelSnapshot: result.model,
             outputLanguagePolicySnapshot: outputLanguagePolicy.configurationValue,
-            sourceCorrectionRevision: correctionRevision(for: transcription)
+            sourceCorrectionRevision: sourceCorrectionRevision
         )
         try promptResultRepo.save(promptResult)
         return promptResult
     }
 
-    private func correctionRevision(for transcription: Transcription) -> Int {
-        guard let speakerAttributionReader,
-            let projection = try? speakerAttributionReader.resolve(transcription: transcription)
-        else { return 0 }
-        return projection.correctionRevision
-    }
-
-    private func effectiveTranscript(for transcription: Transcription) -> String {
+    /// Text and correction revision must come from the same read before any
+    /// provider await. A later edit should make this result visibly stale.
+    private func effectiveTranscriptInput(for transcription: Transcription) -> (text: String, correctionRevision: Int) {
         guard let speakerAttributionReader,
             let projection = try? speakerAttributionReader.resolve(transcription: transcription)
         else {
-            return TranscriptAIContextFormatter.format(transcription: transcription)
+            return (TranscriptAIContextFormatter.format(transcription: transcription), 0)
         }
-        return TranscriptAIContextFormatter.format(projection: projection)
+        return (TranscriptAIContextFormatter.format(projection: projection), projection.correctionRevision)
     }
 
     private func generateKnowledgeCardIfConfigured(

@@ -89,6 +89,12 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Fixed
+
+- `prompts run` records the correction revision used for its transcript input,
+  so a new result on an edited meeting does not immediately appear stale in
+  the app.
+
 ### Added
 
 - `config get|set|list` includes `meeting-ai-output-language`

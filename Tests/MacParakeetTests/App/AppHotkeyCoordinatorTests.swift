@@ -17,13 +17,14 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
 
     private func makeCoordinator(
         settingsViewModel: SettingsViewModel,
+        onStartDictation: @escaping (FnKeyStateMachine.RecordingMode, Bool?, Bool) -> Bool = { _, _, _ in true },
         onAnyHotkeyEnabled: @escaping () -> Void = {},
         onHotkeyUnavailable: @escaping () -> Void = {},
         onHotkeyConflict: @escaping (HotkeyTrigger, [HotkeyTrigger]) -> Void
     ) -> AppHotkeyCoordinator {
         AppHotkeyCoordinator(
             settingsViewModel: settingsViewModel,
-            onStartDictation: { _, _, _ in },
+            onStartDictation: onStartDictation,
             onStopDictation: {},
             onCancelDictation: {},
             onDiscardRecording: { _ in },
@@ -45,6 +46,36 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             modifierName: "command",
             keyCode: nil,
             modifierKeyCode: 54
+        )
+    }
+
+    func testRefusedDictationStartResetsGestureForNextTap() {
+        let coordinator = makeCoordinator(
+            settingsViewModel: makeViewModel(),
+            onStartDictation: { _, _, _ in false },
+            onHotkeyConflict: { _, _ in }
+        )
+        let manager = HotkeyManager(trigger: .control, gestureMode: .singleTapToggle)
+        manager.setPhysicalKeyStateProviderForTesting { _ in false }
+        manager.resumeRecording(mode: .persistent)
+        let spec = AppHotkeyCoordinator.DictationHotkeyPlan.Spec(
+            trigger: .control,
+            gestureMode: .singleTapToggle
+        )
+
+        coordinator.handleDictationHotkeyStart(manager: manager, spec: spec, mode: .persistent)
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskControl],
+                timestampMs: 1_000
+            ), []
+        )
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_050
+            ), [.startRecording(mode: .persistent)]
         )
     }
 

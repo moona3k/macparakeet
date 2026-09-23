@@ -726,9 +726,10 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
   current Settings value. Extra instructions still override the injected
   language request.
 - `sourceCorrectionRevision` (v0.45) records the transcript correction
-  revision used for that result. `NULL` means the result predates the receipt.
-  A later transcript edit can then offer an update without regenerating on
-  its own.
+  revision captured with the transcript input before generation, including
+  CLI and saved-audio auto-prompt runs. `NULL` means the result predates the
+  receipt. A later transcript edit can then offer an update without
+  regenerating on its own.
 - `inferenceSettingsSnapshot` (v0.31) stores the normalized effective settings
   actually sent after provider/model capability filtering, not merely the
   settings requested on the prompt. `NULL` preserves historical rows and means
