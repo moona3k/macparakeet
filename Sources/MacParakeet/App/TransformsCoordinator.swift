@@ -233,6 +233,15 @@ final class TransformsCoordinator {
         )
     }
 
+    static func menuCaptureBelongsToTarget(
+        _ capture: SelectionCaptureResult,
+        target: SelectionCaptureTarget?
+    ) -> Bool {
+        guard let target, let capturedTarget = capture.target else { return false }
+        return capturedTarget.processIdentifier == target.processIdentifier
+            && capturedTarget.bundleIdentifier == target.bundleIdentifier
+    }
+
     private func rememberForeignFrontmostApplication() {
         guard let app = NSWorkspace.shared.frontmostApplication else { return }
         rememberForeignApplication(app)
@@ -316,6 +325,8 @@ final class TransformsCoordinator {
                 if let menuBarCapture {
                     let snapshot = await menuBarCapture.value
                     if snapshot.capturedText != nil {
+                        guard Self.menuCaptureBelongsToTarget(snapshot, target: menuBarCaptureTarget)
+                        else { throw TransformExecutorError.captureFailed(.targetNotFrontmost) }
                         preCaptured = snapshot
                     } else if case .failed = snapshot {
                         preCaptured = snapshot

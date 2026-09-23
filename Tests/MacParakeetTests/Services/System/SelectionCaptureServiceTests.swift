@@ -243,6 +243,30 @@ final class SelectionCaptureServiceTests: XCTestCase {
         XCTAssertEqual(backend.postCmdCCount(), 0)
     }
 
+    func testCaptureAXSelectionPrefersMenuOpenTargetWhenAnotherAppBecomesFrontmost() async {
+        let backend = FakeSelectionCaptureBackend(
+            isTrusted: true,
+            focusedElement: AXUIElementCreateSystemWide(),
+            selectedText: "Other app selection",
+            processFocusedElement: AXUIElementCreateApplication(99),
+            processSelectedText: "Menu open selection"
+        )
+        let service = SelectionCaptureService(backend: backend)
+        let menuOpenTarget = SelectionCaptureTarget(
+            processIdentifier: 99,
+            bundleIdentifier: "com.apple.mail"
+        )
+
+        let result = await service.captureAXSelection(preferring: menuOpenTarget)
+
+        guard case .ax(let text, _, let target) = result else {
+            XCTFail("Expected the menu-open app selection, got \(result.pathTag)")
+            return
+        }
+        XCTAssertEqual(text, "Menu open selection")
+        XCTAssertEqual(target, menuOpenTarget)
+    }
+
     func testCaptureAXSelectionDoesNotUseSystemFocusWhenProcessLookupFails() async {
         let backend = FakeSelectionCaptureBackend(
             isTrusted: true,

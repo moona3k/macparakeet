@@ -270,7 +270,7 @@ public actor SelectionCaptureService {
 
         // Resolve the element within the captured process. A system-wide AX
         // lookup can switch to another app while the status menu opens.
-        let scopedTarget = frontmostIsForeign ? frontmost : target
+        let scopedTarget = target ?? (frontmostIsForeign ? frontmost : nil)
         if let scopedTarget,
             let element = backend.focusedElement(ofProcess: scopedTarget.processIdentifier),
             let text = backend.selectedText(of: element),

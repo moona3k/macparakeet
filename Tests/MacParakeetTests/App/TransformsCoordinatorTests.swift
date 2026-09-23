@@ -1,5 +1,6 @@
 import XCTest
 @testable import MacParakeet
+import MacParakeetCore
 
 @MainActor
 final class TransformsCoordinatorTests: XCTestCase {
@@ -24,5 +25,25 @@ final class TransformsCoordinatorTests: XCTestCase {
             ),
             "prompt-model"
         )
+    }
+
+    func testMenuCaptureMustBelongToMenuOpenApp() {
+        let menuOpenTarget = SelectionCaptureTarget(
+            processIdentifier: 99,
+            bundleIdentifier: "com.apple.mail"
+        )
+        let otherTarget = SelectionCaptureTarget(
+            processIdentifier: 1234,
+            bundleIdentifier: "com.example.Other"
+        )
+        let captured = SelectionCaptureResult.clipboard(
+            text: "Other app selection",
+            savedClipboard: .none,
+            target: otherTarget
+        )
+
+        XCTAssertFalse(TransformsCoordinator.menuCaptureBelongsToTarget(captured, target: menuOpenTarget))
+        XCTAssertFalse(TransformsCoordinator.menuCaptureBelongsToTarget(captured, target: nil))
+        XCTAssertTrue(TransformsCoordinator.menuCaptureBelongsToTarget(captured, target: otherTarget))
     }
 }
