@@ -316,10 +316,10 @@ public actor DictationService: DictationServiceProtocol {
             logger.notice(
                 "startRecording replacing stale recording old=\(self.activeSessionID) new=\(sessionID!, privacy: .public)"
             )
-            let replacedSession = activeSessionID
             await cancelLiveDictationTranscription(sessionID: activeSessionID)
             await cancelDisplayPreview(sessionID: activeSessionID, clearText: true)
             if await audioProcessor.isRecording {
+                let replacedSession = activeSessionID
                 if let url = try? await audioProcessor.stopCapture() {
                     try? FileManager.default.removeItem(at: url)
                 }
@@ -665,7 +665,6 @@ public actor DictationService: DictationServiceProtocol {
 
         cancelGeneration += 1
         let generation = cancelGeneration
-        let cancelledSession = activeSessionID
 
         pendingCancelReason = reason
         cancellationRequestedDuringStartSessionID = activeSessionID
@@ -673,6 +672,9 @@ public actor DictationService: DictationServiceProtocol {
         await cancelDisplayPreview(sessionID: activeSessionID, clearText: true)
         let capturedDurationMs = currentRecordingDurationMs()
         let captureStartedAt = Date()
+        // Label the take whose capture this call stops; the awaits above let
+        // a replacement session start.
+        let cancelledSession = activeSessionID
         let audioURL = try? await audioProcessor.stopCapture()
         postCaptureDidStop(sessionID: cancelledSession)
         // Capture finalization ends when stopCapture returns. Do not include the
@@ -713,12 +715,12 @@ public actor DictationService: DictationServiceProtocol {
         cancelResetTask = nil
 
         if case .recording = _state {
-            let discardedSession = activeSessionID
             cancellationRequestedDuringStartSessionID = activeSessionID
             await cancelLiveDictationTranscription(sessionID: activeSessionID)
             await cancelDisplayPreview(sessionID: activeSessionID, clearText: true)
             let capturedDurationMs = currentRecordingDurationMs()
             let captureStartedAt = Date()
+            let discardedSession = activeSessionID
             if let url = try? await audioProcessor.stopCapture() {
                 pendingCancelledAudioURL = url
                 pendingCancelledDurationMs = capturedDurationMs
