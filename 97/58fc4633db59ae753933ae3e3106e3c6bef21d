@@ -1,0 +1,47 @@
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_1824ba4b8337eb::t_27059647ff65e2 446,462,468,471-472,474,476,480-486,493
+Package.swift
+  s_1824ba4b8337eb::t_e44b4eac223f0b 168
+Sources/CLI/CHANGELOG.md
+  s_1824ba4b8337eb::t_32ce6f5bb1969f 92-97
+Sources/CLI/Commands/PromptsCommand.swift
+  s_1824ba4b8337eb::t_af4427ecc0836a 1140-1141,1172-1173,1188-1189
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_1824ba4b8337eb::t_abf231d5ccd33c 473
+Sources/MacParakeet/App/AppHotkeyCoordinator.swift
+  s_1824ba4b8337eb::t_a95b38ce264ab7 10,39,224,226,229-238,242-243,246-247,253,259,332-334,374-390
+Sources/MacParakeetCore/Services/SavedAudioAutoPromptCompletionService.swift
+  s_1824ba4b8337eb::t_a12624e3d20c90 144-145,192-196,225,260,266-268,272,274
+Tests/CLITests/PromptsCommandTests.swift
+  s_1824ba4b8337eb::t_00b543714ee931 39-40,411-412,423-428,451-452,553-595
+Tests/MacParakeetTests/App/AppHotkeyCoordinatorTests.swift
+  s_1824ba4b8337eb::t_09d4907a43f249 20,27,52-81
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_1824ba4b8337eb::t_8264fd0675b35b 8-22
+Tests/MacParakeetTests/Services/SavedAudioAutoPromptCompletionServiceTests.swift
+  s_1824ba4b8337eb::t_03d2b22c88ccf4 18-19,25,291-341
+docs/audits/2026-09-23-post-0.8.7-release-readiness.md
+  s_1824ba4b8337eb::t_b288a49f1bd9dd 1-48
+spec/01-data-model.md
+  s_1824ba4b8337eb::t_3384d5ed84d3fa 729-732
+spec/README.md
+  s_1824ba4b8337eb::t_a906a9d6074078 90
+spec/contracts/saved-audio-auto-prompt-completion.md
+  s_1824ba4b8337eb::t_04c42d10242d39 47-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9758fc4633db59ae753933ae3e3106e3c6bef21d",
+  "prompts": {},
+  "sessions": {
+    "s_1824ba4b8337eb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cef2-7fb0-70d1-ac33-7769de698ba5",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
