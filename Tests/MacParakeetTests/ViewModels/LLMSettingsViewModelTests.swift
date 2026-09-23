@@ -248,6 +248,13 @@ final class LLMSettingsViewModelTests: XCTestCase {
     func testMeetingAIOutputLanguagePolicyPersistsThroughInjectedDefaults() {
         let key = UserDefaultsAppRuntimePreferences.meetingAIOutputLanguagePolicyKey
 
+        viewModel.meetingAIOutputLanguagePolicy = .english
+        XCTAssertEqual(defaults.string(forKey: key), MeetingAIOutputLanguagePolicy.english.configurationValue)
+        XCTAssertEqual(
+            LLMSettingsViewModel(defaults: defaults).meetingAIOutputLanguagePolicy,
+            .english
+        )
+
         viewModel.meetingAIOutputLanguagePolicy = .followTranscript
 
         XCTAssertEqual(defaults.string(forKey: key), "follow-transcript")
