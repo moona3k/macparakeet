@@ -10,6 +10,10 @@ public actor MockAudioProcessor: AudioProcessorProtocol {
     private var _audioLevel: Float = 0.0
     private var _isRecording = false
     private var startCaptureDelayMs: UInt64 = 0
+    private var holdNextDeviceInfoRead = false
+    private var deviceInfoReadEntered = false
+    private var deviceInfoReadWaiters: [CheckedContinuation<Void, Never>] = []
+    private var deviceInfoReadRelease: CheckedContinuation<Void, Never>?
     public var startCaptureCalled = false
     public var stopCaptureCalled = false
     public var convertCallCount = 0
@@ -46,6 +50,21 @@ public actor MockAudioProcessor: AudioProcessorProtocol {
         self.startCaptureDelayMs = milliseconds
     }
 
+    public func pauseNextRecordingDeviceInfoRead() {
+        holdNextDeviceInfoRead = true
+        deviceInfoReadEntered = false
+    }
+
+    public func waitForRecordingDeviceInfoRead() async {
+        guard !deviceInfoReadEntered else { return }
+        await withCheckedContinuation { deviceInfoReadWaiters.append($0) }
+    }
+
+    public func resumeRecordingDeviceInfoRead() {
+        deviceInfoReadRelease?.resume()
+        deviceInfoReadRelease = nil
+    }
+
     public func setAudioLevel(_ level: Float) {
         self._audioLevel = level
     }
@@ -59,7 +78,15 @@ public actor MockAudioProcessor: AudioProcessorProtocol {
     }
 
     public var recordingDeviceInfo: RecordingDeviceInfo? {
-        nil
+        get async {
+            guard holdNextDeviceInfoRead else { return nil }
+            holdNextDeviceInfoRead = false
+            deviceInfoReadEntered = true
+            for waiter in deviceInfoReadWaiters { waiter.resume() }
+            deviceInfoReadWaiters.removeAll()
+            await withCheckedContinuation { deviceInfoReadRelease = $0 }
+            return nil
+        }
     }
 
     public var lastCaptureHealth: AudioCaptureHealth? {
