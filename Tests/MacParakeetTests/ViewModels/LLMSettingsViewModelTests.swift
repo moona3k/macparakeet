@@ -2326,6 +2326,7 @@ final class LLMSettingsViewModelTests: XCTestCase {
         viewModel.saveConfiguration()
 
         viewModel.cleanupOverrideProviderID = .openaiCompatible
+        viewModel.cleanupModelName = "custom-model"
         viewModel.saveConfiguration()
 
         XCTAssertEqual(
