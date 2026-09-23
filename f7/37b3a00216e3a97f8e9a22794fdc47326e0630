@@ -1,0 +1,38 @@
+Sources/CLI/CHANGELOG.md
+  s_697e594299b62c::t_7466c085a708d6 99-100
+spec/02-features.md
+  s_697e594299b62c::t_e59892785937a6 955-957
+Sources/MacParakeetViewModels/VocabularyBackupViewModel.swift
+  s_697e594299b62c::t_7466c085a708d6 129-134
+Sources/MacParakeetCore/Services/VocabularyImportExportService.swift
+  s_697e594299b62c::t_44017a2998436e 36-37,52-54,81-82,250-252,257-259,267-276,280,288
+  s_697e594299b62c::t_685844b3c22c71 55-56
+Sources/MacParakeet/Views/Vocabulary/VocabularyImportPreviewSheet.swift
+  s_697e594299b62c::t_7466c085a708d6 190-200,269
+Tests/MacParakeetTests/Services/VocabularyImportExportServiceTests.swift
+  s_697e594299b62c::t_a185fb3d39fc2b 544,557-559,563-614
+Tests/CLITests/VocabCommandTests.swift
+  s_697e594299b62c::t_a185fb3d39fc2b 599-636
+Sources/CLI/Commands/VocabBundleCommands.swift
+  s_697e594299b62c::t_7466c085a708d6 117-119
+Sources/MacParakeetCore/Models/CustomWord.swift
+  s_697e594299b62c::t_44017a2998436e 4,13
+Sources/MacParakeetCore/Models/TextSnippet.swift
+  s_697e594299b62c::t_44017a2998436e 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f737b3a00216e3a97f8e9a22794fdc47326e0630",
+  "prompts": {},
+  "sessions": {
+    "s_697e594299b62c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cbf1-51b1-7ea3-a7cc-7f0645829f47",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
