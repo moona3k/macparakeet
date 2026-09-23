@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/ViewModels/LLMSettingsViewModelTests.swift
+  s_697e594299b62c::t_87955d7539e414 274-280
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2144c33e197d8f98bc8bd3f1eccb2dc05fafdeba",
+  "prompts": {},
+  "sessions": {
+    "s_697e594299b62c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cbf1-51b1-7ea3-a7cc-7f0645829f47",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
