@@ -549,6 +549,7 @@ struct OnboardingShortcutEditor: View {
     var transformsViewModel: TransformsViewModel?
     let onRecordingStateChanged: (Bool) -> Void
     let onDone: () -> Void
+    @State private var resetAttempted = false
 
     private var snapshot: HotkeyConflictPolicy.SettingsSnapshot {
         HotkeyConflictPolicy.SettingsSnapshot(
@@ -562,6 +563,46 @@ struct OnboardingShortcutEditor: View {
             transformHotkeys: transformsViewModel?.transforms ?? [],
             meetingRecordingEnabled: AppFeatures.meetingRecordingEnabled
         )
+    }
+
+    /// Validate the pair as it will exist after reset, rather than checking
+    /// either default against the other key's current custom binding.
+    static func defaultResetConflict(in current: HotkeyConflictPolicy.SettingsSnapshot) -> String? {
+        let proposed = HotkeyConflictPolicy.SettingsSnapshot(
+            handsFree: .defaultDictation,
+            pushToTalk: .defaultPushToTalk,
+            meeting: current.meeting,
+            fileTranscription: current.fileTranscription,
+            youtubeTranscription: current.youtubeTranscription,
+            dictationAIPolish: current.dictationAIPolish,
+            dictationClipboard: current.dictationClipboard,
+            transformHotkeys: current.transformHotkeys,
+            meetingRecordingEnabled: current.meetingRecordingEnabled
+        )
+        for (trigger, surface) in [
+            (HotkeyTrigger.defaultPushToTalk, HotkeyConflictPolicy.Surface.pushToTalk),
+            (.defaultDictation, .handsFreeDictation),
+        ] {
+            if case .blocked(let message) = trigger.validation { return message }
+            if case .blocked(let message) = HotkeyConflictPolicy.settingsValidation(
+                candidate: trigger, surface: surface, snapshot: proposed
+            ) {
+                return message
+            }
+        }
+        return nil
+    }
+
+    private func resetToDefaults() {
+        resetAttempted = true
+        guard Self.defaultResetConflict(in: snapshot) == nil else { return }
+        resetAttempted = false
+        if settingsViewModel.pushToTalkHotkeyTrigger != .defaultPushToTalk {
+            settingsViewModel.pushToTalkHotkeyTrigger = .defaultPushToTalk
+        }
+        if settingsViewModel.hotkeyTrigger != .defaultDictation {
+            settingsViewModel.hotkeyTrigger = .defaultDictation
+        }
     }
 
     private var usesSharedGesture: Bool {
@@ -626,8 +667,20 @@ struct OnboardingShortcutEditor: View {
             }
 
             HStack {
+                Button("Reset to default") { resetToDefaults() }
+                    .parakeetAction(.secondary)
+                    .disabled(
+                        settingsViewModel.pushToTalkHotkeyTrigger == .defaultPushToTalk
+                            && settingsViewModel.hotkeyTrigger == .defaultDictation
+                    )
                 Spacer()
                 OnboardingAccentButton(title: "Done", isDefault: true, action: onDone)
+            }
+            if resetAttempted, let conflict = Self.defaultResetConflict(in: snapshot) {
+                Text("Cannot reset: \(conflict)")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.errorRed)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(DesignSystem.Spacing.lg)

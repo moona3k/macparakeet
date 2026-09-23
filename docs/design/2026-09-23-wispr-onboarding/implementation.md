@@ -51,7 +51,7 @@ This rehearsal never records, never touches STT, and runs while the model downlo
 
 Continue on this phase stays disabled until one cap has lit once (`hasLitHotkey`). Pressing Continue moves the screen to the box phase. It does not change steps.
 
-**Edit shortcut** opens a sheet with the production `HotkeyRecorderView` rows for push-to-talk and hands-free, the same conflict validation Settings uses, and Reset to default. While any recorder is capturing, the rehearsal taps and the production taps both stand down. Changing a binding clears the old key proof and returns to the key beat; the rehearsal rebuilds from the new plan. A delivered practice result is retained.
+**Edit shortcut** opens a sheet with the production `HotkeyRecorderView` rows for push-to-talk and hands-free, the same conflict validation Settings uses, and Reset to default. The bulk reset validates both defaults against the proposed pair and the other live shortcuts before changing either binding; each recorder also has its own validated reset. While any recorder is capturing, the rehearsal taps and the production taps both stand down. Changing a binding clears the old key proof and returns to the key beat; the rehearsal rebuilds from the new plan. A delivered practice result is retained.
 
 If neither dictation key is set, the card says so and points at Edit shortcut. Skip stays available.
 
