@@ -646,6 +646,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         dictationFlowCoordinator = runtime.dictationFlowCoordinator
+        onboardingWindowController.onPracticeExit = { [weak self] in
+            self?.dictationFlowCoordinator?.dismissPracticeDictation()
+        }
         // Onboarding's practice box is a real dictation target. It lights the
         // key while recording and confirms the words that arrived.
         dictationFlowCoordinator?.onFlowStateChanged = { [weak self] state in

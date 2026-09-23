@@ -195,6 +195,7 @@ final class DictationFlowCoordinator {
     private var readyDismissTimer: DispatchWorkItem?
     private var recordingTask: Task<Void, Never>?
     private var actionTask: Task<Void, Never>?
+    private var insertionTask: (generation: Int, task: Task<Void, Never>)?
     private var cancelCountdownTask: Task<Void, Never>?
     private var displayDismissTask: Task<Void, Never>?
     private var captionGraceTimer: DispatchWorkItem?
@@ -504,6 +505,14 @@ final class DictationFlowCoordinator {
         sendEvent(.cancelRequested(reason: flowReason))
     }
 
+    /// Leaving onboarding practice abandons its active take immediately,
+    /// without offering the normal undo window after the target disappears.
+    func dismissPracticeDictation() {
+        insertionTask?.task.cancel()
+        insertionTask = nil
+        sendEvent(.dismissRequested)
+    }
+
     func discardProvisionalRecording(showReadyPill: Bool) {
         sendEvent(.discardRequested(showReadyPill: showReadyPill))
     }
@@ -798,6 +807,7 @@ final class DictationFlowCoordinator {
             foregroundInsertions += 1
             let work = { @MainActor in
                 defer {
+                    if self.insertionTask?.generation == gen { self.insertionTask = nil }
                     self.foregroundInsertions -= 1
                     switch self.stateMachine.state {
                     case .idle, .ready, .finishing:
@@ -811,6 +821,7 @@ final class DictationFlowCoordinator {
                 var completedDictation = dictation
                 let pastedToAppAtDispatch = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
                 let keepDictationOnClipboard = self.runtimePreferences.shouldKeepDictationOnClipboard
+                guard !Task.isCancelled else { return }
 
                 do {
                     if action == nil && !transcriptHasText {
@@ -868,6 +879,7 @@ final class DictationFlowCoordinator {
                         keepDictationOnClipboard: keepDictationOnClipboard,
                         shouldStream: shouldStream
                     )
+                    guard !Task.isCancelled else { return }
 
                     // Cmd+V-posted breadcrumb. Action-only Voice Return (empty text +
                     // Return keystroke) is not a paste and must not enter e2e_ms.
@@ -902,6 +914,7 @@ final class DictationFlowCoordinator {
                         self.onDictationDelivered?(transcript)
                     }
                 } catch {
+                    guard !Task.isCancelled else { return }
                     let bucket = Self.commandFailureBucket(for: error)
                     self.dictationLog.error("dictation_paste_failed gen=\(gen) bucket=\(bucket, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
                     self.pendingInsertTimings = nil
@@ -912,15 +925,18 @@ final class DictationFlowCoordinator {
                         self.sendEvent(.pasteFailed(generation: gen, message: "Keystroke failed. Check Accessibility permissions."))
                     } else if error as? StreamingCursorError == .partialInsert {
                         let copied = await self.clipboardService.copyToClipboard(insertText)
+                        guard !Task.isCancelled, self.stateMachine.generation == gen else { return }
                         self.sendEvent(
                             .pasteFailed(
                                 generation: gen,
                                 message: Self.streamingPartialInsertMessage(copiedToClipboard: copied)
                             )
                         )
+                        if copied { self.onDictationDelivered?(transcript) }
                     } else {
                         let fallbackText = keepDictationOnClipboard && action == nil ? normalPasteText : transcript
                         let copied = await self.clipboardService.copyToClipboard(fallbackText)
+                        guard !Task.isCancelled, self.stateMachine.generation == gen else { return }
                         let message = Self.pasteFailureMessage(for: error, copiedToClipboard: copied)
 
                         self.sendEvent(
@@ -929,19 +945,14 @@ final class DictationFlowCoordinator {
                                 message: message
                             )
                         )
+                        if copied { self.onDictationDelivered?(transcript) }
                     }
                 }
             }
 
-            if shouldStream {
-                actionTask = Task { @MainActor in
-                    await work()
-                }
-            } else {
-                Task { @MainActor in
-                    await work()
-                }
-            }
+            let task = Task { @MainActor in await work() }
+            insertionTask = (generation: gen, task: task)
+            if shouldStream { actionTask = task }
 
         // MARK: History
 

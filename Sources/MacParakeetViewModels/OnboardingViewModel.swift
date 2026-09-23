@@ -180,6 +180,8 @@ public final class OnboardingViewModel {
     /// was listening. Nil until the first one, and after Try again.
     public private(set) var practiceTranscript: String?
     public private(set) var didSkipPractice = false
+    /// Owned by the app shell; stops a practice take before its target goes away.
+    public var onPracticeExit: (() -> Void)?
 
     /// True while a *permission request* is in flight. The Microphone /
     /// Accessibility grant buttons disable on this.
@@ -433,6 +435,7 @@ public final class OnboardingViewModel {
     private func move(to target: Step, action: TelemetryOnboardingAction) {
         emitAccessibilityDeniedIfLeavingPermissions(for: target)
         if step == .practice, target != .practice {
+            onPracticeExit?()
             // The box must be clicked again after coming back, so focus and
             // the paste target are re-established by the user.
             isPracticeBoxArmed = false

@@ -498,16 +498,21 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
             streamingCursorEnabled: true,
             streamingInserter: inserter
         )
+        var delivered: [String] = []
+        harness.coordinator.onDictationDelivered = { delivered.append($0) }
 
         try await harness.startAndStop()
         let copied = await waitUntilAsync {
             await harness.clipboard.snapshot().lastCopiedText != nil
         }
+        let reported = await waitUntil { delivered.count == 1 }
         let clipboard = await harness.clipboard.snapshot()
 
         XCTAssertTrue(copied)
+        XCTAssertTrue(reported)
         XCTAssertEqual(clipboard.lastCopiedText, "Mock transcription ")
         XCTAssertEqual(clipboard.pasteCallCount, 0)
+        XCTAssertEqual(delivered, ["Mock transcription"])
     }
 
     func testStreamingCursorPartialInsertReportsClipboardFailureWithoutPasting() async throws {
