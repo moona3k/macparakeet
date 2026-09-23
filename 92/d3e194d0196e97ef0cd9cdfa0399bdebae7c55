@@ -1,0 +1,21 @@
+Sources/MacParakeet/Views/Vocabulary/VocabularyImportPreviewSheet.swift
+  s_697e594299b62c::t_d632abb95e1b5a 211,378,392,413
+Sources/MacParakeetViewModels/VocabularyBackupViewModel.swift
+  s_697e594299b62c::t_d632abb95e1b5a 112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "92d3e194d0196e97ef0cd9cdfa0399bdebae7c55",
+  "prompts": {},
+  "sessions": {
+    "s_697e594299b62c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cbf1-51b1-7ea3-a7cc-7f0645829f47",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
