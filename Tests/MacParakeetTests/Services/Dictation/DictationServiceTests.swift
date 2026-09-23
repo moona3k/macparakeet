@@ -141,6 +141,43 @@ final class DictationServiceTests: XCTestCase {
         _ = try await service.stopRecording(sessionID: 2)
     }
 
+    func testCancelCannotOverwriteReplacementClaimedAfterStartPassedWait() async throws {
+        await mockSTT.configure(result: STTResult(text: "Replacement take"))
+        let cancelledURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cancel-handoff-\(UUID().uuidString).wav")
+        await mockAudio.configure(captureResult: cancelledURL)
+        try await service.startRecording(sessionID: 1)
+
+        let startPassedWait = DictationSuccessDisplayGate()
+        let resumeStart = DictationSuccessDisplayGate()
+        let replacementClaimed = DictationSuccessDisplayGate()
+        await service.setAfterCancellationWaiterForTesting {
+            await startPassedWait.release()
+            await resumeStart.wait()
+        }
+        await service.setReplacementCleanupWaiterForTesting {
+            await replacementClaimed.release()
+        }
+
+        let restartTask = Task { try await self.service.startRecording(sessionID: 2) }
+        await startPassedWait.wait()
+        await mockAudio.pauseNextStopCaptureUntilReleased()
+        let cancelTask = Task { await self.service.cancelRecording(sessionID: 1) }
+        await mockAudio.waitUntilStopCaptureIsPaused()
+
+        await resumeStart.release()
+        await replacementClaimed.wait()
+        await mockAudio.releasePausedStopCapture()
+        await cancelTask.value
+        try await restartTask.value
+
+        let state = await service.state
+        XCTAssertTrue(Self.isRecording(state))
+        let starts = await mockAudio.startCaptureCallCount
+        XCTAssertEqual(starts, 2)
+        _ = try await service.stopRecording(sessionID: 2)
+    }
+
     func testRestartWaitsForOlderConfirmCancelCaptureStop() async throws {
         await mockSTT.configure(result: STTResult(text: "New take"))
         try await service.startRecording(context: DictationTelemetryContext(), sessionID: 1)

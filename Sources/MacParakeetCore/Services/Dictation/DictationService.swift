@@ -161,6 +161,7 @@ public actor DictationService: DictationServiceProtocol {
     private var cancellationTask: Task<StolenCancelledAudio?, Never>?
     private var cancellationTaskGeneration = 0
     private var cancellationWaitObserverForTesting: (@Sendable () -> Void)?
+    private var afterCancellationWaiterForTesting: (@Sendable () async -> Void)?
     private var replacementCleanupSessionID: Int?
     private var replacementCleanupWaiterForTesting: (@Sendable () async -> Void)?
 
@@ -186,6 +187,10 @@ public actor DictationService: DictationServiceProtocol {
 
     func setCancellationWaitObserverForTesting(_ observer: @escaping @Sendable () -> Void) {
         cancellationWaitObserverForTesting = observer
+    }
+
+    func setAfterCancellationWaiterForTesting(_ waiter: @escaping @Sendable () async -> Void) {
+        afterCancellationWaiterForTesting = waiter
     }
 
     func pendingStartCountForTesting() -> Int {
@@ -347,6 +352,7 @@ public actor DictationService: DictationServiceProtocol {
         // stopCapture() still finalizes. Do not start a replacement until that
         // cancellation has finished using the shared recorder.
         await waitForCancellationToSettle()
+        await afterCancellationWaiterForTesting?()
         try Task.checkCancellation()
         // Session IDs are reserved in request order. A queued older start
         // must not replace a newer take that reached the recorder first.
@@ -821,6 +827,17 @@ public actor DictationService: DictationServiceProtocol {
         // later recordingDeviceInfo hop in pendingCancelledCaptureMs / undo e2e.
         let captureMs = audioURL == nil ? nil : Self.elapsedMilliseconds(since: captureStartedAt)
         let device = await audioProcessor.recordingDeviceInfo
+        if activeSessionID != cancelledSession {
+            if let audioURL {
+                let cancelledAudio = StolenCancelledAudio(
+                    url: audioURL,
+                    durationMs: capturedDurationMs,
+                    captureMs: captureMs
+                )
+                Task { await self.persistOrDiscardCancelledAudio(cancelledAudio) }
+            }
+            return
+        }
         pendingCancelledAudioURL = audioURL
         pendingCancelledDurationMs = capturedDurationMs
         pendingCancelledAIFormatterEnabled = cancelledAIFormatterEnabled
