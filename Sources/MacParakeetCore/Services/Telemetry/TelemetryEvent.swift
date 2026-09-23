@@ -509,6 +509,12 @@ public enum TelemetryOnboardingAction: String, Sendable, Equatable {
     case dismissed
     case engineReady = "engine_ready"
     case engineFailed = "engine_failed"
+    /// Continue after a dictation key lit on the Try It card.
+    case hotkeyConfirmed = "hotkey_confirmed"
+    /// The first practice dictation delivered text into the Try It box.
+    case practiceSucceeded = "practice_succeeded"
+    /// Skip on the Try It step.
+    case practiceSkipped = "practice_skipped"
 }
 
 /// Which capture surface a hotkey customization applies to. Lets us answer

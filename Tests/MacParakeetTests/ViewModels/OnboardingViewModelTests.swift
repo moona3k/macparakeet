@@ -187,7 +187,8 @@ final class OnboardingViewModelTests: XCTestCase {
         preferredLanguages: @escaping @Sendable () -> [String] = { ["en-US"] },
         now: @escaping @Sendable () -> Date = { Date() },
         permissionPollingInterval: Duration = .seconds(2),
-        warmUpStallTimeout: Duration = OnboardingViewModel.warmUpStallTimeout
+        warmUpStallTimeout: Duration = OnboardingViewModel.warmUpStallTimeout,
+        practicePasteGrace: Duration = OnboardingViewModel.practicePasteGrace
     ) -> OnboardingViewModel {
         OnboardingViewModel(
             permissionService: permissionService,
@@ -204,27 +205,30 @@ final class OnboardingViewModelTests: XCTestCase {
             defaults: defaults,
             now: now,
             permissionPollingInterval: permissionPollingInterval,
-            warmUpStallTimeout: warmUpStallTimeout
+            warmUpStallTimeout: warmUpStallTimeout,
+            practicePasteGrace: practicePasteGrace
         )
     }
 
-    func testMicrophoneStepAllowsContinueWithoutPermission() {
+    func testPermissionsStepAllowsContinueWithoutMicrophone() {
         let perms = MockPermissionService()
         perms.microphonePermission = .notDetermined
+        perms.accessibilityPermission = true
         let stt = MockSTTClient()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
-        vm.jump(to: .microphone)
+        vm.jump(to: .permissions)
+        vm.refreshAccessibilityPermission()
 
-        XCTAssertTrue(vm.canContinueFromCurrentStep())
+        XCTAssertTrue(vm.canContinueFromCurrentStep(), "microphone may be skipped (ADR 005, 2026-09-16)")
         vm.goNext()
-        XCTAssertEqual(vm.step, .accessibility)
+        XCTAssertEqual(vm.step, .practice)
 
         perms.microphonePermission = .denied
-        vm.jump(to: .microphone)
+        vm.jump(to: .permissions)
         XCTAssertTrue(vm.canContinueFromCurrentStep())
     }
 
@@ -237,7 +241,7 @@ final class OnboardingViewModelTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
-        vm.jump(to: .accessibility)
+        vm.jump(to: .permissions)
 
         vm.refresh()
         try await Task.sleep(for: .milliseconds(50))
@@ -263,7 +267,7 @@ final class OnboardingViewModelTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
-        vm.jump(to: .accessibility)
+        vm.jump(to: .permissions)
         vm.requestAccessibilityAccess()
 
         XCTAssertFalse(vm.accessibilityGranted)
@@ -302,7 +306,7 @@ final class OnboardingViewModelTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
-        vm.jump(to: .accessibility)
+        vm.jump(to: .permissions)
         vm.requestAccessibilityAccess()
 
         perms.accessibilityPermission = true
@@ -334,7 +338,7 @@ final class OnboardingViewModelTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
-        vm.jump(to: .accessibility)
+        vm.jump(to: .permissions)
         vm.requestAccessibilityAccess()
 
         perms.accessibilityPermission = true
@@ -375,20 +379,27 @@ final class OnboardingViewModelTests: XCTestCase {
     func testStepOrdering() {
         XCTAssertEqual(
             OnboardingViewModel.Step.allCases,
-            [.welcome, .microphone, .accessibility, .hotkey, .engine, .done]
+            [.welcome, .permissions, .practice, .done]
         )
     }
 
-    // MARK: - Six-step dictation-first flow
+    // MARK: - Four-step flow (ADR 005, 2026-09-23)
 
-    func testVisibleStepsIsCanonicalSixStepList() {
+    func testVisibleStepsIsCanonicalFourStepList() {
         XCTAssertEqual(
             OnboardingViewModel.visibleSteps,
-            [.welcome, .microphone, .accessibility, .hotkey, .engine, .done]
+            [.welcome, .permissions, .practice, .done]
         )
     }
 
-    func testGoNextWalksSixSteps() async throws {
+    func testStepTelemetryNames() {
+        XCTAssertEqual(
+            OnboardingViewModel.visibleSteps.map(\.telemetryName),
+            ["welcome", "permissions", "practice", "ready"]
+        )
+    }
+
+    func testGoNextWalksStepsAndPracticeGatesOnKeyThenDictation() async throws {
         let perms = MockPermissionService()
         perms.microphonePermission = .granted
         perms.accessibilityPermission = true
@@ -397,25 +408,48 @@ final class OnboardingViewModelTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
 
-        let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
+        let vm = makeViewModel(
+            permissionService: perms, sttClient: stt, defaults: defaults, practicePasteGrace: .zero)
         XCTAssertEqual(vm.step, .welcome)
 
         vm.goNext()
-        XCTAssertEqual(vm.step, .microphone)
+        XCTAssertEqual(vm.step, .permissions)
+        vm.refreshAccessibilityPermission()
+        XCTAssertTrue(vm.canContinueFromCurrentStep())
 
         vm.goNext()
-        XCTAssertEqual(vm.step, .accessibility)
+        XCTAssertEqual(vm.step, .practice)
+        XCTAssertEqual(vm.practicePhase, .hotkey)
+        XCTAssertFalse(vm.canContinueFromCurrentStep(), "Continue waits for a lit key")
+
+        vm.hotkeyRehearsalChanged(.pushToTalk)
+        XCTAssertEqual(vm.litKey, .pushToTalk)
+        vm.hotkeyRehearsalChanged(nil)
+        XCTAssertNil(vm.litKey, "the key returns to rest on release")
+        XCTAssertTrue(vm.canContinueFromCurrentStep(), "one lit press is latched")
 
         vm.goNext()
-        XCTAssertEqual(vm.step, .hotkey)
+        XCTAssertEqual(vm.step, .practice, "Continue after the key stays on the Try It screen")
+        XCTAssertEqual(vm.practicePhase, .dictation)
+        XCTAssertFalse(vm.canContinueFromCurrentStep(), "Continue waits for a non-empty dictation")
+
+        vm.startEngineWarmUp()
+        try await waitUntil { vm.isEngineReady }
+        vm.armPracticeBox()
+        XCTAssertTrue(vm.isPracticeListening)
+        vm.practiceDictationDelivered("   ")
+        XCTAssertFalse(vm.canContinueFromCurrentStep(), "whitespace is not a result")
+
+        vm.practiceDictationDelivered("Hello from my Mac.")
+        try await waitUntil { vm.practiceText == "Hello from my Mac." }
+        XCTAssertTrue(vm.canContinueFromCurrentStep())
 
         vm.goNext()
-        XCTAssertEqual(vm.step, .engine)
-
-        XCTAssertFalse(vm.canContinueFromCurrentStep())
+        XCTAssertEqual(vm.step, .done)
+        XCTAssertTrue(vm.canContinueFromCurrentStep())
     }
 
-    func testGoBackWalksSixSteps() {
+    func testGoBackWalksFourSteps() {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
@@ -426,16 +460,10 @@ final class OnboardingViewModelTests: XCTestCase {
         vm.jump(to: .done)
 
         vm.goBack()
-        XCTAssertEqual(vm.step, .engine)
+        XCTAssertEqual(vm.step, .practice)
 
         vm.goBack()
-        XCTAssertEqual(vm.step, .hotkey)
-
-        vm.goBack()
-        XCTAssertEqual(vm.step, .accessibility)
-
-        vm.goBack()
-        XCTAssertEqual(vm.step, .microphone)
+        XCTAssertEqual(vm.step, .permissions)
 
         vm.goBack()
         XCTAssertEqual(vm.step, .welcome)
@@ -447,7 +475,7 @@ final class OnboardingViewModelTests: XCTestCase {
     func testCanContinueForEachStep() {
         let perms = MockPermissionService()
         perms.microphonePermission = .notDetermined
-        perms.accessibilityPermission = true
+        perms.accessibilityPermission = false
         let stt = MockSTTClient()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
@@ -458,17 +486,401 @@ final class OnboardingViewModelTests: XCTestCase {
         vm.jump(to: .welcome)
         XCTAssertTrue(vm.canContinueFromCurrentStep(), "welcome should always allow continue")
 
-        vm.jump(to: .microphone)
-        XCTAssertTrue(vm.canContinueFromCurrentStep(), "microphone may be skipped for file-only use")
+        vm.jump(to: .permissions)
+        vm.refreshAccessibilityPermission()
+        XCTAssertFalse(vm.canContinueFromCurrentStep(), "Accessibility stays required for the hotkey and paste")
+        perms.accessibilityPermission = true
+        vm.refreshAccessibilityPermission()
+        XCTAssertTrue(vm.canContinueFromCurrentStep(), "microphone may be skipped")
 
-        vm.jump(to: .hotkey)
-        XCTAssertTrue(vm.canContinueFromCurrentStep(), "hotkey should always allow continue")
+        vm.jump(to: .practice)
+        XCTAssertFalse(vm.canContinueFromCurrentStep(), "Try It waits for a lit key")
 
         vm.jump(to: .done)
         XCTAssertTrue(vm.canContinueFromCurrentStep(), "done should always allow continue")
+    }
 
-        vm.jump(to: .engine)
-        XCTAssertFalse(vm.canContinueFromCurrentStep(), "engine requires ready state")
+    // MARK: - Try It: key rehearsal
+
+    func testKeyRehearsalOnlyLatchesOnTryItStep() {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
+        vm.jump(to: .permissions)
+        vm.hotkeyRehearsalChanged(.handsFree)
+        XCTAssertNil(vm.litKey)
+        XCTAssertFalse(vm.hasLitHotkey, "a press on another step must not satisfy the Try It gate")
+
+        vm.jump(to: .practice)
+        vm.hotkeyRehearsalChanged(.handsFree)
+        XCTAssertEqual(vm.litKey, .handsFree)
+        XCTAssertTrue(vm.hasLitHotkey)
+
+        vm.goBack()
+        XCTAssertNil(vm.litKey, "leaving the step returns the key to rest")
+        XCTAssertTrue(vm.hasLitHotkey, "the proof survives Back within this run")
+    }
+
+    func testChangingPracticeBindingRequiresProofOfNewKey() async throws {
+        let vm = try await makeListeningPracticeViewModel()
+        vm.practiceDictationDelivered("First take.")
+        try await waitUntil { vm.hasPracticeResult }
+
+        vm.practiceHotkeyBindingsChanged()
+
+        XCTAssertEqual(vm.practicePhase, .hotkey)
+        XCTAssertFalse(vm.hasLitHotkey)
+        XCTAssertNil(vm.litKey)
+        XCTAssertFalse(vm.isPracticeListening)
+        XCTAssertFalse(vm.canContinueFromCurrentStep())
+        XCTAssertEqual(vm.practiceTranscript, "First take.", "changing a key does not erase the saved dictation")
+
+        vm.hotkeyRehearsalChanged(.handsFree)
+        XCTAssertTrue(vm.canContinueFromCurrentStep())
+    }
+
+    func testPracticeKeyMapsRecordingModes() {
+        XCTAssertEqual(OnboardingViewModel.PracticeKey(recordingMode: .holdToTalk), .pushToTalk)
+        XCTAssertEqual(OnboardingViewModel.PracticeKey(recordingMode: .persistent), .handsFree)
+    }
+
+    func testHotkeyConfirmedTelemetryWhenKeyPhaseContinues() {
+        let telemetry = OnboardingTelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer { Telemetry.configure(NoOpTelemetryService()) }
+
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
+        vm.jump(to: .practice)
+        vm.hotkeyRehearsalChanged(.pushToTalk)
+        vm.goNext()
+
+        XCTAssertTrue(
+            telemetry.snapshot().contains {
+                if case .onboardingStep(let step, let action, _, let stepIndex, let totalSteps, _) = $0 {
+                    return step == "practice" && action == .hotkeyConfirmed && stepIndex == 3 && totalSteps == 4
+                }
+                return false
+            })
+    }
+
+    // MARK: - Try It: dictation box
+
+    func testPracticeBoxStaysClosedUntilEngineIsReady() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        await stt.configureWarmUpProgressDelay(.milliseconds(300))
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let vm = makeViewModel(
+            permissionService: perms, sttClient: stt, defaults: defaults, practicePasteGrace: .zero)
+        vm.jump(to: .practice)
+        vm.hotkeyRehearsalChanged(.pushToTalk)
+        vm.goNext()
+        XCTAssertEqual(vm.practicePhase, .dictation)
+
+        vm.startEngineWarmUp()
+        guard case .loading = vm.practiceBoxState else {
+            return XCTFail("box should show model progress while loading, got \(vm.practiceBoxState)")
+        }
+
+        vm.armPracticeBox()
+        XCTAssertFalse(vm.isPracticeBoxArmed, "a click cannot open the box before the engine is ready")
+        XCTAssertFalse(vm.isPracticeListening, "the app keeps dictation gated while the model loads")
+
+        vm.practiceDictationDelivered("should be ignored")
+        XCTAssertNil(vm.practiceTranscript)
+        XCTAssertFalse(vm.canContinueFromCurrentStep())
+
+        try await waitUntil(timeout: .seconds(2)) { vm.isEngineReady }
+        XCTAssertEqual(vm.practiceBoxState, .clickToStart, "nothing records on its own once ready")
+        XCTAssertFalse(vm.isPracticeListening)
+
+        vm.armPracticeBox()
+        XCTAssertEqual(vm.practiceBoxState, .listening)
+        XCTAssertTrue(vm.isPracticeListening)
+    }
+
+    func testPracticeBoxWaitsForKeyEvenWhenEngineIsReady() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
+        vm.startEngineWarmUp()
+        try await waitUntil { vm.isEngineReady }
+        vm.jump(to: .practice)
+
+        XCTAssertEqual(vm.practiceBoxState, .waitingForKey)
+        vm.armPracticeBox()
+        XCTAssertFalse(vm.isPracticeListening, "the box listens only after the key is proven")
+    }
+
+    func testPracticeBoxShowsEngineFailureAndRetry() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        await stt.configureWarmUp(error: STTError.engineStartFailed("boom"))
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
+        vm.jump(to: .practice)
+        vm.startEngineWarmUp()
+        try await waitUntil {
+            if case .failed = vm.practiceBoxState { return true }
+            return false
+        }
+        XCTAssertFalse(vm.isPracticeListening)
+
+        await stt.configureWarmUp(error: nil)
+        vm.retryEngineWarmUp()
+        try await waitUntil { vm.isEngineReady }
+        XCTAssertEqual(vm.practiceBoxState, .waitingForKey)
+    }
+
+    func testDeliveredTextThatDidNotPasteIsInsertedIntoBox() async throws {
+        let telemetry = OnboardingTelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer { Telemetry.configure(NoOpTelemetryService()) }
+
+        let vm = try await makeListeningPracticeViewModel()
+
+        vm.practiceDictationDelivered("  First words.  ")
+        XCTAssertEqual(vm.practiceTranscript, "First words.")
+        try await waitUntil { vm.practiceText == "First words." }
+        XCTAssertTrue(vm.hasPracticeResult)
+
+        vm.practiceDictationDelivered("Second words.")
+        try await waitUntil { vm.practiceText == "First words. Second words." }
+
+        let successes = telemetry.snapshot().filter {
+            if case .onboardingStep(_, let action, _, _, _, _) = $0 { return action == .practiceSucceeded }
+            return false
+        }
+        XCTAssertEqual(successes.count, 1, "practice_succeeded fires once per run")
+    }
+
+    func testDeliveredTextThatAlreadyPastedIsNotDuplicated() async throws {
+        let vm = try await makeListeningPracticeViewModel()
+
+        // Paste lands in the text view (binding) before the delivery hook.
+        vm.practiceText = "Pasted words. "
+        vm.practiceDictationDelivered("Pasted words.")
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(vm.practiceText, "Pasted words. ")
+        XCTAssertTrue(vm.hasPracticeResult)
+    }
+
+    func testBackToBackDeliveriesInsideGraceKeepBothTranscripts() async throws {
+        let vm = try await makeListeningPracticeViewModel(practicePasteGrace: .milliseconds(80))
+
+        // Neither paste lands; both fallbacks must survive.
+        vm.practiceDictationDelivered("First take.")
+        vm.practiceDictationDelivered("Second take.")
+        try await waitUntil { vm.practiceText == "First take. Second take." }
+        XCTAssertEqual(vm.practiceTranscript, "Second take.")
+    }
+
+    func testTypedTextAloneDoesNotUnlockContinue() async throws {
+        let vm = try await makeListeningPracticeViewModel()
+
+        vm.practiceText = "typed, not dictated"
+        XCTAssertFalse(vm.canContinueFromCurrentStep(), "Continue waits for a real dictation result")
+    }
+
+    func testTryAgainClearsResultAndRelocksContinue() async throws {
+        let vm = try await makeListeningPracticeViewModel()
+        vm.practiceDictationDelivered("Take one.")
+        try await waitUntil { vm.canContinueFromCurrentStep() }
+
+        vm.resetPracticeResult()
+        XCTAssertEqual(vm.practiceText, "")
+        XCTAssertNil(vm.practiceTranscript)
+        XCTAssertFalse(vm.canContinueFromCurrentStep())
+        XCTAssertTrue(vm.isPracticeListening, "Try again keeps the box listening")
+    }
+
+    func testPracticeActivityOnlyTracksWhileListening() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
+        vm.jump(to: .practice)
+        vm.practiceDictationActivityChanged(.recording(.pushToTalk))
+        XCTAssertEqual(vm.practiceActivity, .idle)
+
+        let listening = try await makeListeningPracticeViewModel()
+        listening.practiceDictationActivityChanged(.recording(.handsFree))
+        XCTAssertEqual(listening.practiceActivity, .recording(.handsFree))
+        listening.practiceDictationActivityChanged(.processing)
+        XCTAssertEqual(listening.practiceActivity, .processing)
+    }
+
+    func testLeavingTryItDisarmsBoxSoItMustBeClickedAgain() async throws {
+        let vm = try await makeListeningPracticeViewModel()
+        XCTAssertTrue(vm.isPracticeListening)
+
+        vm.goBack()
+        XCTAssertFalse(vm.isPracticeListening)
+        vm.goNext()
+        XCTAssertEqual(vm.step, .practice)
+        XCTAssertEqual(vm.practicePhase, .dictation, "the proven key is kept")
+        XCTAssertEqual(vm.practiceBoxState, .clickToStart)
+    }
+
+    // MARK: - Try It: skip
+
+    func testSkipLeavesTryItWhileModelIsStillLoading() async throws {
+        let telemetry = OnboardingTelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer { Telemetry.configure(NoOpTelemetryService()) }
+
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        await stt.configureWarmUpProgressDelay(.seconds(5))
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
+        vm.startEngineWarmUp()
+        vm.jump(to: .practice)
+        XCTAssertFalse(vm.canContinueFromCurrentStep())
+
+        vm.skipPractice()
+
+        XCTAssertEqual(vm.step, .done)
+        XCTAssertTrue(vm.didSkipPractice)
+        XCTAssertTrue(vm.canContinueFromCurrentStep(), "a stuck download cannot trap onboarding")
+        XCTAssertTrue(
+            telemetry.snapshot().contains {
+                if case .onboardingStep(let step, let action, _, _, _, _) = $0 {
+                    return step == "practice" && action == .practiceSkipped
+                }
+                return false
+            })
+        vm.stopObservingWarmUp()
+    }
+
+    func testSkipAfterEngineFailureReachesDone() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        await stt.configureWarmUp(error: STTError.engineStartFailed("boom"))
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
+        vm.jump(to: .practice)
+        vm.startEngineWarmUp()
+        try await waitUntil {
+            if case .failed = vm.engineState { return true }
+            return false
+        }
+
+        vm.skipPractice()
+        XCTAssertEqual(vm.step, .done)
+        _ = vm.markOnboardingCompleted()
+        XCTAssertTrue(vm.hasCompletedOnboarding)
+    }
+
+    func testSkipIsIgnoredOffTryItStep() {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
+        vm.jump(to: .permissions)
+        vm.skipPractice()
+        XCTAssertEqual(vm.step, .permissions, "Skip must not bypass the Accessibility gate")
+    }
+
+    func testEngineFailureTelemetryIsSentOnTheStepWhereItLands() async throws {
+        let telemetry = OnboardingTelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer { Telemetry.configure(NoOpTelemetryService()) }
+
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        await stt.configureWarmUp(error: STTError.engineStartFailed("boom"))
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
+        vm.jump(to: .permissions)
+        vm.startEngineWarmUp()
+        try await waitUntil {
+            if case .failed = vm.engineState { return true }
+            return false
+        }
+
+        XCTAssertTrue(
+            telemetry.snapshot().contains {
+                if case .onboardingStep(let step, let action, _, _, _, let engineState) = $0 {
+                    return step == "permissions" && action == .engineFailed && engineState == "failed"
+                }
+                return false
+            }, "a head-start failure is counted without waiting for a Speech Model step")
+    }
+
+    func testStartNewCurrentRunResetsPracticeState() async throws {
+        let vm = try await makeListeningPracticeViewModel()
+        vm.practiceDictationDelivered("Done once.")
+        try await waitUntil { vm.hasPracticeResult }
+
+        vm.startNewCurrentRun()
+
+        XCTAssertEqual(vm.step, .welcome)
+        XCTAssertFalse(vm.hasLitHotkey)
+        XCTAssertEqual(vm.practicePhase, .hotkey)
+        XCTAssertFalse(vm.isPracticeBoxArmed)
+        XCTAssertEqual(vm.practiceText, "")
+        XCTAssertNil(vm.practiceTranscript)
+        XCTAssertFalse(vm.didSkipPractice)
+    }
+
+    /// A view model on Try It with a ready engine, a proven key, and a clicked
+    /// box.
+    private func makeListeningPracticeViewModel(
+        practicePasteGrace: Duration = .zero
+    ) async throws -> OnboardingViewModel {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
+
+        let vm = makeViewModel(
+            permissionService: perms, sttClient: stt, defaults: defaults, practicePasteGrace: practicePasteGrace)
+        vm.startEngineWarmUp()
+        try await waitUntil { vm.isEngineReady }
+        vm.jump(to: .practice)
+        vm.hotkeyRehearsalChanged(.pushToTalk)
+        vm.hotkeyRehearsalChanged(nil)
+        vm.goNext()
+        vm.armPracticeBox()
+        XCTAssertTrue(vm.isPracticeListening)
+        return vm
     }
 
     func testExistingUsersDoNotReOnboard() {
@@ -534,7 +946,9 @@ final class OnboardingViewModelTests: XCTestCase {
         let allCases = OnboardingViewModel.Step.allCases
 
         XCTAssertEqual(steps, allCases)
-        XCTAssertEqual(steps.count, 6)
+        XCTAssertEqual(steps.count, 4)
+        XCTAssertFalse(steps.map(\.telemetryName).contains("meeting_recording"))
+        XCTAssertFalse(steps.map(\.telemetryName).contains("calendar"))
     }
 
     func testWhisperOnboardingRecommendationDetectsCJKPreferredLanguages() {
@@ -609,7 +1023,7 @@ final class OnboardingViewModelTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
 
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(120))
@@ -617,7 +1031,7 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertEqual(vm.engineState, .ready)
         let called = await stt.wasWarmUpCalled()
         XCTAssertTrue(called)
-        XCTAssertTrue(vm.canContinueFromCurrentStep())
+        XCTAssertEqual(vm.practiceBoxState, .waitingForKey, "a ready engine opens the box path")
     }
 
     /// The warm-up stall watchdog is the only escape hatch for a first-run user
@@ -638,7 +1052,7 @@ final class OnboardingViewModelTests: XCTestCase {
             defaults: defaults,
             warmUpStallTimeout: .milliseconds(200)
         )
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
         vm.startEngineWarmUp()
 
         // Wait (bounded) for the 200ms watchdog to fire rather than sleeping a
@@ -677,7 +1091,7 @@ final class OnboardingViewModelTests: XCTestCase {
             defaults: defaults,
             warmUpStallTimeout: .milliseconds(500)
         )
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
         vm.startEngineWarmUp()
 
         // Poll for .ready with a ceiling safely under the 500ms watchdog. If the
@@ -688,7 +1102,7 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertEqual(vm.engineState, .ready)
         let called = await stt.wasWarmUpCalled()
         XCTAssertTrue(called)
-        XCTAssertTrue(vm.canContinueFromCurrentStep())
+        XCTAssertEqual(vm.practiceBoxState, .waitingForKey, "a ready engine opens the box path")
     }
 
     // MARK: - Part B: model-download head-start
@@ -739,8 +1153,8 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertFalse(vm.engineBusy, "cancelling observation must clear engineBusy (no leak)")
     }
 
-    /// Guard 1 / idempotency (§5.1): the early head-start call plus the engine
-    /// step's `.onAppear` fallback call must result in exactly one download.
+    /// Guard 1 / idempotency (§5.1): the early head-start call plus a second
+    /// call (for example a window re-show) must result in exactly one download.
     func testEngineStepRetriggerAfterHeadStartDoesNotDoubleDownload() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
@@ -761,7 +1175,7 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertTrue(firstCalled, "head-start warm-up should reach the engine")
 
         // Reaching the engine step re-triggers the fallback call.
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(50))  // window for an erroneous 2nd download
 
@@ -788,7 +1202,7 @@ final class OnboardingViewModelTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
         vm.startEngineWarmUp()
         try await waitUntil(timeout: .seconds(2)) {
             if case .failed = vm.engineState { return true }
@@ -811,10 +1225,9 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertGreaterThan(bgAfterRetry, bgAfterRetrigger, "explicit Retry should start a new attempt")
     }
 
-    /// Guard 3 (§5.3): a warm-up failure that lands before the user reaches the
-    /// Speech Model step must be preserved so the engine step can immediately
-    /// show the existing error + Retry UI. Earlier steps do not render
-    /// `engineState`, so preserving `.failed` does not add failure UI there.
+    /// Guard 3 (§5.3): a warm-up failure that lands before the user reaches Try
+    /// It must be preserved so the practice box can immediately show the error
+    /// and Retry. Earlier steps keep navigating normally.
     func testWarmUpFailureBeforeEngineStepIsPreservedForEngineStep() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
@@ -844,7 +1257,7 @@ final class OnboardingViewModelTests: XCTestCase {
 
         // Reaching the engine step must not silently retry over the preserved
         // failure; Retry is the explicit restart path.
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(50))
 
@@ -891,19 +1304,18 @@ final class OnboardingViewModelTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(150))
 
         XCTAssertEqual(vm.engineState, .ready)
         let called = await stt.wasWarmUpCalled()
-        XCTAssertTrue(called, "Speech model warm-up must still occur on the 6-step path")
+        XCTAssertTrue(called, "Speech model warm-up must still occur without a Speech Model step")
 
-        // Once the engine is ready, the final .engine -> .done transition must
-        // complete the 6-step flow end-to-end (the last goNext() in the path).
-        XCTAssertTrue(vm.canContinueFromCurrentStep(), "engine should allow continue once ready")
-        vm.goNext()
-        XCTAssertEqual(vm.step, .done, "the .engine -> .done transition completes the 6-step flow")
+        // A ready engine alone does not unlock Try It. The box opens only after
+        // the key is proven and clicked.
+        XCTAssertFalse(vm.canContinueFromCurrentStep(), "a ready engine is not a practice result")
+        XCTAssertEqual(vm.practiceBoxState, .waitingForKey)
     }
 
     func testEngineWarmUpUsesWhisperForCJKPreferredLanguageWhenModelIsCached() async throws {
@@ -924,7 +1336,7 @@ final class OnboardingViewModelTests: XCTestCase {
             isWhisperModelDownloaded: { true },
             preferredLanguages: { ["ko-KR"] }
         )
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
 
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(120))
@@ -963,7 +1375,7 @@ final class OnboardingViewModelTests: XCTestCase {
             isWhisperModelDownloaded: { true },
             preferredLanguages: { ["ko-KR"] }
         )
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
 
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(160))
@@ -995,7 +1407,7 @@ final class OnboardingViewModelTests: XCTestCase {
             },
             preferredLanguages: { ["ja-JP"] }
         )
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
 
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(160))
@@ -1038,7 +1450,7 @@ final class OnboardingViewModelTests: XCTestCase {
             isWhisperModelDownloaded: { false },
             preferredLanguages: { ["zh-Hans-CN"] }
         )
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
 
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(120))
@@ -1067,7 +1479,7 @@ final class OnboardingViewModelTests: XCTestCase {
             diarizationService: diarization,
             defaults: defaults
         )
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
 
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(150))
@@ -1093,7 +1505,7 @@ final class OnboardingViewModelTests: XCTestCase {
             diarizationService: diarization,
             defaults: defaults
         )
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
 
         vm.startEngineWarmUp()
         try await waitUntil {
@@ -1128,7 +1540,7 @@ final class OnboardingViewModelTests: XCTestCase {
             defaults: defaults,
             isSpeechModelCached: { true }
         )
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
 
         vm.startEngineWarmUp()
         try await waitUntil {
@@ -1150,7 +1562,7 @@ final class OnboardingViewModelTests: XCTestCase {
         vm.retryEngineWarmUp()
         try await waitUntil { vm.engineState == .ready }
 
-        XCTAssertTrue(vm.canContinueFromCurrentStep())
+        XCTAssertEqual(vm.practiceBoxState, .waitingForKey, "a ready engine opens the box path")
     }
 
     func testDiarizationStorageFailureUsesStorageRecoveryWithoutLeakingPath() async throws {
@@ -1175,7 +1587,7 @@ final class OnboardingViewModelTests: XCTestCase {
             diarizationService: diarization,
             defaults: defaults
         )
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
 
         vm.startEngineWarmUp()
         try await waitUntil {
@@ -1215,7 +1627,7 @@ final class OnboardingViewModelTests: XCTestCase {
             diarizationService: diarization,
             defaults: defaults
         )
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
 
         vm.startEngineWarmUp()
         try await waitUntil {
@@ -1250,7 +1662,7 @@ final class OnboardingViewModelTests: XCTestCase {
             isWhisperModelDownloaded: { true },
             preferredLanguages: { ["ko-KR"] }
         )
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
 
         vm.startEngineWarmUp()
         try await waitUntil { vm.engineBusy == false }
@@ -1307,8 +1719,8 @@ final class OnboardingViewModelTests: XCTestCase {
                 return step == "ready"
                     && action == .completed
                     && elapsedSeconds == 42.5
-                    && stepIndex == 6
-                    && totalSteps == 6
+                    && stepIndex == 4
+                    && totalSteps == 4
                     && engineState == nil
             })
         XCTAssertTrue(
@@ -1439,8 +1851,8 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertEqual(steps[0].1, .viewed)
         XCTAssertEqual(steps[0].2, 0)
         XCTAssertEqual(steps[0].3, 1)
-        XCTAssertEqual(steps[0].4, 6)
-        XCTAssertEqual(steps[1].0, "microphone")
+        XCTAssertEqual(steps[0].4, 4)
+        XCTAssertEqual(steps[1].0, "permissions")
         XCTAssertEqual(steps[1].1, .forward)
         XCTAssertEqual(steps[1].2, 2)
         XCTAssertEqual(steps[1].3, 2)
@@ -1467,7 +1879,7 @@ final class OnboardingViewModelTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
 
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(120))
@@ -1512,7 +1924,7 @@ final class OnboardingViewModelTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
 
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(200))
@@ -1538,7 +1950,7 @@ final class OnboardingViewModelTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
 
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(900))
@@ -1573,7 +1985,7 @@ final class OnboardingViewModelTests: XCTestCase {
             isNetworkReachable: { false },
             isSpeechModelCached: { false }
         )
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(120))
 
@@ -1606,7 +2018,7 @@ final class OnboardingViewModelTests: XCTestCase {
             isNetworkReachable: { false },
             isSpeechModelCached: { true }
         )
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(120))
 
@@ -1639,7 +2051,7 @@ final class OnboardingViewModelTests: XCTestCase {
             isNetworkReachable: { false },
             isSpeechModelCached: { true }
         )
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(150))
 
@@ -1662,7 +2074,7 @@ final class OnboardingViewModelTests: XCTestCase {
             availableDiskBytes: { 1_024 * 1_024 * 1_024 },  // 1 GB
             isSpeechModelCached: { false }
         )
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(120))
 
@@ -1690,7 +2102,7 @@ final class OnboardingViewModelTests: XCTestCase {
             defaults: defaults,
             isRuntimeSupported: { false }
         )
-        vm.jump(to: .engine)
+        vm.jump(to: .practice)
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(120))
 

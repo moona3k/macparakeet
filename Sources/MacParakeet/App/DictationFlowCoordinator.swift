@@ -144,6 +144,11 @@ final class DictationFlowCoordinator {
     var onSyncHotkeyRecordingMode: ((FnKeyStateMachine.RecordingMode) -> Void)?
     var onHotkeyRecordingEnded: (() -> Void)?
     var onInteractionBusy: (() -> Void)?
+    /// Observes every flow state change. Onboarding's practice box uses it to
+    /// light the key and show listening/transcribing while it is the target.
+    var onFlowStateChanged: ((DictationFlowState) -> Void)?
+    /// Called with the transcript after a successful insert or clipboard copy.
+    var onDictationDelivered: ((String) -> Void)?
 
     // MARK: - Dependencies
 
@@ -169,8 +174,9 @@ final class DictationFlowCoordinator {
     private let overlayControllerFactory: @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling
     private let shouldSuppressIdlePill: () -> Bool
     /// When true, `startDictation` is a no-op. Used to gate real dictation while
-    /// onboarding is visible (the model isn't ready yet and the hotkey step runs
-    /// its own no-STT rehearsal). Covers both the hotkey and idle-pill paths.
+    /// onboarding is visible, except while its practice box is listening (the
+    /// model may not be ready, and the Try It card runs its own no-STT key
+    /// rehearsal). Covers both the hotkey and idle-pill paths.
     private let isStartSuppressed: () -> Bool
     private let onMenuBarIconUpdate: (BreathWaveIcon.MenuBarState) -> Void
     private let onHistoryReload: () -> Void
@@ -460,8 +466,8 @@ final class DictationFlowCoordinator {
         aiFormatterEnabled: Bool? = nil,
         clipboardOnly: Bool = false
     ) -> Bool {
-        // Suppressed while onboarding is up — the speech model isn't ready and
-        // the hotkey step runs its own no-STT rehearsal. Covers hotkey + pill.
+        // Suppressed while onboarding is up, unless its practice box is the
+        // dictation target. Covers hotkey + pill.
         guard !isStartSuppressed() else { return false }
         var acquiredLease: GUIMutationArbiter.Lease?
         if interactionLease == nil {
@@ -534,6 +540,9 @@ final class DictationFlowCoordinator {
         }
 
         executeEffects(effects)
+        if stateMachine.state != oldState {
+            onFlowStateChanged?(stateMachine.state)
+        }
         if hadActiveHotkeyMode && hotkeyRecordingMode == nil {
             onHotkeyRecordingEnded?()
         }
@@ -838,6 +847,7 @@ final class DictationFlowCoordinator {
                             )
                             self.dismissCaption(outcome: .success)
                             self.sendEvent(.pasteSucceeded(generation: gen))
+                            self.onDictationDelivered?(transcript)
                         } else {
                             self.dismissCaption(outcome: .failure)
                             self.sendEvent(
@@ -888,6 +898,9 @@ final class DictationFlowCoordinator {
                     guard self.stateMachine.generation == gen else { return }
                     self.dismissCaption(outcome: .success)
                     self.sendEvent(.pasteSucceeded(generation: gen))
+                    if transcriptHasText {
+                        self.onDictationDelivered?(transcript)
+                    }
                 } catch {
                     let bucket = Self.commandFailureBucket(for: error)
                     self.dictationLog.error("dictation_paste_failed gen=\(gen) bucket=\(bucket, privacy: .public) error=\(error.localizedDescription, privacy: .public)")

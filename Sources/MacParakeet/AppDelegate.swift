@@ -59,7 +59,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var debugDictationPreviewQA: DebugDictationPreviewQA?
     #endif
     private var instantDictationPreferenceGeneration = 0
-    private var isHotkeyRecorderActive = false
+    private var activeHotkeyRecorderSessions = 0
+    private var isHotkeyRecorderActive: Bool { activeHotkeyRecorderSessions > 0 }
     // Let first paint and onboarding routing settle before starting CoreML cache work.
     private let preWarmDeferralMs: Int = 1500
 
@@ -131,39 +132,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         meetingPillViewModel: meetingPillViewModel
     )
 
-    /// Drives the live, no-STT hotkey rehearsal on the onboarding "Learn the
-    /// Hotkey" step. Reads the user's configured triggers + shared mic at arm
-    /// time via providers, since the environment is set asynchronously after
-    /// launch.
-    private lazy var onboardingHotkeyPreviewController = OnboardingHotkeyPreviewController(
-        planProvider: { [weak self] in
-            guard let self else { return .init(specs: [], conflict: nil) }
-            return AppHotkeyCoordinator.dictationHotkeyPlan(
-                handsFree: self.settingsViewModel.hotkeyTrigger,
-                pushToTalk: self.settingsViewModel.pushToTalkHotkeyTrigger,
-                aiPolish: self.settingsViewModel.dictationAIPolishHotkeyTrigger,
-                clipboard: self.settingsViewModel.dictationClipboardHotkeyTrigger
-            )
-        },
-        micLevelingProvider: { [weak self] in
-            guard let stream = self?.appEnvironment?.sharedMicStream else { return nil }
-            return SharedMicLeveling(stream: stream)
-        },
-        suspendProductionHotkeys: { [weak self] in self?.hotkeyCoordinator?.suspend() },
-        resumeProductionHotkeys: { [weak self] in self?.hotkeyCoordinator?.resume() }
-    )
+    /// Drives the no-STT key rehearsal on the onboarding Try It card. Reads the
+    /// user's configured hands-free and push-to-talk triggers at arm time,
+    /// since the environment is set asynchronously after launch. The AI-polish
+    /// and clipboard extras are left out so they cannot light the wrong cap.
+    private lazy var onboardingHotkeyPreviewController: OnboardingHotkeyPreviewController = {
+        let controller = OnboardingHotkeyPreviewController(
+            planProvider: { [weak self] in
+                guard let self else { return .init(specs: [], conflict: nil) }
+                return AppHotkeyCoordinator.dictationHotkeyPlan(
+                    handsFree: self.settingsViewModel.hotkeyTrigger,
+                    pushToTalk: self.settingsViewModel.pushToTalkHotkeyTrigger
+                )
+            },
+            suspendProductionHotkeys: { [weak self] in self?.hotkeyCoordinator?.suspend() },
+            resumeProductionHotkeys: { [weak self] in self?.hotkeyCoordinator?.resume() }
+        )
+        controller.onKeyStateChanged = { [weak self] key in
+            self?.onboardingWindowController.currentViewModel?.hotkeyRehearsalChanged(key)
+        }
+        return controller
+    }()
 
     private lazy var onboardingCoordinator = OnboardingCoordinator(
         onboardingWindowController: onboardingWindowController,
+        settingsViewModel: settingsViewModel,
+        transformsViewModel: transformsViewModel,
         onRefreshHotkeys: { [weak self] in
             self?.hotkeyCoordinator?.refreshAllHotkeys()
             self?.menuBarCoordinator.refreshHotkeyTitle()
             self?.menuBarCoordinator.refreshMeetingHotkeyShortcut()
             self?.menuBarCoordinator.refreshTranscriptionHotkeyShortcuts()
             self?.transformsCoordinator?.reloadBindings()
-        },
-        onOpenMainWindow: { [weak self] in
-            self?.windowCoordinator.openMainWindow()
         },
         onOpenSettings: { [weak self] in
             self?.windowCoordinator.openMainWindowToSettings()
@@ -177,6 +177,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         },
         onHotkeyPreviewDisarm: { [weak self] in
             self?.onboardingHotkeyPreviewController.disarm()
+        },
+        onShortcutRecordingChanged: { [weak self] isRecording in
+            self?.setGlobalHotkeysSuspendedForRecorder(isRecording)
+        },
+        onShortcutBindingsChanged: { [weak self] in
+            self?.onboardingHotkeyPreviewController.refreshBindings()
+            self?.menuBarCoordinator.refreshHotkeyTitle()
         }
     )
 
@@ -238,20 +245,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.meetingRecordingFlowCoordinator?.togglePause()
         },
         onHotkeyRecordingStateChanged: { [weak self] isRecording in
-            self?.isHotkeyRecorderActive = isRecording
-            // While Settings is recording a new hotkey, stand the global
-            // CGEvent taps down so they can't swallow the user's keyDown
-            // and silently fire their own actions (e.g. start a meeting
-            // recording from inside Settings).
-            if isRecording {
-                self?.hotkeyCoordinator?.suspend()
-                self?.transformsCoordinator?.suspendHotkeys()
-                self?.voiceControlCoordinator?.suspendHotkey()
-            } else {
-                self?.hotkeyCoordinator?.resume()
-                self?.transformsCoordinator?.resumeHotkeys()
-                self?.voiceControlCoordinator?.installHotkey()
-            }
+            self?.setGlobalHotkeysSuspendedForRecorder(isRecording)
         },
         onQuit: { [weak self] in
             self?.quitApp()
@@ -645,13 +639,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 isHotkeyRecordingActive: { [weak self] in
                     self?.isHotkeyRecorderActive == true
                 },
-                isOnboardingVisible: { [weak self] in
-                    self?.onboardingWindowController.isVisible ?? false
+                isOnboardingBlockingDictation: { [weak self] in
+                    self?.onboardingWindowController.isBlockingDictation ?? false
                 }
             )
         )
 
         dictationFlowCoordinator = runtime.dictationFlowCoordinator
+        // Onboarding's practice box is a real dictation target. It lights the
+        // key while recording and confirms the words that arrived.
+        dictationFlowCoordinator?.onFlowStateChanged = { [weak self] state in
+            self?.onboardingWindowController.handleDictationFlowState(state)
+        }
+        dictationFlowCoordinator?.onDictationDelivered = { [weak self] text in
+            self?.onboardingWindowController.handleDictationDelivered(text)
+        }
         meetingRecordingFlowCoordinator = runtime.meetingRecordingFlowCoordinator
         hotkeyCoordinator = runtime.hotkeyCoordinator
         meetingAutoStartCoordinator = runtime.meetingAutoStartCoordinator
@@ -1016,6 +1018,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ///
     /// Uses `menuBarPreference` from the dictation flow (state-machine-aware) so
     /// `.processing` can render correctly and terminal states do not linger red.
+    /// While a shortcut recorder (Settings or onboarding) captures a new
+    /// hotkey, stand the global CGEvent taps down so they can't swallow the
+    /// user's keyDown and silently fire their own actions (e.g. start a
+    /// meeting recording from inside Settings).
+    private func setGlobalHotkeysSuspendedForRecorder(_ isRecording: Bool) {
+        if isRecording {
+            activeHotkeyRecorderSessions += 1
+            guard activeHotkeyRecorderSessions == 1 else { return }
+            // Every recorder, including Settings, pauses onboarding rehearsal
+            // before its local key monitor starts.
+            onboardingHotkeyPreviewController.setCapturePaused(true)
+            hotkeyCoordinator?.suspend()
+            transformsCoordinator?.suspendHotkeys()
+            voiceControlCoordinator?.suspendHotkey()
+        } else {
+            guard activeHotkeyRecorderSessions > 0 else { return }
+            activeHotkeyRecorderSessions -= 1
+            guard activeHotkeyRecorderSessions == 0 else { return }
+            hotkeyCoordinator?.resume()
+            transformsCoordinator?.resumeHotkeys()
+            voiceControlCoordinator?.installHotkey()
+            onboardingHotkeyPreviewController.setCapturePaused(false)
+        }
+    }
+
     private func resolveAndUpdateMenuBarIcon() {
         let state = Self.resolveMenuBarState(
             isMeetingRecordingActive: meetingRecordingFlowCoordinator?.isMeetingRecordingActive == true,
