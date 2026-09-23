@@ -1,0 +1,62 @@
+spec/12-processing-layer.md
+  s_697e594299b62c::t_b2940cbefd6ac3 208,226,234
+Sources/CLI/Commands/MeetingsCommand.swift
+  s_697e594299b62c::t_243d818a6ee2a8 1343,1369
+spec/contracts/meeting-artifacts-v1.md
+  s_697e594299b62c::t_c6584610fff8fd 148-150,152-153
+Tests/MacParakeetTests/Database/DatabaseManagerTests.swift
+  s_697e594299b62c::t_5730ad756da1d6 920,928-930
+  s_697e594299b62c::t_d732a6e82608eb 931
+spec/01-data-model.md
+  s_697e594299b62c::t_edddd4fe306ab9 698,712-715,1345,1712,1769
+Sources/MacParakeetCore/Models/PromptResult.swift
+  s_697e594299b62c::t_89fd2520246a66 34-35
+  s_697e594299b62c::t_243d818a6ee2a8 40-43,47-48,72,93,112,125
+Sources/MacParakeetViewModels/PromptResultsViewModel.swift
+  s_697e594299b62c::t_243d818a6ee2a8 129-131,420,472-474,494-555,579-581
+Tests/MacParakeetTests/Database/PromptResultRepositoryTests.swift
+  s_697e594299b62c::t_6beadc38d3a6fc 118-144,146-161,163-182
+  s_697e594299b62c::t_084a08bd1eee7e 145,162
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingArtifactStoreTests.swift
+  s_697e594299b62c::t_2dbc03ccba2d90 231,247-274
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingArtifactStore.swift
+  s_697e594299b62c::t_770d31da0b5ed3 804,819,833
+Sources/CLI/CHANGELOG.md
+  s_697e594299b62c::t_08d0531113e88a 111-113
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_697e594299b62c::t_cdd76ffbf4a086 635,3201-3206,3209-3211,3213-3214,3216-3217,3219-3238,3240-3246,3248-3263,3268-3274,3276-3289,3291-3302,3304-3305,3307-3315,3317-3318,3322-3342
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_697e594299b62c::t_a1f2df2cf0fedf 2331-2342
+Sources/MacParakeetCore/Database/PromptResultRepository.swift
+  s_697e594299b62c::t_81259434e6058e 6-7,49-68
+Tests/CLITests/MeetingsCommandTests.swift
+  s_697e594299b62c::t_70fab4e55e32ce 1034-1035,1062-1063,1083
+Tests/MacParakeetTests/Models/PromptCodableCompatibilityTests.swift
+  s_697e594299b62c::t_3047475e66acb1 35-36,52,54-57,98,106
+Tests/MacParakeetTests/ViewModels/PromptResultsViewModelTests.swift
+  s_697e594299b62c::t_7a1ecb5e4ddc2f 59-295
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  s_697e594299b62c::t_8da8adebf3199f 1435,1448-1459
+spec/02-features.md
+  s_697e594299b62c::t_b24766f7d55331 2242
+spec/adr/013-prompt-library-multi-summary.md
+  s_697e594299b62c::t_728388848a19db 16-21,106
+spec/contracts/cli-json-v1.md
+  s_697e594299b62c::t_6c7f0f1b71bcae 208-210
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "862c29c0746e22bbe678bd3dc9af1c8c23c310db",
+  "prompts": {},
+  "sessions": {
+    "s_697e594299b62c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cbf1-51b1-7ea3-a7cc-7f0645829f47",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
