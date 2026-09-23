@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-public struct CustomWord: Codable, Identifiable, Sendable {
+public struct CustomWord: Codable, Equatable, Identifiable, Sendable {
     public var id: UUID
     public var word: String
     public var replacement: String?
@@ -10,7 +10,7 @@ public struct CustomWord: Codable, Identifiable, Sendable {
     public var createdAt: Date
     public var updatedAt: Date
 
-    public enum Source: String, Codable, Sendable {
+    public enum Source: String, Codable, Equatable, Sendable {
         case manual
         case learned
     }

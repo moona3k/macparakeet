@@ -114,6 +114,9 @@ struct VocabImportCommand: AsyncParsableCommand {
 
             let data = try readInputData()
             let preview = try service.decodePreview(from: data)
+            if policy == .replaceAll, preview.wordsTotal == 0, preview.snippetsTotal == 0 {
+                throw VocabularyImportExportService.ImportError.emptyReplaceAll
+            }
 
             if dryRun {
                 let reportingRemovals = policy == .replaceAll

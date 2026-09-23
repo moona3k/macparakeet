@@ -952,8 +952,9 @@ a preview sheet with counts and case-insensitive conflict detection;
 duplicates can be skipped (default) or replaced, or the entire vocabulary can
 be replaced in one transaction (issue #766). Replace-all removes manual words
 and snippets that aren't in the file, keeps unmatched learned recognition
-terms, and rolls back if any write fails. Surfaced from the Vocabulary
-panel and via `macparakeet-cli vocab {export,import,schema}`. The
+terms, rejects empty files and stale previews, and rolls back if any write
+fails. Surfaced from the Vocabulary panel and via
+`macparakeet-cli vocab {export,import,schema}`. The
 `schema` subcommand prints an LLM-readable spec so a local coding agent can
 generate valid bundles from natural-language input.
 

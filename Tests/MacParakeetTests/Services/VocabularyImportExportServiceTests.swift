@@ -541,7 +541,7 @@ final class VocabularyImportExportServiceTests: XCTestCase {
         XCTAssertEqual(snippets[0].expansion, "updated")
     }
 
-    func testApplyReplaceAllEmptyBundleClearsManualVocabularyButKeepsLearned() throws {
+    func testApplyReplaceAllEmptyBundleLeavesVocabularyUntouched() throws {
         try customWordRepo.save(CustomWord(word: "old-manual"))
         try customWordRepo.save(CustomWord(word: "keep-learned", source: .learned))
         try snippetRepo.save(TextSnippet(trigger: "gone", expansion: "x"))
@@ -554,18 +554,64 @@ final class VocabularyImportExportServiceTests: XCTestCase {
         )
         let data = try JSONEncoder.iso8601().encode(bundle)
         let preview = try service.decodePreview(from: data)
-        let result = try service.apply(preview: preview, policy: .replaceAll)
-
-        XCTAssertEqual(result.wordsRemoved, 1)
-        XCTAssertEqual(result.snippetsRemoved, 1)
-        XCTAssertEqual(result.wordsAdded, 0)
+        XCTAssertThrowsError(try service.apply(preview: preview, policy: .replaceAll)) { error in
+            XCTAssertEqual(error as? VocabularyImportExportService.ImportError, .emptyReplaceAll)
+        }
         XCTAssertEqual(preview.learnedWordsPreserved, 1)
 
         let words = try customWordRepo.fetchAll()
-        XCTAssertEqual(words.count, 1)
-        XCTAssertEqual(words[0].word, "keep-learned")
-        XCTAssertEqual(words[0].source, .learned)
-        XCTAssertEqual(try snippetRepo.fetchAll().count, 0)
+        XCTAssertEqual(Set(words.map(\.word)), ["old-manual", "keep-learned"])
+        XCTAssertEqual(try snippetRepo.fetchAll().map(\.trigger), ["gone"])
+    }
+
+    func testApplyReplaceAllRejectsWordAddedAfterPreviewWithoutDeletingAnything() throws {
+        try customWordRepo.save(CustomWord(word: "old-manual"))
+        try snippetRepo.save(TextSnippet(trigger: "old snippet", expansion: "keep"))
+
+        let bundle = VocabularyBundle(
+            exportedAt: fixedNow,
+            appVersion: nil,
+            customWords: [
+                .init(word: "new-manual", replacement: nil, isEnabled: true, createdAt: nil)
+            ],
+            textSnippets: []
+        )
+        let preview = try service.decodePreview(from: JSONEncoder.iso8601().encode(bundle))
+        try customWordRepo.save(CustomWord(word: "added-after-preview"))
+
+        XCTAssertThrowsError(try service.apply(preview: preview, policy: .replaceAll)) { error in
+            XCTAssertEqual(error as? VocabularyImportExportService.ImportError, .stalePreview)
+        }
+        XCTAssertEqual(
+            Set(try customWordRepo.fetchAll().map(\.word)),
+            ["old-manual", "added-after-preview"]
+        )
+        XCTAssertEqual(try snippetRepo.fetchAll().map(\.trigger), ["old snippet"])
+    }
+
+    func testApplyReplaceAllRejectsEditedSnippetAfterPreview() throws {
+        try customWordRepo.save(CustomWord(word: "old-manual"))
+        let snippet = TextSnippet(trigger: "old snippet", expansion: "original")
+        try snippetRepo.save(snippet)
+
+        let bundle = VocabularyBundle(
+            exportedAt: fixedNow,
+            appVersion: nil,
+            customWords: [
+                .init(word: "new-manual", replacement: nil, isEnabled: true, createdAt: nil)
+            ],
+            textSnippets: []
+        )
+        let preview = try service.decodePreview(from: JSONEncoder.iso8601().encode(bundle))
+        var edited = snippet
+        edited.expansion = "edited after preview"
+        try snippetRepo.save(edited)
+
+        XCTAssertThrowsError(try service.apply(preview: preview, policy: .replaceAll)) { error in
+            XCTAssertEqual(error as? VocabularyImportExportService.ImportError, .stalePreview)
+        }
+        XCTAssertEqual(try customWordRepo.fetchAll().map(\.word), ["old-manual"])
+        XCTAssertEqual(try snippetRepo.fetch(id: snippet.id)?.expansion, "edited after preview")
     }
 
     func testApplyReplaceAllRollsBackRemovalsWhenLaterWriteFails() throws {

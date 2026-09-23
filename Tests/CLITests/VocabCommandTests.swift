@@ -596,6 +596,44 @@ final class VocabCommandTests: XCTestCase {
         XCTAssertEqual(decoded["learnedWordsPreserved"] as? Int, 1)
     }
 
+    func testImportReplaceAllRejectsEmptyBundleWithoutRemovingRows() async throws {
+        try seedDatabase(words: [("old-manual", nil)], snippets: [("old snippet", "keep")])
+        let bundlePath = tempDir.appendingPathComponent("empty-bundle.json").path
+        try writeBundle(to: bundlePath, customWords: [], textSnippets: [])
+
+        let cmd = try VocabImportCommand.parse([
+            "--database", dbPath,
+            "--input", bundlePath,
+            "--policy", "replace-all",
+            "--json",
+        ])
+        var thrownError: Error?
+        let output = try await capturingStdout {
+            do {
+                try await cmd.run()
+            } catch {
+                thrownError = error
+            }
+        }
+
+        XCTAssertNotNil(thrownError)
+        let decoded = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(decoded["ok"] as? Bool, false)
+        XCTAssertTrue((decoded["error"] as? String)?.contains("no words or snippets") == true)
+
+        let manager = try DatabaseManager(path: dbPath)
+        XCTAssertEqual(
+            try CustomWordRepository(dbQueue: manager.dbQueue).fetchAll().map(\.word),
+            ["old-manual"]
+        )
+        XCTAssertEqual(
+            try TextSnippetRepository(dbQueue: manager.dbQueue).fetchAll().map(\.trigger),
+            ["old snippet"]
+        )
+    }
+
     func testImportInvalidSchemaThrows() async throws {
         let bundlePath = tempDir.appendingPathComponent("bad.json").path
         try Data(

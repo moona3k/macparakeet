@@ -187,6 +187,17 @@ struct VocabularyImportPreviewSheet: View {
             if !preview.snippetConflicts.isEmpty {
                 conflictList(title: "Snippets that will be replaced", items: preview.snippetConflicts)
             }
+            if !preview.duplicateWords.isEmpty {
+                conflictList(title: "Duplicate words in backup", items: preview.duplicateWords)
+            }
+            if !preview.duplicateSnippets.isEmpty {
+                conflictList(title: "Duplicate triggers in backup", items: preview.duplicateSnippets)
+            }
+            if !preview.duplicateWords.isEmpty || !preview.duplicateSnippets.isEmpty {
+                Text("For repeated entries, the last one in the file wins.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
             if preview.learnedWordsPreserved > 0 {
                 Text(
                     preview.learnedWordsPreserved == 1
@@ -255,7 +266,7 @@ struct VocabularyImportPreviewSheet: View {
         }
         if !preview.hasRemovals {
             if preview.hasConflicts {
-                return "Matching entries will be replaced. Nothing extra will be removed."
+                return "Matching or repeated entries will be replaced. Nothing extra will be removed."
             }
             return "Your vocabulary will match this file. Nothing extra will be removed."
         }

@@ -33,6 +33,8 @@ public final class VocabularyImportExportService: @unchecked Sendable {
         case decodingFailed(String)
         case invalidEntry(String)
         case ioFailed(String)
+        case emptyReplaceAll
+        case stalePreview
 
         public var errorDescription: String? {
             switch self {
@@ -47,6 +49,11 @@ public final class VocabularyImportExportService: @unchecked Sendable {
                 return "The backup contains an invalid vocabulary entry: \(detail)"
             case let .ioFailed(detail):
                 return "Couldn't read the file: \(detail)"
+            case .emptyReplaceAll:
+                return "This file has no words or snippets. Replace-all requires a dictionary with entries."
+            case .stalePreview:
+                return
+                    "Your vocabulary changed since the preview. Choose the file again to review the current removals."
             }
         }
     }
@@ -71,6 +78,8 @@ public final class VocabularyImportExportService: @unchecked Sendable {
         public let snippetsRemoved: [String]
         /// Learned words whose keys are not in the bundle (kept under `.replaceAll`).
         public let learnedWordsPreserved: Int
+        let existingWords: [CustomWord]
+        let existingSnippets: [TextSnippet]
 
         public var hasConflicts: Bool {
             !wordConflicts.isEmpty
@@ -238,11 +247,16 @@ public final class VocabularyImportExportService: @unchecked Sendable {
             duplicateSnippets: duplicateSnippets,
             wordsRemoved: wordsRemoved,
             snippetsRemoved: snippetsRemoved,
-            learnedWordsPreserved: learnedWordsPreserved
+            learnedWordsPreserved: learnedWordsPreserved,
+            existingWords: existingWordRecords,
+            existingSnippets: existingSnippetRecords
         )
     }
 
     public func apply(preview: ImportPreview, policy: ConflictPolicy) throws -> ImportResult {
+        if policy == .replaceAll, preview.wordsTotal == 0, preview.snippetsTotal == 0 {
+            throw ImportError.emptyReplaceAll
+        }
         let now = clock()
 
         return try dbQueue.write { db in
@@ -250,10 +264,20 @@ public final class VocabularyImportExportService: @unchecked Sendable {
             var snippetsRemoved = 0
 
             if policy == .replaceAll {
+                let currentWords = try CustomWord.fetchAll(db)
+                let currentSnippets = try TextSnippet.fetchAll(db)
+                guard
+                    Dictionary(uniqueKeysWithValues: currentWords.map { ($0.id, $0) })
+                        == Dictionary(uniqueKeysWithValues: preview.existingWords.map { ($0.id, $0) }),
+                    Dictionary(uniqueKeysWithValues: currentSnippets.map { ($0.id, $0) })
+                        == Dictionary(uniqueKeysWithValues: preview.existingSnippets.map { ($0.id, $0) })
+                else {
+                    throw ImportError.stalePreview
+                }
                 let incomingWordKeys = Set(preview.bundle.customWords.map { $0.word.lowercased() })
                 let incomingSnippetKeys = Set(preview.bundle.textSnippets.map { $0.trigger.lowercased() })
 
-                for word in try CustomWord.fetchAll(db) {
+                for word in preview.existingWords {
                     let key = word.word.lowercased()
                     guard !incomingWordKeys.contains(key) else { continue }
                     guard word.source != .learned else { continue }
@@ -261,7 +285,7 @@ public final class VocabularyImportExportService: @unchecked Sendable {
                     wordsRemoved += 1
                 }
 
-                for snippet in try TextSnippet.fetchAll(db) {
+                for snippet in preview.existingSnippets {
                     let key = snippet.trigger.lowercased()
                     guard !incomingSnippetKeys.contains(key) else { continue }
                     _ = try TextSnippet.deleteOne(db, key: snippet.id)
