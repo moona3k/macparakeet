@@ -48,8 +48,6 @@ final class TransformsCoordinator {
     /// without re-hitting the DB on every keystroke.
     private var promptIndex: [UUID: Prompt] = [:]
     private var activeBindingIDs: Set<UUID> = []
-    private var workspaceActivationObserver: NSObjectProtocol?
-    private var lastForeignCaptureTarget: SelectionCaptureTarget?
     private var menuBarCaptureTask: Task<SelectionCaptureResult, Never>?
     private var menuBarCaptureTarget: SelectionCaptureTarget?
     private let menuBarCaptureService = SelectionCaptureService()
@@ -106,19 +104,6 @@ final class TransformsCoordinator {
                 self?.reloadBindings()
             }
         }
-
-        rememberForeignFrontmostApplication()
-        workspaceActivationObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didActivateApplicationNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
-            else { return }
-            Task { @MainActor [weak self] in
-                self?.rememberForeignApplication(app)
-            }
-        }
     }
 
     /// Tear down event tap + in-flight work. Called from `applicationWillTerminate`.
@@ -131,10 +116,6 @@ final class TransformsCoordinator {
         if let observer = bindingsChangedObserver {
             NotificationCenter.default.removeObserver(observer)
             bindingsChangedObserver = nil
-        }
-        if let observer = workspaceActivationObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(observer)
-            workspaceActivationObserver = nil
         }
         discardMenuBarCapture()
     }
@@ -197,14 +178,23 @@ final class TransformsCoordinator {
 
     // MARK: - Trigger handling
 
-    /// Snapshot selection before the status menu makes MacParakeet frontmost.
+    /// Capture from the app observed at status-button mouse-down, before the
+    /// status menu can make MacParakeet frontmost.
     /// AX-only: dismissing the menu must not leave a Cmd+C hijack behind.
-    func prepareMenuBarCapture() {
+    func prepareMenuBarCapture(frontmostApplication: SelectionCaptureTarget?) {
         guard AppFeatures.transformsEnabled else { return }
-        rememberForeignFrontmostApplication()
-        let preferred = lastForeignCaptureTarget
+        let preferred = Self.menuCaptureTarget(
+            frontmostApplication: frontmostApplication,
+            ownBundleIdentifier: Bundle.main.bundleIdentifier
+        )
         menuBarCaptureTarget = preferred
         menuBarCaptureTask?.cancel()
+        guard let preferred else {
+            // A missing mouse-down snapshot or an app-owned menu must never
+            // capture a previously focused app's selection.
+            menuBarCaptureTask = Task { .empty }
+            return
+        }
         menuBarCaptureTask = Task { [menuBarCaptureService] in
             await menuBarCaptureService.captureAXSelection(preferring: preferred)
         }
@@ -242,20 +232,15 @@ final class TransformsCoordinator {
             && capturedTarget.bundleIdentifier == target.bundleIdentifier
     }
 
-    private func rememberForeignFrontmostApplication() {
-        guard let app = NSWorkspace.shared.frontmostApplication else { return }
-        rememberForeignApplication(app)
-    }
-
-    private func rememberForeignApplication(_ app: NSRunningApplication) {
-        guard let bundleIdentifier = app.bundleIdentifier,
-            bundleIdentifier != Bundle.main.bundleIdentifier
-        else { return }
-        lastForeignCaptureTarget = SelectionCaptureTarget(
-            processIdentifier: app.processIdentifier,
-            bundleIdentifier: bundleIdentifier,
-            localizedName: app.localizedName
-        )
+    static func menuCaptureTarget(
+        frontmostApplication: SelectionCaptureTarget?,
+        ownBundleIdentifier: String?
+    ) -> SelectionCaptureTarget? {
+        guard let frontmostApplication,
+            let ownBundleIdentifier,
+            frontmostApplication.bundleIdentifier != ownBundleIdentifier
+        else { return nil }
+        return frontmostApplication
     }
 
     private func handleTrigger(

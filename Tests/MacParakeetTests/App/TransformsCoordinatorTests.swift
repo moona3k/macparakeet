@@ -46,4 +46,37 @@ final class TransformsCoordinatorTests: XCTestCase {
         XCTAssertFalse(TransformsCoordinator.menuCaptureBelongsToTarget(captured, target: nil))
         XCTAssertTrue(TransformsCoordinator.menuCaptureBelongsToTarget(captured, target: otherTarget))
     }
+
+    func testMenuCaptureUsesOnlyTheAppObservedAtStatusButtonMouseDown() {
+        let safari = SelectionCaptureTarget(
+            processIdentifier: 99,
+            bundleIdentifier: "com.apple.Safari"
+        )
+        let macParakeet = SelectionCaptureTarget(
+            processIdentifier: 1234,
+            bundleIdentifier: "com.macparakeet"
+        )
+
+        XCTAssertEqual(
+            TransformsCoordinator.menuCaptureTarget(
+                frontmostApplication: safari,
+                ownBundleIdentifier: macParakeet.bundleIdentifier
+            )?.processIdentifier,
+            safari.processIdentifier
+        )
+        // Safari may have been frontmost earlier, but opening the menu while
+        // MacParakeet is active must not reuse that stale foreign target.
+        XCTAssertNil(
+            TransformsCoordinator.menuCaptureTarget(
+                frontmostApplication: macParakeet,
+                ownBundleIdentifier: macParakeet.bundleIdentifier
+            )
+        )
+        XCTAssertNil(
+            TransformsCoordinator.menuCaptureTarget(
+                frontmostApplication: nil,
+                ownBundleIdentifier: macParakeet.bundleIdentifier
+            )
+        )
+    }
 }
