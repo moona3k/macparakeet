@@ -2244,6 +2244,7 @@ surface against the [canonical status table](README.md#release-channels-and-feat
 | Skip-microphone onboarding | First-run Microphone step stays visible, but Continue is not gated on grant. File-only users can skip it. Dictation and mic-backed meetings still request access on first use. | [ADR-005](adr/005-onboarding-first-run.md) |
 | AI Formatter routing | New installs leave “Use for transcripts” and “Use for dictation” off. Each surface has its own prompt. Inherited transcript-on stays on. | [F8](02-features.md#f8-ai-formatter) |
 | Streaming cursor | Optional Settings → Dictation insert path (default off). Finished text types at the caret; Reduce Motion, unknown IMEs, and newline/tab still paste. | [F1](02-features.md#f1-system-wide-dictation) |
+| Edit saved AI results | Saved summaries, chapters, and action items can be edited in place with Cancel/Save. Prompt snapshots stay the generation receipt; `contentEditedAt` marks a user edit and meeting artifacts refresh. | [Issue #884](https://github.com/moona3k/macparakeet/issues/884) |
 
 These do not enable activity-based meeting detection, app-aware AI Formatter
 profiles or public in-process MLX. Corpus-wide Ask and cross-file speaker
