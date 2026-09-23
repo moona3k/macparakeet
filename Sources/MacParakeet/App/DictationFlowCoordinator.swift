@@ -388,9 +388,11 @@ final class DictationFlowCoordinator {
             guard let lease = mutationArbiter.acquire(.dictation) else { onInteractionBusy?(); return }
             interactionLease = lease
         }
+        let stateBeforeStart = stateMachine.state
+        sendEvent(.startRequested(mode: mode))
+        guard stateMachine.state != stateBeforeStart else { return }
         currentTrigger = trigger
         pendingSessionClipboardOnly = clipboardOnly
-        sendEvent(.startRequested(mode: mode))
     }
 
     func stopDictation() {

@@ -109,6 +109,30 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(clipboardSnapshot.pasteCallCount, 0)
     }
 
+    func testRejectedStartWhileCheckingEntitlementsKeepsClipboardOnlyDestination() async throws {
+        let harness = try await makeRecordingHarness()
+        await harness.stt.configure(result: STTResult(text: "keep this on the clipboard"))
+
+        harness.coordinator.startDictation(mode: .persistent, clipboardOnly: true)
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .checkingEntitlements(mode: .persistent))
+        harness.coordinator.startDictation(mode: .persistent)
+
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+        harness.coordinator.stopDictation()
+
+        let copied = await waitUntilAsync {
+            let snapshot = await harness.clipboard.snapshot()
+            return snapshot.lastCopiedText != nil && harness.coordinator.flowStateForTesting == .idle
+        }
+        XCTAssertTrue(copied)
+
+        let clipboardSnapshot = await harness.clipboard.snapshot()
+        XCTAssertEqual(clipboardSnapshot.lastCopiedText, "keep this on the clipboard")
+        XCTAssertTrue(clipboardSnapshot.pastedTexts.isEmpty)
+        XCTAssertEqual(clipboardSnapshot.pasteCallCount, 0)
+    }
+
     func testRejectedStartDuringProcessingKeepsClipboardOnlyDestination() async throws {
         let harness = try await makeRecordingHarness()
         await harness.stt.configure(result: STTResult(text: "keep me on the clipboard"))
