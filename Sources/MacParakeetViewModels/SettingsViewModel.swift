@@ -353,6 +353,19 @@ public final class SettingsViewModel {
             ))
         }
     }
+    public var playDictationCaptureSounds: Bool {
+        didSet {
+            defaults.set(
+                playDictationCaptureSounds,
+                forKey: UserDefaultsAppRuntimePreferences.playDictationCaptureSoundsKey
+            )
+            Telemetry.send(.settingChanged(
+                setting: .playDictationCaptureSounds,
+                value: Self.settingValue(playDictationCaptureSounds)
+            ))
+        }
+    }
+
     public var escapeCancelsDictation: Bool {
         didSet {
             defaults.set(
@@ -526,6 +539,18 @@ public final class SettingsViewModel {
             }
             defaults.set(processingMode, forKey: UserDefaultsAppRuntimePreferences.processingModeKey)
             Telemetry.send(.processingModeChanged(mode: processingMode))
+        }
+    }
+    public var spokenPunctuationEnabled: Bool {
+        didSet {
+            defaults.set(
+                spokenPunctuationEnabled,
+                forKey: UserDefaultsAppRuntimePreferences.spokenPunctuationEnabledKey
+            )
+            Telemetry.send(.settingChanged(
+                setting: .spokenPunctuation,
+                value: Self.settingValue(spokenPunctuationEnabled)
+            ))
         }
     }
     public var dictationInsertionStyle: DictationInsertionStyle {
@@ -1058,6 +1083,7 @@ public final class SettingsViewModel {
         pauseMediaDuringDictation = defaults.object(
             forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey
         ) as? Bool ?? false
+        playDictationCaptureSounds = UserDefaultsAppRuntimePreferences.playDictationCaptureSounds(defaults: defaults)
         escapeCancelsDictation = UserDefaultsAppRuntimePreferences.escapeCancelsDictation(defaults: defaults)
         preserveDiscardedDictations = UserDefaultsAppRuntimePreferences.preserveDiscardedDictations(defaults: defaults)
         instantDictationEnabled = defaults.object(
@@ -1071,6 +1097,7 @@ public final class SettingsViewModel {
         voiceReturnEnabled = defaults.bool(forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
         voiceReturnTriggers = UserDefaultsAppRuntimePreferences.voiceReturnTriggerList(defaults: defaults)
         processingMode = Self.normalizedProcessingMode(defaults.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey))
+        spokenPunctuationEnabled = UserDefaultsAppRuntimePreferences.spokenPunctuationEnabled(defaults: defaults)
         dictationInsertionStyle = DictationInsertionStyle.current(defaults: defaults)
         removeUmFiller = UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: defaults)
         saveDictationHistory = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveDictationHistoryKey) as? Bool ?? true

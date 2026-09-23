@@ -162,9 +162,9 @@ public enum ShareProjection {
         }
 
         if transcription.transcriptTextAlignment == .segment,
-            let segments = transcription.transcriptSegments,
-            !segments.isEmpty
+            let segments = transcription.transcriptSegments
         {
+            if segments.isEmpty { return [] }
             return try segments.compactMap { segment -> ShareBundle.TranscriptSegment? in
                 let text = segment.text.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !text.isEmpty else { return nil }

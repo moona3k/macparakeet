@@ -1239,6 +1239,20 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
+                    title: "Play sounds when dictation starts and stops",
+                    detail: "A short cue when the mic is live and another when it closes, so you know when to speak. Off by default. Follows the macOS sound effects setting. On speakers, the cues can reach the mic — use headphones to keep them out of saved audio.",
+                    isOn: Binding(
+                        get: { viewModel.playDictationCaptureSounds },
+                        set: { isOn in
+                            viewModel.playDictationCaptureSounds = isOn
+                            if isOn { SoundManager.shared.play(.recordStart) }
+                        }
+                    )
+                )
+
+                Divider()
+
+                settingsToggleRow(
                     title: "Keep dictation on clipboard",
                     detail: "Leaves the same text MacParakeet pastes on the clipboard, useful when remote desktops need a manual ⌘V.",
                     isOn: $viewModel.keepDictationOnClipboard

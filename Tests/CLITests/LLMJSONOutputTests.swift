@@ -176,6 +176,10 @@ final class LLMJSONOutputTests: XCTestCase {
         XCTAssertEqual(CLIErrorType.key(for: LLMError.rateLimited), "rate_limit")
         XCTAssertEqual(CLIErrorType.key(for: LLMError.modelNotFound("gpt-9")), "model")
         XCTAssertEqual(CLIErrorType.key(for: LLMError.contextTooLong), "context")
+        XCTAssertEqual(
+            CLIErrorType.key(for: LLMError.contentFiltered("declined")),
+            "provider"
+        )
         XCTAssertEqual(CLIErrorType.key(for: LLMError.formatterTruncated), "truncated")
         XCTAssertEqual(CLIErrorType.key(for: LLMError.formatterEmptyResponse), "truncated")
         XCTAssertEqual(CLIErrorType.key(for: LLMError.providerError("oops")), "provider")

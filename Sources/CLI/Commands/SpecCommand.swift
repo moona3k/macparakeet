@@ -152,7 +152,9 @@ private extension CLISpecCommand {
     static let llmInlineOptions: [CLISpecParameter] = [
         CLISpecParameter.option(
             "--provider", valueName: "ID", required: true,
-            summary: "LLM provider: anthropic, openai, openaiCompatible, gemini, openrouter, moonshot, deepseek, qwen, zai, minimax, ollama, lmstudio, or cli."),
+            summary:
+                "LLM provider: anthropic, openai, openaiCompatible, gemini, openrouter, moonshot, deepseek, qwen, zai, minimax, ollama, lmstudio, appleIntelligence, or cli."
+        ),
         CLISpecParameter.option(
             "--api-key", valueName: "KEY", summary: "API key literal; prefer --api-key-env for scripts."),
         CLISpecParameter.option(
