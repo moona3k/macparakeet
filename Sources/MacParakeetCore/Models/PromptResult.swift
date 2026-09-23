@@ -37,6 +37,9 @@ public struct PromptResult: Codable, Identifiable, Sendable {
     /// Correction revision of the transcript this result was generated from.
     /// Nil means the result predates that receipt.
     public var sourceCorrectionRevision: Int?
+    /// Hash of the canonical clean/raw transcript text this result used.
+    /// Nil means no source text receipt was available.
+    public var sourceTranscriptHash: String?
     /// When set, `content` was last written by the user rather than by
     /// generation. Prompt snapshots stay the generation receipt. Nil for
     /// unedited results, including rows created before this column existed.
@@ -69,6 +72,7 @@ public struct PromptResult: Codable, Identifiable, Sendable {
         outputLanguagePolicySnapshot = try container.decodeIfPresent(
             String.self, forKey: .outputLanguagePolicySnapshot)
         sourceCorrectionRevision = try container.decodeIfPresent(Int.self, forKey: .sourceCorrectionRevision)
+        sourceTranscriptHash = try container.decodeIfPresent(String.self, forKey: .sourceTranscriptHash)
         contentEditedAt = try container.decodeIfPresent(Date.self, forKey: .contentEditedAt)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
@@ -90,6 +94,7 @@ public struct PromptResult: Codable, Identifiable, Sendable {
         modelSnapshot: String? = nil,
         outputLanguagePolicySnapshot: String? = nil,
         sourceCorrectionRevision: Int? = nil,
+        sourceTranscriptHash: String? = nil,
         contentEditedAt: Date? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
@@ -109,6 +114,7 @@ public struct PromptResult: Codable, Identifiable, Sendable {
         self.modelSnapshot = modelSnapshot
         self.outputLanguagePolicySnapshot = outputLanguagePolicySnapshot
         self.sourceCorrectionRevision = sourceCorrectionRevision
+        self.sourceTranscriptHash = sourceTranscriptHash
         self.contentEditedAt = contentEditedAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -122,7 +128,8 @@ extension PromptResult: FetchableRecord, PersistableRecord {
         case id, transcriptionId, promptId, promptVersionId
         case promptName, promptContent, extraInstructions, content
         case userNotesSnapshot, includeMeetingNotesSnapshot, inferenceSettingsSnapshot
-        case providerSnapshot, modelSnapshot, outputLanguagePolicySnapshot, sourceCorrectionRevision, contentEditedAt
+        case providerSnapshot, modelSnapshot, outputLanguagePolicySnapshot
+        case sourceCorrectionRevision, sourceTranscriptHash, contentEditedAt
         case createdAt, updatedAt
     }
 }

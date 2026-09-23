@@ -401,7 +401,8 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
 
     func testRetiredSessionCallbacksCannotEmitIntoReplacementSession() async throws {
         let microphone = MockMeetingMicrophoneCapture()
-        let systemCapture = MockMeetingSystemAudioCapture()
+        // Start must await the microphone callback that this test later retires.
+        let systemCapture = MockMeetingSystemAudioCapture(emitsStartupBuffer: false)
         let dateProvider = BlockingDateProvider()
         let service = MeetingAudioCaptureService(
             microphoneCapture: microphone,
@@ -1841,15 +1842,18 @@ private final class MockMeetingSystemAudioCapture: MeetingSystemAudioCapturing, 
     private var retainedStartCallbacks: [(handler: AudioBufferHandler, stallObserver: StallObserver?)] = []
     private let startExpectation: XCTestExpectation?
     private let startError: MeetingAudioError?
+    private let emitsStartupBuffer: Bool
     private var startCallCountStorage = 0
     private var stopCallCountStorage = 0
 
     init(
         startExpectation: XCTestExpectation? = nil,
-        startError: MeetingAudioError? = nil
+        startError: MeetingAudioError? = nil,
+        emitsStartupBuffer: Bool = true
     ) {
         self.startExpectation = startExpectation
         self.startError = startError
+        self.emitsStartupBuffer = emitsStartupBuffer
     }
 
     var startCallCount: Int {
@@ -1874,7 +1878,7 @@ private final class MockMeetingSystemAudioCapture: MeetingSystemAudioCapturing, 
             throw startError
         }
         // Recovery tests explicitly control the replacement's first buffer.
-        if startExpectation == nil {
+        if emitsStartupBuffer && startExpectation == nil {
             handler(startupFixtureBuffer(), AVAudioTime(hostTime: startupFixtureHostTime))
         }
     }

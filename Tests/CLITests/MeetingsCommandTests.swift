@@ -1032,7 +1032,9 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertNil(saved[0].userNotesSnapshot)
         XCTAssertFalse(saved[0].includeMeetingNotesSnapshot)
         XCTAssertNil(payload["contentEditedAt"])
+        XCTAssertNil(payload["sourceTranscriptHash"])
         XCTAssertNil(saved[0].contentEditedAt)
+        XCTAssertNil(saved[0].sourceTranscriptHash)
     }
 
     func testMeetingSurfacesExposePromptResultAvailability() async throws {
@@ -1060,6 +1062,7 @@ final class MeetingsCommandTests: XCTestCase {
                     thinkingMode: .enabled,
                     reasoningEffort: .low
                 ),
+                sourceTranscriptHash: PromptResultFreshness.sourceTranscriptHash(for: meeting),
                 contentEditedAt: Date(timeIntervalSince1970: 1_700_000_000)
             ))
 
@@ -1081,6 +1084,10 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertEqual(settings["reasoningEffort"] as? String, "low")
         XCTAssertEqual(settings["maxTokens"] as? Int, 300)
         XCTAssertNotNil(resultsPayload.first?["contentEditedAt"])
+        XCTAssertEqual(
+            resultsPayload.first?["sourceTranscriptHash"] as? String,
+            PromptResultFreshness.sourceTranscriptHash(for: meeting)
+        )
 
         let listCommand = try MeetingsCommand.ListSubcommand.parse([
             "--json",

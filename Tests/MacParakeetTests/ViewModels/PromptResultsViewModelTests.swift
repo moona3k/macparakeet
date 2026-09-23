@@ -1020,6 +1020,70 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.errorMessage)
     }
 
+    func testRetryRegenerationKeepsEditSavedAfterFailedAttempt() async throws {
+        let existing = PromptResult(
+            transcriptionId: UUID(),
+            promptName: "Summary",
+            promptContent: "Summarize.",
+            content: "Original"
+        )
+        promptResultRepo.promptResults = [existing]
+        viewModel.configure(llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo)
+        viewModel.loadPromptResults(transcriptionId: existing.transcriptionId)
+        llm.streamTokenBatches = [[], ["Replacement"]]
+
+        let failedID = try XCTUnwrap(viewModel.regeneratePromptResult(existing, transcript: "Transcript"))
+        try await waitUntil {
+            if case .failed = self.viewModel.pendingGeneration(id: failedID)?.state { return true }
+            return false
+        }
+
+        viewModel.beginEditingPromptResult(existing)
+        viewModel.editingDraft = "My correction"
+        XCTAssertTrue(viewModel.saveEditingPromptResult())
+        XCTAssertNil(viewModel.retryGeneration(id: failedID))
+
+        XCTAssertNotNil(viewModel.pendingGeneration(id: failedID))
+        XCTAssertEqual(promptResultRepo.promptResults.first?.id, existing.id)
+        XCTAssertEqual(promptResultRepo.promptResults.first?.content, "My correction")
+        XCTAssertTrue(promptResultRepo.replaceCalls.isEmpty)
+        XCTAssertTrue(viewModel.errorMessage?.contains("changed") == true)
+    }
+
+    func testRegenerationKeepsExternalEditMadeDuringGeneration() async throws {
+        let existing = PromptResult(
+            transcriptionId: UUID(),
+            promptName: "Summary",
+            promptContent: "Summarize.",
+            content: "Original"
+        )
+        promptResultRepo.promptResults = [existing]
+        viewModel.configure(llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo)
+        viewModel.loadPromptResults(transcriptionId: existing.transcriptionId)
+        llm.streamTokens = ["Replacement"]
+        llm.streamDelayNs = 80_000_000
+
+        let generationID = try XCTUnwrap(viewModel.regeneratePromptResult(existing, transcript: "Transcript"))
+        try await waitUntil { self.viewModel.pendingGeneration(id: generationID)?.state == .streaming }
+        let edited = try XCTUnwrap(
+            promptResultRepo.updateContent(
+                id: existing.id,
+                expectedContent: existing.content,
+                content: "External correction",
+                editedAt: Date()
+            ))
+        try await waitUntil {
+            if case .failed = self.viewModel.pendingGeneration(id: generationID)?.state { return true }
+            return false
+        }
+
+        XCTAssertEqual(promptResultRepo.promptResults.first?.id, existing.id)
+        XCTAssertEqual(promptResultRepo.promptResults.first?.content, edited.content)
+        XCTAssertEqual(promptResultRepo.conditionalReplaceCalls.count, 1)
+        XCTAssertTrue(promptResultRepo.replaceCalls.isEmpty)
+        XCTAssertTrue(viewModel.errorMessage?.contains("changed") == true)
+    }
+
     func testRetryReplaysQueuedLanguagePolicyAndCorrectionRevision() async throws {
         let transcriptionID = UUID()
         let prompt = Prompt(name: "Summary", content: "Summarize.", isBuiltIn: false, sortOrder: 0)
@@ -1060,6 +1124,45 @@ final class PromptResultsViewModelTests: XCTestCase {
             "follow-transcript"
         )
         XCTAssertEqual(promptResultRepo.saveCalls.first?.sourceCorrectionRevision, 3)
+    }
+
+    func testInFlightGenerationPersistsItsEnqueueTimeTranscriptReceipt() async throws {
+        let transcriptionID = UUID()
+        let prompt = Prompt(name: "Summary", content: "Summarize.", isBuiltIn: false, sortOrder: 0)
+        promptRepo.prompts = [prompt]
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo,
+            transcriptionRepo: transcriptionRepo
+        )
+        viewModel.selectedPrompt = prompt
+        llm.streamDelayNs = 30_000_000
+        let sourceHash = PromptResultFreshness.sourceTranscriptHash(
+            cleanTranscript: "Before retranscription", rawTranscript: nil)
+        let currentHash = PromptResultFreshness.sourceTranscriptHash(
+            cleanTranscript: "After retranscription", rawTranscript: nil)
+
+        let generationID = try XCTUnwrap(
+            viewModel.generatePromptResult(
+                transcript: "Before retranscription",
+                transcriptionId: transcriptionID,
+                sourceCorrectionRevision: 0,
+                sourceTranscriptHash: sourceHash
+            )
+        )
+        try await waitUntil { self.viewModel.pendingGeneration(id: generationID)?.state == .streaming }
+        try await waitUntil { self.promptResultRepo.saveCalls.count == 1 }
+
+        let saved = try XCTUnwrap(promptResultRepo.saveCalls.first)
+        XCTAssertEqual(saved.sourceTranscriptHash, sourceHash)
+        XCTAssertTrue(
+            PromptResultFreshness.summaryNeedsUpdate(
+                sourceCorrectionRevision: saved.sourceCorrectionRevision,
+                currentCorrectionRevision: 0,
+                sourceTranscriptHash: saved.sourceTranscriptHash,
+                currentTranscriptHash: currentHash
+            ))
     }
 
     func testRetryGenerationKeepsFailedEntryWhenLLMServiceIsGone() async throws {

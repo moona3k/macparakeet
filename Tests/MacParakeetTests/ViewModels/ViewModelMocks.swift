@@ -1434,6 +1434,7 @@ final class MockPromptResultRepository: PromptResultRepositoryProtocol, @uncheck
     var saveCalls: [PromptResult] = []
     var updateContentCalls: [PromptResult] = []
     var replaceCalls: [(promptResult: PromptResult, deletingExistingID: UUID?)] = []
+    var conditionalReplaceCalls: [(promptResult: PromptResult, deletingExistingID: UUID, expectedContent: String, expectedContentEditedAt: Date?)] = []
     var deleteCalls: [UUID] = []
 
     func save(_ promptResult: PromptResult) throws {
@@ -1463,6 +1464,28 @@ final class MockPromptResultRepository: PromptResultRepositoryProtocol, @uncheck
         if let deletingExistingID {
             _ = try delete(id: deletingExistingID)
         }
+    }
+
+    func replaceIfUnchanged(
+        _ replacement: PromptResult,
+        deletingExistingID: UUID,
+        expectedContent: String,
+        expectedContentEditedAt: Date?
+    ) throws -> Bool {
+        conditionalReplaceCalls.append((replacement, deletingExistingID, expectedContent, expectedContentEditedAt))
+        guard let existing = promptResults.first(where: { $0.id == deletingExistingID }),
+              existing.content == expectedContent,
+              existing.contentEditedAt == expectedContentEditedAt,
+              existing.transcriptionId == replacement.transcriptionId,
+              replacement.id != deletingExistingID,
+              !promptResults.contains(where: { $0.id == replacement.id })
+        else {
+            return false
+        }
+        replaceCalls.append((promptResult: replacement, deletingExistingID: deletingExistingID))
+        try save(replacement)
+        _ = try delete(id: deletingExistingID)
+        return true
     }
 
     func fetchAll(transcriptionId: UUID) throws -> [PromptResult] {

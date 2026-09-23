@@ -10,6 +10,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private var viewModel: OnboardingViewModel?
     private var allowCloseWithoutCompletion = false
+    var onPracticeExit: (() -> Void)?
     var isVisible: Bool {
         window?.isVisible == true
     }
@@ -65,6 +66,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     ) {
         if let window {
             if restartExistingRun {
+                viewModel?.suspendPracticeForWindowClose()
                 viewModel?.startNewCurrentRun()
                 viewModel?.markOnboardingShown()
             }
@@ -79,6 +81,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
             diarizationService: diarizationService
         )
         viewModel = vm
+        vm.onPracticeExit = { [weak self] in self?.onPracticeExit?() }
         // Retained so the rehearsal taps are torn down if the window closes
         // while the user is on the Try It step (SwiftUI `onDisappear` can lag
         // window teardown). `disarm()` is idempotent.
@@ -146,6 +149,9 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     private var onHotkeyPreviewDisarmHandler: (() -> Void)?
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
+        // Stop the practice take before the incomplete-setup alert can take
+        // focus and become the next paste target.
+        viewModel?.suspendPracticeForWindowClose()
         if allowCloseWithoutCompletion {
             return true
         }
@@ -159,6 +165,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        viewModel?.suspendPracticeForWindowClose()
         allowCloseWithoutCompletion = false
         onIncompleteDismiss = nil
         onHotkeyPreviewDisarmHandler?()

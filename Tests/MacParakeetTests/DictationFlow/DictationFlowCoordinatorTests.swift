@@ -187,6 +187,102 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         }
     }
 
+    func testPasteFailureCopyStillDeliversPracticeTranscript() async throws {
+        let harness = try await makeRecordingHarness()
+        await harness.stt.configure(result: STTResult(text: "practice fallback"))
+        await harness.clipboard.setPasteError(ClipboardServiceError.eventSourceUnavailable)
+        var delivered: [String] = []
+        harness.coordinator.onDictationDelivered = { delivered.append($0) }
+
+        harness.coordinator.startDictation(mode: .persistent)
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+        harness.coordinator.stopDictation()
+        let finished = await waitUntil { delivered.count == 1 }
+        XCTAssertTrue(finished)
+
+        XCTAssertEqual(delivered, ["practice fallback"])
+        let clipboard = await harness.clipboard.snapshot()
+        XCTAssertEqual(clipboard.lastCopiedText, "practice fallback")
+        XCTAssertTrue(clipboard.pastedTexts.isEmpty)
+    }
+
+    func testDismissingPracticeWhileTranscribingPreventsPasteAndDelivery() async throws {
+        let harness = try await makeRecordingHarness()
+        harness.coordinator.isPracticeTarget = { true }
+        await harness.stt.configure(result: STTResult(text: "abandoned practice"))
+        let transcribing = expectation(description: "STT suspended")
+        let (release, continuation) = AsyncStream<Void>.makeStream()
+        defer { continuation.finish() }
+        await harness.stt.setTranscribeHook {
+            transcribing.fulfill()
+            for await _ in release { break }
+        }
+        var delivered: [String] = []
+        harness.coordinator.onDictationDelivered = { delivered.append($0) }
+
+        harness.coordinator.startDictation(mode: .persistent)
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+        harness.coordinator.stopDictation()
+        await fulfillment(of: [transcribing], timeout: 2)
+        harness.coordinator.dismissPracticeDictation()
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .idle)
+
+        continuation.yield(())
+        let unexpectedlyDelivered = await waitUntil(timeoutMs: 300) { !delivered.isEmpty }
+        XCTAssertFalse(unexpectedlyDelivered)
+        let clipboard = await harness.clipboard.snapshot()
+        XCTAssertTrue(clipboard.pastedTexts.isEmpty)
+    }
+
+    func testDismissingPracticeDuringPendingPasteCancelsInsertion() async throws {
+        let harness = try await makeRecordingHarness()
+        harness.coordinator.isPracticeTarget = { true }
+        await harness.stt.configure(result: STTResult(text: "late practice paste"))
+        await harness.clipboard.setPasteDelayMs(500)
+        var delivered: [String] = []
+        harness.coordinator.onDictationDelivered = { delivered.append($0) }
+
+        harness.coordinator.startDictation(mode: .persistent)
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+        harness.coordinator.stopDictation()
+        let pasteStarted = await waitUntilAsync {
+            await harness.clipboard.snapshot().pasteCallCount == 1
+        }
+        XCTAssertTrue(pasteStarted)
+
+        harness.coordinator.dismissPracticeDictation()
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .idle)
+        let unexpectedlyDelivered = await waitUntil(timeoutMs: 600) { !delivered.isEmpty }
+        XCTAssertFalse(unexpectedlyDelivered)
+        let clipboard = await harness.clipboard.snapshot()
+        XCTAssertTrue(clipboard.pastedTexts.isEmpty)
+        XCTAssertNil(clipboard.lastCopiedText)
+    }
+
+    func testDismissingPracticeDoesNotCancelOrdinaryPendingPaste() async throws {
+        let harness = try await makeRecordingHarness()
+        await harness.stt.configure(result: STTResult(text: "ordinary dictation"))
+        await harness.clipboard.setPasteDelayMs(300)
+
+        harness.coordinator.startDictation(mode: .persistent)
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+        harness.coordinator.stopDictation()
+        let pasteStarted = await waitUntilAsync {
+            await harness.clipboard.snapshot().pasteCallCount == 1
+        }
+        XCTAssertTrue(pasteStarted)
+
+        harness.coordinator.dismissPracticeDictation()
+        let pasted = await waitUntilAsync {
+            await harness.clipboard.snapshot().pastedTexts == ["ordinary dictation "]
+        }
+        XCTAssertTrue(pasted)
+    }
+
     func testClipboardOnlyDictationCopiesWithoutPasting() async throws {
         let harness = try await makeRecordingHarness()
         await harness.stt.configure(result: STTResult(text: "notes for the other desktop"))

@@ -1045,6 +1045,7 @@ extension PromptsCommand {
                 }
 
                 let transcriptText = TranscriptAIContextFormatter.format(projection: projection)
+                let sourceTranscriptHash = PromptResultFreshness.sourceTranscriptHash(for: automaticTranscript)
                 guard !transcriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                     throw PromptCLIError.emptyTranscript(transcript.fileName)
                 }
@@ -1138,7 +1139,8 @@ extension PromptsCommand {
                         providerSnapshot: providerSnapshot,
                         modelSnapshot: modelSnapshot,
                         outputLanguagePolicySnapshot: outputLanguagePolicy.configurationValue,
-                        sourceCorrectionRevision: projection.correctionRevision
+                        sourceCorrectionRevision: projection.correctionRevision,
+                        sourceTranscriptHash: sourceTranscriptHash
                     )
                     try resultRepo.save(result)
                     await refreshMeetingArtifacts(
@@ -1170,7 +1172,8 @@ func makeStoredPromptRunResult(
     providerSnapshot: String? = nil,
     modelSnapshot: String? = nil,
     outputLanguagePolicySnapshot: String? = nil,
-    sourceCorrectionRevision: Int
+    sourceCorrectionRevision: Int,
+    sourceTranscriptHash: String? = nil
 ) -> PromptResult {
     PromptResult(
         transcriptionId: transcript.id,
@@ -1186,7 +1189,8 @@ func makeStoredPromptRunResult(
         providerSnapshot: providerSnapshot,
         modelSnapshot: modelSnapshot,
         outputLanguagePolicySnapshot: outputLanguagePolicySnapshot,
-        sourceCorrectionRevision: sourceCorrectionRevision
+        sourceCorrectionRevision: sourceCorrectionRevision,
+        sourceTranscriptHash: sourceTranscriptHash ?? PromptResultFreshness.sourceTranscriptHash(for: transcript)
     )
 }
 

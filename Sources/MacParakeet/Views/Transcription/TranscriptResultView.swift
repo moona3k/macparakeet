@@ -2582,6 +2582,11 @@ struct TranscriptResultView: View {
         viewModel.speakerAttribution?.correctionRevision ?? 0
     }
 
+    private var currentSourceTranscriptHash: String {
+        let source = viewModel.currentTranscription.flatMap { $0.id == transcription.id ? $0 : nil } ?? transcription
+        return PromptResultFreshness.sourceTranscriptHash(for: source)
+    }
+
     private var wholeTranscriptEditingAvailable: Bool {
         TranscriptDetailActionAvailability.canEditWholeTranscript(
             status: activeTranscription.status,
@@ -3193,10 +3198,14 @@ struct TranscriptResultView: View {
                 if let promptResult {
                     let summaryNeedsUpdate = PromptResultFreshness.summaryNeedsUpdate(
                         sourceCorrectionRevision: promptResult.sourceCorrectionRevision,
-                        currentCorrectionRevision: currentCorrectionRevision
+                        currentCorrectionRevision: currentCorrectionRevision,
+                        sourceTranscriptHash: promptResult.sourceTranscriptHash,
+                        currentTranscriptHash: currentSourceTranscriptHash
                     )
                     if summaryNeedsUpdate {
-                        Text("The transcript changed after this summary.")
+                        Text(promptResult.sourceTranscriptHash == nil
+                            ? "This summary's source transcript is unknown. Update it to check against the current transcript."
+                            : "The transcript changed after this summary.")
                             .font(DesignSystem.Typography.caption)
                             .foregroundStyle(DesignSystem.Colors.textSecondary)
                     }
@@ -3228,7 +3237,8 @@ struct TranscriptResultView: View {
                                     if let generationID = promptResultsViewModel.regeneratePromptResult(
                                         promptResult,
                                         transcript: context,
-                                        sourceCorrectionRevision: currentCorrectionRevision
+                                        sourceCorrectionRevision: currentCorrectionRevision,
+                                        sourceTranscriptHash: currentSourceTranscriptHash
                                     ) {
                                         viewModel.selectedTab = .generation(id: generationID)
                                     }
@@ -3578,7 +3588,8 @@ struct TranscriptResultView: View {
                         if let generationID = promptResultsViewModel.generatePromptResult(
                             transcript: context,
                             transcriptionId: transcription.id,
-                            sourceCorrectionRevision: currentCorrectionRevision
+                            sourceCorrectionRevision: currentCorrectionRevision,
+                            sourceTranscriptHash: currentSourceTranscriptHash
                         ) {
                             viewModel.selectedTab = .generation(id: generationID)
                         }

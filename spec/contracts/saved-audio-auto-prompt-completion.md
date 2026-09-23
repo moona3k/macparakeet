@@ -46,6 +46,10 @@ retention. Callers own those effects.
   copied; the caller is responsible for passing the correct saved child.
 - The transcript text and `sourceCorrectionRevision` receipt come from the
   same effective-attribution read before card generation or provider calls.
+  The result also stores `sourceTranscriptHash` from the supplied saved
+  transcription before those calls. For an unedited transcript with timed
+  cues, it hashes joined cue words without timestamps or speaker labels;
+  otherwise it uses automatic clean/raw text.
   A correction made while those calls run leaves the saved result tied to its
   original input revision, so the app can mark it stale. If no attribution
   projection is available, the service uses the supplied transcript and
@@ -84,10 +88,11 @@ retention. Callers own those effects.
 
 ## Versioning and compatibility
 
-This is a new, additive Core type. No existing public API, CLI flag, or
-persisted field changes shape. `PromptResultsViewModel`'s public API and
-observable behavior are unchanged; only its private selection
-implementation now calls into the shared `PromptAutoRunSelector`.
+This boundary was introduced as an additive Core type, without changing
+existing CLI flags. `PromptResultsViewModel` delegates its private selection
+implementation to the shared `PromptAutoRunSelector`. Migration v0.48 later
+adds a nullable `sourceTranscriptHash` receipt to persisted `PromptResult`s;
+older results retain an unknown source.
 
 ## Known residual limitations (reported, not solved here)
 

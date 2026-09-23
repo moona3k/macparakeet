@@ -779,6 +779,34 @@ final class OnboardingViewModelTests: XCTestCase {
         vm.stopObservingWarmUp()
     }
 
+    func testSkipNotifiesPracticeOwnerBeforeLeavingActiveCapture() async throws {
+        let vm = try await makeListeningPracticeViewModel()
+        vm.practiceDictationActivityChanged(.recording(.handsFree))
+        var observedStep: OnboardingViewModel.Step?
+        vm.onPracticeExit = { observedStep = vm.step }
+
+        vm.skipPractice()
+
+        XCTAssertEqual(observedStep, .practice)
+        XCTAssertEqual(vm.step, .done)
+        XCTAssertEqual(vm.practiceActivity, .idle)
+    }
+
+    func testCloseConfirmationStopsPracticeAndRequiresAnotherBoxClick() async throws {
+        let vm = try await makeListeningPracticeViewModel()
+        vm.practiceDictationActivityChanged(.recording(.handsFree))
+        var exits = 0
+        vm.onPracticeExit = { exits += 1 }
+
+        vm.suspendPracticeForWindowClose()
+
+        XCTAssertEqual(exits, 1)
+        XCTAssertEqual(vm.step, .practice)
+        XCTAssertEqual(vm.practiceActivity, .idle)
+        XCTAssertFalse(vm.isPracticeListening)
+        XCTAssertEqual(vm.practiceBoxState, .clickToStart)
+    }
+
     func testSkipAfterEngineFailureReachesDone() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()

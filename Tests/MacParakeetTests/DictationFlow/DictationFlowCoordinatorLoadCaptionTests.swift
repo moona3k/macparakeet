@@ -468,6 +468,31 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         XCTAssertEqual(newlineClipboard.lastPastedText, "hello\nworld ")
     }
 
+    func testOnboardingPracticeUsesPasteEvenWhenStreamingCursorIsEnabled() async throws {
+        let harness = try makeHarness(
+            isReady: true,
+            transcribeDelayMs: 5,
+            streamingCursorEnabled: true
+        )
+        var isPracticeTarget = true
+        harness.coordinator.isPracticeTarget = { isPracticeTarget }
+
+        harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
+        let started = await waitUntil { harness.coordinator.overlayStateForTesting?.isRecordingForTest == true }
+        XCTAssertTrue(started)
+        // Target visibility can change before paste dispatch.
+        isPracticeTarget = false
+        harness.coordinator.stopDictation()
+        let pasted = await waitUntilAsync {
+            await harness.clipboard.snapshot().lastPastedText != nil
+        }
+
+        XCTAssertTrue(pasted)
+        XCTAssertEqual(harness.streamingInserter.snapshot(), [])
+        let clipboard = await harness.clipboard.snapshot()
+        XCTAssertEqual(clipboard.lastPastedText, "Mock transcription ")
+    }
+
     func testStreamingCursorEventFailureFallsBackToPaste() async throws {
         let inserter = RecordingStreamingInserter()
         inserter.error = StreamingCursorError.eventSourceUnavailable
@@ -498,16 +523,21 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
             streamingCursorEnabled: true,
             streamingInserter: inserter
         )
+        var delivered: [String] = []
+        harness.coordinator.onDictationDelivered = { delivered.append($0) }
 
         try await harness.startAndStop()
         let copied = await waitUntilAsync {
             await harness.clipboard.snapshot().lastCopiedText != nil
         }
+        let reported = await waitUntil { delivered.count == 1 }
         let clipboard = await harness.clipboard.snapshot()
 
         XCTAssertTrue(copied)
+        XCTAssertTrue(reported)
         XCTAssertEqual(clipboard.lastCopiedText, "Mock transcription ")
         XCTAssertEqual(clipboard.pasteCallCount, 0)
+        XCTAssertEqual(delivered, ["Mock transcription"])
     }
 
     func testStreamingCursorPartialInsertReportsClipboardFailureWithoutPasting() async throws {
