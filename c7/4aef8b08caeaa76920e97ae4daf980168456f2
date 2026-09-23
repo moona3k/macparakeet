@@ -1,0 +1,45 @@
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_697e594299b62c::t_695479fcd9418a 3245
+  s_697e594299b62c::t_9d39577d8359aa 3310-3312
+  s_697e594299b62c::t_aba39a75b13699 3322
+Sources/MacParakeetViewModels/PromptResultsViewModel.swift
+  s_697e594299b62c::t_2e1c38fd1d1c2a 510
+  s_697e594299b62c::t_c43edc28be2409 856-857,860-862
+  s_697e594299b62c::t_1e17c223b54812 590,595
+  s_697e594299b62c::t_61dac34091ab56 858-859
+  s_697e594299b62c::t_e7d9e817732749 509,516-517,519
+  s_697e594299b62c::t_ba3e6a7bb40e5f 947-952
+  s_697e594299b62c::t_695479fcd9418a 511-515,591-594
+spec/contracts/cli-json-v1.md
+  s_697e594299b62c::t_b141137639117f 210-212
+spec/02-features.md
+  s_697e594299b62c::t_022cf57586f9dd 2248
+spec/12-processing-layer.md
+  s_697e594299b62c::t_b141137639117f 203,208
+Tests/MacParakeetTests/ViewModels/PromptResultsViewModelTests.swift
+  s_697e594299b62c::t_f420674ea3225a 251,267,269-274
+  s_697e594299b62c::t_f78e617e6d35b9 275,277-296,298-349
+  s_697e594299b62c::t_695479fcd9418a 297
+  s_697e594299b62c::t_c00348056dc440 941-947
+  s_697e594299b62c::t_d08642ef844f18 276
+spec/contracts/meeting-artifacts-v1.md
+  s_697e594299b62c::t_b141137639117f 149-151
+spec/01-data-model.md
+  s_697e594299b62c::t_b141137639117f 713-715,1770
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c74aef8b08caeaa76920e97ae4daf980168456f2",
+  "prompts": {},
+  "sessions": {
+    "s_697e594299b62c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cbf1-51b1-7ea3-a7cc-7f0645829f47",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
