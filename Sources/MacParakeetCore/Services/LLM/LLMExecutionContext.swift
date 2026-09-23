@@ -1,5 +1,15 @@
 import Foundation
 
+public enum LLMTaskGroup: String, Sendable, Codable, CaseIterable {
+    case cleanup
+    case analysis
+    case transform
+
+    public var allowsOverride: Bool {
+        self != .transform
+    }
+}
+
 public struct LLMExecutionContext: Sendable, Equatable {
     public let providerConfig: LLMProviderConfig
     public let localCLIConfig: LocalCLIConfig?
@@ -12,6 +22,13 @@ public struct LLMExecutionContext: Sendable, Equatable {
 
 public protocol LLMExecutionContextResolving: Sendable {
     func resolveContext() throws -> LLMExecutionContext?
+    func resolveContext(for task: LLMTaskGroup) throws -> LLMExecutionContext?
+}
+
+extension LLMExecutionContextResolving {
+    public func resolveContext(for task: LLMTaskGroup) throws -> LLMExecutionContext? {
+        try resolveContext()
+    }
 }
 
 public struct StaticLLMExecutionContextResolver: LLMExecutionContextResolving, Sendable {
@@ -39,9 +56,18 @@ public final class StoredLLMExecutionContextResolver: LLMExecutionContextResolvi
     }
 
     public func resolveContext() throws -> LLMExecutionContext? {
-        guard let providerConfig = try configStore.loadConfig() else {
-            return nil
+        try makeContext(from: configStore.loadConfig())
+    }
+
+    public func resolveContext(for task: LLMTaskGroup) throws -> LLMExecutionContext? {
+        if task.allowsOverride, let override = try configStore.loadTaskOverride(task) {
+            return try makeContext(from: override)
         }
+        return try resolveContext()
+    }
+
+    private func makeContext(from providerConfig: LLMProviderConfig?) throws -> LLMExecutionContext? {
+        guard let providerConfig else { return nil }
 
         let localCLIConfig: LocalCLIConfig?
         if providerConfig.id == .localCLI {

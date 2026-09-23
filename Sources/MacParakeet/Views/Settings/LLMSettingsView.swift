@@ -52,6 +52,18 @@ struct LLMSettingsView: View {
 
             selectedAIOptionSection
 
+            if viewModel.selectedProviderID != nil {
+                Divider()
+                taskRouteSection
+
+                if viewModel.selectedProviderID != .appleIntelligence,
+                    viewModel.cleanupOverrideProviderID == .appleIntelligence
+                        || viewModel.analysisOverrideProviderID == .appleIntelligence
+                {
+                    appleIntelligenceStatusSection
+                }
+            }
+
             if viewModel.shouldShowInProcessLocalSetup {
                 Divider()
 
@@ -265,6 +277,58 @@ struct LLMSettingsView: View {
         }
     }
 
+    private var taskRouteSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            taskRouteRow(
+                title: "Dictation & cleanup",
+                detail: "Formatter for dictation and transcripts.",
+                provider: $viewModel.cleanupOverrideProviderID,
+                model: $viewModel.cleanupModelName
+            )
+            taskRouteRow(
+                title: "Meetings & library",
+                detail: "Summaries, Ask, and knowledge cards.",
+                provider: $viewModel.analysisOverrideProviderID,
+                model: $viewModel.analysisModelName
+            )
+        }
+    }
+
+    private func taskRouteRow(
+        title: String,
+        detail: String,
+        provider: Binding<LLMProviderID?>,
+        model: Binding<String>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(DesignSystem.Typography.body)
+                    Text(detail)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: DesignSystem.Spacing.md)
+                Picker(title, selection: provider) {
+                    Text("Use default AI").tag(LLMProviderID?.none)
+                    ForEach(providerOrder, id: \.self) { option in
+                        Text(option.displayName).tag(Optional(option))
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(width: 190)
+            }
+            if let selectedProvider = provider.wrappedValue,
+                selectedProvider != .localCLI && selectedProvider != .appleIntelligence
+            {
+                TextField("Model", text: model)
+                    .textFieldStyle(.roundedBorder)
+            }
+        }
+    }
+
     private var selectedAIOptionSection: some View {
         VStack(spacing: DesignSystem.Spacing.md) {
             HStack(alignment: .top) {
@@ -328,7 +392,7 @@ struct LLMSettingsView: View {
                     Text("On-device Apple Intelligence")
                         .font(DesignSystem.Typography.body.weight(.semibold))
                     Text(
-                        "Free, no download from MacParakeet, best for short prompts like Transforms and dictation cleanup. Long meeting summaries need a cloud or Ollama provider."
+                        "Runs on this Mac and works best for short requests. Long meeting summaries may exceed its context window."
                     )
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.secondary)
@@ -817,7 +881,7 @@ struct LLMSettingsView: View {
                 Text("Meeting titles")
                     .font(DesignSystem.Typography.body.weight(.semibold))
                 Text(
-                    "Use the saved AI provider to replace timestamp-only meeting names with short topic titles after transcription."
+                    "Use the Meetings & library AI route to replace timestamp-only meeting names with short topic titles after transcription."
                 )
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(.secondary)
@@ -860,7 +924,7 @@ struct LLMSettingsView: View {
                                 )
                         }
                         Text(
-                            "Uses the saved LLM provider after cleanup for file and meeting transcripts. Dictation use can add latency."
+                            "Uses the Dictation & cleanup AI route after cleanup for file and meeting transcripts. Dictation use can add latency."
                         )
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(.secondary)
@@ -1987,10 +2051,15 @@ struct LLMSettingsView: View {
     }
 
     private var privacyInfo: some View {
-        let isLocal = viewModel.isLocalConfiguration
-        let isCLI = viewModel.selectedProviderID == .localCLI
+        let hasPendingChanges = viewModel.hasUnsavedChanges
+        let taskOverrides = [viewModel.cleanupOverrideProviderID, viewModel.analysisOverrideProviderID].compactMap { $0 }
+        let allRoutesLocal = viewModel.isLocalConfiguration
+            && taskOverrides.allSatisfy { provider in
+                provider == viewModel.selectedProviderID ? viewModel.isLocalConfiguration : provider.isLocal
+            }
+        let isCLI = viewModel.selectedProviderID == .localCLI || taskOverrides.contains(.localCLI)
         let usesInsecureHTTP = viewModel.usesInsecureLocalNetworkHTTP
-        let usesTrustedLocal = isLocal && !usesInsecureHTTP
+        let usesTrustedLocal = !hasPendingChanges && allRoutesLocal && !usesInsecureHTTP
         let tint: Color
         let iconName: String
         if usesTrustedLocal {
@@ -2011,10 +2080,11 @@ struct LLMSettingsView: View {
 
             Text(
                 privacyInfoMessage(
-                    isLocal: isLocal,
+                    hasPendingChanges: hasPendingChanges,
+                    allRoutesLocal: allRoutesLocal,
                     isCLI: isCLI,
                     usesInsecureHTTP: usesInsecureHTTP,
-                    isAppleIntelligence: viewModel.selectedProviderID == .appleIntelligence
+                    isAppleIntelligence: viewModel.selectedProviderID == .appleIntelligence && taskOverrides.isEmpty
                 )
             )
             .font(DesignSystem.Typography.caption)
@@ -2029,25 +2099,28 @@ struct LLMSettingsView: View {
     }
 
     private func privacyInfoMessage(
-        isLocal: Bool,
+        hasPendingChanges: Bool,
+        allRoutesLocal: Bool,
         isCLI: Bool,
         usesInsecureHTTP: Bool,
         isAppleIntelligence: Bool
     ) -> String {
-        if usesInsecureHTTP {
-            return "Transcript text is sent to your local AI endpoint over HTTP. Use a trusted network."
+        if hasPendingChanges {
+            return "Route changes apply after Save. Until then, AI actions use the last saved configuration, which may send transcript text off this Mac."
         }
         if isAppleIntelligence {
             return
                 "Transcript text stays on this Mac. Apple Intelligence runs on-device and does not send it to the cloud."
         }
-        if isLocal {
-            return "Transcript text is sent only to your local AI endpoint."
-        }
         if isCLI {
-            return "Runs a command on this Mac. The command may contact its own service."
+            return "AI actions use the provider selected for each task. Local CLI commands may contact their own service."
         }
-        return "Transcription stays local. Transcript text is sent only when you run an AI action."
+        if allRoutesLocal {
+            return usesInsecureHTTP
+                ? "AI actions send transcript text only to selected local endpoints over HTTP. Use a trusted network."
+                : "AI actions send transcript text only to selected local AI routes."
+        }
+        return "Transcription stays local. AI actions use the provider selected for each task; cloud routes send transcript text off this Mac."
     }
 
     private var configurationActionsRow: some View {

@@ -2,7 +2,7 @@
 
 > Status: **IMPLEMENTED** — describes the release candidate, including OpenCode Go session headers (#948). Candidate changes are not a claim about the published stable build; runtime validation is tracked separately.
 > Supersedes: Previous HISTORICAL version (local Qwen3-8B via mlx-swift-lm, removed 2026-02-23)
-> ADR: ADR-011 (Cloud API keys + optional local providers); ADR-032 (task-group routing — accepted direction, not implemented)
+> ADR: ADR-011 (Cloud API keys + optional local providers); ADR-032 (task-group routing)
 > Note: §1 (Transcript Summary) is superseded by [spec/12-processing-layer.md](12-processing-layer.md) — Prompt Library + multi-summary architecture. §3's old UserDefaults custom-transform design is superseded by ADR-022's productized `Prompt.Category.transform` Transforms. Provider protocol, formatter, chat, and CLI sections remain current.
 
 This spec defines how MacParakeet integrates LLM-powered features via user-selected providers,
@@ -24,7 +24,7 @@ model option.
 2. Bundled/default LLM processing in the dictation hot path. The AI formatter is opt-in, runs after deterministic cleanup, and falls back to the deterministic result if the provider fails.
 3. Building a hosted backend or proxy service.
 4. Automatic fallback between providers.
-5. Per-feature LLM model pickers. If model selection is split, it is by task (cleanup vs analysis, with Transforms inheriting the default route) per [ADR-032](adr/032-llm-task-group-routing.md): inherit the default, pick a general LLM route, or pick a specialist recipe on eligible tasks. That policy is not implemented; the current runtime still uses one saved default provider config, with existing prompt/Transform `modelOverride` and `--model` on stored-config CLI commands. Inline CLI commands that pass a full provider context remain independent configs. Specialists such as S1-mini (cleanup) or Hy-MT2 (translation, only if F31 ships) are recipes bound to a task, not names in the default model list. Analysis does not get a recipe.
+5. Per-feature LLM model pickers. Model selection is by task (cleanup vs analysis, with Transforms inheriting the default route) per [ADR-032](adr/032-llm-task-group-routing.md): inherit the default or pick a general LLM route. Prompt/Transform `modelOverride` and `--model` on stored-config CLI commands still overlay that route. Inline CLI commands that pass a full provider context remain independent configs. Specialists such as S1-mini (cleanup) or Hy-MT2 (translation, only if F31 ships) are not shipped.
 
 **Local MLX status (updated 2026-07-05):** The in-process provider, MLX runtime seam, verified model downloader, and one-click Settings card now exist as a developer-gated foundation. The public feature flag remains off, downloads are never automatic, and public one-click setup remains blocked by runtime capability gating, setup UX, release readiness, and Phase 0 quality evidence. The first plausible public scope is single-transcript cleanup/summarization/Q&A; cross-meeting or whole-library analysis remains future-gated. Cloud/frontier providers remain the recommended quality path per surface until local capability reaches parity there. See `plans/active/2026-06-27-on-device-local-llm.md`.
 
@@ -35,7 +35,7 @@ model option.
 ```text
 User triggers LLM action (Summary / Chat / Formatter / Transform)
     → LLMService (builds prompt with transcript context)
-    → LLMExecutionContextResolver (resolves provider config + CLI config; currently task-blind)
+    → LLMExecutionContextResolver (resolves provider config + CLI config per task group)
     → RoutingLLMClient
         → .inProcessLocal: InProcessLLMClient → LocalLLMRuntime (MLX only in gated app builds)
         → .appleIntelligence: AppleIntelligenceLLMClient → FoundationModels (macOS 26+)
@@ -47,21 +47,22 @@ User triggers LLM action (Summary / Chat / Formatter / Transform)
     → Response streamed back to UI
 ```
 
-### Per-task selection (accepted direction; not implemented)
+### Per-task selection
 
-Current code loads one saved default provider config, then may apply a
-prompt/Transform `modelOverride` or `--model` on a stored-config CLI
-command. Inline CLI commands that pass a full provider context do not
-use that saved route. If that grows, follow [ADR-032](adr/032-llm-task-group-routing.md): define a
-few tasks (`cleanup`, `analysis`, `transform`; `translate` only if F31
-ships), then a selector per task. Inherit the default, pick a general LLM
-route, or pick a specialist recipe on eligible tasks (`cleanup` now;
-`translate` only if F31). Do not add a Settings picker per feature, and do
-not put S1-mini or Hy-MT2 in the default model list. The first-party Local
-MLX model, if offered, remains one general model; built-in specialists are
-optional, task-bound recipes. Prompt/Transform `modelOverride` stays; the
-later split adds full-route task overrides, not a wipe of current
-model-name overrides.
+The default provider remains the route for every AI task until the user
+changes one of two Settings rows. Dictation and transcript formatting use
+`cleanup`; summaries, Ask, chat, and knowledge cards use `analysis`.
+Each row can inherit the default or select a full provider/model route.
+Transforms continue to inherit the default route. Prompt/Transform
+`modelOverride` and `--model` on stored-config CLI commands overlay the
+resolved route. Inline CLI commands with a full provider context stay
+independent. Specialist recipes are not shipped; see
+[ADR-032](adr/032-llm-task-group-routing.md).
+When a task row selects Apple Intelligence, Settings shows its availability
+and does not report AI setup as ready until the system model can generate.
+Saving the default and both task routes prepares credentials and encoded
+settings before publishing the routes; a failed credential write leaves the
+previous routes active.
 
 ### Provider Protocol
 

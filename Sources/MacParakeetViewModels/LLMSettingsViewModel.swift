@@ -167,6 +167,22 @@ public final class LLMSettingsViewModel {
         set { applyProviderChange(to: newValue) }
     }
 
+    /// `nil` means inherit the default AI route.
+    public var cleanupOverrideProviderID: LLMProviderID? {
+        didSet {
+            guard cleanupOverrideProviderID != oldValue else { return }
+            cleanupModelName = cleanupOverrideProviderID?.defaultModelName ?? ""
+        }
+    }
+    public var cleanupModelName = ""
+    public var analysisOverrideProviderID: LLMProviderID? {
+        didSet {
+            guard analysisOverrideProviderID != oldValue else { return }
+            analysisModelName = analysisOverrideProviderID?.defaultModelName ?? ""
+        }
+    }
+    public var analysisModelName = ""
+
     public var apiKeyInput: String {
         get { draft.apiKeyInput }
         set {
@@ -270,9 +286,13 @@ public final class LLMSettingsViewModel {
         }
         if isConfigured {
             let displayName = savedAIOptionDisplayName ?? draftAIOptionDisplayName ?? "AI"
-            if savedProviderID == .appleIntelligence, !appleIntelligenceAvailability.canGenerate {
+            if (savedProviderID == .appleIntelligence
+                || savedCleanupOverrideProviderID == .appleIntelligence
+                || savedAnalysisOverrideProviderID == .appleIntelligence),
+                !appleIntelligenceAvailability.canGenerate
+            {
                 return .cannotConnect(
-                    displayName: displayName,
+                    displayName: "Apple Intelligence",
                     message: appleIntelligenceAvailability.userMessage
                 )
             }
@@ -283,6 +303,10 @@ public final class LLMSettingsViewModel {
 
     public var hasUnsavedChanges: Bool {
         draftConfigurationSnapshot() != savedConfigurationSnapshot()
+            || cleanupOverrideProviderID != savedCleanupOverrideProviderID
+            || cleanupModelName != savedCleanupModelName
+            || analysisOverrideProviderID != savedAnalysisOverrideProviderID
+            || analysisModelName != savedAnalysisModelName
     }
 
     public var connectionSuccessMessage: String {
@@ -428,7 +452,7 @@ public final class LLMSettingsViewModel {
     }
 
     public func refreshAppleIntelligenceAvailability() {
-        appleIntelligenceAvailability = AppleIntelligenceAvailability.current()
+        appleIntelligenceAvailability = appleIntelligenceAvailabilityProvider()
     }
 
     private var isInProcessLocalLLMRuntimeAvailable: Bool {
@@ -685,7 +709,12 @@ public final class LLMSettingsViewModel {
     private var cliConfigStore: LocalCLIConfigStore?
     private var aiFormatterProfileRepo: AIFormatterProfileRepositoryProtocol?
     private let defaults: UserDefaults
+    private let appleIntelligenceAvailabilityProvider: () -> AppleIntelligenceAvailability
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "LLMSettingsViewModel")
+    private var savedCleanupOverrideProviderID: LLMProviderID?
+    private var savedCleanupModelName = ""
+    private var savedAnalysisOverrideProviderID: LLMProviderID?
+    private var savedAnalysisModelName = ""
 
     private enum ConfigurationSnapshot: Equatable {
         case none
@@ -699,8 +728,14 @@ public final class LLMSettingsViewModel {
         )
     }
 
-    public init(defaults: UserDefaults = .standard) {
+    public init(
+        defaults: UserDefaults = .standard,
+        appleIntelligenceAvailabilityProvider: @escaping () -> AppleIntelligenceAvailability = {
+            AppleIntelligenceAvailability.current()
+        }
+    ) {
         self.defaults = defaults
+        self.appleIntelligenceAvailabilityProvider = appleIntelligenceAvailabilityProvider
         self.inProcessModelManager = InProcessModelManagerViewModel()
         self.aiFormatterEnabledForDictation = Self.loadStoredAIFormatterEnabledForDictation(from: defaults)
         self.aiFormatterEnabledForTranscriptions = Self.loadStoredAIFormatterEnabledForTranscriptions(from: defaults)
@@ -712,6 +747,7 @@ public final class LLMSettingsViewModel {
             aiFormatterPrompt: Self.loadStoredAIFormatterPrompt(from: defaults),
             aiFormatterDictationPrompt: Self.loadStoredAIFormatterDictationPrompt(from: defaults)
         )
+        self.appleIntelligenceAvailability = appleIntelligenceAvailabilityProvider()
     }
 
     public func configure(
@@ -758,12 +794,43 @@ public final class LLMSettingsViewModel {
                     commandTemplate: draft.trimmedCommandTemplate,
                     timeoutSeconds: draft.cliTimeoutSeconds
                 ) : nil
+            // Validate both task routes before changing the active default.
+            // A bad second route must not leave Save reporting failure after
+            // the first route or the default has already changed.
+            let cleanupOverride = try preparedOverride(
+                providerID: cleanupOverrideProviderID,
+                modelName: cleanupModelName,
+                task: .cleanup,
+                defaultConfig: config,
+                stagedCLIConfig: cliConfig
+            )
+            let analysisOverride = try preparedOverride(
+                providerID: analysisOverrideProviderID,
+                modelName: analysisModelName,
+                task: .analysis,
+                defaultConfig: config,
+                stagedCLIConfig: cliConfig
+            )
             if let cliConfig {
                 guard let cliConfigStore else { throw LocalCLIError.commandNotConfigured }
-                try cliConfigStore.save(cliConfig, providerConfig: config, configStore: configStore)
+                try cliConfigStore.save(cliConfig) {
+                    try configStore.saveConfiguration(
+                        config,
+                        cleanupOverride: cleanupOverride,
+                        analysisOverride: analysisOverride
+                    )
+                }
             } else {
-                try configStore.saveConfig(config)
+                try configStore.saveConfiguration(
+                    config,
+                    cleanupOverride: cleanupOverride,
+                    analysisOverride: analysisOverride
+                )
             }
+            savedCleanupOverrideProviderID = cleanupOverrideProviderID
+            savedCleanupModelName = cleanupModelName
+            savedAnalysisOverrideProviderID = analysisOverrideProviderID
+            savedAnalysisModelName = analysisModelName
 
             _ = persistAIFormatterPreferences(from: draft)
             // Rehydrate the exact committed payload, without a fallible credential
@@ -869,6 +936,7 @@ public final class LLMSettingsViewModel {
         }
         connectionTestState = .idle
         saveState = finalSaveState
+        loadTaskOverrides()
         inProcessModelManager.refreshSelectionState()
         onConfigurationChanged?()
     }
@@ -1285,6 +1353,7 @@ public final class LLMSettingsViewModel {
             resetDiscoveredModels()
             connectionTestState = .idle
             saveState = .idle
+            loadTaskOverrides()
             return
         }
         let cliConfig = config.id == .localCLI ? cliConfigStore?.load() : nil
@@ -1296,6 +1365,94 @@ public final class LLMSettingsViewModel {
         }
         connectionTestState = .idle
         saveState = .idle
+        loadTaskOverrides()
+    }
+
+    private func loadTaskOverrides() {
+        cleanupOverrideProviderID = nil
+        cleanupModelName = ""
+        analysisOverrideProviderID = nil
+        analysisModelName = ""
+        if let cleanup = try? configStore?.loadTaskOverride(.cleanup) {
+            cleanupOverrideProviderID = cleanup.id
+            cleanupModelName = cleanup.modelName
+        }
+        if let analysis = try? configStore?.loadTaskOverride(.analysis) {
+            analysisOverrideProviderID = analysis.id
+            analysisModelName = analysis.modelName
+        }
+        savedCleanupOverrideProviderID = cleanupOverrideProviderID
+        savedCleanupModelName = cleanupModelName
+        savedAnalysisOverrideProviderID = analysisOverrideProviderID
+        savedAnalysisModelName = analysisModelName
+    }
+
+    private func preparedOverride(
+        providerID: LLMProviderID?,
+        modelName: String,
+        task: LLMTaskGroup,
+        defaultConfig: LLMProviderConfig,
+        stagedCLIConfig: LocalCLIConfig?
+    ) throws -> LLMProviderConfig? {
+        guard let configStore, let providerID else { return nil }
+        let trimmed = modelName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedModel = trimmed.isEmpty ? providerID.defaultModelName : trimmed
+
+        if providerID == .localCLI {
+            guard stagedCLIConfig != nil || cliConfigStore?.load() != nil else {
+                throw LLMSettingsDraft.ValidationError.taskOverrideUnavailable
+            }
+            return .localCLI()
+        }
+        guard !resolvedModel.isEmpty else { throw LLMSettingsDraft.ValidationError.missingCustomModel }
+
+        if defaultConfig.id == providerID {
+            return LLMProviderConfig(
+                id: providerID,
+                baseURL: defaultConfig.baseURL,
+                apiKey: defaultConfig.apiKey,
+                modelName: resolvedModel,
+                isLocal: defaultConfig.isLocal
+            )
+        }
+
+        // A task route is a full provider route. Keep its endpoint when the
+        // default provider changes; editing the model must not redirect a
+        // saved local server to the stock localhost port.
+        if let existing = try configStore.loadTaskOverride(task), existing.id == providerID {
+            guard !providerID.requiresAPIKey || existing.apiKey?.isEmpty == false else {
+                throw LLMSettingsDraft.ValidationError.taskOverrideUnavailable
+            }
+            return LLMProviderConfig(
+                id: providerID,
+                baseURL: existing.baseURL,
+                apiKey: existing.apiKey,
+                modelName: resolvedModel,
+                isLocal: existing.isLocal
+            )
+        }
+
+        if providerID.requiresCustomEndpoint || providerID.defaultBaseURL.isEmpty {
+            throw LLMSettingsDraft.ValidationError.taskOverrideUnavailable
+        }
+
+        let apiKey = try configStore.loadAPIKey(for: providerID)
+        if providerID.requiresAPIKey {
+            guard let apiKey, !apiKey.isEmpty else {
+                throw LLMSettingsDraft.ValidationError.taskOverrideUnavailable
+            }
+        }
+        guard let baseURL = URL(string: providerID.defaultBaseURL) else {
+            throw LLMSettingsDraft.ValidationError.taskOverrideUnavailable
+        }
+
+        return LLMProviderConfig(
+            id: providerID,
+            baseURL: baseURL,
+            apiKey: apiKey,
+            modelName: resolvedModel,
+            isLocal: providerID.isLocal
+        )
     }
 
     private func loadCommittedDraft(

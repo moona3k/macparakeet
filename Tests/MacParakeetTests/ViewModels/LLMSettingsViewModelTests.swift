@@ -98,6 +98,29 @@ final class LLMSettingsViewModelTests: XCTestCase {
         )
     }
 
+    func testUnavailableAppleIntelligenceTaskRouteDoesNotReportReady() {
+        viewModel = LLMSettingsViewModel(
+            defaults: defaults,
+            appleIntelligenceAvailabilityProvider: { .modelNotReady }
+        )
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "test-key"
+        viewModel.analysisOverrideProviderID = .appleIntelligence
+
+        viewModel.saveConfiguration()
+
+        XCTAssertEqual(mockConfigStore.config?.id, .openai)
+        XCTAssertEqual(mockConfigStore.taskOverrides[.analysis]?.id, .appleIntelligence)
+        XCTAssertEqual(
+            viewModel.setupStatus,
+            .cannotConnect(
+                displayName: "Apple Intelligence",
+                message: AppleIntelligenceAvailability.modelNotReady.userMessage
+            )
+        )
+    }
+
     func testInProcessLocalSetupHiddenWithoutProductVisibility() {
         mockClient.supportsInProcessLocalLLM = true
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
@@ -2165,6 +2188,188 @@ final class LLMSettingsViewModelTests: XCTestCase {
         let saved = mockConfigStore.config
         XCTAssertEqual(saved?.id, .openaiCompatible)
         XCTAssertEqual(saved?.isLocal, true)
+    }
+
+    // MARK: - Task-group overrides
+
+    func testTaskRoutesStartOnDefaultAndProviderChangeResetsModel() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "sk-test"
+        viewModel.saveConfiguration()
+
+        XCTAssertNil(viewModel.cleanupOverrideProviderID)
+        XCTAssertNil(viewModel.analysisOverrideProviderID)
+
+        viewModel.cleanupOverrideProviderID = .openai
+        viewModel.cleanupModelName = "gpt-custom"
+        viewModel.cleanupOverrideProviderID = .anthropic
+        XCTAssertEqual(viewModel.cleanupModelName, LLMProviderID.anthropic.defaultModelName)
+
+        viewModel.analysisOverrideProviderID = .anthropic
+        viewModel.analysisModelName = "claude-custom"
+        viewModel.analysisOverrideProviderID = .openai
+        XCTAssertEqual(viewModel.analysisModelName, LLMProviderID.openai.defaultModelName)
+
+        viewModel.analysisOverrideProviderID = nil
+        XCTAssertEqual(viewModel.analysisModelName, "")
+    }
+
+    func testInvalidSecondTaskRouteDoesNotPartiallySaveNewDefaultOrFirstRoute() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "sk-openai"
+        viewModel.saveConfiguration()
+
+        viewModel.selectedProviderID = .anthropic
+        viewModel.apiKeyInput = "sk-anthropic"
+        viewModel.cleanupOverrideProviderID = .ollama
+        viewModel.analysisOverrideProviderID = .openaiCompatible
+        viewModel.analysisModelName = "custom-model"
+        viewModel.saveConfiguration()
+
+        XCTAssertEqual(
+            viewModel.saveState,
+            .error(LLMSettingsDraft.ValidationError.taskOverrideUnavailable.localizedDescription)
+        )
+        XCTAssertEqual(mockConfigStore.config?.id, .openai)
+        XCTAssertNil(mockConfigStore.taskOverrides[.cleanup])
+        XCTAssertNil(mockConfigStore.taskOverrides[.analysis])
+    }
+
+    func testTaskOverridePreservesCustomLocalEndpointAfterDefaultChanges() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .ollama
+        viewModel.baseURLOverride = "http://127.0.0.1:11500/v1"
+        viewModel.saveConfiguration()
+        viewModel.cleanupOverrideProviderID = .ollama
+        viewModel.saveConfiguration()
+        XCTAssertEqual(mockConfigStore.taskOverrides[.cleanup]?.baseURL.absoluteString, "http://127.0.0.1:11500/v1")
+
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "sk-openai"
+        viewModel.saveConfiguration()
+
+        XCTAssertEqual(viewModel.saveState, .saved)
+        XCTAssertEqual(mockConfigStore.config?.id, .openai)
+        XCTAssertEqual(mockConfigStore.taskOverrides[.cleanup]?.baseURL.absoluteString, "http://127.0.0.1:11500/v1")
+    }
+
+    func testLMStudioTaskOverrideRequiresModel() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "sk-openai"
+        viewModel.saveConfiguration()
+
+        viewModel.cleanupOverrideProviderID = .lmstudio
+        viewModel.saveConfiguration()
+
+        XCTAssertEqual(
+            viewModel.saveState,
+            .error(LLMSettingsDraft.ValidationError.missingCustomModel.localizedDescription)
+        )
+        XCTAssertNil(mockConfigStore.taskOverrides[.cleanup])
+
+        viewModel.cleanupModelName = "local-model"
+        viewModel.saveConfiguration()
+        XCTAssertEqual(viewModel.saveState, .saved)
+        XCTAssertEqual(mockConfigStore.taskOverrides[.cleanup]?.modelName, "local-model")
+    }
+
+    func testTaskOverrideSaveLeavesDefaultUnchanged() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .anthropic
+        viewModel.apiKeyInput = "sk-ant"
+        viewModel.saveConfiguration()
+        mockConfigStore.storedKeys[.openai] = "sk-openai"
+
+        viewModel.cleanupOverrideProviderID = .openai
+        viewModel.cleanupModelName = ""
+        viewModel.saveConfiguration()
+
+        XCTAssertEqual(viewModel.saveState, .saved)
+        XCTAssertEqual(mockConfigStore.config?.id, .anthropic)
+        XCTAssertEqual(mockConfigStore.config?.apiKey, "sk-ant")
+        XCTAssertEqual(mockConfigStore.taskOverrides[.cleanup]?.id, .openai)
+        XCTAssertEqual(
+            mockConfigStore.taskOverrides[.cleanup]?.modelName,
+            LLMProviderID.openai.defaultModelName
+        )
+        XCTAssertEqual(mockConfigStore.taskOverrides[.cleanup]?.apiKey, "sk-openai")
+        XCTAssertFalse(viewModel.hasUnsavedChanges)
+    }
+
+    func testClearingTaskOverrideRemovesStoredRoute() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "sk-test"
+        viewModel.saveConfiguration()
+        viewModel.cleanupOverrideProviderID = .openai
+        viewModel.cleanupModelName = "gpt-4.1-mini"
+        viewModel.saveConfiguration()
+        XCTAssertNotNil(mockConfigStore.taskOverrides[.cleanup])
+
+        viewModel.cleanupOverrideProviderID = nil
+        viewModel.cleanupModelName = ""
+        viewModel.saveConfiguration()
+
+        XCTAssertEqual(viewModel.saveState, .saved)
+        XCTAssertNil(mockConfigStore.taskOverrides[.cleanup])
+        XCTAssertEqual(mockConfigStore.config?.id, .openai)
+        XCTAssertFalse(viewModel.hasUnsavedChanges)
+    }
+
+    func testTaskOverrideToOpenAICompatibleWithoutEndpointFailsInsteadOfCrashing() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "sk-test"
+        viewModel.saveConfiguration()
+
+        viewModel.cleanupOverrideProviderID = .openaiCompatible
+        viewModel.cleanupModelName = "custom-model"
+        viewModel.saveConfiguration()
+
+        XCTAssertEqual(
+            viewModel.saveState,
+            .error(LLMSettingsDraft.ValidationError.taskOverrideUnavailable.localizedDescription)
+        )
+        XCTAssertNil(mockConfigStore.taskOverrides[.cleanup])
+        XCTAssertEqual(mockConfigStore.config?.id, .openai)
+    }
+
+    func testTaskOverrideWithoutStoredKeyFailsInsteadOfSavingEmptyCredentials() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "sk-test"
+        viewModel.saveConfiguration()
+
+        viewModel.analysisOverrideProviderID = .anthropic
+        viewModel.saveConfiguration()
+
+        XCTAssertEqual(
+            viewModel.saveState,
+            .error(LLMSettingsDraft.ValidationError.taskOverrideUnavailable.localizedDescription)
+        )
+        XCTAssertNil(mockConfigStore.taskOverrides[.analysis])
+        XCTAssertEqual(mockConfigStore.config?.id, .openai)
+    }
+
+    func testTaskOverrideToLocalProviderUsesDefaultEndpoint() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "sk-test"
+        viewModel.saveConfiguration()
+
+        viewModel.cleanupOverrideProviderID = .ollama
+        viewModel.saveConfiguration()
+
+        XCTAssertEqual(viewModel.saveState, .saved)
+        XCTAssertEqual(mockConfigStore.taskOverrides[.cleanup]?.id, .ollama)
+        XCTAssertEqual(
+            mockConfigStore.taskOverrides[.cleanup]?.baseURL.absoluteString,
+            LLMProviderID.ollama.defaultBaseURL
+        )
+        XCTAssertEqual(mockConfigStore.config?.id, .openai)
     }
 }
 

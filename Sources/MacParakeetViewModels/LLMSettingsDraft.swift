@@ -10,6 +10,7 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         case invalidBaseURL
         case localNetworkHTTPRequiresOptIn
         case missingCommandTemplate
+        case taskOverrideUnavailable
 
         public var errorDescription: String? {
             switch self {
@@ -25,6 +26,8 @@ public struct LLMSettingsDraft: Equatable, Sendable {
                 return "Turn on local-network HTTP or use https."
             case .missingCommandTemplate:
                 return "Enter a CLI command."
+            case .taskOverrideUnavailable:
+                return "Save that AI option as your default first so its key or endpoint is stored."
             }
         }
     }

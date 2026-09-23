@@ -143,8 +143,16 @@ public final class LocalCLIConfigStore: @unchecked Sendable {
         providerConfig: LLMProviderConfig,
         configStore: any LLMConfigStoreProtocol
     ) throws {
+        try save(config) {
+            try configStore.saveConfig(providerConfig)
+        }
+    }
+
+    /// Encode the CLI command before publishing provider routes. The closure
+    /// may fail; the final CLI defaults write cannot.
+    public func save(_ config: LocalCLIConfig, afterPreparing publishRoutes: () throws -> Void) throws {
         let data = try JSONEncoder().encode(config)
-        try configStore.saveConfig(providerConfig)
+        try publishRoutes()
         defaults.set(data, forKey: Self.configKey)
     }
 

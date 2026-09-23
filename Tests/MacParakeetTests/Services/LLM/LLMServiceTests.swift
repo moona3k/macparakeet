@@ -181,12 +181,23 @@ final class MockLLMExecutionContextResolver: LLMExecutionContextResolving, @unch
             localCLIConfig: resolvedLocalCLIConfig
         )
     }
+
+    func resolveContext(for task: LLMTaskGroup) throws -> LLMExecutionContext? {
+        if task.allowsOverride, let override = try configStore.loadTaskOverride(task) {
+            return LLMExecutionContext(
+                providerConfig: override,
+                localCLIConfig: override.id == .localCLI ? localCLIConfig : nil
+            )
+        }
+        return try resolveContext()
+    }
 }
 
 final class MockLLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
     var config: LLMProviderConfig?
     /// Per-provider key storage for testing provider switching.
     var storedKeys: [LLMProviderID: String] = [:]
+    var taskOverrides: [LLMTaskGroup: LLMProviderConfig] = [:]
 
     func loadConfig() throws -> LLMProviderConfig? { config }
     func saveConfig(_ config: LLMProviderConfig) throws {
@@ -233,6 +244,21 @@ final class MockLLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
             id: existing.id, baseURL: existing.baseURL, apiKey: existing.apiKey,
             modelName: modelName, isLocal: existing.isLocal
         )
+    }
+
+    func loadTaskOverride(_ task: LLMTaskGroup) throws -> LLMProviderConfig? {
+        taskOverrides[task]
+    }
+
+    func saveTaskOverride(_ config: LLMProviderConfig?, for task: LLMTaskGroup) throws {
+        if let config {
+            taskOverrides[task] = config
+            if let key = config.apiKey {
+                storedKeys[config.id] = key
+            }
+        } else {
+            taskOverrides.removeValue(forKey: task)
+        }
     }
 }
 
@@ -287,6 +313,33 @@ final class LLMServiceTests: XCTestCase {
         mockConfigStore = nil
         mockClient = nil
         super.tearDown()
+    }
+
+    func testFeatureRoutesUseTheirTaskProviders() async throws {
+        mockConfigStore.config = .openai(apiKey: "sk-default")
+        mockConfigStore.taskOverrides[.cleanup] = .ollama(model: "cleanup-model")
+        mockConfigStore.taskOverrides[.analysis] = .anthropic(apiKey: "sk-analysis")
+
+        _ = try await service.formatTranscriptDetailed(
+            transcript: "hello", promptTemplate: AIFormatter.defaultPromptTemplate,
+            source: .dictation, defaultPromptUsed: true
+        )
+        XCTAssertEqual(mockClient.capturedContext?.providerConfig.id, .ollama)
+
+        _ = try await service.generatePromptResultDetailed(transcript: "Meeting notes", systemPrompt: "Summarize")
+        XCTAssertEqual(mockClient.capturedContext?.providerConfig.id, .anthropic)
+
+        _ = try await service.chatDetailed(
+            question: "What happened?", transcript: "Meeting notes", userNotes: nil,
+            history: [], source: .transcriptChat, conversationID: UUID()
+        )
+        XCTAssertEqual(mockClient.capturedContext?.providerConfig.id, .anthropic)
+
+        _ = try? await service.generateKnowledgeCard(transcript: "Meeting notes", source: .meeting)
+        XCTAssertEqual(mockClient.capturedContext?.providerConfig.id, .anthropic)
+
+        _ = try await service.transformDetailed(text: "hello", prompt: "Uppercase")
+        XCTAssertEqual(mockClient.capturedContext?.providerConfig.id, .openai)
     }
 
     // MARK: - Not Configured
