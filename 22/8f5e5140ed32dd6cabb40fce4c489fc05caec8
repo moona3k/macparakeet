@@ -1,0 +1,89 @@
+spec/02-features.md
+  s_697e594299b62c::t_0ffa31c71f25fa 178,1026-1027,1055,2102-2103,2112
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_697e594299b62c::t_eca3b8c0322f45 408
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_697e594299b62c::t_6bb2c58ce83b71 466,470
+Sources/MacParakeet/App/AppHotkeyCoordinator.swift
+  s_697e594299b62c::t_5719b15e6255cf 10,26,39,75,86,94,101,124,128-137,143-144,161,176,188,224,236-240,254-280,286-289,299,307-309,311-320,334,336,338,341-344,350-351,354,359,363,413,430,447,518-532
+Sources/MacParakeet/App/AppSettingsObserverCoordinator.swift
+  s_697e594299b62c::t_657a21f85066d1 16,37,58,78
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_697e594299b62c::t_b92c8cf5d731c3 206-207,424,438,1170,1202-1203
+Sources/MacParakeet/App/MenuBarCoordinator.swift
+  s_697e594299b62c::t_9e13e79b8e372f 57-59,72,449-457,597,840,852-853,855-857,919-966
+Sources/MacParakeet/App/TransformsCoordinator.swift
+  s_697e594299b62c::t_8c513d978164d4 51-55,90-91,97-121,135-139,170-171,200-265,324-345,351-354
+Sources/MacParakeet/AppDelegate.swift
+  s_697e594299b62c::t_98c3ca99cbccd4 143-145,349-351,691-699,936-940,1007
+Sources/MacParakeet/Views/MainWindowView.swift
+  s_697e594299b62c::t_f5eb4cc1970d07 380-384
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_697e594299b62c::t_2bcdff563541e2 1110-1118,1122,1708,4036-4054
+Sources/MacParakeet/Views/Transforms/TransformsView.swift
+  s_697e594299b62c::t_3b4be8ccba36d9 233,244-249,880,884,925-932,965-971,994-995
+Sources/MacParakeetCore/AppNotifications.swift
+  s_697e594299b62c::t_de56c80f119a07 13
+Sources/MacParakeetCore/AppRuntimePreferences.swift
+  s_697e594299b62c::t_3b9db187941588 584-586,666-691
+Sources/MacParakeetCore/Hotkey/HotkeyConflictPolicy.swift
+  s_697e594299b62c::t_ba25551595c34e 70,119,130,140,210-216,227,238-244,255,266-270,295-322,338-344,347,364-365,413,438-442,444
+Sources/MacParakeetCore/STT/HotkeyTrigger.swift
+  s_697e594299b62c::t_1733d7f1df9ddd 693
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_697e594299b62c::t_ee4ae07ef75b08 121,138,149-151,222,261,316-317,453-455,601,634,797-798,807-811,826,921,932-935,941,951,1077,1085,1106,1583,1682,1888
+Sources/MacParakeetCore/Services/Dictation/DictationServiceSession.swift
+  s_697e594299b62c::t_0b9c7080215653 52-53,56-60
+Sources/MacParakeetCore/Services/System/SelectionCaptureService.swift
+  s_697e594299b62c::t_e3b2d8ec1dc750 61,69-70,143,235-284,307-310,313-315,333-339,366-372,389-392,394,425-432,435
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_697e594299b62c::t_425f0e17ceeb5d 524
+Sources/MacParakeetCore/Services/Transforms/MenuBarTransformCatalog.swift
+  s_697e594299b62c::t_d77b274877f083 1-33
+Sources/MacParakeetCore/Services/Transforms/TransformExecutor.swift
+  s_697e594299b62c::t_6615e87928d7de 125,130-137
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_697e594299b62c::t_c64b3fd8eeb60e 213-222,1072-1075
+Sources/MacParakeetViewModels/TransformsViewModel.swift
+  s_697e594299b62c::t_ed4cbbbeb77b3a 46,55,75-76,82,109-111,127-141
+Tests/MacParakeetTests/App/AppHotkeyCoordinatorTests.swift
+  s_697e594299b62c::t_bdf15fc3f730a9 26,123-145,260,294-319,365-433
+Tests/MacParakeetTests/App/AppSettingsObserverCoordinatorTests.swift
+  s_697e594299b62c::t_5a2a9be9fa23f9 25,69-72,121,132,154,202,224,311
+Tests/MacParakeetTests/App/TransformsCoordinatorTests.swift
+  s_697e594299b62c::t_93ab6778a07eda 3,29-48
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorLoadCaptionTests.swift
+  s_697e594299b62c::t_30fe45058c1110 75-79
+Tests/MacParakeetTests/Hotkey/HotkeyConflictPolicyTests.swift
+  s_697e594299b62c::t_c62d8073453bb9 25,36,277-310,322,324-333,336-338,340,352-385,397-416
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_697e594299b62c::t_a35e9c8d2479a0 2131-2236,2977-2981
+Tests/MacParakeetTests/Services/System/SelectionCaptureServiceTests.swift
+  s_697e594299b62c::t_17cb6b5545257e 180-353,366-370,373,382-387,396-400,405-413,419-422,446,452-453
+Tests/MacParakeetTests/Services/Transforms/MenuBarTransformCatalogTests.swift
+  s_697e594299b62c::t_17c2aa98e55eb2 1-58
+Tests/MacParakeetTests/Services/Transforms/TransformExecutorTests.swift
+  s_697e594299b62c::t_520a861c24dc53 394-447
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_697e594299b62c::t_26a97b48452bd0 1389,1393-1406,1476,1499,1508,1512,1519
+Tests/MacParakeetTests/ViewModels/TransformsViewModelTests.swift
+  s_697e594299b62c::t_98aafe3980216a 44-79
+spec/adr/022-transforms-system-wide-rewrite.md
+  s_697e594299b62c::t_4182b6cb7c9287 98-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "228f5e5140ed32dd6cabb40fce4c489fc05caec8",
+  "prompts": {},
+  "sessions": {
+    "s_697e594299b62c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cbf1-51b1-7ea3-a7cc-7f0645829f47",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
