@@ -208,6 +208,150 @@ final class DictationServiceTests: XCTestCase {
         _ = try await service.stopRecording(sessionID: 2)
     }
 
+    func testConfirmCancelCannotOverwriteReplacementClaimedDuringStop() async throws {
+        await mockSTT.configure(result: STTResult(text: "Replacement take"))
+        let oldAudioURL = try makeTemporaryAudioURL()
+        await mockAudio.configure(captureResult: oldAudioURL)
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldPreserveDiscardedDictations: { true }
+        )
+        let stops = observeCaptureDidStop()
+        defer { NotificationCenter.default.removeObserver(stops.observer) }
+        try await service.startRecording(sessionID: 1)
+
+        let startPassedWait = DictationSuccessDisplayGate()
+        let resumeStart = DictationSuccessDisplayGate()
+        let replacementClaimed = DictationSuccessDisplayGate()
+        await service.setAfterCancellationWaiterForTesting {
+            await startPassedWait.release()
+            await resumeStart.wait()
+        }
+        await service.setReplacementCleanupWaiterForTesting {
+            await replacementClaimed.release()
+        }
+
+        let restartTask = Task { try await self.service.startRecording(sessionID: 2) }
+        await startPassedWait.wait()
+        await mockAudio.pauseNextStopCaptureUntilReleased()
+        let confirmTask = Task { await self.service.confirmCancel(sessionID: 1) }
+        await mockAudio.waitUntilStopCaptureIsPaused()
+
+        await resumeStart.release()
+        await replacementClaimed.wait()
+        await mockAudio.releasePausedStopCapture()
+        await confirmTask.value
+        try await restartTask.value
+
+        let state = await service.state
+        let captureIsRecording = await mockAudio.isRecording
+        let startCount = await mockAudio.startCaptureCallCount
+        XCTAssertTrue(Self.isRecording(state))
+        XCTAssertTrue(captureIsRecording)
+        XCTAssertEqual(startCount, 2)
+        XCTAssertEqual(stops.recorder.sessionIDs, [1])
+        let saved = try dictationRepo.fetchAll()
+        XCTAssertEqual(saved.count, 1)
+        XCTAssertEqual(saved.first?.status, .cancelled)
+        XCTAssertEqual(saved.first?.rawTranscript, "Replacement take")
+        let transcribeCount = await mockSTT.transcribeCallCount
+        XCTAssertEqual(transcribeCount, 1)
+        _ = try await service.stopRecording(sessionID: 2)
+        XCTAssertEqual(stops.recorder.sessionIDs, [1, 2])
+    }
+
+    func testStopWaitsForSameSessionConfirmCancelToFinishCapture() async throws {
+        let stops = observeCaptureDidStop()
+        defer { NotificationCenter.default.removeObserver(stops.observer) }
+        await mockAudio.requireRecordingForStopCapture()
+        try await service.startRecording(sessionID: 1)
+        await mockAudio.pauseNextStopCaptureUntilReleased()
+
+        let confirmTask = Task { await self.service.confirmCancel(sessionID: 1) }
+        await mockAudio.waitUntilStopCaptureIsPaused()
+        let stopWaiting = DictationSuccessDisplayGate()
+        await service.setCancellationWaitObserverForTesting {
+            Task { await stopWaiting.release() }
+        }
+        let stopTask = Task { try await self.service.stopRecording(sessionID: 1) }
+        await stopWaiting.wait()
+        let stopsWhilePaused = await mockAudio.stopCaptureCallCount
+        XCTAssertEqual(stopsWhilePaused, 1)
+
+        await mockAudio.releasePausedStopCapture()
+        await confirmTask.value
+        do {
+            _ = try await stopTask.value
+            XCTFail("A cancelled take must not be stopped again")
+        } catch DictationServiceError.notRecording {
+        }
+        let stopCount = await mockAudio.stopCaptureCallCount
+        XCTAssertEqual(stopCount, 1)
+        XCTAssertEqual(stops.recorder.sessionIDs, [1])
+    }
+
+    func testStopWaitsForSameSessionCancelToFinishCapture() async throws {
+        let stops = observeCaptureDidStop()
+        defer { NotificationCenter.default.removeObserver(stops.observer) }
+        await mockAudio.requireRecordingForStopCapture()
+        try await service.startRecording(sessionID: 1)
+        await mockAudio.pauseNextStopCaptureUntilReleased()
+
+        let cancelTask = Task { await self.service.cancelRecording(sessionID: 1) }
+        await mockAudio.waitUntilStopCaptureIsPaused()
+        let stopWaiting = DictationSuccessDisplayGate()
+        await service.setCancellationWaitObserverForTesting {
+            Task { await stopWaiting.release() }
+        }
+        let stopTask = Task { try await self.service.stopRecording(sessionID: 1) }
+        await stopWaiting.wait()
+        let stopsWhilePaused = await mockAudio.stopCaptureCallCount
+        XCTAssertEqual(stopsWhilePaused, 1)
+
+        await mockAudio.releasePausedStopCapture()
+        await cancelTask.value
+        do {
+            _ = try await stopTask.value
+            XCTFail("A cancelled take must not be stopped again")
+        } catch DictationServiceError.notRecording {
+        }
+        let stopCount = await mockAudio.stopCaptureCallCount
+        XCTAssertEqual(stopCount, 1)
+        XCTAssertEqual(stops.recorder.sessionIDs, [1])
+    }
+
+    func testConfirmCancelWhileStopIsProcessingLeavesStopInControl() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+        let stops = observeCaptureDidStop()
+        defer { NotificationCenter.default.removeObserver(stops.observer) }
+        await mockSTT.configure(result: STTResult(text: "Finished take"))
+        try await service.startRecording(sessionID: 1)
+        await mockAudio.pauseNextStopCaptureUntilReleased()
+
+        let stopTask = Task { try await self.service.stopRecording(sessionID: 1) }
+        await mockAudio.waitUntilStopCaptureIsPaused()
+        if case .processing = await service.state {
+        } else {
+            XCTFail("Stop must own the take before confirmation arrives")
+        }
+
+        await service.confirmCancel(sessionID: 1)
+        if case .processing = await service.state {
+        } else {
+            XCTFail("Confirmation must not clear an in-flight stop")
+        }
+
+        await mockAudio.releasePausedStopCapture()
+        let result = try await stopTask.value
+        XCTAssertEqual(result.dictation.rawTranscript, "Finished take")
+        XCTAssertEqual(stops.recorder.sessionIDs, [1])
+        let operations = dictationOperationProps(in: telemetry.snapshot())
+        XCTAssertEqual(operations.map { $0["outcome"] }, ["success"])
+    }
+
     func testCancelledRestartDoesNotStartAfterOlderCaptureStops() async throws {
         try await service.startRecording(context: DictationTelemetryContext(), sessionID: 1)
         await mockAudio.pauseNextStopCaptureUntilReleased()
