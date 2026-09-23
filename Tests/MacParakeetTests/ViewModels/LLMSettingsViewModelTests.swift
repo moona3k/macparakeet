@@ -98,6 +98,29 @@ final class LLMSettingsViewModelTests: XCTestCase {
         )
     }
 
+    func testUnavailableAppleIntelligenceTaskRouteDoesNotReportReady() {
+        viewModel = LLMSettingsViewModel(
+            defaults: defaults,
+            appleIntelligenceAvailabilityProvider: { .modelNotReady }
+        )
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "test-key"
+        viewModel.analysisOverrideProviderID = .appleIntelligence
+
+        viewModel.saveConfiguration()
+
+        XCTAssertEqual(mockConfigStore.config?.id, .openai)
+        XCTAssertEqual(mockConfigStore.taskOverrides[.analysis]?.id, .appleIntelligence)
+        XCTAssertEqual(
+            viewModel.setupStatus,
+            .cannotConnect(
+                displayName: "Apple Intelligence",
+                message: AppleIntelligenceAvailability.modelNotReady.userMessage
+            )
+        )
+    }
+
     func testInProcessLocalSetupHiddenWithoutProductVisibility() {
         mockClient.supportsInProcessLocalLLM = true
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)

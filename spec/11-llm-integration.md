@@ -58,6 +58,11 @@ Transforms continue to inherit the default route. Prompt/Transform
 resolved route. Inline CLI commands with a full provider context stay
 independent. Specialist recipes are not shipped; see
 [ADR-032](adr/032-llm-task-group-routing.md).
+When a task row selects Apple Intelligence, Settings shows its availability
+and does not report AI setup as ready until the system model can generate.
+Saving the default and both task routes prepares credentials and encoded
+settings before publishing the routes; a failed credential write leaves the
+previous routes active.
 
 ### Provider Protocol
 

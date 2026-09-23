@@ -55,6 +55,13 @@ struct LLMSettingsView: View {
             if viewModel.selectedProviderID != nil {
                 Divider()
                 taskRouteSection
+
+                if viewModel.selectedProviderID != .appleIntelligence,
+                    viewModel.cleanupOverrideProviderID == .appleIntelligence
+                        || viewModel.analysisOverrideProviderID == .appleIntelligence
+                {
+                    appleIntelligenceStatusSection
+                }
             }
 
             if viewModel.shouldShowInProcessLocalSetup {
@@ -385,7 +392,7 @@ struct LLMSettingsView: View {
                     Text("On-device Apple Intelligence")
                         .font(DesignSystem.Typography.body.weight(.semibold))
                     Text(
-                        "Free, no download from MacParakeet, best for short prompts like Transforms and dictation cleanup. Long meeting summaries need a cloud or Ollama provider."
+                        "Runs on this Mac and works best for short requests. Long meeting summaries may exceed its context window."
                     )
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.secondary)

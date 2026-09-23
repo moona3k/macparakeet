@@ -286,9 +286,13 @@ public final class LLMSettingsViewModel {
         }
         if isConfigured {
             let displayName = savedAIOptionDisplayName ?? draftAIOptionDisplayName ?? "AI"
-            if savedProviderID == .appleIntelligence, !appleIntelligenceAvailability.canGenerate {
+            if (savedProviderID == .appleIntelligence
+                || savedCleanupOverrideProviderID == .appleIntelligence
+                || savedAnalysisOverrideProviderID == .appleIntelligence),
+                !appleIntelligenceAvailability.canGenerate
+            {
                 return .cannotConnect(
-                    displayName: displayName,
+                    displayName: "Apple Intelligence",
                     message: appleIntelligenceAvailability.userMessage
                 )
             }
@@ -448,7 +452,7 @@ public final class LLMSettingsViewModel {
     }
 
     public func refreshAppleIntelligenceAvailability() {
-        appleIntelligenceAvailability = AppleIntelligenceAvailability.current()
+        appleIntelligenceAvailability = appleIntelligenceAvailabilityProvider()
     }
 
     private var isInProcessLocalLLMRuntimeAvailable: Bool {
@@ -705,6 +709,7 @@ public final class LLMSettingsViewModel {
     private var cliConfigStore: LocalCLIConfigStore?
     private var aiFormatterProfileRepo: AIFormatterProfileRepositoryProtocol?
     private let defaults: UserDefaults
+    private let appleIntelligenceAvailabilityProvider: () -> AppleIntelligenceAvailability
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "LLMSettingsViewModel")
     private var savedCleanupOverrideProviderID: LLMProviderID?
     private var savedCleanupModelName = ""
@@ -723,8 +728,14 @@ public final class LLMSettingsViewModel {
         )
     }
 
-    public init(defaults: UserDefaults = .standard) {
+    public init(
+        defaults: UserDefaults = .standard,
+        appleIntelligenceAvailabilityProvider: @escaping () -> AppleIntelligenceAvailability = {
+            AppleIntelligenceAvailability.current()
+        }
+    ) {
         self.defaults = defaults
+        self.appleIntelligenceAvailabilityProvider = appleIntelligenceAvailabilityProvider
         self.inProcessModelManager = InProcessModelManagerViewModel()
         self.aiFormatterEnabledForDictation = Self.loadStoredAIFormatterEnabledForDictation(from: defaults)
         self.aiFormatterEnabledForTranscriptions = Self.loadStoredAIFormatterEnabledForTranscriptions(from: defaults)
@@ -736,6 +747,7 @@ public final class LLMSettingsViewModel {
             aiFormatterPrompt: Self.loadStoredAIFormatterPrompt(from: defaults),
             aiFormatterDictationPrompt: Self.loadStoredAIFormatterDictationPrompt(from: defaults)
         )
+        self.appleIntelligenceAvailability = appleIntelligenceAvailabilityProvider()
     }
 
     public func configure(
@@ -801,12 +813,20 @@ public final class LLMSettingsViewModel {
             )
             if let cliConfig {
                 guard let cliConfigStore else { throw LocalCLIError.commandNotConfigured }
-                try cliConfigStore.save(cliConfig, providerConfig: config, configStore: configStore)
+                try cliConfigStore.save(cliConfig) {
+                    try configStore.saveConfiguration(
+                        config,
+                        cleanupOverride: cleanupOverride,
+                        analysisOverride: analysisOverride
+                    )
+                }
             } else {
-                try configStore.saveConfig(config)
+                try configStore.saveConfiguration(
+                    config,
+                    cleanupOverride: cleanupOverride,
+                    analysisOverride: analysisOverride
+                )
             }
-            try configStore.saveTaskOverride(cleanupOverride, for: .cleanup)
-            try configStore.saveTaskOverride(analysisOverride, for: .analysis)
             savedCleanupOverrideProviderID = cleanupOverrideProviderID
             savedCleanupModelName = cleanupModelName
             savedAnalysisOverrideProviderID = analysisOverrideProviderID

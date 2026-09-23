@@ -13,17 +13,39 @@ public protocol LLMConfigStoreProtocol: Sendable {
     func updateModelName(_ modelName: String) throws
     func loadTaskOverride(_ task: LLMTaskGroup) throws -> LLMProviderConfig?
     func saveTaskOverride(_ config: LLMProviderConfig?, for task: LLMTaskGroup) throws
+    func saveConfiguration(
+        _ config: LLMProviderConfig,
+        cleanupOverride: LLMProviderConfig?,
+        analysisOverride: LLMProviderConfig?
+    ) throws
 }
 
 extension LLMConfigStoreProtocol {
     public func loadTaskOverride(_ task: LLMTaskGroup) throws -> LLMProviderConfig? { nil }
     public func saveTaskOverride(_ config: LLMProviderConfig?, for task: LLMTaskGroup) throws {}
+    public func saveConfiguration(
+        _ config: LLMProviderConfig,
+        cleanupOverride: LLMProviderConfig?,
+        analysisOverride: LLMProviderConfig?
+    ) throws {
+        try saveConfig(config)
+        try saveTaskOverride(cleanupOverride, for: .cleanup)
+        try saveTaskOverride(analysisOverride, for: .analysis)
+    }
 }
 
 // MARK: - Implementation
 
 // @unchecked Sendable: UserDefaults and Keychain are internally thread-safe
 public final class LLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
+    private enum SaveError: LocalizedError {
+        case taskCredentialChanged
+
+        var errorDescription: String? {
+            "A task provider's saved API key changed. Reopen AI settings and try again."
+        }
+    }
+
     private static let configKey = "llm_provider_config"
 
     private static func taskOverrideKey(_ task: LLMTaskGroup) -> String {
@@ -154,5 +176,49 @@ public final class LLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
             try keychain.setString(apiKey, forKey: Self.apiKeyKeychainKey(for: config.id))
         }
         defaults.set(try JSONEncoder().encode(config), forKey: key)
+    }
+
+    public func saveConfiguration(
+        _ config: LLMProviderConfig,
+        cleanupOverride: LLMProviderConfig?,
+        analysisOverride: LLMProviderConfig?
+    ) throws {
+        let encoder = JSONEncoder()
+        let defaultData = try encoder.encode(config)
+        let cleanupData = try cleanupOverride.map { try encoder.encode($0) }
+        let analysisData = try analysisOverride.map { try encoder.encode($0) }
+
+        // Alternate task providers must use credentials already in Keychain.
+        // The active default's credential is the only new value from Settings.
+        // Finish every throwing operation before publishing route metadata.
+        for override in [cleanupOverride, analysisOverride].compactMap({ $0 }) {
+            guard override.id != .localCLI, override.id != config.id,
+                let key = override.apiKey
+            else { continue }
+            let keychainKey = Self.apiKeyKeychainKey(for: override.id)
+            if try keychain.getString(keychainKey) != key {
+                throw SaveError.taskCredentialChanged
+            }
+        }
+        if config.id != .localCLI {
+            let keychainKey = Self.apiKeyKeychainKey(for: config.id)
+            if try keychain.getString(keychainKey) != config.apiKey {
+                if let key = config.apiKey {
+                    try keychain.setString(key, forKey: keychainKey)
+                } else {
+                    try keychain.delete(keychainKey)
+                }
+            }
+        }
+
+        defaults.set(defaultData, forKey: Self.configKey)
+        for (task, data) in [(LLMTaskGroup.cleanup, cleanupData), (.analysis, analysisData)] {
+            let key = Self.taskOverrideKey(task)
+            if let data {
+                defaults.set(data, forKey: key)
+            } else {
+                defaults.removeObject(forKey: key)
+            }
+        }
     }
 }

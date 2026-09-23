@@ -247,6 +247,62 @@ final class LLMConfigStoreTests: XCTestCase {
         XCTAssertNil(try store.loadTaskOverride(.transform))
     }
 
+    func testFailedConfigurationSaveDoesNotPublishAnyTaskRoute() throws {
+        try store.saveConfiguration(
+            .openai(apiKey: "working-key", model: "working-model"),
+            cleanupOverride: .ollama(model: "old-cleanup"),
+            analysisOverride: nil
+        )
+        keychain.setError = KeyValueStoreError.unsupported
+
+        XCTAssertThrowsError(
+            try store.saveConfiguration(
+                .anthropic(apiKey: "new-key", model: "new-model"),
+                cleanupOverride: nil,
+                analysisOverride: .ollama(model: "new-analysis")
+            ))
+
+        let reopened = LLMConfigStore(defaults: defaults, keychain: keychain)
+        XCTAssertEqual(try reopened.loadConfig()?.id, .openai)
+        XCTAssertEqual(try reopened.loadConfig()?.modelName, "working-model")
+        XCTAssertEqual(try reopened.loadTaskOverride(.cleanup)?.modelName, "old-cleanup")
+        XCTAssertNil(try reopened.loadTaskOverride(.analysis))
+        XCTAssertEqual(try reopened.loadAPIKey(), "working-key")
+    }
+
+    func testConfigurationSavePublishesBothTaskRoutes() throws {
+        try store.saveConfiguration(
+            .openai(apiKey: "default-key", model: "default-model"),
+            cleanupOverride: .ollama(model: "cleanup-model"),
+            analysisOverride: .openai(apiKey: "default-key", model: "analysis-model")
+        )
+
+        XCTAssertEqual(try store.loadConfig()?.modelName, "default-model")
+        XCTAssertEqual(try store.loadTaskOverride(.cleanup)?.modelName, "cleanup-model")
+        XCTAssertEqual(try store.loadTaskOverride(.analysis)?.modelName, "analysis-model")
+        XCTAssertEqual(try store.loadTaskOverride(.analysis)?.apiKey, "default-key")
+    }
+
+    func testConfigurationSaveRejectsChangedTaskCredentialBeforePublishing() throws {
+        try store.saveConfiguration(
+            .openai(apiKey: "working-key", model: "working-model"),
+            cleanupOverride: nil,
+            analysisOverride: nil
+        )
+
+        XCTAssertThrowsError(
+            try store.saveConfiguration(
+                .anthropic(apiKey: "new-key", model: "new-model"),
+                cleanupOverride: .openai(apiKey: "stale-key", model: "cleanup-model"),
+                analysisOverride: nil
+            ))
+
+        XCTAssertEqual(try store.loadConfig()?.modelName, "working-model")
+        XCTAssertNil(try store.loadTaskOverride(.cleanup))
+        XCTAssertEqual(try store.loadAPIKey(), "working-key")
+        XCTAssertNil(try store.loadAPIKey(for: .anthropic))
+    }
+
     func testDeleteConfigClearsTaskOverrides() throws {
         try store.saveConfig(.openai(apiKey: "sk-test", model: "gpt-5.4"))
         try store.saveTaskOverride(.ollama(model: "llama3.2"), for: .cleanup)
