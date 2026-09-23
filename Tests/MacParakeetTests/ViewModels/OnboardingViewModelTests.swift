@@ -667,6 +667,16 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertTrue(vm.hasPracticeResult)
     }
 
+    func testBackToBackDeliveriesInsideGraceKeepBothTranscripts() async throws {
+        let vm = try await makeListeningPracticeViewModel(practicePasteGrace: .milliseconds(80))
+
+        // Neither paste lands; both fallbacks must survive.
+        vm.practiceDictationDelivered("First take.")
+        vm.practiceDictationDelivered("Second take.")
+        try await waitUntil { vm.practiceText == "First take. Second take." }
+        XCTAssertEqual(vm.practiceTranscript, "Second take.")
+    }
+
     func testTypedTextAloneDoesNotUnlockContinue() async throws {
         let vm = try await makeListeningPracticeViewModel()
 
@@ -833,7 +843,9 @@ final class OnboardingViewModelTests: XCTestCase {
 
     /// A view model on Try It with a ready engine, a proven key, and a clicked
     /// box.
-    private func makeListeningPracticeViewModel() async throws -> OnboardingViewModel {
+    private func makeListeningPracticeViewModel(
+        practicePasteGrace: Duration = .zero
+    ) async throws -> OnboardingViewModel {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
@@ -841,7 +853,7 @@ final class OnboardingViewModelTests: XCTestCase {
         addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
-            permissionService: perms, sttClient: stt, defaults: defaults, practicePasteGrace: .zero)
+            permissionService: perms, sttClient: stt, defaults: defaults, practicePasteGrace: practicePasteGrace)
         vm.startEngineWarmUp()
         try await waitUntil { vm.isEngineReady }
         vm.jump(to: .practice)

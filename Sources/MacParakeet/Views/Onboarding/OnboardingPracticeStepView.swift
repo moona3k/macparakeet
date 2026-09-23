@@ -204,6 +204,9 @@ struct OnboardingPracticeStepView: View {
                         Label("Edit shortcut", systemImage: "pencil")
                     }
                     .parakeetAction(.subtle)
+                    // Recording a new shortcut stands the production taps
+                    // down; never do that under a live dictation.
+                    .disabled(viewModel.practiceActivity != .idle)
                 }
             }
             .padding(.horizontal, DesignSystem.Spacing.md)

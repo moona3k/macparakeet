@@ -214,6 +214,10 @@ public final class OnboardingViewModel {
     private var accessibilityDeniedTelemetrySent = false
     private var practiceSucceededTelemetrySent = false
     private let practicePasteGrace: Duration
+    /// Delivered transcripts whose paste has not been checked yet, oldest
+    /// first. A second dictation inside the grace window restarts the timer
+    /// but never drops the first transcript, and the flush keeps their order.
+    private var pendingPracticeTranscripts: [String] = []
     private var practiceFallbackTask: Task<Void, Never>?
     private var engineGeneration: Int = 0
     private var refreshTask: Task<Void, Never>?
@@ -353,8 +357,7 @@ public final class OnboardingViewModel {
     }
 
     private func resetPracticeState() {
-        practiceFallbackTask?.cancel()
-        practiceFallbackTask = nil
+        cancelPracticeFallbacks()
         litKey = nil
         hasLitHotkey = false
         practicePhase = .hotkey
@@ -531,23 +534,38 @@ public final class OnboardingViewModel {
             sendStepTelemetry(step: .practice, action: .practiceSucceeded)
         }
 
+        pendingPracticeTranscripts.append(trimmed)
         practiceFallbackTask?.cancel()
         let grace = practicePasteGrace
         practiceFallbackTask = Task { @MainActor [weak self] in
             if grace > .zero {
                 try? await Task.sleep(for: grace)
             }
-            guard let self, !Task.isCancelled, self.step == .practice else { return }
-            guard !self.practiceText.contains(trimmed) else { return }
-            let existing = self.practiceText.trimmingCharacters(in: .whitespacesAndNewlines)
-            self.practiceText = existing.isEmpty ? trimmed : existing + " " + trimmed
+            guard let self, !Task.isCancelled else { return }
+            self.flushPendingPracticeTranscripts()
         }
+    }
+
+    private func flushPendingPracticeTranscripts() {
+        let pending = pendingPracticeTranscripts
+        pendingPracticeTranscripts = []
+        practiceFallbackTask = nil
+        guard step == .practice else { return }
+        for transcript in pending where !practiceText.contains(transcript) {
+            let existing = practiceText.trimmingCharacters(in: .whitespacesAndNewlines)
+            practiceText = existing.isEmpty ? transcript : existing + " " + transcript
+        }
+    }
+
+    private func cancelPracticeFallbacks() {
+        practiceFallbackTask?.cancel()
+        practiceFallbackTask = nil
+        pendingPracticeTranscripts = []
     }
 
     /// Try again: clear the box and wait for a new dictation.
     public func resetPracticeResult() {
-        practiceFallbackTask?.cancel()
-        practiceFallbackTask = nil
+        cancelPracticeFallbacks()
         practiceText = ""
         practiceTranscript = nil
     }
