@@ -391,6 +391,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
             mode: processingMode,
             customWords: customWords,
             snippets: snippets,
+            spokenPunctuationEnabled: UserDefaultsAppRuntimePreferences.spokenPunctuationEnabled(defaults: defaults),
             removeUmFiller: UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: defaults)
         )
         let finalText = refinement.text ?? sttResult.text
@@ -546,6 +547,9 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
             processingMode: { processingMode },
+            spokenPunctuationEnabled: {
+                UserDefaultsAppRuntimePreferences.spokenPunctuationEnabled(defaults: defaults)
+            },
             removeUmFiller: {
                 UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: defaults)
             },

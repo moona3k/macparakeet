@@ -896,7 +896,7 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
                      AND edit.transcriptFingerprint = state.transcriptFingerprint
                     WHERE state.headId IS NOT NULL
                       AND edit.branchState = ?
-                      AND edit.operation IN (?, ?)
+                      AND edit.operation IN (?, ?, ?)
                       AND edit.sequence <= head.sequence
                       AND NOT EXISTS (
                         SELECT 1
@@ -913,6 +913,7 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
                     SpeakerCorrectionBranchState.current.rawValue,
                     SpeakerCorrectionOperation.editText.rawValue,
                     SpeakerCorrectionOperation.mergeSegments.rawValue,
+                    SpeakerCorrectionOperation.reviseText.rawValue,
                     SpeakerCorrectionBranchState.current.rawValue,
                     SpeakerCorrectionOperation.reset.rawValue,
                 ]
@@ -930,15 +931,12 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
             transcription: transcription,
             in: db
         )
-        guard projection.attribution.hasTextCorrections,
-              let text = projection.effectiveTranscription.cleanTranscript?.trimmingCharacters(
-                in: .whitespacesAndNewlines
-              ),
-              !text.isEmpty
-        else {
-            return nil
-        }
-        return text
+        guard projection.attribution.hasTextCorrections else { return nil }
+        // An omitted transcript is empty on purpose. Nil would fall back to the
+        // automatic text and put the removed passage back into library search.
+        return projection.effectiveTranscription.cleanTranscript?.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ) ?? ""
     }
 }
 

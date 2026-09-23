@@ -50,6 +50,7 @@ public final class PromptResultsViewModel {
         public var userNotes: String?
         /// Per-prompt automatic meeting-note preference captured at enqueue.
         public var includeMeetingNotes: Bool
+        public var sourceCorrectionRevision: Int?
         public var replacingPromptResultID: UUID?
         /// Completion-owned work survives navigation without selecting its meeting.
         public var runsInBackground: Bool
@@ -69,6 +70,7 @@ public final class PromptResultsViewModel {
             modelSnapshot: String? = nil,
             userNotes: String? = nil,
             includeMeetingNotes: Bool = false,
+            sourceCorrectionRevision: Int? = nil,
             replacingPromptResultID: UUID? = nil,
             runsInBackground: Bool = false,
             state: State = .queued,
@@ -86,6 +88,7 @@ public final class PromptResultsViewModel {
             self.modelSnapshot = modelSnapshot
             self.userNotes = userNotes
             self.includeMeetingNotes = includeMeetingNotes
+            self.sourceCorrectionRevision = sourceCorrectionRevision
             self.replacingPromptResultID = replacingPromptResultID
             self.runsInBackground = runsInBackground
             self.state = state
@@ -473,19 +476,28 @@ public final class PromptResultsViewModel {
     }
 
     @discardableResult
-    public func generatePromptResult(transcript: String, transcriptionId: UUID) -> UUID? {
+    public func generatePromptResult(
+        transcript: String,
+        transcriptionId: UUID,
+        sourceCorrectionRevision: Int? = nil
+    ) -> UUID? {
         guard let prompt = selectedPrompt else { return nil }
         return enqueueGeneration(
             transcript: transcript,
             transcriptionId: transcriptionId,
             prompt: prompt,
             extraInstructions: normalizedExtraInstructions(extraInstructions),
-            userNotes: fetchUserNotes(for: transcriptionId)
+            userNotes: fetchUserNotes(for: transcriptionId),
+            sourceCorrectionRevision: sourceCorrectionRevision
         )
     }
 
     @discardableResult
-    public func regeneratePromptResult(_ promptResult: PromptResult, transcript: String) -> UUID? {
+    public func regeneratePromptResult(
+        _ promptResult: PromptResult,
+        transcript: String,
+        sourceCorrectionRevision: Int? = nil
+    ) -> UUID? {
         let prompt = Prompt(
             id: promptResult.promptId ?? UUID(),
             name: promptResult.promptName,
@@ -511,7 +523,8 @@ public final class PromptResultsViewModel {
                 promptId: promptResult.promptId,
                 promptVersionId: promptResult.promptVersionId
             ),
-            replacingPromptResultID: promptResult.id
+            replacingPromptResultID: promptResult.id,
+            sourceCorrectionRevision: sourceCorrectionRevision
         )
     }
 
@@ -521,7 +534,8 @@ public final class PromptResultsViewModel {
         transcriptionId: UUID,
         sourceType: Transcription.SourceType,
         meetingTypeId: UUID? = nil,
-        runInBackground: Bool = false
+        runInBackground: Bool = false,
+        sourceCorrectionRevision: Int? = nil
     ) -> [UUID] {
         guard transcript.contains(where: { !$0.isWhitespace }) else { return [] }
 
@@ -568,7 +582,8 @@ public final class PromptResultsViewModel {
                 prompt: prompt,
                 extraInstructions: nil,
                 userNotes: userNotes,
-                runInBackground: runInBackground
+                runInBackground: runInBackground,
+                sourceCorrectionRevision: sourceCorrectionRevision
             ) {
                 queuedIDs.append(id)
             }
@@ -623,7 +638,8 @@ public final class PromptResultsViewModel {
         userNotesAreEffective: Bool = false,
         provenanceOverride: PromptProvenance? = nil,
         replacingPromptResultID: UUID? = nil,
-        runInBackground: Bool = false
+        runInBackground: Bool = false,
+        sourceCorrectionRevision: Int? = nil
     ) -> UUID? {
         guard llmService != nil else { return nil }
 
@@ -656,6 +672,7 @@ public final class PromptResultsViewModel {
                     userNotes: userNotes
                 ),
             includeMeetingNotes: prompt.includeMeetingNotes,
+            sourceCorrectionRevision: sourceCorrectionRevision,
             replacingPromptResultID: replacingPromptResultID,
             runsInBackground: runInBackground
         )
@@ -749,6 +766,7 @@ public final class PromptResultsViewModel {
             inferenceSettingsSnapshot: terminal.effectiveSettings,
             providerSnapshot: terminal.provider,
             modelSnapshot: terminal.model,
+            sourceCorrectionRevision: generation.sourceCorrectionRevision,
             createdAt: timestamp,
             updatedAt: timestamp
         )

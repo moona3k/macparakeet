@@ -327,7 +327,7 @@ struct OpenAICompatibleLLMHTTPAdapter: LLMHTTPAdapter {
         case .openai, .openaiCompatible:
             topP = shouldOmitSampling ? nil : options.topP
         case .anthropic, .gemini, .openrouter, .moonshot, .deepseek, .qwen, .zai, .minimax, .ollama, .lmstudio,
-            .localCLI, .inProcessLocal:
+            .localCLI, .inProcessLocal, .appleIntelligence:
             topP = nil
         }
         let thinkingEncoding = ChatCompletionsModelPolicy.thinkingEncoding(
