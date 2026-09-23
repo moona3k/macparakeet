@@ -1,0 +1,46 @@
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_9356391ef9ddc0::t_bbb8a39fe8169c 157,179-182,962
+  s_9356391ef9ddc0::t_5edd48efae4ca2 362-363
+  s_9356391ef9ddc0::t_0f9f917f979576 156,695-696,704-706,759-760,766-770
+  s_9356391ef9ddc0::t_fa6fb2452dab6a 339-340,344-349
+  s_9356391ef9ddc0::t_71484d95b9d032 365-375
+  s_9356391ef9ddc0::t_271f972f96287e 321,323,329-333,335,337-338,376-380
+  s_9356391ef9ddc0::t_0399862001ceb9 320,364,960-961,963-966
+  s_9356391ef9ddc0::t_9e5b5f5ff74f41 155,317-319,322,381,693-694,697-703,707-711,758,761-765,771-777,782,814,967
+  s_9356391ef9ddc0::t_b1afc645739605 968
+Tests/MacParakeetTests/Audio/MockAudioProcessor.swift
+  s_9356391ef9ddc0::t_e96c167a4fae7f 13-16,18,54-67,107,124-131
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_9356391ef9ddc0::t_ac7d39470cbd32 121-124,129,151-154,159,180-183,188
+  s_9356391ef9ddc0::t_88baaea10511da 206-229
+  s_9356391ef9ddc0::t_c8a76177629437 174-179,184-187,189-205
+  s_9356391ef9ddc0::t_b7050ea947f368 114-120,125-128,130-150,155-158,160-171
+  s_9356391ef9ddc0::t_391dc6274e9ce4 172,230-255
+  s_4a7be435ad07b2::t_a581a32b154fbe 173
+Sources/MacParakeetCore/Audio/README.md
+  s_9356391ef9ddc0::t_4a2a9b6121ebd7 261-268
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "34b69242e991a08c047d51ffe77f4204d2190248",
+  "prompts": {},
+  "sessions": {
+    "s_4a7be435ad07b2": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "9da77b85-19e2-437b-ac09-b5f0a344c65b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_9356391ef9ddc0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cbce-b7b5-7a93-b778-b06cef1511a4",
+        "model": "gpt-6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
