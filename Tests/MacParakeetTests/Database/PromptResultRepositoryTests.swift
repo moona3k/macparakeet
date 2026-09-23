@@ -18,6 +18,27 @@ final class PromptResultRepositoryTests: XCTestCase {
         return transcription
     }
 
+    func testLegacyProtocolConformerRefusesUnsafeReplacement() {
+        let legacy: any PromptResultRepositoryProtocol = LegacyPromptResultRepository()
+        let result = PromptResult(
+            transcriptionId: UUID(),
+            promptName: "Summary",
+            promptContent: "Summarize.",
+            content: "Replacement"
+        )
+
+        XCTAssertThrowsError(
+            try legacy.replaceIfUnchanged(
+                result,
+                deletingExistingID: UUID(),
+                expectedContent: "Original",
+                expectedContentEditedAt: nil
+            )
+        ) { error in
+            XCTAssertEqual(error as? PromptResultRepositoryError, .conditionalReplacementUnavailable)
+        }
+    }
+
     func testSaveAndFetchAllOrdersNewestFirst() throws {
         let transcription = try makeTranscription()
         let older = PromptResult(
@@ -409,4 +430,16 @@ final class PromptResultRepositoryTests: XCTestCase {
         XCTAssertEqual(try repo.count(transcriptionId: transcription.id), 0)
         XCTAssertEqual(try repo.counts(transcriptionIds: [transcription.id])[transcription.id] ?? 0, 0)
     }
+}
+
+private struct LegacyPromptResultRepository: PromptResultRepositoryProtocol {
+    func save(_ promptResult: PromptResult) throws {}
+    func updateContent(id: UUID, expectedContent: String, content: String, editedAt: Date) throws -> PromptResult? {
+        nil
+    }
+    func fetchAll(transcriptionId: UUID) throws -> [PromptResult] { [] }
+    func delete(id: UUID) throws -> Bool { false }
+    func deleteAll(transcriptionId: UUID) throws {}
+    func hasPromptResults(transcriptionId: UUID) throws -> Bool { false }
+    func count(transcriptionId: UUID) throws -> Int { 0 }
 }

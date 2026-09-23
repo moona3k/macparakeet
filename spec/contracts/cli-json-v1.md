@@ -196,7 +196,8 @@ with human progress/status kept off stdout.
   that generation. `false` covers migrated and externally imported results.
   Nullable `userNotesSnapshot` contains the exact normalized, bounded notes
   value supplied to prompt assembly, not necessarily the full canonical note.
-- Saved prompt-result JSON objects may include `sourceTranscriptHash`, a
+- `meetings results list|add --json` prompt-result objects may include
+  `sourceTranscriptHash`, a
   SHA-256 receipt of trimmed automatic clean/raw transcript text. The field
   is omitted when the source is unknown; existing rows retain that unknown
   source on migration because the transcript may already have changed.

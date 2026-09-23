@@ -1,12 +1,24 @@
 import Foundation
 import GRDB
 
+public enum PromptResultRepositoryError: LocalizedError, Equatable {
+    case conditionalReplacementUnavailable
+
+    public var errorDescription: String? {
+        switch self {
+        case .conditionalReplacementUnavailable:
+            return "This result repository cannot safely replace an edited result."
+        }
+    }
+}
+
 public protocol PromptResultRepositoryProtocol: Sendable {
     func save(_ promptResult: PromptResult) throws
     /// Updates an existing result only if its content still matches the editor's starting text.
     func updateContent(id: UUID, expectedContent: String, content: String, editedAt: Date) throws -> PromptResult?
     func replace(_ promptResult: PromptResult, deletingExistingID: UUID?) throws
     /// Replaces a saved result only when its content and edit timestamp still match the caller's snapshot.
+    /// Conformers without atomic replacement inherit a default that throws instead of deleting user edits.
     func replaceIfUnchanged(
         _ replacement: PromptResult,
         deletingExistingID: UUID,
@@ -22,6 +34,17 @@ public protocol PromptResultRepositoryProtocol: Sendable {
 }
 
 public extension PromptResultRepositoryProtocol {
+    func replaceIfUnchanged(
+        _ replacement: PromptResult,
+        deletingExistingID: UUID,
+        expectedContent: String,
+        expectedContentEditedAt: Date?
+    ) throws -> Bool {
+        // Keep external conformers source-compatible without risking a
+        // non-atomic save-then-delete fallback that could lose user edits.
+        throw PromptResultRepositoryError.conditionalReplacementUnavailable
+    }
+
     func replace(_ promptResult: PromptResult, deletingExistingID: UUID?) throws {
         try save(promptResult)
         if let deletingExistingID, deletingExistingID != promptResult.id {

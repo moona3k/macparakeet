@@ -1340,6 +1340,7 @@ private struct MeetingPromptResultRecord: Encodable {
     let providerSnapshot: String?
     let modelSnapshot: String?
     let outputLanguagePolicySnapshot: String?
+    let sourceTranscriptHash: String?
     let contentEditedAt: Date?
     let createdAt: Date
     let updatedAt: Date
@@ -1366,6 +1367,7 @@ private struct MeetingPromptResultRecord: Encodable {
         providerSnapshot = result.providerSnapshot
         modelSnapshot = result.modelSnapshot
         outputLanguagePolicySnapshot = result.outputLanguagePolicySnapshot
+        sourceTranscriptHash = result.sourceTranscriptHash
         contentEditedAt = result.contentEditedAt
         createdAt = result.createdAt
         updatedAt = result.updatedAt

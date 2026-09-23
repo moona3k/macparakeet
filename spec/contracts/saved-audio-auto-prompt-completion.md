@@ -86,10 +86,11 @@ retention. Callers own those effects.
 
 ## Versioning and compatibility
 
-This is a new, additive Core type. No existing public API, CLI flag, or
-persisted field changes shape. `PromptResultsViewModel`'s public API and
-observable behavior are unchanged; only its private selection
-implementation now calls into the shared `PromptAutoRunSelector`.
+This boundary was introduced as an additive Core type, without changing
+existing CLI flags. `PromptResultsViewModel` delegates its private selection
+implementation to the shared `PromptAutoRunSelector`. Migration v0.48 later
+adds a nullable `sourceTranscriptHash` receipt to persisted `PromptResult`s;
+older results retain an unknown source.
 
 ## Known residual limitations (reported, not solved here)
 
