@@ -31,13 +31,20 @@ public struct PromptResult: Codable, Identifiable, Sendable {
     public var modelSnapshot: String?
     /// Meeting AI output-language policy captured for this generation
     /// (`follow-transcript` or a language code). Nil for results created
-    /// before the policy existed; regeneration then uses the current setting.
+    /// before the policy existed or for imported results without a recorded
+    /// policy; regeneration then uses the current setting.
     public var outputLanguagePolicySnapshot: String?
     /// Correction revision of the transcript this result was generated from.
     /// Nil means the result predates that receipt.
     public var sourceCorrectionRevision: Int?
+    /// When set, `content` was last written by the user rather than by
+    /// generation. Prompt snapshots stay the generation receipt. Nil for
+    /// unedited results, including rows created before this column existed.
+    public var contentEditedAt: Date?
     public var createdAt: Date
     public var updatedAt: Date
+
+    public var isContentUserEdited: Bool { contentEditedAt != nil }
 
     /// Legacy JSON predates the meeting-notes preference. Only an absent key
     /// defaults to false; malformed or null values remain decoding errors.
@@ -62,6 +69,7 @@ public struct PromptResult: Codable, Identifiable, Sendable {
         outputLanguagePolicySnapshot = try container.decodeIfPresent(
             String.self, forKey: .outputLanguagePolicySnapshot)
         sourceCorrectionRevision = try container.decodeIfPresent(Int.self, forKey: .sourceCorrectionRevision)
+        contentEditedAt = try container.decodeIfPresent(Date.self, forKey: .contentEditedAt)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
@@ -82,6 +90,7 @@ public struct PromptResult: Codable, Identifiable, Sendable {
         modelSnapshot: String? = nil,
         outputLanguagePolicySnapshot: String? = nil,
         sourceCorrectionRevision: Int? = nil,
+        contentEditedAt: Date? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -100,6 +109,7 @@ public struct PromptResult: Codable, Identifiable, Sendable {
         self.modelSnapshot = modelSnapshot
         self.outputLanguagePolicySnapshot = outputLanguagePolicySnapshot
         self.sourceCorrectionRevision = sourceCorrectionRevision
+        self.contentEditedAt = contentEditedAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -112,7 +122,7 @@ extension PromptResult: FetchableRecord, PersistableRecord {
         case id, transcriptionId, promptId, promptVersionId
         case promptName, promptContent, extraInstructions, content
         case userNotesSnapshot, includeMeetingNotesSnapshot, inferenceSettingsSnapshot
-        case providerSnapshot, modelSnapshot, outputLanguagePolicySnapshot, sourceCorrectionRevision
+        case providerSnapshot, modelSnapshot, outputLanguagePolicySnapshot, sourceCorrectionRevision, contentEditedAt
         case createdAt, updatedAt
     }
 }

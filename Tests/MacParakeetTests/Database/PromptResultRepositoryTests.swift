@@ -115,6 +115,71 @@ final class PromptResultRepositoryTests: XCTestCase {
         XCTAssertEqual(fetched.outputLanguagePolicySnapshot, "follow-transcript")
     }
 
+    func testContentEditedAtRoundTripsWithoutChangingPromptSnapshots() throws {
+        let transcription = try makeTranscription()
+        let editedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let result = PromptResult(
+            transcriptionId: transcription.id,
+            promptName: "Summary",
+            promptContent: "Summarize this.",
+            content: "User corrected typo",
+            contentEditedAt: editedAt
+        )
+        try repo.save(result)
+
+        let fetched = try XCTUnwrap(repo.fetchAll(transcriptionId: transcription.id).first)
+        XCTAssertEqual(fetched.content, "User corrected typo")
+        XCTAssertEqual(fetched.contentEditedAt, editedAt)
+        XCTAssertEqual(fetched.promptContent, "Summarize this.")
+        XCTAssertTrue(fetched.isContentUserEdited)
+    }
+
+    func testUpdateContentPreservesReceiptsAndNeverRecreatesReplacedResult() throws {
+        let transcription = try makeTranscription()
+        let original = PromptResult(
+            transcriptionId: transcription.id,
+            promptName: "Summary",
+            promptContent: "Summarize this.",
+            content: "Original",
+            providerSnapshot: "openai",
+            outputLanguagePolicySnapshot: "follow-transcript",
+            sourceCorrectionRevision: 2
+        )
+        try repo.save(original)
+        let editedAt = Date(timeIntervalSince1970: 1_700_000_000)
+
+        let edited = try XCTUnwrap(
+            repo.updateContent(
+                id: original.id,
+                expectedContent: "Original",
+                content: "Corrected",
+                editedAt: editedAt
+            ))
+        XCTAssertEqual(edited.content, "Corrected")
+        XCTAssertEqual(edited.contentEditedAt, editedAt)
+        XCTAssertEqual(edited.promptContent, original.promptContent)
+        XCTAssertEqual(edited.providerSnapshot, original.providerSnapshot)
+        XCTAssertEqual(edited.outputLanguagePolicySnapshot, original.outputLanguagePolicySnapshot)
+        XCTAssertEqual(edited.sourceCorrectionRevision, original.sourceCorrectionRevision)
+        XCTAssertNil(
+            try repo.updateContent(
+                id: original.id,
+                expectedContent: "Original",
+                content: "Stale draft",
+                editedAt: editedAt
+            ))
+
+        _ = try repo.delete(id: original.id)
+        XCTAssertNil(
+            try repo.updateContent(
+                id: original.id,
+                expectedContent: "Corrected",
+                content: "Resurrected",
+                editedAt: editedAt
+            ))
+        XCTAssertTrue(try repo.fetchAll(transcriptionId: transcription.id).isEmpty)
+    }
+
     func testInferenceSettingsSnapshotRoundTripAndDefaultNormalization() throws {
         let transcription = try makeTranscription()
         var result = PromptResult(

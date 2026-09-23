@@ -205,6 +205,7 @@ public struct PromptResult: Codable, Identifiable, Sendable {
     public var includeMeetingNotesSnapshot: Bool  // captured automatic-context opt-in
     public var inferenceSettingsSnapshot: PromptInferenceSettings?  // normalized effective settings sent
     public var outputLanguagePolicySnapshot: String?  // follow-transcript or language code
+    public var contentEditedAt: Date?  // last in-place user edit of content; nil = generated
     public var createdAt: Date
     public var updatedAt: Date
 }
@@ -222,6 +223,7 @@ CREATE TABLE summaries (
     includeMeetingNotesSnapshot INTEGER NOT NULL DEFAULT 0,
     inferenceSettingsSnapshot TEXT,
     outputLanguagePolicySnapshot TEXT,
+    contentEditedAt   TEXT,
     createdAt         TEXT NOT NULL,
     updatedAt         TEXT NOT NULL
 );
@@ -229,7 +231,7 @@ CREATE TABLE summaries (
 CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
 ```
 
-**Why snapshot instead of reference:** Prompts can be edited or deleted after a result is generated. The result should always know exactly what instructions produced it. `promptName` is for display; `promptContent`, `userNotesSnapshot`, `includeMeetingNotesSnapshot`, `inferenceSettingsSnapshot`, and `outputLanguagePolicySnapshot` are request provenance, not a promise of identical future AI output. The settings snapshot records the effective provider/model-filtered receipt. The Boolean remains meaningful when the generation had no notes, because regenerate can apply that captured preference to notes added later. The language snapshot records the meeting AI output-language policy used for that run; omitted/NULL means no policy was recorded, including earlier and imported results, and regeneration uses the current setting.
+**Why snapshot instead of reference:** Prompts can be edited or deleted after a result is generated. The result should always know exactly what instructions produced it. `promptName` is for display; `promptContent`, `userNotesSnapshot`, `includeMeetingNotesSnapshot`, `inferenceSettingsSnapshot`, and `outputLanguagePolicySnapshot` are request provenance, not a promise of identical future AI output. In-place user edits of `content` set `contentEditedAt` and do not rewrite those snapshots. The settings snapshot records the effective provider/model-filtered receipt. The Boolean remains meaningful when the generation had no notes, because regenerate can apply that captured preference to notes added later. The language snapshot records the meeting AI output-language policy used for that run; omitted/NULL means no policy was recorded, including earlier and imported results, and regeneration uses the current setting.
 
 Result and Transform prompts may carry typed generation settings. The active immutable version
 stores the requested `PromptInferenceSettings`; a queued generation copies that

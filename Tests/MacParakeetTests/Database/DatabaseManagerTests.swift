@@ -917,13 +917,17 @@ final class DatabaseManagerTests: XCTestCase {
         }
     }
 
-    func testMeetingAIOutputLanguageSnapshotColumnExistsOnSummaries() throws {
+    func testPromptResultLanguageAndEditColumnsExistOnSummaries() throws {
         let manager = try DatabaseManager()
         try manager.dbQueue.read { db in
             let columns = try db.columns(in: "summaries").map(\.name)
             XCTAssertTrue(
                 columns.contains("outputLanguagePolicySnapshot"),
                 "summaries should have outputLanguagePolicySnapshot column (issue #975)"
+            )
+            XCTAssertTrue(
+                columns.contains("contentEditedAt"),
+                "summaries should have contentEditedAt column (issue #884)"
             )
         }
     }
