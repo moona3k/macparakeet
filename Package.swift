@@ -165,6 +165,7 @@ let package = Package(
                 "Licensing/README.md",
                 "Resources",
                 "Services/System/README.md",
+                "Services/VoiceControl/README.md",
                 "STT/README.md",
                 "TextProcessing/README.md",
             ],

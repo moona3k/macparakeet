@@ -5,6 +5,21 @@ import XCTest
 
 @MainActor
 final class DictationFlowCoordinatorTests: XCTestCase {
+    func testBusyDictationStartIsRefusedAndNextStartCanProceed() async throws {
+        let arbiter = GUIMutationArbiter()
+        let harness = try await makeRecordingHarness(mutationArbiter: arbiter)
+        let transformLease = try XCTUnwrap(arbiter.acquire(.transform))
+
+        XCTAssertFalse(harness.coordinator.startDictation(mode: .persistent))
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .idle)
+        XCTAssertEqual(arbiter.current, transformLease)
+
+        arbiter.release(transformLease)
+        XCTAssertTrue(harness.coordinator.startDictation(mode: .persistent))
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .checkingEntitlements(mode: .persistent))
+        harness.coordinator.cancelDictation()
+    }
+
     func testVoiceControlCannotAcquireDuringDictationCancelUndoWindow() async throws {
         let arbiter = GUIMutationArbiter()
         let harness = try await makeRecordingHarness(mutationArbiter: arbiter)
