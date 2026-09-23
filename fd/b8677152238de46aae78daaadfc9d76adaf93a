@@ -1,0 +1,21 @@
+spec/02-features.md
+  s_697e594299b62c::t_321c7a86889e2c 2101
+spec/adr/022-transforms-system-wide-rewrite.md
+  s_697e594299b62c::t_321c7a86889e2c 98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fdb8677152238de46aae78daaadfc9d76adaf93a",
+  "prompts": {},
+  "sessions": {
+    "s_697e594299b62c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cbf1-51b1-7ea3-a7cc-7f0645829f47",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
