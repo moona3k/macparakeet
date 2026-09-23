@@ -243,6 +243,37 @@ final class TransformsCoordinator {
         return frontmostApplication
     }
 
+    static func waitForMenuCaptureTarget(
+        _ target: SelectionCaptureTarget,
+        timeout: Duration = .milliseconds(500),
+        pollInterval: Duration = .milliseconds(10),
+        frontmostApplication: () -> SelectionCaptureTarget?
+    ) async -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        while !Task.isCancelled {
+            if let frontmost = frontmostApplication(),
+                frontmost.processIdentifier == target.processIdentifier,
+                frontmost.bundleIdentifier == target.bundleIdentifier
+            {
+                return true
+            }
+            guard ContinuousClock.now < deadline else { return false }
+            try? await Task.sleep(for: pollInterval)
+        }
+        return false
+    }
+
+    private static func frontmostCaptureTarget() -> SelectionCaptureTarget? {
+        guard let app = NSWorkspace.shared.frontmostApplication,
+            let bundleIdentifier = app.bundleIdentifier
+        else { return nil }
+        return SelectionCaptureTarget(
+            processIdentifier: app.processIdentifier,
+            bundleIdentifier: bundleIdentifier,
+            localizedName: app.localizedName
+        )
+    }
+
     private func handleTrigger(
         promptID: UUID,
         menuBarCapture: Task<SelectionCaptureResult, Never>? = nil,
@@ -316,13 +347,27 @@ final class TransformsCoordinator {
                     } else if case .failed = snapshot {
                         preCaptured = snapshot
                     } else if let target = menuBarCaptureTarget {
-                        guard let app = NSRunningApplication(processIdentifier: target.processIdentifier)
+                        guard let app = NSRunningApplication(processIdentifier: target.processIdentifier),
+                            app.bundleIdentifier == target.bundleIdentifier
                         else { throw TransformExecutorError.captureFailed(.targetNotFrontmost) }
-                        NSApp.deactivate()
-                        guard app.activate() else {
-                            throw TransformExecutorError.captureFailed(.targetNotFrontmost)
+                        let frontmost = Self.frontmostCaptureTarget()
+                        if frontmost?.processIdentifier != target.processIdentifier
+                            || frontmost?.bundleIdentifier != target.bundleIdentifier
+                        {
+                            guard NSApp.isActive else {
+                                throw TransformExecutorError.captureFailed(.targetNotFrontmost)
+                            }
+                            NSApp.yieldActivation(to: app)
+                            guard app.activate() else {
+                                throw TransformExecutorError.captureFailed(.targetNotFrontmost)
+                            }
                         }
-                        try? await Task.sleep(for: .milliseconds(200))
+                        guard
+                            await Self.waitForMenuCaptureTarget(
+                                target,
+                                frontmostApplication: Self.frontmostCaptureTarget
+                            )
+                        else { throw TransformExecutorError.captureFailed(.targetNotFrontmost) }
                         preCaptured = await self.menuBarCaptureService.captureSelection(in: target)
                     } else {
                         throw TransformExecutorError.captureFailed(.targetNotFrontmost)

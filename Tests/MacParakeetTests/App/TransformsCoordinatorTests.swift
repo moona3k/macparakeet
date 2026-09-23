@@ -79,4 +79,29 @@ final class TransformsCoordinatorTests: XCTestCase {
             )
         )
     }
+
+    func testMenuCaptureWaitsForExactFrontmostProcess() async {
+        let target = SelectionCaptureTarget(processIdentifier: 99, bundleIdentifier: "com.apple.Safari")
+        let otherProcess = SelectionCaptureTarget(processIdentifier: 1234, bundleIdentifier: target.bundleIdentifier)
+        let otherBundle = SelectionCaptureTarget(processIdentifier: target.processIdentifier, bundleIdentifier: "other")
+        var observations = [otherProcess, otherBundle, target]
+
+        let activated = await TransformsCoordinator.waitForMenuCaptureTarget(
+            target,
+            timeout: .seconds(1),
+            pollInterval: .milliseconds(1)
+        ) {
+            observations.removeFirst()
+        }
+
+        XCTAssertTrue(activated)
+        XCTAssertTrue(observations.isEmpty)
+        let rejected = await TransformsCoordinator.waitForMenuCaptureTarget(
+            target,
+            timeout: .zero
+        ) {
+            otherProcess
+        }
+        XCTAssertFalse(rejected)
+    }
 }
