@@ -221,6 +221,112 @@ final class SelectionCaptureServiceTests: XCTestCase {
         }
         XCTAssertEqual(backend.postCmdCCount(), 0)
     }
+
+    func testCaptureAXSelectionUsesFrontmostProcessWhenSystemFocusMoves() async {
+        let backend = FakeSelectionCaptureBackend(
+            isTrusted: true,
+            focusedElement: AXUIElementCreateSystemWide(),
+            selectedText: "Wrong app selection",
+            processFocusedElement: AXUIElementCreateApplication(1234),
+            processSelectedText: "Source selection"
+        )
+        let service = SelectionCaptureService(backend: backend)
+
+        let result = await service.captureAXSelection()
+
+        guard case .ax(let text, _, let target) = result else {
+            XCTFail("Expected selection from the captured process, got \(result.pathTag)")
+            return
+        }
+        XCTAssertEqual(text, "Source selection")
+        XCTAssertEqual(target?.processIdentifier, 1234)
+        XCTAssertEqual(backend.postCmdCCount(), 0)
+    }
+
+    func testCaptureAXSelectionDoesNotUseSystemFocusWhenProcessLookupFails() async {
+        let backend = FakeSelectionCaptureBackend(
+            isTrusted: true,
+            focusedElement: AXUIElementCreateSystemWide(),
+            selectedText: "Another app selection",
+            processLookupAvailable: false
+        )
+        let service = SelectionCaptureService(backend: backend)
+
+        let result = await service.captureAXSelection()
+
+        guard case .empty = result else {
+            XCTFail("Expected no capture from another app, got \(result.pathTag)")
+            return
+        }
+        XCTAssertEqual(backend.postCmdCCount(), 0)
+    }
+
+    func testTargetedClipboardCaptureStopsWhenFocusMovesBeforeCopy() async {
+        let backend = FakeSelectionCaptureBackend(
+            isTrusted: true,
+            focusedElement: AXUIElementCreateSystemWide(),
+            selectedText: nil,
+            frontmostProcessIdentifiers: [1234, 5678]
+        )
+        let service = SelectionCaptureService(backend: backend)
+        let target = SelectionCaptureTarget(processIdentifier: 1234, bundleIdentifier: "com.example.Source")
+
+        let result = await service.captureSelection(in: target)
+
+        guard case .failed(let error) = result else {
+            XCTFail("Expected focus-change failure, got \(result.pathTag)")
+            return
+        }
+        XCTAssertEqual(error, .targetNotFrontmost)
+        XCTAssertEqual(backend.postCmdCCount(), 0)
+    }
+
+    func testTargetedClipboardCaptureKeepsOriginalTarget() async {
+        let backend = FakeSelectionCaptureBackend(
+            isTrusted: true,
+            focusedElement: AXUIElementCreateSystemWide(),
+            selectedText: nil,
+            initialChangeCount: 1,
+            pasteboardAfterCmdC: "Selected text",
+            changeCountAfterCmdC: 2
+        )
+        let service = SelectionCaptureService(backend: backend)
+        let target = SelectionCaptureTarget(processIdentifier: 1234, bundleIdentifier: "com.example.Source")
+
+        let result = await service.captureSelection(in: target)
+
+        guard case .clipboard(let text, _, let capturedTarget) = result else {
+            XCTFail("Expected clipboard capture, got \(result.pathTag)")
+            return
+        }
+        XCTAssertEqual(text, "Selected text")
+        XCTAssertEqual(capturedTarget, target)
+        XCTAssertEqual(backend.postCmdCCount(), 1)
+    }
+
+    func testTargetedClipboardCaptureRejectsTextIfFocusMovesAfterCopy() async {
+        let backend = FakeSelectionCaptureBackend(
+            isTrusted: true,
+            focusedElement: AXUIElementCreateSystemWide(),
+            selectedText: nil,
+            initialChangeCount: 1,
+            pasteboardAfterCmdC: "Other app selection",
+            changeCountAfterCmdC: 2,
+            frontmostProcessIdentifiers: [1234, 1234, 5678]
+        )
+        let service = SelectionCaptureService(backend: backend)
+        let target = SelectionCaptureTarget(processIdentifier: 1234, bundleIdentifier: "com.example.Source")
+
+        let result = await service.captureSelection(in: target)
+
+        guard case .failed(let error) = result else {
+            XCTFail("Expected focus-change failure, got \(result.pathTag)")
+            return
+        }
+        XCTAssertEqual(error, .targetNotFrontmost)
+        XCTAssertEqual(backend.postCmdCCount(), 1)
+        XCTAssertEqual(backend.restoreCount(), 0, "A later user copy must not be overwritten")
+    }
 }
 
 // MARK: - Fake Backend
@@ -235,7 +341,9 @@ final class FakeSelectionCaptureBackend: SelectionCaptureBackend, @unchecked Sen
     private let snapshotItems: [NSPasteboardItem]?
     private let processFocused: AXUIElement?
     private let processSelectedTextValue: String?
+    private let processLookupAvailable: Bool
     private let frontmostBundle: String
+    private let frontmostProcessIdentifiers: [pid_t]
     private var restoreCalls: Int = 0
     private var frontmostTargetCalls: Int = 0
     private var postCmdCCalls: Int = 0
@@ -250,7 +358,9 @@ final class FakeSelectionCaptureBackend: SelectionCaptureBackend, @unchecked Sen
         changeCountAfterCmdC: Int? = nil,
         processFocusedElement: AXUIElement? = nil,
         processSelectedText: String? = nil,
-        frontmostBundleIdentifier: String = "com.example.Source"
+        processLookupAvailable: Bool = true,
+        frontmostBundleIdentifier: String = "com.example.Source",
+        frontmostProcessIdentifiers: [pid_t] = [1234]
     ) {
         self.trusted = isTrusted
         self.focused = focusedElement
@@ -261,12 +371,16 @@ final class FakeSelectionCaptureBackend: SelectionCaptureBackend, @unchecked Sen
         self.changeCountAfterCmdC = changeCountAfterCmdC
         self.processFocused = processFocusedElement
         self.processSelectedTextValue = processSelectedText
+        self.processLookupAvailable = processLookupAvailable
         self.frontmostBundle = frontmostBundleIdentifier
+        self.frontmostProcessIdentifiers = frontmostProcessIdentifiers
     }
 
     func isAccessibilityTrusted() -> Bool { trusted }
     func focusedElement() -> AXUIElement? { focused }
-    func focusedElement(ofProcess pid: pid_t) -> AXUIElement? { processFocused ?? focused }
+    func focusedElement(ofProcess pid: pid_t) -> AXUIElement? {
+        processLookupAvailable ? (processFocused ?? focused) : nil
+    }
     func selectedText(of element: AXUIElement) -> String? {
         if let processFocused, CFEqual(element, processFocused) {
             return processSelectedTextValue
@@ -278,7 +392,9 @@ final class FakeSelectionCaptureBackend: SelectionCaptureBackend, @unchecked Sen
     func frontmostApplicationTarget() -> SelectionCaptureTarget? {
         frontmostTargetCalls += 1
         return SelectionCaptureTarget(
-            processIdentifier: 1234,
+            processIdentifier: frontmostProcessIdentifiers[
+                min(frontmostTargetCalls - 1, frontmostProcessIdentifiers.count - 1)
+            ],
             bundleIdentifier: frontmostBundle,
             localizedName: "Source"
         )
