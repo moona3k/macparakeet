@@ -1,0 +1,33 @@
+Sources/MacParakeetCore/Database/PromptResultRepository.swift
+  s_57f96c7e168713::t_37742e669b63e0 21
+  s_57f96c7e168713::t_1151fbac4ecfc3 4
+  s_57f96c7e168713::t_6227f082b56333 5-14,37-47
+Tests/MacParakeetTests/Database/PromptResultRepositoryTests.swift
+  s_57f96c7e168713::t_1151fbac4ecfc3 21-29,38-41
+  s_57f96c7e168713::t_902718fed5e3ee 30-37
+  s_57f96c7e168713::t_36c3e6f5618799 434-445
+spec/contracts/cli-json-v1.md
+  s_57f96c7e168713::t_fd39abb9f676a9 199-200
+spec/contracts/saved-audio-auto-prompt-completion.md
+  s_57f96c7e168713::t_fd39abb9f676a9 89-93
+Sources/CLI/Commands/MeetingsCommand.swift
+  s_57f96c7e168713::t_fd39abb9f676a9 1343,1370
+Tests/CLITests/MeetingsCommandTests.swift
+  s_57f96c7e168713::t_fd39abb9f676a9 1035,1037,1065,1087-1090
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0ed4a7a4bf6027e9dbae0cd1f9de5faaa615fc93",
+  "prompts": {},
+  "sessions": {
+    "s_57f96c7e168713": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cd8c-0edf-7db2-b8e5-8dd9ef44ed55",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
