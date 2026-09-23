@@ -43,6 +43,7 @@ Sources/MacParakeetCore/Models/PromptResult.swift
   s_673be8b32d8d6a::t_6dde5aa707d2df 103
   s_673be8b32d8d6a::t_bc705d05996d56 35-38,42
   s_673be8b32d8d6a::t_1632bff0d10cd5 43
+  s_697e594299b62c::t_e05b5334ff6888 116
 Sources/MacParakeetCore/Database/DatabaseManager.swift
   s_673be8b32d8d6a::t_85ae3ea2f18d51 2331-2342
 Tests/MacParakeetTests/Database/PromptResultRepositoryTests.swift
@@ -71,6 +72,14 @@ Tests/MacParakeetTests/Database/DatabaseManagerTests.swift
         "tool": "cursor",
         "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
         "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_697e594299b62c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cbf1-51b1-7ea3-a7cc-7f0645829f47",
+        "model": "gpt-6-sol"
       },
       "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
     }
