@@ -1,0 +1,29 @@
+docs/audits/2026-09-23-post-0.8.7-release-readiness.md
+  s_57f96c7e168713::t_efe7edf5e97910 7
+Tests/MacParakeetTests/ViewModels/OnboardingViewModelTests.swift
+  s_57f96c7e168713::t_8fbe63f1322222 795-809
+Sources/MacParakeetViewModels/OnboardingViewModel.swift
+  s_57f96c7e168713::t_8fbe63f1322222 438,445-459
+  s_57f96c7e168713::t_f657a1cb17ec33 460
+Sources/MacParakeet/Onboarding/OnboardingWindowController.swift
+  s_57f96c7e168713::t_fb4a85d6a8ac4c 152-153
+  s_57f96c7e168713::t_8fbe63f1322222 69,154,168
+docs/design/2026-09-23-wispr-onboarding/implementation.md
+  s_57f96c7e168713::t_efe7edf5e97910 85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5c7dbeb16966b99a995c5bb3ce19cbccb2d9eb29",
+  "prompts": {},
+  "sessions": {
+    "s_57f96c7e168713": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cd8c-0edf-7db2-b8e5-8dd9ef44ed55",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
