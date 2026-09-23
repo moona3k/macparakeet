@@ -141,6 +141,8 @@ final class DictationFlowCoordinator {
 
     /// Set after init; updated when dictation hotkey managers are recreated.
     var hotkeyManagers: [HotkeyManager] = []
+    var onSyncHotkeyRecordingMode: ((FnKeyStateMachine.RecordingMode) -> Void)?
+    var onHotkeyRecordingEnded: (() -> Void)?
     var onInteractionBusy: (() -> Void)?
 
     // MARK: - Dependencies
@@ -203,6 +205,8 @@ final class DictationFlowCoordinator {
 
     /// Telemetry trigger for the current dictation flow.
     private var currentTrigger: TelemetryDictationTrigger = .hotkey
+    /// Per-invocation AI Formatter intent. `nil` follows Settings.
+    private var sessionAIFormatterEnabled: Bool?
     /// Per-utterance destination: copy instead of paste. Committed when
     /// recording actually starts so a rejected start during processing
     /// cannot flip an in-flight clipboard-only session to paste.
@@ -419,6 +423,7 @@ final class DictationFlowCoordinator {
     func startDictation(
         mode: FnKeyStateMachine.RecordingMode,
         trigger: TelemetryDictationTrigger = .hotkey,
+        aiFormatterEnabled: Bool? = nil,
         clipboardOnly: Bool = false
     ) {
         // Suppressed while onboarding is up — the speech model isn't ready and
@@ -431,7 +436,11 @@ final class DictationFlowCoordinator {
         let stateBeforeStart = stateMachine.state
         sendEvent(.startRequested(mode: mode))
         guard stateMachine.state != stateBeforeStart else { return }
+        if trigger != .hotkey {
+            onHotkeyRecordingEnded?()
+        }
         currentTrigger = trigger
+        sessionAIFormatterEnabled = aiFormatterEnabled
         pendingSessionClipboardOnly = clipboardOnly
     }
 
@@ -472,6 +481,7 @@ final class DictationFlowCoordinator {
 
     private func sendEvent(_ event: DictationFlowEvent) {
         let oldState = stateMachine.state
+        let hadActiveHotkeyMode = hotkeyRecordingMode != nil
         let effects = stateMachine.handle(event)
 
         if !effects.isEmpty {
@@ -481,6 +491,9 @@ final class DictationFlowCoordinator {
         }
 
         executeEffects(effects)
+        if hadActiveHotkeyMode && hotkeyRecordingMode == nil {
+            onHotkeyRecordingEnded?()
+        }
 
         switch stateMachine.state {
         case .idle, .ready, .finishing:
@@ -894,12 +907,14 @@ final class DictationFlowCoordinator {
             onMenuBarIconUpdate(iconState)
 
         case .syncHotkeyRecordingMode(let mode):
-            hotkeyManagers.forEach { $0.syncRecordingMode(mode) }
+            onSyncHotkeyRecordingMode?(mode)
 
         case .resetHotkeyStateMachine:
+            onHotkeyRecordingEnded?()
             hotkeyManagers.forEach { $0.resetToIdle() }
 
         case .notifyHotkeyCancelledByUI:
+            onHotkeyRecordingEnded?()
             hotkeyManagers.forEach { $0.notifyCancelledByUI() }
 
         case .presentEntitlementsAlert:
@@ -1163,6 +1178,7 @@ final class DictationFlowCoordinator {
         sessionID: Int
     ) {
         let trigger = currentTrigger
+        let aiFormatterOverride = sessionAIFormatterEnabled
         let clipboardOnly = pendingSessionClipboardOnly
         sessionClipboardOnly = clipboardOnly
         recordingTask = Task { @MainActor in
@@ -1194,7 +1210,8 @@ final class DictationFlowCoordinator {
                     context: DictationTelemetryContext(
                         trigger: trigger,
                         mode: self.telemetryMode(for: mode)
-                    )
+                    ),
+                    aiFormatterEnabled: aiFormatterOverride
                 )
                 await self.serviceSession.updateAIFormatterAppContext(
                     startContext,

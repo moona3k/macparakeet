@@ -22,6 +22,7 @@ final class HotkeyConflictPolicyTests: XCTestCase {
         meeting: HotkeyTrigger = .disabled,
         fileTranscription: HotkeyTrigger = .disabled,
         youtubeTranscription: HotkeyTrigger = .disabled,
+        dictationAIPolish: HotkeyTrigger = .disabled,
         dictationClipboard: HotkeyTrigger = .disabled,
         transformHotkeys: [Prompt] = [],
         meetingRecordingEnabled: Bool = true
@@ -32,6 +33,7 @@ final class HotkeyConflictPolicyTests: XCTestCase {
             meeting: meeting,
             fileTranscription: fileTranscription,
             youtubeTranscription: youtubeTranscription,
+            dictationAIPolish: dictationAIPolish,
             dictationClipboard: dictationClipboard,
             transformHotkeys: transformHotkeys,
             meetingRecordingEnabled: meetingRecordingEnabled
@@ -272,6 +274,17 @@ final class HotkeyConflictPolicyTests: XCTestCase {
         XCTAssertEqual(result, .blocked("Conflicts with Transform Polish (⌥1)."))
     }
 
+    func testSettingsPolicyBlocksAIPolishConflictWithHandsFree() {
+        XCTAssertEqual(
+            HotkeyConflictPolicy.settingsValidation(
+                candidate: .control,
+                surface: .dictationAIPolish,
+                snapshot: snapshot(handsFree: .control)
+            ),
+            .blocked("Conflicts with hands-free mode (⌃ Control).")
+        )
+    }
+
     func testSettingsPolicyBlocksClipboardOnlyConflictWithHandsFree() {
         XCTAssertEqual(
             HotkeyConflictPolicy.settingsValidation(
@@ -283,16 +296,25 @@ final class HotkeyConflictPolicyTests: XCTestCase {
         )
     }
 
-    func testSettingsPolicyBlocksClipboardOnlyChordSharingBareModifierHandsFree() {
+    func testSettingsPolicyBlocksSpecialDictationChordsSharingBareModifierHandsFree() {
         let commandP = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 35)
-
+        for surface in [HotkeyConflictPolicy.Surface.dictationAIPolish, .dictationClipboard] {
+            XCTAssertEqual(
+                HotkeyConflictPolicy.settingsValidation(
+                    candidate: commandP,
+                    surface: surface,
+                    snapshot: snapshot(handsFree: .command)
+                ),
+                .blocked("Conflicts with hands-free mode (⌘ Command).")
+            )
+        }
         XCTAssertEqual(
             HotkeyConflictPolicy.settingsValidation(
-                candidate: commandP,
-                surface: .dictationClipboard,
-                snapshot: snapshot(handsFree: .command)
+                candidate: .command,
+                surface: .handsFreeDictation,
+                snapshot: snapshot(dictationAIPolish: commandP)
             ),
-            .blocked("Conflicts with hands-free mode (⌘ Command).")
+            .blocked("Conflicts with AI polish this dictation (\(commandP.formattedLabel)).")
         )
         XCTAssertEqual(
             HotkeyConflictPolicy.settingsValidation(
@@ -304,6 +326,40 @@ final class HotkeyConflictPolicyTests: XCTestCase {
         )
     }
 
+    func testSettingsPolicyAllowsBareAIPolishModifierWithAuxiliaryChords() {
+        let controlF = HotkeyTrigger.chord(modifiers: ["control"], keyCode: 3)
+        let surfaces: [HotkeyConflictPolicy.Surface] = [
+            .meetingRecording, .fileTranscription, .youtubeTranscription,
+        ]
+
+        for surface in surfaces {
+            let configured = snapshot(
+                handsFree: .disabled,
+                pushToTalk: .disabled,
+                meeting: surface == .meetingRecording ? controlF : .disabled,
+                fileTranscription: surface == .fileTranscription ? controlF : .disabled,
+                youtubeTranscription: surface == .youtubeTranscription ? controlF : .disabled,
+                dictationAIPolish: .control
+            )
+            XCTAssertEqual(
+                HotkeyConflictPolicy.settingsValidation(
+                    candidate: controlF,
+                    surface: surface,
+                    snapshot: configured
+                ),
+                .allowed
+            )
+            XCTAssertEqual(
+                HotkeyConflictPolicy.settingsValidation(
+                    candidate: .control,
+                    surface: .dictationAIPolish,
+                    snapshot: configured
+                ),
+                .allowed
+            )
+        }
+    }
+
     func testSettingsPolicyBlocksClipboardOnlyConflictWithPushToTalk() {
         XCTAssertEqual(
             HotkeyConflictPolicy.settingsValidation(
@@ -312,6 +368,26 @@ final class HotkeyConflictPolicyTests: XCTestCase {
                 snapshot: snapshot(pushToTalk: .option)
             ),
             .blocked("Conflicts with push to talk (⌥ Option).")
+        )
+    }
+
+    func testSettingsPolicyBlocksSpecialShortcutConflictInBothDirections() {
+        let chord = HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 35)
+        XCTAssertEqual(
+            HotkeyConflictPolicy.settingsValidation(
+                candidate: chord,
+                surface: .dictationAIPolish,
+                snapshot: snapshot(dictationClipboard: chord)
+            ),
+            .blocked("Conflicts with clipboard-only dictation (\(chord.formattedLabel)).")
+        )
+        XCTAssertEqual(
+            HotkeyConflictPolicy.settingsValidation(
+                candidate: chord,
+                surface: .dictationClipboard,
+                snapshot: snapshot(dictationAIPolish: chord)
+            ),
+            .blocked("Conflicts with AI polish this dictation (\(chord.formattedLabel)).")
         )
     }
 

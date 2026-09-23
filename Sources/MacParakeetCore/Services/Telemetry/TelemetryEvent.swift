@@ -521,6 +521,7 @@ public enum TelemetryHotkeySurface: String, Sendable, Equatable {
     case meeting
     case fileTranscription = "file_transcription"
     case youtubeTranscription = "youtube_transcription"
+    case dictationAIPolish = "dictation_ai_polish"
     case dictationClipboard = "dictation_clipboard"
 }
 

@@ -377,6 +377,11 @@ struct MainWindowView: View {
             ),
             TransformShortcutReservedHotkey(name: "file transcription", trigger: settingsViewModel.fileTranscriptionHotkeyTrigger),
             TransformShortcutReservedHotkey(name: "video URL transcription", trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger),
+            TransformShortcutReservedHotkey(
+                name: "AI polish this dictation",
+                trigger: settingsViewModel.dictationAIPolishHotkeyTrigger,
+                conflictMode: .bareModifierDictation
+            ),
         ]
         if AppFeatures.meetingRecordingEnabled {
             reserved.append(TransformShortcutReservedHotkey(name: "meeting recording", trigger: settingsViewModel.meetingHotkeyTrigger))

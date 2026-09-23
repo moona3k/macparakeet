@@ -463,10 +463,11 @@ final class AppEnvironmentConfigurer {
 
         let hotkeyCoordinator = AppHotkeyCoordinator(
             settingsViewModel: settingsViewModel,
-            onStartDictation: { mode, clipboardOnly in
+            onStartDictation: { mode, aiFormatterEnabled, clipboardOnly in
                 coordinatorRefs.dictation?.startDictation(
                     mode: mode,
                     trigger: .hotkey,
+                    aiFormatterEnabled: aiFormatterEnabled,
                     clipboardOnly: clipboardOnly
                 )
             },
@@ -498,6 +499,13 @@ final class AppEnvironmentConfigurer {
                 coordinatorRefs.dictation?.hotkeyRecordingMode
             }
         )
+
+        dictationCoordinator.onSyncHotkeyRecordingMode = { [weak hotkeyCoordinator] mode in
+            hotkeyCoordinator?.syncDictationHotkeyRecordingMode(mode)
+        }
+        dictationCoordinator.onHotkeyRecordingEnded = { [weak hotkeyCoordinator] in
+            hotkeyCoordinator?.clearActiveDictationHotkey()
+        }
 
         if callbacks.isHotkeyRecordingActive() {
             hotkeyCoordinator.suspend()

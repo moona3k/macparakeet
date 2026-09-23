@@ -1107,9 +1107,19 @@ struct SettingsView: View {
                     trigger: $viewModel.dictationClipboardHotkeyTrigger
                 )
 
+                Divider()
+
+                transcriptionHotkeyRow(
+                    title: "AI polish this dictation",
+                    detail: "Optional extra shortcut. Tap to start or stop like hands-free (no hold-to-talk). Requires AI Formatter to be enabled, then always runs cleanup for that utterance even when Use for dictation is off.",
+                    surface: .dictationAIPolish,
+                    trigger: $viewModel.dictationAIPolishHotkeyTrigger
+                )
+
                 if !viewModel.hotkeyTrigger.isDisabled
                     || !viewModel.pushToTalkHotkeyTrigger.isDisabled
                     || !viewModel.dictationClipboardHotkeyTrigger.isDisabled
+                    || !viewModel.dictationAIPolishHotkeyTrigger.isDisabled
                 {
                     Divider()
 
@@ -1695,6 +1705,7 @@ struct SettingsView: View {
             meeting: viewModel.meetingHotkeyTrigger,
             fileTranscription: viewModel.fileTranscriptionHotkeyTrigger,
             youtubeTranscription: viewModel.youtubeTranscriptionHotkeyTrigger,
+            dictationAIPolish: viewModel.dictationAIPolishHotkeyTrigger,
             dictationClipboard: viewModel.dictationClipboardHotkeyTrigger,
             transformHotkeys: transformHotkeys,
             meetingRecordingEnabled: AppFeatures.meetingRecordingEnabled
@@ -4020,6 +4031,25 @@ struct SettingsView: View {
                     verb: "Tap",
                     action: "Clipboard-only",
                     detail: "Copies; does not paste"
+                )
+            }
+
+            if (!viewModel.pushToTalkHotkeyTrigger.isDisabled
+                || !viewModel.hotkeyTrigger.isDisabled
+                || !viewModel.dictationClipboardHotkeyTrigger.isDisabled)
+                && !viewModel.dictationAIPolishHotkeyTrigger.isDisabled
+            {
+                Divider()
+                    .padding(.leading, 108)
+            }
+
+            if !viewModel.dictationAIPolishHotkeyTrigger.isDisabled {
+                modeShortcutRow(
+                    keys: [viewModel.dictationAIPolishHotkeyTrigger.shortSymbol],
+                    separator: nil,
+                    verb: "Tap",
+                    action: "AI polish",
+                    detail: "Cleans this dictation"
                 )
             }
         }

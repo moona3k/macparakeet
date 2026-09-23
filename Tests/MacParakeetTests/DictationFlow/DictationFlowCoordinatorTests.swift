@@ -28,12 +28,45 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         // reconciles CGEventSource keyState; an unstubbed leftover ordinary
         // key would treat the stop gesture as contaminated and return [].
         fnManager.setPhysicalKeyStateProviderForTesting { $0 == 57 }
-        harness.coordinator.hotkeyManagers = [fnManager]
+        let polishManager = HotkeyManager(trigger: .control, gestureMode: .singleTapToggle)
+        polishManager.setPhysicalKeyStateProviderForTesting { _ in false }
+        harness.coordinator.hotkeyManagers = [fnManager, polishManager]
+        let regularSpec = AppHotkeyCoordinator.DictationHotkeyPlan.Spec(
+            trigger: .fn,
+            gestureMode: .doubleTapAndHold
+        )
+        let polishSpec = AppHotkeyCoordinator.DictationHotkeyPlan.Spec(
+            trigger: .control,
+            gestureMode: .singleTapToggle,
+            aiFormatterEnabled: true
+        )
+        harness.coordinator.onSyncHotkeyRecordingMode = { mode in
+            AppHotkeyCoordinator.syncDictationHotkeyManagers(
+                [(spec: regularSpec, manager: fnManager), (spec: polishSpec, manager: polishManager)],
+                mode: mode,
+                activeHotkey: nil
+            )
+        }
 
         harness.coordinator.startDictation(mode: .persistent, trigger: .pillClick)
 
         let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
         XCTAssertTrue(started)
+        XCTAssertEqual(
+            polishManager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskControl],
+                timestampMs: 900
+            ),
+            []
+        )
+        XCTAssertEqual(
+            polishManager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 950
+            ),
+            [],
+            "AI polish must not stop a take started from the pill"
+        )
         XCTAssertEqual(
             fnManager.modifierFlagsChangedOutputsForTesting(
                 flags: [.maskSecondaryFn],
@@ -43,6 +76,34 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         )
 
         harness.coordinator.cancelDictation()
+    }
+
+    func testDiscardClearsShortcutOwnerWithoutAHotkeyResetEffect() async throws {
+        let harness = try await makeRecordingHarness()
+        var clearCount = 0
+        harness.coordinator.onHotkeyRecordingEnded = { clearCount += 1 }
+
+        harness.coordinator.startDictation(mode: .persistent)
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+
+        harness.coordinator.discardProvisionalRecording(showReadyPill: false)
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .idle)
+        XCTAssertEqual(clearCount, 1)
+    }
+
+    func testPillRestartClearsPreviousShortcutOwner() async throws {
+        let harness = try await makeRecordingHarness()
+        var clearCount = 0
+        harness.coordinator.onHotkeyRecordingEnded = { clearCount += 1 }
+
+        harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+
+        harness.coordinator.startDictation(mode: .persistent, trigger: .pillClick)
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .checkingEntitlements(mode: .persistent))
+        XCTAssertEqual(clearCount, 1)
     }
 
     func testPersistentBackToBackDictationsPasteJustCompletedTranscript() async throws {
