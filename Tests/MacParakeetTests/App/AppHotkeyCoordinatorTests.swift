@@ -407,6 +407,7 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         )
         let standard = plan.specs.first { !$0.clipboardOnly && $0.aiFormatterEnabled != true }!
         let polish = plan.specs.first { $0.aiFormatterEnabled == true }!
+        let clipboard = plan.specs.first { $0.clipboardOnly }!
 
         XCTAssertTrue(
             AppHotkeyCoordinator.shouldResumeDictationHotkey(
@@ -428,6 +429,57 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
                 activeMode: .persistent,
                 activeHotkey: nil
             )
+        )
+        XCTAssertFalse(
+            AppHotkeyCoordinator.shouldResumeDictationHotkey(
+                clipboard,
+                activeMode: .persistent,
+                activeHotkey: nil
+            )
+        )
+    }
+
+    func testRecordingStartSyncPreservesAIPolishShortcutOwnership() {
+        let regularSpec = AppHotkeyCoordinator.DictationHotkeyPlan.Spec(
+            trigger: .fn,
+            gestureMode: .doubleTapAndHold
+        )
+        let polishSpec = AppHotkeyCoordinator.DictationHotkeyPlan.Spec(
+            trigger: .control,
+            gestureMode: .singleTapToggle,
+            aiFormatterEnabled: true
+        )
+        let regularManager = HotkeyManager(trigger: .fn)
+        let polishManager = HotkeyManager(trigger: .control, gestureMode: .singleTapToggle)
+        regularManager.setPhysicalKeyStateProviderForTesting { _ in false }
+        polishManager.setPhysicalKeyStateProviderForTesting { _ in false }
+
+        AppHotkeyCoordinator.syncDictationHotkeyManagers(
+            [(spec: regularSpec, manager: regularManager), (spec: polishSpec, manager: polishManager)],
+            mode: .persistent,
+            activeHotkey: polishSpec
+        )
+
+        XCTAssertEqual(
+            regularManager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskSecondaryFn],
+                timestampMs: 1_000
+            ),
+            []
+        )
+        XCTAssertEqual(
+            polishManager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskControl],
+                timestampMs: 1_100
+            ),
+            []
+        )
+        XCTAssertEqual(
+            polishManager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_150
+            ),
+            [.stopRecording]
         )
     }
 

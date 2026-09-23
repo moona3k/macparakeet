@@ -688,8 +688,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         transforms.start()
         transformsCoordinator = transforms
-        menuBarCoordinator.onPrepareMenuBarTransforms = { [weak transforms] in
-            transforms?.prepareMenuBarCapture()
+        menuBarCoordinator.onPrepareMenuBarTransforms = { [weak transforms] frontmost in
+            transforms?.prepareMenuBarCapture(frontmostApplication: frontmost)
         }
         menuBarCoordinator.onRunMenuBarTransform = { [weak transforms] id in
             transforms?.runFromMenuBar(promptID: id)

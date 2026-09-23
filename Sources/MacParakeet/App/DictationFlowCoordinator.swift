@@ -141,6 +141,8 @@ final class DictationFlowCoordinator {
 
     /// Set after init; updated when dictation hotkey managers are recreated.
     var hotkeyManagers: [HotkeyManager] = []
+    var onSyncHotkeyRecordingMode: ((FnKeyStateMachine.RecordingMode) -> Void)?
+    var onHotkeyRecordingEnded: (() -> Void)?
     var onInteractionBusy: (() -> Void)?
 
     // MARK: - Dependencies
@@ -434,6 +436,9 @@ final class DictationFlowCoordinator {
         let stateBeforeStart = stateMachine.state
         sendEvent(.startRequested(mode: mode))
         guard stateMachine.state != stateBeforeStart else { return }
+        if trigger != .hotkey {
+            onHotkeyRecordingEnded?()
+        }
         currentTrigger = trigger
         sessionAIFormatterEnabled = aiFormatterEnabled
         pendingSessionClipboardOnly = clipboardOnly
@@ -476,6 +481,7 @@ final class DictationFlowCoordinator {
 
     private func sendEvent(_ event: DictationFlowEvent) {
         let oldState = stateMachine.state
+        let hadActiveHotkeyMode = hotkeyRecordingMode != nil
         let effects = stateMachine.handle(event)
 
         if !effects.isEmpty {
@@ -485,6 +491,9 @@ final class DictationFlowCoordinator {
         }
 
         executeEffects(effects)
+        if hadActiveHotkeyMode && hotkeyRecordingMode == nil {
+            onHotkeyRecordingEnded?()
+        }
 
         switch stateMachine.state {
         case .idle, .ready, .finishing:
@@ -898,12 +907,14 @@ final class DictationFlowCoordinator {
             onMenuBarIconUpdate(iconState)
 
         case .syncHotkeyRecordingMode(let mode):
-            hotkeyManagers.forEach { $0.syncRecordingMode(mode) }
+            onSyncHotkeyRecordingMode?(mode)
 
         case .resetHotkeyStateMachine:
+            onHotkeyRecordingEnded?()
             hotkeyManagers.forEach { $0.resetToIdle() }
 
         case .notifyHotkeyCancelledByUI:
+            onHotkeyRecordingEnded?()
             hotkeyManagers.forEach { $0.notifyCancelledByUI() }
 
         case .presentEntitlementsAlert:
