@@ -220,6 +220,19 @@ public final class SettingsViewModel {
             Telemetry.send(dictationAIPolishHotkeyTrigger.customizedEvent(surface: .dictationAIPolish))
         }
     }
+    public var dictationClipboardHotkeyTrigger: HotkeyTrigger {
+        didSet {
+            dictationClipboardHotkeyTrigger.save(
+                to: defaults,
+                defaultsKey: HotkeyTrigger.dictationClipboardDefaultsKey
+            )
+            NotificationCenter.default.post(
+                name: .macParakeetDictationClipboardHotkeyTriggerDidChange,
+                object: nil
+            )
+            Telemetry.send(dictationClipboardHotkeyTrigger.customizedEvent(surface: .dictationClipboard))
+        }
+    }
     public var silenceAutoStop: Bool {
         didSet {
             defaults.set(silenceAutoStop, forKey: UserDefaultsAppRuntimePreferences.silenceAutoStopKey)
@@ -1059,6 +1072,10 @@ public final class SettingsViewModel {
         dictationAIPolishHotkeyTrigger = Self.resolveTranscriptionHotkeyTrigger(
             defaults: defaults,
             defaultsKey: HotkeyTrigger.dictationAIPolishDefaultsKey
+        )
+        dictationClipboardHotkeyTrigger = Self.resolveTranscriptionHotkeyTrigger(
+            defaults: defaults,
+            defaultsKey: HotkeyTrigger.dictationClipboardDefaultsKey
         )
         silenceAutoStop = defaults.bool(forKey: UserDefaultsAppRuntimePreferences.silenceAutoStopKey)
         let delay = defaults.double(forKey: UserDefaultsAppRuntimePreferences.silenceDelayKey)

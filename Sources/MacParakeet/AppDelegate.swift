@@ -141,7 +141,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return AppHotkeyCoordinator.dictationHotkeyPlan(
                 handsFree: self.settingsViewModel.hotkeyTrigger,
                 pushToTalk: self.settingsViewModel.pushToTalkHotkeyTrigger,
-                aiPolish: self.settingsViewModel.dictationAIPolishHotkeyTrigger
+                aiPolish: self.settingsViewModel.dictationAIPolishHotkeyTrigger,
+                clipboard: self.settingsViewModel.dictationClipboardHotkeyTrigger
             )
         },
         micLevelingProvider: { [weak self] in
@@ -346,6 +347,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.handleYouTubeTranscriptionHotkeyTriggerChange()
         },
         onDictationAIPolishHotkeyTriggerChanged: { [weak self] in
+            self?.handleHotkeyTriggerChange()
+        },
+        onDictationClipboardHotkeyTriggerChanged: { [weak self] in
             self?.handleHotkeyTriggerChange()
         },
         onAppearanceModeChanged: { [weak self] in
@@ -913,6 +917,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 conflictMode: .bareModifierDictation
             ),
             TransformShortcutReservedHotkey(
+                name: "clipboard-only dictation",
+                trigger: settingsViewModel.dictationClipboardHotkeyTrigger
+            ),
+            TransformShortcutReservedHotkey(
                 name: "file transcription", trigger: settingsViewModel.fileTranscriptionHotkeyTrigger),
             TransformShortcutReservedHotkey(
                 name: "video URL transcription", trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger),
@@ -986,7 +994,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyCoordinator?.hotkeyMenuTitle
             ?? AppHotkeyCoordinator.menuTitle(
                 handsFree: settingsViewModel.hotkeyTrigger,
-                pushToTalk: settingsViewModel.pushToTalkHotkeyTrigger
+                pushToTalk: settingsViewModel.pushToTalkHotkeyTrigger,
+                aiPolish: settingsViewModel.dictationAIPolishHotkeyTrigger,
+                clipboard: settingsViewModel.dictationClipboardHotkeyTrigger
             )
     }
 

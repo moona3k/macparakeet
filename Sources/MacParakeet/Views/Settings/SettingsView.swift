@@ -1101,13 +1101,26 @@ struct SettingsView: View {
                 Divider()
 
                 transcriptionHotkeyRow(
+                    title: "Clipboard-only dictation",
+                    detail: "Optional extra shortcut. Tap to start or stop like hands-free. Copies the transcript instead of pasting into the focused field.",
+                    surface: .dictationClipboard,
+                    trigger: $viewModel.dictationClipboardHotkeyTrigger
+                )
+
+                Divider()
+
+                transcriptionHotkeyRow(
                     title: "AI polish this dictation",
                     detail: "Optional extra shortcut. Tap to start or stop like hands-free (no hold-to-talk). Requires AI Formatter to be enabled, then always runs cleanup for that utterance even when Use for dictation is off.",
                     surface: .dictationAIPolish,
                     trigger: $viewModel.dictationAIPolishHotkeyTrigger
                 )
 
-                if !viewModel.hotkeyTrigger.isDisabled || !viewModel.pushToTalkHotkeyTrigger.isDisabled {
+                if !viewModel.hotkeyTrigger.isDisabled
+                    || !viewModel.pushToTalkHotkeyTrigger.isDisabled
+                    || !viewModel.dictationClipboardHotkeyTrigger.isDisabled
+                    || !viewModel.dictationAIPolishHotkeyTrigger.isDisabled
+                {
                     Divider()
 
                     dictationModeGuide
@@ -1254,7 +1267,7 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Keep dictation on clipboard",
-                    detail: "Leaves the same text MacParakeet pastes on the clipboard, useful when remote desktops need a manual ⌘V.",
+                    detail: "Leaves the same text MacParakeet pastes on the clipboard, useful when remote desktops need a manual ⌘V. To skip paste entirely, use the Clipboard-only dictation shortcut.",
                     isOn: $viewModel.keepDictationOnClipboard
                 )
 
@@ -1693,6 +1706,7 @@ struct SettingsView: View {
             fileTranscription: viewModel.fileTranscriptionHotkeyTrigger,
             youtubeTranscription: viewModel.youtubeTranscriptionHotkeyTrigger,
             dictationAIPolish: viewModel.dictationAIPolishHotkeyTrigger,
+            dictationClipboard: viewModel.dictationClipboardHotkeyTrigger,
             transformHotkeys: transformHotkeys,
             meetingRecordingEnabled: AppFeatures.meetingRecordingEnabled
         )
@@ -4000,6 +4014,42 @@ struct SettingsView: View {
                     verb: usesSharedDictationGesture ? "Double-tap" : "Tap",
                     action: "Hands-free mode",
                     detail: "Tap again to stop"
+                )
+            }
+
+            if (!viewModel.pushToTalkHotkeyTrigger.isDisabled || !viewModel.hotkeyTrigger.isDisabled)
+                && !viewModel.dictationClipboardHotkeyTrigger.isDisabled
+            {
+                Divider()
+                    .padding(.leading, 108)
+            }
+
+            if !viewModel.dictationClipboardHotkeyTrigger.isDisabled {
+                modeShortcutRow(
+                    keys: [viewModel.dictationClipboardHotkeyTrigger.shortSymbol],
+                    separator: nil,
+                    verb: "Tap",
+                    action: "Clipboard-only",
+                    detail: "Copies; does not paste"
+                )
+            }
+
+            if (!viewModel.pushToTalkHotkeyTrigger.isDisabled
+                || !viewModel.hotkeyTrigger.isDisabled
+                || !viewModel.dictationClipboardHotkeyTrigger.isDisabled)
+                && !viewModel.dictationAIPolishHotkeyTrigger.isDisabled
+            {
+                Divider()
+                    .padding(.leading, 108)
+            }
+
+            if !viewModel.dictationAIPolishHotkeyTrigger.isDisabled {
+                modeShortcutRow(
+                    keys: [viewModel.dictationAIPolishHotkeyTrigger.shortSymbol],
+                    separator: nil,
+                    verb: "Tap",
+                    action: "AI polish",
+                    detail: "Cleans this dictation"
                 )
             }
         }
