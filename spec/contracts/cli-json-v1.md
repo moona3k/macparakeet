@@ -198,8 +198,8 @@ with human progress/status kept off stdout.
   value supplied to prompt assembly, not necessarily the full canonical note.
 - `meetings results list|add --json` prompt-result objects may include
   `sourceTranscriptHash`, a
-  SHA-256 receipt of trimmed automatic clean/raw transcript text, or cue words
-  when both text fields are empty on an unedited transcript. The field is
+  SHA-256 receipt of cue words when timed cues are available on an unedited
+  transcript, otherwise trimmed automatic clean/raw text. The field is
   omitted when the source is unknown; existing rows retain that unknown
   source on migration because the transcript may already have changed.
 - Saved prompt-result JSON objects include additive nullable

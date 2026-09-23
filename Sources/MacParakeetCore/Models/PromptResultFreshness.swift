@@ -4,21 +4,31 @@ import CryptoKit
 /// Decides when a saved prompt result no longer matches the transcript the
 /// user is reading.
 public enum PromptResultFreshness {
-    /// Fingerprints only the canonical transcript text. Presentation settings,
-    /// speaker labels, titles, and other recording metadata are not source text.
+    /// Fingerprints the source words used by rich prompt context. Timestamps,
+    /// speaker labels, titles, and other recording metadata are excluded.
     public static func sourceTranscriptHash(for transcription: Transcription) -> String {
-        let cleanText = transcription.cleanTranscript?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !transcription.isTranscriptEdited && (cleanText?.isEmpty ?? true) {
-            let rawText = transcription.rawTranscript?.trimmingCharacters(in: .whitespacesAndNewlines)
-            if let rawText, !rawText.isEmpty {
-                return sourceTranscriptHash(cleanTranscript: nil, rawTranscript: rawText)
-            }
+        if !transcription.isTranscriptEdited {
             let cueText = TranscriptCueBuilder.build(from: transcription)
                 .map(\.text)
                 .joined(separator: " ")
-            return sourceTranscriptHash(cleanTranscript: cueText, rawTranscript: nil)
+            if !cueText.isEmpty {
+                return sourceTranscriptHash(cleanTranscript: cueText, rawTranscript: nil)
+            }
+
+            let cleanText = transcription.cleanTranscript?.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+            if cleanText?.isEmpty ?? true {
+                return sourceTranscriptHash(
+                    cleanTranscript: nil,
+                    rawTranscript: transcription.rawTranscript
+                )
+            }
         }
-        return sourceTranscriptHash(cleanTranscript: transcription.cleanTranscript, rawTranscript: transcription.rawTranscript)
+        return sourceTranscriptHash(
+            cleanTranscript: transcription.cleanTranscript,
+            rawTranscript: transcription.rawTranscript
+        )
     }
 
     public static func sourceTranscriptHash(cleanTranscript: String?, rawTranscript: String?) -> String {

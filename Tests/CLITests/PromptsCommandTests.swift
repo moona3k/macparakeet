@@ -594,7 +594,7 @@ final class PromptsCommandTests: XCTestCase {
             ))
     }
 
-    func testRunStoresRawSourceReceiptWhenAutomaticCleanTextIsEmpty() async throws {
+    func testRunStoresCueSourceReceiptWhenAutomaticCleanTextIsEmpty() async throws {
         let databaseURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("prompt-empty-clean-run-\(UUID().uuidString).db")
         defer { try? FileManager.default.removeItem(at: databaseURL) }
@@ -623,7 +623,7 @@ final class PromptsCommandTests: XCTestCase {
         )
         XCTAssertEqual(
             saved.sourceTranscriptHash,
-            PromptResultFreshness.sourceTranscriptHash(cleanTranscript: nil, rawTranscript: "Original words")
+            PromptResultFreshness.sourceTranscriptHash(cleanTranscript: "Original", rawTranscript: nil)
         )
     }
 

@@ -214,14 +214,14 @@ public struct PromptResult: Codable, Identifiable, Sendable {
 ```
 
 Each generated result stores `sourceCorrectionRevision` plus a SHA-256
-`sourceTranscriptHash` of trimmed canonical `cleanTranscript` (falling back to
-`rawTranscript` when automatic clean text is empty, then to cue words when
-both text fields are empty on an unedited transcript). The text receipt catches
-retranscription even when the new transcript's correction revision resets to
-zero. Plain/rich context display
-settings and recording metadata do not affect this hash. Existing rows keep a
-`NULL` receipt in migration v0.48 because their source text cannot be proven
-from the current transcript; the app offers to update them.
+`sourceTranscriptHash` of cue words when an unedited transcript has timed cues,
+otherwise trimmed canonical `cleanTranscript` (falling back to `rawTranscript`
+when automatic clean text is empty). The text receipt catches retranscription
+even when the new transcript's correction revision resets to zero. Plain/rich
+context display settings and recording metadata do not affect this hash.
+Existing rows keep a `NULL` receipt in migration v0.48 because their source
+text cannot be proven from the current transcript; the app offers to update
+them.
 
 ```sql
 CREATE TABLE summaries (

@@ -98,6 +98,40 @@ final class PromptResultFreshnessTests: XCTestCase {
         XCTAssertNotEqual(original, PromptResultFreshness.sourceTranscriptHash(for: transcription))
     }
 
+    func testAutomaticCueTextIsTheSourceReceiptWhenCuesAreAvailable() {
+        var transcription = Transcription(
+            fileName: "Meeting",
+            rawTranscript: "Raw text",
+            cleanTranscript: "Clean text",
+            wordTimestamps: [WordTimestamp(word: "Cue", startMs: 0, endMs: 100, confidence: 1)]
+        )
+        let original = PromptResultFreshness.sourceTranscriptHash(for: transcription)
+        XCTAssertEqual(
+            original,
+            PromptResultFreshness.sourceTranscriptHash(cleanTranscript: "Cue", rawTranscript: nil)
+        )
+
+        transcription.wordTimestamps?[0].startMs = 20
+        transcription.wordTimestamps?[0].speakerId = "S1"
+        XCTAssertEqual(original, PromptResultFreshness.sourceTranscriptHash(for: transcription))
+
+        transcription.wordTimestamps?[0].word = "Changed"
+        let current = PromptResultFreshness.sourceTranscriptHash(for: transcription)
+        XCTAssertTrue(
+            PromptResultFreshness.summaryNeedsUpdate(
+                sourceCorrectionRevision: 0,
+                currentCorrectionRevision: 0,
+                sourceTranscriptHash: original,
+                currentTranscriptHash: current
+            ))
+
+        transcription.isTranscriptEdited = true
+        XCTAssertEqual(
+            PromptResultFreshness.sourceTranscriptHash(for: transcription),
+            PromptResultFreshness.sourceTranscriptHash(cleanTranscript: "Clean text", rawTranscript: nil)
+        )
+    }
+
     func testMissingSourceTextReceiptIsStaleWhenCurrentTranscriptIsKnown() {
         XCTAssertTrue(
             PromptResultFreshness.summaryNeedsUpdate(

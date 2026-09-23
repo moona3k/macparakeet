@@ -732,14 +732,14 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
   CLI and saved-audio auto-prompt runs. `NULL` means the result predates the
   receipt. A later transcript edit can then offer an update without
   regenerating on its own.
-- `sourceTranscriptHash` (v0.48) is SHA-256 of trimmed canonical
-  `cleanTranscript`, falling back to `rawTranscript` when automatic clean text
-  is empty, then to cue words when both text fields are empty on an unedited
-  transcript. It detects retranscription even when correction revision returns
-  to zero, without changing when titles,
-  notes, or plain/rich context presentation changes. Earlier rows keep `NULL`
-  because a result may already have become stale before migration. The app
-  treats an unknown source receipt as needing an update.
+- `sourceTranscriptHash` (v0.48) is SHA-256 of cue words when an unedited
+  transcript has timed cues, otherwise trimmed canonical `cleanTranscript`
+  (falling back to `rawTranscript` when automatic clean text is empty). It
+  detects retranscription even when correction revision returns to zero,
+  without changing when titles, notes, or plain/rich context presentation
+  changes. Earlier rows keep `NULL` because a result may already have become
+  stale before migration. The app treats an unknown source receipt as needing
+  an update.
 - `inferenceSettingsSnapshot` (v0.31) stores the normalized effective settings
   actually sent after provider/model capability filtering, not merely the
   settings requested on the prompt. `NULL` preserves historical rows and means
