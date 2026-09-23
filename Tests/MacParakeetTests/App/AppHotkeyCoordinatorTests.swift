@@ -109,6 +109,17 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         )
     }
 
+    func testMenuTitleDescribesClipboardOnlyWhenOtherDictationShortcutsAreDisabled() {
+        XCTAssertEqual(
+            AppHotkeyCoordinator.menuTitle(
+                handsFree: .disabled,
+                pushToTalk: .disabled,
+                clipboard: .shift
+            ),
+            "Clipboard-only: Tap Shift"
+        )
+    }
+
     func testDictationHotkeyPlanUsesCombinedDefaultGestureForFnPair() {
         let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
             handsFree: .fn,

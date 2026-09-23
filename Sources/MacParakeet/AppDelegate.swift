@@ -984,7 +984,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyCoordinator?.hotkeyMenuTitle
             ?? AppHotkeyCoordinator.menuTitle(
                 handsFree: settingsViewModel.hotkeyTrigger,
-                pushToTalk: settingsViewModel.pushToTalkHotkeyTrigger
+                pushToTalk: settingsViewModel.pushToTalkHotkeyTrigger,
+                clipboard: settingsViewModel.dictationClipboardHotkeyTrigger
             )
     }
 

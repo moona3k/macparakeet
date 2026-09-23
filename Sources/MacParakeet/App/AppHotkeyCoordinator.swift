@@ -70,7 +70,8 @@ final class AppHotkeyCoordinator {
     var hotkeyMenuTitle: String {
         Self.menuTitle(
             handsFree: settingsViewModel.hotkeyTrigger,
-            pushToTalk: settingsViewModel.pushToTalkHotkeyTrigger
+            pushToTalk: settingsViewModel.pushToTalkHotkeyTrigger,
+            clipboard: settingsViewModel.dictationClipboardHotkeyTrigger
         )
     }
 
@@ -112,9 +113,15 @@ final class AppHotkeyCoordinator {
         menuTitle(handsFree: trigger, pushToTalk: trigger)
     }
 
-    static func menuTitle(handsFree: HotkeyTrigger, pushToTalk: HotkeyTrigger) -> String {
+    static func menuTitle(
+        handsFree: HotkeyTrigger,
+        pushToTalk: HotkeyTrigger,
+        clipboard: HotkeyTrigger = .disabled
+    ) -> String {
         if handsFree.isDisabled && pushToTalk.isDisabled {
-            return "Dictation Shortcuts: Disabled"
+            return clipboard.isDisabled
+                ? "Dictation Shortcuts: Disabled"
+                : "Clipboard-only: Tap \(clipboard.displayName)"
         }
         if HotkeyTrigger.isSharedDictationGesture(handsFree: handsFree, pushToTalk: pushToTalk) {
             return "Dictation: Hold \(pushToTalk.displayName) / Double-tap \(handsFree.displayName)"
