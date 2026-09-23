@@ -1,0 +1,44 @@
+spec/contracts/cli-json-v1.md
+  s_57f96c7e168713::t_3b616179f240f7 201-202
+spec/12-processing-layer.md
+  s_57f96c7e168713::t_e068941e60be8b 222-224
+  s_57f96c7e168713::t_aba612546638a7 220
+  s_57f96c7e168713::t_860fd4f2ddbe04 221
+  s_57f96c7e168713::t_3b616179f240f7 217-219
+Tests/MacParakeetTests/Models/PromptResultFreshnessTests.swift
+  s_57f96c7e168713::t_aba612546638a7 114-117
+  s_57f96c7e168713::t_704a6c39457622 101-113,118-134
+Sources/MacParakeetCore/Models/PromptResultFreshness.swift
+  s_57f96c7e168713::t_1438dd5c355889 21
+  s_57f96c7e168713::t_e3fbffbb64cad8 18-20
+  s_57f96c7e168713::t_3b616179f240f7 7-8
+  s_57f96c7e168713::t_d7240d86ccba28 22-25,28-31
+  s_57f96c7e168713::t_22e55ee8b1ee43 10,14-17,26
+Tests/CLITests/PromptsCommandTests.swift
+  s_57f96c7e168713::t_704a6c39457622 597,626
+docs/audits/2026-09-23-post-0.8.7-release-readiness.md
+  s_57f96c7e168713::t_aba612546638a7 39-40
+  s_57f96c7e168713::t_3b616179f240f7 38
+  s_57f96c7e168713::t_860fd4f2ddbe04 41-42
+spec/01-data-model.md
+  s_57f96c7e168713::t_e068941e60be8b 741-742
+  s_57f96c7e168713::t_3b616179f240f7 735-737
+  s_57f96c7e168713::t_aba612546638a7 738-739
+  s_57f96c7e168713::t_860fd4f2ddbe04 740
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "503eb778dea1eb79d9ead07a8b36e22ef7424762",
+  "prompts": {},
+  "sessions": {
+    "s_57f96c7e168713": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cd8c-0edf-7db2-b8e5-8dd9ef44ed55",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
