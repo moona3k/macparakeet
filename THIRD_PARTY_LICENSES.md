@@ -209,3 +209,7 @@ does not claim their compiler executables are redistributed in the app.
 ## Orukeet optional model weights
 
 Orukeet is an optional download from [oruk/orukeet](https://huggingface.co/oruk/orukeet), an Oruk adaptation of NVIDIA Parakeet v3. The model weights are licensed under [Creative Commons Attribution-ShareAlike 4.0](https://huggingface.co/oruk/orukeet/blob/main/LICENSE). They are not bundled with this application.
+
+## Parakeet Redux optional model weights
+
+Parakeet Redux is an optional download from [moondream/parakeet-redux](https://huggingface.co/moondream/parakeet-redux). The model weights are licensed under [Creative Commons Attribution 4.0](https://huggingface.co/moondream/parakeet-redux). They are not bundled with this application. The optional Photon runtime is installed from the Moondream Python package into the user's Application Support directory.

@@ -2634,6 +2634,8 @@ struct SettingsView: View {
                     parakeetModelOptionRow(.unified)
                     Divider()
                     parakeetModelOptionRow(.orukeet)
+                    Divider()
+                    parakeetModelOptionRow(.redux)
                 }
             }
             .transition(.opacity)

@@ -641,6 +641,9 @@ public actor STTRuntime: STTRuntimeProtocol {
                 onProgress: onProgress
             )
         }
+        if currentParakeetVariant == .redux {
+            return try await PhotonReduxEngine.transcribe(audioPath: audioPath, onProgress: onProgress)
+        }
 
         try await ensureInitialized()
 
@@ -1466,6 +1469,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         case .cohere:
             return await cohereEngine?.isReady() ?? false
         case .parakeet(let variant):
+            if variant == .redux { return PhotonReduxEngine.isModelCached }
             // Parakeet engine: Unified reports through its own engine actor.
             if variant.usesUnifiedEngine {
                 return await parakeetUnifiedEngine?.isReady() ?? false
@@ -1526,6 +1530,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         _ = CohereTranscribeEngine.deleteModel(
             cacheRoot: CohereTranscribeEngine.defaultCacheRoot().deletingLastPathComponent()
         )
+        _ = PhotonReduxEngine.deleteModel()
         setBackgroundWarmUpState(.idle)
         Telemetry.send(.modelOperation(
             operationID: operationContext.operationID,
@@ -1735,6 +1740,8 @@ public actor STTRuntime: STTRuntimeProtocol {
                 try await ParakeetUnifiedEngine.downloadModel(onProgress: onProgress)
             } else if variant == .orukeet {
                 try await OrukeetModelStore.download(onProgress: onProgress)
+            } else if variant == .redux {
+                try await PhotonReduxEngine.downloadModel(onProgress: onProgress)
             } else if let targetVersion = variant.asrModelVersion {
                 try await downloadParakeetModels(version: targetVersion, onProgress: onProgress)
             }
@@ -1745,7 +1752,7 @@ public actor STTRuntime: STTRuntimeProtocol {
             guard initializationTask == nil, speechEngineActivity.isIdle else {
                 throw STTError.engineBusy
             }
-            onProgress?("Loading \(variant.modelName) with Core ML...")
+            onProgress?("Loading \(variant.modelName)...")
             // Unloading suspends for cleanup. Reentrant initialization must
             // observe the target selection once the old managers are detached.
             currentParakeetVariant = variant
@@ -2340,6 +2347,10 @@ public actor STTRuntime: STTRuntimeProtocol {
         // for warm-up and readiness without ever loading the TDT models.
         if currentParakeetVariant.usesUnifiedEngine {
             try await ensureParakeetUnifiedEngine().prepare(onProgress: onProgress)
+            return
+        }
+        if currentParakeetVariant == .redux {
+            try await PhotonReduxEngine.downloadModel(onProgress: onProgress)
             return
         }
 

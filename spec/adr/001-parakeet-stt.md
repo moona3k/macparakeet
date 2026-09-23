@@ -15,6 +15,7 @@
 > Amendment (2026-06-19, integrated 2026-06-27): Cohere Transcribe (`cohere-transcribe-03-2026`, 2B, Apache-2.0) is added as an opt-in local accuracy engine. It runs fully on-device through the FluidAudio CoreML SDK already vendored here (FluidAudio >= 0.15.4 exposes a public `CoherePipeline`/`CohereAsrConfig` and a q8 CoreML repo); no MLX runtime or other new dependency is required, unlike the MLX-only candidates (Qwen3-ASR, Moonshine), which stay deferred. The gold-standard benchmark (`benchmarks/asr/`, hardened + independently verified in PR #568) found Cohere the most accurate on-device engine (full-LibriSpeech macro WER 2.07% vs 2.38% Parakeet-unified; best Japanese), but with a decisive cost: high resident memory, heavier cold-start/model prep, and ~2.1 GB download. Decision: Parakeet v3 remains the primary/default; Cohere is explicit opt-in, batch-only, user-downloaded, warned in Settings for model size/memory, and routed through `STTRuntime` by `CohereTranscribeEngine`. It has no live dictation preview, no meeting live chunks, and no word timestamps.
 > Clarification (2026-07-16): "primary/default" describes the standard engine-family path. Locale-aware first-run setup selects WhisperKit when preferred languages contain no English and include Korean, Japanese, Chinese, or Cantonese; this does not overturn Parakeet's primary status for supported languages.
 > Amendment (2026-09-21): Orukeet (`orukeet`) is an optional Parakeet preview variant. ADR-026 keeps new FluidAudio-family models on an existing engine card; Orukeet rides the shared Parakeet TDT managers from its own pinned Core ML cache and must not fall back to NVIDIA v3. Parakeet v3 remains the primary/default. Native streaming, tail preview, and custom vocabulary stay off. Weights are CC BY-SA 4.0, user-downloaded, and not bundled. Vendor NeMo scores are not a MacParakeet accuracy claim. See the addendum below.
+> Amendment (2026-09-23): Moondream Parakeet Redux (`redux`) is an optional Parakeet variant served by the local Photon Python runtime. It is separately downloaded, requires Python 3.10–3.14, and does not replace the v3 default. Final transcription provides word timestamps; live preview and recognition-time vocabulary boosting remain off. See the addendum below.
 
 ## Context
 
@@ -276,10 +277,19 @@ It earns a variant slot, not an engine card. Callers already choose a Parakeet b
 
 The published NeMo evaluation on the model card is not a MacParakeet corpus result and does not promote Orukeet over v3. Standard-path installs still default to Parakeet v3. The weights are CC BY-SA 4.0 and are never bundled.
 
+## Addendum: Optional Parakeet Redux (September 2026)
+
+> Date: 2026-09-23
+
+The Parakeet model picker also exposes [moondream/parakeet-redux](https://huggingface.co/moondream/parakeet-redux). Its packed ternary weights cannot be loaded by FluidAudio's Core ML `AsrManager`; `ParakeetModelVariant.redux` therefore routes to a separate local `PhotonReduxEngine`. The model and Moondream Photon Python runtime live in a user-deletable cache, and a compatible Python installation is required. The app does not bundle the weights or a Python interpreter.
+
+Redux serves recorded-file dictation, files, and meeting finalization with word timestamps. A fresh local Photon process is started per transcription, so native live dictation, tail preview, and meeting chunk preview remain disabled. Photon does not supply word confidence. Redux remains opt-in and does not change the primary v3 model decision. Its published benchmarks are vendor measurements, not a MacParakeet corpus result. The weights are CC BY 4.0.
+
 ## References
 
 - [NVIDIA Parakeet TDT 0.6B-v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3)
 - [oruk/orukeet](https://huggingface.co/oruk/orukeet) -- optional Parakeet v3 adaptation (preview variant; CC BY-SA 4.0; not bundled)
+- [moondream/parakeet-redux](https://huggingface.co/moondream/parakeet-redux) -- optional packed Parakeet v3 variant (CC BY 4.0; not bundled)
 - [NVIDIA Parakeet Unified EN 0.6B](https://huggingface.co/nvidia/parakeet-unified-en-0.6b) -- English-only unified offline+streaming build (issue #520)
 - [FluidAudio PR #693](https://github.com/FluidInference/FluidAudio/pull/693) -- Parakeet Unified CoreML backend (v0.15.3)
 - [FluidAudio](https://github.com/FluidInference/FluidAudio) -- CoreML/ANE runtime for Apple Silicon

@@ -485,6 +485,8 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
     /// of the shared `AsrManager`. It adds punctuation/capitalization and
     /// token-derived word timings through FluidAudio's streaming manager.
     case unified
+    /// Moondream's packed ternary Parakeet v3, served locally by Photon.
+    case redux
 
     /// Short label for the variant's language posture.
     public var displayName: String {
@@ -493,6 +495,7 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
         case .v2: "English only"
         case .unified: "English (Unified)"
         case .orukeet: "Orukeet (preview)"
+        case .redux: "Redux (Photon)"
         }
     }
 
@@ -503,6 +506,7 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
         case .v2: "Parakeet TDT 0.6B v2"
         case .unified: "Parakeet Unified 0.6B"
         case .orukeet: "Orukeet"
+        case .redux: "Parakeet Redux"
         }
     }
 
@@ -517,6 +521,8 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
             "Readable English with live preview. Includes word timestamps for exports."
         case .orukeet:
             "Oruk's Parakeet v3 adaptation for 25 languages. Local Core ML preview, licensed CC BY-SA 4.0."
+        case .redux:
+            "Moondream's compact Parakeet for 25 languages. Local Photon inference with word timestamps. Requires Python 3.10–3.14."
         }
     }
 
@@ -529,6 +535,7 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
         case .v3, .v2: "~465 MB"
         case .unified: "~565 MB"
         case .orukeet: "445 MiB"
+        case .redux: "~1 GB including Photon runtime"
         }
     }
 
@@ -546,6 +553,7 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
         case .v2: .v3
         case .unified: .v2
         case .orukeet: .v3
+        case .redux: .v3
         }
     }
 }

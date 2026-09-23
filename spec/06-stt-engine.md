@@ -2,7 +2,7 @@
 
 > Status: **ACTIVE** - Authoritative, current
 
-MacParakeet's default speech engine family is Parakeet TDT 0.6B via FluidAudio CoreML on Apple's Neural Engine (ANE). Multilingual v3 is the default build; English-only v2 is an opt-in Parakeet build for users who want a faster no-auto-detect path; and an English-only Parakeet Unified build adds native streaming dictation with built-in punctuation, capitalization, and token-derived word timestamps. Orukeet is an optional Parakeet preview of a third-party v3 adaptation, and v3 remains the default. Nemotron is available as an opt-in Beta local engine (multilingual Nemotron 3.5 by default, plus an English-only second build), WhisperKit remains the mature optional fallback for languages Parakeet/Nemotron do not cover well enough, and Cohere Transcribe is an opt-in local accuracy engine for record-then-transcribe jobs. All speech engines run on-device; there is no cloud STT path.
+MacParakeet's default speech engine family is Parakeet TDT 0.6B via FluidAudio CoreML on Apple's Neural Engine (ANE). Multilingual v3 is the default build; English-only v2 is an opt-in Parakeet build for users who want a faster no-auto-detect path; and an English-only Parakeet Unified build adds native streaming dictation with built-in punctuation, capitalization, and token-derived word timestamps. Orukeet is an optional Parakeet preview of a third-party v3 adaptation. Parakeet Redux is an optional compact multilingual build served locally through Moondream Photon; v3 remains the default. Nemotron is available as an opt-in Beta local engine (multilingual Nemotron 3.5 by default, plus an English-only second build), WhisperKit remains the mature optional fallback for languages Parakeet/Nemotron do not cover well enough, and Cohere Transcribe is an opt-in local accuracy engine for record-then-transcribe jobs. All speech engines run on-device; there is no cloud STT path.
 
 ---
 
@@ -23,11 +23,11 @@ MacParakeet's default speech engine family is Parakeet TDT 0.6B via FluidAudio C
 | Languages | v3: 25 European languages; v2: English only |
 | Decoding | Optimized CTC/TDT decoding (FluidAudio implementation) |
 
-#### Parakeet model variant (v2 / v3 / unified / orukeet)
+#### Parakeet model variant (v2 / v3 / unified / orukeet / redux)
 
 FluidAudio ships two peer Parakeet TDT 0.6B builds plus the newer Parakeet
 Unified build. Orukeet is an optional third-party preview on the same TDT
-path. All four are selectable Parakeet models:
+path. Redux uses a separate Photon runtime. All five are selectable Parakeet models:
 
 | Variant | `ParakeetModelVariant` | Languages | Notes |
 |---------|------------------------|-----------|-------|
@@ -35,11 +35,12 @@ path. All four are selectable Parakeet models:
 | English-only | `.v2` | English only | A touch faster on English; cannot mis-detect English as another language (issues #311, #398). |
 | English (Unified) | `.unified` | English only | NVIDIA Parakeet Unified EN 0.6B. Strong English accuracy with punctuation/capitalization. A *separate* FluidAudio runtime (`StreamingUnifiedAsrManager`, no `AsrModelVersion`); file/meeting/final dictation and live dictation preview use native `parakeet-unified-2080ms` streaming so final transcripts carry token-derived word timestamps for exports and speaker alignment. ~565 MB int8 per encoder export. Requires FluidAudio >= 0.15.4. Issues #520, #610. |
 | Orukeet (preview) | `.orukeet` | 25 languages | Oruk's Parakeet v3 adaptation. Optional Hugging Face download, pinned revision `43142dd1897f9ddadcd70173fcb5ff45c08aa951`, compiled locally into its own cache. Same TDT `AsrManager` pair as v3, with no stock `AsrModelVersion`, so loading it cannot fall back to NVIDIA v3. Native live dictation, tail preview, and custom vocabulary are off. ~445 MiB. Weights are CC BY-SA 4.0 and are not bundled. Results use `engineVariant=orukeet`. |
+| Redux (Photon) | `.redux` | 25 languages | Moondream's packed ternary Parakeet v3. Optional Hugging Face download and local Photon runtime from `moondream` 2.4.1, kept in a separate cache. Requires Python 3.10–3.14; ~1 GB on disk including dependencies. Batch and final dictation provide word timestamps; live dictation, tail preview, meeting preview, and recognition-time vocabulary boosting are off. Results use `engineVariant=redux`; word confidence is unavailable. Weights are CC BY 4.0 and are not bundled. |
 
-- **Preference:** persisted as a validated enum under `SpeechEnginePreference.parakeetModelVariantKey` (default `.v3`). The `ParakeetModelVariant → AsrModelVersion` bridge lives in `STT/ParakeetModelVariant+ASR.swift` so the preference type stays Foundation-only; it returns `nil` for `.unified` (which has no TDT version — see `usesUnifiedEngine`) and for `.orukeet` (which must not select NVIDIA's stock v3 download).
-- **Runtime:** v2/v3 load the shared TDT `AsrManager`; `.unified` is routed to a dedicated `ParakeetUnifiedEngine` (wrapping FluidAudio's native `StreamingUnifiedAsrManager` for final transcription and live dictation), the same way the Nemotron engine routes its English build. `.orukeet` stays on that shared TDT pair and loads only the pinned local archive from `OrukeetModelStore`. `STTScheduler.setParakeetModelVariant(_:onProgress:)` reloads the active Parakeet model in place when Parakeet is selected — downloading the target build before releasing the current one, restoring the previous build if the final load fails. It shares the engine-switch guard, so it is blocked while transcription, a meeting lease, or an engine switch is in flight. Builds cache independently, so flipping between two installed builds is near-instant.
-- **GUI:** the *Parakeet Model* card under Settings → Engine (shown only when Parakeet is the active engine, symmetric to the Whisper Language card). Orukeet appears there as "Orukeet (preview)".
-- **CLI:** `config set parakeet-model v3|v2|unified|orukeet` (aliases `multilingual`/`english`/`english-unified`), `transcribe --parakeet-model app-default|v3|v2|unified|orukeet`, and the `parakeet-v3` / `parakeet-v2` / `parakeet-unified` / `parakeet-orukeet` ids in `models list` / `models select`.
+- **Preference:** persisted as a validated enum under `SpeechEnginePreference.parakeetModelVariantKey` (default `.v3`). The `ParakeetModelVariant → AsrModelVersion` bridge lives in `STT/ParakeetModelVariant+ASR.swift` so the preference type stays Foundation-only; it returns `nil` for `.unified`, `.orukeet`, and `.redux`, which use their own model loading paths.
+- **Runtime:** v2/v3 load the shared TDT `AsrManager`; `.unified` is routed to a dedicated `ParakeetUnifiedEngine` (wrapping FluidAudio's native `StreamingUnifiedAsrManager` for final transcription and live dictation), the same way the Nemotron engine routes its English build. `.orukeet` stays on that shared TDT pair and loads only the pinned local archive from `OrukeetModelStore`. `.redux` runs through `PhotonReduxEngine` in a local Python process. `STTScheduler.setParakeetModelVariant(_:onProgress:)` reloads the active Parakeet model in place when Parakeet is selected — downloading the target build before releasing the current one, restoring the previous build if the final load fails. It shares the engine-switch guard, so it is blocked while transcription, a meeting lease, or an engine switch is in flight. Builds cache independently.
+- **GUI:** the *Parakeet Model* card under Settings → Engine (shown only when Parakeet is the active engine, symmetric to the Whisper Language card). Orukeet and Redux appear there as opt-in choices.
+- **CLI:** `config set parakeet-model v3|v2|unified|orukeet|redux` (aliases `multilingual`/`english`/`english-unified`), `transcribe --parakeet-model app-default|v3|v2|unified|orukeet|redux`, and the matching `parakeet-*` ids in `models list` / `models select`.
 
 ### Nemotron Beta Engine
 

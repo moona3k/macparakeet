@@ -14,7 +14,7 @@ extension ParakeetModelVariant {
         switch self {
         case .v3: .v3
         case .v2: .v2
-        case .unified, .orukeet: nil
+        case .unified, .orukeet, .redux: nil
         }
     }
 

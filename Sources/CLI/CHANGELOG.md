@@ -91,6 +91,11 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Added
 
+- `parakeet-redux` is an optional Parakeet model. `models download|select|delete
+  parakeet-redux`, `config set parakeet-model redux`, and
+  `transcribe --parakeet-model redux` use local Moondream Photon inference.
+  It requires Python 3.10–3.14 and reports `engineVariant` `redux` with word
+  timestamps. The existing v3 default is unchanged.
 - `config get|set|list` includes `meeting-ai-output-language`
   (`follow-transcript` or `en|pl|de|es|fr|pt|ja|zh`, default `follow-transcript`). This
   controls the language of generated AI results, not speech recognition.

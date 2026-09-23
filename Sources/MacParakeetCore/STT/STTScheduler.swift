@@ -427,7 +427,10 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
             speechEngineSwitchTask = nil
             acceptsNewJobs = true
         }
-        try await observingRuntimeTimeoutThrowing(reason: "set_parakeet_model_variant") {
+        try await observingRuntimeTimeoutThrowing(
+            reason: "set_parakeet_model_variant",
+            timeout: variant == .redux ? .seconds(300) : nil
+        ) {
             try await withTaskCancellationHandler {
                 try await switchTask.value
             } onCancel: {
@@ -828,11 +831,12 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
 
     private func observingRuntimeTimeoutThrowing<T: Sendable>(
         reason: String,
+        timeout: Duration? = nil,
         operation: () async throws -> T
     ) async throws -> T {
         let watchdog = Self.makeRuntimeWatchdog(
             reason: reason,
-            timeout: runtimeOperationWatchdogTimeout
+            timeout: timeout ?? runtimeOperationWatchdogTimeout
         )
         defer { watchdog.cancel() }
         return try await operation()

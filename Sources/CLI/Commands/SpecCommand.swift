@@ -238,9 +238,9 @@ private extension CLISpecCommand {
                     "--language", valueName: "CODE",
                     summary: "Language hint for Nemotron, Whisper, or Cohere; Cohere has no auto-detect."),
                 CLISpecParameter.option(
-                    "--parakeet-model", valueName: "app-default|v3|v2|unified|orukeet",
+                    "--parakeet-model", valueName: "app-default|v3|v2|unified|orukeet|redux",
                     summary:
-                        "Parakeet build: v3 supported languages, v2 English timestamps, Unified readable English timestamps, or orukeet (multilingual preview)."
+                        "Parakeet build: v3, v2, unified, orukeet, or redux (compact multilingual via Photon)."
                 ),
                 CLISpecParameter.option(
                     "--nemotron-model", valueName: "app-default|multilingual-1120ms|english-1120ms",
@@ -295,9 +295,9 @@ private extension CLISpecCommand {
                     "--language", valueName: "CODE",
                     summary: "Language hint for Nemotron, Whisper, or Cohere; Cohere has no auto-detect."),
                 CLISpecParameter.option(
-                    "--parakeet-model", valueName: "app-default|v3|v2|unified|orukeet",
+                    "--parakeet-model", valueName: "app-default|v3|v2|unified|orukeet|redux",
                     summary:
-                        "Parakeet build: v3 supported languages, v2 English timestamps, Unified readable English timestamps, or orukeet (multilingual preview)."
+                        "Parakeet build: v3, v2, unified, orukeet, or redux (compact multilingual via Photon)."
                 ),
                 CLISpecParameter.option(
                     "--nemotron-model", valueName: "app-default|multilingual-1120ms|english-1120ms",

@@ -291,8 +291,13 @@ an optional Parakeet preview, not a separate engine. Download it with
 `models download parakeet-orukeet`, then use `models select parakeet-orukeet`
 or `transcribe --parakeet-model orukeet`. The default stays v3, and results
 from that build report `engineVariant` `orukeet`. It has no native streaming,
-tail-window preview, or recognition-time vocabulary boosting. Use Nemotron
-Beta when streaming preview matters, Whisper for broad-language
+tail-window preview, or recognition-time vocabulary boosting.
+
+Parakeet Redux is another opt-in Parakeet build: `models download parakeet-redux`
+and `transcribe --parakeet-model redux` use Moondream Photon locally. It needs
+Python 3.10–3.14 on the Mac; first use installs the runtime and weights into
+MacParakeet's model directory. Redux provides word timestamps but no live
+dictation preview. Use Nemotron Beta when streaming preview matters, Whisper for broad-language
 files/media/retranscription, and Cohere only for local batch plain text with an
 explicit language.
 

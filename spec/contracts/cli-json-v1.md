@@ -450,6 +450,8 @@ segments and additive artifact paths, command-level JSON failure envelopes, and
 
 `models list` may include the additive `parakeet-orukeet` entry. Its engine is `parakeet` and variant is `orukeet`; it does not change the default v3 selection. `models download/select/delete parakeet-orukeet`, `config set parakeet-model orukeet`, and `transcribe --parakeet-model orukeet` address the independent preview cache. Transcription results attribute this model as `engineVariant: "orukeet"`, never `v3`.
 
+`models list` also includes the additive `parakeet-redux` entry. Its engine is `parakeet`, variant is `redux`, and it leaves v3 as the default. `models download/select/delete parakeet-redux`, `config set parakeet-model redux`, and `transcribe --parakeet-model redux` address its separate local Photon cache. Transcription results report `engineVariant: "redux"` and word timestamps. Photon does not report word confidence; the existing non-optional confidence field is `0` for this variant.
+
 ## When this changes
 
 Update this file, `Sources/CLI/CHANGELOG.md`, `docs/cli-testing.md`,

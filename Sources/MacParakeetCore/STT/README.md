@@ -291,3 +291,9 @@ real events into the controller's input shape.
 `ParakeetModelVariant.orukeet` runs Oruk's Parakeet v3 adaptation through the same two TDT managers and inference gates. It explicitly assembles the portable Core ML components; it has no stock `AsrModelVersion` selector and its cache and result identity are separate from NVIDIA v3. Existing defaults are unchanged. Native streaming, tail-window dictation preview, and recognition-time vocabulary boosting are disabled for this preview.
 
 `OrukeetModelStore` installs the [Hugging Face model](https://huggingface.co/oruk/orukeet) at immutable revision `43142dd1897f9ddadcd70173fcb5ff45c08aa951`. It consumes the JSON integrity manifest, verifies archive size and SHA-256, and compiles the four portable components on the destination Mac. Cached loading is local. The weights use CC BY-SA 4.0.
+
+## Optional Parakeet Redux
+
+`ParakeetModelVariant.redux` uses [Moondream's packed Parakeet Redux](https://huggingface.co/moondream/parakeet-redux) through the local Photon Python runtime. It is opt-in and leaves v3 as the default. On first selection, `PhotonReduxEngine` creates a private Python environment under Application Support, installs `moondream` 2.4.1, and downloads the weights into an isolated Hugging Face cache. Python 3.10–3.14 must be installed on the Mac. Subsequent transcriptions use that local cache in offline mode. Deleting Redux removes its environment and cache together.
+
+Photon returns word timestamps for file, meeting, and final dictation transcripts. The current adapter starts a fresh Photon process per transcription; it does not provide native streaming, tail-window dictation preview, or recognition-time vocabulary boosting. Model weights are CC BY 4.0.

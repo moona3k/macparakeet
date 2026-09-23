@@ -44,6 +44,7 @@ enum TranscribeParakeetModel: String, ExpressibleByArgument, CaseIterable, Senda
     case v2
     case unified
     case orukeet
+    case redux
 }
 
 enum TranscribeNemotronModel: String, ExpressibleByArgument, CaseIterable, Sendable {
@@ -111,7 +112,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     @Option(help: "Language hint for Nemotron, Whisper, or Cohere, such as ko, en, or en-US. Cohere requires a supported language; Parakeet and the English-only Nemotron build ignore this flag.")
     var language: String?
 
-    @Option(name: .long, help: "Parakeet build: app-default, v3 (English + supported European languages), v2 (English word timestamps), unified (readable English with word timestamps), orukeet (multilingual preview). app-default follows the saved preference; ignored for Nemotron, Cohere, and Whisper.")
+    @Option(name: .long, help: "Parakeet build: app-default, v3, v2, unified, orukeet, or redux (compact multilingual via Photon). app-default follows the saved preference; ignored for Nemotron, Cohere, and Whisper.")
     var parakeetModel: TranscribeParakeetModel = .appDefault
 
     @Option(name: .long, help: "Nemotron Beta build: app-default, multilingual-1120ms, english-1120ms. app-default follows the saved preference; ignored for Parakeet, Cohere, and Whisper. The English build ignores --language.")
@@ -332,6 +333,8 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
             return .unified
         case .orukeet:
             return .orukeet
+        case .redux:
+            return .redux
         }
     }
 
@@ -1087,7 +1090,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 let start = String(format: "%.2f", Double(w.startMs) / 1000.0)
                 let end = String(format: "%.2f", Double(w.endMs) / 1000.0)
                 let speaker = w.speakerId.map { " [\($0)]" } ?? ""
-                lines.append("[\(start)-\(end)] \(w.word) (\(String(format: "%.0f", w.confidence * 100))%)\(speaker)")
+                let confidence = t.engineVariant == ParakeetModelVariant.redux.rawValue
+                    ? "" : " (\(String(format: "%.0f", w.confidence * 100))%)"
+                lines.append("[\(start)-\(end)] \(w.word)\(confidence)\(speaker)")
             }
         }
         return lines.joined(separator: "\n")
@@ -1177,7 +1182,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 let start = String(format: "%.2f", Double(w.startMs) / 1000.0)
                 let end = String(format: "%.2f", Double(w.endMs) / 1000.0)
                 let speaker = w.speakerId.map { " [\($0)]" } ?? ""
-                print("[\(start)-\(end)] \(w.word) (\(String(format: "%.0f", w.confidence * 100))%)\(speaker)")
+                let confidence = t.engineVariant == ParakeetModelVariant.redux.rawValue
+                    ? "" : " (\(String(format: "%.0f", w.confidence * 100))%)"
+                print("[\(start)-\(end)] \(w.word)\(confidence)\(speaker)")
             }
         }
     }

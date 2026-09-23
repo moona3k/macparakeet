@@ -510,6 +510,7 @@ func parakeetDownloadVariant(
 /// builds use the shared `AsrManager` cache.
 func isParakeetVariantCached(_ variant: ParakeetModelVariant) -> Bool {
     if variant == .orukeet { return OrukeetModelStore.isInstalled }
+    if variant == .redux { return PhotonReduxEngine.isModelCached }
     if variant.usesUnifiedEngine {
         return ParakeetUnifiedEngine.isModelCached()
     }
@@ -521,6 +522,7 @@ func isParakeetVariantCached(_ variant: ParakeetModelVariant) -> Bool {
 @discardableResult
 func deleteParakeetVariant(_ variant: ParakeetModelVariant) -> Bool {
     if variant == .orukeet { return OrukeetModelStore.delete() }
+    if variant == .redux { return PhotonReduxEngine.deleteModel() }
     if variant.usesUnifiedEngine {
         return ParakeetUnifiedEngine.deleteModel()
     }
@@ -535,6 +537,10 @@ func downloadParakeetVariant(
 ) async throws {
     if variant == .orukeet {
         try await OrukeetModelStore.download(onProgress: onProgress)
+        return
+    }
+    if variant == .redux {
+        try await PhotonReduxEngine.downloadModel(onProgress: onProgress)
         return
     }
     if variant.usesUnifiedEngine {
@@ -829,7 +835,9 @@ func loadSelectableSpeechModels(
         let lifecycle = capabilities.modelLifecycle
         return SelectableSpeechModel(
             id: parakeetModelID(for: variant),
-            name: variant == .orukeet ? variant.displayName : "\(lifecycle.modelName) (\(variant.displayName))",
+            name: variant == .orukeet ? variant.displayName
+                : variant == .redux ? lifecycle.modelName
+                : "\(lifecycle.modelName) (\(variant.displayName))",
             engine: SpeechEnginePreference.parakeet.rawValue,
             variant: lifecycle.variantID ?? variant.rawValue,
             size: lifecycle.approximateDownloadSize,
@@ -1062,7 +1070,9 @@ func resolveModelDeletionTarget(
         let lifecycle = speechModelLifecycle(for: .parakeet(parakeetVariant))
         return ModelDeletionTarget(
             kind: .parakeet(parakeetVariant),
-            displayName: parakeetVariant == .orukeet ? parakeetVariant.displayName : "\(lifecycle.modelName) (\(parakeetVariant.displayName))"
+            displayName: parakeetVariant == .orukeet ? parakeetVariant.displayName
+                : parakeetVariant == .redux ? lifecycle.modelName
+                : "\(lifecycle.modelName) (\(parakeetVariant.displayName))"
         )
     }
     if let nemotronVariant = selection.nemotronVariant {
@@ -1133,6 +1143,8 @@ private func parseParakeetSelectionVariant(_ lowered: String) -> ParakeetModelVa
         return .unified
     case "orukeet":
         return .orukeet
+    case "redux":
+        return .redux
     default:
         return nil
     }
