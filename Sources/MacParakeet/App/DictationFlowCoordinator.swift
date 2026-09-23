@@ -203,7 +203,7 @@ final class DictationFlowCoordinator {
 
     /// Telemetry trigger for the current dictation flow.
     private var currentTrigger: TelemetryDictationTrigger = .hotkey
-    /// Per-invocation AI Formatter gate captured at start. `nil` follows Settings.
+    /// Per-invocation AI Formatter intent. `nil` follows Settings.
     private var sessionAIFormatterEnabled: Bool?
     private let mutationArbiter: GUIMutationArbiter
     private var interactionLease: GUIMutationArbiter.Lease?

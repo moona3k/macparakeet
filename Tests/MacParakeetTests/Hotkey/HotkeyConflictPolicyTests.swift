@@ -303,6 +303,40 @@ final class HotkeyConflictPolicyTests: XCTestCase {
         )
     }
 
+    func testSettingsPolicyAllowsBareAIPolishModifierWithAuxiliaryChords() {
+        let controlF = HotkeyTrigger.chord(modifiers: ["control"], keyCode: 3)
+        let surfaces: [HotkeyConflictPolicy.Surface] = [
+            .meetingRecording, .fileTranscription, .youtubeTranscription,
+        ]
+
+        for surface in surfaces {
+            let configured = snapshot(
+                handsFree: .disabled,
+                pushToTalk: .disabled,
+                meeting: surface == .meetingRecording ? controlF : .disabled,
+                fileTranscription: surface == .fileTranscription ? controlF : .disabled,
+                youtubeTranscription: surface == .youtubeTranscription ? controlF : .disabled,
+                dictationAIPolish: .control
+            )
+            XCTAssertEqual(
+                HotkeyConflictPolicy.settingsValidation(
+                    candidate: controlF,
+                    surface: surface,
+                    snapshot: configured
+                ),
+                .allowed
+            )
+            XCTAssertEqual(
+                HotkeyConflictPolicy.settingsValidation(
+                    candidate: .control,
+                    surface: .dictationAIPolish,
+                    snapshot: configured
+                ),
+                .allowed
+            )
+        }
+    }
+
     func testSettingsPolicyExistingDictationPeerMessagePreservesBlockedVsDisabled() {
         let rightCommand = HotkeyTrigger(
             kind: .modifier,

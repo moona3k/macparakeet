@@ -118,6 +118,7 @@ public actor DictationService: DictationServiceProtocol {
     private let llmService: LLMServiceProtocol?
     private let llmRunRecorder: LLMRunRecorder
     private let shouldUseAIFormatter: @Sendable () -> Bool
+    private let isAIFormatterEnabled: @Sendable () -> Bool
     private let aiFormatterPromptResolver: any AIFormatterPromptResolving
     private let shouldAttemptLiveDictationTranscription: @Sendable () -> Bool
     private let shouldShowDictationPreview: @Sendable () -> Bool
@@ -196,6 +197,7 @@ public actor DictationService: DictationServiceProtocol {
         llmService: LLMServiceProtocol? = nil,
         llmRunRepo: LLMRunRepositoryProtocol? = nil,
         shouldUseAIFormatter: (@Sendable () -> Bool)? = nil,
+        isAIFormatterEnabled: (@Sendable () -> Bool)? = nil,
         aiFormatterPromptTemplate: (@Sendable () -> String)? = nil,
         aiFormatterPromptResolver: (any AIFormatterPromptResolving)? = nil,
         shouldAttemptLiveDictationTranscription: (@Sendable () -> Bool)? = nil,
@@ -234,6 +236,7 @@ public actor DictationService: DictationServiceProtocol {
         self.llmService = llmService
         self.llmRunRecorder = LLMRunRecorder(repository: llmRunRepo)
         self.shouldUseAIFormatter = shouldUseAIFormatter ?? { false }
+        self.isAIFormatterEnabled = isAIFormatterEnabled ?? { true }
         let promptTemplate = aiFormatterPromptTemplate ?? { AIFormatter.defaultDictationPromptTemplate }
         self.aiFormatterPromptResolver =
             aiFormatterPromptResolver
@@ -358,7 +361,9 @@ public actor DictationService: DictationServiceProtocol {
         pendingCancelReason = nil
         currentAIFormatterStartContext = nil
         currentAIFormatterFinishContext = nil
-        currentSessionAIFormatterEnabled = aiFormatterEnabled ?? shouldUseAIFormatter()
+        currentSessionAIFormatterEnabled =
+            aiFormatterEnabled.map { $0 && isAIFormatterEnabled() }
+            ?? shouldUseAIFormatter()
         clearLiveTranscript()
         currentOperationID = operationContext.operationID
         currentOperationTerminalEmitted = false

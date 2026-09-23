@@ -1806,6 +1806,41 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(mockLLMService.formatTranscriptCallCount, 1)
     }
 
+    func testAIPolishRespectsMasterSwitchAfterEntitlementWait() async throws {
+        await mockSTT.configure(result: STTResult(text: "hello world"))
+        let mockLLMService = MockLLMService()
+        mockLLMService.formatTranscriptResult = "Hello, world."
+        let masterSwitch = FormatterEnableBox(true)
+        let entitlements = DelayedEntitlements()
+
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            entitlements: entitlements,
+            llmService: mockLLMService,
+            llmRunRepo: llmRunRepo,
+            shouldUseAIFormatter: { false },
+            isAIFormatterEnabled: { masterSwitch.value }
+        )
+
+        let startTask = Task {
+            try await self.service.startRecording(
+                context: DictationTelemetryContext(),
+                sessionID: nil,
+                aiFormatterEnabled: true
+            )
+        }
+        await entitlements.waitForAssert()
+        masterSwitch.value = false
+        await entitlements.release()
+        try await startTask.value
+
+        let result = try await service.stopRecording()
+        XCTAssertEqual(mockLLMService.formatTranscriptCallCount, 0)
+        XCTAssertNotEqual(result.dictation.cleanTranscript, "Hello, world.")
+    }
+
     func testStopRecordingAppliesInlineInsertionStyleToCleanDictation() async throws {
         await mockSTT.configure(result: STTResult(text: "Hello world."))
 

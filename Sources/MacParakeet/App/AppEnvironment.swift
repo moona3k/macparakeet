@@ -405,6 +405,7 @@ final class AppEnvironment {
             llmService: llmService,
             llmRunRepo: llmRunRepo,
             shouldUseAIFormatter: dictationAIFormatterEnabledClosure,
+            isAIFormatterEnabled: { [runtimePreferences] in runtimePreferences.aiFormatterEnabled },
             aiFormatterPromptResolver: aiFormatterPromptResolver,
             shouldAttemptLiveDictationTranscription: {
                 Self.shouldAttemptLiveDictationTranscription()

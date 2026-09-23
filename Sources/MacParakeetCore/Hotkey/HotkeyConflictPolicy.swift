@@ -247,7 +247,8 @@ public enum HotkeyConflictPolicy {
                     NamedCandidate(name: "video URL transcription", trigger: snapshot.youtubeTranscription),
                     NamedCandidate(
                         name: "AI polish this dictation",
-                        trigger: snapshot.dictationAIPolish
+                        trigger: snapshot.dictationAIPolish,
+                        mode: .bareModifierDictation
                     ),
                 ] + transformCandidates(snapshot.transformHotkeys)
             )
@@ -289,6 +290,7 @@ public enum HotkeyConflictPolicy {
             }
             return firstConflict(
                 for: trigger,
+                selfMode: .bareModifierDictation,
                 among: dictationPeerCandidates(snapshot: snapshot, includeAIPolish: false)
             )
         }
@@ -389,7 +391,8 @@ public enum HotkeyConflictPolicy {
         candidates.append(
             NamedCandidate(
                 name: "AI polish this dictation",
-                trigger: snapshot.dictationAIPolish
+                trigger: snapshot.dictationAIPolish,
+                mode: .bareModifierDictation
             )
         )
         candidates.append(contentsOf: transformCandidates(snapshot.transformHotkeys))
