@@ -812,6 +812,7 @@ public actor DictationService: DictationServiceProtocol {
         pendingCancelReason = reason
         cancellationRequestedDuringStartSessionID = cancelledSession
         await cancelLiveDictationTranscription(sessionID: cancelledSession)
+        guard activeSessionID == cancelledSession else { return }
         await cancelDisplayPreview(sessionID: cancelledSession, clearText: true)
         // Keep this cancellation bound to the take checked before the awaits.
         guard activeSessionID == cancelledSession else { return }
@@ -890,31 +891,42 @@ public actor DictationService: DictationServiceProtocol {
             )
             return nil
         }
+        let cancelledSession = activeSessionID
         cancelGeneration += 1
         cancelResetTask?.cancel()
         cancelResetTask = nil
 
+        var cancelledAudio: StolenCancelledAudio?
         if case .recording = _state {
             let replacementHasNoCapture = replacementCleanupSessionID == activeSessionID
-            cancellationRequestedDuringStartSessionID = activeSessionID
-            await cancelLiveDictationTranscription(sessionID: activeSessionID)
-            await cancelDisplayPreview(sessionID: activeSessionID, clearText: true)
+            cancellationRequestedDuringStartSessionID = cancelledSession
+            await cancelLiveDictationTranscription(sessionID: cancelledSession)
+            guard activeSessionID == cancelledSession else { return nil }
+            await cancelDisplayPreview(sessionID: cancelledSession, clearText: true)
+            guard activeSessionID == cancelledSession else { return nil }
             let capturedDurationMs = replacementHasNoCapture ? nil : currentRecordingDurationMs()
             let captureStartedAt = Date()
-            let discardedSession = activeSessionID
             if !replacementHasNoCapture, let url = try? await audioProcessor.stopCapture() {
-                pendingCancelledAudioURL = url
-                pendingCancelledDurationMs = capturedDurationMs
-                pendingCancelledCaptureMs = Self.elapsedMilliseconds(since: captureStartedAt)
+                cancelledAudio = StolenCancelledAudio(
+                    url: url,
+                    durationMs: capturedDurationMs,
+                    captureMs: Self.elapsedMilliseconds(since: captureStartedAt)
+                )
             }
             if !replacementHasNoCapture {
-                postCaptureDidStop(sessionID: discardedSession)
+                postCaptureDidStop(sessionID: cancelledSession)
             }
-            _state = .cancelled
+            guard activeSessionID == cancelledSession else { return cancelledAudio }
         }
 
-        let cancelledDurationSeconds = resolvedDurationSeconds(capturedMs: pendingCancelledDurationMs)
         let device = await audioProcessor.recordingDeviceInfo
+        guard activeSessionID == cancelledSession else { return cancelledAudio }
+        if let cancelledAudio {
+            pendingCancelledAudioURL = cancelledAudio.url
+            pendingCancelledDurationMs = cancelledAudio.durationMs
+            pendingCancelledCaptureMs = cancelledAudio.captureMs
+        }
+        let cancelledDurationSeconds = resolvedDurationSeconds(capturedMs: pendingCancelledDurationMs)
         sendDictationOperation(
             outcome: .cancelled,
             durationSeconds: cancelledDurationSeconds,
