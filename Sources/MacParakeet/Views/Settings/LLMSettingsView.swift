@@ -313,7 +313,9 @@ struct LLMSettingsView: View {
                 .pickerStyle(.menu)
                 .frame(width: 190)
             }
-            if let selectedProvider = provider.wrappedValue, selectedProvider != .localCLI {
+            if let selectedProvider = provider.wrappedValue,
+                selectedProvider != .localCLI && selectedProvider != .appleIntelligence
+            {
                 TextField("Model", text: model)
                     .textFieldStyle(.roundedBorder)
             }
