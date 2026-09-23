@@ -388,7 +388,7 @@ Space is always reserved for the tooltip (opacity toggle, not conditional render
 - [x] Undo during cancel window resumes processing
 - [x] Accessibility permission prompted gracefully on first use
 - [x] Audio saved to disk (if storage enabled in settings)
-- [x] Optional default-off start/stop capture cues (`playDictationCaptureSounds`): the start cue plays once capture is live, and every start cue gets exactly one stop cue when that mic capture ends (stop, cancel, or discard, usable or not). A take that never went live, including release during start, plays neither.
+- [x] Optional default-off start/stop capture cues (`playDictationCaptureSounds`): the start cue plays once capture is live, and every start cue gets one stop cue when that mic capture ends (stop, cancel, or discard, usable or not). A take that never went live, including release during start, plays neither. If a newer take goes live before the older capture finishes closing, the newer start cue replaces the older stop cue.
 - [x] Optional default-off preserve of cancelled dictations (`preserveDiscardedDictations`) saves the transcript to History without pasting. Requires Save dictation history. Menu-bar Paste Last stays completed-only.
 
 ---

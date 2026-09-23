@@ -345,8 +345,10 @@ final class DictationFlowCoordinator {
 
     private var dictationCaptureDidStopObserver: NSObjectProtocol?
     /// Session whose start cue played and still owes its stop cue. Each
-    /// start cue gets exactly one stop cue, and a take that never played a
+    /// start cue gets at most one stop cue, and a take that never played a
     /// start cue (released during start, sounds off) never plays a stop cue.
+    /// A newer take's start cue replaces an older take's unpaid stop cue, so
+    /// a late Pop never tells the user the mic closed while a take is live.
     private var captureCueSessionID: Int?
 
     private func observeDictationCaptureSoundNotifications(from dictationService: DictationService) {
