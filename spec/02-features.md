@@ -989,6 +989,7 @@ CREATE TABLE text_snippets (
 - [x] Custom word replacements applied (case-insensitive matching)
 - [x] Trailing action snippets are extracted before text snippet expansion
 - [x] Snippet triggers expanded to full text
+- [x] Spoken punctuation commands (`question mark` / `exclamation mark`) convert in Clean mode, with a literal-phrase escape
 - [x] Whitespace normalized and punctuation fixed
 - [x] Processing completes in sub-millisecond
 - [x] Raw mode bypasses full cleanup but still supports terminal action extraction
@@ -1545,6 +1546,12 @@ are unaffected.
 - The older whole-transcript editor remains the fallback for transcripts without
   usable timing. Its replacement is explicitly untimed and is never silently
   aligned to automatic words.
+- The Text view of a timed transcript has **Edit**. It opens the same passages
+  for rewriting or removal, then **Done** saves them as one `reviseText`
+  correction. Removed passages stay out of the effective transcript. **Cancel**
+  discards the session. Undo restores it.
+- A prompt result generated from an older correction revision shows **Update
+  summary**. Regenerating records the revision it used.
 
 The governing behavior is [ADR-031](adr/031-timed-transcript-corrections.md).
 

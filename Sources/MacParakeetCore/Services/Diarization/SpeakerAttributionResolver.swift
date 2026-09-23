@@ -176,6 +176,7 @@ public enum SpeakerAttributionResolver {
             splitBoundaries: replay.splitBoundaries,
             suppressedBoundaries: replay.suppressedBoundaries,
             textOverrides: replay.textOverrides,
+            omittedRanges: replay.omittedRanges,
             provenance: provenance
         )
         let diarizationSegments =
@@ -200,7 +201,9 @@ public enum SpeakerAttributionResolver {
                 wordTimestamps: effectiveWords
             ),
             provenanceByWord: provenance,
-            hasTextCorrections: !replay.textOverrides.isEmpty || !replay.suppressedBoundaries.isEmpty,
+            hasTextCorrections: !replay.textOverrides.isEmpty
+                || !replay.suppressedBoundaries.isEmpty
+                || !replay.omittedRanges.isEmpty,
             unresolvedCorrections: unresolved
         )
     }
@@ -525,6 +528,51 @@ public enum SpeakerAttributionResolver {
                 replay.suppressedBoundaries.insert(boundary)
             }
 
+        case .reviseText(let changes):
+            guard !changes.isEmpty else {
+                reject(.invalidText)
+                return
+            }
+            var seenRanges = Set<TranscriptSegmentWordRange>()
+            for change in changes {
+                guard seenRanges.insert(change.target.wordRange).inserted else {
+                    reject(.overlappingTargets)
+                    return
+                }
+                if let reason = validateTargets(
+                    [change.target],
+                    transcription: transcription,
+                    splitBoundaries: replay.splitBoundaries,
+                    suppressedBoundaries: replay.suppressedBoundaries,
+                    requireCurrentRanges: true
+                ) {
+                    reject(reason)
+                    return
+                }
+                if case .replace(_, let text) = change,
+                    text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                {
+                    reject(.invalidText)
+                    return
+                }
+            }
+            for change in changes {
+                switch change {
+                case .replace(let target, let text):
+                    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    replay.omittedRanges.remove(target.wordRange)
+                    replay.textOverrides = replay.textOverrides.filter { range, _ in
+                        !rangeIsContained(range, in: target.wordRange)
+                    }
+                    replay.textOverrides[target.wordRange] = trimmed
+                case .omit(let target):
+                    replay.omittedRanges.insert(target.wordRange)
+                    replay.textOverrides = replay.textOverrides.filter { range, _ in
+                        !rangeIsContained(range, in: target.wordRange)
+                    }
+                }
+            }
+
         case .reset:
             replay = baseline
         }
@@ -685,6 +733,7 @@ public enum SpeakerAttributionResolver {
         splitBoundaries: Set<Int>,
         suppressedBoundaries: Set<Int>,
         textOverrides: [TranscriptSegmentWordRange: String],
+        omittedRanges: Set<TranscriptSegmentWordRange>,
         provenance: [SpeakerWordProvenance]
     ) -> [SpeakerEditableSegment] {
         let words = transcription.wordTimestamps ?? []
@@ -692,7 +741,9 @@ public enum SpeakerAttributionResolver {
             words: words,
             splitBoundaries: splitBoundaries,
             suppressedBoundaries: suppressedBoundaries
-        ).map { range in
+        ).filter { range in
+            !omittedRanges.contains { rangeIsContained(range, in: $0) }
+        }.map { range in
             let wordSlice = words[range.startIndex..<range.endIndexExclusive]
             let automaticIDs = uniqueInOrder(wordSlice.compactMap(\.speakerId))
             let sources = uniqueInOrder(
@@ -897,6 +948,7 @@ private struct ReplayState {
     var splitBoundaries: Set<Int> = []
     var suppressedBoundaries: Set<Int> = []
     var textOverrides: [TranscriptSegmentWordRange: String] = [:]
+    var omittedRanges: Set<TranscriptSegmentWordRange> = []
     var assignmentChanged = false
 
     init(transcription: Transcription) {

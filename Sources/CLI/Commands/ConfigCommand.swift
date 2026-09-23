@@ -30,6 +30,8 @@ struct ConfigCommand: ParsableCommand {
         Supported keys:
           telemetry                 on|off                         default: on
           processing-mode           raw|clean                       default: raw
+          spoken-punctuation        on|off                          default: on
+                                    (Clean dictation/files; meetings never convert)
           remove-um-filler          on|off                          default: on
                                     (Clean processing; off keeps
                                     Portuguese/German um)
@@ -95,6 +97,12 @@ struct ConfigCommand: ParsableCommand {
             valueSyntax: "raw|clean",
             allowedValues: ["raw", "clean"],
             summary: "Default dictation text processing mode."
+        ),
+        CLIConfigKeySpec(
+            key: "spoken-punctuation",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Convert spoken question/exclamation marks in Clean dictation and file transcription. Meetings never convert."
         ),
         CLIConfigKeySpec(
             key: "remove-um-filler",
@@ -359,6 +367,9 @@ struct ConfigCommand: ParsableCommand {
         case "processing-mode":
             let raw = store.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey)
             return (Dictation.ProcessingMode(rawValue: raw ?? Dictation.ProcessingMode.raw.rawValue) ?? .raw).rawValue
+        case "spoken-punctuation":
+            let on = UserDefaultsAppRuntimePreferences.spokenPunctuationEnabled(defaults: store)
+            return on ? "on" : "off"
         case "remove-um-filler":
             let on = UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: store)
             return on ? "on" : "off"
@@ -450,6 +461,10 @@ struct ConfigCommand: ParsableCommand {
             let mode = try parseProcessingMode(value)
             store.set(mode.rawValue, forKey: UserDefaultsAppRuntimePreferences.processingModeKey)
             return mode.rawValue
+        case "spoken-punctuation":
+            let parsed = try parseBool(value, key: key)
+            store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.spokenPunctuationEnabledKey)
+            return parsed ? "on" : "off"
         case "remove-um-filler":
             let parsed = try parseBool(value, key: key)
             store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.removeUmFillerKey)

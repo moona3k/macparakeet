@@ -92,9 +92,12 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 ### Added
 
 - `config get|set|list` includes `play-dictation-capture-sounds` (`on`/`off`,
-  default off). When on, dictation plays short cues after capture is live and
-  after the microphone closes. Cancel, failed starts, and stops that never
-  closed a usable capture stay silent.
+  default off). When on, dictation plays a short cue once the microphone is
+  live and another when that capture ends, whether it was stopped or
+  cancelled. A take whose start never went live stays silent.
+- `config spoken-punctuation` (`on`/`off`, default on) controls whether Clean
+  dictation and file transcription convert spoken question/exclamation marks.
+  Meetings never convert. `vocab process` honors the same app-defaults key.
 - `config get|set|list` includes `escape-cancels-dictation` (`on`/`off`,
   default on). When off, Escape is left for other apps and does not cancel
   a live dictation.
@@ -169,6 +172,10 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   off). While on, every microphone-capturing meeting starts muted until the
   setting is turned off; unmute from the live meeting panel.
   System-audio-only capture ignores it.
+- Inline LLM commands accept `--provider appleIntelligence` (aliases `apple`,
+  `apple-intelligence`) to use macOS 26 Apple Intelligence on-device. No API
+  key. The on-device window is small; long transcripts still need a cloud or
+  Ollama provider.
 
 ### Changed
 

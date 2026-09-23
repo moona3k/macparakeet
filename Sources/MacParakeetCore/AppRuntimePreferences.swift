@@ -2,6 +2,7 @@ import Foundation
 
 public protocol AppRuntimePreferencesProtocol: Sendable {
     var processingMode: Dictation.ProcessingMode { get }
+    var spokenPunctuationEnabled: Bool { get }
     var dictationInsertionStyle: DictationInsertionStyle { get }
     var removeUmFiller: Bool { get }
     var voiceReturnTriggers: [String] { get }
@@ -509,6 +510,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let voiceReturnTriggerKey = "voiceReturnTrigger"
     public static let voiceReturnTriggersKey = "voiceReturnTriggers"
     public static let processingModeKey = "processingMode"
+    public static let spokenPunctuationEnabledKey = "spokenPunctuationEnabled"
     public static let dictationInsertionStyleKey = "dictationInsertionStyle"
     /// Clean processing strips standalone English hesitation `um` (default on).
     /// Portuguese and German speakers can turn this off; `um` is a real word.
@@ -659,6 +661,14 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public var processingMode: Dictation.ProcessingMode {
         let raw = defaults.string(forKey: Self.processingModeKey)
         return Dictation.ProcessingMode(rawValue: raw ?? Dictation.ProcessingMode.raw.rawValue) ?? .raw
+    }
+
+    public var spokenPunctuationEnabled: Bool {
+        Self.spokenPunctuationEnabled(defaults: defaults)
+    }
+
+    public static func spokenPunctuationEnabled(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: spokenPunctuationEnabledKey) as? Bool ?? true
     }
 
     public var dictationInsertionStyle: DictationInsertionStyle {

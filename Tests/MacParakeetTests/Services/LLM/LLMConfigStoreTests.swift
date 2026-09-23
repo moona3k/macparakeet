@@ -100,6 +100,19 @@ final class LLMConfigStoreTests: XCTestCase {
         XCTAssertNil(try keychain.getString("llm_api_key_inProcessLocal"))
     }
 
+    func testAppleIntelligenceSentinelURLRoundTripsWithoutAPIKey() throws {
+        let config = LLMProviderConfig.appleIntelligence()
+        try store.saveConfig(config)
+
+        let loaded = try store.loadConfig()
+        XCTAssertEqual(loaded?.id, .appleIntelligence)
+        XCTAssertEqual(loaded?.baseURL.absoluteString, "appleintelligence://system")
+        XCTAssertEqual(loaded?.modelName, "apple-intelligence")
+        XCTAssertEqual(loaded?.isLocal, true)
+        XCTAssertNil(loaded?.apiKey)
+        XCTAssertNil(try keychain.getString("llm_api_key_appleIntelligence"))
+    }
+
     func testOverwriteAPIKey() throws {
         let config1 = LLMProviderConfig.openai(apiKey: "old-key")
         try store.saveConfig(config1)

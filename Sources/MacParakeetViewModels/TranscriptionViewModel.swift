@@ -1458,12 +1458,17 @@ public final class TranscriptionViewModel {
         }
         guard runAutoPrompts else { return }
         let text = aiContextText(for: transcription)
+        let correctionRevision =
+            speakerAttributionTranscriptionID == transcription.id
+            ? speakerAttribution?.correctionRevision
+            : nil
         promptResultsViewModel?.autoGeneratePromptResults(
             transcript: text,
             transcriptionId: transcription.id,
             sourceType: transcription.sourceType,
             meetingTypeId: transcription.meetingTypeId,
-            runInBackground: !selectTranscription
+            runInBackground: !selectTranscription,
+            sourceCorrectionRevision: correctionRevision ?? 0
         )
     }
 

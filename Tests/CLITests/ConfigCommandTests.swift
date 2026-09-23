@@ -29,6 +29,7 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(ConfigCommand.supportedKeys, [
             "telemetry",
             "processing-mode",
+            "spoken-punctuation",
             "remove-um-filler",
             "speech-engine",
             "parakeet-model",
@@ -86,6 +87,7 @@ final class ConfigCommandTests: XCTestCase {
 
     func testReadAgentDefaultsReflectGUIFallbacks() throws {
         XCTAssertEqual(try ConfigCommand.read(key: "processing-mode", defaults: defaults), "raw")
+        XCTAssertEqual(try ConfigCommand.read(key: "spoken-punctuation", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "remove-um-filler", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "speech-engine", defaults: defaults), "parakeet")
         XCTAssertEqual(try ConfigCommand.read(key: "parakeet-model", defaults: defaults), "v3")
@@ -220,6 +222,12 @@ final class ConfigCommandTests: XCTestCase {
 
         XCTAssertEqual(try ConfigCommand.write(key: "auto-meeting-titles", value: "off", defaults: defaults), "off")
         XCTAssertEqual(defaults.object(forKey: UserDefaultsAppRuntimePreferences.autoGenerateMeetingTitlesKey) as? Bool, false)
+
+        XCTAssertEqual(try ConfigCommand.write(key: "spoken-punctuation", value: "off", defaults: defaults), "off")
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.spokenPunctuationEnabledKey) as? Bool,
+            false
+        )
 
         XCTAssertEqual(try ConfigCommand.write(key: "voice-return-enabled", value: "on", defaults: defaults), "on")
         XCTAssertEqual(defaults.object(forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey) as? Bool, true)

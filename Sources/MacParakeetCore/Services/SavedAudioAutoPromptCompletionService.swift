@@ -234,10 +234,18 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
             includeMeetingNotesSnapshot: prompt.includeMeetingNotes,
             inferenceSettingsSnapshot: result.effectiveSettings,
             providerSnapshot: result.provider,
-            modelSnapshot: result.model
+            modelSnapshot: result.model,
+            sourceCorrectionRevision: correctionRevision(for: transcription)
         )
         try promptResultRepo.save(promptResult)
         return promptResult
+    }
+
+    private func correctionRevision(for transcription: Transcription) -> Int {
+        guard let speakerAttributionReader,
+            let projection = try? speakerAttributionReader.resolve(transcription: transcription)
+        else { return 0 }
+        return projection.correctionRevision
     }
 
     private func effectiveTranscript(for transcription: Transcription) -> String {

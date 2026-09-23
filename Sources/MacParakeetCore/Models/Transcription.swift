@@ -198,7 +198,32 @@ extension Transcription {
         if transcriptSegments?.contains(where: { $0.isTextEdited == true }) == true {
             return .segment
         }
+        // An omitted passage is absent from the segment list but still present
+        // in the automatic words. Segment alignment keeps export, share, and
+        // AI context on the segments instead of rebuilding that omitted text.
+        if timedSegmentListOmitsWords {
+            return .segment
+        }
         return .automatic
+    }
+
+    private var timedSegmentListOmitsWords: Bool {
+        guard let segments = transcriptSegments,
+            let words = wordTimestamps,
+            !words.isEmpty
+        else { return false }
+        var covered = [Bool](repeating: false, count: words.count)
+        for segment in segments {
+            let range = segment.wordRange
+            guard range.startIndex >= 0,
+                range.endIndexExclusive <= words.count,
+                range.startIndex < range.endIndexExclusive
+            else { continue }
+            for index in range.startIndex..<range.endIndexExclusive {
+                covered[index] = true
+            }
+        }
+        return covered.contains(false)
     }
 
     /// Whether this transcription carries word-level timing. This is the source
