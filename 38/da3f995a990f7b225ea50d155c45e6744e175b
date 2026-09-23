@@ -1,0 +1,23 @@
+Sources/MacParakeet/Views/Onboarding/OnboardingComponents.swift
+  s_1824ba4b8337eb::t_964f3abe3b0c5e 52-53
+Sources/MacParakeet/Views/Onboarding/OnboardingFlowView.swift
+  s_1824ba4b8337eb::t_19eb4559c77cdd 518
+docs/design/2026-09-23-wispr-onboarding/implementation.md
+  s_1824ba4b8337eb::t_66d0dd7d267a48 79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "38da3f995a990f7b225ea50d155c45e6744e175b",
+  "prompts": {},
+  "sessions": {
+    "s_1824ba4b8337eb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cef2-7fb0-70d1-ac33-7769de698ba5",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
