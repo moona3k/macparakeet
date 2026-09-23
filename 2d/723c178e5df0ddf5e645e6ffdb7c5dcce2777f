@@ -1,0 +1,32 @@
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_697e594299b62c::t_36862923bf0910 503-509
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_697e594299b62c::t_427cd0cb04b2b0 31-49,55-69
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_697e594299b62c::t_36862923bf0910 144-145,903,906,910
+Sources/MacParakeet/App/AppHotkeyCoordinator.swift
+  s_697e594299b62c::t_36862923bf0910 25,310,324,326-327,331-332,397-398,403,538-562
+  s_697e594299b62c::t_9e1a78b6d5b913 317-323,354-356,531-532
+  s_697e594299b62c::t_57c39a702de317 563
+Tests/MacParakeetTests/App/AppHotkeyCoordinatorTests.swift
+  s_697e594299b62c::t_427cd0cb04b2b0 439,442-483
+  s_697e594299b62c::t_9e1a78b6d5b913 410,433-435
+  s_697e594299b62c::t_ece4e254ba1a22 436-438
+  s_697e594299b62c::t_50084b9f70c8de 440-441
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2d723c178e5df0ddf5e645e6ffdb7c5dcce2777f",
+  "prompts": {},
+  "sessions": {
+    "s_697e594299b62c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cbf1-51b1-7ea3-a7cc-7f0645829f47",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
