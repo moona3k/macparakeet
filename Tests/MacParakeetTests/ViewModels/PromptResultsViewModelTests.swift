@@ -248,7 +248,7 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.hasUnsavedPromptResultEdits)
     }
 
-    func testRegeneratePromptResultCancelsEditOfTheSameResult() {
+    func testRegeneratePromptResultRequiresSavingOrCancelingEditOfTheSameResult() {
         let existing = PromptResult(
             transcriptionId: UUID(),
             promptName: "Summary",
@@ -264,10 +264,89 @@ final class PromptResultsViewModelTests: XCTestCase {
         viewModel.loadPromptResults(transcriptionId: existing.transcriptionId)
         viewModel.beginEditingPromptResult(existing)
         viewModel.editingDraft = "Corrected typo"
-        _ = viewModel.regeneratePromptResult(existing, transcript: "Transcript")
+        let generationID = viewModel.regeneratePromptResult(existing, transcript: "Transcript")
 
-        XCTAssertFalse(viewModel.isEditingPromptResult(existing.id))
-        XCTAssertFalse(viewModel.hasUnsavedPromptResultEdits)
+        XCTAssertNil(generationID)
+        XCTAssertTrue(viewModel.isEditingPromptResult(existing.id))
+        XCTAssertEqual(viewModel.editingDraft, "Corrected typo")
+        XCTAssertTrue(viewModel.hasUnsavedPromptResultEdits)
+        XCTAssertEqual(viewModel.errorMessage, "Save or cancel your result edit before regenerating.")
+        XCTAssertTrue(viewModel.pendingGenerations.isEmpty)
+    }
+
+    func testRegenerationBlocksEditingWhileQueuedAndStreaming() async throws {
+        let transcriptionID = UUID()
+        let existing = PromptResult(
+            transcriptionId: transcriptionID,
+            promptName: "Summary",
+            promptContent: "Summarize.",
+            content: "Original"
+        )
+        promptResultRepo.promptResults = [existing]
+        viewModel.configure(llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo)
+        viewModel.loadPromptResults(transcriptionId: transcriptionID)
+        llm.streamDelayNs = 80_000_000
+
+        let firstID = try XCTUnwrap(
+            viewModel.generatePromptResult(transcript: "Transcript", transcriptionId: transcriptionID)
+        )
+        let replacementID = try XCTUnwrap(
+            viewModel.regeneratePromptResult(existing, transcript: "Transcript")
+        )
+        XCTAssertEqual(viewModel.pendingGeneration(id: replacementID)?.state, .queued)
+        XCTAssertNil(viewModel.regeneratePromptResult(existing, transcript: "Transcript"))
+        XCTAssertFalse(viewModel.canEditPromptResult(existing))
+        viewModel.beginEditingPromptResult(existing)
+        XCTAssertNil(viewModel.editingPromptResultID)
+
+        try await waitUntil(timeout: .seconds(3)) {
+            self.viewModel.pendingGeneration(id: firstID) == nil
+                && self.viewModel.pendingGeneration(id: replacementID)?.state == .streaming
+        }
+        XCTAssertFalse(viewModel.canEditPromptResult(existing))
+        viewModel.beginEditingPromptResult(existing)
+        XCTAssertNil(viewModel.editingPromptResultID)
+
+        try await waitUntil(timeout: .seconds(3)) {
+            self.viewModel.pendingGeneration(id: replacementID) == nil
+        }
+        XCTAssertEqual(promptResultRepo.replaceCalls.count, 1)
+        XCTAssertFalse(promptResultRepo.promptResults.contains { $0.id == existing.id })
+        XCTAssertTrue(promptResultRepo.updateContentCalls.isEmpty)
+        XCTAssertFalse(viewModel.canEditPromptResult(existing))
+        let replacement = try XCTUnwrap(viewModel.promptResults.first(where: { $0.id == replacementID }))
+        XCTAssertTrue(viewModel.canEditPromptResult(replacement))
+    }
+
+    func testRegenerationPreservesUnexpectedOpenDraftAtCompletion() async throws {
+        let existing = PromptResult(
+            transcriptionId: UUID(),
+            promptName: "Summary",
+            promptContent: "Summarize.",
+            content: "Original"
+        )
+        promptResultRepo.promptResults = [existing]
+        viewModel.configure(llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo)
+        viewModel.loadPromptResults(transcriptionId: existing.transcriptionId)
+        llm.streamTokens = ["Replacement"]
+        llm.streamDelayNs = 30_000_000
+
+        let replacementID = try XCTUnwrap(
+            viewModel.regeneratePromptResult(existing, transcript: "Transcript")
+        )
+        // Simulate an editor opened by an older caller after enqueue.
+        viewModel.editingPromptResultID = existing.id
+        viewModel.editingDraft = "Keep my correction"
+
+        try await waitUntil {
+            guard case .failed = self.viewModel.pendingGeneration(id: replacementID)?.state else { return false }
+            return true
+        }
+        XCTAssertTrue(promptResultRepo.replaceCalls.isEmpty)
+        XCTAssertEqual(promptResultRepo.promptResults.first?.content, "Original")
+        XCTAssertEqual(viewModel.editingPromptResultID, existing.id)
+        XCTAssertEqual(viewModel.editingDraft, "Keep my correction")
+        XCTAssertTrue(viewModel.errorMessage?.contains("Save or cancel") == true)
     }
 
     func testCanSaveEditingPromptResultRequiresNonBlankDirtyDraft() {
@@ -859,6 +938,13 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertTrue(message.contains("empty response"))
         XCTAssertEqual(failed.replacingPromptResultID, existing.id)
         XCTAssertTrue(viewModel.errorMessage?.contains("empty response") == true)
+
+        viewModel.beginEditingPromptResult(existing)
+        viewModel.editingDraft = "Keep this edit"
+        XCTAssertNil(viewModel.retryGeneration(id: generationID))
+        XCTAssertEqual(viewModel.editingDraft, "Keep this edit")
+        XCTAssertTrue(viewModel.isEditingPromptResult(existing.id))
+        XCTAssertNotNil(viewModel.pendingGeneration(id: generationID))
     }
 
     func testStreamErrorMarksGenerationFailedWithProviderMessage() async throws {

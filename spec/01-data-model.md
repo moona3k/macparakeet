@@ -710,8 +710,9 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
   value supplied to prompt assembly, not the unbounded canonical DB value, so
   later note edits do not rewrite historical prompt results.
 - `contentEditedAt` (v0.45) is set when the user saves an in-place edit of
-  `content`. Prompt snapshots stay the generation receipt. `NULL` means the
-  displayed content was last written by generation (including pre-edit rows).
+  `content`. Prompt snapshots stay the generation receipt. `NULL` means no
+  in-place edit is recorded, including on generated, historical, and imported
+  rows; it does not establish who wrote the content.
   Cancel discards the draft; Save persists and refreshes meeting artifacts.
 - `includeMeetingNotesSnapshot` records the opt-in preference captured for that
   generation, including the meaningful case where it was enabled but no notes
@@ -1766,7 +1767,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `prompts.includeMeetingNotes` | v0.33-prompt-meeting-notes-context | Result-prompt opt-in for automatic meeting-notes context; non-null, default false |
 | `summaries.includeMeetingNotesSnapshot` | v0.33-prompt-meeting-notes-context | Generation-time receipt of the prompt's notes-context opt-in; non-null, default false |
 | `summaries.outputLanguagePolicySnapshot` | v0.47-meeting-ai-output-language | Generation-time receipt of the meeting AI output-language policy (`follow-transcript` or a language code); nullable when no policy was recorded, including earlier and imported results |
-| `summaries.contentEditedAt` | v0.45-prompt-result-content-edits | When the user last saved an in-place content edit; nullable for generated/unedited rows |
+| `summaries.contentEditedAt` | v0.45-prompt-result-content-edits | When the user last saved an in-place content edit; nullable when no edit is recorded, including imported rows |
 | `lifetime_dictation_stats` | v0.7.4 | Singleton lifetime voice-stat counters |
 | `daily_dictation_stats` | v0.11 | Per-day rollup powering Stats-tab heatmap + daily streaks |
 | `transcriptions.recoveredFromCrash` | v0.7.5 | Interrupted meeting recovery marker |
