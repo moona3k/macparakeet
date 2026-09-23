@@ -1255,7 +1255,12 @@ final class MeetingRecordingServiceTests: XCTestCase {
         await captureService.yield(
             .sourceInterrupted(source: .system, error: .captureRuntimeFailure("system stream ended"))
         )
-        _ = try await waitForCaptureHealth(service) { $0.system.status == .interrupted }
+        // Zero-buffer ingest of ~10s of 48kHz audio can outlast the default
+        // 1s wait on a loaded CI runner, so health still looks silent when
+        // the interrupt event has not been applied yet.
+        _ = try await waitForCaptureHealth(service, timeout: .seconds(5)) {
+            $0.system.status == .interrupted
+        }
         wallClock.advance(by: MeetingSystemAudioSignalVerdict.defaultMinimumWarningDurationSeconds)
 
         let output = try await service.stopRecording()
