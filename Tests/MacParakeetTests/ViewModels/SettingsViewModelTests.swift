@@ -592,6 +592,35 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(settings, [.liveDictationPreview])
     }
 
+    func testDictationOverlayPlacementDefaultsToBottomPersistsAndEmitsTelemetry() {
+        XCTAssertEqual(viewModel.dictationOverlayPlacement, .bottom)
+
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.dictationOverlayPlacement = .top
+
+        XCTAssertEqual(
+            testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.dictationOverlayPlacementKey),
+            "top"
+        )
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting, value: let value) = event else { return nil }
+            XCTAssertEqual(value, "top")
+            return setting
+        }
+        XCTAssertEqual(settings, [.overlayPlacement])
+    }
+
+    func testDictationOverlayPlacementPostsNotificationOnChange() {
+        let expectation = expectation(
+            forNotification: Notification.Name("macparakeet.dictationOverlayPlacementDidChange"),
+            object: nil
+        )
+        viewModel.dictationOverlayPlacement = .top
+        wait(for: [expectation], timeout: 1.0)
+    }
+
     func testDictationUndoCountdownDefaultsToFiveSecondsPersistsAndEmitsTelemetry() {
         XCTAssertEqual(viewModel.dictationUndoCountdown, .fiveSeconds)
 

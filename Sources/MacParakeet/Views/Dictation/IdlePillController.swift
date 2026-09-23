@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import MacParakeetCore
 import MacParakeetViewModels
 
 // MARK: - Mouse Tracking (click-aware)
@@ -132,32 +133,35 @@ final class IdlePillController {
             Task { @MainActor in self?.viewModel.onStartDictation?() }
         }
 
-        // Collapsed pill: small centered nub at bottom (48×10 pill + padding for targeting)
-        let collapsedW: CGFloat = 60  // slightly larger than 48pt pill for easy hover
-        let collapsedH: CGFloat = 24
-        let collapsedX = (panelWidth - collapsedW) / 2
-        tracker.collapsedPillRect = NSRect(x: collapsedX, y: 0, width: collapsedW, height: collapsedH)
-
-        // Expanded: pill + tooltip area
-        let expandedW: CGFloat = 320
-        let expandedH: CGFloat = 80
-        let expandedX = (panelWidth - expandedW) / 2
-        tracker.expandedPillRect = NSRect(x: expandedX, y: 0, width: expandedW, height: expandedH)
-
         hosting.addSubview(tracker)
         trackingView = tracker
-
-        // Position at bottom-center, just above the Dock
-        if let screen = NSScreen.main {
-            let screenFrame = screen.visibleFrame
-            let x = screenFrame.midX - panelWidth / 2
-            let y = screenFrame.origin.y + 12
-            panel.setFrameOrigin(NSPoint(x: x, y: y))
-        }
-
-        panel.orderFront(nil)
         self.panel = panel
         self.hostingView = hosting
+        reposition()
+
+        panel.orderFront(nil)
+    }
+
+    func reposition() {
+        guard let panel, let trackingView else { return }
+        let placement = DictationOverlayPlacement.current()
+        viewModel.anchorsToTop = placement.anchorsToTop
+
+        // Hover zones hug the anchored edge: the nub (48×10 + targeting slack)
+        // collapsed, and the pill + tooltip once expanded.
+        let panelSize = panel.frame.size
+        func edgeRect(width: CGFloat, height: CGFloat) -> NSRect {
+            NSRect(
+                x: (panelSize.width - width) / 2,
+                y: placement.anchorsToTop ? panelSize.height - height : 0,
+                width: width,
+                height: height
+            )
+        }
+        trackingView.collapsedPillRect = edgeRect(width: 60, height: 24)
+        trackingView.expandedPillRect = edgeRect(width: 320, height: 80)
+
+        panel.moveToDictationOverlayPosition(placement: placement)
     }
 
     func hide() {

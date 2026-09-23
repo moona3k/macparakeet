@@ -423,13 +423,13 @@ Components:
 
 ## Idle Pill (v0.1)
 
-Persistent floating pill at the bottom-center of the screen, always visible when the app is running and not actively dictating. Provides a visual anchor so users always know MacParakeet is ready.
+Persistent floating pill centered on the bottom (default) or top edge of the screen, always visible when the app is running and not actively dictating. Provides a visual anchor so users always know MacParakeet is ready.
 
 ### Dimensions
 
 - **Collapsed:** 48×10pt dark grey capsule (subtle nub)
-- **Expanded (hover):** 148×30pt dark capsule with dots + tooltip above
-- **Position:** Bottom-center, 12pt above dock (same location as dictation overlay)
+- **Expanded (hover):** 148×30pt dark capsule with dots + tooltip on the screen-facing side (above at the bottom edge, below at the top)
+- **Position:** Settings → Dictation → Pill position: Bottom (default) or Top, horizontally centered, 12pt inside `visibleFrame` so the Dock and menu bar stay clear. Top also reserves menu-bar/notch height when the menu bar auto-hides or an app is full screen. Idle pill and live overlay share this placement and move immediately when it or the screen layout changes.
 - **Panel:** NSPanel, `.nonactivatingPanel`, `.borderless`, `.floating` level
 
 ### States
@@ -461,7 +461,7 @@ Persistent floating pill at the bottom-center of the screen, always visible when
 
 - 148×30pt expanded dark capsule (black 85%)
 - 12 small dots (3pt, white 25%) inside pill
-- Tooltip bubble above: "Click, tap fn or hold fn to dictate"
+- Tooltip bubble above (below when top-anchored): "Click, tap fn or hold fn to dictate"
   - Shortcut tokens in pink (0.85, 0.55, 0.75)
   - Dark capsule background (black 90%) with white 10% stroke
 ```
@@ -488,14 +488,14 @@ Persistent floating pill at the bottom-center of the screen, always visible when
 
 ## Dictation Overlay / Pill (v0.1)
 
-Compact dark pill overlay, always-on-top, bottom-center of screen. This is the primary recording UI and must be polished from day one.
+Compact dark pill overlay, always-on-top on the same screen edge as the idle pill (bottom by default). This is the primary recording UI and must be polished from day one.
 
 ### Dimensions
 
 - **Height:** 36px
 - **Corner radius:** 18px (fully rounded)
 - **Width:** Dynamic, fits content. Persistent dictation recording and cancelled/Undo use 7pt horizontal padding, matching the 7pt vertical inset, so cancel/stop and the countdown/Undo controls sit in the capsule hemispheres. Hold-to-talk recording keeps 16pt — it has no end circles and the compact dot+timer+waveform cluster already looked right at the wider inset. Command recording and processing-with-copy keep 16pt.
-- **Position:** Bottom-center of main screen, 48px from bottom edge
+- **Position:** Same edge as the idle pill, horizontally centered, 12pt inside the visible frame. When top-anchored, the stack mirrors: pill on the edge, then live preview, load caption, and hover tooltip below it.
 - **Background:** `#1C1C1E` (system dark) at 95% opacity
 - **Shadow:** 0 4px 12px rgba(0,0,0,0.3)
 
@@ -552,8 +552,8 @@ Compact dark pill overlay, always-on-top, bottom-center of screen. This is the p
 
 **First-load caption.** If `.processing` is entered while the speech engine is
 not ready, the coordinator arms a 600ms grace timer. If `.processing` is still
-active after the grace, a compact floating capsule appears above the pill in
-the same overlay panel; the pill remains bottom-anchored and its geometry does
+active after the grace, a compact floating capsule appears on the screen-facing side of the pill in
+the same overlay panel; the pill stays anchored to its edge and its geometry does
 not shift. The caption is separate from the inline `"Still transcribing..."`
 hint so passive engine state and user-triggered processing feedback can
 coexist.

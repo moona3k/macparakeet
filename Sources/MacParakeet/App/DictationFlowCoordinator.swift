@@ -289,6 +289,7 @@ final class DictationFlowCoordinator {
         observeFormatterNotifications()
         observePreviewTextSizeNotifications()
         observeDictationCaptureSoundNotifications(from: dictationService)
+        observeOverlayPlacementNotifications()
     }
 
     // MARK: - AI Formatter pill transitions
@@ -387,10 +388,42 @@ final class DictationFlowCoordinator {
         playCaptureCue(.recordStop)
     }
 
+    /// Move idle + live overlays when Settings placement changes or displays
+    /// are added, removed, or rearranged.
+    private var overlayPlacementObserver: NSObjectProtocol?
+    private var screenParametersObserver: NSObjectProtocol?
+
+    private func observeOverlayPlacementNotifications() {
+        overlayPlacementObserver = NotificationCenter.default.addObserver(
+            forName: .macParakeetDictationOverlayPlacementDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.repositionDictationOverlays()
+            }
+        }
+        screenParametersObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.repositionDictationOverlays()
+            }
+        }
+    }
+
+    private func repositionDictationOverlays() {
+        idlePillController?.reposition()
+        overlayController?.reposition()
+    }
+
     // NOTE: no `deinit` cleanup for `formatterDidStartObserver`,
-    // `previewTextSizeObserver`, or `dictationCaptureDidStopObserver`. This
-    // coordinator is effectively a singleton
-    // for the app's lifetime, both observer blocks capture `[weak self]`, and
+    // `previewTextSizeObserver`, `dictationCaptureDidStopObserver`,
+    // `overlayPlacementObserver`, or `screenParametersObserver`. This
+    // coordinator is effectively a singleton for the app's lifetime, every
+    // observer block captures `[weak self]`, and
     // Swift 6 forbids touching `@MainActor`-isolated stored properties from a
     // nonisolated deinit. NotificationCenter cleans up automatically when the
     // tokens drop.

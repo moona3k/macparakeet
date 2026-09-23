@@ -315,7 +315,7 @@ Compact dark pill, icon-only controls, positioned at bottom-center of screen (40
 
 **Pill dimensions:** ~150-180px wide, 36px tall, capsule shape (full corner radius)
 **Background:** Solid dark (`Color.black.opacity(0.9)`)
-**Position:** Bottom-center of screen, 40px above visible frame bottom
+**Position:** Centered on the bottom (default) or top screen edge, per Settings → Dictation → Pill position. See `spec/04-ui-patterns.md` for geometry.
 **Controls:** Icon buttons only, no text labels
 **Border:** Subtle white stroke (`Color.white.opacity(0.1)`, 1px)
 

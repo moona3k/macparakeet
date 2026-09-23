@@ -29,8 +29,9 @@ struct LoadingCaptionView: View {
         .accessibilityLabel(accessibilityLabel)
     }
 
-    static func transition(reduceMotion: Bool) -> AnyTransition {
-        reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 4))
+    /// Rises out of the pill: from below when bottom-anchored, above when top-anchored.
+    static func transition(reduceMotion: Bool, anchorsToTop: Bool = false) -> AnyTransition {
+        reduceMotion ? .opacity : .opacity.combined(with: .offset(y: anchorsToTop ? -4 : 4))
     }
 
     private var title: String {

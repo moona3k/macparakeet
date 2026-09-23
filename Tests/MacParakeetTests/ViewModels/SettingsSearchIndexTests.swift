@@ -80,6 +80,13 @@ final class SettingsSearchIndexTests: XCTestCase {
         )
     }
 
+    func testPillPositionQueriesFindDictationPlacementSetting() {
+        for query in ["pill position", "overlay position", "top of screen", "move pill"] {
+            let ids = Set(SettingsSearchIndex.matches(query).map(\.id))
+            XCTAssertTrue(ids.contains("dictation.overlay.position"), "Query \(query) should find pill position")
+        }
+    }
+
     func testCaptureSoundQueriesFindDictationToggle() {
         for query in ["start sound", "stop sound", "tink"] {
             let results = SettingsSearchIndex.matches(query)
