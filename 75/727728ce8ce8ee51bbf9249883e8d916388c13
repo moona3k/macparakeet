@@ -1,0 +1,73 @@
+docs/audits/2026-09-23-post-0.8.7-release-readiness.md
+  s_57f96c7e168713::t_e6503da70e12a4 28
+  s_57f96c7e168713::t_74d53f781307f7 1-15,17-25,29-44
+  s_57f96c7e168713::t_b06e7936afc701 16,26
+  s_57f96c7e168713::t_4cce4528e449ec 27
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_57f96c7e168713::t_cd83cb22491856 8-22
+Package.swift
+  s_57f96c7e168713::t_c67374b1010903 168
+Sources/MacParakeetCore/Services/SavedAudioAutoPromptCompletionService.swift
+  s_57f96c7e168713::t_47185a3a32c80e 144-145,192-196,225,260,266-268,272,274
+Tests/MacParakeetTests/Services/SavedAudioAutoPromptCompletionServiceTests.swift
+  s_57f96c7e168713::t_4df2787fc7eb38 18-19,25,291-330,333-334
+  s_57f96c7e168713::t_75c6a82c4d01a7 335-339
+  s_57f96c7e168713::t_52ce77e36934da 331-332
+  s_03fb1acb6724e6::t_26fd917642c966 340-341
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_57f96c7e168713::t_379b12fa7e0830 472
+Tests/MacParakeetTests/App/AppHotkeyCoordinatorTests.swift
+  s_57f96c7e168713::t_75c6a82c4d01a7 68-79
+  s_57f96c7e168713::t_cd83cb22491856 20,27,52-67
+  s_03fb1acb6724e6::t_74b7624cd7e363 80-81
+Tests/CLITests/PromptsCommandTests.swift
+  s_57f96c7e168713::t_75c6a82c4d01a7 424-428
+  s_57f96c7e168713::t_67c45d99deacc7 39-40,411-412,423,451-452
+Sources/MacParakeet/App/AppHotkeyCoordinator.swift
+  s_57f96c7e168713::t_379b12fa7e0830 10,39,332,374-388
+  s_57f96c7e168713::t_cd83cb22491856 333-334
+  s_57f96c7e168713::t_094892a0aa3f33 224,226,229-238,242-243,246-247,253,259
+  s_eab862ec3e396a::t_d119e9a5ee6659 389-390
+Sources/CLI/CHANGELOG.md
+  s_57f96c7e168713::t_d334b88222a93d 92-97
+spec/README.md
+  s_57f96c7e168713::t_dff2c92e285b18 90
+spec/01-data-model.md
+  s_57f96c7e168713::t_d334b88222a93d 729-732
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_57f96c7e168713::t_379b12fa7e0830 440,456,462,465-466,468,470,474-480,487
+Sources/CLI/Commands/PromptsCommand.swift
+  s_57f96c7e168713::t_47185a3a32c80e 1140-1141,1172-1173,1188-1189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "75727728ce8ce8ee51bbf9249883e8d916388c13",
+  "prompts": {},
+  "sessions": {
+    "s_03fb1acb6724e6": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "c3386342-729e-45c3-b1c8-e8e62ff4d19d",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_57f96c7e168713": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cd8c-0edf-7db2-b8e5-8dd9ef44ed55",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_eab862ec3e396a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cd88-83ed-7670-a2d1-dad193bbaaa3",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
