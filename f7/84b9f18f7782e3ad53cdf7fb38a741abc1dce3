@@ -16,6 +16,7 @@ Sources/MacParakeetCore/Services/Dictation/DictationService.swift
   s_9356391ef9ddc0::t_665829e3df42a2 130,305-310
   s_9356391ef9ddc0::t_fa6fb2452dab6a 354-355
   s_9356391ef9ddc0::t_0f9f917f979576 157,719-720,728-730,787-788,794-798
+  s_9356391ef9ddc0::t_15e2e29106b81c 357-365
 Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
   s_9356391ef9ddc0::t_b7050ea947f368 114-120,125-128,130-150,155-158,160-171
   s_9356391ef9ddc0::t_c8a76177629437 174-179,184-187,189-205
