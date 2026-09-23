@@ -7,7 +7,18 @@ public enum PromptResultFreshness {
     /// Fingerprints only the canonical transcript text. Presentation settings,
     /// speaker labels, titles, and other recording metadata are not source text.
     public static func sourceTranscriptHash(for transcription: Transcription) -> String {
-        sourceTranscriptHash(cleanTranscript: transcription.cleanTranscript, rawTranscript: transcription.rawTranscript)
+        let cleanText = transcription.cleanTranscript?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !transcription.isTranscriptEdited && (cleanText?.isEmpty ?? true) {
+            let rawText = transcription.rawTranscript?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let rawText, !rawText.isEmpty {
+                return sourceTranscriptHash(cleanTranscript: nil, rawTranscript: rawText)
+            }
+            let cueText = TranscriptCueBuilder.build(from: transcription)
+                .map(\.text)
+                .joined(separator: " ")
+            return sourceTranscriptHash(cleanTranscript: cueText, rawTranscript: nil)
+        }
+        return sourceTranscriptHash(cleanTranscript: transcription.cleanTranscript, rawTranscript: transcription.rawTranscript)
     }
 
     public static func sourceTranscriptHash(cleanTranscript: String?, rawTranscript: String?) -> String {

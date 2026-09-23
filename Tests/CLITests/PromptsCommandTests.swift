@@ -594,6 +594,39 @@ final class PromptsCommandTests: XCTestCase {
             ))
     }
 
+    func testRunStoresRawSourceReceiptWhenAutomaticCleanTextIsEmpty() async throws {
+        let databaseURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("prompt-empty-clean-run-\(UUID().uuidString).db")
+        defer { try? FileManager.default.removeItem(at: databaseURL) }
+        let database = try DatabaseManager(path: databaseURL.path)
+        let prompt = try PromptEditingService(dbQueue: database.dbQueue).create(
+            Prompt(name: "Empty clean text", content: "Summarize.")
+        )
+        let transcript = Transcription(
+            fileName: "Meeting",
+            rawTranscript: "Original words",
+            cleanTranscript: "",
+            wordTimestamps: [WordTimestamp(word: "Original", startMs: 0, endMs: 100, confidence: 1)],
+            status: .completed
+        )
+        try TranscriptionRepository(dbQueue: database.dbQueue).save(transcript)
+
+        let command = try PromptsCommand.RunSubcommand.parse([
+            prompt.id.uuidString, "--transcription", transcript.id.uuidString,
+            "--provider", "cli", "--command", "/usr/bin/printf generated",
+            "--database", databaseURL.path,
+        ])
+        try await command.run()
+
+        let saved = try XCTUnwrap(
+            PromptResultRepository(dbQueue: database.dbQueue).fetchAll(transcriptionId: transcript.id).first
+        )
+        XCTAssertEqual(
+            saved.sourceTranscriptHash,
+            PromptResultFreshness.sourceTranscriptHash(cleanTranscript: nil, rawTranscript: "Original words")
+        )
+    }
+
     func testLabelPolicyMutationsControlExecutionAndPreserveExplicitExceptions() async throws {
         let databaseURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("prompt-policy-cli-\(UUID().uuidString).db")
