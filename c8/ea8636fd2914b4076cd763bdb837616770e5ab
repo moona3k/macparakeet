@@ -1,0 +1,81 @@
+Sources/MacParakeet/Views/Onboarding/OnboardingFlowView.swift
+  s_e2c9259ce51a5f::t_03df332cb8d626 509-510,536-537,702-703
+  s_e2c9259ce51a5f::t_db746d63c10180 7-10,13-14,17-20,22-38,40,44,55,58-63,66-70,72,89,94-97,102-110,112-113,117-125,169,173-174,180-181,185,189-201,203-243,285-287,296-297,304,306-309,319-320,322-323,328,330,333,340,365,397-404,406,411-416,434-444,450,455,480,483-484,486,498,500-502,504-508,511-525,527-529,533-535,538-542,544,547-548,550,554-557,561,565-587,589-600,606,608-614,616,618-620,623,626-627,631,636,651-653,655,657-669,671,676-691,693-701,704-709,714-731,748,753-755,759,761-762,764-767,772-773,775-784,786,790-796,809,811-825,831
+  s_e2c9259ce51a5f::t_37ca7f82a61e17 177-178,202,456,463,465,545-546,634,637,644,646,656
+  s_e2c9259ce51a5f::t_df07e08778a66d 175
+Sources/MacParakeet/Onboarding/OnboardingWindowController.swift
+  s_e2c9259ce51a5f::t_a38670f334d3c0 9,17-50,55,60-61,81-83,88,96-98,122-123
+  s_e2c9259ce51a5f::t_c3a4af8645291b 8
+  s_e2c9259ce51a5f::t_03df332cb8d626 102-106
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_e2c9259ce51a5f::t_a360a418f20371 512-517
+docs/research/2026-09-18-08-first-run-regression.md
+  s_e2c9259ce51a5f::t_a08c0daf9bc8ff 1-194
+Sources/MacParakeet/App/OnboardingCoordinator.swift
+  s_e2c9259ce51a5f::t_447f5db7874b4a 8,14-15,21,26-28,31,37-38,86,98-99,101
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_e2c9259ce51a5f::t_cbd8b19036449c 152-169,173-174
+  s_e2c9259ce51a5f::t_79c7addf60d719 170-172
+Tests/MacParakeetTests/ViewModels/OnboardingViewModelTests.swift
+  s_e2c9259ce51a5f::t_54f9036b95acac 789-817
+  s_e2c9259ce51a5f::t_de7d3a55e107f8 1692-1693,1824-1825
+  s_e2c9259ce51a5f::t_7de0469509ba72 996,1025,1064,1148,1175,1230,1277,1309,1348,1380,1423,1452,1478,1513,1560,1600,1635,1852,1897,1923,1958,1991,2024,2047,2075
+  s_e2c9259ce51a5f::t_31112b7abbc625 1004,1075,1535
+  s_e2c9259ce51a5f::t_6410a9249fcf05 190-191,208-209,213,216,223-224,226,228,231,244,270,309,341,382,386,388,391-398,402,411-412,416-418,421-423,425-429,432-434,436-449,452,463,466,478,489-494,496-497,501,503-788,818-853,919-921
+  s_e2c9259ce51a5f::t_cda189dfb70104 1126-1127,1198-1200,1283,1285-1288
+spec/adr/005-onboarding-first-run.md
+  s_e2c9259ce51a5f::t_ca4e2b61995268 5-9,28,31-33,38,45,89-108
+docs/telemetry.md
+  s_e2c9259ce51a5f::t_5dfb2dc04374ba 220
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_e2c9259ce51a5f::t_6ef9d1e4a59c1a 40-45,345-347
+Sources/MacParakeet/Onboarding/OnboardingHotkeyPreviewController.swift
+  s_e2c9259ce51a5f::t_5ba8ec6771b3a0 5-8,10-13,15-24,27,33-35,39-42,59-60,62-64,70,74-94,107,109-110,117-122,131,133-134,138-139,143-146
+  s_e2c9259ce51a5f::t_a998f8e221c201 135
+Tests/MacParakeetTests/Onboarding/OnboardingHotkeyPreviewControllerTests.swift
+  s_e2c9259ce51a5f::t_54f9036b95acac 8-13,16-18,21-23,28-29,33,47,58-59,62-63,65-67,70-71,74-76,79-80,82,84-85,88-89,91,95-96,100-103,105-108,110-112,115-132,134-135,137-139
+docs/design/2026-09-23-wispr-onboarding/implementation.md
+  s_e2c9259ce51a5f::t_2dcda16fb5421b 1-117
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_e2c9259ce51a5f::t_ee31261baa9d82 147-151,533-535,840,891-893
+  s_e2c9259ce51a5f::t_6ef9d1e4a59c1a 177-179,468-469
+docs/design/2026-09-23-wispr-onboarding/note.md
+  s_e2c9259ce51a5f::t_ac36fa86b94643 1-189
+Sources/MacParakeet/Views/Onboarding/OnboardingComponents.swift
+  s_e2c9259ce51a5f::t_1213678706497b 1-22,25-213,216-270
+  s_e2c9259ce51a5f::t_03df332cb8d626 23-24,214-215
+spec/02-features.md
+  s_e2c9259ce51a5f::t_ca4e2b61995268 145-149,157,2248
+Sources/MacParakeetViewModels/OnboardingViewModel.swift
+  s_e2c9259ce51a5f::t_a998f8e221c201 54-62
+  s_e2c9259ce51a5f::t_d8734559876d7e 25-26,34-35,43-44,50-53,63-88,165-183,215-217,242-246,262-263,286,327,352-366,392,396-403,407,414,418-438,440,446,448,450-453,458-554,600-601,634-638,642,687-688,801,868,1181
+Sources/MacParakeet/Views/Onboarding/OnboardingPracticeStepView.swift
+  s_e2c9259ce51a5f::t_1de8c1beabc7b2 239
+  s_e2c9259ce51a5f::t_37ca7f82a61e17 112,275-281,358-378,385,405-407
+  s_e2c9259ce51a5f::t_03df332cb8d626 137-139,172-173,337-339,472-473
+  s_e2c9259ce51a5f::t_e2bb15974764f7 1-111,113-136,140-171,174-238,240-274,282-336,340-357,379-384,386-404,408-471,474-665
+Sources/MacParakeet/AppDelegate.swift
+  s_e2c9259ce51a5f::t_447f5db7874b4a 134-154,158,178-193,255,649-650,656-663
+  s_e2c9259ce51a5f::t_ded4278cf7266d 1028-1044
+docs/research/2026-09-18-onboarding-activation-leak.md
+  s_e2c9259ce51a5f::t_a08c0daf9bc8ff 1-343
+Tests/MacParakeetTests/STT/MockSTTClient.swift
+  s_e2c9259ce51a5f::t_7366e3aa550cb8 31-32,134-137,444-445
+  s_e2c9259ce51a5f::t_680e210cc75963 446-447
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c8ea8636fd2914b4076cd763bdb837616770e5ab",
+  "prompts": {},
+  "sessions": {
+    "s_e2c9259ce51a5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "efc687c8-ba13-4f30-8831-301670144814",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
