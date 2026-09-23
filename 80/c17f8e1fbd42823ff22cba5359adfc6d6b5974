@@ -1,0 +1,79 @@
+Sources/CLI/CHANGELOG.md
+  s_697e594299b62c::t_386356ca1da61c 101-107
+Sources/CLI/Commands/VocabBundleCommands.swift
+  s_697e594299b62c::t_b351e83575bd11 14-17,45-47,63-70,76-79,92-94,100,117-119,122,131-133,153-154,185-191,193-194,196-202,204-208,215-221,226-227,231-232,243-245,257-258,271-274,310-316,318-374,386-394,397-404,414-463
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_697e594299b62c::t_bae41489f6b040 466-471
+Sources/MacParakeet/App/AppHotkeyCoordinator.swift
+  s_697e594299b62c::t_f63ed8be4f62f1 10,38,73-74,84,90-91,97,116-120,122-124,146-147,149-168,180-203,205-206,209-223,227-232,234-235,254-255,269-270,289-290,304,363,379,395
+Sources/MacParakeet/App/AppSettingsObserverCoordinator.swift
+  s_697e594299b62c::t_078b9f23518e78 16,36,56,75
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_697e594299b62c::t_59d0fbe061abe3 206-210,421-422,431,433-435,713,725-727,760-796,1166-1167
+Sources/MacParakeet/AppDelegate.swift
+  s_697e594299b62c::t_f3ac24b01004fc 347-349,914-917,987-988
+Sources/MacParakeet/Views/MainWindowView.swift
+  s_697e594299b62c::t_0106ac100b0ea1 374-377
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_697e594299b62c::t_9703685c7297e6 1101-1113,1260,1698,4008-4024
+Sources/MacParakeet/Views/Vocabulary/VocabularyBackupSection.swift
+  s_697e594299b62c::t_c16e7ec4ee6d7e 65-70,115-116,165-167,175-180
+Sources/MacParakeet/Views/Vocabulary/VocabularyImportPreviewSheet.swift
+  s_697e594299b62c::t_3be534dea2fd24 17-21,132,134-168,173-174,178-183,185,188,191,194,196-197,200-205,207-248,263-284,328-329,332-336,343,345-354,365,370-373,378,392,394-406,409-418,423-443
+Sources/MacParakeetCore/AppNotifications.swift
+  s_697e594299b62c::t_4e7c537473126f 13
+Sources/MacParakeetCore/Hotkey/HotkeyConflictPolicy.swift
+  s_697e594299b62c::t_8316053b41f4d6 70,118,128,137,206-212,216,227-233,237,248,271-290,306-317,356-359,366-370,388-390
+Sources/MacParakeetCore/Models/CustomWord.swift
+  s_697e594299b62c::t_5bec8960b088bf 4,13
+Sources/MacParakeetCore/Models/TextSnippet.swift
+  s_697e594299b62c::t_b801e229b8f585 4
+Sources/MacParakeetCore/STT/HotkeyTrigger.swift
+  s_697e594299b62c::t_79728d88ff670d 693
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_697e594299b62c::t_8440e64e387a68 524
+Sources/MacParakeetCore/Services/VocabularyImportExportService.swift
+  s_697e594299b62c::t_cff86ee7290b33 36-37,44-45,52-56,64,75-82,90-93,113-114,122-124,132-133,212-217,227-238,247-252,257-259,263-295,311,357,396-398
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_697e594299b62c::t_12a8db32d8d5aa 213-225,1062-1065
+Sources/MacParakeetViewModels/VocabularyBackupViewModel.swift
+  s_697e594299b62c::t_42ecfa57c2eacc 112,130-135
+Tests/CLITests/VocabCommandTests.swift
+  s_697e594299b62c::t_e0a6f06ffc913a 459,488-491,524-636
+Tests/MacParakeetTests/App/AppHotkeyCoordinatorTests.swift
+  s_697e594299b62c::t_736ae1c05d9921 26,112-122,271-315
+Tests/MacParakeetTests/App/AppSettingsObserverCoordinatorTests.swift
+  s_697e594299b62c::t_d8aed7a905b4b3 25,68-71,116,127,148,195,216,302
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_697e594299b62c::t_1f2748678c6442 91-170
+Tests/MacParakeetTests/Hotkey/HotkeyConflictPolicyTests.swift
+  s_697e594299b62c::t_b91d4d5dd6aff9 25,35,275-317
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_697e594299b62c::t_51236cc3789cad 1258-1263
+Tests/MacParakeetTests/Services/VocabularyImportExportServiceTests.swift
+  s_697e594299b62c::t_008fc7c361b6bc 70,114,138,142,216,235,258,262,289-297,327-329,338-341,370,373-375,466-652
+Tests/MacParakeetTests/TelemetryServiceTests.swift
+  s_697e594299b62c::t_1b303dc0dfaf62 1926
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_697e594299b62c::t_c5f3dc22fecc55 1389-1403,1461,1483,1491,1494,1500
+docs/telemetry.md
+  s_697e594299b62c::t_43becca24ba4e6 411
+spec/02-features.md
+  s_697e594299b62c::t_d903980a928c59 178,953-958,1130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "80c17f8e1fbd42823ff22cba5359adfc6d6b5974",
+  "prompts": {},
+  "sessions": {
+    "s_697e594299b62c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cbf1-51b1-7ea3-a7cc-7f0645829f47",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
