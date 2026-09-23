@@ -1,0 +1,39 @@
+Sources/MacParakeet/App/TransformsCoordinator.swift
+  s_697e594299b62c::t_d02782c2a03b92 326-328,330,332
+  s_697e594299b62c::t_5b54c85d2e30f4 322-324
+  s_697e594299b62c::t_4cf7f40d0df126 54,90-91,98-109,206,216,220-221,223-224,254-255,331
+  s_697e594299b62c::t_0852538487d375 320
+  s_697e594299b62c::t_4388fb8e2441e6 321
+Sources/MacParakeetCore/Services/System/SelectionCaptureService.swift
+  s_697e594299b62c::t_5127652f7eb446 250-252
+  s_697e594299b62c::t_d02782c2a03b92 61,69-70,235-236,240-247,253-257,307-310,313-315,333,336-339,366-372,389-392,394
+  s_697e594299b62c::t_4cf7f40d0df126 271-272
+  s_697e594299b62c::t_451646194e80ba 248-249,277-278,334-335
+  s_697e594299b62c::t_5b54c85d2e30f4 237-239
+Tests/MacParakeetTests/Services/System/SelectionCaptureServiceTests.swift
+  s_697e594299b62c::t_f5297868c6b6b3 246-263,344,361,374,381-383
+  s_697e594299b62c::t_5127652f7eb446 306-329
+  s_697e594299b62c::t_cf365d8e3ecab7 224-244
+  s_697e594299b62c::t_a7df3912917f7c 245,264-305,346,362-363,376,395-397
+spec/02-features.md
+  s_697e594299b62c::t_1d3886e2e10e42 2085
+  s_697e594299b62c::t_5127652f7eb446 2095
+spec/adr/022-transforms-system-wide-rewrite.md
+  s_697e594299b62c::t_1d3886e2e10e42 98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "99bbcf296d18a07d6a82d038b1a48bf69458b2a9",
+  "prompts": {},
+  "sessions": {
+    "s_697e594299b62c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cbf1-51b1-7ea3-a7cc-7f0645829f47",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
