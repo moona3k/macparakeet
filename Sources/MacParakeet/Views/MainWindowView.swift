@@ -371,6 +371,10 @@ struct MainWindowView: View {
                 trigger: settingsViewModel.pushToTalkHotkeyTrigger,
                 conflictMode: .bareModifierDictation
             ),
+            TransformShortcutReservedHotkey(
+                name: "clipboard-only dictation",
+                trigger: settingsViewModel.dictationClipboardHotkeyTrigger
+            ),
             TransformShortcutReservedHotkey(name: "file transcription", trigger: settingsViewModel.fileTranscriptionHotkeyTrigger),
             TransformShortcutReservedHotkey(name: "video URL transcription", trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger),
         ]

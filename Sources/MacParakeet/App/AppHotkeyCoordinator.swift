@@ -7,7 +7,7 @@ final class AppHotkeyCoordinator {
     static let holdToTalkStopTailMs = 200
 
     private let settingsViewModel: SettingsViewModel
-    private let onStartDictation: (FnKeyStateMachine.RecordingMode) -> Void
+    private let onStartDictation: (FnKeyStateMachine.RecordingMode, Bool) -> Void
     private let onStopDictation: () -> Void
     private let onCancelDictation: () -> Void
     private let onDiscardRecording: (Bool) -> Void
@@ -35,7 +35,7 @@ final class AppHotkeyCoordinator {
 
     init(
         settingsViewModel: SettingsViewModel,
-        onStartDictation: @escaping (FnKeyStateMachine.RecordingMode) -> Void,
+        onStartDictation: @escaping (FnKeyStateMachine.RecordingMode, Bool) -> Void,
         onStopDictation: @escaping () -> Void,
         onCancelDictation: @escaping () -> Void,
         onDiscardRecording: @escaping (Bool) -> Void,
@@ -70,7 +70,8 @@ final class AppHotkeyCoordinator {
     var hotkeyMenuTitle: String {
         Self.menuTitle(
             handsFree: settingsViewModel.hotkeyTrigger,
-            pushToTalk: settingsViewModel.pushToTalkHotkeyTrigger
+            pushToTalk: settingsViewModel.pushToTalkHotkeyTrigger,
+            clipboard: settingsViewModel.dictationClipboardHotkeyTrigger
         )
     }
 
@@ -80,17 +81,20 @@ final class AppHotkeyCoordinator {
             let gestureMode: HotkeyGestureController.Mode
             let startupDebounceMs: Int
             let holdToTalkStopTailMs: Int
+            let clipboardOnly: Bool
 
             init(
                 trigger: HotkeyTrigger,
                 gestureMode: HotkeyGestureController.Mode,
                 startupDebounceMs: Int = FnKeyStateMachine.defaultStartupDebounceMs,
-                holdToTalkStopTailMs: Int = 0
+                holdToTalkStopTailMs: Int = 0,
+                clipboardOnly: Bool = false
             ) {
                 self.trigger = trigger
                 self.gestureMode = gestureMode
                 self.startupDebounceMs = startupDebounceMs
                 self.holdToTalkStopTailMs = max(0, holdToTalkStopTailMs)
+                self.clipboardOnly = clipboardOnly
             }
         }
 
@@ -109,9 +113,15 @@ final class AppHotkeyCoordinator {
         menuTitle(handsFree: trigger, pushToTalk: trigger)
     }
 
-    static func menuTitle(handsFree: HotkeyTrigger, pushToTalk: HotkeyTrigger) -> String {
+    static func menuTitle(
+        handsFree: HotkeyTrigger,
+        pushToTalk: HotkeyTrigger,
+        clipboard: HotkeyTrigger = .disabled
+    ) -> String {
         if handsFree.isDisabled && pushToTalk.isDisabled {
-            return "Dictation Shortcuts: Disabled"
+            return clipboard.isDisabled
+                ? "Dictation Shortcuts: Disabled"
+                : "Clipboard-only: Tap \(clipboard.displayName)"
         }
         if HotkeyTrigger.isSharedDictationGesture(handsFree: handsFree, pushToTalk: pushToTalk) {
             return "Dictation: Hold \(pushToTalk.displayName) / Double-tap \(handsFree.displayName)"
@@ -133,31 +143,29 @@ final class AppHotkeyCoordinator {
 
     static func dictationHotkeyPlan(
         handsFree handsFreeTrigger: HotkeyTrigger,
-        pushToTalk pushToTalkTrigger: HotkeyTrigger
+        pushToTalk pushToTalkTrigger: HotkeyTrigger,
+        clipboard clipboardTrigger: HotkeyTrigger = .disabled
     ) -> DictationHotkeyPlan {
-        guard !handsFreeTrigger.isDisabled || !pushToTalkTrigger.isDisabled else {
-            return DictationHotkeyPlan(specs: [], conflict: nil)
-        }
-
-        if HotkeyTrigger.isSharedDictationGesture(
-            handsFree: handsFreeTrigger,
-            pushToTalk: pushToTalkTrigger
-        ) {
-            return DictationHotkeyPlan(
-                specs: [
-                    DictationHotkeyPlan.Spec(
-                        trigger: handsFreeTrigger,
-                        gestureMode: .doubleTapAndHold,
-                        holdToTalkStopTailMs: holdToTalkStopTailMs
-                    ),
-                ],
-                conflict: nil
-            )
-        }
-
-        if !handsFreeTrigger.isDisabled, !pushToTalkTrigger.isDisabled {
-            if handsFreeTrigger.overlaps(with: pushToTalkTrigger) {
-                return DictationHotkeyPlan(
+        let base: DictationHotkeyPlan
+        if !handsFreeTrigger.isDisabled || !pushToTalkTrigger.isDisabled {
+            if HotkeyTrigger.isSharedDictationGesture(
+                handsFree: handsFreeTrigger,
+                pushToTalk: pushToTalkTrigger
+            ) {
+                base = DictationHotkeyPlan(
+                    specs: [
+                        DictationHotkeyPlan.Spec(
+                            trigger: handsFreeTrigger,
+                            gestureMode: .doubleTapAndHold,
+                            holdToTalkStopTailMs: holdToTalkStopTailMs
+                        ),
+                    ],
+                    conflict: nil
+                )
+            } else if !handsFreeTrigger.isDisabled, !pushToTalkTrigger.isDisabled,
+                handsFreeTrigger.overlaps(with: pushToTalkTrigger)
+            {
+                base = DictationHotkeyPlan(
                     specs: [
                         DictationHotkeyPlan.Spec(
                             trigger: handsFreeTrigger,
@@ -169,32 +177,62 @@ final class AppHotkeyCoordinator {
                         conflicts: [handsFreeTrigger]
                     )
                 )
+            } else {
+                var specs: [DictationHotkeyPlan.Spec] = []
+                if !handsFreeTrigger.isDisabled {
+                    specs.append(
+                        DictationHotkeyPlan.Spec(
+                            trigger: handsFreeTrigger,
+                            gestureMode: .singleTapToggle
+                        )
+                    )
+                }
+                if !pushToTalkTrigger.isDisabled {
+                    specs.append(
+                        DictationHotkeyPlan.Spec(
+                            trigger: pushToTalkTrigger,
+                            gestureMode: .holdOnly,
+                            startupDebounceMs: pushToTalkStartupDebounceMs(
+                                handsFree: handsFreeTrigger,
+                                pushToTalk: pushToTalkTrigger
+                            ),
+                            holdToTalkStopTailMs: holdToTalkStopTailMs
+                        )
+                    )
+                }
+                base = DictationHotkeyPlan(specs: specs, conflict: nil)
             }
+        } else {
+            base = DictationHotkeyPlan(specs: [], conflict: nil)
         }
 
-        var specs: [DictationHotkeyPlan.Spec] = []
-        if !handsFreeTrigger.isDisabled {
-            specs.append(
-                DictationHotkeyPlan.Spec(
-                    trigger: handsFreeTrigger,
-                    gestureMode: .singleTapToggle
+        return appendingClipboard(clipboardTrigger, to: base)
+    }
+
+    private static func appendingClipboard(
+        _ clipboard: HotkeyTrigger,
+        to plan: DictationHotkeyPlan
+    ) -> DictationHotkeyPlan {
+        guard !clipboard.isDisabled else { return plan }
+        let conflicting = plan.specs.map(\.trigger).filter { clipboard.overlaps(with: $0) }
+        if !conflicting.isEmpty {
+            return DictationHotkeyPlan(
+                specs: plan.specs,
+                conflict: plan.conflict ?? DictationHotkeyPlan.Conflict(
+                    trigger: clipboard,
+                    conflicts: conflicting
                 )
             )
         }
-        if !pushToTalkTrigger.isDisabled {
-            specs.append(
-                DictationHotkeyPlan.Spec(
-                    trigger: pushToTalkTrigger,
-                    gestureMode: .holdOnly,
-                    startupDebounceMs: pushToTalkStartupDebounceMs(
-                        handsFree: handsFreeTrigger,
-                        pushToTalk: pushToTalkTrigger
-                    ),
-                    holdToTalkStopTailMs: holdToTalkStopTailMs
-                )
+        var specs = plan.specs
+        specs.append(
+            DictationHotkeyPlan.Spec(
+                trigger: clipboard,
+                gestureMode: .singleTapToggle,
+                clipboardOnly: true
             )
-        }
-        return DictationHotkeyPlan(specs: specs, conflict: nil)
+        )
+        return DictationHotkeyPlan(specs: specs, conflict: plan.conflict)
     }
 
     private static func pushToTalkStartupDebounceMs(
@@ -213,7 +251,8 @@ final class AppHotkeyCoordinator {
     func setupDictationHotkeys() {
         let plan = Self.dictationHotkeyPlan(
             handsFree: settingsViewModel.hotkeyTrigger,
-            pushToTalk: settingsViewModel.pushToTalkHotkeyTrigger
+            pushToTalk: settingsViewModel.pushToTalkHotkeyTrigger,
+            clipboard: settingsViewModel.dictationClipboardHotkeyTrigger
         )
         if let conflict = plan.conflict {
             onHotkeyConflict(conflict.trigger, conflict.conflicts)
@@ -227,7 +266,8 @@ final class AppHotkeyCoordinator {
                 startupDebounceMs: spec.startupDebounceMs,
                 holdToTalkStopTailMs: spec.holdToTalkStopTailMs,
                 resumeMode: Self.resumeMode(activeRecordingMode, for: spec.gestureMode),
-                suppressUntilReset: Self.shouldSuppressPeer(activeRecordingMode, for: spec.gestureMode)
+                suppressUntilReset: Self.shouldSuppressPeer(activeRecordingMode, for: spec.gestureMode),
+                clipboardOnly: spec.clipboardOnly
             )
         }
         dictationHotkeyManagers = managers
@@ -246,7 +286,8 @@ final class AppHotkeyCoordinator {
         startupDebounceMs: Int = FnKeyStateMachine.defaultStartupDebounceMs,
         holdToTalkStopTailMs: Int = 0,
         resumeMode: FnKeyStateMachine.RecordingMode? = nil,
-        suppressUntilReset: Bool = false
+        suppressUntilReset: Bool = false,
+        clipboardOnly: Bool = false
     ) -> HotkeyManager? {
         guard !trigger.isDisabled else { return nil }
 
@@ -260,7 +301,7 @@ final class AppHotkeyCoordinator {
             if let manager {
                 self?.suppressOtherDictationHotkeys(activeManager: manager)
             }
-            self?.onStartDictation(mode)
+            self?.onStartDictation(mode, clipboardOnly)
         }
         manager.onStopRecording = { [weak self] in
             self?.resetDictationHotkeyGestures()
@@ -319,6 +360,7 @@ final class AppHotkeyCoordinator {
                 .init(settingsViewModel.pushToTalkHotkeyTrigger, mode: .bareModifierDictation),
                 .init(settingsViewModel.fileTranscriptionHotkeyTrigger),
                 .init(settingsViewModel.youtubeTranscriptionHotkeyTrigger),
+                .init(settingsViewModel.dictationClipboardHotkeyTrigger),
             ],
             onTrigger: { [weak self] in
                 self?.onToggleMeetingRecording()
@@ -334,6 +376,7 @@ final class AppHotkeyCoordinator {
                 .init(settingsViewModel.pushToTalkHotkeyTrigger, mode: .bareModifierDictation),
                 .init(settingsViewModel.meetingHotkeyTrigger),
                 .init(settingsViewModel.youtubeTranscriptionHotkeyTrigger),
+                .init(settingsViewModel.dictationClipboardHotkeyTrigger),
             ],
             onTrigger: { [weak self] in
                 self?.onTriggerFileTranscription()
@@ -349,6 +392,7 @@ final class AppHotkeyCoordinator {
                 .init(settingsViewModel.pushToTalkHotkeyTrigger, mode: .bareModifierDictation),
                 .init(settingsViewModel.meetingHotkeyTrigger),
                 .init(settingsViewModel.fileTranscriptionHotkeyTrigger),
+                .init(settingsViewModel.dictationClipboardHotkeyTrigger),
             ],
             onTrigger: { [weak self] in
                 self?.onTriggerYouTubeTranscription()

@@ -98,6 +98,13 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   suite as `config set`.
 - Saved prompt-result JSON includes additive nullable
   `outputLanguagePolicySnapshot`.
+- `vocab import --policy replace-all` resets the manual vocabulary to the
+  bundle in one transaction. Dry-run JSON reports `wordsRemoved`,
+  `snippetsRemoved`, and `learnedWordsPreserved` only for `replace-all`;
+  skip and replace keep those fields empty. Apply JSON adds `wordsRemoved`
+  and `snippetsRemoved` for the writes that actually ran. Skip remains the
+  default; unmatched learned recognition terms are kept. Empty bundles cannot
+  replace all, and a changed dictionary requires a fresh preview.
 - `config get|set|list` includes `play-dictation-capture-sounds` (`on`/`off`,
   default off). When on, dictation plays a short cue once the microphone is
   live and another when that capture ends, whether it was stopped or
