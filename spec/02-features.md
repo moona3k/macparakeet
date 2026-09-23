@@ -175,6 +175,7 @@ Dictation defaults to a built-in shared `Fn` gesture preset: hold `Fn` for push-
 |------|---------|----------|
 | **Hands-free** | Double-tap the shared Fn/custom trigger when both dictation roles share one, or tap the configured hands-free shortcut when roles are distinct | Persistent recording. Tap the shortcut again to stop. |
 | **Press-and-hold** | Hold the push-to-talk shortcut | Hold-to-talk. Release auto-stops and pastes. |
+| **Clipboard-only dictation** | Optional extra shortcut, default unset | Tap to start/stop like hands-free. The transcript is copied and not pasted into the focused field. Destination is snapshotted at recording start. Distinct from *Keep dictation on clipboard*, which still pastes and then leaves a copy behind. |
 
 Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migrate to the shared `Fn` gesture preset. Legacy single-hotkey installs are migrated to the shared default gesture when the stored trigger is `Fn`. Otherwise the old trigger becomes push-to-talk, while hands-free moves to the default `Fn` preset or disables itself if that would conflict.
 
@@ -949,8 +950,12 @@ Each snippet has a trigger phrase, expansion text, and use count for tracking.
 Users can export the combined vocabulary (manual custom words + text snippets)
 to a versioned JSON file, and import on the same or another Mac. Import shows
 a preview sheet with counts and case-insensitive conflict detection;
-duplicates can be skipped (default) or replaced. Surfaced from the Vocabulary
-panel and via `macparakeet-cli vocab {export,import,schema}`. The
+duplicates can be skipped (default) or replaced, or the entire vocabulary can
+be replaced in one transaction (issue #766). Replace-all removes manual words
+and snippets that aren't in the file, keeps unmatched learned recognition
+terms, rejects empty files and stale previews, and rolls back if any write
+fails. Surfaced from the Vocabulary panel and via
+`macparakeet-cli vocab {export,import,schema}`. The
 `schema` subcommand prints an LLM-readable spec so a local coding agent can
 generate valid bundles from natural-language input.
 
@@ -1122,6 +1127,7 @@ Important constraints:
 - [x] Settings link opens management views
 - [x] Default processing mode configurable
 - [x] Combined vocabulary import/export is available from the Vocabulary panel and CLI
+- [x] Import can replace the entire vocabulary in one transaction, with a preview of removals and rollback on failure
 
 ---
 

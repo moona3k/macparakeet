@@ -33,19 +33,27 @@ public final class VocabularyImportExportService: @unchecked Sendable {
         case decodingFailed(String)
         case invalidEntry(String)
         case ioFailed(String)
+        case emptyReplaceAll
+        case stalePreview
 
         public var errorDescription: String? {
             switch self {
             case .invalidSchema:
                 return "This file isn't a MacParakeet vocabulary backup."
             case let .unsupportedVersion(found, supported):
-                return "This file was created by a newer MacParakeet (format v\(found); this build understands v\(supported)). Update MacParakeet to import it."
+                return
+                    "This file was created by a newer MacParakeet (format v\(found); this build understands v\(supported)). Update MacParakeet to import it."
             case let .decodingFailed(detail):
                 return "Couldn't read the backup file: \(detail)"
             case let .invalidEntry(detail):
                 return "The backup contains an invalid vocabulary entry: \(detail)"
             case let .ioFailed(detail):
                 return "Couldn't read the file: \(detail)"
+            case .emptyReplaceAll:
+                return "This file has no words or snippets. Replace-all requires a dictionary with entries."
+            case .stalePreview:
+                return
+                    "Your vocabulary changed since the preview. Choose the file again to review the current removals."
             }
         }
     }
@@ -53,6 +61,7 @@ public final class VocabularyImportExportService: @unchecked Sendable {
     public enum ConflictPolicy: String, Sendable, CaseIterable, Equatable {
         case skip
         case replace
+        case replaceAll = "replace-all"
     }
 
     public struct ImportPreview: Sendable, Equatable {
@@ -63,12 +72,24 @@ public final class VocabularyImportExportService: @unchecked Sendable {
         public let snippetConflicts: [String]
         public let duplicateWords: [String]
         public let duplicateSnippets: [String]
+        /// Manual custom words that would be deleted under `.replaceAll`.
+        public let wordsRemoved: [String]
+        /// Snippets that would be deleted under `.replaceAll`.
+        public let snippetsRemoved: [String]
+        /// Learned words whose keys are not in the bundle (kept under `.replaceAll`).
+        public let learnedWordsPreserved: Int
+        let existingWords: [CustomWord]
+        let existingSnippets: [TextSnippet]
 
         public var hasConflicts: Bool {
             !wordConflicts.isEmpty
                 || !snippetConflicts.isEmpty
                 || !duplicateWords.isEmpty
                 || !duplicateSnippets.isEmpty
+        }
+
+        public var hasRemovals: Bool {
+            !wordsRemoved.isEmpty || !snippetsRemoved.isEmpty
         }
     }
 
@@ -89,6 +110,8 @@ public final class VocabularyImportExportService: @unchecked Sendable {
         public let snippetsAdded: Int
         public let snippetsReplaced: Int
         public let snippetsSkipped: Int
+        public let wordsRemoved: Int
+        public let snippetsRemoved: Int
 
         public init(
             wordsAdded: Int = 0,
@@ -96,7 +119,9 @@ public final class VocabularyImportExportService: @unchecked Sendable {
             wordsSkipped: Int = 0,
             snippetsAdded: Int = 0,
             snippetsReplaced: Int = 0,
-            snippetsSkipped: Int = 0
+            snippetsSkipped: Int = 0,
+            wordsRemoved: Int = 0,
+            snippetsRemoved: Int = 0
         ) {
             self.wordsAdded = wordsAdded
             self.wordsReplaced = wordsReplaced
@@ -104,6 +129,8 @@ public final class VocabularyImportExportService: @unchecked Sendable {
             self.snippetsAdded = snippetsAdded
             self.snippetsReplaced = snippetsReplaced
             self.snippetsSkipped = snippetsSkipped
+            self.wordsRemoved = wordsRemoved
+            self.snippetsRemoved = snippetsRemoved
         }
     }
 
@@ -182,8 +209,12 @@ public final class VocabularyImportExportService: @unchecked Sendable {
 
         let validatedBundle = try Self.validatedBundle(bundle)
 
-        let existingWords = Set((try customWordRepo.fetchAll()).map { $0.word.lowercased() })
-        let existingTriggers = Set((try snippetRepo.fetchAll()).map { $0.trigger.lowercased() })
+        let existingWordRecords = try customWordRepo.fetchAll()
+        let existingSnippetRecords = try snippetRepo.fetchAll()
+        let incomingWordKeys = Set(validatedBundle.customWords.map { $0.word.lowercased() })
+        let incomingSnippetKeys = Set(validatedBundle.textSnippets.map { $0.trigger.lowercased() })
+        let existingWords = Set(existingWordRecords.map { $0.word.lowercased() })
+        let existingTriggers = Set(existingSnippetRecords.map { $0.trigger.lowercased() })
 
         let wordConflicts = validatedBundle.customWords
             .map(\.word)
@@ -193,6 +224,18 @@ public final class VocabularyImportExportService: @unchecked Sendable {
             .filter { existingTriggers.contains($0.lowercased()) }
         let duplicateWords = Self.caseInsensitiveDuplicates(in: validatedBundle.customWords.map(\.word))
         let duplicateSnippets = Self.caseInsensitiveDuplicates(in: validatedBundle.textSnippets.map(\.trigger))
+        let wordsRemoved =
+            existingWordRecords
+            .filter { $0.source == .manual && !incomingWordKeys.contains($0.word.lowercased()) }
+            .map(\.word)
+        let snippetsRemoved =
+            existingSnippetRecords
+            .filter { !incomingSnippetKeys.contains($0.trigger.lowercased()) }
+            .map(\.trigger)
+        let learnedWordsPreserved =
+            existingWordRecords
+            .filter { $0.source == .learned && !incomingWordKeys.contains($0.word.lowercased()) }
+            .count
 
         return ImportPreview(
             bundle: validatedBundle,
@@ -201,14 +244,55 @@ public final class VocabularyImportExportService: @unchecked Sendable {
             wordConflicts: wordConflicts,
             snippetConflicts: snippetConflicts,
             duplicateWords: duplicateWords,
-            duplicateSnippets: duplicateSnippets
+            duplicateSnippets: duplicateSnippets,
+            wordsRemoved: wordsRemoved,
+            snippetsRemoved: snippetsRemoved,
+            learnedWordsPreserved: learnedWordsPreserved,
+            existingWords: existingWordRecords,
+            existingSnippets: existingSnippetRecords
         )
     }
 
     public func apply(preview: ImportPreview, policy: ConflictPolicy) throws -> ImportResult {
+        if policy == .replaceAll, preview.wordsTotal == 0, preview.snippetsTotal == 0 {
+            throw ImportError.emptyReplaceAll
+        }
         let now = clock()
 
         return try dbQueue.write { db in
+            var wordsRemoved = 0
+            var snippetsRemoved = 0
+
+            if policy == .replaceAll {
+                let currentWords = try CustomWord.fetchAll(db)
+                let currentSnippets = try TextSnippet.fetchAll(db)
+                guard
+                    Dictionary(uniqueKeysWithValues: currentWords.map { ($0.id, $0) })
+                        == Dictionary(uniqueKeysWithValues: preview.existingWords.map { ($0.id, $0) }),
+                    Dictionary(uniqueKeysWithValues: currentSnippets.map { ($0.id, $0) })
+                        == Dictionary(uniqueKeysWithValues: preview.existingSnippets.map { ($0.id, $0) })
+                else {
+                    throw ImportError.stalePreview
+                }
+                let incomingWordKeys = Set(preview.bundle.customWords.map { $0.word.lowercased() })
+                let incomingSnippetKeys = Set(preview.bundle.textSnippets.map { $0.trigger.lowercased() })
+
+                for word in preview.existingWords {
+                    let key = word.word.lowercased()
+                    guard !incomingWordKeys.contains(key) else { continue }
+                    guard word.source != .learned else { continue }
+                    _ = try CustomWord.deleteOne(db, key: word.id)
+                    wordsRemoved += 1
+                }
+
+                for snippet in preview.existingSnippets {
+                    let key = snippet.trigger.lowercased()
+                    guard !incomingSnippetKeys.contains(key) else { continue }
+                    _ = try TextSnippet.deleteOne(db, key: snippet.id)
+                    snippetsRemoved += 1
+                }
+            }
+
             var wordsByKey: [String: CustomWord] = [:]
             for word in try CustomWord.fetchAll(db) {
                 wordsByKey[word.word.lowercased()] = word
@@ -224,7 +308,7 @@ public final class VocabularyImportExportService: @unchecked Sendable {
                     switch policy {
                     case .skip:
                         wordsSkipped += 1
-                    case .replace:
+                    case .replace, .replaceAll:
                         _ = try CustomWord.deleteOne(db, key: match.id)
                         let new = CustomWord(
                             id: UUID(),
@@ -270,7 +354,7 @@ public final class VocabularyImportExportService: @unchecked Sendable {
                     switch policy {
                     case .skip:
                         snippetsSkipped += 1
-                    case .replace:
+                    case .replace, .replaceAll:
                         _ = try TextSnippet.deleteOne(db, key: match.id)
                         let new = TextSnippet(
                             id: UUID(),
@@ -309,7 +393,9 @@ public final class VocabularyImportExportService: @unchecked Sendable {
                 wordsSkipped: wordsSkipped,
                 snippetsAdded: snippetsAdded,
                 snippetsReplaced: snippetsReplaced,
-                snippetsSkipped: snippetsSkipped
+                snippetsSkipped: snippetsSkipped,
+                wordsRemoved: wordsRemoved,
+                snippetsRemoved: snippetsRemoved
             )
         }
     }
