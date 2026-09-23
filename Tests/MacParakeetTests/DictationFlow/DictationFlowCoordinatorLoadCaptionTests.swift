@@ -468,6 +468,30 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         XCTAssertEqual(newlineClipboard.lastPastedText, "hello\nworld ")
     }
 
+    func testOnboardingPracticeUsesPasteEvenWhenStreamingCursorIsEnabled() async throws {
+        let harness = try makeHarness(
+            isReady: true,
+            transcribeDelayMs: 5,
+            streamingCursorEnabled: true
+        )
+        var isPracticeTarget = true
+        harness.coordinator.isPracticeTarget = { isPracticeTarget }
+
+        harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
+        let started = await waitUntil { harness.coordinator.overlayStateForTesting?.isRecordingForTest == true }
+        XCTAssertTrue(started)
+        isPracticeTarget = false // Target visibility can change before paste dispatch.
+        harness.coordinator.stopDictation()
+        let pasted = await waitUntilAsync {
+            await harness.clipboard.snapshot().lastPastedText != nil
+        }
+
+        XCTAssertTrue(pasted)
+        XCTAssertEqual(harness.streamingInserter.snapshot(), [])
+        let clipboard = await harness.clipboard.snapshot()
+        XCTAssertEqual(clipboard.lastPastedText, "Mock transcription ")
+    }
+
     func testStreamingCursorEventFailureFallsBackToPaste() async throws {
         let inserter = RecordingStreamingInserter()
         inserter.error = StreamingCursorError.eventSourceUnavailable

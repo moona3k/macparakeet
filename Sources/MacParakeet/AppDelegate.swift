@@ -646,6 +646,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         dictationFlowCoordinator = runtime.dictationFlowCoordinator
+        dictationFlowCoordinator?.isPracticeTarget = { [weak self] in
+            self?.onboardingWindowController.isVisible == true
+                && self?.onboardingWindowController.currentViewModel?.isPracticeListening == true
+        }
         onboardingWindowController.onPracticeExit = { [weak self] in
             self?.dictationFlowCoordinator?.dismissPracticeDictation()
         }

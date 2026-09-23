@@ -84,6 +84,8 @@ Once the box has started listening, the rehearsal is not re-armed while the user
 
 Leaving Try It or closing onboarding dismisses any active practice take and cancels its pending insertion, so it cannot paste after the practice target disappears. Closing disarms the box before the incomplete-setup confirmation appears; if the user stays, another click is required to resume practice. A completed transcription may already be retained in local history; the dismissal does not delete user data. If paste fails but its clipboard fallback succeeds, the delivered transcript still counts as practice and appears in the box.
 
+Practice uses normal paste even when the optional streaming-cursor setting is enabled. The streaming inserter flushes all remaining words when its task is cancelled; using it inside a target that Skip or close can remove would type those words into the next focused control. Normal dictation outside onboarding keeps the user's streaming setting.
+
 ## Step 4: All Set
 
 - After a practice dictation: "Your first dictation worked", with the words quoted back.

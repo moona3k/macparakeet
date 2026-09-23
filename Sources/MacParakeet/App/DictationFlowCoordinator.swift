@@ -149,6 +149,9 @@ final class DictationFlowCoordinator {
     var onFlowStateChanged: ((DictationFlowState) -> Void)?
     /// Called with the transcript after a successful insert or clipboard copy.
     var onDictationDelivered: ((String) -> Void)?
+    /// Sampled when a take starts. Practice can lose its target during Skip or
+    /// close, so it cannot use streaming cursor's drain-on-cancel insertion.
+    var isPracticeTarget: () -> Bool = { false }
 
     // MARK: - Dependencies
 
@@ -219,6 +222,7 @@ final class DictationFlowCoordinator {
     /// cannot flip an in-flight clipboard-only session to paste.
     private var pendingSessionClipboardOnly = false
     private var sessionClipboardOnly = false
+    private var sessionIsPractice = false
     private let mutationArbiter: GUIMutationArbiter
     private var interactionLease: GUIMutationArbiter.Lease?
     private var foregroundInsertions = 0
@@ -489,6 +493,7 @@ final class DictationFlowCoordinator {
             onHotkeyRecordingEnded?()
         }
         currentTrigger = trigger
+        sessionIsPractice = isPracticeTarget()
         sessionAIFormatterEnabled = aiFormatterEnabled
         pendingSessionClipboardOnly = clipboardOnly
         return true
@@ -798,6 +803,7 @@ final class DictationFlowCoordinator {
             // during the short stream is accepted risk; paste remains the fallback
             // when capability is unknown. Clipboard-only never inserts.
             let shouldStream = !clipboardOnly
+                && !sessionIsPractice
                 && self.runtimePreferences.dictationStreamingCursorEnabled
                 && !self.shouldReduceMotion()
                 && self.inputSourceAllowsStreaming()
