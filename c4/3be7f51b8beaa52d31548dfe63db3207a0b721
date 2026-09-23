@@ -1,0 +1,42 @@
+Sources/MacParakeet/Onboarding/OnboardingWindowController.swift
+  s_57f96c7e168713::t_5be2e96d7600bd 13,69,84,165
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorLoadCaptionTests.swift
+  s_57f96c7e168713::t_aee9f9ad5e95df 501-502,515
+  s_57f96c7e168713::t_75a276afa8e74e 508,512
+docs/design/2026-09-23-wispr-onboarding/implementation.md
+  s_57f96c7e168713::t_c61405ab32b5df 85-86
+Tests/MacParakeetTests/ViewModels/OnboardingViewModelTests.swift
+  s_57f96c7e168713::t_aee9f9ad5e95df 782-794
+Sources/MacParakeet/AppDelegate.swift
+  s_57f96c7e168713::t_5be2e96d7600bd 649-651
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_57f96c7e168713::t_5be2e96d7600bd 508-510,513-515,928,935,939,948
+  s_57f96c7e168713::t_c42e8965710ec1 198,511-512,810,824,882,917,953-955
+docs/audits/2026-09-23-post-0.8.7-release-readiness.md
+  s_57f96c7e168713::t_c61405ab32b5df 3-6,8,10
+  s_57f96c7e168713::t_cd67c1d927b73c 7,9
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_57f96c7e168713::t_b6dccf5b933a23 238-262
+  s_57f96c7e168713::t_aee9f9ad5e95df 190-197,200,203-223,226-237
+  s_57f96c7e168713::t_c0418ab44c87b7 198-199,201-202,224-225
+Sources/MacParakeetViewModels/OnboardingViewModel.swift
+  s_57f96c7e168713::t_5be2e96d7600bd 183-184,438
+spec/adr/005-onboarding-first-run.md
+  s_57f96c7e168713::t_68bfd124e70e93 98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c43be7f51b8beaa52d31548dfe63db3207a0b721",
+  "prompts": {},
+  "sessions": {
+    "s_57f96c7e168713": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cd8c-0edf-7db2-b8e5-8dd9ef44ed55",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
