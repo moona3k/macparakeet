@@ -1432,6 +1432,7 @@ final class MockPromptMeetingPolicyRepository: PromptMeetingPolicyRepositoryProt
 final class MockPromptResultRepository: PromptResultRepositoryProtocol, @unchecked Sendable {
     var promptResults: [PromptResult] = []
     var saveCalls: [PromptResult] = []
+    var updateContentCalls: [PromptResult] = []
     var replaceCalls: [(promptResult: PromptResult, deletingExistingID: UUID?)] = []
     var deleteCalls: [UUID] = []
 
@@ -1442,6 +1443,18 @@ final class MockPromptResultRepository: PromptResultRepositoryProtocol, @uncheck
         } else {
             promptResults.append(promptResult)
         }
+    }
+
+    func updateContent(id: UUID, expectedContent: String, content: String, editedAt: Date) throws -> PromptResult? {
+        guard let index = promptResults.firstIndex(where: { $0.id == id && $0.content == expectedContent }) else {
+            return nil
+        }
+        promptResults[index].content = content
+        promptResults[index].contentEditedAt = editedAt
+        promptResults[index].updatedAt = editedAt
+        let updated = promptResults[index]
+        updateContentCalls.append(updated)
+        return updated
     }
 
     func replace(_ promptResult: PromptResult, deletingExistingID: UUID?) throws {

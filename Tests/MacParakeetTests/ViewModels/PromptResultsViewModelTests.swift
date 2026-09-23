@@ -73,7 +73,7 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.saveEditingPromptResult(now: savedAt))
 
         XCTAssertFalse(viewModel.isEditingPromptResult(existing.id))
-        let saved = try XCTUnwrap(promptResultRepo.saveCalls.last)
+        let saved = try XCTUnwrap(promptResultRepo.updateContentCalls.last)
         XCTAssertEqual(saved.id, existing.id)
         XCTAssertEqual(saved.content, "Ship Friday.")
         XCTAssertEqual(saved.contentEditedAt, savedAt)
@@ -87,6 +87,31 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertEqual(saved.modelSnapshot, "gpt-test")
         XCTAssertEqual(viewModel.promptResults.first?.content, "Ship Friday.")
         XCTAssertTrue(try XCTUnwrap(viewModel.promptResults.first).isContentUserEdited)
+    }
+
+    func testSaveEditingPromptResultKeepsDraftWhenResultWasReplaced() {
+        let existing = PromptResult(
+            transcriptionId: UUID(),
+            promptName: "Summary",
+            promptContent: "Summarize.",
+            content: "Original"
+        )
+        promptResultRepo.promptResults = [existing]
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo
+        )
+        viewModel.loadPromptResults(transcriptionId: existing.transcriptionId)
+        viewModel.beginEditingPromptResult(existing)
+        viewModel.editingDraft = "Corrected"
+        promptResultRepo.promptResults = []
+
+        XCTAssertFalse(viewModel.saveEditingPromptResult())
+        XCTAssertTrue(viewModel.isEditingPromptResult(existing.id))
+        XCTAssertEqual(viewModel.editingDraft, "Corrected")
+        XCTAssertTrue(promptResultRepo.promptResults.isEmpty)
+        XCTAssertTrue(promptResultRepo.updateContentCalls.isEmpty)
     }
 
     func testCancelEditingPromptResultDiscardsDraft() {

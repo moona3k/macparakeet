@@ -226,6 +226,7 @@ final class MeetingArtifactStoreTests: XCTestCase {
         XCTAssertEqual(promptResult["index"] as? Int, 1)
         XCTAssertEqual(promptResult["name"] as? String, "Executive Summary")
         XCTAssertEqual(promptResult["includeMeetingNotesSnapshot"] as? Bool, true)
+        XCTAssertNil(promptResult["contentEditedAt"])
         let inferenceSettings = try XCTUnwrap(
             promptResult["inferenceSettingsSnapshot"] as? [String: Any]
         )
@@ -264,7 +265,10 @@ final class MeetingArtifactStoreTests: XCTestCase {
         let resultMarkdown = try String(contentsOfFile: resultMarkdownPath, encoding: .utf8)
         XCTAssertTrue(resultMarkdown.contains("Content edited: \(ISO8601DateFormatter().string(from: editedAt))"))
         let promptResults = try jsonArray(at: URL(fileURLWithPath: snapshot.promptResultsPath))
-        XCTAssertNotNil(try XCTUnwrap(promptResults.first)["contentEditedAt"])
+        XCTAssertEqual(
+            try XCTUnwrap(promptResults.first)["contentEditedAt"] as? String,
+            ISO8601DateFormatter().string(from: editedAt)
+        )
     }
 
     func testMaterializeProjectionPreservesCorrectedSplitSpeakerSpans() async throws {

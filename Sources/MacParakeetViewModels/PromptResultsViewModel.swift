@@ -519,12 +519,18 @@ public final class PromptResultsViewModel {
             errorMessage = "Result cannot be empty."
             return false
         }
-        var updated = promptResults[index]
-        updated.content = editingDraft
-        updated.contentEditedAt = now
-        updated.updatedAt = now
         do {
-            try promptResultRepo.save(updated)
+            guard
+                let updated = try promptResultRepo.updateContent(
+                    id: id,
+                    expectedContent: promptResults[index].content,
+                    content: editingDraft,
+                    editedAt: now
+                )
+            else {
+                errorMessage = "Result changed or was removed. Your draft has not been saved."
+                return false
+            }
             promptResults[index] = updated
             cancelEditingPromptResult()
             onPromptResultsChanged?(updated.transcriptionId, true)

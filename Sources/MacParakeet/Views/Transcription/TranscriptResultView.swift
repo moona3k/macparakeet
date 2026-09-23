@@ -632,6 +632,7 @@ struct TranscriptResultView: View {
     @FocusState private var titleFocused: Bool
     @FocusState private var transcriptEditorFocused: Bool
     @FocusState private var meetingNotesEditorFocused: Bool
+    @FocusState private var promptResultEditorFocused: Bool
     @FocusState private var focusedSpeakerRenameContext: String?
     @FocusState private var findFieldFocused: Bool
 
@@ -3220,91 +3221,92 @@ struct TranscriptResultView: View {
                             .disabled(!promptResultsViewModel.canSaveEditingPromptResult)
                         } else {
                             Button {
-                            startPromptContextAction { context in
-                                if let generationID = promptResultsViewModel.regeneratePromptResult(
-                                    promptResult,
-                                    transcript: context,
-                                    sourceCorrectionRevision: currentCorrectionRevision
-                                ) {
-                                    viewModel.selectedTab = .generation(id: generationID)
+                                startPromptContextAction { context in
+                                    if let generationID = promptResultsViewModel.regeneratePromptResult(
+                                        promptResult,
+                                        transcript: context,
+                                        sourceCorrectionRevision: currentCorrectionRevision
+                                    ) {
+                                        viewModel.selectedTab = .generation(id: generationID)
+                                    }
                                 }
+                            } label: {
+                                HStack(spacing: DesignSystem.Spacing.xs) {
+                                    Image(systemName: "arrow.clockwise")
+                                    Text(summaryNeedsUpdate ? "Update summary" : "Regenerate")
+                                }
+                                .font(DesignSystem.Typography.caption)
                             }
-                        } label: {
-                            HStack(spacing: DesignSystem.Spacing.xs) {
-                                Image(systemName: "arrow.clockwise")
-                                Text(summaryNeedsUpdate ? "Update summary" : "Regenerate")
-                            }
-                            .font(DesignSystem.Typography.caption)
-                        }
-                        .parakeetAction(summaryNeedsUpdate ? .primary : .secondary)
-                        .controlSize(.small)
-                        .disabled(
-                            promptNotesActionGate.isRunning || richContextLoader.preparingPromptContext
-                                || !promptResultsViewModel.canGeneratePromptResult
-                                || transcriptText.isEmpty
-                        )
+                            .parakeetAction(summaryNeedsUpdate ? .primary : .secondary)
+                            .controlSize(.small)
+                            .disabled(
+                                promptNotesActionGate.isRunning || richContextLoader.preparingPromptContext
+                                    || !promptResultsViewModel.canGeneratePromptResult
+                                    || transcriptText.isEmpty
+                            )
 
-                        let isCopied = copiedButtonResultID == promptResultID
-                        Button {
-                            TranscriptResultActions.copyText(promptResult.content)
-                            copiedButtonResultID = promptResultID
-                            resultButtonCopiedResetTask?.cancel()
-                            resultButtonCopiedResetTask = Task {
-                                try? await Task.sleep(for: .seconds(1))
-                                copiedButtonResultID = nil
-                            }
-                        } label: {
-                            HStack(spacing: DesignSystem.Spacing.xs) {
-                                Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
-                                Text(isCopied ? "Copied" : "Copy")
-                            }
-                            .font(DesignSystem.Typography.caption)
-                            .foregroundStyle(isCopied ? DesignSystem.Colors.successGreen : .primary)
-                        }
-                        .parakeetAction(.secondary)
-                        .controlSize(.small)
-
-                        if let sharing = shareManagement, AppFeatures.isShareLinksAvailable() {
-                            Button { prepareShare(using: sharing, selectedSummaryID: promptResult.id) } label: {
-                                Label("Share result…", systemImage: "square.and.arrow.up")
+                            let isCopied = copiedButtonResultID == promptResultID
+                            Button {
+                                TranscriptResultActions.copyText(promptResult.content)
+                                copiedButtonResultID = promptResultID
+                                resultButtonCopiedResetTask?.cancel()
+                                resultButtonCopiedResetTask = Task {
+                                    try? await Task.sleep(for: .seconds(1))
+                                    copiedButtonResultID = nil
+                                }
+                            } label: {
+                                HStack(spacing: DesignSystem.Spacing.xs) {
+                                    Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
+                                    Text(isCopied ? "Copied" : "Copy")
+                                }
+                                .font(DesignSystem.Typography.caption)
+                                .foregroundStyle(isCopied ? DesignSystem.Colors.successGreen : .primary)
                             }
                             .parakeetAction(.secondary)
                             .controlSize(.small)
-                            .disabled(preparingShare || sharing.isBusy || !sharing.isConfigured)
-                        }
 
-                        Menu {
-                            Button("Markdown (.md)") {
-                                exportGenerationToDownloads(promptResult: promptResult, format: .md)
+                            if let sharing = shareManagement, AppFeatures.isShareLinksAvailable() {
+                                Button { prepareShare(using: sharing, selectedSummaryID: promptResult.id) } label: {
+                                    Label("Share result…", systemImage: "square.and.arrow.up")
+                                }
+                                .parakeetAction(.secondary)
+                                .controlSize(.small)
+                                .disabled(preparingShare || sharing.isBusy || !sharing.isConfigured)
                             }
-                            Button("Plain Text (.txt)") {
-                                exportGenerationToDownloads(promptResult: promptResult, format: .txt)
-                            }
-                        } label: {
-                            HStack(spacing: DesignSystem.Spacing.xs) {
-                                Image(systemName: "arrow.down.doc")
-                                Text("Export")
-                            }
-                            .font(DesignSystem.Typography.caption)
-                        }
-                        .menuStyle(.borderedButton)
-                        .tint(DesignSystem.Colors.tintNeutral)
-                        .controlSize(.small)
 
-                        Button(role: .destructive) {
-                            promptResultsViewModel.pendingDeletePromptResult = promptResult
-                        } label: {
-                            HStack(spacing: DesignSystem.Spacing.xs) {
-                                Image(systemName: "trash")
-                                Text("Delete")
+                            Menu {
+                                Button("Markdown (.md)") {
+                                    exportGenerationToDownloads(promptResult: promptResult, format: .md)
+                                }
+                                Button("Plain Text (.txt)") {
+                                    exportGenerationToDownloads(promptResult: promptResult, format: .txt)
+                                }
+                            } label: {
+                                HStack(spacing: DesignSystem.Spacing.xs) {
+                                    Image(systemName: "arrow.down.doc")
+                                    Text("Export")
+                                }
+                                .font(DesignSystem.Typography.caption)
                             }
-                            .font(DesignSystem.Typography.caption)
-                        }
-                        .parakeetAction(.destructive)
-                        .controlSize(.small)
+                            .menuStyle(.borderedButton)
+                            .tint(DesignSystem.Colors.tintNeutral)
+                            .controlSize(.small)
+
+                            Button(role: .destructive) {
+                                promptResultsViewModel.pendingDeletePromptResult = promptResult
+                            } label: {
+                                HStack(spacing: DesignSystem.Spacing.xs) {
+                                    Image(systemName: "trash")
+                                    Text("Delete")
+                                }
+                                .font(DesignSystem.Typography.caption)
+                            }
+                            .parakeetAction(.destructive)
+                            .controlSize(.small)
 
                             Button {
                                 promptResultsViewModel.beginEditingPromptResult(promptResult)
+                                Task { @MainActor in promptResultEditorFocused = true }
                             } label: {
                                 HStack(spacing: DesignSystem.Spacing.xs) {
                                     Image(systemName: "pencil")
@@ -3319,6 +3321,7 @@ struct TranscriptResultView: View {
 
                     if promptResultsViewModel.isEditingPromptResult(promptResult.id) {
                         TextEditor(text: $promptResultsViewModel.editingDraft)
+                            .focused($promptResultEditorFocused)
                             .font(DesignSystem.Typography.body)
                             .foregroundStyle(DesignSystem.Colors.textPrimary)
                             .scrollContentBackground(.hidden)
