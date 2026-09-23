@@ -370,6 +370,7 @@ public actor DictationService: DictationServiceProtocol {
                 cancelReason: .ui
             )
             clearCurrentOperation()
+            recordingStartedAt = nil
             activeSessionID = sessionID!
             claimedReplacementSessionID = sessionID
             replacementCleanupSessionID = sessionID
@@ -732,6 +733,9 @@ public actor DictationService: DictationServiceProtocol {
             )
             return
         }
+        // The new session may be claimed while cleanup still owns the old
+        // recorder. A delayed media-pause callback must not trim that take.
+        guard replacementCleanupSessionID != activeSessionID else { return }
         // The pre-roll was already mirrored into the live STT stream, but the
         // recorder will now trim it from the WAV. Cancel the live stream rather
         // than flushing a final over audio that is no longer in the source file.
@@ -805,12 +809,14 @@ public actor DictationService: DictationServiceProtocol {
         pendingCancelledDurationMs = capturedDurationMs
         pendingCancelledCaptureMs = captureMs
         _state = .cancelled
-        Telemetry.send(
-            .dictationCancelled(
-                durationSeconds: resolvedDurationSeconds(capturedMs: capturedDurationMs),
-                reason: reason,
-                device: device
-            ))
+        if !replacementHasNoCapture {
+            Telemetry.send(
+                .dictationCancelled(
+                    durationSeconds: resolvedDurationSeconds(capturedMs: capturedDurationMs),
+                    reason: reason,
+                    device: device
+                ))
+        }
 
         cancelResetTask?.cancel()
         cancelResetTask = Task { [generation] in

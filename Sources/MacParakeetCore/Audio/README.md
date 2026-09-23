@@ -269,7 +269,10 @@ replacement claims the new session before stopping the old capture, cancellation
 of that replacement must leave the old recorder stop to its cleanup and must
 not announce a stop for a capture the replacement never started. A stop request
 for that provisional replacement must also be rejected rather than transcribing
-the old take under the new session.
+the old take under the new session. Its delayed media-pause callback must not
+discard pre-roll from the old capture. The old take's cancel telemetry is
+emitted once when replacement claims it; cancelling the provisional take adds
+no second capture-cancel event.
 
 **Tap closures run on the audio render thread.** No allocation, no
 actor hops, no `await`. State touched from the tap path uses

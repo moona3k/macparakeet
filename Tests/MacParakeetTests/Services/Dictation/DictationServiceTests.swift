@@ -305,6 +305,8 @@ final class DictationServiceTests: XCTestCase {
     }
 
     func testCancelReplacementBeforeOldStopLeavesOldCaptureForCleanup() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
         let stops = observeCaptureDidStop()
         defer { NotificationCenter.default.removeObserver(stops.observer) }
         try await service.startRecording(context: DictationTelemetryContext(), sessionID: 1)
@@ -320,11 +322,14 @@ final class DictationServiceTests: XCTestCase {
             try await self.service.startRecording(context: DictationTelemetryContext(), sessionID: 2)
         }
         await cleanupEntered.wait()
-        await service.cancelRecording(sessionID: 2)
+        await service.cancelRecording(reason: .escape, sessionID: 2)
         let stopsBeforeCleanup = await mockAudio.stopCaptureCallCount
         let oldStillRecording = await mockAudio.isRecording
         XCTAssertEqual(stopsBeforeCleanup, 0, "Canceling B must leave A's recorder stop to cleanup")
         XCTAssertTrue(oldStillRecording)
+        let cancelledEvents = telemetry.snapshot().filter { $0.name == .dictationCancelled }
+        XCTAssertEqual(cancelledEvents.count, 1, "A provisional B has no capture to cancel")
+        XCTAssertEqual(cancelledEvents.first?.props?["reason"], "ui")
 
         await cleanupRelease.release()
         try await restartTask.value
@@ -354,13 +359,19 @@ final class DictationServiceTests: XCTestCase {
             XCTFail("A provisional replacement must not stop the old take")
         } catch DictationServiceError.notRecording {
         }
+        await service.discardPreRollForActiveCapture(sessionID: 2)
         let stopsBeforeCleanup = await mockAudio.stopCaptureCallCount
         let oldStillRecording = await mockAudio.isRecording
+        let oldPreRollDiscards = await mockAudio.discardPreRollCallCount
         XCTAssertEqual(stopsBeforeCleanup, 0)
         XCTAssertTrue(oldStillRecording)
+        XCTAssertEqual(oldPreRollDiscards, 0, "A provisional B cannot trim A's pre-roll")
 
         await cleanupRelease.release()
         try await restartTask.value
+        await service.discardPreRollForActiveCapture(sessionID: 2)
+        let newPreRollDiscards = await mockAudio.discardPreRollCallCount
+        XCTAssertEqual(newPreRollDiscards, 1)
         _ = try await service.stopRecording(sessionID: 2)
         let stopsAfterReplacement = await mockAudio.stopCaptureCallCount
         XCTAssertEqual(stopsAfterReplacement, 2)
