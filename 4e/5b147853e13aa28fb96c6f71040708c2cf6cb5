@@ -1,0 +1,24 @@
+docs/audits/2026-09-23-post-0.8.7-release-readiness.md
+  s_57f96c7e168713::t_bde3147f6c1549 24-25
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_57f96c7e168713::t_bde3147f6c1549 516
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_57f96c7e168713::t_bde3147f6c1549 212,241,265-283
+  s_57f96c7e168713::t_a5b734a971b3f6 284-285
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4e5b147853e13aa28fb96c6f71040708c2cf6cb5",
+  "prompts": {},
+  "sessions": {
+    "s_57f96c7e168713": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cd8c-0edf-7db2-b8e5-8dd9ef44ed55",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
