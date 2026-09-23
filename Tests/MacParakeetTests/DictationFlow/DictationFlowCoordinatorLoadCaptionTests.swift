@@ -480,7 +480,8 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
         let started = await waitUntil { harness.coordinator.overlayStateForTesting?.isRecordingForTest == true }
         XCTAssertTrue(started)
-        isPracticeTarget = false // Target visibility can change before paste dispatch.
+        // Target visibility can change before paste dispatch.
+        isPracticeTarget = false
         harness.coordinator.stopDictation()
         let pasted = await waitUntilAsync {
             await harness.clipboard.snapshot().lastPastedText != nil
