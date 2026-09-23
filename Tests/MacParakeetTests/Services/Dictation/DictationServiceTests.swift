@@ -705,7 +705,7 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(result.operationID, operation["operation_id"])
     }
 
-    func testStopRecordingPostsCaptureDidStopForSessionBeforeTranscription() async throws {
+    func testStopRecordingPostsCaptureDidStopForSession() async throws {
         await mockSTT.configure(result: STTResult(text: "hello"))
         let stops = observeCaptureDidStop()
         defer { NotificationCenter.default.removeObserver(stops.observer) }

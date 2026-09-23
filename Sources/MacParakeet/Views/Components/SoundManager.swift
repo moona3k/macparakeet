@@ -28,7 +28,10 @@ final class SoundManager {
             player.currentTime = 0
             player.play()
         } else if let fallback = fallbackSound(for: sound) {
-            fallback.stop()
+            if fallback.isPlaying {
+                guard sound.restartsWhilePlaying else { return }
+                fallback.stop()
+            }
             fallback.play()
         }
     }
@@ -96,9 +99,19 @@ enum AppSound: String, CaseIterable {
     /// Dictation cues play twice per take, so they sit below the
     /// once-per-file completion chime (Tink peaks ~5 dB hotter than Glass).
     var systemSoundFallbackVolume: Float {
+        isDictationCaptureCue ? 0.4 : 1.0
+    }
+
+    /// Each take owes its own cue (Pop's file runs ~1.6 s, longer than a
+    /// quick take). Other sounds keep NSSound's ignore-while-playing.
+    var restartsWhilePlaying: Bool {
+        isDictationCaptureCue
+    }
+
+    private var isDictationCaptureCue: Bool {
         switch self {
-        case .recordStart, .recordStop: return 0.4
-        case .transcriptionComplete, .fileDropped, .errorSoft: return 1.0
+        case .recordStart, .recordStop: return true
+        case .transcriptionComplete, .fileDropped, .errorSoft: return false
         }
     }
 }

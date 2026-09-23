@@ -155,7 +155,8 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         let stopped = await waitUntil { harness.cues.played == [.recordStart, .recordStop] }
         XCTAssertTrue(stopped, "Cancel closes the mic, so it owes the stop cue: \(harness.cues.played)")
         harness.coordinator.cancelDictation()
-        XCTAssertEqual(harness.cues.played, [.recordStart, .recordStop])
+        let extraCue = await waitUntil(timeoutMs: 300) { harness.cues.played.count > 2 }
+        XCTAssertFalse(extraCue, "Confirming the cancel must not play a second stop cue: \(harness.cues.played)")
     }
 
     func testCaptureCuesStaySilentWhenPreferenceIsOff() async throws {

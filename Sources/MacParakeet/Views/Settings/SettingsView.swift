@@ -1231,7 +1231,7 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Play sounds when dictation starts and stops",
-                    detail: "A short cue when the mic is live and another when it closes, so you know when to speak. Off by default. On speakers, the start cue can reach the mic — use headphones to keep it out of saved audio.",
+                    detail: "A short cue when the mic is live and another when it closes, so you know when to speak. Off by default. Follows the macOS sound effects setting. On speakers, the start cue can reach the mic — use headphones to keep it out of saved audio.",
                     isOn: Binding(
                         get: { viewModel.playDictationCaptureSounds },
                         set: { isOn in

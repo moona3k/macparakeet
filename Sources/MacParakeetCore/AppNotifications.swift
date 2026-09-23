@@ -50,7 +50,8 @@ public extension Notification.Name {
     /// preview live, so a size change is visible mid-dictation.
     static let macParakeetDictationPreviewTextSizeDidChange = Notification.Name("macparakeet.dictationPreviewTextSizeDidChange")
     /// Posted by `DictationService` (as `object`) each time a live microphone
-    /// capture ends: stop (before STT, usable or not), cancel, or discard.
+    /// capture ends: stop (before STT, usable or not), cancel, discard, or a
+    /// stale take replaced by a new start.
     /// `userInfo[DictationCaptureNotificationKey.sessionID]` is the `Int`
     /// session whose capture ended. Observers pair it with their own start
     /// cue; the service does not know whether a cue played.

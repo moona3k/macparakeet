@@ -350,10 +350,12 @@ final class DictationFlowCoordinator {
     private var captureCueSessionID: Int?
 
     private func observeDictationCaptureSoundNotifications(from dictationService: DictationService) {
+        // `queue: nil` runs on the posting actor and returns at once; a main
+        // queue here would hold DictationService until main drains, before STT.
         dictationCaptureDidStopObserver = NotificationCenter.default.addObserver(
             forName: .macParakeetDictationCaptureDidStop,
             object: dictationService,
-            queue: .main
+            queue: nil
         ) { [weak self] note in
             let sessionID = note.userInfo?[DictationCaptureNotificationKey.sessionID] as? Int
             Task { @MainActor [weak self] in
