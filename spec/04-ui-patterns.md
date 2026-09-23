@@ -971,6 +971,12 @@ and boundary actions:
 - The Text view and Timed view render the same effective corrected words. The
   legacy whole-transcript editor remains available only from Text view for
   content without safe timing and explains that its replacement is untimed.
+- A completed timed transcript's Text view also has its own `Edit`, separate
+  from Timed view's per-line menu. It turns each editable passage into a
+  field: rewrite it or use its remove control to omit it. `Done` saves the
+  session as one `reviseText` correction (empty result is a no-op); `Cancel`
+  discards it. Outside that mode, Text view stays plain reading with normal
+  selection and copy.
 
 Retranscribing changes the automatic transcript fingerprint and resets manual
 transcript edits rather than replaying stale ranges. The complete storage and

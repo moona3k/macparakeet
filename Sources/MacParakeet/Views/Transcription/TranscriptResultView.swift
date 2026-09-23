@@ -560,6 +560,9 @@ struct TranscriptResultView: View {
     @State private var editingTitle = false
     @State private var titleDraft = ""
     @State private var editingTranscript = false
+    @State private var editingReadingTranscript = false
+    @State private var readingDrafts: [TranscriptReadingDraft] = []
+    @State private var savingReadingTranscript = false
     @State private var transcriptDraft = ""
     @State private var transcriptEditError: String?
     @State private var transcriptDisplayMode: TranscriptDisplayMode = .text
@@ -835,6 +838,9 @@ struct TranscriptResultView: View {
         editingTitle = false
         titleDraft = ""
         editingTranscript = false
+        editingReadingTranscript = false
+        readingDrafts = []
+        savingReadingTranscript = false
         transcriptDraft = ""
         transcriptEditError = nil
         configureSavedMeetingNotes(for: activeTranscription)
@@ -1073,7 +1079,10 @@ struct TranscriptResultView: View {
             if let sharing = shareManagement, AppFeatures.isShareLinksAvailable() {
                 Button { prepareShare(using: sharing) } label: { Label("Share…", systemImage: "square.and.arrow.up") }
                     .parakeetAction(.secondary)
-                    .disabled(preparingShare || sharing.isBusy || !sharing.isConfigured || editingTranscript || editingTitle)
+                    .disabled(
+                        preparingShare || sharing.isBusy || !sharing.isConfigured
+                            || editingTranscript || editingReadingTranscript || editingTitle
+                    )
                     .help("Preview and publish an encrypted, expiring text-only page")
             }
 
@@ -2032,29 +2041,13 @@ struct TranscriptResultView: View {
                         meetingTranscriptProcessingState(presentation)
                     }
 
-                    if editingTranscript {
-                        transcriptEditor
-                    } else if transcriptDisplayMode == .timed,
-                              let timestamps = activeTranscription.wordTimestamps,
-                              !timestamps.isEmpty {
-                        if let attribution = viewModel.speakerAttribution {
-                            speakerSummaryPanel(speakers: attribution.speakers)
-                        } else if let speakers = activeTranscription.speakers, !speakers.isEmpty {
-                            speakerSummaryPanel(speakers: speakers)
-                        }
-                        timestampedView(words: timestamps)
-                    } else if !transcriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        transcriptTextBlock
-                    } else if meetingTranscriptProcessingPresentation == nil {
-                        Text("No transcript available")
-                            .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    }
+                    transcriptDocumentBody
                 }
                 .padding(DesignSystem.Spacing.lg)
             }
             .onChange(of: playerViewModel.currentTimeMs) { oldValue, newValue in
                 guard playerViewModel.isPlaying else { return }
-                guard !editingSpeakers else { return }
+                guard !editingSpeakers, !editingReadingTranscript else { return }
                 // Detect seek (large time jump) — re-sync transcript regardless of pause state
                 if autoScrollPaused && abs(newValue - oldValue) > 2000 {
                     autoScrollPaused = false
@@ -2123,6 +2116,9 @@ struct TranscriptResultView: View {
         }
         .onChange(of: editingTranscript) {
             if editingTranscript, findBarVisible { closeFindBar() }
+        }
+        .onChange(of: editingReadingTranscript) {
+            if editingReadingTranscript, findBarVisible { closeFindBar() }
         }
         .onAppear {
             if let existing = scrollMonitor {
@@ -2298,7 +2294,7 @@ struct TranscriptResultView: View {
 
     private func openFindBar() {
         // Find is a reading affordance; editing uses the raw text editor.
-        guard !editingTranscript else { return }
+        guard !editingTranscript, !editingReadingTranscript else { return }
         if !findBarVisible {
             withAnimation(DesignSystem.Animation.contentSwap) { findBarVisible = true }
         }
@@ -2338,7 +2334,7 @@ struct TranscriptResultView: View {
     /// searches the full transcript string so native selection can span line and
     /// paragraph breaks; the current-match scroll anchor is derived on demand.
     private func rebuildFindBlocks() {
-        guard findBarVisible, !editingTranscript else {
+        guard findBarVisible, !editingTranscript, !editingReadingTranscript else {
             findBlocks = []
             findModel.setBlocks([])
             releaseFindOwnedAutoScrollPause()
@@ -2453,7 +2449,7 @@ struct TranscriptResultView: View {
 
             // Show whenever word timestamps exist: Timed renders from word data,
             // and Text falls back to the raw transcript when clean text is absent.
-            if !editingTranscript, hasTimestamps {
+            if !editingTranscript, !editingReadingTranscript, hasTimestamps {
                 Picker("Transcript view", selection: $transcriptDisplayMode) {
                     ForEach(TranscriptDisplayMode.allCases, id: \.self) { mode in
                         Text(mode.rawValue).tag(mode)
@@ -2464,11 +2460,27 @@ struct TranscriptResultView: View {
                 .frame(width: 150)
             }
 
-            if !editingTranscript {
+            if !editingTranscript, !editingReadingTranscript {
                 transcriptFontSizeControl
             }
 
-            if editingTranscript {
+            if editingReadingTranscript {
+                Button {
+                    cancelReadingEdit()
+                } label: {
+                    Label("Cancel", systemImage: "xmark")
+                }
+                .parakeetAction(.secondary)
+                .disabled(savingReadingTranscript)
+
+                Button {
+                    commitReadingEdit()
+                } label: {
+                    Label(savingReadingTranscript ? "Saving…" : "Done", systemImage: "checkmark")
+                }
+                .parakeetAction(.primaryProminent)
+                .disabled(savingReadingTranscript || TranscriptReadingEdit.command(for: readingDrafts) == nil)
+            } else if editingTranscript {
                 if hasEditedTranscript {
                     Button {
                         revertTranscriptEdit()
@@ -2513,6 +2525,17 @@ struct TranscriptResultView: View {
                     .disabled(activeTranscription.status == .processing)
                 }
 
+                if transcriptDisplayMode == .text, readingTranscriptEditAvailable {
+                    Button {
+                        beginReadingEdit()
+                    } label: {
+                        Label("Edit", systemImage: "pencil")
+                    }
+                    .parakeetAction(.secondary)
+                    .disabled(!readingTranscriptEditEnabled)
+                    .help("Edit or remove passages in this transcript")
+                }
+
                 if transcriptDisplayMode == .text, wholeTranscriptEditingAvailable {
                     Button {
                         beginTranscriptEdit()
@@ -2539,6 +2562,21 @@ struct TranscriptResultView: View {
             return "Add transcript text manually."
         }
         return "Edit the full transcript. This legacy edit is not aligned to timestamps."
+    }
+
+    private var readingTranscriptEditAvailable: Bool {
+        activeTranscription.status == .completed
+            && activeTranscription.transcriptTextAlignment != .untimed
+            && hasTimestamps
+    }
+
+    private var readingTranscriptEditEnabled: Bool {
+        readingTranscriptEditAvailable
+            && !(viewModel.speakerAttribution?.editableSegments.isEmpty ?? true)
+    }
+
+    private var currentCorrectionRevision: Int {
+        viewModel.speakerAttribution?.correctionRevision ?? 0
     }
 
     private var wholeTranscriptEditingAvailable: Bool {
@@ -2616,6 +2654,30 @@ struct TranscriptResultView: View {
         !viewModel.llmAvailable
             && !viewModel.hasPromptResultTabs
             && !viewModel.hasConversations
+    }
+
+    @ViewBuilder
+    private var transcriptDocumentBody: some View {
+        if editingReadingTranscript {
+            TranscriptReadingEditor(drafts: $readingDrafts, font: scaledTranscriptFont)
+        } else if editingTranscript {
+            transcriptEditor
+        } else if transcriptDisplayMode == .timed,
+            let timestamps = activeTranscription.wordTimestamps,
+            !timestamps.isEmpty
+        {
+            if let attribution = viewModel.speakerAttribution {
+                speakerSummaryPanel(speakers: attribution.speakers)
+            } else if let speakers = activeTranscription.speakers, !speakers.isEmpty {
+                speakerSummaryPanel(speakers: speakers)
+            }
+            timestampedView(words: timestamps)
+        } else if !transcriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            transcriptTextBlock
+        } else if meetingTranscriptProcessingPresentation == nil {
+            Text("No transcript available")
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+        }
     }
 
     @ViewBuilder
@@ -3125,6 +3187,15 @@ struct TranscriptResultView: View {
         return ScrollView {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                 if let promptResult {
+                    let summaryNeedsUpdate = PromptResultFreshness.summaryNeedsUpdate(
+                        sourceCorrectionRevision: promptResult.sourceCorrectionRevision,
+                        currentCorrectionRevision: currentCorrectionRevision
+                    )
+                    if summaryNeedsUpdate {
+                        Text("The transcript changed after this summary.")
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    }
                     HStack {
                         Spacer()
 
@@ -3132,7 +3203,8 @@ struct TranscriptResultView: View {
                             startPromptContextAction { context in
                                 if let generationID = promptResultsViewModel.regeneratePromptResult(
                                     promptResult,
-                                    transcript: context
+                                    transcript: context,
+                                    sourceCorrectionRevision: currentCorrectionRevision
                                 ) {
                                     viewModel.selectedTab = .generation(id: generationID)
                                 }
@@ -3140,11 +3212,11 @@ struct TranscriptResultView: View {
                         } label: {
                             HStack(spacing: DesignSystem.Spacing.xs) {
                                 Image(systemName: "arrow.clockwise")
-                                Text("Regenerate")
+                                Text(summaryNeedsUpdate ? "Update summary" : "Regenerate")
                             }
                             .font(DesignSystem.Typography.caption)
                         }
-                        .parakeetAction(.secondary)
+                        .parakeetAction(summaryNeedsUpdate ? .primary : .secondary)
                         .controlSize(.small)
                         .disabled(
                             promptNotesActionGate.isRunning || richContextLoader.preparingPromptContext
@@ -3444,7 +3516,8 @@ struct TranscriptResultView: View {
                     startPromptContextAction { context in
                         if let generationID = promptResultsViewModel.generatePromptResult(
                             transcript: context,
-                            transcriptionId: transcription.id
+                            transcriptionId: transcription.id,
+                            sourceCorrectionRevision: currentCorrectionRevision
                         ) {
                             viewModel.selectedTab = .generation(id: generationID)
                         }
@@ -5270,6 +5343,46 @@ struct TranscriptResultView: View {
         ) {
             chatViewModel.sendMessage(richPrompt: richPrompt)
             chatInputFocused = true
+        }
+    }
+
+    private func beginReadingEdit() {
+        guard let segments = viewModel.speakerAttribution?.editableSegments, !segments.isEmpty else { return }
+        readingDrafts = segments.map { segment in
+            TranscriptReadingDraft(
+                target: correctionTarget(for: segment),
+                originalText: segment.text,
+                text: segment.text
+            )
+        }
+        transcriptEditError = nil
+        editingReadingTranscript = true
+    }
+
+    private func cancelReadingEdit() {
+        guard !savingReadingTranscript else { return }
+        readingDrafts = []
+        editingReadingTranscript = false
+        transcriptEditError = nil
+    }
+
+    private func commitReadingEdit() {
+        guard !savingReadingTranscript else { return }
+        guard let command = TranscriptReadingEdit.command(for: readingDrafts) else {
+            cancelReadingEdit()
+            return
+        }
+        savingReadingTranscript = true
+        transcriptEditError = nil
+        Task { @MainActor in
+            let succeeded = await viewModel.applySpeakerCorrectionAndWait(command)
+            savingReadingTranscript = false
+            if succeeded {
+                readingDrafts = []
+                editingReadingTranscript = false
+            } else {
+                transcriptEditError = "Couldn't save. Your edits are still here."
+            }
         }
     }
 

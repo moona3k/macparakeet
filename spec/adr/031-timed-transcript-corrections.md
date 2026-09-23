@@ -155,3 +155,20 @@ gain timestamps merely because the source still has an automatic word array.
 - **Arbitrary substring and drag-based cue editing:** deferred. Whole-line text
   replacement and adjacent same-speaker merge satisfy issue #893 without
   turning MacParakeet into a subtitle editor.
+
+## Amendment (2026-09-21): reading-view edit
+
+Issue #1069 asks to change the transcript people are already reading, including
+removing a passage. The Text view is that surface. Timed mode remains the
+place for speaker assignment, splits, and merges.
+
+`reviseText` stores one reading session: non-empty replacements and omitted
+passages. Undo restores the whole session. An omitted passage leaves the
+automatic words in place and disappears from the effective transcript, so
+search, export, shares, and later AI context follow the edited reading text.
+Clearing a line is an omission. A blank replacement inside `editText` stays
+rejected.
+
+A saved prompt result records the correction revision it was generated from.
+When that revision no longer matches, the summary offers **Update summary**.
+Editing does not recall a summary that already ran.

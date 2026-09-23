@@ -91,6 +91,9 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Added
 
+- `config spoken-punctuation` (`on`/`off`, default on) controls whether Clean
+  dictation and file transcription convert spoken question/exclamation marks.
+  Meetings never convert. `vocab process` honors the same app-defaults key.
 - `config get|set|list` includes `escape-cancels-dictation` (`on`/`off`,
   default on). When off, Escape is left for other apps and does not cancel
   a live dictation.
@@ -165,6 +168,10 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   off). While on, every microphone-capturing meeting starts muted until the
   setting is turned off; unmute from the live meeting panel.
   System-audio-only capture ignores it.
+- Inline LLM commands accept `--provider appleIntelligence` (aliases `apple`,
+  `apple-intelligence`) to use macOS 26 Apple Intelligence on-device. No API
+  key. The on-device window is small; long transcripts still need a cloud or
+  Ollama provider.
 
 ### Changed
 
