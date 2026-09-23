@@ -47,7 +47,9 @@ retention. Callers own those effects.
 - The transcript text and `sourceCorrectionRevision` receipt come from the
   same effective-attribution read before card generation or provider calls.
   The result also stores `sourceTranscriptHash` from the supplied saved
-  transcription's automatic clean/raw text before those calls.
+  transcription before those calls. For an unedited transcript with timed
+  cues, it hashes joined cue words without timestamps or speaker labels;
+  otherwise it uses automatic clean/raw text.
   A correction made while those calls run leaves the saved result tied to its
   original input revision, so the app can mark it stale. If no attribution
   projection is available, the service uses the supplied transcript and
