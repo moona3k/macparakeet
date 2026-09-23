@@ -1,0 +1,59 @@
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_4a7be435ad07b2::t_ba5aa4b81f1abd 959-966
+  s_4a7be435ad07b2::t_7669962326e871 677
+  s_4a7be435ad07b2::t_e12236e5b79e70 716
+  s_4a7be435ad07b2::t_53c0fe5ecaa4c7 319,322-326
+  s_4a7be435ad07b2::t_0d722ae1e26156 668
+  s_4a7be435ad07b2::t_2b803c4e2d460b 727
+  s_4a7be435ad07b2::t_09718980446653 503-510
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_4a7be435ad07b2::t_de6011de449ff6 747-758
+  s_4a7be435ad07b2::t_e4ccd23437485c 708,710-711,713-716,719-746,759-761,765-779,2507,2513
+  s_4a7be435ad07b2::t_c67f02858a5f46 2498-2506,2508-2512,2514
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_4a7be435ad07b2::t_021f0ba61f38d8 129-137,140-196
+  s_4a7be435ad07b2::t_6be952eee61a81 595-598
+  s_4a7be435ad07b2::t_7ca5c9222867a7 128,138-139
+  s_4a7be435ad07b2::t_bc1308ef42e6a7 613-616,618,624,636
+  s_4a7be435ad07b2::t_978a35e71a345a 648-649
+  s_4a7be435ad07b2::t_d2130c48bee6af 714,718-720
+  s_4a7be435ad07b2::t_ceb7df1b87e60b 721-722
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_4a7be435ad07b2::t_0403732a376ef7 1234-1241
+spec/02-features.md
+  s_4a7be435ad07b2::t_cce2f0be8ae519 391
+  s_4a7be435ad07b2::t_3ab3cfc4b6b0e7 2237
+Sources/MacParakeetCore/AppNotifications.swift
+  s_4a7be435ad07b2::t_a067eee8df04f5 52-56
+  s_4a7be435ad07b2::t_481ec2176c2a7b 61-64
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_4a7be435ad07b2::t_66108978906cd2 372
+  s_4a7be435ad07b2::t_7866abac9cc20c 282
+  s_4a7be435ad07b2::t_12f4ede1a79022 247
+  s_4a7be435ad07b2::t_f3e4eb621e12f7 1165
+  s_4a7be435ad07b2::t_fde5c3c2fb58d8 166
+  s_4a7be435ad07b2::t_ef72f29d11d7b5 272
+  s_4a7be435ad07b2::t_3034e11af5d662 347-350,352,355,357-358,360,365,367-371,373-374
+Sources/MacParakeet/Views/Components/SoundManager.swift
+  s_4a7be435ad07b2::t_d7b5bfc1a7b134 44,95-103
+  s_4a7be435ad07b2::t_72ab2d6586c739 61
+  s_4a7be435ad07b2::t_db4988c1d34779 30-32,36-43
+  s_4a7be435ad07b2::t_c52141d537daec 13-15
+  s_4a7be435ad07b2::t_a63f9447ae31a6 45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3482deba4bf0dfb7e0d595563ebe38f388b6bcff",
+  "prompts": {},
+  "sessions": {
+    "s_4a7be435ad07b2": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "9da77b85-19e2-437b-ac09-b5f0a344c65b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
