@@ -575,6 +575,14 @@ public actor DictationService: DictationServiceProtocol {
             )
             throw DictationServiceError.notRecording
         }
+        // A replacement can claim its session while cleanup still owns the
+        // prior take's physical capture. It cannot stop or transcribe that WAV.
+        guard replacementCleanupSessionID != activeSessionID else {
+            logger.notice(
+                "stopRecording rejected provisional replacement session=\(self.activeSessionID)"
+            )
+            throw DictationServiceError.notRecording
+        }
 
         let currentSession = activeSessionID
         let formatterContext = currentAIFormatterFinishContext ?? currentAIFormatterStartContext

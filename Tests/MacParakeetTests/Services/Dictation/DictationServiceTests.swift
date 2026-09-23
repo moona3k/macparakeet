@@ -336,6 +336,36 @@ final class DictationServiceTests: XCTestCase {
         await service.confirmCancel(sessionID: 2)
     }
 
+    func testStopReplacementBeforeItsCaptureCannotStopOldTake() async throws {
+        try await service.startRecording(context: DictationTelemetryContext(), sessionID: 1)
+        let cleanupEntered = DictationSuccessDisplayGate()
+        let cleanupRelease = DictationSuccessDisplayGate()
+        await service.setReplacementCleanupWaiterForTesting {
+            await cleanupEntered.release()
+            await cleanupRelease.wait()
+        }
+
+        let restartTask = Task {
+            try await self.service.startRecording(context: DictationTelemetryContext(), sessionID: 2)
+        }
+        await cleanupEntered.wait()
+        do {
+            _ = try await service.stopRecording(sessionID: 2)
+            XCTFail("A provisional replacement must not stop the old take")
+        } catch DictationServiceError.notRecording {
+        }
+        let stopsBeforeCleanup = await mockAudio.stopCaptureCallCount
+        let oldStillRecording = await mockAudio.isRecording
+        XCTAssertEqual(stopsBeforeCleanup, 0)
+        XCTAssertTrue(oldStillRecording)
+
+        await cleanupRelease.release()
+        try await restartTask.value
+        _ = try await service.stopRecording(sessionID: 2)
+        let stopsAfterReplacement = await mockAudio.stopCaptureCallCount
+        XCTAssertEqual(stopsAfterReplacement, 2)
+    }
+
     func testConfirmReplacementBeforeOldStopLeavesOldCaptureForCleanup() async throws {
         let stops = observeCaptureDidStop()
         defer { NotificationCenter.default.removeObserver(stops.observer) }

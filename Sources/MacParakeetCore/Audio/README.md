@@ -267,7 +267,9 @@ or touch the recorder. Cancelled-audio persistence happens after this boundary
 so transcription of a discarded take does not delay the new capture. When a
 replacement claims the new session before stopping the old capture, cancellation
 of that replacement must leave the old recorder stop to its cleanup and must
-not announce a stop for a capture the replacement never started.
+not announce a stop for a capture the replacement never started. A stop request
+for that provisional replacement must also be rejected rather than transcribing
+the old take under the new session.
 
 **Tap closures run on the audio render thread.** No allocation, no
 actor hops, no `await`. State touched from the tap path uses
