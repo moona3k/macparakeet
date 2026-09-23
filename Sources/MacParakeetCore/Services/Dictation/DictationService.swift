@@ -896,6 +896,12 @@ public actor DictationService: DictationServiceProtocol {
         }
         let cancelledSession = activeSessionID
         let stateAtEntry = _state
+        switch stateAtEntry {
+        case .recording, .cancelled:
+            break
+        default:
+            return nil
+        }
         cancelGeneration += 1
         cancelResetTask?.cancel()
         cancelResetTask = nil
@@ -908,7 +914,7 @@ public actor DictationService: DictationServiceProtocol {
         case .cancelled:
             guard case .cancelled = _state else { return nil }
         default:
-            break
+            return nil
         }
         var cancelledAudio: StolenCancelledAudio?
         if case .recording = _state {
