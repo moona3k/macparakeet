@@ -3,6 +3,8 @@ import GRDB
 
 public protocol PromptResultRepositoryProtocol: Sendable {
     func save(_ promptResult: PromptResult) throws
+    /// Updates an existing result only if its content still matches the editor's starting text.
+    func updateContent(id: UUID, expectedContent: String, content: String, editedAt: Date) throws -> PromptResult?
     func replace(_ promptResult: PromptResult, deletingExistingID: UUID?) throws
     func fetchAll(transcriptionId: UUID) throws -> [PromptResult]
     func delete(id: UUID) throws -> Bool
@@ -41,6 +43,26 @@ public final class PromptResultRepository: PromptResultRepositoryProtocol {
             var normalizedResult = promptResult
             normalizedResult.inferenceSettingsSnapshot = try promptResult.inferenceSettingsSnapshot?.validated()
             try normalizedResult.save(db)
+        }
+    }
+
+    public func updateContent(
+        id: UUID,
+        expectedContent: String,
+        content: String,
+        editedAt: Date
+    ) throws -> PromptResult? {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: """
+                    UPDATE summaries
+                    SET content = ?, contentEditedAt = ?, updatedAt = ?
+                    WHERE id = ? AND content = ?
+                    """,
+                arguments: [content, editedAt, editedAt, id, expectedContent]
+            )
+            guard db.changesCount == 1 else { return nil }
+            return try PromptResult.fetchOne(db, key: id)
         }
     }
 

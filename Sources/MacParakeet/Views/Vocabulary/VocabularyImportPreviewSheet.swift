@@ -14,8 +14,11 @@ struct VocabularyImportPreviewSheet: View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
             header
             summaryCard
-            if preview.hasConflicts {
-                conflictPolicyCard
+            importModeCard
+            if viewModel.conflictPolicy == .replaceAll {
+                replaceAllWarning
+            } else if preview.hasConflicts {
+                conflictListsCard
             }
             if let failureMessage {
                 failureRow(failureMessage)
@@ -126,9 +129,103 @@ struct VocabularyImportPreviewSheet: View {
         }
     }
 
-    // MARK: - Conflict policy
+    // MARK: - Import mode
 
-    private var conflictPolicyCard: some View {
+    private var importModeCard: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            Text("Import mode")
+                .font(DesignSystem.Typography.bodySmall.weight(.semibold))
+            policyOption(
+                .skip,
+                title: "Add new entries",
+                detail: "Keep existing words and snippets. Skip anything that already exists."
+            )
+            policyOption(
+                .replace,
+                title: "Replace duplicates",
+                detail: "Overwrite matching entries. Leave everything else as-is."
+            )
+            Text("Advanced")
+                .font(DesignSystem.Typography.micro)
+                .foregroundStyle(.secondary)
+                .padding(.top, 4)
+            policyOption(
+                .replaceAll,
+                title: "Replace entire vocabulary",
+                detail:
+                    "Remove words and snippets that aren't in this file, then import. Words MacParakeet learned automatically from dictation stay unless this file also lists them.",
+                destructive: true
+            )
+        }
+        .padding(DesignSystem.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
+                .fill(DesignSystem.Colors.surfaceElevated)
+        )
+    }
+
+    private var replaceAllWarning: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.errorRed)
+                Text(replaceAllHeadline)
+                    .font(DesignSystem.Typography.bodySmall.weight(.semibold))
+            }
+
+            if !preview.wordsRemoved.isEmpty {
+                conflictList(title: "Words that will be removed", items: preview.wordsRemoved)
+            }
+            if !preview.snippetsRemoved.isEmpty {
+                conflictList(title: "Snippets that will be removed", items: preview.snippetsRemoved)
+            }
+            if !preview.wordConflicts.isEmpty {
+                conflictList(title: "Words that will be replaced", items: preview.wordConflicts)
+            }
+            if !preview.snippetConflicts.isEmpty {
+                conflictList(title: "Snippets that will be replaced", items: preview.snippetConflicts)
+            }
+            if !preview.duplicateWords.isEmpty {
+                conflictList(title: "Duplicate words in backup", items: preview.duplicateWords)
+            }
+            if !preview.duplicateSnippets.isEmpty {
+                conflictList(title: "Duplicate triggers in backup", items: preview.duplicateSnippets)
+            }
+            if !preview.duplicateWords.isEmpty || !preview.duplicateSnippets.isEmpty {
+                Text("For repeated entries, the last one in the file wins.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if preview.learnedWordsPreserved > 0 {
+                Text(
+                    preview.learnedWordsPreserved == 1
+                        ? "1 word MacParakeet learned automatically from dictation stays on this Mac."
+                        : "\(preview.learnedWordsPreserved) words MacParakeet learned automatically from dictation stay on this Mac."
+                )
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(.secondary)
+            }
+            if isEmptyReplaceAll {
+                Text("Replace-all requires a file with at least one word or snippet.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(DesignSystem.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
+                .fill(DesignSystem.Colors.errorRed.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
+                .strokeBorder(DesignSystem.Colors.errorRed.opacity(0.35), lineWidth: 0.5)
+        )
+    }
+
+    private var conflictListsCard: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             HStack(spacing: DesignSystem.Spacing.sm) {
                 Image(systemName: "exclamationmark.triangle.fill")
@@ -139,46 +236,17 @@ struct VocabularyImportPreviewSheet: View {
             }
 
             if !preview.wordConflicts.isEmpty {
-                conflictList(
-                    title: "Conflicting words",
-                    items: preview.wordConflicts
-                )
+                conflictList(title: "Conflicting words", items: preview.wordConflicts)
             }
             if !preview.snippetConflicts.isEmpty {
-                conflictList(
-                    title: "Conflicting triggers",
-                    items: preview.snippetConflicts
-                )
+                conflictList(title: "Conflicting triggers", items: preview.snippetConflicts)
             }
             if !preview.duplicateWords.isEmpty {
-                conflictList(
-                    title: "Duplicate words in backup",
-                    items: preview.duplicateWords
-                )
+                conflictList(title: "Duplicate words in backup", items: preview.duplicateWords)
             }
             if !preview.duplicateSnippets.isEmpty {
-                conflictList(
-                    title: "Duplicate triggers in backup",
-                    items: preview.duplicateSnippets
-                )
+                conflictList(title: "Duplicate triggers in backup", items: preview.duplicateSnippets)
             }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("When an entry already exists or appears more than once:")
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(.secondary)
-                policyOption(
-                    .skip,
-                    title: "Skip duplicates",
-                    detail: "Keep your existing entries unchanged."
-                )
-                policyOption(
-                    .replace,
-                    title: "Replace duplicates",
-                    detail: "Overwrite existing entries with the imported ones."
-                )
-            }
-            .padding(.top, 2)
         }
         .padding(DesignSystem.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -190,6 +258,28 @@ struct VocabularyImportPreviewSheet: View {
             RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
                 .strokeBorder(DesignSystem.Colors.warningAmber.opacity(0.35), lineWidth: 0.5)
         )
+    }
+
+    private var replaceAllHeadline: String {
+        if isEmptyReplaceAll {
+            return "This file has no words or snippets."
+        }
+        if !preview.hasRemovals {
+            if preview.hasConflicts {
+                return "Matching or repeated entries will be replaced. Nothing extra will be removed."
+            }
+            return "Your vocabulary will match this file. Nothing extra will be removed."
+        }
+        var parts: [String] = []
+        if !preview.wordsRemoved.isEmpty {
+            let count = preview.wordsRemoved.count
+            parts.append("\(count) word\(count == 1 ? "" : "s")")
+        }
+        if !preview.snippetsRemoved.isEmpty {
+            let count = preview.snippetsRemoved.count
+            parts.append("\(count) snippet\(count == 1 ? "" : "s")")
+        }
+        return "This removes \(parts.joined(separator: " and ")) that aren't in the file."
     }
 
     private var conflictHeadline: String {
@@ -235,20 +325,33 @@ struct VocabularyImportPreviewSheet: View {
     private func policyOption(
         _ value: VocabularyImportExportService.ConflictPolicy,
         title: String,
-        detail: String
+        detail: String,
+        destructive: Bool = false
     ) -> some View {
         let isSelected = viewModel.conflictPolicy == value
+        let accent = destructive ? DesignSystem.Colors.errorRed : DesignSystem.Colors.accent
+        let selectedFill =
+            destructive
+            ? DesignSystem.Colors.errorRed.opacity(0.10)
+            : DesignSystem.Colors.accentLight
         return Button {
             viewModel.conflictPolicy = value
         } label: {
             HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
                 Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
                     .font(.system(size: 14))
-                    .foregroundStyle(isSelected ? DesignSystem.Colors.accent : .secondary)
+                    .foregroundStyle(destructive ? accent : (isSelected ? accent : .secondary))
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(title)
-                        .font(DesignSystem.Typography.bodySmall.weight(.semibold))
-                        .foregroundStyle(.primary)
+                    HStack(spacing: 4) {
+                        Text(title)
+                            .font(DesignSystem.Typography.bodySmall.weight(.semibold))
+                            .foregroundStyle(destructive ? accent : .primary)
+                        if destructive {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(accent)
+                        }
+                    }
                     Text(detail)
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(.secondary)
@@ -259,17 +362,20 @@ struct VocabularyImportPreviewSheet: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                    .fill(isSelected ? DesignSystem.Colors.accentLight : Color.clear)
+                    .fill(isSelected ? selectedFill : Color.clear)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
                     .strokeBorder(
-                        isSelected ? DesignSystem.Colors.accent.opacity(0.45) : DesignSystem.Colors.border.opacity(0.6),
-                        lineWidth: isSelected ? 1.0 : 0.5
+                        destructive
+                            ? accent.opacity(isSelected ? 0.45 : 0.28)
+                            : (isSelected ? accent.opacity(0.45) : DesignSystem.Colors.border.opacity(0.6)),
+                        lineWidth: isSelected || destructive ? 1.0 : 0.5
                     )
             )
         }
         .buttonStyle(.plain)
+        .disabled(viewModel.status == .importing)
     }
 
     // MARK: - Actions
@@ -283,23 +389,58 @@ struct VocabularyImportPreviewSheet: View {
             }
             .parakeetAction(.secondary)
             .keyboardShortcut(.cancelAction)
+            .disabled(viewModel.status == .importing)
 
-            Button(importButtonTitle) {
-                Task {
-                    if await viewModel.applyImport() {
-                        dismiss()
-                    }
+            importConfirmButton
+        }
+    }
+
+    @ViewBuilder
+    private var importConfirmButton: some View {
+        let button = Button(
+            importButtonTitle,
+            role: viewModel.conflictPolicy == .replaceAll ? .destructive : nil
+        ) {
+            Task {
+                if await viewModel.applyImport() {
+                    dismiss()
                 }
             }
-            .parakeetAction(.primaryProminent)
-            .keyboardShortcut(.defaultAction)
-            .disabled(preview.wordsTotal == 0 && preview.snippetsTotal == 0)
+        }
+        .parakeetAction(
+            viewModel.conflictPolicy == .replaceAll ? .destructiveProminent : .primaryProminent
+        )
+        .disabled(isImportDisabled || viewModel.status == .importing)
+
+        if viewModel.conflictPolicy == .replaceAll {
+            button
+        } else {
+            button.keyboardShortcut(.defaultAction)
         }
     }
 
     private var importButtonTitle: String {
-        guard preview.hasConflicts else { return "Import" }
-        return viewModel.conflictPolicy == .replace ? "Import & Replace" : "Import"
+        switch viewModel.conflictPolicy {
+        case .skip:
+            return "Import"
+        case .replace:
+            return preview.hasConflicts ? "Import & Replace" : "Import"
+        case .replaceAll:
+            if !preview.hasRemovals && !preview.hasConflicts {
+                return "Import"
+            }
+            return "Replace Vocabulary"
+        }
+    }
+
+    private var isEmptyReplaceAll: Bool {
+        viewModel.conflictPolicy == .replaceAll
+            && preview.wordsTotal == 0
+            && preview.snippetsTotal == 0
+    }
+
+    private var isImportDisabled: Bool {
+        preview.wordsTotal == 0 && preview.snippetsTotal == 0
     }
 
     // MARK: - Helpers

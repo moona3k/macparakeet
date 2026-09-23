@@ -91,6 +91,13 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Added
 
+- `vocab import --policy replace-all` resets the manual vocabulary to the
+  bundle in one transaction. Dry-run JSON reports `wordsRemoved`,
+  `snippetsRemoved`, and `learnedWordsPreserved` only for `replace-all`;
+  skip and replace keep those fields empty. Apply JSON adds `wordsRemoved`
+  and `snippetsRemoved` for the writes that actually ran. Skip remains the
+  default; unmatched learned recognition terms are kept. Empty bundles cannot
+  replace all, and a changed dictionary requires a fresh preview.
 - `config get|set|list` includes `play-dictation-capture-sounds` (`on`/`off`,
   default off). When on, dictation plays a short cue once the microphone is
   live and another when that capture ends, whether it was stopped or
@@ -101,6 +108,9 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 - `config get|set|list` includes `escape-cancels-dictation` (`on`/`off`,
   default on). When off, Escape is left for other apps and does not cancel
   a live dictation.
+- Saved prompt-result JSON includes additive `contentEditedAt` when the user
+  last edited result content in place. The key is omitted when content was
+  last written by generation.
 
 ## [4.5.0] — 2026-09-20
 
@@ -183,7 +193,6 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   standalone `um` by default. The previous multilingual-safe default is the
   off value of `remove-um-filler`. Meetings stay verbatim: they do not run
   filler removal.
-
 ## [4.2.0] — 2026-09-15
 
 ### Added
