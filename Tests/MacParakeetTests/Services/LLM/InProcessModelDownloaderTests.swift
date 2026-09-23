@@ -3,6 +3,20 @@ import XCTest
 @testable import MacParakeetCore
 
 final class InProcessModelDownloaderTests: XCTestCase {
+    func testDefaultModelDirectoryUsesInjectedManifestIdentity() async throws {
+        let fixture = try makeFixture()
+        let downloader = InProcessModelDownloader(
+            manifest: fixture.manifest,
+            cacheRoot: fixture.root,
+            transport: fixture.transport
+        )
+
+        XCTAssertEqual(
+            downloader.defaultModelDirectory().standardizedFileURL,
+            fixture.directory.standardizedFileURL
+        )
+    }
+
     func testVerifyDefaultModelAcceptsCompleteManifestAndRejectsCorruption() async throws {
         let fixture = try makeFixture()
         try writeFixtureFiles(fixture)

@@ -423,6 +423,14 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   speaker labels are preserved when present, while undiarized transcripts omit
   character agents and timestampless or edited transcripts remain untimed.
 
+### Changed
+
+- Cohere keeps the same `cohere` engine ID, model commands, persisted defaults,
+  output schemas, and accepted legacy language flags while its execution
+  backend moves from FluidAudio/CoreML to pinned transcribe.cpp. Cohere now
+  detects language automatically; saved or explicit Cohere language values no
+  longer affect decoding.
+
 ### Fixed
 
 - OpenCode Go requests now carry an opaque per-conversation session header.

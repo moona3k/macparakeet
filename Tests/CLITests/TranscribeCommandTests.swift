@@ -276,9 +276,8 @@ final class TranscribeCommandTests: XCTestCase {
     }
 
     func testResolveSpeechEngineUsesStoredCohereLanguageForAppDefault() {
-        // Cohere has no auto-detect and its engine defaults to English, so an
-        // app-default run with no explicit --language must carry the stored
-        // Cohere picker language, not silently fall back to English.
+        // Keep carrying the saved Cohere language through CLI resolution for
+        // compatibility. The transcribe.cpp adapter ignores it.
         let selection = TranscribeCommand.resolveSpeechEngine(
             .appDefault,
             storedEngine: SpeechEnginePreference.cohere.rawValue,
@@ -377,10 +376,10 @@ final class TranscribeCommandTests: XCTestCase {
 
         XCTAssertThrowsError(try TranscribeCommand.validateCohereLanguageOverride("auto", speechEngine: selection)) { error in
             let message = String(describing: error)
-            let supportedCodes = SpeechEngineCapabilityRegistry.capabilities(for: .cohere)
-                .supportedLanguages.supportedLanguageCodes ?? []
+            let supportedCodes = CohereTranscribeEngine.legacyCompatibleLanguageCodes
             let supported = supportedCodes.joined(separator: ", ")
-            XCTAssertTrue(message.contains("Cohere has no auto-detect"), message)
+            XCTAssertTrue(message.contains("Invalid legacy value"), message)
+            XCTAssertTrue(message.contains("detects language automatically"), message)
             XCTAssertFalse(supportedCodes.isEmpty)
             XCTAssertTrue(message.contains(supported), message)
         }
@@ -398,6 +397,24 @@ final class TranscribeCommandTests: XCTestCase {
 
         try TranscribeCommand.validateCohereLanguageOverride("zh_CN", speechEngine: selection)
         XCTAssertEqual(selection.language, "zh")
+    }
+
+    func testValidateCohereLanguageOverrideAllowsLegacyHindiAndRussianCodes() throws {
+        for code in ["hi-IN", "ru-RU"] {
+            let selection = TranscribeCommand.resolveSpeechEngine(
+                .cohere,
+                storedEngine: SpeechEnginePreference.parakeet.rawValue,
+                storedLanguage: nil,
+                storedCohereLanguage: "fr",
+                explicitLanguage: code,
+                physicalMemoryBytes: 32 * 1024 * 1024 * 1024
+            )
+
+            try TranscribeCommand.validateCohereLanguageOverride(
+                code,
+                speechEngine: selection
+            )
+        }
     }
 
     func testNemotronLanguageOverridePolicyReadsCapabilityRegistry() {

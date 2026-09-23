@@ -108,7 +108,12 @@ final class SpeechEngineCapabilitiesTests: XCTestCase {
         XCTAssertFalse(cohere.providesWordTimestamps)
         XCTAssertFalse(cohere.supportsMeetingLivePreview)
         XCTAssertFalse(cohere.supportsCustomVocabulary)
-        XCTAssertEqual(cohere.supportedLanguages.mode, .selectable)
+        XCTAssertEqual(cohere.supportedLanguages.mode, .automatic)
+        XCTAssertEqual(
+            cohere.supportedLanguages.supportedLanguageCodes,
+            CohereTranscribeEngine.supportedLanguages.map(\.code)
+        )
+        XCTAssertEqual(cohere.modelLifecycle.approximateDownloadSize, "~1.65 GB")
         XCTAssertEqual(cohere.modelLifecycle.minimumMemoryBytes, 16 * 1024 * 1024 * 1024)
         XCTAssertEqual(cohere.telemetryIdentity.engineVariant, .cohereComputePolicy)
     }

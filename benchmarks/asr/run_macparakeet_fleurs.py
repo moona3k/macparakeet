@@ -7,12 +7,13 @@ FLEURS layout (FluidInference/fleurs-full): <lang>/<lang>.trans.txt with
 FluidAudio's cohere/sensevoice `--max-files N` (= first N per language), so the
 multilingual numbers are comparable across engines.
 
-Engines (`--engine` -> macparakeet-cli flags); --language hint set from the FLEURS code:
+Engines (`--engine` -> macparakeet-cli flags); --language hint set from the FLEURS code
+except Cohere, which detects language automatically:
     whisper          -> --engine whisper --language <hint>
     nemotron-multi   -> --engine nemotron --nemotron-model multilingual-1120ms --language <hint>
     parakeet-v3      -> --engine parakeet --parakeet-model v3 --language <hint>   (EU+en; not CJK)
     parakeet-orukeet -> --engine parakeet --parakeet-model orukeet --language <hint>
-    cohere           -> --engine cohere --language <hint>
+    cohere           -> --engine cohere (automatic language detection)
 
 Score with score_multi.py (WER for en, CER for ko/ja/zh).
 """
@@ -36,7 +37,7 @@ ENGINES = {
     "nemotron-multi": lambda hint: ["--engine", "nemotron", "--nemotron-model", "multilingual-1120ms", "--language", hint],
     "parakeet-v3": lambda hint: ["--engine", "parakeet", "--parakeet-model", "v3", "--language", hint],
     "parakeet-orukeet": lambda hint: ["--engine", "parakeet", "--parakeet-model", "orukeet", "--language", hint],
-    "cohere": lambda hint: ["--engine", "cohere", "--language", hint],
+    "cohere": lambda hint: ["--engine", "cohere"],
 }
 
 
@@ -73,7 +74,8 @@ def main() -> int:
     cmd = [str(args.cli.expanduser().resolve()), "transcribe", *[str(p) for p in wavs],
            "--format", "transcript", "--output-dir", str(out_dir),
            *ENGINES[args.engine](hint), "--speaker-detection", "off", "--no-history"]
-    print(f"engine={args.engine} lang={args.lang} hint={hint} files={len(wavs)}")
+    language_log = "language=automatic" if args.engine == "cohere" else f"hint={hint}"
+    print(f"engine={args.engine} lang={args.lang} {language_log} files={len(wavs)}")
     t0 = time.monotonic()
     res = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     wall = time.monotonic() - t0

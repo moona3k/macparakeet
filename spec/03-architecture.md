@@ -21,8 +21,9 @@ flowchart TD
     Core --> DB[GRDB repositories and SQLite]
     Core --> Files[Local audio and meeting artifacts]
     Core --> Speech[STTScheduler and STTRuntime]
-    Speech --> Fluid[FluidAudio: Parakeet, Nemotron, Cohere]
+    Speech --> Fluid[FluidAudio: Parakeet, Nemotron]
     Speech --> Whisper[WhisperKit]
+    Speech --> CohereCpp[transcribe.cpp: Cohere]
     Core --> AI[RoutingLLMClient: configured HTTP or Local CLI]
     App -. opt-in build and developer gate .-> MLX[MacParakeetLocalLLM]
 ```
@@ -108,7 +109,7 @@ substituting a different engine.
 | Parakeet Unified | FluidAudio `StreamingUnifiedAsrManager`, English-only opt-in; native partials and token-derived word timings. |
 | Nemotron | FluidAudio multilingual/English streaming variants; opt-in Beta, native partials and token-derived timings. |
 | Whisper | WhisperKit, broad multilingual coverage; locale-aware CJK/Korean onboarding may select it. Live dictation preview remains default-off. |
-| Cohere | FluidAudio `CoherePipeline`, explicit local download, batch-only; no word timings, diarization alignment or live preview. |
+| Cohere | Pinned transcribe.cpp adapter and checksum-verified GGUF, explicit local download, batch-only; no word timings, diarization alignment or live preview. Legacy language hints are ignored. |
 
 The capability registry, selected variants and supported language policies are
 in the [STT spec](06-stt-engine.md) and [STT subsystem guide](../Sources/MacParakeetCore/STT/README.md).
@@ -277,7 +278,7 @@ is untimed. The
 | Provider credentials | Per-provider Keychain entries through `LLMConfigStore`. |
 | Meeting audio, locks, metadata and materialized artifacts | Configured meeting artifact root plus `{uuid}/` (default `~/Library/Application Support/MacParakeet/meeting-recordings/`); retained artifact folder pointers survive managed audio removal. |
 | Dictation/file/media retained audio | App-managed paths and workflow-specific retention preferences; see `AppPaths` and storage contracts. |
-| Speech models and downloaded helper binaries | FluidAudio-managed caches, MacParakeet's Whisper cache and app `bin/` paths. |
+| Speech models and downloaded helper binaries | FluidAudio-managed Parakeet and Nemotron caches, MacParakeet's Cohere GGUF and Whisper caches, and app `bin/` paths. |
 | Optional local LLM models | Explicitly downloaded `LLMModels/` directory; no model bundled or automatically downloaded. |
 | Diagnostics | Bounded local audio log, OSLog and explicit exports; governed separately from transmitted telemetry. |
 
@@ -309,7 +310,8 @@ Package requirements below describe this audited revision; `Package.swift` and
 
 | Dependency | Requirement and use |
 |---|---|
-| FluidAudio | Exact `0.15.7`; local STT and offline diarization. Deliberate upgrades require speech/diarization validation. |
+| FluidAudio | Exact `0.15.7`; Parakeet, Nemotron, and offline diarization. Deliberate upgrades require speech/diarization validation. |
+| transcribe.cpp Swift wrapper | Opt-in local package plus pinned arm64 XCFramework; Cohere Transcribe only. Exact source, wrapper, owned artifact, model, and license gates are in [ADR-034](adr/034-cohere-transcribe-cpp-backend.md). |
 | GRDB.swift | From `7.0.0`; database access and migrations. |
 | swift-argument-parser | From `1.3.0`; public CLI. |
 | Sparkle | From `2.9.0`; app updates and embedded framework packaging. |

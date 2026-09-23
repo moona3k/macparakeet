@@ -493,6 +493,57 @@ final class STTSchedulerTests: XCTestCase {
         XCTAssertEqual(result.text, "dictation:after-clear")
     }
 
+    func testDeleteCohereModelUsesSchedulerLifecycleGate() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.block(path: "active")
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let activeTask = Task {
+            try await scheduler.transcribe(audioPath: "active", job: .fileTranscription)
+        }
+        try await waitForStartedPaths(runtime: runtime, count: 1)
+
+        do {
+            try await scheduler.deleteCohereModel()
+            XCTFail("Expected model deletion to fail while STT work is active")
+        } catch let error as STTError {
+            XCTAssertEqual(error.localizedDescription, STTError.engineBusy.localizedDescription)
+        }
+        let countWhileBusy = await runtime.deleteCohereModelCallCount
+        XCTAssertEqual(countWhileBusy, 0)
+
+        await runtime.release(path: "active")
+        _ = try await activeTask.value
+
+        try await scheduler.deleteCohereModel()
+        let finalCount = await runtime.deleteCohereModelCallCount
+        XCTAssertEqual(finalCount, 1)
+    }
+
+    func testDeleteCohereModelRejectsNewJobsUntilTeardownCompletes() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockNextCohereModelDelete()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let deleteTask = Task {
+            try await scheduler.deleteCohereModel()
+        }
+        try await waitForCohereModelDeleteCall(runtime: runtime, count: 1)
+
+        do {
+            _ = try await scheduler.transcribe(audioPath: "during-delete", job: .dictation)
+            XCTFail("Expected new STT work to be rejected during model deletion")
+        } catch let error as STTSchedulerError {
+            XCTAssertEqual(error, .unavailable)
+        }
+
+        await runtime.releaseCohereModelDelete()
+        try await deleteTask.value
+
+        let result = try await scheduler.transcribe(audioPath: "after-delete", job: .dictation)
+        XCTAssertEqual(result.text, "dictation:after-delete")
+    }
+
     func testSetSpeechEngineForwardsWhenIdle() async throws {
         let runtime = MockSTTRuntime()
         let scheduler = STTScheduler(runtimeProvider: runtime)
@@ -1254,6 +1305,21 @@ final class STTSchedulerTests: XCTestCase {
         }
     }
 
+    private func waitForCohereModelDeleteCall(
+        runtime: MockSTTRuntime,
+        count: Int,
+        timeout: Duration = .seconds(2)
+    ) async throws {
+        let start = ContinuousClock.now
+        while await runtime.deleteCohereModelCallCount < count {
+            if start.duration(to: .now) > timeout {
+                XCTFail("Timed out waiting for \(count) Cohere model deletions")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
     private func value<T: Sendable>(
         _ task: Task<T, any Error>,
         timeout: Duration = .seconds(1)
@@ -1453,6 +1519,7 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     private(set) var warmUpCallCount = 0
     private(set) var isReadyCallCount = 0
     private(set) var clearModelCacheCallCount = 0
+    private(set) var deleteCohereModelCallCount = 0
     private(set) var shutdownCallCount = 0
     private(set) var setSpeechEngineCallCount = 0
     private(set) var usedSpeechEngineProgressOverload = false
@@ -1466,6 +1533,7 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     /// until `releaseSpeechEngineSwitch()` — models uncancellable Core ML.
     private var holdSpeechEngineSwitchUntilReleased = false
     private var shouldBlockNextClearModelCache = false
+    private var shouldBlockNextCohereModelDelete = false
     private var ignoreCancellation = false
     private var speechEngineSwitchContinuation: CheckedContinuation<Void, Never>?
     private var shouldBlockNextSelectionRead = false
@@ -1475,6 +1543,7 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     private(set) var capabilitiesReadCount = 0
     private(set) var telemetryAttributionReadCount = 0
     private var clearModelCacheContinuation: CheckedContinuation<Void, Never>?
+    private var cohereModelDeleteContinuation: CheckedContinuation<Void, Never>?
     private var liveDictationSessionID: UUID?
     private(set) var liveDictationSamples: [[Float]] = []
     private(set) var liveCancelCallCount = 0
@@ -1715,6 +1784,17 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
         ready = false
     }
 
+    func deleteCohereModel() async throws {
+        deleteCohereModelCallCount += 1
+        if shouldBlockNextCohereModelDelete {
+            shouldBlockNextCohereModelDelete = false
+            await withCheckedContinuation { continuation in
+                cohereModelDeleteContinuation = continuation
+            }
+        }
+        ready = false
+    }
+
     func setSpeechEngine(_ preference: SpeechEnginePreference) async throws {
         setSpeechEngineCallCount += 1
         if shouldBlockNextSpeechEngineSwitch {
@@ -1894,6 +1974,15 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     func releaseClearModelCache() {
         clearModelCacheContinuation?.resume()
         clearModelCacheContinuation = nil
+    }
+
+    func blockNextCohereModelDelete() {
+        shouldBlockNextCohereModelDelete = true
+    }
+
+    func releaseCohereModelDelete() {
+        cohereModelDeleteContinuation?.resume()
+        cohereModelDeleteContinuation = nil
     }
 
     func block(path: String) {

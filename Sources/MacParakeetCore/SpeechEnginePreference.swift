@@ -4,9 +4,9 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     case parakeet
     case nemotron
     case whisper
-    /// Cohere Transcribe (03-2026) via FluidAudio's `CoherePipeline`, on-device
-    /// Core ML. A batch, dictation-oriented engine (no live partials, no word
-    /// timestamps); see ``CohereTranscribeEngine``.
+    /// Cohere Transcribe (03-2026) via the pinned transcribe.cpp backend. This
+    /// is a local batch engine with automatic multilingual transcription, no
+    /// live partials, and no word timestamps; see ``CohereTranscribeEngine``.
     case cohere
 
     public static let defaultsKey = "speechRecognitionEngine"
@@ -24,9 +24,9 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     public static let nemotronDefaultLanguageKey = "nemotronDefaultLanguage"
     public static let whisperDefaultLanguageKey = "whisperDefaultLanguage"
     public static let whisperModelVariantKey = "whisperModelVariant"
-    /// Cohere has no auto language detection — the user picks one of its 14
-    /// supported languages (default English). Stored as a primary subtag ("en",
-    /// "fr", …); the engine maps it to `CohereAsrConfig.Language`.
+    /// Legacy Cohere language preference retained for settings and CLI
+    /// compatibility. The transcribe.cpp backend ignores this value and
+    /// detects the spoken language automatically.
     public static let cohereDefaultLanguageKey = "cohereDefaultLanguage"
 
     /// New users stay on the `v3` build for the default local coverage lane.
@@ -167,8 +167,9 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
         defaults.set(normalized, forKey: whisperDefaultLanguageKey)
     }
 
-    /// The persisted Cohere dictation language, as a primary subtag ("en",
-    /// "fr", …). `nil` means none chosen yet → the engine defaults to English.
+    /// The legacy persisted Cohere language, retained for settings and CLI
+    /// compatibility. The transcribe.cpp backend ignores it and detects the
+    /// language automatically.
     public static func cohereDefaultLanguage(defaults: UserDefaults = .standard) -> String? {
         normalizeCohereLanguage(defaults.string(forKey: cohereDefaultLanguageKey))
     }
@@ -182,9 +183,8 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     }
 
     /// Cohere language codes are simple supported primary subtags ("en", "zh").
-    /// Fold any BCP-47-ish input down to its lowercased primary subtag and drop
-    /// unsupported values so manual defaults edits cannot leak stale picker
-    /// state into the runtime.
+    /// Fold any BCP-47-ish legacy value down to its lowercased primary subtag
+    /// and drop unsupported values.
     public static func normalizeCohereLanguage(_ language: String?) -> String? {
         guard let language else { return nil }
         let trimmed = language.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -192,11 +192,11 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
         let primary = trimmed.replacingOccurrences(of: "_", with: "-")
             .split(separator: "-").first.map(String.init) ?? trimmed
         guard primary.allSatisfy(\.isLetter) else { return nil }
-        // `supportedLanguages` (from `CohereAsrConfig.Language`) is the sole
-        // authority for valid codes. Don't pre-filter on subtag length: a future
+        // The compatibility set is the sole authority for valid codes. Do not
+        // pre-filter on subtag length: a future
         // ISO 639-2/3 entry (e.g. a 3-letter `yue`) would otherwise be dropped
         // before this membership check ever runs.
-        guard CohereTranscribeEngine.supportedLanguages.contains(where: { $0.code == primary }) else {
+        guard CohereTranscribeEngine.legacyCompatibleLanguageCodes.contains(primary) else {
             return nil
         }
         return primary

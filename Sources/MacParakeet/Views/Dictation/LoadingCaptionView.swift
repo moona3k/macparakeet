@@ -39,7 +39,7 @@ struct LoadingCaptionView: View {
         case .preparing, .preparingExtended:
             "Preparing speech engine…"
         case .optimizing, .optimizingExtended:
-            "Optimizing Cohere…"
+            "Loading Cohere…"
         case .failed:
             "Couldn't load speech engine."
         }
@@ -50,7 +50,7 @@ struct LoadingCaptionView: View {
         case .preparingExtended:
             "First-time setup — may take a few minutes"
         case .optimizingExtended:
-            "Model setup — may take a few minutes"
+            "Model load may take a few minutes"
         case .preparing, .optimizing, .failed:
             nil
         }

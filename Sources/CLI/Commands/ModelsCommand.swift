@@ -565,7 +565,7 @@ private let cohereModelLifecycle = speechModelLifecycle(for: .cohere)
 
 private let cohereModelName = cohereModelLifecycle.modelName
 
-private let cohereModelSize = cohereModelLifecycle.approximateDownloadSize ?? "~2.1 GB"
+private let cohereModelSize = cohereModelLifecycle.approximateDownloadSize ?? "~1.65 GB"
 
 private func selectableModelLanguage(
     for policy: SpeechEngineLanguagePolicy,

@@ -1275,10 +1275,10 @@ included in an app release.
 - When meeting preview and final routes differ, the recording panel attributes both. When preview is absent from the speech plan — the user turned live transcription off, or the live engine cannot preview — the panel says "Live transcription is off" and confirms audio is recording for transcription after stop. In that Transcript empty state the seed-of-life sits still and faded rather than spinning. A later live-preview failure uses the separate "Live preview unavailable" waiting state and keeps the living rosette. Settings explains that the live transcription toggle and Start meetings muted both apply to the next recording.
 - Engine picker options: Parakeet (default), Nemotron Beta, Whisper, and Cohere.
 - Whisper language picker is shown for the Whisper path. `Auto-detect` stores no explicit language; specific languages are normalized before saving.
-- Cohere language picker is shown for the Cohere path. Cohere has no auto-detect; `nil` falls back to English and explicit choices store supported primary subtags such as `en`, `ja`, or `zh`.
+- Cohere has no language picker. The transcribe.cpp backend detects multilingual speech automatically. Existing saved Cohere language values remain compatibility state but do not affect native decoding.
 - Status pill states: `Unknown`, `Checking`, `Ready`, `Not Loaded`, `Not Downloaded`, `Downloading`, `Repairing`, `Failed`.
 - `Repair` retries Parakeet model download/initialization with bounded backoff.
-- `Download` explicitly downloads the configured Whisper model into `~/Library/Application Support/MacParakeet/models/stt/whisper/` or Cohere Transcribe into `~/Library/Application Support/MacParakeet/models/stt/cohere-transcribe/`.
+- `Download` explicitly downloads the configured Whisper model into `~/Library/Application Support/MacParakeet/models/stt/whisper/` or the checksum-pinned Cohere GGUF into `~/Library/Application Support/MacParakeet/models/stt/cohere/`.
 - Switching engines is disabled while STT work is queued/running or an active meeting recording holds a speech-engine lease.
 
 ### Permissions (v0.1)

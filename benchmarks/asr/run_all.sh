@@ -24,6 +24,7 @@ verify() {
   echo "== manifest contract =="
   "$PY" manifest_tool.py validate manifest.json
   "$PY" test_manifest.py
+  "$PY" test_cohere_multilingual_speed.py
   echo
   echo "== scorer unit tests =="
   "$PY" test_scorers.py

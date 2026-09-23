@@ -39,15 +39,19 @@ class MacparakeetCli < Formula
 
   def install
     odie "macparakeet-cli requires macOS 14.2 or later" if MacOS.version < "14.2"
-    bin.install "macparakeet-cli"
+    libexec.install "macparakeet-cli"
+    (libexec/"Frameworks").install "Frameworks/CTranscribe.framework"
+    (share/"macparakeet-cli").install "Legal"
+    bin.write_exec_script libexec/"macparakeet-cli"
   end
 
   def caveats
     <<~EOS
-      Local Parakeet, Nemotron, and Cohere models are cached by FluidAudio at:
+      Local Parakeet and Nemotron models are cached by FluidAudio at:
         ~/Library/Application Support/FluidAudio/Models/
 
-      Optional Whisper models are stored at:
+      Cohere and optional Whisper models are stored at:
+        ~/Library/Application Support/MacParakeet/models/stt/cohere/
         ~/Library/Application Support/MacParakeet/models/stt/whisper/
 
       The CLI shares its database with the macOS app at:
