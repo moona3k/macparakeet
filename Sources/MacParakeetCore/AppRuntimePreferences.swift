@@ -582,6 +582,9 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     /// Play a chime (and, when backgrounded, post a banner) when a file/URL
     /// transcription or a batch finishes. Default on; opt-out in Settings.
     public static let notifyOnTranscriptionCompleteKey = "notifyOnTranscriptionComplete"
+    /// Transform IDs hidden from the menu-bar submenu. Missing key = show all
+    /// visible Transforms (issue #821 default).
+    public static let hiddenMenuBarTransformIDsKey = "hiddenMenuBarTransformIDs"
 
     private let defaults: UserDefaults
 
@@ -659,6 +662,32 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public static func notifyOnMeetingEnd(defaults: UserDefaults = .standard) -> Bool {
         defaults.object(forKey: notifyOnMeetingEndKey) as? Bool ?? true
+    }
+
+    public static func hiddenMenuBarTransformIDs(defaults: UserDefaults = .standard) -> Set<UUID> {
+        let raw = defaults.stringArray(forKey: hiddenMenuBarTransformIDsKey) ?? []
+        return Set(raw.compactMap(UUID.init(uuidString:)))
+    }
+
+    public static func isTransformVisibleInMenuBar(
+        _ id: UUID,
+        defaults: UserDefaults = .standard
+    ) -> Bool {
+        !hiddenMenuBarTransformIDs(defaults: defaults).contains(id)
+    }
+
+    public static func setTransformVisibleInMenuBar(
+        _ id: UUID,
+        visible: Bool,
+        defaults: UserDefaults = .standard
+    ) {
+        var hidden = hiddenMenuBarTransformIDs(defaults: defaults)
+        if visible {
+            hidden.remove(id)
+        } else {
+            hidden.insert(id)
+        }
+        defaults.set(hidden.map(\.uuidString).sorted(), forKey: hiddenMenuBarTransformIDsKey)
     }
 
     public var processingMode: Dictation.ProcessingMode {

@@ -274,6 +274,29 @@ final class HotkeyConflictPolicyTests: XCTestCase {
         XCTAssertEqual(result, .blocked("Conflicts with Transform Polish (⌥1)."))
     }
 
+    func testSpecialDictationShortcutsCannotClaimATransformHotkey() {
+        let transform = Prompt(
+            name: "Polish",
+            content: "body",
+            category: .transform,
+            keyboardShortcut: opt1.encodedString()
+        )
+
+        for surface in [
+            HotkeyConflictPolicy.Surface.dictationAIPolish,
+            .dictationClipboard,
+        ] {
+            XCTAssertEqual(
+                HotkeyConflictPolicy.settingsValidation(
+                    candidate: opt1.hotkeyTrigger,
+                    surface: surface,
+                    snapshot: snapshot(transformHotkeys: [transform])
+                ),
+                .blocked("Conflicts with Transform Polish (⌥1).")
+            )
+        }
+    }
+
     func testSettingsPolicyBlocksAIPolishConflictWithHandsFree() {
         XCTAssertEqual(
             HotkeyConflictPolicy.settingsValidation(

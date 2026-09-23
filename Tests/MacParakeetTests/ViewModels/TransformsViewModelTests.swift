@@ -41,6 +41,42 @@ final class TransformsViewModelTests: XCTestCase {
         XCTAssertEqual(names, ["Polish", "Distill", "Decide"])
     }
 
+    func testMenuBarVisibilityDefaultsOnAndCanHide() {
+        let suiteName = "test.menu-bar-transforms.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let id = UUID()
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences.isTransformVisibleInMenuBar(id, defaults: defaults))
+        UserDefaultsAppRuntimePreferences.setTransformVisibleInMenuBar(id, visible: false, defaults: defaults)
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences.isTransformVisibleInMenuBar(id, defaults: defaults))
+        UserDefaultsAppRuntimePreferences.setTransformVisibleInMenuBar(id, visible: true, defaults: defaults)
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences.isTransformVisibleInMenuBar(id, defaults: defaults))
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    func testSetVisibleInMenuBarUsesInjectedDefaults() async throws {
+        let suiteName = "test.vm-menu-bar-transforms.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        viewModel = TransformsViewModel()
+        viewModel.configure(
+            repo: repo,
+            historyRepo: historyRepo,
+            clipboardService: clipboardService,
+            hasLLMProvider: true,
+            defaults: defaults
+        )
+        await viewModel.load()
+        let id = try XCTUnwrap(viewModel.transforms.first?.id)
+        XCTAssertTrue(viewModel.isVisibleInMenuBar(id))
+        viewModel.setVisibleInMenuBar(id, visible: false)
+        XCTAssertFalse(viewModel.isVisibleInMenuBar(id))
+        XCTAssertFalse(
+            UserDefaultsAppRuntimePreferences.isTransformVisibleInMenuBar(id, defaults: defaults)
+        )
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
     func testShortcutBindingsExposesNonNilShortcuts() {
         let bindings = viewModel.shortcutBindings
         XCTAssertEqual(bindings.count, 3, "All three built-ins ship with default shortcuts.")

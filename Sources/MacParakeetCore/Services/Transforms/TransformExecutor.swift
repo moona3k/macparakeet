@@ -122,13 +122,19 @@ public actor TransformExecutor {
         inferenceSettings: PromptInferenceSettings? = nil,
         modelOverride: String? = nil,
         replacementMode: SelectionReplacementMode = .replaceSelection,
+        preCaptured: SelectionCaptureResult? = nil,
         onProgress: @escaping @Sendable (TransformProgress) -> Void
     ) async throws -> TransformExecutionResult {
         let start = ContinuousClock.now
 
-        // 1. Capture.
-        onProgress(.capturing)
-        let captured = await captureService.captureSelection()
+        // 1. Capture — or reuse a snapshot taken before the status menu stole focus.
+        let captured: SelectionCaptureResult
+        if let preCaptured {
+            captured = preCaptured
+        } else {
+            onProgress(.capturing)
+            captured = await captureService.captureSelection()
+        }
         do {
             try Task.checkCancellation()
         } catch {

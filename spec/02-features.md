@@ -2098,7 +2098,8 @@ authoritative transcript and is unchanged by this live-preview strategy.
 - Selection capture is AX-first with clipboard fallback; replacement uses clipboard paste with snapshot/restore guards so the output lands in the currently focused target rather than forcing activation back to the selection source.
 - `TransformExecutor` uses `LLMService.transformStream` in the GUI so the progress pill can react to streamed output; CLI JSON uses the detailed LLM path for provider/model/latency metadata where available.
 - `transform_history` stores local input/output/source-app/timing rows for completed Transform runs. This is deliberate local user data; telemetry records only privacy-safe `transform_executed`, `transform_failed`, and `transform_operation` metadata and does not duplicate the content.
-- The menu bar supports pasting the latest Transform result and recent Transform results, mirroring the dictation paste history affordance.
+- The menu bar **Transforms** submenu snapshots the frontmost app on the status-button mouse-down, then reads its selection through AX when the menu opens. If the click was not observed or MacParakeet was frontmost, the action fails without using an earlier app. If AX cannot read the captured app, choosing a Transform reactivates that same app and uses the clipboard fallback only while it is frontmost; a focus change stops the run. Every visible Transform is listed by default, including ones with no hotkey, so the first click works; hide individual Transforms from that submenu via the card hover control or context menu. Missing preference shows every visible Transform. Bound hotkeys appear as a title suffix, not as live `keyEquivalent`s, so pressing the chord still uses the hotkey path instead of a menu action against MacParakeet itself.
+- The menu bar also supports pasting the latest Transform result and recent Transform results, mirroring the dictation paste history affordance.
 - `macparakeet-cli transforms` manages and runs saved Transforms headlessly; `macparakeet-cli transforms history` reads and manages local Transform history.
 
 **Acceptance criteria:**
@@ -2107,6 +2108,7 @@ authoritative transcript and is unchanged by this live-preview strategy.
 - [x] Shortcut validation blocks bare keys, duplicate Transform bindings, dictation/meeting hotkey collisions, and hostile Option-letter dead-key combos
 - [x] Transforms tab appears in the main sidebar when `AppFeatures.transformsEnabled` is true
 - [x] Triggering a Transform shows the floating progress pill, handles cancellation/error cleanup, and preserves clipboard state on abandon
+- [x] Menu bar Transforms submenu uses the pre-menu AX selection or a focus-checked fallback in the captured app; individual Transforms can be hidden from that submenu
 - [x] CLI `transforms` and `transforms history` surfaces mirror the saved-prompt and local-history data model for agent workflows
 
 ---

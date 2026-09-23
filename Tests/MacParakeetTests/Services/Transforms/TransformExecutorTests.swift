@@ -391,6 +391,60 @@ final class TransformExecutorTests: XCTestCase {
         XCTAssertEqual(replacementBackend.cmdVPostCount(), 0)
     }
 
+    func testRunUsesPreCapturedSelectionAndSkipsCapture() async throws {
+        let captureBackend = FakeSelectionCaptureBackend(
+            isTrusted: true,
+            focusedElement: AXUIElementCreateSystemWide(),
+            selectedText: "SHOULD NOT BE READ"
+        )
+        let captureService = SelectionCaptureService(
+            backend: captureBackend,
+            clipboardPollTimeout: .milliseconds(40),
+            pollIntervalNanos: 1_000_000
+        )
+        let replacementBackend = FakeSelectionReplacementBackend(
+            isTrusted: true,
+            axWriteSucceeds: true
+        )
+        let replacementService = SelectionReplacementService(
+            backend: replacementBackend,
+            postPasteDelay: .milliseconds(1)
+        )
+        let llm = MockTransformLLMService()
+        llm.streamTokens = ["rewritten"]
+        let executor = TransformExecutor(
+            captureService: captureService,
+            replacementService: replacementService,
+            llmService: llm
+        )
+        let target = SelectionCaptureTarget(
+            processIdentifier: 99,
+            bundleIdentifier: "com.example.Mail",
+            localizedName: "Mail"
+        )
+        let preCaptured = SelectionCaptureResult.ax(
+            text: "selected in Mail",
+            element: AXFocusedElement(AXUIElementCreateSystemWide()),
+            target: target
+        )
+
+        let result = try await executor.run(
+            prompt: "polish",
+            replacementMode: .replaceSelection,
+            preCaptured: preCaptured,
+            onProgress: { _ in }
+        )
+
+        XCTAssertEqual(result.inputText, "selected in Mail")
+        XCTAssertEqual(result.outputText, "rewritten")
+        XCTAssertEqual(result.target?.bundleIdentifier, "com.example.Mail")
+        XCTAssertEqual(
+            captureBackend.frontmostTargetCallCount(),
+            0,
+            "Menu-bar runs must not re-query the frontmost app after the status item steals focus."
+        )
+    }
+
     // MARK: - Helpers
 
     private func eventName(_ progress: TransformProgress) -> String {
