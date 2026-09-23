@@ -5429,6 +5429,10 @@ struct TranscriptResultView: View {
 
     private func commitReadingEdit() {
         guard !savingReadingTranscript else { return }
+        guard viewModel.currentTranscription?.id == transcription.id else {
+            transcriptEditError = "Transcript changed. Reopen it to save your edits."
+            return
+        }
         guard let command = TranscriptReadingEdit.command(for: readingDrafts) else {
             cancelReadingEdit()
             return
@@ -5440,12 +5444,10 @@ struct TranscriptResultView: View {
         transcriptEditError = nil
         Task { @MainActor in
             let succeeded = await viewModel.applySpeakerCorrectionAndWait(command)
-            guard readingSaveID == saveID,
-                transcription.id == savingTranscriptionID,
-                viewModel.currentTranscription?.id == savingTranscriptionID
-            else { return }
+            guard readingSaveID == saveID else { return }
             readingSaveID = nil
             savingReadingTranscript = false
+            guard viewModel.currentTranscription?.id == savingTranscriptionID else { return }
             if succeeded {
                 readingDrafts = []
                 editingReadingTranscript = false
