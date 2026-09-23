@@ -66,7 +66,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     ) {
         if let window {
             if restartExistingRun {
-                if viewModel?.step == .practice { onPracticeExit?() }
+                viewModel?.suspendPracticeForWindowClose()
                 viewModel?.startNewCurrentRun()
                 viewModel?.markOnboardingShown()
             }
@@ -149,6 +149,9 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     private var onHotkeyPreviewDisarmHandler: (() -> Void)?
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
+        // Stop the practice take before the incomplete-setup alert can take
+        // focus and become the next paste target.
+        viewModel?.suspendPracticeForWindowClose()
         if allowCloseWithoutCompletion {
             return true
         }
@@ -162,7 +165,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
-        if viewModel?.step == .practice { onPracticeExit?() }
+        viewModel?.suspendPracticeForWindowClose()
         allowCloseWithoutCompletion = false
         onIncompleteDismiss = nil
         onHotkeyPreviewDisarmHandler?()

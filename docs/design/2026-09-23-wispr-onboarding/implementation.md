@@ -82,7 +82,7 @@ The practice dictation is saved to history and emits normal dictation telemetry.
 
 Once the box has started listening, the rehearsal is not re-armed while the user stays on this screen, so an in-flight hold-to-talk can never lose its release event to a suspended tap. Leaving the step (Back, Skip, Continue) does not suspend production taps either; the next step never arms rehearsal.
 
-Leaving Try It or closing onboarding dismisses any active practice take and cancels its pending insertion, so it cannot paste after the practice target disappears. A completed transcription may already be retained in local history; the dismissal does not delete user data. If paste fails but its clipboard fallback succeeds, the delivered transcript still counts as practice and appears in the box.
+Leaving Try It or closing onboarding dismisses any active practice take and cancels its pending insertion, so it cannot paste after the practice target disappears. Closing disarms the box before the incomplete-setup confirmation appears; if the user stays, another click is required to resume practice. A completed transcription may already be retained in local history; the dismissal does not delete user data. If paste fails but its clipboard fallback succeeds, the delivered transcript still counts as practice and appears in the box.
 
 ## Step 4: All Set
 

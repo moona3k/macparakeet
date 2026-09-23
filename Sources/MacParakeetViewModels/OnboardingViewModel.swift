@@ -435,16 +435,27 @@ public final class OnboardingViewModel {
     private func move(to target: Step, action: TelemetryOnboardingAction) {
         emitAccessibilityDeniedIfLeavingPermissions(for: target)
         if step == .practice, target != .practice {
-            onPracticeExit?()
-            // The box must be clicked again after coming back, so focus and
-            // the paste target are re-established by the user.
-            isPracticeBoxArmed = false
-            litKey = nil
-            practiceActivity = .idle
+            releasePracticeTarget()
         }
         step = target
         sendStepTelemetry(step: target, action: action)
         refresh()
+    }
+
+    /// The close confirmation can take focus while the window remains open.
+    /// A cancelled close returns to Try It with an unarmed box.
+    public func suspendPracticeForWindowClose() {
+        guard step == .practice else { return }
+        releasePracticeTarget()
+    }
+
+    private func releasePracticeTarget() {
+        onPracticeExit?()
+        // The box must be clicked again after coming back, so focus and
+        // the paste target are re-established by the user.
+        isPracticeBoxArmed = false
+        litKey = nil
+        practiceActivity = .idle
     }
 
     public func canContinueFromCurrentStep() -> Bool {
