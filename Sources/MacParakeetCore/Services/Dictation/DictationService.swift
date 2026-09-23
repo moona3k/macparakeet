@@ -675,28 +675,41 @@ public actor DictationService: DictationServiceProtocol {
             return
         }
         guard case .recording = _state else { return }
+        let cancelledSession = activeSessionID
+        let cancelledAIFormatterEnabled = currentSessionAIFormatterEnabled
 
         cancelGeneration += 1
         let generation = cancelGeneration
 
         pendingCancelReason = reason
-        cancellationRequestedDuringStartSessionID = activeSessionID
-        await cancelLiveDictationTranscription(sessionID: activeSessionID)
-        await cancelDisplayPreview(sessionID: activeSessionID, clearText: true)
+        cancellationRequestedDuringStartSessionID = cancelledSession
+        await cancelLiveDictationTranscription(sessionID: cancelledSession)
+        await cancelDisplayPreview(sessionID: cancelledSession, clearText: true)
+        // A replacement take can start while either cancellation awaits.
+        // Never stop its capture or attach this take's undo data to it.
+        guard activeSessionID == cancelledSession else { return }
         let capturedDurationMs = currentRecordingDurationMs()
         let captureStartedAt = Date()
-        // Label the take whose capture this call stops; the awaits above let
-        // a replacement session start.
-        let cancelledSession = activeSessionID
         let audioURL = try? await audioProcessor.stopCapture()
         postCaptureDidStop(sessionID: cancelledSession)
         // Capture finalization ends when stopCapture returns. Do not include the
         // later recordingDeviceInfo hop in pendingCancelledCaptureMs / undo e2e.
         let captureMs = audioURL == nil ? nil : Self.elapsedMilliseconds(since: captureStartedAt)
         let device = await audioProcessor.recordingDeviceInfo
+        if activeSessionID != cancelledSession {
+            if let audioURL {
+                let cancelledAudio = StolenCancelledAudio(
+                    url: audioURL,
+                    durationMs: capturedDurationMs,
+                    captureMs: captureMs
+                )
+                Task { await self.persistOrDiscardCancelledAudio(cancelledAudio) }
+            }
+            return
+        }
         pendingCancelledAudioURL = audioURL
         pendingCancelledDurationMs = capturedDurationMs
-        pendingCancelledAIFormatterEnabled = currentSessionAIFormatterEnabled
+        pendingCancelledAIFormatterEnabled = cancelledAIFormatterEnabled
         pendingCancelledCaptureMs = captureMs
         _state = .cancelled
         Telemetry.send(

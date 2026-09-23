@@ -23,6 +23,7 @@ final class AppHotkeyCoordinator {
     private let dictationRecordingModeProvider: () -> FnKeyStateMachine.RecordingMode?
 
     private var dictationHotkeyManagers: [HotkeyManager] = []
+    private var activeDictationHotkey: DictationHotkeyPlan.Spec?
     private var meetingHotkeyManager: GlobalShortcutManager?
     private var fileTranscriptionHotkeyManager: GlobalShortcutManager?
     private var youtubeTranscriptionHotkeyManager: GlobalShortcutManager?
@@ -303,21 +304,20 @@ final class AppHotkeyCoordinator {
         }
 
         let activeRecordingMode = dictationRecordingModeProvider()
+        if activeRecordingMode == nil {
+            activeDictationHotkey = nil
+        }
         let managers = plan.specs.compactMap { spec in
-            let isPolish = spec.aiFormatterEnabled == true
-            let suppressPolishWhileRecording = isPolish && activeRecordingMode != nil
+            let resumeMode = Self.resumeMode(activeRecordingMode, for: spec.gestureMode)
+            let shouldResume = Self.shouldResumeDictationHotkey(
+                spec,
+                activeMode: activeRecordingMode,
+                activeHotkey: activeDictationHotkey
+            )
             return startDictationHotkey(
-                trigger: spec.trigger,
-                gestureMode: spec.gestureMode,
-                startupDebounceMs: spec.startupDebounceMs,
-                holdToTalkStopTailMs: spec.holdToTalkStopTailMs,
-                resumeMode: suppressPolishWhileRecording
-                    ? nil
-                    : Self.resumeMode(activeRecordingMode, for: spec.gestureMode),
-                suppressUntilReset: suppressPolishWhileRecording
-                    || Self.shouldSuppressPeer(activeRecordingMode, for: spec.gestureMode),
-                aiFormatterEnabled: spec.aiFormatterEnabled,
-                clipboardOnly: spec.clipboardOnly
+                spec: spec,
+                resumeMode: shouldResume ? resumeMode : nil,
+                suppressUntilReset: activeRecordingMode != nil && !shouldResume
             )
         }
         dictationHotkeyManagers = managers
@@ -331,37 +331,36 @@ final class AppHotkeyCoordinator {
     }
 
     private func startDictationHotkey(
-        trigger: HotkeyTrigger,
-        gestureMode: HotkeyGestureController.Mode,
-        startupDebounceMs: Int = FnKeyStateMachine.defaultStartupDebounceMs,
-        holdToTalkStopTailMs: Int = 0,
+        spec: DictationHotkeyPlan.Spec,
         resumeMode: FnKeyStateMachine.RecordingMode? = nil,
-        suppressUntilReset: Bool = false,
-        aiFormatterEnabled: Bool? = nil,
-        clipboardOnly: Bool = false
+        suppressUntilReset: Bool = false
     ) -> HotkeyManager? {
-        guard !trigger.isDisabled else { return nil }
+        guard !spec.trigger.isDisabled else { return nil }
 
         let manager = HotkeyManager(
-            trigger: trigger,
-            gestureMode: gestureMode,
-            startupDebounceMs: startupDebounceMs,
-            holdToTalkStopTailMs: holdToTalkStopTailMs
+            trigger: spec.trigger,
+            gestureMode: spec.gestureMode,
+            startupDebounceMs: spec.startupDebounceMs,
+            holdToTalkStopTailMs: spec.holdToTalkStopTailMs
         )
         manager.onStartRecording = { [weak self, weak manager] mode in
             if let manager {
                 self?.suppressOtherDictationHotkeys(activeManager: manager)
             }
-            self?.onStartDictation(mode, aiFormatterEnabled, clipboardOnly)
+            self?.activeDictationHotkey = spec
+            self?.onStartDictation(mode, spec.aiFormatterEnabled, spec.clipboardOnly)
         }
         manager.onStopRecording = { [weak self] in
+            self?.activeDictationHotkey = nil
             self?.resetDictationHotkeyGestures()
             self?.onStopDictation()
         }
         manager.onCancelRecording = { [weak self] in
+            self?.activeDictationHotkey = nil
             self?.onCancelDictation()
         }
         manager.onDiscardRecording = { [weak self] showReadyPill in
+            self?.activeDictationHotkey = nil
             self?.onDiscardRecording(showReadyPill)
         }
         manager.onReadyForSecondTap = { [weak self] in
@@ -514,6 +513,21 @@ final class AppHotkeyCoordinator {
         for gestureMode: HotkeyGestureController.Mode
     ) -> Bool {
         HotkeyManager.shouldSuppressPeer(activeMode, for: gestureMode)
+    }
+
+    static func shouldResumeDictationHotkey(
+        _ spec: DictationHotkeyPlan.Spec,
+        activeMode: FnKeyStateMachine.RecordingMode?,
+        activeHotkey: DictationHotkeyPlan.Spec?
+    ) -> Bool {
+        guard resumeMode(activeMode, for: spec.gestureMode) != nil else { return false }
+        guard let activeHotkey else {
+            // Recordings started outside a shortcut keep the existing regular
+            // dictation behavior; AI polish cannot take over that recording.
+            return spec.aiFormatterEnabled != true
+        }
+        return spec.aiFormatterEnabled == activeHotkey.aiFormatterEnabled
+            && spec.clipboardOnly == activeHotkey.clipboardOnly
     }
 
     func refreshAllHotkeys() {

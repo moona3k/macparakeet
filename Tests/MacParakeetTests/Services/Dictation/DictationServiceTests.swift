@@ -1806,6 +1806,48 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(mockLLMService.formatTranscriptCallCount, 1)
     }
 
+    func testUndoCancelKeepsTheCancelledTakesAIFormatterChoice() async throws {
+        await mockSTT.configure(result: STTResult(text: "hello world"))
+        let mockLLMService = MockLLMService()
+        mockLLMService.formatTranscriptResult = "Hello, world."
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            llmService: mockLLMService,
+            llmRunRepo: llmRunRepo,
+            shouldUseAIFormatter: { false }
+        )
+
+        try await service.startRecording(sessionID: 1, aiFormatterEnabled: true)
+        await service.cancelRecording(sessionID: 1)
+        let result = try await service.undoCancel()
+
+        XCTAssertEqual(result.dictation.cleanTranscript, "Hello, world.")
+        XCTAssertEqual(mockLLMService.formatTranscriptCallCount, 1)
+    }
+
+    func testCancelDoesNotOverwriteReplacementSessionAfterAudioStops() async throws {
+        let cancelledURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cancelled-\(UUID().uuidString).wav")
+        await mockAudio.configure(captureResult: cancelledURL)
+        try await service.startRecording(sessionID: 1, aiFormatterEnabled: true)
+
+        await mockAudio.pauseNextRecordingDeviceInfoRead()
+        let cancelTask = Task { await self.service.cancelRecording(sessionID: 1) }
+        await mockAudio.waitForRecordingDeviceInfoRead()
+
+        try await service.startRecording(sessionID: 2, aiFormatterEnabled: false)
+        await mockAudio.resumeRecordingDeviceInfoRead()
+        await cancelTask.value
+
+        let state = await service.state
+        XCTAssertTrue(Self.isRecording(state))
+        let audioIsRecording = await mockAudio.isRecording
+        XCTAssertTrue(audioIsRecording)
+        _ = try await service.stopRecording(sessionID: 2)
+    }
+
     func testAIPolishRespectsMasterSwitchAfterEntitlementWait() async throws {
         await mockSTT.configure(result: STTResult(text: "hello world"))
         let mockLLMService = MockLLMService()

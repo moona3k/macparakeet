@@ -377,6 +377,60 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         XCTAssertNil(plan.specs[0].aiFormatterEnabled)
     }
 
+    func testRebuildResumesOnlyTheShortcutThatStartedAIPolish() {
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .fn,
+            pushToTalk: .fn,
+            aiPolish: .control,
+            clipboard: .option
+        )
+        let polish = plan.specs.first { $0.aiFormatterEnabled == true }!
+
+        for spec in plan.specs {
+            XCTAssertEqual(
+                AppHotkeyCoordinator.shouldResumeDictationHotkey(
+                    spec,
+                    activeMode: .persistent,
+                    activeHotkey: polish
+                ),
+                spec.aiFormatterEnabled == true
+            )
+        }
+    }
+
+    func testRebuildSuppressesAIPolishWhenAnotherShortcutStartedTheTake() {
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .fn,
+            pushToTalk: .fn,
+            aiPolish: .control,
+            clipboard: .option
+        )
+        let standard = plan.specs.first { !$0.clipboardOnly && $0.aiFormatterEnabled != true }!
+        let polish = plan.specs.first { $0.aiFormatterEnabled == true }!
+
+        XCTAssertTrue(
+            AppHotkeyCoordinator.shouldResumeDictationHotkey(
+                standard,
+                activeMode: .persistent,
+                activeHotkey: standard
+            )
+        )
+        XCTAssertFalse(
+            AppHotkeyCoordinator.shouldResumeDictationHotkey(
+                polish,
+                activeMode: .persistent,
+                activeHotkey: standard
+            )
+        )
+        XCTAssertFalse(
+            AppHotkeyCoordinator.shouldResumeDictationHotkey(
+                polish,
+                activeMode: .persistent,
+                activeHotkey: nil
+            )
+        )
+    }
+
     // MARK: - Suspend / Resume
 
     func testSuspendAndResumeArePaired() {
