@@ -1460,7 +1460,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     }
 
     private static func taskGroup(forFeature feature: String) -> LLMTaskGroup {
-        if feature.hasPrefix("formatter_") { return .cleanup }
+        if feature == TelemetryLLMFeature.formatter.rawValue || feature.hasPrefix("formatter_") { return .cleanup }
         if feature == "transform" { return .transform }
         return .analysis
     }

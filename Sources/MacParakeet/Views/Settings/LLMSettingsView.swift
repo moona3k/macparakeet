@@ -2042,11 +2042,15 @@ struct LLMSettingsView: View {
     }
 
     private var privacyInfo: some View {
+        let hasPendingChanges = viewModel.hasUnsavedChanges
         let taskOverrides = [viewModel.cleanupOverrideProviderID, viewModel.analysisOverrideProviderID].compactMap { $0 }
-        let allRoutesLocal = viewModel.isLocalConfiguration && taskOverrides.allSatisfy(\.isLocal)
+        let allRoutesLocal = viewModel.isLocalConfiguration
+            && taskOverrides.allSatisfy { provider in
+                provider == viewModel.selectedProviderID ? viewModel.isLocalConfiguration : provider.isLocal
+            }
         let isCLI = viewModel.selectedProviderID == .localCLI || taskOverrides.contains(.localCLI)
         let usesInsecureHTTP = viewModel.usesInsecureLocalNetworkHTTP
-        let usesTrustedLocal = allRoutesLocal && !usesInsecureHTTP
+        let usesTrustedLocal = !hasPendingChanges && allRoutesLocal && !usesInsecureHTTP
         let tint: Color
         let iconName: String
         if usesTrustedLocal {
@@ -2067,6 +2071,7 @@ struct LLMSettingsView: View {
 
             Text(
                 privacyInfoMessage(
+                    hasPendingChanges: hasPendingChanges,
                     allRoutesLocal: allRoutesLocal,
                     isCLI: isCLI,
                     usesInsecureHTTP: usesInsecureHTTP,
@@ -2085,11 +2090,15 @@ struct LLMSettingsView: View {
     }
 
     private func privacyInfoMessage(
+        hasPendingChanges: Bool,
         allRoutesLocal: Bool,
         isCLI: Bool,
         usesInsecureHTTP: Bool,
         isAppleIntelligence: Bool
     ) -> String {
+        if hasPendingChanges {
+            return "Route changes apply after Save. Until then, AI actions use the last saved configuration, which may send transcript text off this Mac."
+        }
         if isAppleIntelligence {
             return
                 "Transcript text stays on this Mac. Apple Intelligence runs on-device and does not send it to the cloud."

@@ -782,13 +782,35 @@ public final class LLMSettingsViewModel {
                     commandTemplate: draft.trimmedCommandTemplate,
                     timeoutSeconds: draft.cliTimeoutSeconds
                 ) : nil
+            // Validate both task routes before changing the active default.
+            // A bad second route must not leave Save reporting failure after
+            // the first route or the default has already changed.
+            let cleanupOverride = try preparedOverride(
+                providerID: cleanupOverrideProviderID,
+                modelName: cleanupModelName,
+                task: .cleanup,
+                defaultConfig: config,
+                stagedCLIConfig: cliConfig
+            )
+            let analysisOverride = try preparedOverride(
+                providerID: analysisOverrideProviderID,
+                modelName: analysisModelName,
+                task: .analysis,
+                defaultConfig: config,
+                stagedCLIConfig: cliConfig
+            )
             if let cliConfig {
                 guard let cliConfigStore else { throw LocalCLIError.commandNotConfigured }
                 try cliConfigStore.save(cliConfig, providerConfig: config, configStore: configStore)
             } else {
                 try configStore.saveConfig(config)
             }
-            try persistTaskOverrides()
+            try configStore.saveTaskOverride(cleanupOverride, for: .cleanup)
+            try configStore.saveTaskOverride(analysisOverride, for: .analysis)
+            savedCleanupOverrideProviderID = cleanupOverrideProviderID
+            savedCleanupModelName = cleanupModelName
+            savedAnalysisOverrideProviderID = analysisOverrideProviderID
+            savedAnalysisModelName = analysisModelName
 
             _ = persistAIFormatterPreferences(from: draft)
             // Rehydrate the exact committed payload, without a fallible credential
@@ -1345,56 +1367,49 @@ public final class LLMSettingsViewModel {
         savedAnalysisModelName = analysisModelName
     }
 
-    private func persistTaskOverrides() throws {
-        try persistOverride(
-            providerID: cleanupOverrideProviderID,
-            modelName: cleanupModelName,
-            task: .cleanup
-        )
-        try persistOverride(
-            providerID: analysisOverrideProviderID,
-            modelName: analysisModelName,
-            task: .analysis
-        )
-        savedCleanupOverrideProviderID = cleanupOverrideProviderID
-        savedCleanupModelName = cleanupModelName
-        savedAnalysisOverrideProviderID = analysisOverrideProviderID
-        savedAnalysisModelName = analysisModelName
-    }
-
-    private func persistOverride(
+    private func preparedOverride(
         providerID: LLMProviderID?,
         modelName: String,
-        task: LLMTaskGroup
-    ) throws {
-        guard let configStore else { return }
-        guard let providerID else {
-            try configStore.saveTaskOverride(nil, for: task)
-            return
-        }
+        task: LLMTaskGroup,
+        defaultConfig: LLMProviderConfig,
+        stagedCLIConfig: LocalCLIConfig?
+    ) throws -> LLMProviderConfig? {
+        guard let configStore, let providerID else { return nil }
         let trimmed = modelName.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedModel = trimmed.isEmpty ? providerID.defaultModelName : trimmed
 
-        if let current = try configStore.loadConfig(), current.id == providerID {
-            try configStore.saveTaskOverride(
-                LLMProviderConfig(
-                    id: current.id,
-                    baseURL: current.baseURL,
-                    apiKey: current.apiKey,
-                    modelName: resolvedModel,
-                    isLocal: current.isLocal
-                ),
-                for: task
-            )
-            return
-        }
-
         if providerID == .localCLI {
-            guard cliConfigStore?.load() != nil else {
+            guard stagedCLIConfig != nil || cliConfigStore?.load() != nil else {
                 throw LLMSettingsDraft.ValidationError.taskOverrideUnavailable
             }
-            try configStore.saveTaskOverride(.localCLI(), for: task)
-            return
+            return .localCLI()
+        }
+        guard !resolvedModel.isEmpty else { throw LLMSettingsDraft.ValidationError.missingCustomModel }
+
+        if defaultConfig.id == providerID {
+            return LLMProviderConfig(
+                id: providerID,
+                baseURL: defaultConfig.baseURL,
+                apiKey: defaultConfig.apiKey,
+                modelName: resolvedModel,
+                isLocal: defaultConfig.isLocal
+            )
+        }
+
+        // A task route is a full provider route. Keep its endpoint when the
+        // default provider changes; editing the model must not redirect a
+        // saved local server to the stock localhost port.
+        if let existing = try configStore.loadTaskOverride(task), existing.id == providerID {
+            guard !providerID.requiresAPIKey || existing.apiKey?.isEmpty == false else {
+                throw LLMSettingsDraft.ValidationError.taskOverrideUnavailable
+            }
+            return LLMProviderConfig(
+                id: providerID,
+                baseURL: existing.baseURL,
+                apiKey: existing.apiKey,
+                modelName: resolvedModel,
+                isLocal: existing.isLocal
+            )
         }
 
         if providerID.requiresCustomEndpoint || providerID.defaultBaseURL.isEmpty {
@@ -1411,15 +1426,12 @@ public final class LLMSettingsViewModel {
             throw LLMSettingsDraft.ValidationError.taskOverrideUnavailable
         }
 
-        try configStore.saveTaskOverride(
-            LLMProviderConfig(
-                id: providerID,
-                baseURL: baseURL,
-                apiKey: apiKey,
-                modelName: resolvedModel,
-                isLocal: providerID.isLocal
-            ),
-            for: task
+        return LLMProviderConfig(
+            id: providerID,
+            baseURL: baseURL,
+            apiKey: apiKey,
+            modelName: resolvedModel,
+            isLocal: providerID.isLocal
         )
     }
 
