@@ -4,6 +4,7 @@ Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
 Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
   s_697e594299b62c::t_852ce3e48fdcc4 875,918,2045-2047,2049,2070,2088,2098-2103,2105
   s_697e594299b62c::t_12fc6a76b3abf6 316
+  s_697e594299b62c::t_7510626c890863 2073
 spec/11-llm-integration.md
   s_697e594299b62c::t_852ce3e48fdcc4 50-60
 Tests/MacParakeetTests/ViewModels/LLMSettingsViewModelTests.swift
