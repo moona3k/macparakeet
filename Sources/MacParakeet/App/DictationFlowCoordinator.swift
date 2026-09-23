@@ -203,6 +203,8 @@ final class DictationFlowCoordinator {
 
     /// Telemetry trigger for the current dictation flow.
     private var currentTrigger: TelemetryDictationTrigger = .hotkey
+    /// Per-invocation AI Formatter intent. `nil` follows Settings.
+    private var sessionAIFormatterEnabled: Bool?
     /// Per-utterance destination: copy instead of paste. Committed when
     /// recording actually starts so a rejected start during processing
     /// cannot flip an in-flight clipboard-only session to paste.
@@ -419,6 +421,7 @@ final class DictationFlowCoordinator {
     func startDictation(
         mode: FnKeyStateMachine.RecordingMode,
         trigger: TelemetryDictationTrigger = .hotkey,
+        aiFormatterEnabled: Bool? = nil,
         clipboardOnly: Bool = false
     ) {
         // Suppressed while onboarding is up — the speech model isn't ready and
@@ -432,6 +435,7 @@ final class DictationFlowCoordinator {
         sendEvent(.startRequested(mode: mode))
         guard stateMachine.state != stateBeforeStart else { return }
         currentTrigger = trigger
+        sessionAIFormatterEnabled = aiFormatterEnabled
         pendingSessionClipboardOnly = clipboardOnly
     }
 
@@ -1163,6 +1167,7 @@ final class DictationFlowCoordinator {
         sessionID: Int
     ) {
         let trigger = currentTrigger
+        let aiFormatterOverride = sessionAIFormatterEnabled
         let clipboardOnly = pendingSessionClipboardOnly
         sessionClipboardOnly = clipboardOnly
         recordingTask = Task { @MainActor in
@@ -1194,7 +1199,8 @@ final class DictationFlowCoordinator {
                     context: DictationTelemetryContext(
                         trigger: trigger,
                         mode: self.telemetryMode(for: mode)
-                    )
+                    ),
+                    aiFormatterEnabled: aiFormatterOverride
                 )
                 await self.serviceSession.updateAIFormatterAppContext(
                     startContext,

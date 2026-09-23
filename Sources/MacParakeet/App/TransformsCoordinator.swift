@@ -48,6 +48,11 @@ final class TransformsCoordinator {
     /// without re-hitting the DB on every keystroke.
     private var promptIndex: [UUID: Prompt] = [:]
     private var activeBindingIDs: Set<UUID> = []
+    private var workspaceActivationObserver: NSObjectProtocol?
+    private var lastForeignCaptureTarget: SelectionCaptureTarget?
+    private var menuBarCaptureTask: Task<SelectionCaptureResult, Never>?
+    private var menuBarCaptureTarget: SelectionCaptureTarget?
+    private let menuBarCaptureService = SelectionCaptureService()
 
     init(
         llmServiceProvider: @escaping () -> LLMServiceProtocol?,
@@ -82,22 +87,37 @@ final class TransformsCoordinator {
                 self?.handleTrigger(promptID: promptID)
             }
         }
+        self.registry = registry
+        reloadBindings()
         if registry.start() {
-            self.registry = registry
-            reloadBindings()
-            // Save/delete/reset on the Transforms tab posts this notification.
-            bindingsChangedObserver = NotificationCenter.default.addObserver(
-                forName: .transformsBindingsChanged,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.reloadBindings()
-                }
-            }
             logger.notice("transforms: registry started with \(self.activeBindingIDs.count, privacy: .public) bindings")
         } else {
             logger.error("transforms: failed to install registry event tap")
+        }
+
+        // The menu catalog and its updates must work even when the event tap
+        // cannot be installed. A later resume can retry the same registry.
+        bindingsChangedObserver = NotificationCenter.default.addObserver(
+            forName: .transformsBindingsChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.reloadBindings()
+            }
+        }
+
+        rememberForeignFrontmostApplication()
+        workspaceActivationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            else { return }
+            Task { @MainActor [weak self] in
+                self?.rememberForeignApplication(app)
+            }
         }
     }
 
@@ -112,6 +132,11 @@ final class TransformsCoordinator {
             NotificationCenter.default.removeObserver(observer)
             bindingsChangedObserver = nil
         }
+        if let observer = workspaceActivationObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+            workspaceActivationObserver = nil
+        }
+        discardMenuBarCapture()
     }
 
     func suspendHotkeys() {
@@ -132,7 +157,6 @@ final class TransformsCoordinator {
     /// Re-read `.transform` prompts from the repository and rebuild the
     /// registry's dispatch table. Call after any save/delete/import.
     func reloadBindings() {
-        guard let registry else { return }
         let prompts: [Prompt]
         do {
             prompts = try promptRepository.fetchVisible(category: .transform)
@@ -142,6 +166,8 @@ final class TransformsCoordinator {
         }
 
         promptIndex = Dictionary(uniqueKeysWithValues: prompts.map { ($0.id, $0) })
+
+        guard let registry else { return }
 
         let reservedHotkeys = reservedHotkeysProvider().filter { !$0.trigger.isDisabled }
         var bindings: [UUID: KeyboardShortcut] = [:]
@@ -171,7 +197,72 @@ final class TransformsCoordinator {
 
     // MARK: - Trigger handling
 
-    private func handleTrigger(promptID: UUID) {
+    /// Snapshot selection before the status menu makes MacParakeet frontmost.
+    /// AX-only: dismissing the menu must not leave a Cmd+C hijack behind.
+    func prepareMenuBarCapture() {
+        guard AppFeatures.transformsEnabled else { return }
+        rememberForeignFrontmostApplication()
+        let preferred = lastForeignCaptureTarget
+        menuBarCaptureTarget = preferred
+        menuBarCaptureTask?.cancel()
+        menuBarCaptureTask = Task { [menuBarCaptureService] in
+            await menuBarCaptureService.captureAXSelection(preferring: preferred)
+        }
+    }
+
+    func discardMenuBarCapture() {
+        menuBarCaptureTask?.cancel()
+        menuBarCaptureTask = nil
+        menuBarCaptureTarget = nil
+    }
+
+    func runFromMenuBar(promptID: UUID) {
+        let captureTask = menuBarCaptureTask ?? Task<SelectionCaptureResult, Never> { .empty }
+        let captureTarget = menuBarCaptureTarget
+        menuBarCaptureTask = nil
+        menuBarCaptureTarget = nil
+        handleTrigger(promptID: promptID, menuBarCapture: captureTask, menuBarCaptureTarget: captureTarget)
+    }
+
+    func menuBarListings() -> [MenuBarTransformListing] {
+        MenuBarTransformCatalog.listings(
+            from: Array(promptIndex.values),
+            hiddenIDs: UserDefaultsAppRuntimePreferences.hiddenMenuBarTransformIDs(
+                defaults: AppPaths.appDefaults()
+            )
+        )
+    }
+
+    static func menuCaptureBelongsToTarget(
+        _ capture: SelectionCaptureResult,
+        target: SelectionCaptureTarget?
+    ) -> Bool {
+        guard let target, let capturedTarget = capture.target else { return false }
+        return capturedTarget.processIdentifier == target.processIdentifier
+            && capturedTarget.bundleIdentifier == target.bundleIdentifier
+    }
+
+    private func rememberForeignFrontmostApplication() {
+        guard let app = NSWorkspace.shared.frontmostApplication else { return }
+        rememberForeignApplication(app)
+    }
+
+    private func rememberForeignApplication(_ app: NSRunningApplication) {
+        guard let bundleIdentifier = app.bundleIdentifier,
+            bundleIdentifier != Bundle.main.bundleIdentifier
+        else { return }
+        lastForeignCaptureTarget = SelectionCaptureTarget(
+            processIdentifier: app.processIdentifier,
+            bundleIdentifier: bundleIdentifier,
+            localizedName: app.localizedName
+        )
+    }
+
+    private func handleTrigger(
+        promptID: UUID,
+        menuBarCapture: Task<SelectionCaptureResult, Never>? = nil,
+        menuBarCaptureTarget: SelectionCaptureTarget? = nil
+    ) {
         guard AppFeatures.transformsEnabled else { return }
         if let owner = GUIMutationArbiter.shared.current?.owner, owner != .transform {
             panelController?.show()
@@ -230,12 +321,37 @@ final class TransformsCoordinator {
             }
             defer { GUIMutationArbiter.shared.release(lease) }
             do {
+                var preCaptured: SelectionCaptureResult?
+                if let menuBarCapture {
+                    let snapshot = await menuBarCapture.value
+                    if snapshot.capturedText != nil {
+                        guard Self.menuCaptureBelongsToTarget(snapshot, target: menuBarCaptureTarget)
+                        else { throw TransformExecutorError.captureFailed(.targetNotFrontmost) }
+                        preCaptured = snapshot
+                    } else if case .failed = snapshot {
+                        preCaptured = snapshot
+                    } else if let target = menuBarCaptureTarget {
+                        guard let app = NSRunningApplication(processIdentifier: target.processIdentifier)
+                        else { throw TransformExecutorError.captureFailed(.targetNotFrontmost) }
+                        NSApp.deactivate()
+                        guard app.activate() else {
+                            throw TransformExecutorError.captureFailed(.targetNotFrontmost)
+                        }
+                        try? await Task.sleep(for: .milliseconds(200))
+                        preCaptured = await self.menuBarCaptureService.captureSelection(in: target)
+                    } else {
+                        throw TransformExecutorError.captureFailed(.targetNotFrontmost)
+                    }
+                }
                 let result = try await Observability.withOperationContext(operationContext) {
                     try await executor.run(
                         prompt: promptBody,
                         inferenceSettings: prompt.inferenceSettings,
                         modelOverride: modelSnapshot,
-                        replacementMode: .pasteIntoCurrentFocus,
+                        replacementMode: menuBarCapture == nil
+                            ? .pasteIntoCurrentFocus
+                            : .replaceSelection,
+                        preCaptured: preCaptured,
                         onProgress: { [weak self] progress in
                             if case .failed = progress {
                                 Task { @MainActor [weak self, runID] in

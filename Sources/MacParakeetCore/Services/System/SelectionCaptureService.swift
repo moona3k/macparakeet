@@ -58,6 +58,7 @@ public enum SelectionCaptureResult: @unchecked Sendable {
 
 public enum SelectionCaptureError: Error, LocalizedError, Sendable {
     case accessibilityNotAuthorized
+    case targetNotFrontmost
     case eventSourceUnavailable
     case eventPostingFailed
 
@@ -65,6 +66,8 @@ public enum SelectionCaptureError: Error, LocalizedError, Sendable {
         switch self {
         case .accessibilityNotAuthorized:
             return "Accessibility permission required to read selected text."
+        case .targetNotFrontmost:
+            return "The original app is no longer active. Select text there and try again."
         case .eventSourceUnavailable:
             return "Could not create a CGEventSource for the clipboard-fallback path."
         case .eventPostingFailed:
@@ -137,6 +140,7 @@ public struct PasteboardSnapshot: @unchecked Sendable {
 protocol SelectionCaptureBackend: Sendable {
     func isAccessibilityTrusted() -> Bool
     func focusedElement() -> AXUIElement?
+    func focusedElement(ofProcess pid: pid_t) -> AXUIElement?
     func selectedText(of element: AXUIElement) -> String?
 
     @MainActor
@@ -228,6 +232,56 @@ public actor SelectionCaptureService {
         return await clipboardHijack(target: target)
     }
 
+    /// Recapture for a menu action after reactivating the app that was selected
+    /// when the menu opened. Never copy from another process if focus moved.
+    public func captureSelection(
+        in target: SelectionCaptureTarget
+    ) async -> SelectionCaptureResult {
+        guard backend.isAccessibilityTrusted() else {
+            return .failed(.accessibilityNotAuthorized)
+        }
+        guard await targetIsFrontmostOnMain(target) else {
+            return .failed(.targetNotFrontmost)
+        }
+        if let element = backend.focusedElement(ofProcess: target.processIdentifier),
+            let text = backend.selectedText(of: element),
+            !text.isEmpty
+        {
+            guard await targetIsFrontmostOnMain(target) else {
+                return .failed(.targetNotFrontmost)
+            }
+            return .ax(text: text, element: AXFocusedElement(element), target: target)
+        }
+        return await clipboardHijack(target: target, requireFrontmostTarget: target)
+    }
+
+    /// AX-only capture for the menu-bar trigger. Must not post Cmd+C: the
+    /// user may dismiss the menu without running a Transform.
+    public func captureAXSelection(
+        preferring target: SelectionCaptureTarget? = nil
+    ) async -> SelectionCaptureResult {
+        guard backend.isAccessibilityTrusted() else {
+            return .failed(.accessibilityNotAuthorized)
+        }
+
+        let frontmost = await captureTargetOnMain()
+        let ownBundle = Bundle.main.bundleIdentifier
+        let frontmostIsForeign = frontmost.map { $0.bundleIdentifier != ownBundle } ?? false
+
+        // Resolve the element within the captured process. A system-wide AX
+        // lookup can switch to another app while the status menu opens.
+        let scopedTarget = target ?? (frontmostIsForeign ? frontmost : nil)
+        if let scopedTarget,
+            let element = backend.focusedElement(ofProcess: scopedTarget.processIdentifier),
+            let text = backend.selectedText(of: element),
+            !text.isEmpty
+        {
+            return .ax(text: text, element: AXFocusedElement(element), target: scopedTarget)
+        }
+
+        return .empty
+    }
+
     /// Restore a clipboard capture that is being abandoned before replacement.
     /// The guard preserves user clipboard writes made while the LLM was running:
     /// we only restore if the pasteboard is still at the Cmd+C change count
@@ -250,10 +304,15 @@ public actor SelectionCaptureService {
 
     // MARK: - Clipboard Hijack
 
-    private func clipboardHijack(target: SelectionCaptureTarget?) async -> SelectionCaptureResult {
+    private func clipboardHijack(
+        target: SelectionCaptureTarget?,
+        requireFrontmostTarget: SelectionCaptureTarget? = nil
+    ) async -> SelectionCaptureResult {
         let snapshot = await snapshotPasteboardOnMain()
         do {
-            try await postCmdCOnMain()
+            guard try await postCmdCOnMain(requireFrontmostTarget: requireFrontmostTarget) else {
+                return .failed(.targetNotFrontmost)
+            }
         } catch let error as SelectionCaptureError {
             return .failed(error)
         } catch {
@@ -271,6 +330,13 @@ public actor SelectionCaptureService {
             }
             let now = await currentChangeCountOnMain()
             if now != snapshot.originalChangeCount {
+                if let requireFrontmostTarget,
+                    !(await targetIsFrontmostOnMain(requireFrontmostTarget))
+                {
+                    // The new clipboard content may be a user copy. Leave it
+                    // intact, and never send it to the Transform.
+                    return .failed(.targetNotFrontmost)
+                }
                 if let text = await currentStringOnMain(), !text.isEmpty {
                     return .clipboard(
                         text: text,
@@ -298,6 +364,13 @@ public actor SelectionCaptureService {
     }
 
     @MainActor
+    private func targetIsFrontmostOnMain(_ target: SelectionCaptureTarget) -> Bool {
+        guard let frontmost = backend.frontmostApplicationTarget() else { return false }
+        return frontmost.processIdentifier == target.processIdentifier
+            && frontmost.bundleIdentifier == target.bundleIdentifier
+    }
+
+    @MainActor
     private func snapshotPasteboardOnMain() -> PasteboardSnapshot {
         backend.snapshotPasteboard()
     }
@@ -313,8 +386,12 @@ public actor SelectionCaptureService {
     }
 
     @MainActor
-    private func postCmdCOnMain() throws {
+    private func postCmdCOnMain(requireFrontmostTarget: SelectionCaptureTarget?) throws -> Bool {
+        if let requireFrontmostTarget, !targetIsFrontmostOnMain(requireFrontmostTarget) {
+            return false
+        }
         try backend.postCmdC()
+        return true
     }
 
     @MainActor
@@ -345,10 +422,17 @@ struct SystemSelectionCaptureBackend: SelectionCaptureBackend, @unchecked Sendab
     }
 
     func focusedElement() -> AXUIElement? {
-        let systemElement = AXUIElementCreateSystemWide()
+        focusedElement(from: AXUIElementCreateSystemWide())
+    }
+
+    func focusedElement(ofProcess pid: pid_t) -> AXUIElement? {
+        focusedElement(from: AXUIElementCreateApplication(pid))
+    }
+
+    private func focusedElement(from root: AXUIElement) -> AXUIElement? {
         var raw: CFTypeRef?
         let status = AXUIElementCopyAttributeValue(
-            systemElement,
+            root,
             kAXFocusedUIElementAttribute as CFString,
             &raw
         )

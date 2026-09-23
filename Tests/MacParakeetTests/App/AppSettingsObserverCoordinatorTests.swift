@@ -22,6 +22,7 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
         var meetingHotkeyTriggerCount = 0
         var fileTranscriptionHotkeyTriggerCount = 0
         var youtubeTranscriptionHotkeyTriggerCount = 0
+        var dictationAIPolishHotkeyTriggerCount = 0
         var dictationClipboardHotkeyTriggerCount = 0
         var appearanceModeCount = 0
         var menuBarOnlyCount = 0
@@ -63,6 +64,10 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
             },
             onYouTubeTranscriptionHotkeyTriggerChanged: { [unowned self] in
                 self.youtubeTranscriptionHotkeyTriggerCount += 1
+                self.onCallback?()
+            },
+            onDictationAIPolishHotkeyTriggerChanged: { [unowned self] in
+                self.dictationAIPolishHotkeyTriggerCount += 1
                 self.onCallback?()
             },
             onDictationClipboardHotkeyTriggerChanged: { [unowned self] in
@@ -113,7 +118,7 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
     func test_startObserving_routesEachNotificationToItsCallback() async {
         let fx = Fixture()
         let callbacks = expectation(description: "all callbacks fire")
-        callbacks.expectedFulfillmentCount = 17
+        callbacks.expectedFulfillmentCount = 18
         fx.onCallback = { callbacks.fulfill() }
         fx.coordinator.startObserving()
 
@@ -124,6 +129,7 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
         fx.center.post(name: .macParakeetMeetingHotkeyTriggerDidChange, object: nil)
         fx.center.post(name: .macParakeetFileTranscriptionHotkeyTriggerDidChange, object: nil)
         fx.center.post(name: .macParakeetYouTubeTranscriptionHotkeyTriggerDidChange, object: nil)
+        fx.center.post(name: .macParakeetDictationAIPolishHotkeyTriggerDidChange, object: nil)
         fx.center.post(name: .macParakeetDictationClipboardHotkeyTriggerDidChange, object: nil)
         fx.center.post(name: .macParakeetAppearanceModeDidChange, object: nil)
         fx.center.post(name: .macParakeetMenuBarOnlyModeDidChange, object: nil)
@@ -145,6 +151,7 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
         XCTAssertEqual(fx.meetingHotkeyTriggerCount, 1)
         XCTAssertEqual(fx.fileTranscriptionHotkeyTriggerCount, 1)
         XCTAssertEqual(fx.youtubeTranscriptionHotkeyTriggerCount, 1)
+        XCTAssertEqual(fx.dictationAIPolishHotkeyTriggerCount, 1)
         XCTAssertEqual(fx.dictationClipboardHotkeyTriggerCount, 1)
         XCTAssertEqual(fx.appearanceModeCount, 1)
         XCTAssertEqual(fx.menuBarOnlyCount, 1)
@@ -192,6 +199,7 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
         fx.center.post(name: .macParakeetMeetingHotkeyTriggerDidChange, object: nil)
         fx.center.post(name: .macParakeetFileTranscriptionHotkeyTriggerDidChange, object: nil)
         fx.center.post(name: .macParakeetYouTubeTranscriptionHotkeyTriggerDidChange, object: nil)
+        fx.center.post(name: .macParakeetDictationAIPolishHotkeyTriggerDidChange, object: nil)
         fx.center.post(name: .macParakeetDictationClipboardHotkeyTriggerDidChange, object: nil)
         fx.center.post(name: .macParakeetAppearanceModeDidChange, object: nil)
         fx.center.post(name: .macParakeetMenuBarOnlyModeDidChange, object: nil)
@@ -213,6 +221,7 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
         XCTAssertEqual(fx.meetingHotkeyTriggerCount, 0)
         XCTAssertEqual(fx.fileTranscriptionHotkeyTriggerCount, 0)
         XCTAssertEqual(fx.youtubeTranscriptionHotkeyTriggerCount, 0)
+        XCTAssertEqual(fx.dictationAIPolishHotkeyTriggerCount, 0)
         XCTAssertEqual(fx.dictationClipboardHotkeyTriggerCount, 0)
         XCTAssertEqual(fx.appearanceModeCount, 0)
         XCTAssertEqual(fx.menuBarOnlyCount, 0)
@@ -299,6 +308,7 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
         XCTAssertEqual(fx.meetingHotkeyTriggerCount, 0)
         XCTAssertEqual(fx.fileTranscriptionHotkeyTriggerCount, 0)
         XCTAssertEqual(fx.youtubeTranscriptionHotkeyTriggerCount, 0)
+        XCTAssertEqual(fx.dictationAIPolishHotkeyTriggerCount, 0)
         XCTAssertEqual(fx.dictationClipboardHotkeyTriggerCount, 0)
         XCTAssertEqual(fx.appearanceModeCount, 0)
         XCTAssertEqual(fx.menuBarOnlyCount, 0)

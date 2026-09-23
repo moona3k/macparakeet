@@ -23,7 +23,7 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
     ) -> AppHotkeyCoordinator {
         AppHotkeyCoordinator(
             settingsViewModel: settingsViewModel,
-            onStartDictation: { _, _ in },
+            onStartDictation: { _, _, _ in },
             onStopDictation: {},
             onCancelDictation: {},
             onDiscardRecording: { _ in },
@@ -117,6 +117,29 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
                 clipboard: .shift
             ),
             "Clipboard-only: Tap Shift"
+        )
+    }
+
+    func testMenuTitleDescribesAIPolishWhenOtherDictationShortcutsAreDisabled() {
+        XCTAssertEqual(
+            AppHotkeyCoordinator.menuTitle(
+                handsFree: .disabled,
+                pushToTalk: .disabled,
+                aiPolish: .control
+            ),
+            "AI polish: Tap Control"
+        )
+    }
+
+    func testMenuTitleAcknowledgesBothOptionalShortcuts() {
+        XCTAssertEqual(
+            AppHotkeyCoordinator.menuTitle(
+                handsFree: .disabled,
+                pushToTalk: .disabled,
+                aiPolish: .control,
+                clipboard: .option
+            ),
+            "Dictation: AI polish / Clipboard-only"
         )
     }
 
@@ -234,7 +257,7 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             plan,
             AppHotkeyCoordinator.DictationHotkeyPlan(
                 specs: [
-                    .init(trigger: .control, gestureMode: .singleTapToggle),
+                    .init(trigger: .control, gestureMode: .singleTapToggle)
                 ],
                 conflict: .init(trigger: pushToTalk, conflicts: [.control])
             )
@@ -266,6 +289,32 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             ),
             AppHotkeyCoordinator.DictationHotkeyPlan(specs: [], conflict: nil)
         )
+    }
+
+    func testDictationHotkeyPlanAddsAIPolishAsSeparateTapToggle() {
+        let polish = HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 35)
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .fn,
+            pushToTalk: .fn,
+            aiPolish: polish
+        )
+
+        XCTAssertEqual(plan.specs.count, 2)
+        XCTAssertEqual(plan.specs.last?.trigger, polish)
+        XCTAssertEqual(plan.specs.last?.gestureMode, .singleTapToggle)
+        XCTAssertEqual(plan.specs.last?.aiFormatterEnabled, true)
+        XCTAssertNil(plan.conflict)
+    }
+
+    func testDictationHotkeyPlanReportsConflictWhenAIPolishOverlapsHandsFree() {
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .control,
+            pushToTalk: .option,
+            aiPolish: .control
+        )
+
+        XCTAssertEqual(plan.conflict?.trigger, .control)
+        XCTAssertFalse(plan.specs.contains(where: { $0.aiFormatterEnabled == true }))
     }
 
     func testDictationHotkeyPlanAddsClipboardOnlyAsSeparateTapToggle() {
@@ -309,6 +358,75 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
                     .init(trigger: clipboard, gestureMode: .singleTapToggle, clipboardOnly: true)
                 ],
                 conflict: nil
+            )
+        )
+    }
+
+    func testDictationHotkeyPlanReportsConflictBetweenSpecialDictationShortcuts() {
+        let sameChord = HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 35)
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .disabled,
+            pushToTalk: .disabled,
+            aiPolish: sameChord,
+            clipboard: sameChord
+        )
+
+        XCTAssertEqual(plan.conflict?.trigger, sameChord)
+        XCTAssertEqual(plan.specs.count, 1)
+        XCTAssertTrue(plan.specs[0].clipboardOnly)
+        XCTAssertNil(plan.specs[0].aiFormatterEnabled)
+    }
+
+    func testRebuildResumesOnlyTheShortcutThatStartedAIPolish() {
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .fn,
+            pushToTalk: .fn,
+            aiPolish: .control,
+            clipboard: .option
+        )
+        let polish = plan.specs.first { $0.aiFormatterEnabled == true }!
+
+        for spec in plan.specs {
+            XCTAssertEqual(
+                AppHotkeyCoordinator.shouldResumeDictationHotkey(
+                    spec,
+                    activeMode: .persistent,
+                    activeHotkey: polish
+                ),
+                spec.aiFormatterEnabled == true
+            )
+        }
+    }
+
+    func testRebuildSuppressesAIPolishWhenAnotherShortcutStartedTheTake() {
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .fn,
+            pushToTalk: .fn,
+            aiPolish: .control,
+            clipboard: .option
+        )
+        let standard = plan.specs.first { !$0.clipboardOnly && $0.aiFormatterEnabled != true }!
+        let polish = plan.specs.first { $0.aiFormatterEnabled == true }!
+
+        XCTAssertTrue(
+            AppHotkeyCoordinator.shouldResumeDictationHotkey(
+                standard,
+                activeMode: .persistent,
+                activeHotkey: standard
+            )
+        )
+        XCTAssertFalse(
+            AppHotkeyCoordinator.shouldResumeDictationHotkey(
+                polish,
+                activeMode: .persistent,
+                activeHotkey: standard
+            )
+        )
+        XCTAssertFalse(
+            AppHotkeyCoordinator.shouldResumeDictationHotkey(
+                polish,
+                activeMode: .persistent,
+                activeHotkey: nil
             )
         )
     }

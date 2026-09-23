@@ -140,7 +140,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return .init(specs: [], conflict: nil) }
             return AppHotkeyCoordinator.dictationHotkeyPlan(
                 handsFree: self.settingsViewModel.hotkeyTrigger,
-                pushToTalk: self.settingsViewModel.pushToTalkHotkeyTrigger
+                pushToTalk: self.settingsViewModel.pushToTalkHotkeyTrigger,
+                aiPolish: self.settingsViewModel.dictationAIPolishHotkeyTrigger,
+                clipboard: self.settingsViewModel.dictationClipboardHotkeyTrigger
             )
         },
         micLevelingProvider: { [weak self] in
@@ -343,6 +345,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         },
         onYouTubeTranscriptionHotkeyTriggerChanged: { [weak self] in
             self?.handleYouTubeTranscriptionHotkeyTriggerChange()
+        },
+        onDictationAIPolishHotkeyTriggerChanged: { [weak self] in
+            self?.handleHotkeyTriggerChange()
         },
         onDictationClipboardHotkeyTriggerChanged: { [weak self] in
             self?.handleHotkeyTriggerChange()
@@ -683,6 +688,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         transforms.start()
         transformsCoordinator = transforms
+        menuBarCoordinator.onPrepareMenuBarTransforms = { [weak transforms] in
+            transforms?.prepareMenuBarCapture()
+        }
+        menuBarCoordinator.onRunMenuBarTransform = { [weak transforms] id in
+            transforms?.runFromMenuBar(promptID: id)
+        }
+        menuBarCoordinator.menuBarTransformsProvider = { [weak transforms] in
+            transforms?.menuBarListings() ?? []
+        }
 
         if AppFeatures.isVoiceControlAvailable() {
             let control = VoiceControlCoordinator(
@@ -919,6 +933,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 name: "file transcription", trigger: settingsViewModel.fileTranscriptionHotkeyTrigger),
             TransformShortcutReservedHotkey(
                 name: "video URL transcription", trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger),
+            TransformShortcutReservedHotkey(
+                name: "AI polish this dictation",
+                trigger: settingsViewModel.dictationAIPolishHotkeyTrigger,
+                conflictMode: .bareModifierDictation
+            ),
         ]
         if AppFeatures.meetingRecordingEnabled {
             reserved.append(
@@ -985,6 +1004,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ?? AppHotkeyCoordinator.menuTitle(
                 handsFree: settingsViewModel.hotkeyTrigger,
                 pushToTalk: settingsViewModel.pushToTalkHotkeyTrigger,
+                aiPolish: settingsViewModel.dictationAIPolishHotkeyTrigger,
                 clipboard: settingsViewModel.dictationClipboardHotkeyTrigger
             )
     }
