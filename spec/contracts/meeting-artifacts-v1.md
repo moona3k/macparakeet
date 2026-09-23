@@ -150,7 +150,7 @@ the last in-place user edit. An absent or null key means no in-place edit is
 recorded, including for generated, historical, and imported results; it does
 not establish who wrote the content.
 The per-result Markdown view states whether automatic notes context was enabled
-and whether `content` was last written by a user edit (`Content edited:`). It
+and whether an in-place edit is recorded (`Content edited:`). It
 also shows the output language policy (`not recorded` when absent).
 It also preserves the remaining prompt-result snapshots,
 including additive optional `inferenceSettingsSnapshot` and additive nullable
