@@ -181,6 +181,17 @@ public enum SettingsSearchIndex {
             cardAnchor: "dictation"
         ),
         SettingsSearchEntry(
+            id: "dictation.capture.sounds",
+            tab: .capture,
+            title: "Play sounds when dictation starts and stops",
+            subtitle: "in Dictation",
+            keywords: [
+                "sound", "tone", "chime", "beep", "start sound", "stop sound",
+                "capture cue", "tink", "pop", "audio feedback",
+            ],
+            cardAnchor: "dictation"
+        ),
+        SettingsSearchEntry(
             id: "dictation.streaming.cursor",
             tab: .capture,
             title: "Streaming cursor",

@@ -163,6 +163,7 @@ final class DictationFlowCoordinator {
     /// same source the menu bar reads.
     private let activeSpeechEngine: @MainActor () -> SpeechEnginePreference
     private let mediaPauseCoordinator: any DictationMediaPauseCoordinating
+    private let playCaptureCue: @MainActor (AppSound) -> Void
     private let overlayControllerFactory: @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling
     private let shouldSuppressIdlePill: () -> Bool
     /// When true, `startDictation` is a no-op. Used to gate real dictation while
@@ -243,6 +244,7 @@ final class DictationFlowCoordinator {
         captionTiming: DictationProcessingLoadCaptionTiming = .production,
         activeSpeechEngine: @escaping @MainActor () -> SpeechEnginePreference = { SpeechEnginePreference.current() },
         mediaPauseCoordinator: (any DictationMediaPauseCoordinating)? = nil,
+        playCaptureCue: @escaping @MainActor (AppSound) -> Void = { SoundManager.shared.play($0) },
         overlayControllerFactory: @escaping @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling = {
             DictationOverlayController(viewModel: $0)
         },
@@ -267,6 +269,7 @@ final class DictationFlowCoordinator {
         self.captionTiming = captionTiming
         self.activeSpeechEngine = activeSpeechEngine
         self.mediaPauseCoordinator = mediaPauseCoordinator ?? NoOpDictationMediaPauseCoordinator()
+        self.playCaptureCue = playCaptureCue
         self.overlayControllerFactory = overlayControllerFactory
         self.shouldSuppressIdlePill = shouldSuppressIdlePill
         self.mutationArbiter = mutationArbiter ?? GUIMutationArbiter()
@@ -276,6 +279,7 @@ final class DictationFlowCoordinator {
         self.onPresentEntitlementsAlert = onPresentEntitlementsAlert
         observeFormatterNotifications()
         observePreviewTextSizeNotifications()
+        observeDictationCaptureSoundNotifications(from: dictationService)
         observeOverlayPlacementNotifications()
     }
 
@@ -340,6 +344,41 @@ final class DictationFlowCoordinator {
         }
     }
 
+    private var dictationCaptureDidStopObserver: NSObjectProtocol?
+    /// Session whose start cue played and still owes its stop cue. Each
+    /// start cue gets at most one stop cue, and a take that never played a
+    /// start cue (released during start, sounds off) never plays a stop cue.
+    /// A newer take's start cue replaces an older take's unpaid stop cue, so
+    /// a late Pop never tells the user the mic closed while a take is live.
+    private var captureCueSessionID: Int?
+
+    private func observeDictationCaptureSoundNotifications(from dictationService: DictationService) {
+        // `queue: nil` runs on the posting actor and returns at once; a main
+        // queue here would hold DictationService until main drains, before STT.
+        dictationCaptureDidStopObserver = NotificationCenter.default.addObserver(
+            forName: .macParakeetDictationCaptureDidStop,
+            object: dictationService,
+            queue: nil
+        ) { [weak self] note in
+            let sessionID = note.userInfo?[DictationCaptureNotificationKey.sessionID] as? Int
+            Task { @MainActor [weak self] in
+                self?.playStopCueIfOwed(sessionID: sessionID)
+            }
+        }
+    }
+
+    private func playStartCueIfEnabled(sessionID: Int) {
+        guard runtimePreferences.playDictationCaptureSounds else { return }
+        captureCueSessionID = sessionID
+        playCaptureCue(.recordStart)
+    }
+
+    private func playStopCueIfOwed(sessionID: Int?) {
+        guard let sessionID, sessionID == captureCueSessionID else { return }
+        captureCueSessionID = nil
+        playCaptureCue(.recordStop)
+    }
+
     /// Move idle + live overlays when Settings placement changes or displays
     /// are added, removed, or rearranged.
     private var overlayPlacementObserver: NSObjectProtocol?
@@ -372,9 +411,10 @@ final class DictationFlowCoordinator {
     }
 
     // NOTE: no `deinit` cleanup for `formatterDidStartObserver`,
-    // `previewTextSizeObserver`, `overlayPlacementObserver`, or
-    // `screenParametersObserver`. This coordinator is effectively a singleton
-    // for the app's lifetime, every observer block captures `[weak self]`, and
+    // `previewTextSizeObserver`, `dictationCaptureDidStopObserver`,
+    // `overlayPlacementObserver`, or `screenParametersObserver`. This
+    // coordinator is effectively a singleton for the app's lifetime, every
+    // observer block captures `[weak self]`, and
     // Swift 6 forbids touching `@MainActor`-isolated stored properties from a
     // nonisolated deinit. NotificationCenter cleans up automatically when the
     // tokens drop.
@@ -1156,6 +1196,11 @@ final class DictationFlowCoordinator {
                 }
                 guard !Task.isCancelled else { return }
                 self.sendEvent(.recordingStarted(generation: generation))
+                if case .recording = self.stateMachine.state,
+                    self.stateMachine.generation == generation
+                {
+                    self.playStartCueIfEnabled(sessionID: sessionID)
+                }
                 await self.runRecordingLevelLoop()
             } catch is CancellationError {
                 await self.mediaPauseCoordinator.resumeAfterDictationCapture()

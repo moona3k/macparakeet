@@ -91,6 +91,10 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Added
 
+- `config get|set|list` includes `play-dictation-capture-sounds` (`on`/`off`,
+  default off). When on, dictation plays a short cue once the microphone is
+  live and another when that capture ends, whether it was stopped or
+  cancelled. A take whose start never went live stays silent.
 - `config spoken-punctuation` (`on`/`off`, default on) controls whether Clean
   dictation and file transcription convert spoken question/exclamation marks.
   Meetings never convert. `vocab process` honors the same app-defaults key.
