@@ -168,9 +168,19 @@ public final class LLMSettingsViewModel {
     }
 
     /// `nil` means inherit the default AI route.
-    public var cleanupOverrideProviderID: LLMProviderID?
+    public var cleanupOverrideProviderID: LLMProviderID? {
+        didSet {
+            guard cleanupOverrideProviderID != oldValue else { return }
+            cleanupModelName = cleanupOverrideProviderID?.defaultModelName ?? ""
+        }
+    }
     public var cleanupModelName = ""
-    public var analysisOverrideProviderID: LLMProviderID?
+    public var analysisOverrideProviderID: LLMProviderID? {
+        didSet {
+            guard analysisOverrideProviderID != oldValue else { return }
+            analysisModelName = analysisOverrideProviderID?.defaultModelName ?? ""
+        }
+    }
     public var analysisModelName = ""
 
     public var apiKeyInput: String {

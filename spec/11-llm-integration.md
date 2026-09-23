@@ -47,21 +47,17 @@ User triggers LLM action (Summary / Chat / Formatter / Transform)
     → Response streamed back to UI
 ```
 
-### Per-task selection (accepted direction; not implemented)
+### Per-task selection
 
-Current code loads one saved default provider config, then may apply a
-prompt/Transform `modelOverride` or `--model` on a stored-config CLI
-command. Inline CLI commands that pass a full provider context do not
-use that saved route. If that grows, follow [ADR-032](adr/032-llm-task-group-routing.md): define a
-few tasks (`cleanup`, `analysis`, `transform`; `translate` only if F31
-ships), then a selector per task. Inherit the default, pick a general LLM
-route, or pick a specialist recipe on eligible tasks (`cleanup` now;
-`translate` only if F31). Do not add a Settings picker per feature, and do
-not put S1-mini or Hy-MT2 in the default model list. The first-party Local
-MLX model, if offered, remains one general model; built-in specialists are
-optional, task-bound recipes. Prompt/Transform `modelOverride` stays; the
-later split adds full-route task overrides, not a wipe of current
-model-name overrides.
+The default provider remains the route for every AI task until the user
+changes one of two Settings rows. Dictation and transcript formatting use
+`cleanup`; summaries, Ask, chat, and knowledge cards use `analysis`.
+Each row can inherit the default or select a full provider/model route.
+Transforms continue to inherit the default route. Prompt/Transform
+`modelOverride` and `--model` on stored-config CLI commands overlay the
+resolved route. Inline CLI commands with a full provider context stay
+independent. Specialist recipes are not shipped; see
+[ADR-032](adr/032-llm-task-group-routing.md).
 
 ### Provider Protocol
 

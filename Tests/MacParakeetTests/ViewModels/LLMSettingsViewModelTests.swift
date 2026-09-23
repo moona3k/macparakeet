@@ -2162,6 +2162,29 @@ final class LLMSettingsViewModelTests: XCTestCase {
 
     // MARK: - Task-group overrides
 
+    func testTaskRoutesStartOnDefaultAndProviderChangeResetsModel() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "sk-test"
+        viewModel.saveConfiguration()
+
+        XCTAssertNil(viewModel.cleanupOverrideProviderID)
+        XCTAssertNil(viewModel.analysisOverrideProviderID)
+
+        viewModel.cleanupOverrideProviderID = .openai
+        viewModel.cleanupModelName = "gpt-custom"
+        viewModel.cleanupOverrideProviderID = .anthropic
+        XCTAssertEqual(viewModel.cleanupModelName, LLMProviderID.anthropic.defaultModelName)
+
+        viewModel.analysisOverrideProviderID = .anthropic
+        viewModel.analysisModelName = "claude-custom"
+        viewModel.analysisOverrideProviderID = .openai
+        XCTAssertEqual(viewModel.analysisModelName, LLMProviderID.openai.defaultModelName)
+
+        viewModel.analysisOverrideProviderID = nil
+        XCTAssertEqual(viewModel.analysisModelName, "")
+    }
+
     func testTaskOverrideSaveLeavesDefaultUnchanged() {
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
         viewModel.selectedProviderID = .anthropic
