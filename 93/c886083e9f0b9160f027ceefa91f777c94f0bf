@@ -1,0 +1,51 @@
+Sources/MacParakeet/Views/Onboarding/OnboardingFlowView.swift
+  s_1824ba4b8337eb::t_b430d24cd248c0 711
+  s_1824ba4b8337eb::t_19b13e183ee2fa 11,113-120,128
+docs/research/2026-09-18-onboarding-activation-leak.md
+  s_1824ba4b8337eb::t_f71fb0f656af86 288-289
+Sources/MacParakeet/Onboarding/OnboardingHotkeyPreviewController.swift
+  s_1824ba4b8337eb::t_d33da3e017e1e9 111-113
+  s_1824ba4b8337eb::t_91fc6c853a602f 114-118,139-141
+  s_57f96c7e168713::t_b5095cb9adb6d7 142-144
+docs/design/2026-09-23-wispr-onboarding/implementation.md
+  s_1824ba4b8337eb::t_a831fcea873138 54,77,81
+Sources/MacParakeetViewModels/OnboardingViewModel.swift
+  s_1824ba4b8337eb::t_19b13e183ee2fa 509-519
+Sources/MacParakeet/App/OnboardingCoordinator.swift
+  s_1824ba4b8337eb::t_19b13e183ee2fa 9,23,34,90
+Tests/MacParakeetTests/ViewModels/OnboardingViewModelTests.swift
+  s_1824ba4b8337eb::t_d33da3e017e1e9 528-545
+Sources/MacParakeet/AppDelegate.swift
+  s_1824ba4b8337eb::t_b6cdbd4cee45bd 62-63,182,1027-1031,1036-1038,1042
+  s_1824ba4b8337eb::t_19b13e183ee2fa 160
+spec/adr/005-onboarding-first-run.md
+  s_1824ba4b8337eb::t_a831fcea873138 98
+Sources/MacParakeet/Views/Onboarding/OnboardingPracticeStepView.swift
+  s_1824ba4b8337eb::t_19b13e183ee2fa 549,562
+Sources/MacParakeet/Onboarding/OnboardingWindowController.swift
+  s_1824ba4b8337eb::t_19b13e183ee2fa 56,90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "93c886083e9f0b9160f027ceefa91f777c94f0bf",
+  "prompts": {},
+  "sessions": {
+    "s_1824ba4b8337eb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cef2-7fb0-70d1-ac33-7769de698ba5",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_57f96c7e168713": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cd8c-0edf-7db2-b8e5-8dd9ef44ed55",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
