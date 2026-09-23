@@ -1,0 +1,24 @@
+Sources/MacParakeet/Views/Onboarding/OnboardingPracticeStepView.swift
+  s_e2c9259ce51a5f::t_a4d224a9d86d3f 207-209
+Sources/MacParakeetViewModels/OnboardingViewModel.swift
+  s_e2c9259ce51a5f::t_a4d224a9d86d3f 360,560,564-568
+  s_e2c9259ce51a5f::t_3f5700173e4744 217-220,537,544-545,549-559,563
+Tests/MacParakeetTests/ViewModels/OnboardingViewModelTests.swift
+  s_e2c9259ce51a5f::t_a4d224a9d86d3f 670-679,846-848,856
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "be427d6d758d0dfa50ade805990145b64127fca0",
+  "prompts": {},
+  "sessions": {
+    "s_e2c9259ce51a5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "efc687c8-ba13-4f30-8831-301670144814",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
