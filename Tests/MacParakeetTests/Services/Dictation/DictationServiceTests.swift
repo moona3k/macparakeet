@@ -204,6 +204,8 @@ final class DictationServiceTests: XCTestCase {
     }
 
     func testReplacementPreservesOldCaptureWhenLateCancelIsStale() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
         let persistTranscribe = await expectCancelledPersistTranscribe()
         await mockSTT.configure(result: STTResult(text: "Old take"))
         service = DictationService(
@@ -224,6 +226,12 @@ final class DictationServiceTests: XCTestCase {
         await service.cancelRecording(sessionID: 1)
         let stopCountWhilePaused = await mockAudio.stopCaptureCallCount
         XCTAssertEqual(stopCountWhilePaused, 1, "The stale cancel must not stop the replacement")
+        let events = telemetry.snapshot()
+        XCTAssertEqual(events.filter { $0.name == .dictationCancelled }.count, 1)
+        let oldOperations = dictationOperationProps(in: events)
+        XCTAssertEqual(oldOperations.count, 1)
+        XCTAssertEqual(oldOperations.first?["outcome"], "cancelled")
+        XCTAssertEqual(oldOperations.first?["cancel_reason"], "ui")
         await mockAudio.releasePausedStopCapture()
         try await restartTask.value
         XCTAssertEqual(stops.recorder.sessionIDs, [1])
@@ -1063,6 +1071,20 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(stops.recorder.sessionIDs, [4])
         await service.cancelRecording(reason: .hotkey, sessionID: 5)
         XCTAssertEqual(stops.recorder.sessionIDs, [4, 5])
+    }
+
+    func testOlderSessionCannotReplaceNewerRecording() async throws {
+        try await service.startRecording(sessionID: 2)
+        try await service.startRecording(sessionID: 1)
+
+        let starts = await mockAudio.startCaptureCallCount
+        let stops = await mockAudio.stopCaptureCallCount
+        XCTAssertEqual(starts, 1)
+        XCTAssertEqual(stops, 0)
+        guard case .recording = await service.state else {
+            return XCTFail("Expected the newer take to remain recording")
+        }
+        _ = try await service.stopRecording(sessionID: 2)
     }
 
     func testCaptureDidStopIsNotPostedWhenNothingWasRecording() async throws {

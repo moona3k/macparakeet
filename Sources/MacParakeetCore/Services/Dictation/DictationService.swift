@@ -340,6 +340,11 @@ public actor DictationService: DictationServiceProtocol {
         // cancellation has finished using the shared recorder.
         await waitForCancellationToSettle()
         try Task.checkCancellation()
+        // Session IDs are reserved in request order. A queued older start
+        // must not replace a newer take that reached the recorder first.
+        if let sessionID, sessionID <= activeSessionID {
+            return
+        }
 
         var claimedReplacementSessionID: Int?
         switch _state {
@@ -350,6 +355,21 @@ public actor DictationService: DictationServiceProtocol {
             // confirmCancel hasn't arrived yet. Claim the new session before
             // cleanup suspends so a late cancel for the old take is stale.
             let oldSessionID = activeSessionID
+            let capturedDurationMs = currentRecordingDurationMs()
+            // A late cancel for the old session will become stale as soon as
+            // the replacement claims its ID. Close its telemetry here.
+            Telemetry.send(
+                .dictationCancelled(
+                    durationSeconds: resolvedDurationSeconds(capturedMs: capturedDurationMs),
+                    reason: .ui,
+                    device: nil
+                ))
+            sendDictationOperation(
+                outcome: .cancelled,
+                durationSeconds: resolvedDurationSeconds(capturedMs: capturedDurationMs),
+                cancelReason: .ui
+            )
+            clearCurrentOperation()
             activeSessionID = sessionID!
             claimedReplacementSessionID = sessionID
             replacementCleanupSessionID = sessionID
@@ -359,7 +379,6 @@ public actor DictationService: DictationServiceProtocol {
             await replacementCleanupWaiterForTesting?()
             await cancelLiveDictationTranscription(sessionID: oldSessionID)
             await cancelDisplayPreview(sessionID: oldSessionID, clearText: true)
-            let capturedDurationMs = currentRecordingDurationMs()
             let captureStartedAt = Date()
             if await audioProcessor.isRecording {
                 let url = try? await audioProcessor.stopCapture()
