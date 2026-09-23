@@ -515,7 +515,7 @@ struct OnboardingFlowView: View {
                 icon: "mic.fill",
                 title: "Hear you while you dictate",
                 detail:
-                    "The microphone is used only while your dictation key is active. Skip this if you only transcribe files.",
+                    "MacParakeet uses the microphone for dictation and meeting recording. Skip this if you only transcribe files.",
                 tag: "Optional",
                 granted: viewModel.micStatus == .granted
             ) {

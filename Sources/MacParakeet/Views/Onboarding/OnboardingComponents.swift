@@ -48,16 +48,9 @@ struct OnboardingAccentButton: View {
                 }
             }
             .font(.system(size: large ? 14 : 13, weight: .semibold))
-            .foregroundStyle(DesignSystem.Colors.onAccent)
-            .padding(.horizontal, large ? 20 : 14)
-            .padding(.vertical, large ? 10 : 7)
-            .background(
-                RoundedRectangle(cornerRadius: DesignSystem.Layout.buttonCornerRadius)
-                    .fill(disabled ? DesignSystem.Colors.accent.opacity(0.4) : DesignSystem.Colors.accent)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.buttonCornerRadius))
         }
-        .buttonStyle(.plain)
+        .parakeetAction(.primaryProminent)
+        .controlSize(large ? .large : .regular)
         .disabled(disabled)
         .keyboardShortcut(isDefault ? .defaultAction : nil)
     }

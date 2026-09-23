@@ -626,15 +626,6 @@ struct OnboardingShortcutEditor: View {
             }
 
             HStack {
-                Button("Reset to default") {
-                    settingsViewModel.pushToTalkHotkeyTrigger = .defaultPushToTalk
-                    settingsViewModel.hotkeyTrigger = .defaultDictation
-                }
-                .parakeetAction(.secondary)
-                .disabled(
-                    settingsViewModel.pushToTalkHotkeyTrigger == .defaultPushToTalk
-                        && settingsViewModel.hotkeyTrigger == .defaultDictation
-                )
                 Spacer()
                 OnboardingAccentButton(title: "Done", isDefault: true, action: onDone)
             }
