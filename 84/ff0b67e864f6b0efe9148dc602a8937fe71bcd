@@ -1,0 +1,19 @@
+spec/contracts/saved-audio-auto-prompt-completion.md
+  s_57f96c7e168713::t_fec5d8836129b5 50-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "84ff0b67e864f6b0efe9148dc602a8937fe71bcd",
+  "prompts": {},
+  "sessions": {
+    "s_57f96c7e168713": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cd8c-0edf-7db2-b8e5-8dd9ef44ed55",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
