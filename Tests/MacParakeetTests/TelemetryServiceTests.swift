@@ -1923,6 +1923,7 @@ final class TelemetryServiceTests: XCTestCase {
             (.meeting, .modifier, "meeting", "modifier"),
             (.fileTranscription, .keyCode, "file_transcription", "key_code"),
             (.youtubeTranscription, .chord, "youtube_transcription", "chord"),
+            (.dictationClipboard, .modifier, "dictation_clipboard", "modifier"),
         ]
 
         for (surface, kind, expectedSurface, expectedKind) in cases {

@@ -13,6 +13,7 @@ final class AppSettingsObserverCoordinator {
     private let onMeetingHotkeyTriggerChanged: () -> Void
     private let onFileTranscriptionHotkeyTriggerChanged: () -> Void
     private let onYouTubeTranscriptionHotkeyTriggerChanged: () -> Void
+    private let onDictationClipboardHotkeyTriggerChanged: () -> Void
     private let onAppearanceModeChanged: () -> Void
     private let onMenuBarOnlyModeChanged: () -> Void
     private let onMenuBarIconVisibilityChanged: () -> Void
@@ -32,6 +33,7 @@ final class AppSettingsObserverCoordinator {
             (.macParakeetMeetingHotkeyTriggerDidChange, { $0.onMeetingHotkeyTriggerChanged() }),
             (.macParakeetFileTranscriptionHotkeyTriggerDidChange, { $0.onFileTranscriptionHotkeyTriggerChanged() }),
             (.macParakeetYouTubeTranscriptionHotkeyTriggerDidChange, { $0.onYouTubeTranscriptionHotkeyTriggerChanged() }),
+            (.macParakeetDictationClipboardHotkeyTriggerDidChange, { $0.onDictationClipboardHotkeyTriggerChanged() }),
             (.macParakeetAppearanceModeDidChange, { $0.onAppearanceModeChanged() }),
             (.macParakeetMenuBarOnlyModeDidChange, { $0.onMenuBarOnlyModeChanged() }),
             (.macParakeetMenuBarIconVisibilityDidChange, { $0.onMenuBarIconVisibilityChanged() }),
@@ -51,6 +53,7 @@ final class AppSettingsObserverCoordinator {
         onMeetingHotkeyTriggerChanged: @escaping () -> Void,
         onFileTranscriptionHotkeyTriggerChanged: @escaping () -> Void,
         onYouTubeTranscriptionHotkeyTriggerChanged: @escaping () -> Void,
+        onDictationClipboardHotkeyTriggerChanged: @escaping () -> Void,
         onAppearanceModeChanged: @escaping () -> Void,
         onMenuBarOnlyModeChanged: @escaping () -> Void,
         onMenuBarIconVisibilityChanged: @escaping () -> Void,
@@ -69,6 +72,7 @@ final class AppSettingsObserverCoordinator {
         self.onMeetingHotkeyTriggerChanged = onMeetingHotkeyTriggerChanged
         self.onFileTranscriptionHotkeyTriggerChanged = onFileTranscriptionHotkeyTriggerChanged
         self.onYouTubeTranscriptionHotkeyTriggerChanged = onYouTubeTranscriptionHotkeyTriggerChanged
+        self.onDictationClipboardHotkeyTriggerChanged = onDictationClipboardHotkeyTriggerChanged
         self.onAppearanceModeChanged = onAppearanceModeChanged
         self.onMenuBarOnlyModeChanged = onMenuBarOnlyModeChanged
         self.onMenuBarIconVisibilityChanged = onMenuBarIconVisibilityChanged
