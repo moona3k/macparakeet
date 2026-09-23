@@ -563,6 +563,7 @@ struct TranscriptResultView: View {
     @State private var editingReadingTranscript = false
     @State private var readingDrafts: [TranscriptReadingDraft] = []
     @State private var savingReadingTranscript = false
+    @State private var readingSaveID: UUID?
     @State private var transcriptDraft = ""
     @State private var transcriptEditError: String?
     @State private var transcriptDisplayMode: TranscriptDisplayMode = .text
@@ -842,6 +843,7 @@ struct TranscriptResultView: View {
         editingReadingTranscript = false
         readingDrafts = []
         savingReadingTranscript = false
+        readingSaveID = nil
         transcriptDraft = ""
         transcriptEditError = nil
         configureSavedMeetingNotes(for: activeTranscription)
@@ -2661,6 +2663,7 @@ struct TranscriptResultView: View {
     private var transcriptDocumentBody: some View {
         if editingReadingTranscript {
             TranscriptReadingEditor(drafts: $readingDrafts, font: scaledTranscriptFont)
+                .disabled(savingReadingTranscript)
         } else if editingTranscript {
             transcriptEditor
         } else if transcriptDisplayMode == .timed,
@@ -5431,9 +5434,13 @@ struct TranscriptResultView: View {
             return
         }
         savingReadingTranscript = true
+        let saveID = UUID()
+        readingSaveID = saveID
         transcriptEditError = nil
         Task { @MainActor in
             let succeeded = await viewModel.applySpeakerCorrectionAndWait(command)
+            guard readingSaveID == saveID else { return }
+            readingSaveID = nil
             savingReadingTranscript = false
             if succeeded {
                 readingDrafts = []
