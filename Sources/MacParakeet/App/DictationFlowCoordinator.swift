@@ -513,6 +513,7 @@ final class DictationFlowCoordinator {
     /// Leaving onboarding practice abandons its active take immediately,
     /// without offering the normal undo window after the target disappears.
     func dismissPracticeDictation() {
+        guard sessionIsPractice else { return }
         insertionTask?.task.cancel()
         insertionTask = nil
         sendEvent(.dismissRequested)

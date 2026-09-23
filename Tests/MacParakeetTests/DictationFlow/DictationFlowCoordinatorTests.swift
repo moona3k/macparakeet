@@ -209,6 +209,7 @@ final class DictationFlowCoordinatorTests: XCTestCase {
 
     func testDismissingPracticeWhileTranscribingPreventsPasteAndDelivery() async throws {
         let harness = try await makeRecordingHarness()
+        harness.coordinator.isPracticeTarget = { true }
         await harness.stt.configure(result: STTResult(text: "abandoned practice"))
         let transcribing = expectation(description: "STT suspended")
         let (release, continuation) = AsyncStream<Void>.makeStream()
@@ -237,6 +238,7 @@ final class DictationFlowCoordinatorTests: XCTestCase {
 
     func testDismissingPracticeDuringPendingPasteCancelsInsertion() async throws {
         let harness = try await makeRecordingHarness()
+        harness.coordinator.isPracticeTarget = { true }
         await harness.stt.configure(result: STTResult(text: "late practice paste"))
         await harness.clipboard.setPasteDelayMs(500)
         var delivered: [String] = []
@@ -258,6 +260,27 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         let clipboard = await harness.clipboard.snapshot()
         XCTAssertTrue(clipboard.pastedTexts.isEmpty)
         XCTAssertNil(clipboard.lastCopiedText)
+    }
+
+    func testDismissingPracticeDoesNotCancelOrdinaryPendingPaste() async throws {
+        let harness = try await makeRecordingHarness()
+        await harness.stt.configure(result: STTResult(text: "ordinary dictation"))
+        await harness.clipboard.setPasteDelayMs(300)
+
+        harness.coordinator.startDictation(mode: .persistent)
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+        harness.coordinator.stopDictation()
+        let pasteStarted = await waitUntilAsync {
+            await harness.clipboard.snapshot().pasteCallCount == 1
+        }
+        XCTAssertTrue(pasteStarted)
+
+        harness.coordinator.dismissPracticeDictation()
+        let pasted = await waitUntilAsync {
+            await harness.clipboard.snapshot().pastedTexts == ["ordinary dictation "]
+        }
+        XCTAssertTrue(pasted)
     }
 
     func testClipboardOnlyDictationCopiesWithoutPasting() async throws {
