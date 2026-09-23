@@ -1,0 +1,23 @@
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_9356391ef9ddc0::t_9d0221e2b4862e 373,736-738,812-819
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_9356391ef9ddc0::t_8f20d5d2e75945 308-309,325,330-332,362,365,368,372-374
+Sources/MacParakeetCore/Audio/README.md
+  s_9356391ef9ddc0::t_e2aee612303d0e 272-275
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "df15a2fd7bea04db04090f17c69292ce38edbf27",
+  "prompts": {},
+  "sessions": {
+    "s_9356391ef9ddc0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cbce-b7b5-7a93-b778-b06cef1511a4",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
