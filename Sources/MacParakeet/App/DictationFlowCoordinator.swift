@@ -163,6 +163,7 @@ final class DictationFlowCoordinator {
     /// same source the menu bar reads.
     private let activeSpeechEngine: @MainActor () -> SpeechEnginePreference
     private let mediaPauseCoordinator: any DictationMediaPauseCoordinating
+    private let playCaptureCue: @MainActor (AppSound) -> Void
     private let overlayControllerFactory: @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling
     private let shouldSuppressIdlePill: () -> Bool
     /// When true, `startDictation` is a no-op. Used to gate real dictation while
@@ -202,6 +203,13 @@ final class DictationFlowCoordinator {
 
     /// Telemetry trigger for the current dictation flow.
     private var currentTrigger: TelemetryDictationTrigger = .hotkey
+    /// Per-invocation AI Formatter intent. `nil` follows Settings.
+    private var sessionAIFormatterEnabled: Bool?
+    /// Per-utterance destination: copy instead of paste. Committed when
+    /// recording actually starts so a rejected start during processing
+    /// cannot flip an in-flight clipboard-only session to paste.
+    private var pendingSessionClipboardOnly = false
+    private var sessionClipboardOnly = false
     private let mutationArbiter: GUIMutationArbiter
     private var interactionLease: GUIMutationArbiter.Lease?
     private var foregroundInsertions = 0
@@ -243,6 +251,7 @@ final class DictationFlowCoordinator {
         captionTiming: DictationProcessingLoadCaptionTiming = .production,
         activeSpeechEngine: @escaping @MainActor () -> SpeechEnginePreference = { SpeechEnginePreference.current() },
         mediaPauseCoordinator: (any DictationMediaPauseCoordinating)? = nil,
+        playCaptureCue: @escaping @MainActor (AppSound) -> Void = { SoundManager.shared.play($0) },
         overlayControllerFactory: @escaping @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling = {
             DictationOverlayController(viewModel: $0)
         },
@@ -267,6 +276,7 @@ final class DictationFlowCoordinator {
         self.captionTiming = captionTiming
         self.activeSpeechEngine = activeSpeechEngine
         self.mediaPauseCoordinator = mediaPauseCoordinator ?? NoOpDictationMediaPauseCoordinator()
+        self.playCaptureCue = playCaptureCue
         self.overlayControllerFactory = overlayControllerFactory
         self.shouldSuppressIdlePill = shouldSuppressIdlePill
         self.mutationArbiter = mutationArbiter ?? GUIMutationArbiter()
@@ -276,6 +286,7 @@ final class DictationFlowCoordinator {
         self.onPresentEntitlementsAlert = onPresentEntitlementsAlert
         observeFormatterNotifications()
         observePreviewTextSizeNotifications()
+        observeDictationCaptureSoundNotifications(from: dictationService)
     }
 
     // MARK: - AI Formatter pill transitions
@@ -339,8 +350,44 @@ final class DictationFlowCoordinator {
         }
     }
 
-    // NOTE: no `deinit` cleanup for `formatterDidStartObserver` or
-    // `previewTextSizeObserver`. This coordinator is effectively a singleton
+    private var dictationCaptureDidStopObserver: NSObjectProtocol?
+    /// Session whose start cue played and still owes its stop cue. Each
+    /// start cue gets at most one stop cue, and a take that never played a
+    /// start cue (released during start, sounds off) never plays a stop cue.
+    /// A newer take's start cue replaces an older take's unpaid stop cue, so
+    /// a late Pop never tells the user the mic closed while a take is live.
+    private var captureCueSessionID: Int?
+
+    private func observeDictationCaptureSoundNotifications(from dictationService: DictationService) {
+        // `queue: nil` runs on the posting actor and returns at once; a main
+        // queue here would hold DictationService until main drains, before STT.
+        dictationCaptureDidStopObserver = NotificationCenter.default.addObserver(
+            forName: .macParakeetDictationCaptureDidStop,
+            object: dictationService,
+            queue: nil
+        ) { [weak self] note in
+            let sessionID = note.userInfo?[DictationCaptureNotificationKey.sessionID] as? Int
+            Task { @MainActor [weak self] in
+                self?.playStopCueIfOwed(sessionID: sessionID)
+            }
+        }
+    }
+
+    private func playStartCueIfEnabled(sessionID: Int) {
+        guard runtimePreferences.playDictationCaptureSounds else { return }
+        captureCueSessionID = sessionID
+        playCaptureCue(.recordStart)
+    }
+
+    private func playStopCueIfOwed(sessionID: Int?) {
+        guard let sessionID, sessionID == captureCueSessionID else { return }
+        captureCueSessionID = nil
+        playCaptureCue(.recordStop)
+    }
+
+    // NOTE: no `deinit` cleanup for `formatterDidStartObserver`,
+    // `previewTextSizeObserver`, or `dictationCaptureDidStopObserver`. This
+    // coordinator is effectively a singleton
     // for the app's lifetime, both observer blocks capture `[weak self]`, and
     // Swift 6 forbids touching `@MainActor`-isolated stored properties from a
     // nonisolated deinit. NotificationCenter cleans up automatically when the
@@ -373,7 +420,9 @@ final class DictationFlowCoordinator {
 
     func startDictation(
         mode: FnKeyStateMachine.RecordingMode,
-        trigger: TelemetryDictationTrigger = .hotkey
+        trigger: TelemetryDictationTrigger = .hotkey,
+        aiFormatterEnabled: Bool? = nil,
+        clipboardOnly: Bool = false
     ) {
         // Suppressed while onboarding is up — the speech model isn't ready and
         // the hotkey step runs its own no-STT rehearsal. Covers hotkey + pill.
@@ -382,8 +431,12 @@ final class DictationFlowCoordinator {
             guard let lease = mutationArbiter.acquire(.dictation) else { onInteractionBusy?(); return }
             interactionLease = lease
         }
-        currentTrigger = trigger
+        let stateBeforeStart = stateMachine.state
         sendEvent(.startRequested(mode: mode))
+        guard stateMachine.state != stateBeforeStart else { return }
+        currentTrigger = trigger
+        sessionAIFormatterEnabled = aiFormatterEnabled
+        pendingSessionClipboardOnly = clipboardOnly
     }
 
     func stopDictation() {
@@ -661,6 +714,7 @@ final class DictationFlowCoordinator {
             }
             let transcript = dictation.cleanTranscript ?? dictation.rawTranscript
             let insertionStyle = currentDictationInsertionStyle
+            let clipboardOnly = sessionClipboardOnly
             let action = pendingPostPasteAction
             pendingPostPasteAction = nil
             let transcriptHasText = !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -672,8 +726,9 @@ final class DictationFlowCoordinator {
             let insertText = action == nil ? normalPasteText : transcript
             // IME/Reduce Motion are sampled once at dispatch. A layout switch
             // during the short stream is accepted risk; paste remains the fallback
-            // when capability is unknown.
-            let shouldStream = self.runtimePreferences.dictationStreamingCursorEnabled
+            // when capability is unknown. Clipboard-only never inserts.
+            let shouldStream = !clipboardOnly
+                && self.runtimePreferences.dictationStreamingCursorEnabled
                 && !self.shouldReduceMotion()
                 && self.inputSourceAllowsStreaming()
                 && transcriptHasText
@@ -703,6 +758,43 @@ final class DictationFlowCoordinator {
                         guard self.stateMachine.generation == gen else { return }
                         self.dismissCaption(outcome: .success)
                         self.sendEvent(.pasteSucceeded(generation: gen))
+                        return
+                    }
+
+                    if clipboardOnly {
+                        self.pendingInsertTimings = nil
+                        if let action {
+                            self.dictationLog.notice(
+                                "dictation_copy_action_skipped gen=\(gen) action=\(action.rawValue, privacy: .public)"
+                            )
+                        }
+                        guard transcriptHasText else {
+                            self.dictationLog.notice("dictation_copy_skipped gen=\(gen) reason=empty_transcript")
+                            guard self.stateMachine.generation == gen else { return }
+                            self.dismissCaption(outcome: .success)
+                            self.sendEvent(.pasteSucceeded(generation: gen))
+                            return
+                        }
+                        let copied = await self.clipboardService.copyToClipboard(transcript)
+                        guard self.stateMachine.generation == gen else { return }
+                        if copied {
+                            Telemetry.send(.copyToClipboard(source: .dictation))
+                            let rawChars = dictation.rawTranscript.count
+                            let cleanChars = dictation.cleanTranscript?.count ?? 0
+                            self.dictationLog.notice(
+                                "dictation_completed gen=\(gen) outcome=success rawChars=\(rawChars) cleanChars=\(cleanChars) autoPasted=false destination=clipboard"
+                            )
+                            self.dismissCaption(outcome: .success)
+                            self.sendEvent(.pasteSucceeded(generation: gen))
+                        } else {
+                            self.dismissCaption(outcome: .failure)
+                            self.sendEvent(
+                                .pasteFailed(
+                                    generation: gen,
+                                    message: "Could not copy to the clipboard."
+                                )
+                            )
+                        }
                         return
                     }
 
@@ -1075,6 +1167,9 @@ final class DictationFlowCoordinator {
         sessionID: Int
     ) {
         let trigger = currentTrigger
+        let aiFormatterOverride = sessionAIFormatterEnabled
+        let clipboardOnly = pendingSessionClipboardOnly
+        sessionClipboardOnly = clipboardOnly
         recordingTask = Task { @MainActor in
             do {
                 try Task.checkCancellation()
@@ -1104,7 +1199,8 @@ final class DictationFlowCoordinator {
                     context: DictationTelemetryContext(
                         trigger: trigger,
                         mode: self.telemetryMode(for: mode)
-                    )
+                    ),
+                    aiFormatterEnabled: aiFormatterOverride
                 )
                 await self.serviceSession.updateAIFormatterAppContext(
                     startContext,
@@ -1123,6 +1219,11 @@ final class DictationFlowCoordinator {
                 }
                 guard !Task.isCancelled else { return }
                 self.sendEvent(.recordingStarted(generation: generation))
+                if case .recording = self.stateMachine.state,
+                    self.stateMachine.generation == generation
+                {
+                    self.playStartCueIfEnabled(sessionID: sessionID)
+                }
                 await self.runRecordingLevelLoop()
             } catch is CancellationError {
                 await self.mediaPauseCoordinator.resumeAfterDictationCapture()

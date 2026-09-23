@@ -690,6 +690,8 @@ public struct HotkeyTrigger: Sendable {
     public static let meetingDefaultsKey = "meetingHotkeyTrigger"
     public static let fileTranscriptionDefaultsKey = "fileTranscriptionHotkeyTrigger"
     public static let youtubeTranscriptionDefaultsKey = "youtubeTranscriptionHotkeyTrigger"
+    public static let dictationAIPolishDefaultsKey = "dictationAIPolishHotkeyTrigger"
+    public static let dictationClipboardDefaultsKey = "dictationClipboardHotkeyTrigger"
 
     /// Legacy modifier names from the old TriggerKey enum.
     private static let legacyModifiers: [String: HotkeyTrigger] = [

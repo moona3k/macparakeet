@@ -175,6 +175,8 @@ Dictation defaults to a built-in shared `Fn` gesture preset: hold `Fn` for push-
 |------|---------|----------|
 | **Hands-free** | Double-tap the shared Fn/custom trigger when both dictation roles share one, or tap the configured hands-free shortcut when roles are distinct | Persistent recording. Tap the shortcut again to stop. |
 | **Press-and-hold** | Hold the push-to-talk shortcut | Hold-to-talk. Release auto-stops and pastes. |
+| **AI polish this dictation** | Optional extra shortcut, default unset | Tap to start/stop like hands-free (no hold-to-talk variant). Requires the AI Formatter master switch. Always runs cleanup for that utterance even when *Use for dictation* is off. The choice is snapshotted at recording start. |
+| **Clipboard-only dictation** | Optional extra shortcut, default unset | Tap to start/stop like hands-free. The transcript is copied and not pasted into the focused field. Destination is snapshotted at recording start. Distinct from *Keep dictation on clipboard*, which still pastes and then leaves a copy behind. |
 
 Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migrate to the shared `Fn` gesture preset. Legacy single-hotkey installs are migrated to the shared default gesture when the stored trigger is `Fn`. Otherwise the old trigger becomes push-to-talk, while hands-free moves to the default `Fn` preset or disables itself if that would conflict.
 
@@ -388,6 +390,7 @@ Space is always reserved for the tooltip (opacity toggle, not conditional render
 - [x] Undo during cancel window resumes processing
 - [x] Accessibility permission prompted gracefully on first use
 - [x] Audio saved to disk (if storage enabled in settings)
+- [x] Optional default-off start/stop capture cues (`playDictationCaptureSounds`): the start cue plays once capture is live, and every start cue gets one stop cue when that mic capture ends (stop, cancel, or discard, usable or not). A take that never went live, including release during start, plays neither. If a newer take goes live before the older capture finishes closing, the newer start cue replaces the older stop cue.
 - [x] Optional default-off preserve of cancelled dictations (`preserveDiscardedDictations`) saves the transcript to History without pasting. Requires Save dictation history. Menu-bar Paste Last stays completed-only.
 
 ---
@@ -988,6 +991,7 @@ CREATE TABLE text_snippets (
 - [x] Custom word replacements applied (case-insensitive matching)
 - [x] Trailing action snippets are extracted before text snippet expansion
 - [x] Snippet triggers expanded to full text
+- [x] Spoken punctuation commands (`question mark` / `exclamation mark`) convert in Clean mode, with a literal-phrase escape
 - [x] Whitespace normalized and punctuation fixed
 - [x] Processing completes in sub-millisecond
 - [x] Raw mode bypasses full cleanup but still supports terminal action extraction
@@ -1015,7 +1019,7 @@ Important constraints:
 - formatter uses the shared `LLMService`
 - formatter runs for dictation, file/URL, and meeting transcription flows — every transcription finalization path shares `completeTranscription`, which invokes the formatter (`TelemetryFormatterSource` emits `.dictation` and `.transcription`; meetings report as `.transcription`)
 - formatter skips empty or whitespace-only input before prompt resolution or any provider call, so a model response can never become transcript content when STT produces no transcript text (#855)
-- formatter routing is per-surface: "Use for transcripts" (file/URL/meeting, default off) and "Use for dictation" (default off) toggles in AI settings, each ANDed with provider availability (#408, #493). Those toggles are enablement, not model selection. If a later change lets cleanup and meeting AI use different models, follow [ADR-032](adr/032-llm-task-group-routing.md): per-task inherit / general route / specialist recipe, not a picker per feature.
+- formatter routing is per-surface: "Use for transcripts" (file/URL/meeting, default off) and "Use for dictation" (default off) toggles in AI settings, each ANDed with provider availability (#408, #493). Those toggles are enablement, not model selection. An optional **AI polish this dictation** shortcut (default unset) starts a dictation session with the formatter forced on for that utterance when the AI Formatter master switch is on, snapshotted at recording start so a Settings change mid-utterance cannot flip it. If a later change lets cleanup and meeting AI use different models, follow [ADR-032](adr/032-llm-task-group-routing.md): per-task inherit / general route / specialist recipe, not a picker per feature.
 - transcription formatter input is capped at `AIFormatter.maxTranscriptionInputChars` (20k chars); longer transcripts (hour-long meetings) skip straight to deterministic cleanup because a full-rewrite response can stall slow providers until timeout (#493)
 - dictation formatter prompts route through local exact-app profiles, local coarse-category profiles, built-in coarse-category smart defaults, and then the dictation formatter prompt
 - built-in smart defaults are user-controllable: a master switch plus per-category switches (UserDefaults-backed `AIFormatterSmartDefaultsPolicy`), and every built-in prompt is readable in Settings even when the master switch is off; with the tier off, zero-profile prompt selection is byte-for-byte the dictation fallback-prompt behavior
@@ -1043,6 +1047,7 @@ Important constraints:
 - [x] Smart defaults are inspectable and toggleable (master + per-category); disabling them restores legacy fallback-prompt selection
 - [x] Graceful fallback to deterministic cleanup if formatting fails
 - [x] Persisted formatter runs write local metadata-only `llm_runs` records linked to the saved source row
+- [x] Optional dictation shortcut can force AI cleanup for one utterance; the choice is snapshotted at recording start (#840)
 
 ---
 
@@ -1544,6 +1549,12 @@ are unaffected.
 - The older whole-transcript editor remains the fallback for transcripts without
   usable timing. Its replacement is explicitly untimed and is never silently
   aligned to automatic words.
+- The Text view of a timed transcript has **Edit**. It opens the same passages
+  for rewriting or removal, then **Done** saves them as one `reviseText`
+  correction. Removed passages stay out of the effective transcript. **Cancel**
+  discards the session. Undo restores it.
+- A prompt result generated from an older correction revision shows **Update
+  summary**. Regenerating records the revision it used.
 
 The governing behavior is [ADR-031](adr/031-timed-transcript-corrections.md).
 
@@ -2228,6 +2239,7 @@ surface against the [canonical status table](README.md#release-channels-and-feat
 | Start meetings muted | Default-off Meeting Recording setting (`startMeetingsMuted`). While on, every microphone-capturing meeting starts with the mic off until the setting is turned off; unmute from the live panel. System-audio-only capture ignores it. | [F49](02-features.md#f49-start-meetings-muted), [ADR-014 §12](adr/014-meeting-recording.md) |
 | Escape cancels dictation | Default-on Dictation setting (`escapeCancelsDictation`). Off leaves Escape for other apps and does not cancel a live dictation. Pending gestures that have not started a take still clear. | [F1](02-features.md#f1-system-wide-dictation) |
 | Preserve discarded dictations | Default-off Dictation setting (`preserveDiscardedDictations`). Cancel and undo-window expiry transcribe into History as `cancelled` instead of deleting. Requires Save dictation history. Nothing is pasted, and menu-bar Paste Last / Recent Dictations stay completed-only. Voice stats still count only completed takes. | [F1](02-features.md#f1-system-wide-dictation) |
+| Dictation capture sounds | Default-off Dictation setting (`playDictationCaptureSounds`). A quiet system cue once capture is live and one when that capture ends, including cancel. Takes that never went live stay silent. Toggling it on previews the start cue. | [F1](02-features.md#f1-system-wide-dictation) |
 | Skip-microphone onboarding | First-run Microphone step stays visible, but Continue is not gated on grant. File-only users can skip it. Dictation and mic-backed meetings still request access on first use. | [ADR-005](adr/005-onboarding-first-run.md) |
 | AI Formatter routing | New installs leave “Use for transcripts” and “Use for dictation” off. Each surface has its own prompt. Inherited transcript-on stays on. | [F8](02-features.md#f8-ai-formatter) |
 | Streaming cursor | Optional Settings → Dictation insert path (default off). Finished text types at the caret; Reduce Motion, unknown IMEs, and newline/tab still paste. | [F1](02-features.md#f1-system-wide-dictation) |

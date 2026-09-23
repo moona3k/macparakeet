@@ -111,12 +111,14 @@ public actor DictationService: DictationServiceProtocol {
     private let snippetRepo: TextSnippetRepositoryProtocol?
     private let voiceReturnTriggers: @Sendable () -> [String]
     private let processingMode: @Sendable () -> Dictation.ProcessingMode
+    private let spokenPunctuationEnabled: @Sendable () -> Bool
     private let dictationInsertionStyle: @Sendable () -> DictationInsertionStyle
     private let removeUmFiller: @Sendable () -> Bool
     private let textRefinementService: TextRefinementService
     private let llmService: LLMServiceProtocol?
     private let llmRunRecorder: LLMRunRecorder
     private let shouldUseAIFormatter: @Sendable () -> Bool
+    private let isAIFormatterEnabled: @Sendable () -> Bool
     private let aiFormatterPromptResolver: any AIFormatterPromptResolving
     private let shouldAttemptLiveDictationTranscription: @Sendable () -> Bool
     private let shouldShowDictationPreview: @Sendable () -> Bool
@@ -132,6 +134,7 @@ public actor DictationService: DictationServiceProtocol {
     private var cancelGeneration: Int = 0
     private var pendingCancelledAudioURL: URL?
     private var pendingCancelledDurationMs: Int?
+    private var pendingCancelledAIFormatterEnabled: Bool?
     private var pendingCancelledCaptureMs: Int?
     private var currentTelemetryContext = DictationTelemetryContext()
     private var recordingStartedAt: Date?
@@ -142,6 +145,9 @@ public actor DictationService: DictationServiceProtocol {
     private var currentObservabilityOperationContext: ObservabilityOperationContext?
     private var currentAIFormatterStartContext: AppPromptContext?
     private var currentAIFormatterFinishContext: AppPromptContext?
+    /// Captured at recording start so a Settings toggle mid-utterance cannot
+    /// change whether this session runs the AI Formatter.
+    private var currentSessionAIFormatterEnabled = false
     private var liveTranscriptionState: LiveDictationTranscriptionState?
     private var displayPreviewState: DictationDisplayPreviewState?
     private var liveTranscriptText: String = ""
@@ -185,11 +191,13 @@ public actor DictationService: DictationServiceProtocol {
         voiceReturnTriggers: (@Sendable () -> [String])? = nil,
         voiceReturnTrigger: (@Sendable () -> String?)? = nil,
         processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil,
+        spokenPunctuationEnabled: (@Sendable () -> Bool)? = nil,
         dictationInsertionStyle: (@Sendable () -> DictationInsertionStyle)? = nil,
         removeUmFiller: (@Sendable () -> Bool)? = nil,
         llmService: LLMServiceProtocol? = nil,
         llmRunRepo: LLMRunRepositoryProtocol? = nil,
         shouldUseAIFormatter: (@Sendable () -> Bool)? = nil,
+        isAIFormatterEnabled: (@Sendable () -> Bool)? = nil,
         aiFormatterPromptTemplate: (@Sendable () -> String)? = nil,
         aiFormatterPromptResolver: (any AIFormatterPromptResolving)? = nil,
         shouldAttemptLiveDictationTranscription: (@Sendable () -> Bool)? = nil,
@@ -221,12 +229,14 @@ public actor DictationService: DictationServiceProtocol {
             self.voiceReturnTriggers = { [] }
         }
         self.processingMode = processingMode ?? { .raw }
+        self.spokenPunctuationEnabled = spokenPunctuationEnabled ?? { true }
         self.dictationInsertionStyle = dictationInsertionStyle ?? { .sentence }
         self.removeUmFiller = removeUmFiller ?? { true }
         self.textRefinementService = TextRefinementService()
         self.llmService = llmService
         self.llmRunRecorder = LLMRunRecorder(repository: llmRunRepo)
         self.shouldUseAIFormatter = shouldUseAIFormatter ?? { false }
+        self.isAIFormatterEnabled = isAIFormatterEnabled ?? { true }
         let promptTemplate = aiFormatterPromptTemplate ?? { AIFormatter.defaultDictationPromptTemplate }
         self.aiFormatterPromptResolver =
             aiFormatterPromptResolver
@@ -281,7 +291,8 @@ public actor DictationService: DictationServiceProtocol {
 
     public func startRecording(
         context: DictationTelemetryContext = DictationTelemetryContext(),
-        sessionID: Int?
+        sessionID: Int?,
+        aiFormatterEnabled: Bool? = nil
     ) async throws {
         logger.debug("dictation_start_requested state=\(self.debugStateLabel(self._state), privacy: .public)")
         let operationContext = ObservabilityOperationContext()
@@ -315,10 +326,12 @@ public actor DictationService: DictationServiceProtocol {
             )
             await cancelLiveDictationTranscription(sessionID: activeSessionID)
             await cancelDisplayPreview(sessionID: activeSessionID, clearText: true)
-            if await audioProcessor.isRecording,
-                let url = try? await audioProcessor.stopCapture()
-            {
-                try? FileManager.default.removeItem(at: url)
+            if await audioProcessor.isRecording {
+                let replacedSession = activeSessionID
+                if let url = try? await audioProcessor.stopCapture() {
+                    try? FileManager.default.removeItem(at: url)
+                }
+                postCaptureDidStop(sessionID: replacedSession)
             }
         case .processing where sessionID != nil && sessionID != activeSessionID,
             .success where sessionID != nil && sessionID != activeSessionID:
@@ -348,6 +361,9 @@ public actor DictationService: DictationServiceProtocol {
         pendingCancelReason = nil
         currentAIFormatterStartContext = nil
         currentAIFormatterFinishContext = nil
+        currentSessionAIFormatterEnabled =
+            aiFormatterEnabled.map { $0 && isAIFormatterEnabled() }
+            ?? shouldUseAIFormatter()
         clearLiveTranscript()
         currentOperationID = operationContext.operationID
         currentOperationTerminalEmitted = false
@@ -485,6 +501,7 @@ public actor DictationService: DictationServiceProtocol {
 
         let currentSession = activeSessionID
         let formatterContext = currentAIFormatterFinishContext ?? currentAIFormatterStartContext
+        let sessionFormatterEnabled = currentSessionAIFormatterEnabled
         _state = .processing
         logger.debug("dictation_stop_processing_started session=\(currentSession, privacy: .public)")
 
@@ -495,7 +512,14 @@ public actor DictationService: DictationServiceProtocol {
         let capturedDurationMs = currentRecordingDurationMs()
         do {
             let captureStartedAt = Date()
-            let audioURL = try await audioProcessor.stopCapture()
+            let audioURL: URL
+            do {
+                audioURL = try await audioProcessor.stopCapture()
+            } catch {
+                postCaptureDidStop(sessionID: currentSession)
+                throw error
+            }
+            postCaptureDidStop(sessionID: currentSession)
             let captureMs = Self.elapsedMilliseconds(since: captureStartedAt)
             let captureHealth = await audioProcessor.lastCaptureHealth
             try rejectUnavailableCaptureIfNeeded(captureHealth, audioURL: audioURL)
@@ -510,6 +534,7 @@ public actor DictationService: DictationServiceProtocol {
                     audioURL: audioURL,
                     capturedDurationMs: capturedDurationMs,
                     formatterContext: formatterContext,
+                    aiFormatterEnabled: sessionFormatterEnabled,
                     captureMs: captureMs
                 )
             }
@@ -660,13 +685,18 @@ public actor DictationService: DictationServiceProtocol {
         await cancelDisplayPreview(sessionID: activeSessionID, clearText: true)
         let capturedDurationMs = currentRecordingDurationMs()
         let captureStartedAt = Date()
+        // Label the take whose capture this call stops; the awaits above let
+        // a replacement session start.
+        let cancelledSession = activeSessionID
         let audioURL = try? await audioProcessor.stopCapture()
+        postCaptureDidStop(sessionID: cancelledSession)
         // Capture finalization ends when stopCapture returns. Do not include the
         // later recordingDeviceInfo hop in pendingCancelledCaptureMs / undo e2e.
         let captureMs = audioURL == nil ? nil : Self.elapsedMilliseconds(since: captureStartedAt)
         let device = await audioProcessor.recordingDeviceInfo
         pendingCancelledAudioURL = audioURL
         pendingCancelledDurationMs = capturedDurationMs
+        pendingCancelledAIFormatterEnabled = currentSessionAIFormatterEnabled
         pendingCancelledCaptureMs = captureMs
         _state = .cancelled
         Telemetry.send(
@@ -704,11 +734,13 @@ public actor DictationService: DictationServiceProtocol {
             await cancelDisplayPreview(sessionID: activeSessionID, clearText: true)
             let capturedDurationMs = currentRecordingDurationMs()
             let captureStartedAt = Date()
+            let discardedSession = activeSessionID
             if let url = try? await audioProcessor.stopCapture() {
                 pendingCancelledAudioURL = url
                 pendingCancelledDurationMs = capturedDurationMs
                 pendingCancelledCaptureMs = Self.elapsedMilliseconds(since: captureStartedAt)
             }
+            postCaptureDidStop(sessionID: discardedSession)
             _state = .cancelled
         }
 
@@ -736,6 +768,7 @@ public actor DictationService: DictationServiceProtocol {
         guard let audioURL = pendingCancelledAudioURL else {
             pendingCancelledDurationMs = nil
             pendingCancelledCaptureMs = nil
+            pendingCancelledAIFormatterEnabled = nil
             _state = .idle
             throw DictationServiceError.noPendingCancelledAudio
         }
@@ -746,11 +779,16 @@ public actor DictationService: DictationServiceProtocol {
         pendingCancelledAudioURL = nil
         let capturedDurationMs = pendingCancelledDurationMs
         pendingCancelledDurationMs = nil
+        if let cancelledFormatterEnabled = pendingCancelledAIFormatterEnabled {
+            currentSessionAIFormatterEnabled = cancelledFormatterEnabled
+        }
+        pendingCancelledAIFormatterEnabled = nil
         let captureMs = pendingCancelledCaptureMs
         pendingCancelledCaptureMs = nil
 
         let currentSession = activeSessionID
         let formatterContext = currentAIFormatterFinishContext ?? currentAIFormatterStartContext
+        let sessionFormatterEnabled = currentSessionAIFormatterEnabled
         let captureHealth = await audioProcessor.lastCaptureHealth
         _state = .processing
         do {
@@ -760,6 +798,7 @@ public actor DictationService: DictationServiceProtocol {
                     audioURL: audioURL,
                     capturedDurationMs: capturedDurationMs,
                     formatterContext: formatterContext,
+                    aiFormatterEnabled: sessionFormatterEnabled,
                     captureMs: captureMs
                 )
             }
@@ -876,6 +915,7 @@ public actor DictationService: DictationServiceProtocol {
         guard let url = pendingCancelledAudioURL else {
             pendingCancelledDurationMs = nil
             pendingCancelledCaptureMs = nil
+            pendingCancelledAIFormatterEnabled = nil
             return nil
         }
         pendingCancelledAudioURL = nil
@@ -883,6 +923,7 @@ public actor DictationService: DictationServiceProtocol {
         pendingCancelledDurationMs = nil
         let captureMs = pendingCancelledCaptureMs
         pendingCancelledCaptureMs = nil
+        pendingCancelledAIFormatterEnabled = nil
         return StolenCancelledAudio(url: url, durationMs: durationMs, captureMs: captureMs)
     }
 
@@ -903,6 +944,7 @@ public actor DictationService: DictationServiceProtocol {
                 audioURL: stolen.url,
                 capturedDurationMs: stolen.durationMs,
                 formatterContext: nil,
+                aiFormatterEnabled: false,
                 status: .cancelled,
                 captureMs: stolen.captureMs
             )
@@ -938,6 +980,14 @@ public actor DictationService: DictationServiceProtocol {
         return try await Observability.withOperationContext(operationContext) {
             try await operation()
         }
+    }
+
+    private func postCaptureDidStop(sessionID: Int) {
+        NotificationCenter.default.post(
+            name: .macParakeetDictationCaptureDidStop,
+            object: self,
+            userInfo: [DictationCaptureNotificationKey.sessionID: sessionID]
+        )
     }
 
     private func rejectUnavailableCaptureIfNeeded(
@@ -1371,6 +1421,7 @@ public actor DictationService: DictationServiceProtocol {
         audioURL: URL,
         capturedDurationMs: Int?,
         formatterContext: AppPromptContext?,
+        aiFormatterEnabled: Bool,
         status: Dictation.DictationStatus = .completed,
         captureMs: Int? = nil
     ) async throws -> DictationResult {
@@ -1449,6 +1500,7 @@ public actor DictationService: DictationServiceProtocol {
             customWords: words,
             snippets: snippets,
             insertionStyle: insertionStyle,
+            spokenPunctuationEnabled: spokenPunctuationEnabled(),
             removeUmFiller: shouldRemoveUmFiller
         )
         let cleanTranscript = refinement.text
@@ -1468,7 +1520,7 @@ public actor DictationService: DictationServiceProtocol {
         } else {
             let transcriptFormatter = TranscriptFormatter(
                 llmService: llmService,
-                shouldUseAIFormatter: shouldUseAIFormatter,
+                shouldUseAIFormatter: { aiFormatterEnabled },
                 logger: logger
             )
             let promptResolver = aiFormatterPromptResolver
@@ -1674,6 +1726,7 @@ public actor DictationService: DictationServiceProtocol {
         currentObservabilityOperationContext = nil
         currentAIFormatterStartContext = nil
         currentAIFormatterFinishContext = nil
+        currentSessionAIFormatterEnabled = false
         clearLiveTranscript()
         pendingCancelReason = nil
     }

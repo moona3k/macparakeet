@@ -521,6 +521,8 @@ public enum TelemetryHotkeySurface: String, Sendable, Equatable {
     case meeting
     case fileTranscription = "file_transcription"
     case youtubeTranscription = "youtube_transcription"
+    case dictationAIPolish = "dictation_ai_polish"
+    case dictationClipboard = "dictation_clipboard"
 }
 
 /// Mirrors `HotkeyTrigger.Kind` for telemetry. Kept separate so changes to the
@@ -573,12 +575,14 @@ public enum TelemetrySettingName: String, Sendable, Equatable {
     case openAppAfterMeetingEnd = "open_app_after_meeting_end"
     case notifyOnMeetingEnd = "notify_on_meeting_end"
     case pauseMediaDuringDictation = "pause_media_during_dictation"
+    case playDictationCaptureSounds = "play_dictation_capture_sounds"
     case escapeCancelsDictation = "escape_cancels_dictation"
     case preserveDiscardedDictations = "preserve_discarded_dictations"
     case instantDictation = "instant_dictation"
     case liveDictationPreview = "live_dictation_preview"
     case dictationUndoCountdown = "dictation_undo_countdown"
     case dictationInsertionStyle = "dictation_insertion_style"
+    case spokenPunctuation = "spoken_punctuation"
     case removeUmFiller = "remove_um_filler"
     case transcriptionCompletionNotification = "transcription_completion_notification"
 

@@ -287,6 +287,10 @@ final class AppEnvironment {
             runtimePreferences.processingMode
         }
 
+        let spokenPunctuationEnabledClosure: @Sendable () -> Bool = { [runtimePreferences] in
+            runtimePreferences.spokenPunctuationEnabled
+        }
+
         let dictationInsertionStyleClosure: @Sendable () -> DictationInsertionStyle = { [runtimePreferences] in
             runtimePreferences.dictationInsertionStyle
         }
@@ -395,11 +399,13 @@ final class AppEnvironment {
             snippetRepo: snippetRepo,
             voiceReturnTriggers: voiceReturnTriggersClosure,
             processingMode: processingModeClosure,
+            spokenPunctuationEnabled: spokenPunctuationEnabledClosure,
             dictationInsertionStyle: dictationInsertionStyleClosure,
             removeUmFiller: removeUmFillerClosure,
             llmService: llmService,
             llmRunRepo: llmRunRepo,
             shouldUseAIFormatter: dictationAIFormatterEnabledClosure,
+            isAIFormatterEnabled: { [runtimePreferences] in runtimePreferences.aiFormatterEnabled },
             aiFormatterPromptResolver: aiFormatterPromptResolver,
             shouldAttemptLiveDictationTranscription: {
                 Self.shouldAttemptLiveDictationTranscription()
@@ -445,6 +451,7 @@ final class AppEnvironment {
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
             processingMode: processingModeClosure,
+            spokenPunctuationEnabled: spokenPunctuationEnabledClosure,
             removeUmFiller: removeUmFillerClosure,
             llmService: llmService,
             llmRunRepo: llmRunRepo,

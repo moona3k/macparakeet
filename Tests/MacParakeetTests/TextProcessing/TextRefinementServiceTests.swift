@@ -104,6 +104,30 @@ final class TextRefinementServiceTests: XCTestCase {
         XCTAssertEqual(result.path, .deterministic)
     }
 
+    func testCleanModeConvertsSpokenPunctuationIncludingTrailingPeriod() async {
+        let service = TextRefinementService()
+        let result = await service.refine(
+            rawText: "are you coming question mark.",
+            mode: .clean,
+            customWords: [],
+            snippets: []
+        )
+        XCTAssertEqual(result.text, "Are you coming?")
+        XCTAssertEqual(result.path, .deterministic)
+    }
+
+    func testRawModeDoesNotConvertSpokenPunctuation() async {
+        let service = TextRefinementService()
+        let result = await service.refine(
+            rawText: "are you coming question mark",
+            mode: .raw,
+            customWords: [],
+            snippets: []
+        )
+        XCTAssertNil(result.text)
+        XCTAssertEqual(result.path, .raw)
+    }
+
     func testCleanModeStripsUmByDefaultAndPreservesWhenDisabled() async {
         let service = TextRefinementService()
         let stripped = await service.refine(

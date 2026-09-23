@@ -72,9 +72,11 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
     }
 
     func testFirstInstallShowsPreparingThenClearsOnSuccess() async throws {
-        // Hold transcription open until the preparing caption is observed so a
-        // congested CI main queue cannot complete first-dictation before
-        // fireCaption reads hasCompletedFirstDictation.
+        // Hold transcription open until the preparing caption is observed. On a
+        // loaded CI runner the grace timer can fire after the take already
+        // completed, which marks first-dictation done and records
+        // first_install=false. A congested main queue can also finish
+        // first-dictation before fireCaption reads hasCompletedFirstDictation.
         let transcribeGate = AsyncGate()
         let harness = try makeHarness(
             isReady: false,

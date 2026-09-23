@@ -216,6 +216,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.silenceAutoStop, "silenceAutoStop should default to false")
         XCTAssertEqual(viewModel.silenceDelay, 2.0, "silenceDelay should default to 2.0")
         XCTAssertFalse(viewModel.pauseMediaDuringDictation, "pauseMediaDuringDictation should default to false")
+        XCTAssertFalse(viewModel.playDictationCaptureSounds, "dictation capture sounds should default to false")
         XCTAssertTrue(viewModel.escapeCancelsDictation, "escapeCancelsDictation should default to true")
         XCTAssertFalse(viewModel.preserveDiscardedDictations, "preserve discarded dictations should default to false")
         XCTAssertFalse(viewModel.instantDictationEnabled, "instantDictationEnabled should default to false")
@@ -286,6 +287,7 @@ final class SettingsViewModelTests: XCTestCase {
         testDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.notifyOnMeetingEndKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.meetingAutoStopEnabledKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey)
+        testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.playDictationCaptureSoundsKey)
         testDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.escapeCancelsDictationKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.preserveDiscardedDictationsKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.instantDictationEnabledKey)
@@ -320,6 +322,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(vm.notifyOnMeetingEnd)
         XCTAssertTrue(vm.meetingAutoStopEnabled)
         XCTAssertTrue(vm.pauseMediaDuringDictation)
+        XCTAssertTrue(vm.playDictationCaptureSounds)
         XCTAssertFalse(vm.escapeCancelsDictation)
         XCTAssertTrue(vm.preserveDiscardedDictations)
         XCTAssertTrue(vm.instantDictationEnabled)
@@ -456,6 +459,25 @@ final class SettingsViewModelTests: XCTestCase {
             return setting
         }
         XCTAssertEqual(settings, [.pauseMediaDuringDictation, .pauseMediaDuringDictation])
+    }
+
+    func testPlayDictationCaptureSoundsPersistsAndEmitsTelemetry() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.playDictationCaptureSounds = true
+
+        XCTAssertTrue(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.playDictationCaptureSoundsKey))
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences.playDictationCaptureSounds(defaults: testDefaults))
+
+        viewModel.playDictationCaptureSounds = false
+
+        XCTAssertFalse(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.playDictationCaptureSoundsKey))
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting, _) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.playDictationCaptureSounds, .playDictationCaptureSounds])
     }
 
     func testEscapeCancelsDictationPersistsAndEmitsTelemetry() {
@@ -1364,6 +1386,36 @@ final class SettingsViewModelTests: XCTestCase {
     func testTranscriptionHotkeysDefaultToDisabled() {
         XCTAssertEqual(viewModel.fileTranscriptionHotkeyTrigger, .disabled)
         XCTAssertEqual(viewModel.youtubeTranscriptionHotkeyTrigger, .disabled)
+        XCTAssertEqual(viewModel.dictationAIPolishHotkeyTrigger, .disabled)
+        XCTAssertEqual(viewModel.dictationClipboardHotkeyTrigger, .disabled)
+    }
+
+    func testDictationAIPolishHotkeyPersistsToDedicatedDefaultsKey() {
+        let trigger = HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 35)
+        viewModel.dictationAIPolishHotkeyTrigger = trigger
+
+        XCTAssertEqual(
+            HotkeyTrigger.current(
+                defaults: testDefaults,
+                defaultsKey: HotkeyTrigger.dictationAIPolishDefaultsKey,
+                fallback: .disabled
+            ),
+            trigger
+        )
+    }
+
+    func testDictationClipboardHotkeyPersistsToDedicatedDefaultsKey() {
+        let trigger = HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 8)
+        viewModel.dictationClipboardHotkeyTrigger = trigger
+
+        XCTAssertEqual(
+            HotkeyTrigger.current(
+                defaults: testDefaults,
+                defaultsKey: HotkeyTrigger.dictationClipboardDefaultsKey,
+                fallback: .disabled
+            ),
+            trigger
+        )
     }
 
     func testFileTranscriptionHotkeyPersistsToDedicatedDefaultsKey() {
@@ -1421,6 +1473,8 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.meetingHotkeyTrigger = .chord(modifiers: ["control", "option"], keyCode: 46)
         viewModel.fileTranscriptionHotkeyTrigger = .disabled
         viewModel.youtubeTranscriptionHotkeyTrigger = .fromKeyCode(16)
+        viewModel.dictationAIPolishHotkeyTrigger = .chord(modifiers: ["control", "option"], keyCode: 35)
+        viewModel.dictationClipboardHotkeyTrigger = .shift
 
         let events = telemetry.snapshot()
         let hotkeyEvents = events.compactMap { event -> String? in
@@ -1442,6 +1496,8 @@ final class SettingsViewModelTests: XCTestCase {
             "meeting:chord",
             "file_transcription:disabled",
             "youtube_transcription:key_code",
+            "dictation_ai_polish:chord",
+            "dictation_clipboard:modifier",
         ])
         XCTAssertTrue(hotkeySettingEvents.isEmpty)
     }
@@ -1449,13 +1505,19 @@ final class SettingsViewModelTests: XCTestCase {
     func testTranscriptionHotkeysLoadFromUserDefaults() {
         let fileTrigger = HotkeyTrigger.chord(modifiers: ["control", "shift"], keyCode: 3)
         let youtubeTrigger = HotkeyTrigger.chord(modifiers: ["control", "shift"], keyCode: 16)
+        let aiPolishTrigger = HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 35)
+        let clipboardTrigger = HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 8)
         fileTrigger.save(to: testDefaults, defaultsKey: HotkeyTrigger.fileTranscriptionDefaultsKey)
         youtubeTrigger.save(to: testDefaults, defaultsKey: HotkeyTrigger.youtubeTranscriptionDefaultsKey)
+        aiPolishTrigger.save(to: testDefaults, defaultsKey: HotkeyTrigger.dictationAIPolishDefaultsKey)
+        clipboardTrigger.save(to: testDefaults, defaultsKey: HotkeyTrigger.dictationClipboardDefaultsKey)
 
         let vm = SettingsViewModel(defaults: testDefaults)
 
         XCTAssertEqual(vm.fileTranscriptionHotkeyTrigger, fileTrigger)
         XCTAssertEqual(vm.youtubeTranscriptionHotkeyTrigger, youtubeTrigger)
+        XCTAssertEqual(vm.dictationAIPolishHotkeyTrigger, aiPolishTrigger)
+        XCTAssertEqual(vm.dictationClipboardHotkeyTrigger, clipboardTrigger)
     }
 
     func testShowIdlePillDefaultsToTrue() {
@@ -1506,6 +1568,15 @@ final class SettingsViewModelTests: XCTestCase {
     func testInvalidProcessingModeFallsBackToRaw() {
         viewModel.processingMode = "invalid-mode"
         XCTAssertEqual(viewModel.processingMode, Dictation.ProcessingMode.raw.rawValue)
+    }
+
+    func testSpokenPunctuationDefaultsOnAndPersistsOff() {
+        XCTAssertTrue(viewModel.spokenPunctuationEnabled)
+        viewModel.spokenPunctuationEnabled = false
+        XCTAssertEqual(
+            testDefaults.object(forKey: UserDefaultsAppRuntimePreferences.spokenPunctuationEnabledKey) as? Bool,
+            false
+        )
     }
 
     // MARK: - Permissions

@@ -82,8 +82,9 @@ sitting at a keyboard, it lives in the .app.
   telemetry without driving the GUI.
 - **Prompt library + LLM-backed summarization** -- bring your own provider
   (OpenAI, Anthropic, Gemini, OpenRouter, Moonshot/Kimi, DeepSeek, Qwen, Z.AI,
-  MiniMax, Ollama, LM Studio, OpenAI-compatible, or a configured CLI
-  subprocess), or skip the LLM entirely and consume raw transcripts.
+  MiniMax, Ollama, LM Studio, Apple Intelligence on macOS 26+,
+  OpenAI-compatible, or a configured CLI subprocess), or skip the LLM entirely
+  and consume raw transcripts.
 - **Machine-readable output** -- read-only query commands use `--json`,
   format-selecting commands use `--format json`, and LLM/prompt commands use
   `--json` for structured envelopes (see

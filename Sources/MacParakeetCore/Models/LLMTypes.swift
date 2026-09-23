@@ -185,7 +185,6 @@ public struct ChatCompletionOptions: Sendable, Equatable {
 
     public static let `default` = ChatCompletionOptions(temperature: 0.7, maxTokens: nil)
 
-
     /// Attach provenance only after provider filtering has resolved the request.
     func withInferenceReceipt(
         usesPromptInferenceSettings: Bool,
@@ -201,6 +200,7 @@ public struct ChatCompletionOptions: Sendable, Equatable {
     /// Validate numeric input before dispatch, including direct client calls.
     /// Anthropic's narrower range applies only when temperature will be sent:
     /// Top P precedence and the model allow-list remain authoritative.
+    /// Apple Intelligence always uses Foundation Models' documented 0...1 range.
     func validateInferenceSettings(for config: LLMProviderConfig) throws {
         _ = try PromptInferenceSettings(
             temperature: temperature,
@@ -208,15 +208,27 @@ public struct ChatCompletionOptions: Sendable, Equatable {
             topK: topK,
             maxTokens: maxTokens
         ).validated()
-        if config.id == .anthropic,
-            AnthropicModelPolicy.acceptsSampling(model: config.modelName),
-            topP == nil,
-            let temperature,
-            temperature > 1
-        {
-            throw PromptInferenceSettings.ValidationError.outOfRange(
-                field: .temperature, minimum: 0, maximum: 1
+        if let temperature, temperature > 1 {
+            let rejectsAboveOne =
+                config.id == .appleIntelligence
+                || (config.id == .anthropic
+                    && AnthropicModelPolicy.acceptsSampling(model: config.modelName)
+                    && topP == nil)
+            if rejectsAboveOne {
+                throw PromptInferenceSettings.ValidationError.outOfRange(
+                    field: .temperature, minimum: 0, maximum: 1
+                )
+            }
+        }
+        if config.id == .appleIntelligence, let maxTokens {
+            let maximum = LLMService.maximumOutputTokensLeavingInputRoom(
+                in: LLMService.appleIntelligenceContextBudget
             )
+            if maxTokens > maximum {
+                throw PromptInferenceSettings.ValidationError.outOfRange(
+                    field: .maxTokens, minimum: 1, maximum: Double(maximum)
+                )
+            }
         }
     }
 }

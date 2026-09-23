@@ -2317,6 +2317,90 @@ public final class DatabaseManager: Sendable {
                     """)
         }
 
+        // v0.45 — Receipt for the correction revision a prompt result was
+        // generated from, so the summary can offer an update after an edit.
+        migrator.registerMigration("v0.45-summary-source-correction-revision") { db in
+            let columns = try db.columns(in: "summaries").map(\.name)
+            if !columns.contains("sourceCorrectionRevision") {
+                try db.alter(table: "summaries") { t in
+                    t.add(column: "sourceCorrectionRevision", .integer)
+                }
+            }
+        }
+
+        // v0.46 — Reading-view saves store one `reviseText` command so Undo
+        // restores the whole session. SQLite cannot widen the operation CHECK
+        // in place.
+        migrator.registerMigration("v0.46-reading-transcript-corrections") { db in
+            try db.execute(sql: "ALTER TABLE speaker_correction_states RENAME TO speaker_correction_states_v044")
+            try db.execute(sql: "ALTER TABLE speaker_corrections RENAME TO speaker_corrections_v044")
+            try db.execute(
+                sql: """
+                    CREATE TABLE speaker_corrections (
+                        id TEXT PRIMARY KEY NOT NULL,
+                        transcriptionId TEXT NOT NULL
+                            REFERENCES transcriptions(id) ON DELETE CASCADE,
+                        parentId TEXT,
+                        sequence INTEGER NOT NULL CHECK (sequence > 0),
+                        transcriptFingerprint TEXT NOT NULL,
+                        operation TEXT NOT NULL CHECK (
+                            operation IN (
+                                'rename', 'add', 'assign', 'split', 'unsplit',
+                                'merge', 'remove', 'editText', 'mergeSegments',
+                                'reviseText', 'reset'
+                            )
+                        ),
+                        payload TEXT NOT NULL,
+                        branchState TEXT NOT NULL CHECK (
+                            branchState IN ('current', 'redo', 'abandoned')
+                        ),
+                        createdAt TEXT NOT NULL,
+                        UNIQUE (transcriptionId, sequence),
+                        UNIQUE (id, transcriptionId),
+                        FOREIGN KEY (parentId, transcriptionId)
+                            REFERENCES speaker_corrections(id, transcriptionId)
+                            ON DELETE CASCADE
+                    )
+                    """)
+            try db.execute(
+                sql: """
+                    INSERT INTO speaker_corrections
+                    SELECT * FROM speaker_corrections_v044
+                    ORDER BY transcriptionId, sequence
+                    """)
+            try db.execute(
+                sql: """
+                    CREATE TABLE speaker_correction_states (
+                        transcriptionId TEXT PRIMARY KEY NOT NULL
+                            REFERENCES transcriptions(id) ON DELETE CASCADE,
+                        transcriptFingerprint TEXT NOT NULL,
+                        headId TEXT,
+                        revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
+                        updatedAt TEXT NOT NULL,
+                        FOREIGN KEY (headId, transcriptionId)
+                            REFERENCES speaker_corrections(id, transcriptionId)
+                            ON DELETE CASCADE
+                    )
+                    """)
+            try db.execute(
+                sql: """
+                    INSERT INTO speaker_correction_states
+                    SELECT * FROM speaker_correction_states_v044
+                    """)
+            try db.execute(sql: "DROP TABLE speaker_correction_states_v044")
+            try db.execute(sql: "DROP TABLE speaker_corrections_v044")
+            try db.execute(
+                sql: """
+                    CREATE INDEX idx_speaker_corrections_replay
+                    ON speaker_corrections (
+                        transcriptionId,
+                        transcriptFingerprint,
+                        branchState,
+                        sequence
+                    )
+                    """)
+        }
+
         return migrator
     }
 

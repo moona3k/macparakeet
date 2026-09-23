@@ -171,16 +171,19 @@ public extension LLMServiceProtocol {
             let task = Task {
                 do {
                     guard try inferenceSettings?.validated() == nil else {
-                        throw LLMError.providerError("This LLM service does not support per-prompt generation settings.")
+                        throw LLMError.providerError(
+                            "This LLM service does not support per-prompt generation settings.")
                     }
                     let source = generatePromptResultStream(transcript: transcript, systemPrompt: systemPrompt)
                     for try await text in source {
                         continuation.yield(.text(text))
                     }
-                    continuation.yield(.completed(LLMStreamTerminal(
-                        provider: "unknown",
-                        model: "unknown"
-                    )))
+                    continuation.yield(
+                        .completed(
+                            LLMStreamTerminal(
+                                provider: "unknown",
+                                model: "unknown"
+                            )))
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -312,6 +315,20 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     internal static let cloudContextBudget = 500_000  // ≈140K tokens
     internal static let localContextBudget = 80_000  // ≈ 22K tokens
     internal static let lmStudioContextBudget = 8_000  // ≈2K tokens; LM Studio defaults vary by loaded model
+    /// Apple's on-device window is 4096 tokens including instructions and output.
+    /// ~3.5 chars/token with a 512-token output reserve ≈ 12k input characters.
+    /// Short answers (summary, Ask) use this ceiling.
+    internal static let appleIntelligenceContextBudget = 12_000
+    /// Transforms and dictation cleanup answer at about the length of the source.
+    /// Half the window, in the same character unit, leaves room for that rewrite.
+    internal static let appleIntelligenceRoundTripBudget = 6_000
+
+    /// Largest output-token request that still leaves input under the
+    /// ceil(3.5 characters per token) reservation used by prompt results.
+    static func maximumOutputTokensLeavingInputRoom(in contextBudget: Int) -> Int {
+        guard contextBudget > 1 else { return 0 }
+        return (contextBudget * 2 - 1) / 7
+    }
 
     public init(
         client: LLMClientProtocol = RoutingLLMClient(),
@@ -384,7 +401,13 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                 </untrusted_transcript_data>
                 """,
             systemPrompt: systemPrompt,
-            config: context.providerConfig
+            config: context.providerConfig,
+            inputBudget: context.providerConfig.id == .appleIntelligence
+                ? try promptResultInputBudget(
+                    for: context.providerConfig,
+                    maxOutputTokens: 700
+                )
+                : nil
         )
         let responseFormat: ChatResponseFormat? =
             capability == .nativeJSONSchema ? Self.knowledgeCardResponseFormat : nil
@@ -876,7 +899,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
             messageCount: 2
         )
         let config = context.providerConfig
-        let budget = contextBudget(for: config)
+        let budget = contextBudget(for: config, roundTrip: true)
         let promptOverhead =
             Prompts.formatter.count
             + AIFormatter.renderPrompt(template: promptTemplate, transcript: "").count
@@ -1486,7 +1509,10 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         }
     }
 
-    private func contextBudget(for config: LLMProviderConfig) -> Int {
+    private func contextBudget(for config: LLMProviderConfig, roundTrip: Bool = false) -> Int {
+        if config.id == .appleIntelligence {
+            return roundTrip ? Self.appleIntelligenceRoundTripBudget : Self.appleIntelligenceContextBudget
+        }
         if config.id == .lmstudio {
             return Self.lmStudioContextBudget
         }
@@ -1505,7 +1531,8 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         maxOutputTokens: Int?
     ) throws -> Int {
         // Native Ollama requests explicitly set num_ctx, not the generic local window.
-        let totalBudget = config.id == .ollama
+        let totalBudget =
+            config.id == .ollama
             ? OllamaLLMHTTPAdapter.contextWindowTokens * 7 / 2
             : contextBudget(for: config)
         guard let maxOutputTokens, maxOutputTokens > 0 else {
@@ -1557,7 +1584,8 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         let separator = "\n\n---\n\n"
         let available = max(
             0,
-            contextBudget(for: config) - systemPrompt.count - instructionPrefix.count - separator.count
+            contextBudget(for: config, roundTrip: true) - systemPrompt.count - instructionPrefix.count
+                - separator.count
         )
         let promptBudget = prompt.count <= available ? prompt.count : available / 2
         let boundedPrompt = Self.truncateMiddle(prompt, limit: promptBudget)
@@ -1621,7 +1649,8 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         switch llmError {
         case .connectionFailed, .modelNotFound, .cliError, .authenticationFailed:
             return true
-        case .notConfigured, .invalidModelOverride, .rateLimited, .contextTooLong, .formatterTruncated,
+        case .notConfigured, .invalidModelOverride, .rateLimited, .contextTooLong, .contentFiltered,
+            .formatterTruncated,
             .formatterEmptyResponse, .providerError, .streamingError, .invalidResponse:
             return false
         }
