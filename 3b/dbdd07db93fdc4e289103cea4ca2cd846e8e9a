@@ -1,0 +1,30 @@
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_4a7be435ad07b2::t_97eca5b4aa28c6 158-159
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_4a7be435ad07b2::t_22d5e893e619ed 708
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_4a7be435ad07b2::t_61f3e106079f90 1234
+Sources/MacParakeet/Views/Components/SoundManager.swift
+  s_4a7be435ad07b2::t_569aa903254bae 102-111,113-114
+  s_4a7be435ad07b2::t_eabba6f9229c63 31-34
+Sources/MacParakeetCore/AppNotifications.swift
+  s_4a7be435ad07b2::t_24d66ab9d34d0b 53-54
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_4a7be435ad07b2::t_43799423417867 353-354,358
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3bdbdd07db93fdc4e289103cea4ca2cd846e8e9a",
+  "prompts": {},
+  "sessions": {
+    "s_4a7be435ad07b2": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "9da77b85-19e2-437b-ac09-b5f0a344c65b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
