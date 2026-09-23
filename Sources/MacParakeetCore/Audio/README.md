@@ -258,6 +258,22 @@ result the recorded audio can no longer back. Keep the success path on
 `onFinish` and every early-out on `onCancel`; collapsing them leaks the
 live-transcription continuations on cancelled dictations.
 
+**A dictation restart waits for the previous cancellation to finish capture
+stop.** `AudioRecorder.stop()` clears its recording flag before it finishes
+unsubscribing and finalizing the WAV. `DictationService` must keep that stop
+owned by the old session until it returns; a replacement capture must not
+start while the old cancel or confirm-cancel can still update service state
+or touch the recorder. Cancelled-audio persistence happens after this boundary
+so transcription of a discarded take does not delay the new capture. When a
+replacement claims the new session before stopping the old capture, cancellation
+of that replacement must leave the old recorder stop to its cleanup and must
+not announce a stop for a capture the replacement never started. A stop request
+for that provisional replacement must also be rejected rather than transcribing
+the old take under the new session. Its delayed media-pause callback must not
+discard pre-roll from the old capture. The old take's cancel telemetry is
+emitted once when replacement claims it; cancelling the provisional take adds
+no second capture-cancel event.
+
 **Tap closures run on the audio render thread.** No allocation, no
 actor hops, no `await`. State touched from the tap path uses
 `OSAllocatedUnfairLock`-protected nonisolated fields. The buffer

@@ -951,8 +951,12 @@ Each snippet has a trigger phrase, expansion text, and use count for tracking.
 Users can export the combined vocabulary (manual custom words + text snippets)
 to a versioned JSON file, and import on the same or another Mac. Import shows
 a preview sheet with counts and case-insensitive conflict detection;
-duplicates can be skipped (default) or replaced. Surfaced from the Vocabulary
-panel and via `macparakeet-cli vocab {export,import,schema}`. The
+duplicates can be skipped (default) or replaced, or the entire vocabulary can
+be replaced in one transaction (issue #766). Replace-all removes manual words
+and snippets that aren't in the file, keeps unmatched learned recognition
+terms, rejects empty files and stale previews, and rolls back if any write
+fails. Surfaced from the Vocabulary panel and via
+`macparakeet-cli vocab {export,import,schema}`. The
 `schema` subcommand prints an LLM-readable spec so a local coding agent can
 generate valid bundles from natural-language input.
 
@@ -1125,6 +1129,7 @@ Important constraints:
 - [x] Settings link opens management views
 - [x] Default processing mode configurable
 - [x] Combined vocabulary import/export is available from the Vocabulary panel and CLI
+- [x] Import can replace the entire vocabulary in one transaction, with a preview of removals and rollback on failure
 
 ---
 
@@ -2241,6 +2246,7 @@ surface against the [canonical status table](README.md#release-channels-and-feat
 | Skip-microphone onboarding | First-run Microphone step stays visible, but Continue is not gated on grant. File-only users can skip it. Dictation and mic-backed meetings still request access on first use. | [ADR-005](adr/005-onboarding-first-run.md) |
 | AI Formatter routing | New installs leave “Use for transcripts” and “Use for dictation” off. Each surface has its own prompt. Inherited transcript-on stays on. | [F8](02-features.md#f8-ai-formatter) |
 | Streaming cursor | Optional Settings → Dictation insert path (default off). Finished text types at the caret; Reduce Motion, unknown IMEs, and newline/tab still paste. | [F1](02-features.md#f1-system-wide-dictation) |
+| Edit saved AI results | Saved summaries, chapters, and action items can be edited in place with Cancel/Save. Prompt snapshots stay the generation receipt; `contentEditedAt` marks a user edit and meeting artifacts refresh. | [Issue #884](https://github.com/moona3k/macparakeet/issues/884) |
 
 These do not enable activity-based meeting detection, app-aware AI Formatter
 profiles or public in-process MLX. Corpus-wide Ask and cross-file speaker

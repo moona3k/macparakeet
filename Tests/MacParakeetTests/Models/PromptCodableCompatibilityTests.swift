@@ -32,6 +32,8 @@ final class PromptCodableCompatibilityTests: XCTestCase {
         XCTAssertEqual(result.content, "Result")
         XCTAssertNil(result.promptId)
         XCTAssertNil(result.inferenceSettingsSnapshot)
+        XCTAssertNil(result.contentEditedAt)
+        XCTAssertFalse(result.isContentUserEdited)
     }
 
     func testPromptRoundTripPreservesAllMetadataAndExplicitPreference() throws {
@@ -47,7 +49,12 @@ final class PromptCodableCompatibilityTests: XCTestCase {
             let result = makeResult(includeNotes: preference)
             let decoded = try assertRoundTrip(result)
             XCTAssertEqual(decoded.includeMeetingNotesSnapshot, preference)
+            XCTAssertNil(decoded.contentEditedAt)
         }
+        let edited = makeResult(contentEditedAt: Date(timeIntervalSinceReferenceDate: 250))
+        let decoded = try assertRoundTrip(edited)
+        XCTAssertEqual(decoded.contentEditedAt, edited.contentEditedAt)
+        XCTAssertTrue(decoded.isContentUserEdited)
     }
 
     func testPromptRejectsNullOrMalformedNotesPreference() throws {
@@ -88,7 +95,7 @@ final class PromptCodableCompatibilityTests: XCTestCase {
             deletedAt: Date(timeIntervalSinceReferenceDate: 180), collectionId: UUID())
     }
 
-    private func makeResult(includeNotes: Bool = true) -> PromptResult {
+    private func makeResult(includeNotes: Bool = true, contentEditedAt: Date? = nil) -> PromptResult {
         PromptResult(
             transcriptionId: UUID(), promptId: UUID(), promptVersionId: UUID(),
             promptName: "Review", promptContent: "Summarize {{userNotes}}", extraInstructions: "Be brief",
@@ -96,6 +103,7 @@ final class PromptCodableCompatibilityTests: XCTestCase {
             inferenceSettingsSnapshot: PromptInferenceSettings(
                 temperature: 0.4, thinkingMode: .enabled, reasoningEffort: .high),
             providerSnapshot: "provider", modelSnapshot: "model",
+            contentEditedAt: contentEditedAt,
             createdAt: Date(timeIntervalSinceReferenceDate: 100), updatedAt: Date(timeIntervalSinceReferenceDate: 200))
     }
 
