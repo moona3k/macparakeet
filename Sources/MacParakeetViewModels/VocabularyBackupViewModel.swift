@@ -109,6 +109,7 @@ public final class VocabularyBackupViewModel {
 
     @discardableResult
     public func applyImport() async -> Bool {
+        guard status != .importing else { return false }
         guard let service else {
             failMissingService()
             return false

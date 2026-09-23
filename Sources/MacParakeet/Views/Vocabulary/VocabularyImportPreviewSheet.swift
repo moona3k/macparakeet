@@ -208,7 +208,7 @@ struct VocabularyImportPreviewSheet: View {
                 .foregroundStyle(.secondary)
             }
             if isEmptyReplaceAll {
-                Text("This file is empty, so replace-all would only delete. Import a dictionary file instead.")
+                Text("Replace-all requires a file with at least one word or snippet.")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.secondary)
             }
@@ -375,6 +375,7 @@ struct VocabularyImportPreviewSheet: View {
             )
         }
         .buttonStyle(.plain)
+        .disabled(viewModel.status == .importing)
     }
 
     // MARK: - Actions
@@ -388,6 +389,7 @@ struct VocabularyImportPreviewSheet: View {
             }
             .parakeetAction(.secondary)
             .keyboardShortcut(.cancelAction)
+            .disabled(viewModel.status == .importing)
 
             importConfirmButton
         }
@@ -408,7 +410,7 @@ struct VocabularyImportPreviewSheet: View {
         .parakeetAction(
             viewModel.conflictPolicy == .replaceAll ? .destructiveProminent : .primaryProminent
         )
-        .disabled(isImportDisabled)
+        .disabled(isImportDisabled || viewModel.status == .importing)
 
         if viewModel.conflictPolicy == .replaceAll {
             button
