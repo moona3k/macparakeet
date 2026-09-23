@@ -1,0 +1,32 @@
+Sources/MacParakeetCore/Hotkey/HotkeyConflictPolicy.swift
+  s_697e594299b62c::t_85ac7f8ec6bd7d 250-251,293,394-395
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_697e594299b62c::t_97d481c3444234 1809-1843
+Tests/MacParakeetTests/Hotkey/HotkeyConflictPolicyTests.swift
+  s_697e594299b62c::t_97d481c3444234 306-339
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_697e594299b62c::t_85ac7f8ec6bd7d 206
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_697e594299b62c::t_85ac7f8ec6bd7d 408
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_697e594299b62c::t_d9cbd5018da3ce 364-365
+  s_697e594299b62c::t_85ac7f8ec6bd7d 121,200,239,366
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_697e594299b62c::t_85ac7f8ec6bd7d 470
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "323bced8ef0c1ee0a372ec5b861f664d35664f88",
+  "prompts": {},
+  "sessions": {
+    "s_697e594299b62c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cbf1-51b1-7ea3-a7cc-7f0645829f47",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
