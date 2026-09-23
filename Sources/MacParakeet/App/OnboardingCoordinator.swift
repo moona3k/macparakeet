@@ -5,31 +5,40 @@ import MacParakeetViewModels
 @MainActor
 final class OnboardingCoordinator {
     private let onboardingWindowController: OnboardingWindowController
+    private let settingsViewModel: SettingsViewModel?
+    private let transformsViewModel: TransformsViewModel?
     private let onRefreshHotkeys: () -> Void
-    private let onOpenMainWindow: () -> Void
     private let onOpenSettings: () -> Void
     private let onCompleted: () -> Void
     private let onHotkeyPreviewArm: () -> Void
     private let onHotkeyPreviewDisarm: () -> Void
+    private let onShortcutRecordingChanged: (Bool) -> Void
+    private let onShortcutBindingsChanged: () -> Void
 
     private var reopenOnNextActivate = false
 
     init(
         onboardingWindowController: OnboardingWindowController,
+        settingsViewModel: SettingsViewModel? = nil,
+        transformsViewModel: TransformsViewModel? = nil,
         onRefreshHotkeys: @escaping () -> Void,
-        onOpenMainWindow: @escaping () -> Void,
         onOpenSettings: @escaping () -> Void,
         onCompleted: @escaping () -> Void = {},
         onHotkeyPreviewArm: @escaping () -> Void = {},
-        onHotkeyPreviewDisarm: @escaping () -> Void = {}
+        onHotkeyPreviewDisarm: @escaping () -> Void = {},
+        onShortcutRecordingChanged: @escaping (Bool) -> Void = { _ in },
+        onShortcutBindingsChanged: @escaping () -> Void = {}
     ) {
         self.onboardingWindowController = onboardingWindowController
+        self.settingsViewModel = settingsViewModel
+        self.transformsViewModel = transformsViewModel
         self.onRefreshHotkeys = onRefreshHotkeys
-        self.onOpenMainWindow = onOpenMainWindow
         self.onOpenSettings = onOpenSettings
         self.onCompleted = onCompleted
         self.onHotkeyPreviewArm = onHotkeyPreviewArm
         self.onHotkeyPreviewDisarm = onHotkeyPreviewDisarm
+        self.onShortcutRecordingChanged = onShortcutRecordingChanged
+        self.onShortcutBindingsChanged = onShortcutBindingsChanged
     }
 
     var isVisible: Bool {
@@ -77,6 +86,8 @@ final class OnboardingCoordinator {
             permissionService: permissionService,
             sttClient: sttClient,
             diarizationService: diarizationService,
+            settingsViewModel: settingsViewModel,
+            transformsViewModel: transformsViewModel,
             onFinish: { [weak self] in
                 self?.reopenOnNextActivate = false
                 self?.onRefreshHotkeys()
@@ -88,9 +99,10 @@ final class OnboardingCoordinator {
             restartExistingRun: restartExistingRun,
             onHotkeyPreviewArm: { [weak self] in self?.onHotkeyPreviewArm() },
             onHotkeyPreviewDisarm: { [weak self] in self?.onHotkeyPreviewDisarm() },
-            onOpenMainApp: { [weak self] in
-                self?.onOpenMainWindow()
+            onShortcutRecordingChanged: { [weak self] isRecording in
+                self?.onShortcutRecordingChanged(isRecording)
             },
+            onShortcutBindingsChanged: { [weak self] in self?.onShortcutBindingsChanged() },
             onOpenSettings: { [weak self] in
                 self?.onOpenSettings()
             },

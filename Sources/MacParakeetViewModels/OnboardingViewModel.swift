@@ -22,10 +22,8 @@ public final class OnboardingViewModel {
 
     public enum Step: Int, CaseIterable, Identifiable, Sendable {
         case welcome
-        case microphone
-        case accessibility
-        case hotkey
-        case engine
+        case permissions
+        case practice
         case done
 
         public var id: Int { rawValue }
@@ -33,10 +31,8 @@ public final class OnboardingViewModel {
         public var title: String {
             switch self {
             case .welcome: return "Welcome"
-            case .microphone: return "Microphone"
-            case .accessibility: return "Accessibility"
-            case .hotkey: return "Hotkey"
-            case .engine: return "Speech Model"
+            case .permissions: return "Permissions"
+            case .practice: return "Try It"
             case .done: return "Ready"
             }
         }
@@ -44,13 +40,50 @@ public final class OnboardingViewModel {
         public var telemetryName: String {
             switch self {
             case .welcome: return "welcome"
-            case .microphone: return "microphone"
-            case .accessibility: return "accessibility"
-            case .hotkey: return "hotkey"
-            case .engine: return "speech_model"
+            case .permissions: return "permissions"
+            case .practice: return "practice"
             case .done: return "ready"
             }
         }
+    }
+
+    /// Which of the two dictation keys drawn on the Try It card is active.
+    public enum PracticeKey: Sendable, Equatable {
+        case handsFree
+        case pushToTalk
+
+        /// Hold-to-talk is the push-to-talk key. The persistent gesture is the
+        /// hands-free key, including the shared double-tap.
+        public init(recordingMode: FnKeyStateMachine.RecordingMode) {
+            switch recordingMode {
+            case .holdToTalk: self = .pushToTalk
+            case .persistent: self = .handsFree
+            }
+        }
+    }
+
+    /// The Try It step has two beats on one screen: prove the key, then
+    /// dictate into the box. Continue advances the phase before the step.
+    public enum PracticePhase: Sendable, Equatable {
+        case hotkey
+        case dictation
+    }
+
+    /// What the real dictation flow is doing while the practice box listens.
+    public enum PracticeDictationActivity: Sendable, Equatable {
+        case idle
+        case recording(PracticeKey)
+        case processing
+    }
+
+    /// The practice box's visible state. The box never accepts a dictation
+    /// before the speech engine is ready and the key has been proven.
+    public enum PracticeBoxState: Sendable, Equatable {
+        case loading(message: String, progress: Double?)
+        case failed(EngineFailure)
+        case waitingForKey
+        case clickToStart
+        case listening
     }
 
     public struct EngineFailure: Sendable, Equatable {
@@ -129,6 +162,25 @@ public final class OnboardingViewModel {
     public private(set) var engineState: EngineState = .idle
     public private(set) var whisperRecommendation: WhisperOnboardingRecommendation?
 
+    // MARK: Try It step state
+
+    /// The key currently lit on the Try It card, if any.
+    public private(set) var litKey: PracticeKey?
+    /// Latched once any dictation key has lit during this run. Gates Continue
+    /// on the key phase.
+    public private(set) var hasLitHotkey = false
+    public private(set) var practicePhase: PracticePhase = .hotkey
+    /// Set by the click on a ready box. Cleared when the user leaves the step.
+    public private(set) var isPracticeBoxArmed = false
+    public private(set) var practiceActivity: PracticeDictationActivity = .idle
+    /// Text shown in the practice box. Paste writes it through the text view;
+    /// `practiceDictationDelivered(_:)` appends when paste did not land.
+    public var practiceText: String = ""
+    /// The most recent transcript a real dictation delivered while the box
+    /// was listening. Nil until the first one, and after Try again.
+    public private(set) var practiceTranscript: String?
+    public private(set) var didSkipPractice = false
+
     /// True while a *permission request* is in flight. The Microphone /
     /// Accessibility grant buttons disable on this.
     public var isBusy: Bool = false
@@ -160,6 +212,13 @@ public final class OnboardingViewModel {
     private var accessibilityPromptedInCurrentRun = false
     private var accessibilityGrantedTelemetrySent = false
     private var accessibilityDeniedTelemetrySent = false
+    private var practiceSucceededTelemetrySent = false
+    private let practicePasteGrace: Duration
+    /// Delivered transcripts whose paste has not been checked yet, oldest
+    /// first. A second dictation inside the grace window restarts the timer
+    /// but never drops the first transcript, and the flush keeps their order.
+    private var pendingPracticeTranscripts: [String] = []
+    private var practiceFallbackTask: Task<Void, Never>?
     private var engineGeneration: Int = 0
     private var refreshTask: Task<Void, Never>?
     private var permissionPollingTask: Task<Void, Never>?
@@ -184,6 +243,11 @@ public final class OnboardingViewModel {
 
     public nonisolated static let onboardingCompletedKey = "onboarding.completedAtISO"
 
+    /// How long a delivered practice transcript may take to arrive in the box
+    /// by paste before the view model inserts it directly. Cmd+V is posted to
+    /// the event stream and lands on a later main-run-loop turn.
+    public nonisolated static let practicePasteGrace: Duration = .milliseconds(600)
+
     public init(
         permissionService: PermissionServiceProtocol,
         sttClient: STTClientProtocol,
@@ -199,7 +263,8 @@ public final class OnboardingViewModel {
         defaults: UserDefaults = .standard,
         now: @escaping @Sendable () -> Date = { Date() },
         permissionPollingInterval: Duration = .seconds(2),
-        warmUpStallTimeout: Duration = OnboardingViewModel.warmUpStallTimeout
+        warmUpStallTimeout: Duration = OnboardingViewModel.warmUpStallTimeout,
+        practicePasteGrace: Duration = OnboardingViewModel.practicePasteGrace
     ) {
         self.permissionService = permissionService
         self.sttClient = sttClient
@@ -222,6 +287,7 @@ public final class OnboardingViewModel {
         self.startedAt = now()
         self.permissionPollingInterval = permissionPollingInterval
         self.warmUpStallTimeout = warmUpStallTimeout
+        self.practicePasteGrace = practicePasteGrace
         self.whisperRecommendation = Self.recommendedWhisperLanguage(
             preferredLanguages: (preferredLanguages ?? { Locale.preferredLanguages })()
         )
@@ -262,7 +328,7 @@ public final class OnboardingViewModel {
     }
 
     public func markOnboardingDismissed() {
-        if step == .accessibility {
+        if step == .permissions {
             refreshAccessibilityPermission()
         }
         emitAccessibilityDeniedIfNeeded()
@@ -287,6 +353,20 @@ public final class OnboardingViewModel {
         accessibilityPromptedInCurrentRun = false
         accessibilityGrantedTelemetrySent = false
         accessibilityDeniedTelemetrySent = false
+        resetPracticeState()
+    }
+
+    private func resetPracticeState() {
+        cancelPracticeFallbacks()
+        litKey = nil
+        hasLitHotkey = false
+        practicePhase = .hotkey
+        isPracticeBoxArmed = false
+        practiceActivity = .idle
+        practiceText = ""
+        practiceTranscript = nil
+        didSkipPractice = false
+        practiceSucceededTelemetrySent = false
     }
 
     public func refresh() {
@@ -312,50 +392,193 @@ public final class OnboardingViewModel {
 
     /// Steps the user actually sees in the dictation-first onboarding flow.
     public static var visibleSteps: [Step] {
-        [.welcome, .microphone, .accessibility, .hotkey, .engine, .done]
+        [.welcome, .permissions, .practice, .done]
     }
 
     public func goNext() {
+        // Try It is one screen with two beats. Continue after a lit key moves
+        // to the dictation box without leaving the step.
+        if step == .practice, practicePhase == .hotkey {
+            practicePhase = .dictation
+            litKey = nil
+            sendStepTelemetry(step: .practice, action: .hotkeyConfirmed)
+            return
+        }
         let visible = Self.visibleSteps
         let currentRaw = step.rawValue
         guard let next = visible.first(where: { $0.rawValue > currentRaw }) else { return }
-        emitAccessibilityDeniedIfLeavingAccessibility(for: next)
-        step = next
-        sendStepTelemetry(step: next, action: .forward)
-        refresh()
+        move(to: next, action: .forward)
     }
 
     public func goBack() {
         let visible = Self.visibleSteps
         let currentRaw = step.rawValue
         guard let prev = visible.last(where: { $0.rawValue < currentRaw }) else { return }
-        emitAccessibilityDeniedIfLeavingAccessibility(for: prev)
-        step = prev
-        sendStepTelemetry(step: prev, action: .back)
-        refresh()
+        move(to: prev, action: .back)
     }
 
     public func jump(to target: Step) {
-        emitAccessibilityDeniedIfLeavingAccessibility(for: target)
+        move(to: target, action: .jump)
+    }
+
+    /// Leave the Try It step without a practice result. Always available so a
+    /// failed model download or an unusable key cannot trap onboarding.
+    public func skipPractice() {
+        guard step == .practice else { return }
+        didSkipPractice = practiceTranscript == nil
+        sendStepTelemetry(step: .practice, action: .practiceSkipped)
+        move(to: .done, action: .forward)
+    }
+
+    private func move(to target: Step, action: TelemetryOnboardingAction) {
+        emitAccessibilityDeniedIfLeavingPermissions(for: target)
+        if step == .practice, target != .practice {
+            // The box must be clicked again after coming back, so focus and
+            // the paste target are re-established by the user.
+            isPracticeBoxArmed = false
+            litKey = nil
+            practiceActivity = .idle
+        }
         step = target
-        sendStepTelemetry(step: target, action: .jump)
+        sendStepTelemetry(step: target, action: action)
         refresh()
     }
 
     public func canContinueFromCurrentStep() -> Bool {
         switch step {
-        case .welcome, .microphone, .hotkey, .done:
+        case .welcome, .done:
             return true
-        case .accessibility:
+        case .permissions:
             return accessibilityGranted
-        case .engine:
-            switch engineState {
-            case .ready:
-                return true
-            case .idle, .working(_, _), .failed:
-                return false
+        case .practice:
+            switch practicePhase {
+            case .hotkey: return hasLitHotkey
+            case .dictation: return hasPracticeResult
             }
         }
+    }
+
+    // MARK: - Try It
+
+    public var isEngineReady: Bool {
+        if case .ready = engineState { return true }
+        return false
+    }
+
+    public var practiceBoxState: PracticeBoxState {
+        switch engineState {
+        case .failed(let failure):
+            return .failed(failure)
+        case .idle:
+            return .loading(message: "Preparing...", progress: nil)
+        case .working(let message, let progress):
+            return .loading(message: message, progress: progress)
+        case .ready:
+            break
+        }
+        guard practicePhase == .dictation else { return .waitingForKey }
+        return isPracticeBoxArmed ? .listening : .clickToStart
+    }
+
+    /// True only while the real dictation flow may run for the practice box:
+    /// on the Try It step, engine ready, key proven, box clicked. The app lifts
+    /// its onboarding dictation gate and hands the key back to production
+    /// hotkeys only in this state.
+    public var isPracticeListening: Bool {
+        step == .practice && practiceBoxState == .listening
+    }
+
+    public var hasPracticeResult: Bool {
+        guard practiceTranscript != nil else { return false }
+        return !practiceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Rehearsal feedback from the real hotkey gesture machine. `nil` means
+    /// the key returned to rest.
+    public func hotkeyRehearsalChanged(_ key: PracticeKey?) {
+        guard step == .practice else {
+            litKey = nil
+            return
+        }
+        litKey = key
+        if key != nil {
+            hasLitHotkey = true
+        }
+    }
+
+    /// A changed binding needs its own rehearsal. Keep any delivered practice
+    /// text, but return to the key beat before the box can listen again.
+    public func practiceHotkeyBindingsChanged() {
+        guard step == .practice else { return }
+        litKey = nil
+        hasLitHotkey = false
+        practicePhase = .hotkey
+        isPracticeBoxArmed = false
+        practiceActivity = .idle
+    }
+
+    /// The click that turns a ready box into a dictation target.
+    public func armPracticeBox() {
+        guard step == .practice, practiceBoxState == .clickToStart else { return }
+        isPracticeBoxArmed = true
+    }
+
+    public func practiceDictationActivityChanged(_ activity: PracticeDictationActivity) {
+        guard isPracticeListening else {
+            practiceActivity = .idle
+            return
+        }
+        practiceActivity = activity
+    }
+
+    /// A real dictation finished while the box was listening. Paste normally
+    /// puts the words in the box. If it has not after `practicePasteGrace`,
+    /// insert them directly so a successful dictation always shows up here.
+    public func practiceDictationDelivered(_ text: String) {
+        guard isPracticeListening else { return }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        practiceTranscript = trimmed
+        practiceActivity = .idle
+        if !practiceSucceededTelemetrySent {
+            practiceSucceededTelemetrySent = true
+            sendStepTelemetry(step: .practice, action: .practiceSucceeded)
+        }
+
+        pendingPracticeTranscripts.append(trimmed)
+        practiceFallbackTask?.cancel()
+        let grace = practicePasteGrace
+        practiceFallbackTask = Task { @MainActor [weak self] in
+            if grace > .zero {
+                try? await Task.sleep(for: grace)
+            }
+            guard let self, !Task.isCancelled else { return }
+            self.flushPendingPracticeTranscripts()
+        }
+    }
+
+    private func flushPendingPracticeTranscripts() {
+        let pending = pendingPracticeTranscripts
+        pendingPracticeTranscripts = []
+        practiceFallbackTask = nil
+        guard step == .practice else { return }
+        for transcript in pending where !practiceText.contains(transcript) {
+            let existing = practiceText.trimmingCharacters(in: .whitespacesAndNewlines)
+            practiceText = existing.isEmpty ? transcript : existing + " " + transcript
+        }
+    }
+
+    private func cancelPracticeFallbacks() {
+        practiceFallbackTask?.cancel()
+        practiceFallbackTask = nil
+        pendingPracticeTranscripts = []
+    }
+
+    /// Try again: clear the box and wait for a new dictation.
+    public func resetPracticeResult() {
+        cancelPracticeFallbacks()
+        practiceText = ""
+        practiceTranscript = nil
     }
 
     // MARK: - Actions
@@ -403,8 +626,8 @@ public final class OnboardingViewModel {
         accessibilityGrantedTelemetrySent = true
     }
 
-    private func emitAccessibilityDeniedIfLeavingAccessibility(for nextStep: Step) {
-        guard step == .accessibility, nextStep != .accessibility else { return }
+    private func emitAccessibilityDeniedIfLeavingPermissions(for nextStep: Step) {
+        guard step == .permissions, nextStep != .permissions else { return }
         refreshAccessibilityPermission()
         emitAccessibilityDeniedIfNeeded()
     }
@@ -437,19 +660,15 @@ public final class OnboardingViewModel {
         permissionPollingTask = nil
     }
 
-    /// Apply a warm-up failure to `engineState`. Part B kicks the warm-up off at
-    /// onboarding open, so a failure can land while the user is still granting
-    /// permissions. The terminal `.failed` state is preserved, but only the
-    /// Speech Model step renders failure UI; earlier steps keep their normal
-    /// permission/hotkey surfaces and the engine step can show Retry immediately.
-    /// Always clears `engineBusy`.
-    /// See plans/active/2026-05-dictation-first-onboarding.md §5.3.
+    /// Apply a warm-up failure to `engineState`. The warm-up starts at
+    /// onboarding open, so a failure can land on any step. The terminal
+    /// `.failed` state is preserved; the Try It box renders it with Retry, and
+    /// the sidebar shows that the model needs attention. Telemetry records the
+    /// step the user was on when it failed. Always clears `engineBusy`.
     private func applyEngineWarmUpFailure(_ failure: EngineFailure) {
         engineBusy = false
         engineState = .failed(failure)
-        if step == .engine {
-            sendStepTelemetry(step: .engine, action: .engineFailed, engineState: "failed")
-        }
+        sendStepTelemetry(step: step, action: .engineFailed, engineState: "failed")
     }
 
     private func applyEngineWarmUpFailure(_ message: String) {
@@ -494,12 +713,8 @@ public final class OnboardingViewModel {
         // If already observing or completed, don't restart
         if case .ready = engineState { return }
         // Don't auto-restart from a surfaced failure. Only `retryEngineWarmUp()`
-        // (which resets to `.idle` first) restarts. This matters because Part B
-        // calls this from two sites (onboarding-open + the engine step's
-        // `.onAppear`): if a head-start failure surfaces right as the engine step
-        // appears — clearing `warmUpObserverTask` just before `.onAppear` fires —
-        // the step would otherwise silently kick off a second attempt instead of
-        // showing the user the Retry button.
+        // (which resets to `.idle` first) restarts, so a failure stays on screen
+        // with its Retry button instead of silently starting a second attempt.
         if case .failed = engineState { return }
         if warmUpObserverTask != nil { return }
 
@@ -612,7 +827,7 @@ public final class OnboardingViewModel {
                     }
                     self.engineState = .ready
                     self.engineBusy = false
-                    self.sendStepTelemetry(step: .engine, action: .engineReady, engineState: "ready")
+                    self.sendStepTelemetry(step: self.step, action: .engineReady, engineState: "ready")
                     break observationLoop
                 case .failed(let message):
                     Telemetry.send(
@@ -679,7 +894,7 @@ public final class OnboardingViewModel {
 
                 self.engineState = .ready
                 self.engineBusy = false
-                self.sendStepTelemetry(step: .engine, action: .engineReady, engineState: "ready")
+                self.sendStepTelemetry(step: self.step, action: .engineReady, engineState: "ready")
             } catch is CancellationError {
                 guard self.engineGeneration == generation else { return }
                 self.engineState = .idle
@@ -992,7 +1207,7 @@ public final class OnboardingViewModel {
         let engineState =
             explicitEngineState
             ?? {
-                guard step == .engine else { return nil }
+                guard step == .practice else { return nil }
                 switch self.engineState {
                 case .idle: return "idle"
                 case .working: return "working"

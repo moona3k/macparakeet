@@ -1,61 +1,52 @@
 import AppKit
-import AVFoundation
 import MacParakeetCore
 import MacParakeetViewModels
 
-/// Drives the interactive hotkey *rehearsal* on the onboarding "Learn the
-/// Hotkey" step. Pressing the user's configured dictation trigger raises the
-/// real dictation overlay with a live, mic-driven waveform — but **never**
-/// touches STT, paste, history, or the dictation flow. It's a visual
-/// first-success that lands before the speech model is even downloaded (the
-/// next onboarding step).
+/// Drives the key rehearsal on the onboarding Try It card. Pressing the user's
+/// configured dictation key lights the matching key cap inside the card. It
+/// **never** records audio, touches STT, pastes, or starts the dictation flow,
+/// so it works while the speech model is still downloading.
 ///
-/// Lifecycle: `arm()` when the hotkey step appears, `disarm()` when it
-/// disappears or the onboarding window closes. Both are idempotent so the
-/// SwiftUI `onDisappear` and the window's `windowWillClose` can both call
-/// `disarm()` without desyncing the suspend/resume refcount.
+/// Lighting comes from the same `HotkeyManager` gesture machine production
+/// uses, so a lit cap proves both the Accessibility grant and the binding:
+/// hold-to-talk lights the push-to-talk cap until release, and the hands-free
+/// gesture lights the hands-free cap until the next tap or Escape.
 ///
-/// While armed, the production hotkey taps are suspended so only the preview
-/// taps own the key. The production dictation flow is *also* gated while
-/// onboarding is visible (see `AppEnvironmentConfigurer`), so the rehearsal can
-/// never collide with a real dictation.
+/// Lifecycle: `arm()` while the Try It card should rehearse, `disarm()` when it
+/// stops (the practice box starts listening, the step disappears, or the
+/// window closes). Both are idempotent so SwiftUI `onDisappear` and the
+/// window's `windowWillClose` can both call `disarm()` without desyncing the
+/// suspend/resume refcount.
+///
+/// While armed, the production hotkey taps are suspended so only the rehearsal
+/// taps own the key. The production dictation flow is also gated while
+/// onboarding is visible (see `AppEnvironmentConfigurer`), except while the
+/// practice box is listening, and the box only listens after `disarm()`.
 @MainActor
 final class OnboardingHotkeyPreviewController {
-
-    /// Live mic-level feed, abstracted so the controller is unit-testable
-    /// without real audio hardware. `onLevel` is delivered on the main actor.
-    @MainActor
-    protocol MicLeveling: AnyObject {
-        func start(onLevel: @escaping @MainActor (Float) -> Void)
-        func stop()
-    }
+    typealias PracticeKey = OnboardingViewModel.PracticeKey
 
     private let planProvider: () -> AppHotkeyCoordinator.DictationHotkeyPlan
-    private let micLevelingProvider: () -> MicLeveling?
-    private let overlayFactory: @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling
     private let suspendProductionHotkeys: () -> Void
     private let resumeProductionHotkeys: () -> Void
 
+    /// Called on the main actor whenever the lit key changes. `nil` means rest.
+    var onKeyStateChanged: ((PracticeKey?) -> Void)?
+
     private var managers: [HotkeyManager] = []
-    private var overlayController: (any DictationOverlayControlling)?
-    private var overlayViewModel: DictationOverlayViewModel?
-    private var micLeveling: MicLeveling?
 
     private(set) var isArmed = false
-    private(set) var isPreviewing = false
+    /// True while a shortcut recorder owns the keyboard. Taps stay down, the
+    /// armed state (and the production suspension) is kept.
+    private(set) var isCapturePaused = false
+    private(set) var litKey: PracticeKey?
 
     init(
         planProvider: @escaping () -> AppHotkeyCoordinator.DictationHotkeyPlan,
-        micLevelingProvider: @escaping () -> MicLeveling?,
-        overlayFactory: @escaping @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling = {
-            DictationOverlayController(viewModel: $0)
-        },
         suspendProductionHotkeys: @escaping () -> Void,
         resumeProductionHotkeys: @escaping () -> Void
     ) {
         self.planProvider = planProvider
-        self.micLevelingProvider = micLevelingProvider
-        self.overlayFactory = overlayFactory
         self.suspendProductionHotkeys = suspendProductionHotkeys
         self.resumeProductionHotkeys = resumeProductionHotkeys
     }
@@ -65,19 +56,40 @@ final class OnboardingHotkeyPreviewController {
     func arm() {
         guard !isArmed else { return }
         isArmed = true
-        // Stand the production taps down so only the preview taps own the key
-        // for the duration of the step. Balanced by `resume()` in `disarm()`.
+        // Stand the production taps down so only the rehearsal taps own the
+        // key for the duration of the rehearsal. Balanced in `disarm()`.
         suspendProductionHotkeys()
-        buildManagers()
+        if !isCapturePaused {
+            buildManagers()
+        }
     }
 
     func disarm() {
         guard isArmed else { return }
         isArmed = false
-        endPreview()
-        managers.forEach { $0.stop() }
-        managers = []
+        tearDownManagers()
         resumeProductionHotkeys()
+    }
+
+    /// Stop listening while a shortcut recorder captures a key, then rebuild
+    /// from the current plan so a new binding lights immediately.
+    func setCapturePaused(_ paused: Bool) {
+        guard isCapturePaused != paused else { return }
+        isCapturePaused = paused
+        guard isArmed else { return }
+        if paused {
+            tearDownManagers()
+        } else {
+            buildManagers()
+        }
+    }
+
+    /// Rebuild the rehearsal taps after a binding changed outside a recorder
+    /// session (for example Reset to default).
+    func refreshBindings() {
+        guard isArmed, !isCapturePaused else { return }
+        tearDownManagers()
+        buildManagers()
     }
 
     // MARK: - Hotkey wiring
@@ -92,14 +104,28 @@ final class OnboardingHotkeyPreviewController {
             manager.onStartRecording = { [weak self, weak manager] mode in
                 guard let self, let manager else { return }
                 self.suppressPeers(of: manager)
-                self.beginPreview(mode: mode)
+                self.keyDidActivate(mode: mode)
             }
-            manager.onStopRecording = { [weak self] in self?.endPreviewAndResetGestures() }
-            manager.onCancelRecording = { [weak self] in self?.endPreviewAndResetGestures() }
+            manager.onStopRecording = { [weak self] in self?.keyDidRest() }
+            manager.onCancelRecording = { [weak self] in self?.keyDidRest() }
+            // A short first press can start provisionally, then be discarded
+            // while the manager still waits for a second tap. Clear the cap
+            // without resetting that gesture state.
+            manager.onDiscardRecording = { [weak self, weak manager] _ in
+                guard let self, let manager else { return }
+                self.setLitKey(nil)
+                self.resetPeers(of: manager)
+            }
             if manager.start() {
                 managers.append(manager)
             }
         }
+    }
+
+    private func tearDownManagers() {
+        managers.forEach { $0.stop() }
+        managers = []
+        setLitKey(nil)
     }
 
     /// Mirror the production app: once one trigger fires, suppress the peer
@@ -110,97 +136,27 @@ final class OnboardingHotkeyPreviewController {
         }
     }
 
-    // MARK: - Preview lifecycle (internal for tests)
-
-    func beginPreview(mode: FnKeyStateMachine.RecordingMode) {
-        guard isArmed, !isPreviewing else { return }
-        isPreviewing = true
-
-        let vm = DictationOverlayViewModel()
-        vm.recordingMode = mode
-        vm.state = .recording
-        // The stop/cancel affordances on the persistent-mode pill end the
-        // rehearsal (and reset gesture state) just like the second tap would.
-        vm.onStop = { [weak self] in self?.endPreviewAndResetGestures() }
-        vm.onCancel = { [weak self] in self?.endPreviewAndResetGestures() }
-        vm.onDismiss = { [weak self] in self?.endPreviewAndResetGestures() }
-        vm.startTimer()
-        overlayViewModel = vm
-
-        let controller = overlayFactory(vm)
-        controller.show()
-        overlayController = controller
-
-        // If the mic is unavailable (permission skipped) the leveling provider
-        // returns nil / its subscribe quietly fails — the overlay still appears,
-        // the waveform just stays at rest. Onboarding never blocks on this.
-        let leveling = micLevelingProvider()
-        micLeveling = leveling
-        leveling?.start { [weak self] level in
-            self?.overlayViewModel?.audioLevel = level
+    private func resetPeers(of active: HotkeyManager) {
+        for manager in managers where manager !== active {
+            manager.resetToIdle()
         }
     }
 
-    func endPreview() {
-        guard isPreviewing else { return }
-        isPreviewing = false
-        micLeveling?.stop()
-        micLeveling = nil
-        overlayViewModel?.stopTimer()
-        overlayController?.hide()
-        overlayController = nil
-        overlayViewModel = nil
+    // MARK: - Key state (internal for tests)
+
+    func keyDidActivate(mode: FnKeyStateMachine.RecordingMode) {
+        guard isArmed, !isCapturePaused else { return }
+        setLitKey(PracticeKey(recordingMode: mode))
     }
 
-    private func endPreviewAndResetGestures() {
-        endPreview()
+    func keyDidRest() {
+        setLitKey(nil)
         managers.forEach { $0.resetToIdle() }
     }
-}
 
-// MARK: - SharedMicrophoneStream-backed leveling
-
-/// Concrete `MicLeveling` backed by the process-wide `SharedMicrophoneStream`.
-/// Subscribes with `wantsVPIO: false` (raw mic — no echo cancellation needed
-/// for a visual preview) and converts each buffer to an RMS level on the main
-/// actor. A subscribe failure (e.g. mic permission skipped) is swallowed; the
-/// overlay still appears, just without a moving waveform.
-@MainActor
-final class SharedMicLeveling: OnboardingHotkeyPreviewController.MicLeveling {
-    private let stream: SharedMicrophoneStream
-    private var token: SharedMicrophoneStream.SubscriberToken?
-    private var subscribeTask: Task<Void, Never>?
-
-    init(stream: SharedMicrophoneStream) {
-        self.stream = stream
-    }
-
-    func start(onLevel: @escaping @MainActor (Float) -> Void) {
-        subscribeTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            do {
-                let token = try await self.stream.subscribe(wantsVPIO: false) { buffer, _ in
-                    let level = buffer.rmsLevel
-                    Task { @MainActor in onLevel(level) }
-                }
-                if Task.isCancelled {
-                    await self.stream.unsubscribe(token)
-                } else {
-                    self.token = token
-                }
-            } catch {
-                // Mic unavailable — leave the overlay on its fallback shimmer.
-            }
-        }
-    }
-
-    func stop() {
-        subscribeTask?.cancel()
-        subscribeTask = nil
-        if let token {
-            let stream = self.stream
-            Task { await stream.unsubscribe(token) }
-            self.token = nil
-        }
+    private func setLitKey(_ key: PracticeKey?) {
+        guard litKey != key else { return }
+        litKey = key
+        onKeyStateChanged?(key)
     }
 }
