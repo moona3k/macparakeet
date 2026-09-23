@@ -2413,6 +2413,17 @@ public final class DatabaseManager: Sendable {
                     """)
         }
 
+        // v0.47 — Snapshot the language policy used to generate a result so
+        // regeneration can replay it after Settings change (issue #975).
+        migrator.registerMigration("v0.47-meeting-ai-output-language") { db in
+            let columns = try db.columns(in: "summaries").map(\.name)
+            if !columns.contains("outputLanguagePolicySnapshot") {
+                try db.alter(table: "summaries") { t in
+                    t.add(column: "outputLanguagePolicySnapshot", .text)
+                }
+            }
+        }
+
         return migrator
     }
 

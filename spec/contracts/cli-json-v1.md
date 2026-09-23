@@ -196,6 +196,10 @@ with human progress/status kept off stdout.
   that generation. `false` covers migrated and externally imported results.
   Nullable `userNotesSnapshot` contains the exact normalized, bounded notes
   value supplied to prompt assembly, not necessarily the full canonical note.
+- Saved prompt-result JSON objects include additive nullable
+  `outputLanguagePolicySnapshot` (`follow-transcript` or a language code).
+  Omission means no meeting AI language policy was recorded, including earlier
+  and externally imported results; regeneration then uses the current setting.
 - Prompt-result objects may additionally include nullable `promptId`,
   `promptVersionId`, `providerSnapshot`, and `modelSnapshot`. Library-driven
   CLI/app generation populates those execution receipts. Historical and
@@ -203,7 +207,9 @@ with human progress/status kept off stdout.
   prompt/provider/model should be inferred.
 - Saved prompt-result JSON objects include additive nullable `contentEditedAt`.
   When present it is the timestamp of the last in-place user edit of `content`.
-  Omission means the displayed content was last written by generation.
+  Omission means no in-place edit is recorded. Generated, historical, and
+  externally imported results can all omit it; absence does not establish who
+  wrote the content.
 - `meetings show --json` and `meetings transcript --format json` expose
   `transcriptSegments` when the meeting row has durable segments. Each segment
   contains `id`, `startMs`, `endMs`, `speakerId`, `speakerLabel`, `text`, and

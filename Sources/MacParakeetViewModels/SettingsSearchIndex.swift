@@ -231,7 +231,9 @@ public enum SettingsSearchIndex {
             tab: .capture,
             title: "Transcription",
             subtitle: "How file and video URL transcription behaves.",
-            keywords: ["file", "youtube", "x", "twitter", "url", "drag drop", "audio file", "video file", "transcribe"],
+            keywords: [
+                "file", "youtube", "x", "twitter", "url", "drag drop", "audio file", "video file", "transcribe",
+            ],
             cardAnchor: "transcription"
         ),
         SettingsSearchEntry(
@@ -255,7 +257,9 @@ public enum SettingsSearchIndex {
             tab: .capture,
             title: "Video download audio quality",
             subtitle: "in Transcription",
-            keywords: ["youtube", "x", "twitter", "video", "audio", "quality", "m4a", "best available", "opus", "webm"],
+            keywords: [
+                "youtube", "x", "twitter", "video", "audio", "quality", "m4a", "best available", "opus", "webm",
+            ],
             cardAnchor: "transcription"
         ),
         SettingsSearchEntry(
@@ -271,7 +275,9 @@ public enum SettingsSearchIndex {
             tab: .capture,
             title: "Notify when transcription finishes",
             subtitle: "in Transcription",
-            keywords: ["notification", "notify", "sound", "chime", "alert", "banner", "done", "finished", "complete", "batch"],
+            keywords: [
+                "notification", "notify", "sound", "chime", "alert", "banner", "done", "finished", "complete", "batch",
+            ],
             cardAnchor: "transcription"
         ),
         SettingsSearchEntry(
@@ -299,7 +305,7 @@ public enum SettingsSearchIndex {
                 "hotkey", "shortcut", "keyboard shortcut", "meeting shortcut",
                 "change hotkey", "change shortcut", "remove hotkey", "remove shortcut",
                 "disable hotkey", "unmap", "remap",
-                "cmd shift m", "cmd+shift+m", "command shift m", "command+shift+m", "⌘⇧m"
+                "cmd shift m", "cmd+shift+m", "command shift m", "command+shift+m", "⌘⇧m",
             ],
             cardAnchor: "meeting"
         ),
@@ -322,7 +328,7 @@ public enum SettingsSearchIndex {
             keywords: [
                 "floating controls", "meeting pill", "recording pill",
                 "hide meeting", "hide recording", "recording ui", "menu bar",
-                "overlay"
+                "overlay",
             ],
             cardAnchor: "meeting"
         ),
@@ -334,7 +340,7 @@ public enum SettingsSearchIndex {
             keywords: [
                 "open app", "auto open", "auto-open", "bring forward", "focus",
                 "steal focus", "meeting ends", "after meeting", "stop recording",
-                "background", "stay in background"
+                "background", "stay in background",
             ],
             cardAnchor: "meeting"
         ),
@@ -346,7 +352,7 @@ public enum SettingsSearchIndex {
             keywords: [
                 "notification", "notify", "banner", "chime", "sound",
                 "meeting ready", "transcript ready", "meeting complete",
-                "meeting notification"
+                "meeting notification",
             ],
             cardAnchor: "meeting"
         ),
@@ -397,7 +403,7 @@ public enum SettingsSearchIndex {
             subtitle: "Your selected engine handles dictation, meetings, recordings, and files.",
             keywords: [
                 "engine", "speech", "stt", "parakeet", "nemotron", "whisper", "cohere",
-                "model", "preview", "timestamps", "ane", "neural engine"
+                "model", "preview", "timestamps", "ane", "neural engine",
             ],
             cardAnchor: "engine.selector"
         ),
@@ -433,7 +439,7 @@ public enum SettingsSearchIndex {
             subtitle: "Available when Parakeet is the active engine.",
             keywords: [
                 "parakeet", "v2", "v3", "english only", "english-only", "multilingual",
-                "faster parakeet", "speed", "low latency", "language", "model", "variant"
+                "faster parakeet", "speed", "low latency", "language", "model", "variant",
             ],
             // Anchored to the engine selector for the same reason as the
             // Whisper Language entry: the Parakeet Model card only renders
@@ -448,7 +454,7 @@ public enum SettingsSearchIndex {
             subtitle: "Available when Nemotron is the active engine.",
             keywords: [
                 "nemotron", "english", "english-only", "multilingual",
-                "streaming", "beta", "model", "variant"
+                "streaming", "beta", "model", "variant",
             ],
             // Same hidden-anchor rationale as the Parakeet Model entry: the
             // Nemotron Model card only renders when Nemotron is active.
@@ -461,7 +467,7 @@ public enum SettingsSearchIndex {
             subtitle: "Available when Cohere is the active engine.",
             keywords: [
                 "cohere", "gpu", "ane", "neural engine", "compute", "performance",
-                "speed", "latency", "fastest", "balanced", "model"
+                "speed", "latency", "fastest", "balanced", "model",
             ],
             // Same hidden-anchor rationale as the Parakeet/Nemotron Model
             // entries: the Cohere Performance card only renders when Cohere is
@@ -475,7 +481,7 @@ public enum SettingsSearchIndex {
             subtitle: "Parakeet, Nemotron, Whisper, and Cohere model status.",
             keywords: [
                 "model", "download", "repair", "disk", "parakeet", "nemotron",
-                "whisper", "cohere", "coreml", "local"
+                "whisper", "cohere", "coreml", "local",
             ],
             cardAnchor: "engine.models"
         ),
@@ -503,9 +509,22 @@ public enum SettingsSearchIndex {
             keywords: [
                 "meeting ai", "meeting context", "transcript context", "rich transcript",
                 "plain transcript", "speaker labels", "speaker diarization", "timestamps",
-                "summary context", "chat context", "ask context"
+                "summary context", "chat context", "ask context",
             ],
             cardAnchor: "ai.transcriptContext"
+        ),
+        SettingsSearchEntry(
+            id: "ai.meetingLanguage",
+            tab: .ai,
+            title: "AI Result Language",
+            subtitle: "Language for generated summaries, chapters, and action items.",
+            keywords: [
+                "ai result language", "meeting ai language", "summary language", "output language",
+                "follow transcript", "english", "polish", "german", "spanish",
+                "french", "portuguese", "japanese", "chinese", "translation",
+                "summaries in", "chapters language", "action items language",
+            ],
+            cardAnchor: "ai.meetingLanguage"
         ),
         SettingsSearchEntry(
             id: "ai.meetingTitles",
@@ -514,7 +533,7 @@ public enum SettingsSearchIndex {
             subtitle: "Auto-generate short meeting names from completed transcripts.",
             keywords: [
                 "meeting title", "meeting titles", "auto title", "auto-title",
-                "automatic title", "library title", "recording title", "timestamp title"
+                "automatic title", "library title", "recording title", "timestamp title",
             ],
             cardAnchor: "ai.meetingTitles"
         ),
@@ -533,12 +552,12 @@ public enum SettingsSearchIndex {
                 ? [
                     "formatter", "formatting", "cleanup", "dictation prompt", "app profiles",
                     "smart defaults", "fallback prompt", "bundle id", "category", "rewrite", "polish",
-                    "use for transcripts", "use for dictation", "meeting transcripts"
+                    "use for transcripts", "use for dictation", "meeting transcripts",
                 ]
                 : [
                     "formatter", "formatting", "cleanup", "dictation prompt",
                     "fallback prompt", "rewrite", "polish",
-                    "use for transcripts", "use for dictation", "meeting transcripts"
+                    "use for transcripts", "use for dictation", "meeting transcripts",
                 ],
             cardAnchor: "ai.formatter"
         ),
@@ -612,7 +631,7 @@ public enum SettingsSearchIndex {
                 "storage", "retention", "disk", "history",
                 "save dictation", "save audio", "keep youtube audio", "youtube",
                 "keep meeting audio", "meeting audio", "meeting recordings",
-                "remove audio", "clear audio", "transcript only", "audio lifecycle"
+                "remove audio", "clear audio", "transcript only", "audio lifecycle",
             ],
             cardAnchor: "system.storage"
         ),
@@ -655,10 +674,10 @@ public enum SettingsSearchIndex {
             subtitle: "Destructive — clear history, reset stats.",
             keywords: [
                 "reset", "clear", "delete", "destructive", "wipe",
-                "lifetime stats", "clear all dictations", "clear transform history", "clear youtube"
+                "lifetime stats", "clear all dictations", "clear transform history", "clear youtube",
             ],
             cardAnchor: "system.reset"
-        )
+        ),
     ]
 
     /// Returns entries whose title, subtitle, or keywords contain the

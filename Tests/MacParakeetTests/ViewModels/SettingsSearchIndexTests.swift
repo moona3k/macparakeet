@@ -347,6 +347,16 @@ final class SettingsSearchIndexTests: XCTestCase {
         }
     }
 
+    func testMeetingAILanguageQueriesFindMeetingLanguageEntry() throws {
+        let entry = try XCTUnwrap(SettingsSearchIndex.entries.first { $0.id == "ai.meetingLanguage" })
+        XCTAssertEqual(entry.cardAnchor, "ai.meetingLanguage")
+
+        for query in ["ai result language", "meeting ai language", "follow transcript", "summary language", "output language"] {
+            let ids = Set(SettingsSearchIndex.matches(query).map(\.id))
+            XCTAssertTrue(ids.contains("ai.meetingLanguage"), "Query \(query) should find AI Result Language")
+        }
+    }
+
     func testMeetingTitleQueriesFindMeetingTitlesEntry() throws {
         let entry = try XCTUnwrap(SettingsSearchIndex.entries.first { $0.id == "ai.meetingTitles" })
         XCTAssertEqual(entry.cardAnchor, "ai.meetingTitles")

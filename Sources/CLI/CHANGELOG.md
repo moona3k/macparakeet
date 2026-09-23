@@ -91,6 +91,13 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Added
 
+- `config get|set|list` includes `meeting-ai-output-language`
+  (`follow-transcript` or `en|pl|de|es|fr|pt|ja|zh`, default `follow-transcript`). This
+  controls the language of generated AI results, not speech recognition.
+  `prompts run` and saved-meeting completion read the same app defaults
+  suite as `config set`.
+- Saved prompt-result JSON includes additive nullable
+  `outputLanguagePolicySnapshot`.
 - `vocab import --policy replace-all` resets the manual vocabulary to the
   bundle in one transaction. Dry-run JSON reports `wordsRemoved`,
   `snippetsRemoved`, and `learnedWordsPreserved` only for `replace-all`;

@@ -19,6 +19,12 @@ func macParakeetAppDefaults(
     AppPaths.appDefaults(bundleIdentifier: bundleIdentifier)
 }
 
+func currentMeetingAIOutputLanguagePolicy(
+    defaults: UserDefaults = macParakeetAppDefaults()
+) -> MeetingAIOutputLanguagePolicy {
+    MeetingAIOutputLanguagePolicy.current(defaults: defaults)
+}
+
 /// LLM stores that read the same preference suite the GUI uses. Bare
 /// `LLMService()` would bind both stores to `.standard`, which misses
 /// GUI-saved provider metadata on the standalone Homebrew CLI.

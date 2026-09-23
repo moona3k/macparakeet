@@ -553,6 +553,16 @@ public final class LLMSettingsViewModel {
         }
     }
 
+    public var meetingAIOutputLanguagePolicy: MeetingAIOutputLanguagePolicy {
+        didSet {
+            guard meetingAIOutputLanguagePolicy != oldValue else { return }
+            defaults.set(
+                meetingAIOutputLanguagePolicy.configurationValue,
+                forKey: UserDefaultsAppRuntimePreferences.meetingAIOutputLanguagePolicyKey
+            )
+        }
+    }
+
     public var isAIFormatterAvailable: Bool {
         draft.providerID != nil && draft.providerID == savedProviderID
     }
@@ -697,6 +707,7 @@ public final class LLMSettingsViewModel {
         self.autoGenerateMeetingTitles = Self.loadStoredAutoGenerateMeetingTitles(from: defaults)
         self.aiFormatterSmartDefaultsPolicy = AIFormatterSmartDefaultsPolicy.current(defaults: defaults)
         self.transcriptAIContextMode = TranscriptAIContextMode.current(defaults: defaults)
+        self.meetingAIOutputLanguagePolicy = MeetingAIOutputLanguagePolicy.current(defaults: defaults)
         self.draft = LLMSettingsDraft(
             aiFormatterPrompt: Self.loadStoredAIFormatterPrompt(from: defaults),
             aiFormatterDictationPrompt: Self.loadStoredAIFormatterDictationPrompt(from: defaults)

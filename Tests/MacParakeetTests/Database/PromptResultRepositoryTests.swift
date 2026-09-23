@@ -100,6 +100,21 @@ final class PromptResultRepositoryTests: XCTestCase {
         XCTAssertEqual(fetched.modelSnapshot, "gpt-test")
     }
 
+    func testOutputLanguagePolicySnapshotRoundTrips() throws {
+        let transcription = try makeTranscription()
+        let result = PromptResult(
+            transcriptionId: transcription.id,
+            promptName: "Summary",
+            promptContent: "Summarize this.",
+            content: "Summary",
+            outputLanguagePolicySnapshot: "follow-transcript"
+        )
+        try repo.save(result)
+
+        let fetched = try XCTUnwrap(repo.fetchAll(transcriptionId: transcription.id).first)
+        XCTAssertEqual(fetched.outputLanguagePolicySnapshot, "follow-transcript")
+    }
+
     func testContentEditedAtRoundTripsWithoutChangingPromptSnapshots() throws {
         let transcription = try makeTranscription()
         let editedAt = Date(timeIntervalSince1970: 1_700_000_000)
@@ -127,6 +142,7 @@ final class PromptResultRepositoryTests: XCTestCase {
             promptContent: "Summarize this.",
             content: "Original",
             providerSnapshot: "openai",
+            outputLanguagePolicySnapshot: "follow-transcript",
             sourceCorrectionRevision: 2
         )
         try repo.save(original)
@@ -143,6 +159,7 @@ final class PromptResultRepositoryTests: XCTestCase {
         XCTAssertEqual(edited.contentEditedAt, editedAt)
         XCTAssertEqual(edited.promptContent, original.promptContent)
         XCTAssertEqual(edited.providerSnapshot, original.providerSnapshot)
+        XCTAssertEqual(edited.outputLanguagePolicySnapshot, original.outputLanguagePolicySnapshot)
         XCTAssertEqual(edited.sourceCorrectionRevision, original.sourceCorrectionRevision)
         XCTAssertNil(
             try repo.updateContent(

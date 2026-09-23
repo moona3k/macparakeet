@@ -17,6 +17,7 @@ final class PromptResultsViewModelTests: XCTestCase {
         promptResultRepo = MockPromptResultRepository()
         transcriptionRepo = MockTranscriptionRepository()
         promptRepo.prompts = Prompt.builtInPrompts()
+        viewModel.outputLanguagePolicyProvider = { .english }
     }
 
     private func waitUntil(
@@ -35,6 +36,18 @@ final class PromptResultsViewModelTests: XCTestCase {
             }
             try await Task.sleep(for: pollInterval)
         }
+    }
+
+    private func assembledPrompt(
+        _ rendered: String,
+        extraInstructions: String? = nil,
+        policy: MeetingAIOutputLanguagePolicy = .english
+    ) -> String {
+        var text = rendered + "\n\n" + policy.assemblyInstruction
+        if let extraInstructions, !extraInstructions.isEmpty {
+            text += "\n\n" + extraInstructions
+        }
+        return text
     }
 
     func testGenerationCapabilityIsFalseBeforeAIConfigured() {
@@ -235,7 +248,7 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.hasUnsavedPromptResultEdits)
     }
 
-    func testRegeneratePromptResultCancelsEditOfTheSameResult() {
+    func testRegeneratePromptResultRequiresSavingOrCancelingEditOfTheSameResult() {
         let existing = PromptResult(
             transcriptionId: UUID(),
             promptName: "Summary",
@@ -251,10 +264,89 @@ final class PromptResultsViewModelTests: XCTestCase {
         viewModel.loadPromptResults(transcriptionId: existing.transcriptionId)
         viewModel.beginEditingPromptResult(existing)
         viewModel.editingDraft = "Corrected typo"
-        _ = viewModel.regeneratePromptResult(existing, transcript: "Transcript")
+        let generationID = viewModel.regeneratePromptResult(existing, transcript: "Transcript")
 
-        XCTAssertFalse(viewModel.isEditingPromptResult(existing.id))
-        XCTAssertFalse(viewModel.hasUnsavedPromptResultEdits)
+        XCTAssertNil(generationID)
+        XCTAssertTrue(viewModel.isEditingPromptResult(existing.id))
+        XCTAssertEqual(viewModel.editingDraft, "Corrected typo")
+        XCTAssertTrue(viewModel.hasUnsavedPromptResultEdits)
+        XCTAssertEqual(viewModel.errorMessage, "Save or cancel your result edit before regenerating.")
+        XCTAssertTrue(viewModel.pendingGenerations.isEmpty)
+    }
+
+    func testRegenerationBlocksEditingWhileQueuedAndStreaming() async throws {
+        let transcriptionID = UUID()
+        let existing = PromptResult(
+            transcriptionId: transcriptionID,
+            promptName: "Summary",
+            promptContent: "Summarize.",
+            content: "Original"
+        )
+        promptResultRepo.promptResults = [existing]
+        viewModel.configure(llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo)
+        viewModel.loadPromptResults(transcriptionId: transcriptionID)
+        llm.streamDelayNs = 80_000_000
+
+        let firstID = try XCTUnwrap(
+            viewModel.generatePromptResult(transcript: "Transcript", transcriptionId: transcriptionID)
+        )
+        let replacementID = try XCTUnwrap(
+            viewModel.regeneratePromptResult(existing, transcript: "Transcript")
+        )
+        XCTAssertEqual(viewModel.pendingGeneration(id: replacementID)?.state, .queued)
+        XCTAssertNil(viewModel.regeneratePromptResult(existing, transcript: "Transcript"))
+        XCTAssertFalse(viewModel.canEditPromptResult(existing))
+        viewModel.beginEditingPromptResult(existing)
+        XCTAssertNil(viewModel.editingPromptResultID)
+
+        try await waitUntil(timeout: .seconds(3)) {
+            self.viewModel.pendingGeneration(id: firstID) == nil
+                && self.viewModel.pendingGeneration(id: replacementID)?.state == .streaming
+        }
+        XCTAssertFalse(viewModel.canEditPromptResult(existing))
+        viewModel.beginEditingPromptResult(existing)
+        XCTAssertNil(viewModel.editingPromptResultID)
+
+        try await waitUntil(timeout: .seconds(3)) {
+            self.viewModel.pendingGeneration(id: replacementID) == nil
+        }
+        XCTAssertEqual(promptResultRepo.replaceCalls.count, 1)
+        XCTAssertFalse(promptResultRepo.promptResults.contains { $0.id == existing.id })
+        XCTAssertTrue(promptResultRepo.updateContentCalls.isEmpty)
+        XCTAssertFalse(viewModel.canEditPromptResult(existing))
+        let replacement = try XCTUnwrap(viewModel.promptResults.first(where: { $0.id == replacementID }))
+        XCTAssertTrue(viewModel.canEditPromptResult(replacement))
+    }
+
+    func testRegenerationPreservesUnexpectedOpenDraftAtCompletion() async throws {
+        let existing = PromptResult(
+            transcriptionId: UUID(),
+            promptName: "Summary",
+            promptContent: "Summarize.",
+            content: "Original"
+        )
+        promptResultRepo.promptResults = [existing]
+        viewModel.configure(llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo)
+        viewModel.loadPromptResults(transcriptionId: existing.transcriptionId)
+        llm.streamTokens = ["Replacement"]
+        llm.streamDelayNs = 30_000_000
+
+        let replacementID = try XCTUnwrap(
+            viewModel.regeneratePromptResult(existing, transcript: "Transcript")
+        )
+        // Simulate an editor opened by an older caller after enqueue.
+        viewModel.editingPromptResultID = existing.id
+        viewModel.editingDraft = "Keep my correction"
+
+        try await waitUntil {
+            guard case .failed = self.viewModel.pendingGeneration(id: replacementID)?.state else { return false }
+            return true
+        }
+        XCTAssertTrue(promptResultRepo.replaceCalls.isEmpty)
+        XCTAssertEqual(promptResultRepo.promptResults.first?.content, "Original")
+        XCTAssertEqual(viewModel.editingPromptResultID, existing.id)
+        XCTAssertEqual(viewModel.editingDraft, "Keep my correction")
+        XCTAssertTrue(viewModel.errorMessage?.contains("Save or cancel") == true)
     }
 
     func testCanSaveEditingPromptResultRequiresNonBlankDirtyDraft() {
@@ -416,7 +508,7 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertEqual(promptResultRepo.saveCalls[0].content, "Task one")
         XCTAssertEqual(
             llm.lastSummarySystemPrompt,
-            "Extract action items only.\n\nReturn terse bullet points."
+            assembledPrompt("Extract action items only.", extraInstructions: "Return terse bullet points.")
         )
         XCTAssertEqual(viewModel.promptResults.first?.content, "Task one")
     }
@@ -846,6 +938,13 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertTrue(message.contains("empty response"))
         XCTAssertEqual(failed.replacingPromptResultID, existing.id)
         XCTAssertTrue(viewModel.errorMessage?.contains("empty response") == true)
+
+        viewModel.beginEditingPromptResult(existing)
+        viewModel.editingDraft = "Keep this edit"
+        XCTAssertNil(viewModel.retryGeneration(id: generationID))
+        XCTAssertEqual(viewModel.editingDraft, "Keep this edit")
+        XCTAssertTrue(viewModel.isEditingPromptResult(existing.id))
+        XCTAssertNotNil(viewModel.pendingGeneration(id: generationID))
     }
 
     func testStreamErrorMarksGenerationFailedWithProviderMessage() async throws {
@@ -919,6 +1018,43 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.promptResults.first?.promptVersionId, versionID)
         XCTAssertEqual(llm.lastSummaryModelOverride, "historical-model")
         XCTAssertNil(viewModel.errorMessage)
+    }
+
+    func testRetryReplaysQueuedLanguagePolicyInsteadOfCurrentSetting() async throws {
+        let transcriptionID = UUID()
+        let prompt = Prompt(name: "Summary", content: "Summarize.", isBuiltIn: false, sortOrder: 0)
+        promptRepo.prompts = [prompt]
+        viewModel.outputLanguagePolicyProvider = { .followTranscript }
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo,
+            transcriptionRepo: transcriptionRepo
+        )
+        viewModel.selectedPrompt = prompt
+        llm.streamTokenBatches = [[], ["Recovered"]]
+
+        let failedID = try XCTUnwrap(
+            viewModel.generatePromptResult(transcript: "transcript", transcriptionId: transcriptionID)
+        )
+        try await waitUntil {
+            if case .failed = self.viewModel.pendingGeneration(id: failedID)?.state { return true }
+            return false
+        }
+
+        viewModel.outputLanguagePolicyProvider = { .english }
+        let retriedID = try XCTUnwrap(viewModel.retryGeneration(id: failedID))
+        XCTAssertNotEqual(retriedID, failedID)
+        try await waitUntil { self.promptResultRepo.saveCalls.count == 1 }
+
+        XCTAssertEqual(
+            llm.lastSummarySystemPrompt,
+            assembledPrompt("Summarize.", policy: .followTranscript)
+        )
+        XCTAssertEqual(
+            promptResultRepo.saveCalls.first?.outputLanguagePolicySnapshot,
+            "follow-transcript"
+        )
     }
 
     func testRetryGenerationKeepsFailedEntryWhenLLMServiceIsGone() async throws {
@@ -1642,7 +1778,7 @@ final class PromptResultsViewModelTests: XCTestCase {
 
         XCTAssertEqual(
             llm.lastSummarySystemPrompt,
-            "Notes:\ndecision: ship Friday\nQA owns smoke tests\n---\nProduce structured output."
+            assembledPrompt("Notes:\ndecision: ship Friday\nQA owns smoke tests\n---\nProduce structured output.")
         )
     }
 
@@ -1740,7 +1876,7 @@ final class PromptResultsViewModelTests: XCTestCase {
         viewModel.generatePromptResult(transcript: "transcript", transcriptionId: transcriptionID)
         try await waitUntil { self.promptResultRepo.saveCalls.count == 1 }
 
-        XCTAssertEqual(llm.lastSummarySystemPrompt, "Summarize.")
+        XCTAssertEqual(llm.lastSummarySystemPrompt, assembledPrompt("Summarize."))
         XCTAssertNil(promptResultRepo.saveCalls.first?.userNotesSnapshot)
     }
 
@@ -1778,6 +1914,73 @@ final class PromptResultsViewModelTests: XCTestCase {
         let replacement = try XCTUnwrap(promptResultRepo.replaceCalls.first?.promptResult)
         XCTAssertEqual(replacement.userNotesSnapshot, "Current notes")
         XCTAssertTrue(replacement.includeMeetingNotesSnapshot)
+    }
+
+    func testRegenerateReplaysLanguagePolicySnapshotInsteadOfCurrentSetting() async throws {
+        let transcriptionID = UUID()
+        try transcriptionRepo.save(
+            Transcription(id: transcriptionID, fileName: "meeting.m4a", sourceType: .meeting)
+        )
+        let existing = PromptResult(
+            transcriptionId: transcriptionID,
+            promptName: "Summary",
+            promptContent: "Summarize.",
+            content: "Old",
+            outputLanguagePolicySnapshot: MeetingAIOutputLanguagePolicy.language("pl").configurationValue
+        )
+        promptResultRepo.promptResults = [existing]
+        viewModel.outputLanguagePolicyProvider = { .english }
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo,
+            transcriptionRepo: transcriptionRepo
+        )
+        viewModel.loadPromptResults(transcriptionId: transcriptionID)
+        llm.streamTokens = ["Nowa"]
+
+        _ = viewModel.regeneratePromptResult(existing, transcript: "transcript")
+        try await waitUntil { self.promptResultRepo.replaceCalls.count == 1 }
+
+        XCTAssertEqual(
+            llm.lastSummarySystemPrompt,
+            assembledPrompt("Summarize.", policy: .language("pl"))
+        )
+        XCTAssertEqual(
+            promptResultRepo.replaceCalls.first?.promptResult.outputLanguagePolicySnapshot,
+            "pl"
+        )
+    }
+
+    func testGeneratePromptResultSnapshotsCurrentLanguagePolicy() async throws {
+        let transcriptionID = UUID()
+        try transcriptionRepo.save(
+            Transcription(id: transcriptionID, fileName: "meeting.m4a", sourceType: .meeting)
+        )
+        let prompt = Prompt(name: "Summary", content: "Summarize.", isBuiltIn: false, sortOrder: 0)
+        promptRepo.prompts = [prompt]
+        viewModel.outputLanguagePolicyProvider = { .followTranscript }
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo,
+            transcriptionRepo: transcriptionRepo
+        )
+        viewModel.selectedPrompt = prompt
+        llm.streamTokens = ["ok"]
+
+        viewModel.generatePromptResult(transcript: "transcript", transcriptionId: transcriptionID)
+        try await waitUntil { self.promptResultRepo.saveCalls.count == 1 }
+
+        XCTAssertEqual(
+            promptResultRepo.saveCalls.first?.outputLanguagePolicySnapshot,
+            "follow-transcript"
+        )
+        XCTAssertTrue(
+            try XCTUnwrap(llm.lastSummarySystemPrompt).contains(
+                MeetingAIOutputLanguagePolicy.followTranscript.assemblyInstruction
+            )
+        )
     }
 
     func testRetryKeepsExactCappedNotesSnapshotWithoutRecappingOrRefetching() async throws {
@@ -1866,7 +2069,7 @@ final class PromptResultsViewModelTests: XCTestCase {
         viewModel.generatePromptResult(transcript: "transcript", transcriptionId: transcriptionID)
         try await Task.sleep(for: .milliseconds(200))
 
-        XCTAssertEqual(llm.lastSummarySystemPrompt, "Notes: [] end")
+        XCTAssertEqual(llm.lastSummarySystemPrompt, assembledPrompt("Notes: [] end"))
         XCTAssertNil(promptResultRepo.saveCalls.first?.userNotesSnapshot)
     }
 
@@ -1901,7 +2104,7 @@ final class PromptResultsViewModelTests: XCTestCase {
 
         XCTAssertEqual(
             llm.lastSummarySystemPrompt,
-            "Summarize the transcript in 3 bullet points."
+            assembledPrompt("Summarize the transcript in 3 bullet points.")
         )
     }
 
@@ -1998,7 +2201,7 @@ final class PromptResultsViewModelTests: XCTestCase {
 
         XCTAssertEqual(
             llm.lastSummarySystemPrompt,
-            "Read this:\nTRANSCRIPT:\nSarah pushed back on shipping early.\n---\nReply.",
+            assembledPrompt("Read this:\nTRANSCRIPT:\nSarah pushed back on shipping early.\n---\nReply."),
             "{{transcript}} must be substituted with the transcript text passed to generatePromptResult"
         )
     }

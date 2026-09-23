@@ -29,6 +29,11 @@ public struct PromptResult: Codable, Identifiable, Sendable {
     /// These are receipts, not live references to the current LLM settings.
     public var providerSnapshot: String?
     public var modelSnapshot: String?
+    /// Meeting AI output-language policy captured for this generation
+    /// (`follow-transcript` or a language code). Nil for results created
+    /// before the policy existed or for imported results without a recorded
+    /// policy; regeneration then uses the current setting.
+    public var outputLanguagePolicySnapshot: String?
     /// Correction revision of the transcript this result was generated from.
     /// Nil means the result predates that receipt.
     public var sourceCorrectionRevision: Int?
@@ -61,6 +66,8 @@ public struct PromptResult: Codable, Identifiable, Sendable {
             PromptInferenceSettings.self, forKey: .inferenceSettingsSnapshot)
         providerSnapshot = try container.decodeIfPresent(String.self, forKey: .providerSnapshot)
         modelSnapshot = try container.decodeIfPresent(String.self, forKey: .modelSnapshot)
+        outputLanguagePolicySnapshot = try container.decodeIfPresent(
+            String.self, forKey: .outputLanguagePolicySnapshot)
         sourceCorrectionRevision = try container.decodeIfPresent(Int.self, forKey: .sourceCorrectionRevision)
         contentEditedAt = try container.decodeIfPresent(Date.self, forKey: .contentEditedAt)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
@@ -81,6 +88,7 @@ public struct PromptResult: Codable, Identifiable, Sendable {
         inferenceSettingsSnapshot: PromptInferenceSettings? = nil,
         providerSnapshot: String? = nil,
         modelSnapshot: String? = nil,
+        outputLanguagePolicySnapshot: String? = nil,
         sourceCorrectionRevision: Int? = nil,
         contentEditedAt: Date? = nil,
         createdAt: Date = Date(),
@@ -99,6 +107,7 @@ public struct PromptResult: Codable, Identifiable, Sendable {
         self.inferenceSettingsSnapshot = inferenceSettingsSnapshot?.normalized
         self.providerSnapshot = providerSnapshot
         self.modelSnapshot = modelSnapshot
+        self.outputLanguagePolicySnapshot = outputLanguagePolicySnapshot
         self.sourceCorrectionRevision = sourceCorrectionRevision
         self.contentEditedAt = contentEditedAt
         self.createdAt = createdAt
@@ -113,7 +122,7 @@ extension PromptResult: FetchableRecord, PersistableRecord {
         case id, transcriptionId, promptId, promptVersionId
         case promptName, promptContent, extraInstructions, content
         case userNotesSnapshot, includeMeetingNotesSnapshot, inferenceSettingsSnapshot
-        case providerSnapshot, modelSnapshot, sourceCorrectionRevision, contentEditedAt
+        case providerSnapshot, modelSnapshot, outputLanguagePolicySnapshot, sourceCorrectionRevision, contentEditedAt
         case createdAt, updatedAt
     }
 }

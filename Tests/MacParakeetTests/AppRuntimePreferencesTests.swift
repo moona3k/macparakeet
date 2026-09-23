@@ -693,6 +693,34 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertEqual(UserDefaultsAppRuntimePreferences(defaults: defaults).transcriptAIContextMode, .richTranscript)
     }
 
+    func testMeetingAIOutputLanguagePolicyDefaultsToTranscriptAndReadsPersistedValue() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertEqual(
+            UserDefaultsAppRuntimePreferences(defaults: defaults).meetingAIOutputLanguagePolicy,
+            .followTranscript
+        )
+
+        defaults.set(
+            "follow-transcript",
+            forKey: UserDefaultsAppRuntimePreferences.meetingAIOutputLanguagePolicyKey
+        )
+
+        XCTAssertEqual(
+            UserDefaultsAppRuntimePreferences(defaults: defaults).meetingAIOutputLanguagePolicy,
+            .followTranscript
+        )
+
+        defaults.set("ko", forKey: UserDefaultsAppRuntimePreferences.meetingAIOutputLanguagePolicyKey)
+
+        XCTAssertEqual(
+            UserDefaultsAppRuntimePreferences(defaults: defaults).meetingAIOutputLanguagePolicy,
+            .followTranscript
+        )
+    }
+
     /// Models the gate the composition root installs on the dictation path: the
     /// AI Formatter runs on dictation only when the global switch AND the
     /// dictation-specific switch are both on.

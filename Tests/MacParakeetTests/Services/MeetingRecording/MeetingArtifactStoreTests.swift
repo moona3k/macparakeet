@@ -99,7 +99,8 @@ final class MeetingArtifactStoreTests: XCTestCase {
             inferenceSettingsSnapshot: PromptInferenceSettings(
                 temperature: 0.2,
                 maxTokens: 500
-            )
+            ),
+            outputLanguagePolicySnapshot: "follow-transcript"
         )
 
         let snapshot = try await MeetingArtifactStore().materialize(
@@ -226,6 +227,7 @@ final class MeetingArtifactStoreTests: XCTestCase {
         XCTAssertEqual(promptResult["index"] as? Int, 1)
         XCTAssertEqual(promptResult["name"] as? String, "Executive Summary")
         XCTAssertEqual(promptResult["includeMeetingNotesSnapshot"] as? Bool, true)
+        XCTAssertEqual(promptResult["outputLanguagePolicySnapshot"] as? String, "follow-transcript")
         XCTAssertNil(promptResult["contentEditedAt"])
         let inferenceSettings = try XCTUnwrap(
             promptResult["inferenceSettingsSnapshot"] as? [String: Any]
@@ -241,6 +243,7 @@ final class MeetingArtifactStoreTests: XCTestCase {
         XCTAssertTrue(resultMarkdown.contains("# Executive Summary"))
         XCTAssertTrue(resultMarkdown.contains("Ship the artifact contract."))
         XCTAssertTrue(resultMarkdown.contains("Automatic meeting notes context: enabled"))
+        XCTAssertTrue(resultMarkdown.contains("Output language: follow-transcript"))
         XCTAssertTrue(resultMarkdown.contains("Content edited: no"))
     }
 

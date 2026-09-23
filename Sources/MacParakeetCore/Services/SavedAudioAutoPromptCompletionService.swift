@@ -106,6 +106,7 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
     /// still best effort and never fails prompt completion.
     private let cardGenerator: CardGenerating?
     private let fileManager: FileManager
+    private let outputLanguagePolicyProvider: @Sendable () -> MeetingAIOutputLanguagePolicy
 
     public init(
         promptRepo: PromptRepositoryProtocol,
@@ -117,7 +118,10 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
         speakerAttributionReader: SpeakerAttributionReading? = nil,
         meetingArtifactStore: MeetingArtifactStoring? = nil,
         cardGenerator: CardGenerating? = nil,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        outputLanguagePolicyProvider: @escaping @Sendable () -> MeetingAIOutputLanguagePolicy = {
+            MeetingAIOutputLanguagePolicy.current()
+        }
     ) {
         self.promptRepo = promptRepo
         self.promptResultRepo = promptResultRepo
@@ -129,6 +133,7 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
         self.meetingArtifactStore = meetingArtifactStore
         self.cardGenerator = cardGenerator
         self.fileManager = fileManager
+        self.outputLanguagePolicyProvider = outputLanguagePolicyProvider
     }
 
     @discardableResult
@@ -160,40 +165,49 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
             promptLabelPolicyRepository: promptLabelPolicyRepository,
             promptApplicabilityResolver: promptApplicabilityResolver
         )
-        let existingResults = autoPrompts.isEmpty ? [] : (try promptResultRepo.fetchAll(transcriptionId: transcription.id))
+        let existingResults =
+            autoPrompts.isEmpty ? [] : (try promptResultRepo.fetchAll(transcriptionId: transcription.id))
         var outcomes: [SavedAudioAutoPromptCompletionResult.PromptOutcome] = []
         for (index, prompt) in autoPrompts.enumerated() {
             try Task.checkCancellation()
-            onProgress?(SavedAudioAutoPromptCompletionProgress(
-                completedCount: index,
-                totalCount: autoPrompts.count,
-                promptName: prompt.name
-            ))
+            onProgress?(
+                SavedAudioAutoPromptCompletionProgress(
+                    completedCount: index,
+                    totalCount: autoPrompts.count,
+                    promptName: prompt.name
+                ))
 
             if let existing = existingResults.first(where: { $0.promptId == prompt.id }) {
-                outcomes.append(.init(
-                    promptId: prompt.id,
-                    promptName: prompt.name,
-                    status: .alreadyCompleted(promptResultID: existing.id)
-                ))
+                outcomes.append(
+                    .init(
+                        promptId: prompt.id,
+                        promptName: prompt.name,
+                        status: .alreadyCompleted(promptResultID: existing.id)
+                    ))
                 continue
             }
 
             do {
-                let saved = try await generateAndSave(prompt: prompt, transcript: transcript, transcription: transcription)
-                outcomes.append(.init(promptId: prompt.id, promptName: prompt.name, status: .generated(promptResultID: saved.id)))
+                let saved = try await generateAndSave(
+                    prompt: prompt, transcript: transcript, transcription: transcription)
+                outcomes.append(
+                    .init(promptId: prompt.id, promptName: prompt.name, status: .generated(promptResultID: saved.id)))
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
-                outcomes.append(.init(promptId: prompt.id, promptName: prompt.name, status: .failed(message: error.localizedDescription)))
+                outcomes.append(
+                    .init(
+                        promptId: prompt.id, promptName: prompt.name,
+                        status: .failed(message: error.localizedDescription)))
             }
         }
 
-        onProgress?(SavedAudioAutoPromptCompletionProgress(
-            completedCount: autoPrompts.count,
-            totalCount: autoPrompts.count,
-            promptName: ""
-        ))
+        onProgress?(
+            SavedAudioAutoPromptCompletionProgress(
+                completedCount: autoPrompts.count,
+                totalCount: autoPrompts.count,
+                promptName: ""
+            ))
         if let warning = await refreshMeetingArtifactsIfConfigured(transcription: transcription) {
             warnings.append(warning)
         }
@@ -206,12 +220,14 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
         transcript: String,
         transcription: Transcription
     ) async throws -> PromptResult {
+        let outputLanguagePolicy = outputLanguagePolicyProvider()
         let assembly = PromptSystemPromptAssembler.assembleDetailed(
             promptContent: prompt.content,
             extraInstructions: nil,
             includeMeetingNotes: prompt.includeMeetingNotes,
             userNotes: transcription.userNotes,
-            transcript: transcript
+            transcript: transcript,
+            outputLanguagePolicy: outputLanguagePolicy
         )
         let result = try await llmService.generatePromptResultDetailed(
             transcript: transcript,
@@ -235,6 +251,7 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
             inferenceSettingsSnapshot: result.effectiveSettings,
             providerSnapshot: result.provider,
             modelSnapshot: result.model,
+            outputLanguagePolicySnapshot: outputLanguagePolicy.configurationValue,
             sourceCorrectionRevision: correctionRevision(for: transcription)
         )
         try promptResultRepo.save(promptResult)
@@ -250,7 +267,7 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
 
     private func effectiveTranscript(for transcription: Transcription) -> String {
         guard let speakerAttributionReader,
-              let projection = try? speakerAttributionReader.resolve(transcription: transcription)
+            let projection = try? speakerAttributionReader.resolve(transcription: transcription)
         else {
             return TranscriptAIContextFormatter.format(transcription: transcription)
         }
@@ -285,7 +302,7 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
         transcription: Transcription
     ) async -> SavedAudioAutoPromptCompletionResult.Warning? {
         guard let meetingArtifactStore, transcription.sourceType == .meeting,
-              let folderURL = MeetingArtifactStore.sessionFolderURL(for: transcription)
+            let folderURL = MeetingArtifactStore.sessionFolderURL(for: transcription)
         else { return nil }
         // Same root identity `TranscriptionAssetCleanup` locks (the session
         // folder's own parent), not a fixed default, so this always
@@ -299,10 +316,12 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
             }
             let promptResults = try promptResultRepo.fetchAll(transcriptionId: transcription.id)
             if let speakerAttributionReader,
-               let projection = try? speakerAttributionReader.resolve(transcription: transcription) {
+                let projection = try? speakerAttributionReader.resolve(transcription: transcription)
+            {
                 _ = try await meetingArtifactStore.materialize(projection: projection, promptResults: promptResults)
             } else {
-                _ = try await meetingArtifactStore.materialize(transcription: transcription, promptResults: promptResults)
+                _ = try await meetingArtifactStore.materialize(
+                    transcription: transcription, promptResults: promptResults)
             }
         } catch {
             return .artifactRefreshFailed(message: error.localizedDescription)

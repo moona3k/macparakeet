@@ -194,6 +194,10 @@ struct LLMSettingsView: View {
 
             Divider()
 
+            meetingAIOutputLanguageSection
+
+            Divider()
+
             meetingTitlesSection
 
             Divider()
@@ -768,6 +772,43 @@ struct LLMSettingsView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .id("ai.transcriptContext")
+    }
+
+    private var meetingAIOutputLanguageSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("AI result language")
+                        .font(DesignSystem.Typography.body.weight(.semibold))
+                    Text(
+                        """
+                        Language for generated summaries, chapters, and action items. \
+                        Does not change speech recognition or the stored transcript.
+                        """
+                    )
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: DesignSystem.Spacing.md)
+
+                Picker("AI result language", selection: $viewModel.meetingAIOutputLanguagePolicy) {
+                    ForEach(MeetingAIOutputLanguagePolicy.pickerCases) { policy in
+                        Text(policy.displayTitle).tag(policy)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(width: 200)
+            }
+
+            Text(viewModel.meetingAIOutputLanguagePolicy.detail)
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .id("ai.meetingLanguage")
     }
 
     private var meetingTitlesSection: some View {

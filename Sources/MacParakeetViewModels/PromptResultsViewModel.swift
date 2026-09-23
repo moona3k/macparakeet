@@ -50,6 +50,8 @@ public final class PromptResultsViewModel {
         public var userNotes: String?
         /// Per-prompt automatic meeting-note preference captured at enqueue.
         public var includeMeetingNotes: Bool
+        /// Meeting AI output-language policy captured at enqueue.
+        public var outputLanguagePolicy: MeetingAIOutputLanguagePolicy
         public var sourceCorrectionRevision: Int?
         public var replacingPromptResultID: UUID?
         /// Completion-owned work survives navigation without selecting its meeting.
@@ -70,6 +72,7 @@ public final class PromptResultsViewModel {
             modelSnapshot: String? = nil,
             userNotes: String? = nil,
             includeMeetingNotes: Bool = false,
+            outputLanguagePolicy: MeetingAIOutputLanguagePolicy = .default,
             sourceCorrectionRevision: Int? = nil,
             replacingPromptResultID: UUID? = nil,
             runsInBackground: Bool = false,
@@ -88,6 +91,7 @@ public final class PromptResultsViewModel {
             self.modelSnapshot = modelSnapshot
             self.userNotes = userNotes
             self.includeMeetingNotes = includeMeetingNotes
+            self.outputLanguagePolicy = outputLanguagePolicy
             self.sourceCorrectionRevision = sourceCorrectionRevision
             self.replacingPromptResultID = replacingPromptResultID
             self.runsInBackground = runsInBackground
@@ -117,6 +121,11 @@ public final class PromptResultsViewModel {
     public var onGenerationCompleted: ((UUID, UUID) -> Void)?
     public var onDeletedPromptResult: ((UUID) -> Void)?
     public var shouldMarkPromptResultUnread: ((UUID) -> Bool)?
+    /// Reads the current Settings policy. Tests override this so enqueue
+    /// snapshots do not depend on process-wide UserDefaults.
+    public var outputLanguagePolicyProvider: () -> MeetingAIOutputLanguagePolicy = {
+        MeetingAIOutputLanguagePolicy.current()
+    }
     /// In-place editor for a saved result. Nil means the pane is read-only.
     public var editingPromptResultID: UUID?
     public var editingDraft: String = ""
@@ -497,7 +506,17 @@ public final class PromptResultsViewModel {
         hasUnsavedPromptResultEdits && editingDraft.contains(where: { !$0.isWhitespace })
     }
 
+    public func canEditPromptResult(_ promptResult: PromptResult) -> Bool {
+        promptResults.contains(where: { $0.id == promptResult.id })
+            && !hasActiveReplacement(for: promptResult.id)
+    }
+
+    private func hasActiveReplacement(for resultID: UUID) -> Bool {
+        pendingGenerations.contains { $0.replacingPromptResultID == resultID && $0.state.isActive }
+    }
+
     public func beginEditingPromptResult(_ promptResult: PromptResult) {
+        guard canEditPromptResult(promptResult) else { return }
         editingPromptResultID = promptResult.id
         editingDraft = promptResult.content
         errorMessage = nil
@@ -568,7 +587,12 @@ public final class PromptResultsViewModel {
         sourceCorrectionRevision: Int? = nil
     ) -> UUID? {
         if editingPromptResultID == promptResult.id {
-            cancelEditingPromptResult()
+            errorMessage = "Save or cancel your result edit before regenerating."
+            return nil
+        }
+        if hasActiveReplacement(for: promptResult.id) {
+            errorMessage = "This result is already regenerating."
+            return nil
         }
         let prompt = Prompt(
             id: promptResult.promptId ?? UUID(),
@@ -596,6 +620,9 @@ public final class PromptResultsViewModel {
                 promptVersionId: promptResult.promptVersionId
             ),
             replacingPromptResultID: promptResult.id,
+            outputLanguagePolicy: promptResult.outputLanguagePolicySnapshot
+                .flatMap(MeetingAIOutputLanguagePolicy.init(configurationValue:))
+                ?? outputLanguagePolicyProvider(),
             sourceCorrectionRevision: sourceCorrectionRevision
         )
     }
@@ -711,6 +738,7 @@ public final class PromptResultsViewModel {
         provenanceOverride: PromptProvenance? = nil,
         replacingPromptResultID: UUID? = nil,
         runInBackground: Bool = false,
+        outputLanguagePolicy: MeetingAIOutputLanguagePolicy? = nil,
         sourceCorrectionRevision: Int? = nil
     ) -> UUID? {
         guard llmService != nil else { return nil }
@@ -744,6 +772,7 @@ public final class PromptResultsViewModel {
                     userNotes: userNotes
                 ),
             includeMeetingNotes: prompt.includeMeetingNotes,
+            outputLanguagePolicy: outputLanguagePolicy ?? outputLanguagePolicyProvider(),
             sourceCorrectionRevision: sourceCorrectionRevision,
             replacingPromptResultID: replacingPromptResultID,
             runsInBackground: runInBackground
@@ -767,7 +796,8 @@ public final class PromptResultsViewModel {
             extraInstructions: generation.extraInstructions,
             includeMeetingNotes: generation.includeMeetingNotes,
             userNotes: generation.userNotes,
-            transcript: generation.transcript
+            transcript: generation.transcript,
+            outputLanguagePolicy: generation.outputLanguagePolicy
         )
 
         streamingTask = Task { @MainActor [weak self] in
@@ -823,6 +853,13 @@ public final class PromptResultsViewModel {
         guard generation.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
             throw LLMError.streamingError("prompt result returned an empty response")
         }
+        // An editor should be unable to open during regeneration, but keep its
+        // draft and original row if one was already open when work completed.
+        if let replacingID = generation.replacingPromptResultID,
+            editingPromptResultID == replacingID
+        {
+            throw LLMError.streamingError("Save or cancel the result edit before retrying regeneration.")
+        }
         let timestamp = Date()
         let promptResult = PromptResult(
             id: generation.id,
@@ -838,6 +875,7 @@ public final class PromptResultsViewModel {
             inferenceSettingsSnapshot: terminal.effectiveSettings,
             providerSnapshot: terminal.provider,
             modelSnapshot: terminal.model,
+            outputLanguagePolicySnapshot: generation.outputLanguagePolicy.configurationValue,
             sourceCorrectionRevision: generation.sourceCorrectionRevision,
             createdAt: timestamp,
             updatedAt: timestamp
@@ -906,6 +944,12 @@ public final class PromptResultsViewModel {
               let index = pendingGenerations.firstIndex(where: { $0.id == id }),
               case .failed = pendingGenerations[index].state
         else { return nil }
+        if let replacingID = pendingGenerations[index].replacingPromptResultID,
+            editingPromptResultID == replacingID
+        {
+            errorMessage = "Save or cancel your result edit before retrying regeneration."
+            return nil
+        }
         let failed = pendingGenerations.remove(at: index)
         return enqueueGeneration(
             transcript: failed.transcript,
@@ -929,7 +973,8 @@ public final class PromptResultsViewModel {
                 promptVersionId: failed.promptVersionId
             ),
             replacingPromptResultID: failed.replacingPromptResultID,
-            runInBackground: failed.runsInBackground
+            runInBackground: failed.runsInBackground,
+            outputLanguagePolicy: failed.outputLanguagePolicy
         )
     }
 
@@ -950,14 +995,16 @@ public final class PromptResultsViewModel {
         extraInstructions: String?,
         includeMeetingNotes: Bool = false,
         userNotes: String? = nil,
-        transcript: String? = nil
+        transcript: String? = nil,
+        outputLanguagePolicy: MeetingAIOutputLanguagePolicy = .default
     ) -> String {
         PromptSystemPromptAssembler.assembleUsingEffectiveNotes(
             promptContent: promptContent,
             extraInstructions: extraInstructions,
             includeMeetingNotes: includeMeetingNotes,
             effectiveUserNotes: userNotes,
-            transcript: transcript
+            transcript: transcript,
+            outputLanguagePolicy: outputLanguagePolicy
         )
     }
 

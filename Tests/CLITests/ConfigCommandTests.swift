@@ -41,6 +41,7 @@ final class ConfigCommandTests: XCTestCase {
             "meeting-speaker-detection",
             "custom-vocabulary-boosting",
             "auto-meeting-titles",
+            "meeting-ai-output-language",
             "voice-return-enabled",
             "voice-return-triggers",
             "play-dictation-capture-sounds",
@@ -99,6 +100,7 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(try ConfigCommand.read(key: "meeting-speaker-detection", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "custom-vocabulary-boosting", defaults: defaults), "off")
         XCTAssertEqual(try ConfigCommand.read(key: "auto-meeting-titles", defaults: defaults), "on")
+        XCTAssertEqual(try ConfigCommand.read(key: "meeting-ai-output-language", defaults: defaults), "follow-transcript")
         XCTAssertEqual(try ConfigCommand.read(key: "voice-return-enabled", defaults: defaults), "off")
         XCTAssertEqual(try ConfigCommand.read(key: "voice-return-triggers", defaults: defaults), "press return")
         XCTAssertEqual(try ConfigCommand.read(key: "play-dictation-capture-sounds", defaults: defaults), "off")
@@ -223,6 +225,14 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(try ConfigCommand.write(key: "auto-meeting-titles", value: "off", defaults: defaults), "off")
         XCTAssertEqual(defaults.object(forKey: UserDefaultsAppRuntimePreferences.autoGenerateMeetingTitlesKey) as? Bool, false)
 
+        XCTAssertEqual(
+            try ConfigCommand.write(key: "meeting-ai-output-language", value: "follow-transcript", defaults: defaults),
+            "follow-transcript"
+        )
+        XCTAssertEqual(
+            defaults.string(forKey: UserDefaultsAppRuntimePreferences.meetingAIOutputLanguagePolicyKey),
+            "follow-transcript"
+        )
         XCTAssertEqual(try ConfigCommand.write(key: "spoken-punctuation", value: "off", defaults: defaults), "off")
         XCTAssertEqual(
             defaults.object(forKey: UserDefaultsAppRuntimePreferences.spokenPunctuationEnabledKey) as? Bool,
@@ -626,6 +636,24 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertThrowsError(try ConfigCommand.write(key: "voice-return-triggers", value: " | ", defaults: defaults)) { error in
             XCTAssertTrue(error is ValidationError)
         }
+        XCTAssertThrowsError(try ConfigCommand.write(key: "meeting-ai-output-language", value: "ko", defaults: defaults)) { error in
+            XCTAssertTrue(error is ValidationError)
+        }
+    }
+
+    func testPromptsRunLanguagePolicyReadsInjectedAppDefaults() throws {
+        XCTAssertEqual(
+            try ConfigCommand.write(key: "meeting-ai-output-language", value: "pl", defaults: defaults),
+            "pl"
+        )
+        XCTAssertEqual(currentMeetingAIOutputLanguagePolicy(defaults: defaults), .language("pl"))
+        let assembled = PromptSystemPromptAssembler.assemble(
+            promptContent: "Summarize.",
+            extraInstructions: nil,
+            transcript: "Hello",
+            outputLanguagePolicy: currentMeetingAIOutputLanguagePolicy(defaults: defaults)
+        )
+        XCTAssertTrue(assembled.contains(MeetingAIOutputLanguagePolicy.language("pl").assemblyInstruction))
     }
 
     func testWriteRejectsInvalidValueAsValidationError() {

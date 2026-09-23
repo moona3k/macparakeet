@@ -146,12 +146,18 @@ The v1 folder can contain these stable filenames:
 Each `prompt-results.json` record preserves `userNotesSnapshot` and the
 additive Boolean `includeMeetingNotesSnapshot` (false for legacy/imported rows).
 An edited result also includes `contentEditedAt` as an ISO-8601 timestamp of
-the last user edit. The key is omitted when generation last wrote the content;
-consumers should treat an absent or null key as unedited.
+the last in-place user edit. An absent or null key means no in-place edit is
+recorded, including for generated, historical, and imported results; it does
+not establish who wrote the content.
 The per-result Markdown view states whether automatic notes context was enabled
-and whether `content` was last written by a user edit (`Content edited:`).
+and whether an in-place edit is recorded (`Content edited:`). It
+also shows the output language policy (`not recorded` when absent).
 It also preserves the remaining prompt-result snapshots,
-including additive optional `inferenceSettingsSnapshot`. When present, this is
+including additive optional `inferenceSettingsSnapshot` and additive nullable
+`outputLanguagePolicySnapshot` (`follow-transcript` or a language code).
+`NULL` or omission means no policy was recorded, including for earlier and
+imported results.
+When present, `inferenceSettingsSnapshot` is
 the normalized effective provider/model-filtered inference receipt stored on
 the canonical database row. Its optional `reasoningEffort` is one of `low`,
 `medium`, `high`, or `xhigh` and appears only with enabled thinking; legacy and

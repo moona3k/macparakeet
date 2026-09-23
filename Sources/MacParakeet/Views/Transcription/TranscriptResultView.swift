@@ -3242,6 +3242,7 @@ struct TranscriptResultView: View {
                             .disabled(
                                 promptNotesActionGate.isRunning || richContextLoader.preparingPromptContext
                                     || !promptResultsViewModel.canGeneratePromptResult
+                                    || !promptResultsViewModel.canEditPromptResult(promptResult)
                                     || transcriptText.isEmpty
                             )
 
@@ -3306,7 +3307,9 @@ struct TranscriptResultView: View {
 
                             Button {
                                 promptResultsViewModel.beginEditingPromptResult(promptResult)
-                                Task { @MainActor in promptResultEditorFocused = true }
+                                if promptResultsViewModel.isEditingPromptResult(promptResult.id) {
+                                    Task { @MainActor in promptResultEditorFocused = true }
+                                }
                             } label: {
                                 HStack(spacing: DesignSystem.Spacing.xs) {
                                     Image(systemName: "pencil")
@@ -3316,6 +3319,7 @@ struct TranscriptResultView: View {
                             }
                             .parakeetAction(.secondary)
                             .controlSize(.small)
+                            .disabled(!promptResultsViewModel.canEditPromptResult(promptResult))
                         }
                     }
 
