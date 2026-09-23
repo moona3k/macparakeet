@@ -78,6 +78,34 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         harness.coordinator.cancelDictation()
     }
 
+    func testDiscardClearsShortcutOwnerWithoutAHotkeyResetEffect() async throws {
+        let harness = try await makeRecordingHarness()
+        var clearCount = 0
+        harness.coordinator.onHotkeyRecordingEnded = { clearCount += 1 }
+
+        harness.coordinator.startDictation(mode: .persistent)
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+
+        harness.coordinator.discardProvisionalRecording(showReadyPill: false)
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .idle)
+        XCTAssertEqual(clearCount, 1)
+    }
+
+    func testPillRestartClearsPreviousShortcutOwner() async throws {
+        let harness = try await makeRecordingHarness()
+        var clearCount = 0
+        harness.coordinator.onHotkeyRecordingEnded = { clearCount += 1 }
+
+        harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+
+        harness.coordinator.startDictation(mode: .persistent, trigger: .pillClick)
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .checkingEntitlements(mode: .persistent))
+        XCTAssertEqual(clearCount, 1)
+    }
+
     func testPersistentBackToBackDictationsPasteJustCompletedTranscript() async throws {
         let harness = try await makeRecordingHarness()
         await harness.stt.configureSequence(results: [

@@ -436,6 +436,9 @@ final class DictationFlowCoordinator {
         let stateBeforeStart = stateMachine.state
         sendEvent(.startRequested(mode: mode))
         guard stateMachine.state != stateBeforeStart else { return }
+        if trigger != .hotkey {
+            onHotkeyRecordingEnded?()
+        }
         currentTrigger = trigger
         sessionAIFormatterEnabled = aiFormatterEnabled
         pendingSessionClipboardOnly = clipboardOnly
@@ -478,6 +481,7 @@ final class DictationFlowCoordinator {
 
     private func sendEvent(_ event: DictationFlowEvent) {
         let oldState = stateMachine.state
+        let hadActiveHotkeyMode = hotkeyRecordingMode != nil
         let effects = stateMachine.handle(event)
 
         if !effects.isEmpty {
@@ -487,6 +491,9 @@ final class DictationFlowCoordinator {
         }
 
         executeEffects(effects)
+        if hadActiveHotkeyMode && hotkeyRecordingMode == nil {
+            onHotkeyRecordingEnded?()
+        }
 
         switch stateMachine.state {
         case .idle, .ready, .finishing:
