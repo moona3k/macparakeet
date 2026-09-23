@@ -247,7 +247,7 @@ final class TransformsCoordinator {
         _ target: SelectionCaptureTarget,
         timeout: Duration = .milliseconds(500),
         pollInterval: Duration = .milliseconds(10),
-        frontmostApplication: () -> SelectionCaptureTarget?
+        frontmostApplication: @MainActor () -> SelectionCaptureTarget?
     ) async -> Bool {
         let deadline = ContinuousClock.now + timeout
         while !Task.isCancelled {
