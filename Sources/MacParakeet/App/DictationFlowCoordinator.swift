@@ -141,6 +141,8 @@ final class DictationFlowCoordinator {
 
     /// Set after init; updated when dictation hotkey managers are recreated.
     var hotkeyManagers: [HotkeyManager] = []
+    var onSyncHotkeyRecordingMode: ((FnKeyStateMachine.RecordingMode) -> Void)?
+    var onHotkeyRecordingEnded: (() -> Void)?
     var onInteractionBusy: (() -> Void)?
 
     // MARK: - Dependencies
@@ -898,12 +900,14 @@ final class DictationFlowCoordinator {
             onMenuBarIconUpdate(iconState)
 
         case .syncHotkeyRecordingMode(let mode):
-            hotkeyManagers.forEach { $0.syncRecordingMode(mode) }
+            onSyncHotkeyRecordingMode?(mode)
 
         case .resetHotkeyStateMachine:
+            onHotkeyRecordingEnded?()
             hotkeyManagers.forEach { $0.resetToIdle() }
 
         case .notifyHotkeyCancelledByUI:
+            onHotkeyRecordingEnded?()
             hotkeyManagers.forEach { $0.notifyCancelledByUI() }
 
         case .presentEntitlementsAlert:

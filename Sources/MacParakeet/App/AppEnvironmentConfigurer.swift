@@ -500,6 +500,13 @@ final class AppEnvironmentConfigurer {
             }
         )
 
+        dictationCoordinator.onSyncHotkeyRecordingMode = { [weak hotkeyCoordinator] mode in
+            hotkeyCoordinator?.syncDictationHotkeyRecordingMode(mode)
+        }
+        dictationCoordinator.onHotkeyRecordingEnded = { [weak hotkeyCoordinator] in
+            hotkeyCoordinator?.clearActiveDictationHotkey()
+        }
+
         if callbacks.isHotkeyRecordingActive() {
             hotkeyCoordinator.suspend()
         }
