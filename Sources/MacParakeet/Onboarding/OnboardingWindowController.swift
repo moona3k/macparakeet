@@ -5,6 +5,8 @@ import MacParakeetViewModels
 
 @MainActor
 final class OnboardingWindowController: NSObject, NSWindowDelegate {
+    static let windowSize = NSSize(width: 760, height: 600)
+
     private var window: NSWindow?
     private var viewModel: OnboardingViewModel?
     private var allowCloseWithoutCompletion = false
@@ -12,15 +14,51 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         window?.isVisible == true
     }
 
+    /// The run on screen, for rehearsal and practice-dictation feedback.
+    var currentViewModel: OnboardingViewModel? {
+        viewModel
+    }
+
+    /// True while onboarding is up and its practice box is not the dictation
+    /// target. The app gates real dictation starts on this.
+    var isBlockingDictation: Bool {
+        guard isVisible else { return false }
+        return viewModel?.isPracticeListening != true
+    }
+
+    /// Forward the real dictation flow's state to the practice box.
+    func handleDictationFlowState(_ state: DictationFlowState) {
+        guard let viewModel, isVisible else { return }
+        let activity: OnboardingViewModel.PracticeDictationActivity
+        switch state {
+        case .checkingEntitlements(let mode), .startingService(let mode), .recording(let mode),
+            .pendingStop(let mode):
+            activity = .recording(OnboardingViewModel.PracticeKey(recordingMode: mode))
+        case .processing:
+            activity = .processing
+        case .idle, .ready, .cancelCountdown, .finishing:
+            activity = .idle
+        }
+        viewModel.practiceDictationActivityChanged(activity)
+    }
+
+    /// Forward a delivered dictation transcript to the practice box.
+    func handleDictationDelivered(_ text: String) {
+        guard isVisible else { return }
+        viewModel?.practiceDictationDelivered(text)
+    }
+
     func show(
         permissionService: PermissionServiceProtocol,
         sttClient: STTClientProtocol,
         diarizationService: DiarizationServiceProtocol? = nil,
+        settingsViewModel: SettingsViewModel? = nil,
         onFinish: @escaping () -> Void,
         restartExistingRun: Bool = false,
         onHotkeyPreviewArm: @escaping () -> Void = {},
         onHotkeyPreviewDisarm: @escaping () -> Void = {},
-        onOpenMainApp: @escaping () -> Void,
+        onShortcutRecordingChanged: @escaping (Bool) -> Void = { _ in },
+        onShortcutBindingsChanged: @escaping () -> Void = {},
         onOpenSettings: @escaping () -> Void,
         onIncompleteDismiss: @escaping () -> Void
     ) {
@@ -40,29 +78,32 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
             diarizationService: diarizationService
         )
         viewModel = vm
-        // Retained so the rehearsal taps/overlay are torn down if the window
-        // closes while the user is on the hotkey step (SwiftUI `onDisappear`
-        // can lag window teardown). `disarm()` is idempotent.
+        // Retained so the rehearsal taps are torn down if the window closes
+        // while the user is on the Try It step (SwiftUI `onDisappear` can lag
+        // window teardown). `disarm()` is idempotent.
         onHotkeyPreviewDisarmHandler = onHotkeyPreviewDisarm
 
         let view = OnboardingFlowView(
             viewModel: vm,
+            settingsViewModel: settingsViewModel,
             onFinish: { [weak self] in
                 self?.allowCloseWithoutCompletion = true
                 self?.close()
                 onFinish()
             },
-            onOpenMainApp: onOpenMainApp,
             onOpenSettings: onOpenSettings,
             onHotkeyPreviewArm: onHotkeyPreviewArm,
-            onHotkeyPreviewDisarm: onHotkeyPreviewDisarm
+            onHotkeyPreviewDisarm: onHotkeyPreviewDisarm,
+            onShortcutRecordingChanged: onShortcutRecordingChanged,
+            onShortcutBindingsChanged: onShortcutBindingsChanged
         )
 
         let hosting = NSHostingView(rootView: view)
-        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 740, height: 500),
-                         styleMask: [.titled, .closable, .miniaturizable],
-                         backing: .buffered,
-                         defer: false)
+        let w = NSWindow(
+            contentRect: NSRect(origin: .zero, size: Self.windowSize),
+            styleMask: [.titled, .closable, .miniaturizable],
+            backing: .buffered,
+            defer: false)
         w.title = "Welcome to MacParakeet"
         w.isReleasedWhenClosed = false
         w.center()
@@ -78,7 +119,8 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
             let alert = NSAlert()
             alert.alertStyle = .warning
             alert.messageText = "Setup is not finished"
-            alert.informativeText = "MacParakeet needs permissions and speech model setup (Parakeet) before core features are reliable."
+            alert.informativeText =
+                "MacParakeet needs its permissions and the local speech model before dictation is reliable."
             alert.addButton(withTitle: "Continue Setup")
             alert.addButton(withTitle: "Exit Setup")
 

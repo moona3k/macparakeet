@@ -149,6 +149,29 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         XCTAssertTrue(savedTranscripts.contains("second dictated message"))
     }
 
+    func testObserverHooksReportFlowStatesAndDeliveredTranscript() async throws {
+        let harness = try await makeRecordingHarness()
+        await harness.stt.configure(result: STTResult(text: "practice words"))
+        var states: [DictationFlowState] = []
+        var delivered: [String] = []
+        harness.coordinator.onFlowStateChanged = { states.append($0) }
+        harness.coordinator.onDictationDelivered = { delivered.append($0) }
+
+        harness.coordinator.startDictation(mode: .holdToTalk, trigger: .hotkey)
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+        harness.coordinator.stopDictation()
+        let finished = await waitUntil { delivered.count == 1 }
+        XCTAssertTrue(finished)
+
+        XCTAssertEqual(delivered, ["practice words"], "the hook carries the transcript, not the paste spacing")
+        XCTAssertTrue(states.contains(.recording(mode: .holdToTalk)))
+        XCTAssertTrue(states.contains(.processing))
+        for index in states.indices.dropFirst() {
+            XCTAssertNotEqual(states[index], states[index - 1], "the state hook fires only on changes")
+        }
+    }
+
     func testClipboardOnlyDictationCopiesWithoutPasting() async throws {
         let harness = try await makeRecordingHarness()
         await harness.stt.configure(result: STTResult(text: "notes for the other desktop"))

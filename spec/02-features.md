@@ -142,13 +142,11 @@ not a claim that every proposed command is available.
 - Teach the core interaction model in under 60 seconds.
 - Download and warm up the right local speech stack on first run: Parakeet STT plus default-on speaker-detection assets for the normal path, or local Whisper plus speaker-detection assets when the user's macOS language is Korean, Japanese, Chinese, or Cantonese. Nemotron and Cohere are explicit opt-in engines after onboarding.
 
-**Flow (6 steps, dictation-first):**
-1. Welcome
-2. Microphone permission (skippable; dictation and mic-backed meetings request it on first use; persistent dictation continues that same press, hold-to-talk waits for the next hold after the system sheet)
-3. Accessibility permission
-4. Hotkey instructions (configurable trigger + Esc)
-5. Speech stack setup (Parakeet; speaker detection defaults on where supported and remains user-controllable in Settings; locale-aware Whisper setup for CJK macOS languages; Nemotron remains an explicit Beta choice after setup; Cohere remains an explicit batch-only choice after setup)
-6. Ready
+**Flow (4 steps, first dictation inside onboarding; ADR-005 amendment 2026-09-23):**
+1. Welcome (the speech stack starts downloading here: Parakeet; speaker detection defaults on where supported; locale-aware Whisper setup for CJK macOS languages)
+2. Permissions on one page: microphone (skippable; dictation and mic-backed meetings request it on first use; persistent dictation continues that same press, hold-to-talk waits for the next hold after the system sheet) and Accessibility (required for the hotkey and paste)
+3. Try It: the configured keys are drawn in the card and light while the real key is active (no recording, no STT); Continue waits for one lit key; Edit shortcut is on this screen. Then a dictation box shows model progress until the engine is ready, asks for a click, and receives a real dictation. Continue waits for delivered text; Skip is always available.
+4. All Set (quotes the practice result when present; Finish closes the window)
 
 Meeting Recording and Calendar are opt-in and self-prompt on first use (see ADR-005 amendment, 2026-06-13).
 
@@ -156,7 +154,7 @@ Meeting Recording and Calendar are opt-in and self-prompt on first use (see ADR-
 - Before warm-up, onboarding runs lightweight preflight checks (runtime support + first-setup disk/network readiness for both STT and any required default-on speaker-detection assets).
 - Locale detection is local-only. It sets the initial engine/language defaults before first use; runtime transcription still uses the explicit selected engine, not automatic per-file fallback.
 - If local model setup fails, onboarding shows explicit recovery tips based on failure type.
-- Users get direct CTAs: `Retry` and `Open Settings` (to `Settings > Local Models > Repair`).
+- Users get direct CTAs inside the practice box: `Retry` and `Open Settings` (to `Settings > Local Models > Repair`). The sidebar shows model status on every step.
 
 **Dismiss behavior:**
 - Closing onboarding before completion shows a confirmation prompt.
@@ -2247,7 +2245,7 @@ surface against the [canonical status table](README.md#release-channels-and-feat
 | Escape cancels dictation | Default-on Dictation setting (`escapeCancelsDictation`). Off leaves Escape for other apps and does not cancel a live dictation. Pending gestures that have not started a take still clear. | [F1](02-features.md#f1-system-wide-dictation) |
 | Preserve discarded dictations | Default-off Dictation setting (`preserveDiscardedDictations`). Cancel and undo-window expiry transcribe into History as `cancelled` instead of deleting. Requires Save dictation history. Nothing is pasted, and menu-bar Paste Last / Recent Dictations stay completed-only. Voice stats still count only completed takes. | [F1](02-features.md#f1-system-wide-dictation) |
 | Dictation capture sounds | Default-off Dictation setting (`playDictationCaptureSounds`). A quiet system cue once capture is live and one when that capture ends, including cancel. Takes that never went live stay silent. Toggling it on previews the start cue. | [F1](02-features.md#f1-system-wide-dictation) |
-| Skip-microphone onboarding | First-run Microphone step stays visible, but Continue is not gated on grant. File-only users can skip it. Dictation and mic-backed meetings still request access on first use. | [ADR-005](adr/005-onboarding-first-run.md) |
+| Skip-microphone onboarding | The microphone row on the first-run Permissions page stays visible, but Continue is not gated on grant. File-only users can skip it. Dictation and mic-backed meetings still request access on first use. | [ADR-005](adr/005-onboarding-first-run.md) |
 | AI Formatter routing | New installs leave “Use for transcripts” and “Use for dictation” off. Each surface has its own prompt. Inherited transcript-on stays on. | [F8](02-features.md#f8-ai-formatter) |
 | Streaming cursor | Optional Settings → Dictation insert path (default off). Finished text types at the caret; Reduce Motion, unknown IMEs, and newline/tab still paste. | [F1](02-features.md#f1-system-wide-dictation) |
 | Edit saved AI results | Saved summaries, chapters, and action items can be edited in place with Cancel/Save. Save or cancel an edit before regenerating; editing is unavailable while its replacement is queued or streaming. Prompt snapshots stay the generation receipt; `contentEditedAt` marks a recorded user edit and meeting artifacts refresh. | [Issue #884](https://github.com/moona3k/macparakeet/issues/884) |

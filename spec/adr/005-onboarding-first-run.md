@@ -2,10 +2,11 @@
 
 > Status: **Accepted (amended)**
 >
-> Current decision: first-run onboarding is the six-step dictation-first flow
-> defined by the 2026-06-13 amendment. Meeting Recording and Calendar setup
-> were removed from onboarding and now request permission in context from
-> their feature surfaces.
+> Current decision: first-run onboarding is the four-step flow defined by the
+> 2026-09-23 amendment: Welcome, Permissions, Try It (key rehearsal plus a real
+> first dictation in the window), and All Set. Meeting Recording and Calendar
+> setup stay out of onboarding and request permission in context from their
+> feature surfaces.
 
 Date: 2026-02-10
 > Historical note: the Qwen LLM warm-up step was removed 2026-02-23. Meeting Recording and Calendar steps added in April were later removed by the 2026-06-13 dictation-first amendment below.
@@ -24,26 +25,24 @@ Without onboarding, users encounter failures out of context (missing permissions
 
 Implement a dedicated first-run onboarding window that appears automatically when the app starts and onboarding has not been completed.
 
-The current onboarding flow is linear and step-based:
+The current onboarding flow is linear and step-based (2026-09-23 amendment):
 
 1. Welcome
-2. Microphone permission (skippable)
-3. Accessibility permission
-4. Hotkey instructions
-5. Speech stack setup (Parakeet + required speaker-detection assets, retry available)
-6. Ready
+2. Permissions: microphone (skippable) and Accessibility (required) on one page
+3. Try It: light the real dictation key in the card, then dictate into a box in the window. The speech stack (Parakeet or locale-selected Whisper, plus required speaker-detection assets, retry available) downloads behind steps 1 to 3 and opens the box when ready.
+4. All Set
 
 The onboarding can also be launched manually from Settings.
 
 If onboarding is closed before completion, the app shows an explicit confirmation dialog. If the user exits setup anyway, onboarding is shown again on the next app activation until completion.
-During speech-stack setup, onboarding runs lightweight preflight checks (disk space + network readiness) before downloading required assets.
+Before the speech-stack download starts, onboarding runs lightweight preflight checks (disk space + network readiness).
 While onboarding is visible, permission state is polled so changes made in System Settings are reflected automatically.
 
 ## Consequences
 
 - Users get a guided, premium setup that reduces first-run friction.
 - Hotkey manager is restarted after onboarding to reliably start listening once Accessibility is granted.
-- The Parakeet STT model is downloaded/warmed during onboarding to reduce first-use latency for dictation.
+- The Parakeet STT model is downloaded/warmed during onboarding, and the first dictation happens inside onboarding once it is ready.
 - Speaker detection defaults on where supported (ADR-010 amendment 2026-07-03), so its diarization assets are prepared before onboarding reports file transcription ready when a diarization service is available.
 - Meeting Recording and Calendar are deliberately outside first-run onboarding. Their feature surfaces request the relevant permission on first use or from Settings.
 - Preflight checks fail fast with actionable guidance, reducing avoidable warm-up failures.
@@ -87,3 +86,23 @@ Accessibility is still granted during onboarding for all users, which also cover
 ## Amendment — 2026-09-16: Microphone may be skipped (issue #879)
 
 The Microphone step stays in onboarding, but Continue is no longer gated on grant. Dictation and mic-backed meetings request access on first use; persistent dictation prompts before capture so the same press can continue. Hold-to-talk cannot survive the system permission sheet, so a grant returns to idle and the next hold starts capture. Settings offers Grant or Open Microphone Settings when the mic is missing. Idle launch prewarm is skipped when the mic is not granted. Accessibility remains required.
+
+## Amendment — 2026-09-23: First dictation inside onboarding
+
+**Decision:** Onboarding is four steps. The separate Microphone, Accessibility, Hotkey, and Speech Model steps are replaced.
+
+1. **Welcome.** Keeps the private-by-default line. The speech-model warm-up still starts when the window opens (2026-06-14 amendment).
+2. **Permissions.** One page with two rows written as what the app will do: hear you while you dictate (microphone, skippable per the 2026-09-16 amendment) and use your dictation key and type into any app (Accessibility, required). The macOS prompt opens over this page and the existing poll flips each row when granted. No meeting audio, screen recording, or calendar.
+3. **Try It.** One screen with two beats.
+   - The configured push-to-talk and hands-free keys are drawn in the card. `OnboardingHotkeyPreviewController` runs the production `HotkeyManager` gesture machine for those two triggers with production taps suspended. The matching cap lights while its gesture is active and returns to rest on release (hands-free: on the next tap or Escape). It never records or runs STT, so it works during the download. Continue waits until a cap has lit once. Edit shortcut opens the production recorder in a sheet, and a changed binding rebuilds the rehearsal taps.
+   - The dictation box below shows model progress (or the failure with Retry) until the engine is ready, then asks for a click, then asks for the key. Once clicked, the rehearsal disarms, production hotkeys resume, and the app's onboarding dictation gate lifts for this box only. The practice dictation is a real dictation through `DictationFlowCoordinator`: capture, STT, processing, paste into the box, history, and telemetry. If paste has not landed after a short grace, the delivered transcript is inserted directly. Continue waits for a non-empty delivered result. **Skip** is always available so a failed download or unusable key cannot trap onboarding.
+4. **All Set.** Shown after a practice result or Skip. Quotes the practice words when present, says if the model is still downloading or failed, and points at the frontmost app. **Finish** writes completion and closes the window; it no longer opens the main window.
+
+**Rationale:** About 38% of starters abandon setup, and same-session dictation among completers fell to about 33% in September 2026. The miss is mostly people who never press the hotkey after "You're all set" ([activation leak](../../docs/research/2026-09-18-onboarding-activation-leak.md)). The old hotkey step's "Try it now" raised an off-card overlay that did not change the card, and Continue did not wait for a press. The download was its own step to watch. Design note and stills: [2026-09-23 Wispr onboarding](../../docs/design/2026-09-23-wispr-onboarding/note.md); implementation choices: [implementation.md](../../docs/design/2026-09-23-wispr-onboarding/implementation.md).
+
+**What changes from earlier amendments:**
+- A ready speech model no longer gates a step. It gates the practice box, and Skip can complete onboarding without it. The download keeps running in the shared runtime after the window closes, and Settings shows its state.
+- `engine_failed` / `engine_ready` step telemetry is sent on whichever step the user is on when the warm-up settles, instead of only on the Speech Model step.
+- `onboarding_step` names are now `welcome`, `permissions`, `practice`, `ready`, with new actions `hotkey_confirmed`, `practice_succeeded`, and `practice_skipped`. `total_steps` is 4.
+
+**Out of scope:** sign-in, intent or meeting surveys, calendar connect, time-saved claims, referrals, and fake third-party app chrome. The after-close tip and a job picker are possible follow-ups.
