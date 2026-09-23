@@ -5443,6 +5443,12 @@ struct TranscriptResultView: View {
         readingSaveID = saveID
         transcriptEditError = nil
         Task { @MainActor in
+            guard readingSaveID == saveID else { return }
+            guard viewModel.currentTranscription?.id == savingTranscriptionID else {
+                readingSaveID = nil
+                savingReadingTranscript = false
+                return
+            }
             let succeeded = await viewModel.applySpeakerCorrectionAndWait(command)
             guard readingSaveID == saveID else { return }
             readingSaveID = nil
