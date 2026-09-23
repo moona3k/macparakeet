@@ -715,8 +715,9 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
   for historical results and is installed by migration v0.33.
 - `outputLanguagePolicySnapshot` (v0.47) records the meeting AI output-language
   policy used for that generation (`follow-transcript` or a language code).
-  `NULL` covers results created before the policy existed; regenerate then uses
-  the current Settings value. Extra instructions still override the injected
+  `NULL` means no policy was recorded, including results created before the
+  policy existed and externally imported results. Regenerate then uses the
+  current Settings value. Extra instructions still override the injected
   language request.
 - `sourceCorrectionRevision` (v0.45) records the transcript correction
   revision used for that result. `NULL` means the result predates the receipt.
@@ -1757,7 +1758,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `speaker_embedding_candidates` | v0.41-speaker-embedding-candidates | Consent-gated temporary vectors with per-row seven-day expiry |
 | `prompts.includeMeetingNotes` | v0.33-prompt-meeting-notes-context | Result-prompt opt-in for automatic meeting-notes context; non-null, default false |
 | `summaries.includeMeetingNotesSnapshot` | v0.33-prompt-meeting-notes-context | Generation-time receipt of the prompt's notes-context opt-in; non-null, default false |
-| `summaries.outputLanguagePolicySnapshot` | v0.47-meeting-ai-output-language | Generation-time receipt of the meeting AI output-language policy (`follow-transcript` or a language code); nullable for pre-policy rows |
+| `summaries.outputLanguagePolicySnapshot` | v0.47-meeting-ai-output-language | Generation-time receipt of the meeting AI output-language policy (`follow-transcript` or a language code); nullable when no policy was recorded, including earlier and imported results |
 | `lifetime_dictation_stats` | v0.7.4 | Singleton lifetime voice-stat counters |
 | `daily_dictation_stats` | v0.11 | Per-day rollup powering Stats-tab heatmap + daily streaks |
 | `transcriptions.recoveredFromCrash` | v0.7.5 | Interrupted meeting recovery marker |
