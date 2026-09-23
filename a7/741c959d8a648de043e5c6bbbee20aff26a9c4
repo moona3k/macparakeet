@@ -1,0 +1,88 @@
+docs/audits/2026-09-23-post-0.8.7-release-readiness.md
+  s_57f96c7e168713::t_6dcda5ed2aaf00 3-36
+spec/01-data-model.md
+  s_57f96c7e168713::t_083c9392e82cdc 738-740
+  s_57f96c7e168713::t_0e2be0a35abc50 699-700
+  s_57f96c7e168713::t_3768ab939d4c3f 735-737
+  s_57f96c7e168713::t_7a71bd3bd6527d 1355-1356
+Tests/MacParakeetTests/Services/SavedAudioAutoPromptCompletionServiceTests.swift
+  s_57f96c7e168713::t_798d259026b3ea 334
+Tests/MacParakeetTests/ViewModels/PromptResultsViewModelTests.swift
+  s_57f96c7e168713::t_83a372eeb94272 1068-1074,1141-1144
+  s_57f96c7e168713::t_500566e23b9f44 1129-1140,1145-1167
+  s_57f96c7e168713::t_a5e21bdfc8b38f 1023-1067,1075-1086
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_57f96c7e168713::t_083c9392e82cdc 2427-2429
+  s_57f96c7e168713::t_0ec1e22283ada8 2430-2438
+spec/contracts/cli-json-v1.md
+  s_57f96c7e168713::t_52847b277aea49 199-201
+  s_57f96c7e168713::t_083c9392e82cdc 202
+spec/contracts/saved-audio-auto-prompt-completion.md
+  s_57f96c7e168713::t_798d259026b3ea 49-50
+Sources/MacParakeetCore/Models/PromptResult.swift
+  s_57f96c7e168713::t_8d91071dc5b223 40-42,75,97,117
+  s_57f96c7e168713::t_b9aef9f9e877da 131-132
+Tests/MacParakeetTests/Database/PromptResultRepositoryTests.swift
+  s_57f96c7e168713::t_da21657f9eff15 72-134
+  s_57f96c7e168713::t_d48220038376f5 135-163
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_57f96c7e168713::t_728513c7bf6ad3 2585-2589,3203,3241,3592
+  s_57f96c7e168713::t_083c9392e82cdc 3206-3208
+  s_57f96c7e168713::t_11545df5f0abcc 3201-3202,3240,3591
+Sources/MacParakeetCore/Services/SavedAudioAutoPromptCompletionService.swift
+  s_57f96c7e168713::t_1ab689cbb4a293 195,227,262-263
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_57f96c7e168713::t_47c79d1ff19652 1471-1472
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  s_57f96c7e168713::t_20a1a38a2f3af3 1480-1481,1485
+  s_57f96c7e168713::t_1f0b658cf90608 1479
+  s_57f96c7e168713::t_183488ef16ec10 1437,1469-1478,1482-1484,1486-1488
+  s_57f96c7e168713::t_2d3a650b3a8b09 1489-1490
+Sources/CLI/CHANGELOG.md
+  s_57f96c7e168713::t_52847b277aea49 100-102
+Sources/MacParakeetCore/Database/PromptResultRepository.swift
+  s_57f96c7e168713::t_83a372eeb94272 97-99
+  s_57f96c7e168713::t_ed04ec46583ab2 9-15,87-96,100-108
+  s_57f96c7e168713::t_1d58e643fecfba 109-111
+Sources/MacParakeetCore/Models/PromptResultFreshness.swift
+  s_57f96c7e168713::t_83a372eeb94272 25
+  s_57f96c7e168713::t_ca8a9983265ebf 2,7-17,20-22,24,26-31
+Sources/CLI/Commands/PromptsCommand.swift
+  s_57f96c7e168713::t_748281d2627063 1048,1143
+  s_57f96c7e168713::t_55e2d3ff9656a0 1142,1175-1176,1192-1193
+spec/12-processing-layer.md
+  s_57f96c7e168713::t_083c9392e82cdc 220-222
+  s_57f96c7e168713::t_6dcda5ed2aaf00 401
+  s_57f96c7e168713::t_798d259026b3ea 208-209,236-237
+  s_57f96c7e168713::t_a38b5f7f7b31db 216-219,223
+Tests/MacParakeetTests/Models/PromptResultFreshnessTests.swift
+  s_57f96c7e168713::t_21095fbb53c011 70-88
+  s_57f96c7e168713::t_83a372eeb94272 47-48
+  s_57f96c7e168713::t_e7d6613fabcf67 32-46,49-69
+Tests/MacParakeetTests/Database/DatabaseManagerTests.swift
+  s_57f96c7e168713::t_493b09db23992c 692-729,731,738-739
+  s_57f96c7e168713::t_083c9392e82cdc 691,730,732-737
+Sources/MacParakeetViewModels/PromptResultsViewModel.swift
+  s_57f96c7e168713::t_dfeb7fca5fbf0d 1027-1028
+  s_57f96c7e168713::t_83a372eeb94272 915-922
+  s_57f96c7e168713::t_661bd498bf0cdf 58-59,82-83,104-105,635-636,757-758,799-800,908-910,912-914,923-924,926,992-999,1023-1024
+  s_57f96c7e168713::t_801a964a9e5f5e 56,80,102,579-580,589-590,598-599,640-641,652-653,701-702,761-762,797,903
+Tests/CLITests/PromptsCommandTests.swift
+  s_57f96c7e168713::t_798d259026b3ea 424
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a7741c959d8a648de043e5c6bbbee20aff26a9c4",
+  "prompts": {},
+  "sessions": {
+    "s_57f96c7e168713": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cd8c-0edf-7db2-b8e5-8dd9ef44ed55",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
