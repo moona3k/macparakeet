@@ -1,0 +1,21 @@
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingOutput.swift
+  s_a23a957626565c::t_74dd7eb9a72a87 221-225,247-250,255,257-267,274-290
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingOutputTests.swift
+  s_a23a957626565c::t_0e9e85c16e2566 439,449,452-462
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "180b082e109e6dcbe7ee34e529dcad2868c62d74",
+  "prompts": {},
+  "sessions": {
+    "s_a23a957626565c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71fc07f7-6e40-481a-b01b-0628589d0e8c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
