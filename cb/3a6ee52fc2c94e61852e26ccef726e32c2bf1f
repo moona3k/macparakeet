@@ -1,0 +1,19 @@
+docs/audits/2026-09-24-final-0.9.0-readiness.md
+  s_9138b52c0d7343::t_997df398668d1c 51-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "cb3a6ee52fc2c94e61852e26ccef726e32c2bf1f",
+  "prompts": {},
+  "sessions": {
+    "s_9138b52c0d7343": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d09c-6f76-7603-bd8f-f6cd7bf7aaa1",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
