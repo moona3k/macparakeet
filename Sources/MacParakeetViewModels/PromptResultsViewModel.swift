@@ -825,6 +825,18 @@ public final class PromptResultsViewModel {
 
         streamingTask = Task { @MainActor [weak self] in
             guard let self, let llmService = self.llmService else { return }
+            // Each published token re-renders the streaming Markdown view, so
+            // coalesce deltas and publish at a bounded rate (#1132). Nothing is
+            // dropped: the remainder is always published before the stream is
+            // finished, failed, or cancelled.
+            var unpublished = ""
+            var lastPublished = ContinuousClock.now - Self.streamingPublishInterval
+            @MainActor func publishUnpublished() {
+                guard !unpublished.isEmpty else { return }
+                self.appendStreamingToken(unpublished, to: generationID)
+                unpublished = ""
+                lastPublished = .now
+            }
             do {
                 let stream = llmService.generatePromptResultDetailedStream(
                     transcript: generation.transcript,
@@ -836,11 +848,15 @@ public final class PromptResultsViewModel {
                 for try await event in stream {
                     switch event {
                     case .text(let token):
-                        appendStreamingToken(token, to: generationID)
+                        unpublished += token
+                        if ContinuousClock.now - lastPublished >= Self.streamingPublishInterval {
+                            publishUnpublished()
+                        }
                     case .completed(let receipt):
                         terminal = receipt
                     }
                 }
+                publishUnpublished()
                 guard !Task.isCancelled else {
                     finishCancelledGeneration(id: generationID)
                     return
@@ -850,12 +866,16 @@ public final class PromptResultsViewModel {
                 }
                 try await finishGeneration(id: generationID, terminal: terminal)
             } catch is CancellationError {
+                publishUnpublished()
                 finishCancelledGeneration(id: generationID)
             } catch {
+                publishUnpublished()
                 finishFailedGeneration(id: generationID, error: error)
             }
         }
     }
+
+    static let streamingPublishInterval: Duration = .milliseconds(33)
 
     private func appendStreamingToken(_ token: String, to generationID: UUID) {
         guard let index = pendingGenerations.firstIndex(where: { $0.id == generationID }) else { return }
