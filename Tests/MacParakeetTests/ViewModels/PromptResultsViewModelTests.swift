@@ -620,6 +620,22 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.pendingGeneration(id: generationID)?.content, "Partial output")
     }
 
+    func testBurstStreamCoalescesDisplayUpdatesWithoutDroppingTokens() async throws {
+        promptRepo.prompts = [Prompt(name: "Summary", content: "Summarize.")]
+        let tokens = (0..<5_000).map { "t\($0) " }
+        llm.streamTokens = tokens
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo
+        )
+
+        viewModel.generatePromptResult(transcript: "Transcript", transcriptionId: UUID())
+        try await waitUntil(timeout: .seconds(5)) { !self.promptResultRepo.saveCalls.isEmpty }
+
+        XCTAssertEqual(promptResultRepo.saveCalls.first?.content, tokens.joined())
+    }
+
     func testRegenerateReusesPersistedEffectiveSettingsAsRequestedSnapshot() async throws {
         let promptID = UUID()
         let versionID = UUID()

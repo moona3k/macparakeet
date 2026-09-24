@@ -825,6 +825,15 @@ public final class PromptResultsViewModel {
 
         streamingTask = Task { @MainActor [weak self] in
             guard let self, let llmService = self.llmService else { return }
+            // Each published token re-renders the streaming Markdown view, so
+            // publish coalesced deltas (#1132). The remainder is always flushed
+            // before the stream is finished, failed, or cancelled.
+            var coalescer = StreamingTextCoalescer(interval: Self.streamingPublishInterval)
+            @MainActor func flushCoalesced() {
+                if let text = coalescer.flush() {
+                    self.appendStreamingToken(text, to: generationID)
+                }
+            }
             do {
                 let stream = llmService.generatePromptResultDetailedStream(
                     transcript: generation.transcript,
@@ -836,11 +845,14 @@ public final class PromptResultsViewModel {
                 for try await event in stream {
                     switch event {
                     case .text(let token):
-                        appendStreamingToken(token, to: generationID)
+                        if let text = coalescer.append(token, at: .now) {
+                            appendStreamingToken(text, to: generationID)
+                        }
                     case .completed(let receipt):
                         terminal = receipt
                     }
                 }
+                flushCoalesced()
                 guard !Task.isCancelled else {
                     finishCancelledGeneration(id: generationID)
                     return
@@ -850,12 +862,16 @@ public final class PromptResultsViewModel {
                 }
                 try await finishGeneration(id: generationID, terminal: terminal)
             } catch is CancellationError {
+                flushCoalesced()
                 finishCancelledGeneration(id: generationID)
             } catch {
+                flushCoalesced()
                 finishFailedGeneration(id: generationID, error: error)
             }
         }
     }
+
+    static let streamingPublishInterval: Duration = .milliseconds(33)
 
     private func appendStreamingToken(_ token: String, to generationID: UUID) {
         guard let index = pendingGenerations.firstIndex(where: { $0.id == generationID }) else { return }
