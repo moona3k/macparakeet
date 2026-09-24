@@ -1,0 +1,35 @@
+Tests/MacParakeetTests/Audio/AudioRecorderFormatChangeTests.swift
+  s_9138b52c0d7343::t_56c6c57b29f2eb 362-363
+  s_9138b52c0d7343::t_b5c363143465c1 368-370
+  s_9138b52c0d7343::t_181bcd4a7b9e45 348-361,364-367,371-372
+Sources/CLI/CHANGELOG.md
+  s_9138b52c0d7343::t_bc9589af01f83e 92-93
+Sources/CLI/MacParakeetCLI.swift
+  s_9138b52c0d7343::t_bc9589af01f83e 11
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_9138b52c0d7343::t_d7bae64f154a77 1470-1505,1508-1509
+  s_9138b52c0d7343::t_1a6659f9b04f24 1506-1507
+Sources/MacParakeetCore/Audio/AudioProcessorProtocol.swift
+  s_9138b52c0d7343::t_2c8a83bb790e3a 92-94
+spec/05-audio-pipeline.md
+  s_9138b52c0d7343::t_20176600322e89 23
+Sources/MacParakeetCore/Audio/README.md
+  s_9138b52c0d7343::t_20176600322e89 376-377
+  s_9138b52c0d7343::t_b5c363143465c1 378-379
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ccb20f360d90ecf5934129c1bd36d1709906b882",
+  "prompts": {},
+  "sessions": {
+    "s_9138b52c0d7343": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d09c-6f76-7603-bd8f-f6cd7bf7aaa1",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
