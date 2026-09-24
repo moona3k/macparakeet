@@ -116,8 +116,8 @@ public final class HotkeyManager {
     }
 
     deinit {
-        // Inline cleanup — deinit is nonisolated, can't call @MainActor stop().
-        // Safe because deinit guarantees exclusive access to self.
+        // deinit is nonisolated and can't call @MainActor stop(); share its
+        // teardown, invalidating the tap before releasing the callback context.
         EventTapTeardown.tearDown(tap: eventTap, source: runLoopSource, runLoop: installedRunLoop)
         retainedSelf?.release()
         startupTimer?.cancel()

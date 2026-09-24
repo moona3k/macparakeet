@@ -10,6 +10,32 @@ final class GlobalShortcutManagerTests: XCTestCase {
     private let leftCommandMask = UInt64(NX_DEVICELCMDKEYMASK)
     private let rightCommandMask = UInt64(NX_DEVICERCMDKEYMASK)
 
+    /// Needs Input Monitoring / Accessibility; skipped where tap creation is
+    /// denied (CI). Guards the #1132 leak against the real tap registry.
+    func testStartStopCyclesDoNotAccumulateEventTaps() throws {
+        let manager = GlobalShortcutManager(trigger: .fn)
+        guard manager.start() else {
+            throw XCTSkip("Event tap creation needs Input Monitoring permission")
+        }
+        manager.stop()
+        let baseline = try XCTUnwrap(eventTapCountForThisProcess())
+
+        for _ in 0..<20 {
+            XCTAssertTrue(manager.start())
+            manager.stop()
+        }
+
+        XCTAssertEqual(eventTapCountForThisProcess(), baseline)
+    }
+
+    private func eventTapCountForThisProcess() -> Int? {
+        var count: UInt32 = 0
+        guard CGGetEventTapList(0, nil, &count) == .success else { return nil }
+        var taps = [CGEventTapInformation](repeating: CGEventTapInformation(), count: Int(count))
+        guard CGGetEventTapList(count, &taps, &count) == .success else { return nil }
+        return taps.prefix(Int(count)).filter { $0.tappingProcess == getpid() }.count
+    }
+
     private func sideSpecificFlags(_ masks: UInt64...) -> CGEventFlags {
         CGEventFlags(rawValue: masks.reduce(0, |))
     }
