@@ -218,21 +218,11 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
             ? cleanedURL
             : nil
 
-        if metadata.sourceAlignment.microphone != nil,
-            !microphoneAudio.exists
-        {
-            throw MeetingAudioError.storageFailed(
-                "Missing archived meeting source file: \(MeetingArtifactAudioFileNames.rawMicrophone)"
-                    + " or \(MeetingArtifactAudioFileNames.legacyRawMicrophone)")
-        }
-
-        if metadata.sourceAlignment.system != nil,
-            !systemAudio.exists
-        {
-            throw MeetingAudioError.storageFailed(
-                "Missing archived meeting source file: \(MeetingArtifactAudioFileNames.rawSystem)"
-                    + " or \(MeetingArtifactAudioFileNames.legacyRawSystem)")
-        }
+        try validateSourceFiles(
+            for: metadata,
+            microphoneExists: microphoneAudio.exists,
+            systemExists: systemAudio.exists
+        )
 
         return MeetingRecordingOutput(
             sessionID: UUID(),
@@ -254,23 +244,48 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         )
     }
 
-    /// The speech engine an archived meeting was captured with, or nil when the
-    /// archive predates engine capture or its metadata cannot be read. Reads only
-    /// the metadata JSON (no audio probing or artifact checks), so presentation
-    /// code can name the original engine without `loadArchived` (#1132).
+    /// The captured speech engine `loadArchived` would report, without its
+    /// playback duration probe: nil when the archive predates engine capture,
+    /// its metadata cannot be read, or a required source file is missing.
+    /// Presentation code uses this to name the rerun engine (#1132).
     public static func archivedSpeechEngine(
         mixedAudioURL: URL,
         fileManager: FileManager = .default
     ) -> SpeechEngineSelection? {
+        let folderURL = mixedAudioURL.deletingLastPathComponent()
         guard
-            let metadata = try? MeetingRecordingMetadataStore.load(
-                from: mixedAudioURL.deletingLastPathComponent(),
-                fileManager: fileManager),
-            metadata.speechEngineWasCaptured
+            let metadata = try? MeetingRecordingMetadataStore.load(from: folderURL, fileManager: fileManager),
+            metadata.speechEngineWasCaptured,
+            (try? validateSourceFiles(
+                for: metadata,
+                microphoneExists: MeetingArtifactAudioFileNames.resolveRawMicrophoneURL(
+                    in: folderURL, fileManager: fileManager
+                ).exists,
+                systemExists: MeetingArtifactAudioFileNames.resolveRawSystemURL(
+                    in: folderURL, fileManager: fileManager
+                ).exists
+            )) != nil
         else {
             return nil
         }
         return metadata.speechEngine
+    }
+
+    private static func validateSourceFiles(
+        for metadata: MeetingRecordingMetadata,
+        microphoneExists: Bool,
+        systemExists: Bool
+    ) throws {
+        if metadata.sourceAlignment.microphone != nil, !microphoneExists {
+            throw MeetingAudioError.storageFailed(
+                "Missing archived meeting source file: \(MeetingArtifactAudioFileNames.rawMicrophone)"
+                    + " or \(MeetingArtifactAudioFileNames.legacyRawMicrophone)")
+        }
+        if metadata.sourceAlignment.system != nil, !systemExists {
+            throw MeetingAudioError.storageFailed(
+                "Missing archived meeting source file: \(MeetingArtifactAudioFileNames.rawSystem)"
+                    + " or \(MeetingArtifactAudioFileNames.legacyRawSystem)")
+        }
     }
 
     private static func probedDurationSeconds(
