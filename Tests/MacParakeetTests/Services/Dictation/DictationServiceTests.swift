@@ -111,6 +111,103 @@ final class DictationServiceTests: XCTestCase {
         }
     }
 
+    func testRestartWaitsForNormalStopCaptureBeforeStarting() async throws {
+        let delayedSTT = DelayedSTTTranscriber(result: STTResult(text: "Stopped take"))
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: delayedSTT,
+            dictationRepo: dictationRepo
+        )
+        try await service.startRecording(sessionID: 1)
+        await mockAudio.pauseNextStopCaptureUntilReleased()
+
+        let stopTask = Task { try await self.service.stopRecording(sessionID: 1) }
+        await mockAudio.waitUntilStopCaptureIsPaused()
+        let restartTask = Task { try await self.service.startRecording(sessionID: 2) }
+        let startReachedHandoff = await waitForCondition {
+            let queued = await self.service.pendingStartCountForTesting()
+            let starts = await self.mockAudio.startCaptureCallCount
+            return queued == 1 || starts > 1
+        }
+        XCTAssertTrue(startReachedHandoff, "The replacement should reach the capture handoff")
+        let startsWhileStopping = await mockAudio.startCaptureCallCount
+        XCTAssertEqual(startsWhileStopping, 1, "The old stop must finish before replacement capture")
+
+        await mockAudio.releasePausedStopCapture()
+        await delayedSTT.waitForTranscribeCall(1)
+        try await restartTask.value
+        let startsAfterStop = await mockAudio.startCaptureCallCount
+        XCTAssertEqual(startsAfterStop, 2)
+
+        await delayedSTT.releaseTranscribeCall(1)
+        let oldResult = try await stopTask.value
+        XCTAssertEqual(oldResult.dictation.rawTranscript, "Stopped take")
+        let state = await service.state
+        XCTAssertTrue(Self.isRecording(state), "The old result must not replace the new session")
+        let isRecording = await mockAudio.isRecording
+        XCTAssertTrue(isRecording)
+        await service.confirmCancel(sessionID: 2)
+    }
+
+    func testRestartStartsFreshLiveAndDisplaySessionsAfterStop() async throws {
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldAttemptLiveDictationTranscription: { true },
+            dictationPreviewSpeechEngine: { Self.previewSpeechEngine(.parakeet(.v3)) },
+            dictationPreviewInterval: .zero
+        )
+        await mockSTT.configure(result: STTResult(text: "Stopped take"))
+        await mockSTT.configureLive(result: STTResult(text: "Live take", engine: .nemotron))
+        await mockSTT.configurePreview(result: STTResult(text: "Preview", engine: .parakeet))
+        await mockSTT.holdLiveAppends()
+
+        try await service.startRecording(sessionID: 1)
+        await mockAudio.emitLiveSamples([0.1, 0.2])
+        let oldLiveAppendStarted = await waitForCondition {
+            await self.mockSTT.liveAppendCallCount == 1
+        }
+        XCTAssertTrue(oldLiveAppendStarted)
+        let oldPreviewStarted = await mockSTT.waitForPreviewCallCount(1)
+        XCTAssertTrue(oldPreviewStarted)
+        await mockAudio.pauseNextStopCaptureUntilReleased()
+
+        let stopTask = Task { try await self.service.stopRecording(sessionID: 1) }
+        await mockAudio.waitUntilStopCaptureIsPaused()
+        let restartTask = Task { try await self.service.startRecording(sessionID: 2) }
+        let queued = await waitForCondition {
+            await self.service.pendingStartCountForTesting() == 1
+        }
+        XCTAssertTrue(queued)
+        await mockAudio.releasePausedStopCapture()
+        let oldPreviewCancelled = await waitForCondition {
+            await self.mockSTT.previewCancelCallCount == 1
+        }
+        XCTAssertTrue(oldPreviewCancelled)
+        let startsWhileLiveFinishes = await mockAudio.startCaptureCallCount
+        XCTAssertEqual(startsWhileLiveFinishes, 1, "The replacement must wait for old live STT")
+        await mockSTT.releaseLiveAppends()
+        try await restartTask.value
+
+        let liveBegins = await mockSTT.liveBeginCallCount
+        XCTAssertEqual(liveBegins, 2, "The replacement needs its own live STT session")
+        await mockSTT.emitLivePartial("New take partial")
+        let newPartialApplied = await waitForCondition {
+            await self.service.liveTranscript == "New take partial"
+        }
+        XCTAssertTrue(newPartialApplied, "The replacement must receive its own live text")
+        await mockAudio.emitLiveSamples([0.3, 0.4])
+        let newPreviewStarted = await mockSTT.waitForPreviewCallCount(2)
+        XCTAssertTrue(newPreviewStarted, "The replacement needs its own display preview")
+
+        let oldResult = try await stopTask.value
+        XCTAssertEqual(oldResult.dictation.rawTranscript, "Stopped take")
+        let state = await service.state
+        XCTAssertTrue(Self.isRecording(state))
+        await service.confirmCancel(sessionID: 2)
+    }
+
     func testRestartWaitsForOlderCancelCaptureStop() async throws {
         await mockSTT.configure(result: STTResult(text: "New take"))
         try await service.startRecording(context: DictationTelemetryContext(), sessionID: 1)

@@ -2,10 +2,13 @@ import Foundation
 import GRDB
 
 public enum PromptResultRepositoryError: LocalizedError, Equatable {
+    case conditionalContentUpdateUnavailable
     case conditionalReplacementUnavailable
 
     public var errorDescription: String? {
         switch self {
+        case .conditionalContentUpdateUnavailable:
+            return "This result repository cannot safely edit saved content."
         case .conditionalReplacementUnavailable:
             return "This result repository cannot safely replace an edited result."
         }
@@ -34,6 +37,12 @@ public protocol PromptResultRepositoryProtocol: Sendable {
 }
 
 public extension PromptResultRepositoryProtocol {
+    func updateContent(id: UUID, expectedContent: String, content: String, editedAt: Date) throws -> PromptResult? {
+        // Preserve existing conformers without turning an edit into an unsafe
+        // read-then-save sequence outside one transaction.
+        throw PromptResultRepositoryError.conditionalContentUpdateUnavailable
+    }
+
     func replaceIfUnchanged(
         _ replacement: PromptResult,
         deletingExistingID: UUID,

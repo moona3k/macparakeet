@@ -43,6 +43,12 @@ struct VoiceControlReplayCommand: AsyncParsableCommand {
     var json: Bool = false
 
     func run() async throws {
+        try await emitJSONOrRethrow(json: json) {
+            try await replay()
+        }
+    }
+
+    private func replay() async throws {
         let persisted = try VoiceControlPersistedSession.load(from: URL(fileURLWithPath: session))
         guard !persisted.observations.isEmpty else {
             throw ValidationError("The session has no observations to replay.")

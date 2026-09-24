@@ -1150,7 +1150,10 @@ private extension CLISpecCommand {
             options: [
                 CLISpecParameter.option(
                     "--input", valueName: "PATH", summary: "Read bundle from a file; stdin if omitted."),
-                CLISpecParameter.option("--policy", valueName: "skip|replace", summary: "Conflict policy."),
+                CLISpecParameter.option(
+                    "--policy", valueName: "skip|replace|replace-all",
+                    summary: "Skip or replace matching entries, or reset manual vocabulary before import."
+                ),
                 CLISpecParameter.flag("--dry-run", summary: "Decode and report without writing."),
                 databaseOption,
             ],

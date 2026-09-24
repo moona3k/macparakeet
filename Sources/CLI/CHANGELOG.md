@@ -30,6 +30,11 @@ JSON output schemas are part of the contract: top-level shape (array vs
 object), field names, and field types are stable within a major version. We
 may add new optional fields in a minor release.
 
+The one experimental exception is `voice-control replay`, a diagnostic for
+saved observations rather than a live speech-control command. Its report fields
+may change while Voice Control is release-gated. Shared JSON stdout and error
+envelope conventions still apply.
+
 ### Exit codes
 
 The CLI uses a small set of exit codes. They are part of the public contract;
@@ -71,7 +76,7 @@ input, lookup miss, runtime exception, etc.:
 ```
 
 `errorType` is a low-cardinality stable string. Current values: `auth`,
-`config`, `connection`, `context`, `input_empty`, `input_missing`,
+`config`, `connection`, `conflict`, `context`, `input_empty`, `input_missing`,
 `import_schema`, `invalid_response`, `lookup`, `model`, `provider`,
 `rate_limit`, `runtime`, `streaming`, `truncated`, `validation`. New error
 classes get new values in minor releases; existing values are stable within a
@@ -102,6 +107,17 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 - Saved prompt-result JSON may include the additive `sourceTranscriptHash`
   receipt for detecting retranscription even when the correction revision
   resets. It is omitted for results with unknown source text.
+- `parakeet-model` accepts `orukeet`. `config set parakeet-model orukeet`,
+  `transcribe` / `retranscribe --parakeet-model orukeet`, and
+  `models download|select|delete parakeet-orukeet` address that preview.
+  `models list` may include the additive `parakeet-orukeet` entry (engine
+  `parakeet`, variant `orukeet`). The default remains `v3`. Transcription
+  results report `engineVariant` `orukeet`. Native streaming, tail-window
+  dictation preview, and recognition-time vocabulary boosting stay off.
+- Inline LLM commands accept `--provider appleIntelligence` (aliases `apple`,
+  `apple-intelligence`) to use macOS 26 Apple Intelligence on-device. No API
+  key. The on-device window is small; long transcripts still need a cloud or
+  Ollama provider.
 - `config get|set|list` includes `meeting-ai-output-language`
   (`follow-transcript` or `en|pl|de|es|fr|pt|ja|zh`, default `follow-transcript`). This
   controls the language of generated AI results, not speech recognition.
@@ -116,6 +132,9 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   and `snippetsRemoved` for the writes that actually ran. Skip remains the
   default; unmatched learned recognition terms are kept. Empty bundles cannot
   replace all, and a changed dictionary requires a fresh preview.
+- `vocab import` now reports malformed bundles as `import_schema` with exit
+  code `2`, and empty `replace-all` bundles as `input_empty` with exit code
+  `2`. A stale preview reports `conflict` with exit code `1`.
 - `config get|set|list` includes `play-dictation-capture-sounds` (`on`/`off`,
   default off). When on, dictation plays a short cue once the microphone is
   live and another when that capture ends, whether it was stopped or
@@ -147,14 +166,6 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Added
 
-- `parakeet-model` accepts `orukeet`. `config set parakeet-model orukeet`,
-  `transcribe` / `retranscribe --parakeet-model orukeet`, and
-  `models download|select|delete parakeet-orukeet` address that preview.
-  `models list` may include the additive `parakeet-orukeet` entry (engine
-  `parakeet`, variant `orukeet`). The default remains `v3`. Transcription
-  results from this build report `engineVariant` `orukeet`. Native streaming,
-  tail-window dictation preview, and recognition-time vocabulary boosting stay
-  off.
 - Inline `--provider` accepts `moonshot` (aliases `kimi`, `moonshotai`),
   `deepseek`, `qwen` (aliases `alibaba`, `dashscope`), `zai` (aliases `zhipu`,
   `z.ai`, `glm`), and `minimax`. Default env keys are `MOONSHOT_API_KEY` /
@@ -200,10 +211,6 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   off). While on, every microphone-capturing meeting starts muted until the
   setting is turned off; unmute from the live meeting panel.
   System-audio-only capture ignores it.
-- Inline LLM commands accept `--provider appleIntelligence` (aliases `apple`,
-  `apple-intelligence`) to use macOS 26 Apple Intelligence on-device. No API
-  key. The on-device window is small; long transcripts still need a cloud or
-  Ollama provider.
 
 ### Changed
 
@@ -211,6 +218,7 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   standalone `um` by default. The previous multilingual-safe default is the
   off value of `remove-um-filler`. Meetings stay verbatim: they do not run
   filler removal.
+
 ## [4.2.0] — 2026-09-15
 
 ### Added

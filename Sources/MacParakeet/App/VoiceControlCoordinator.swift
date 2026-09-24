@@ -280,7 +280,8 @@ final class VoiceControlCoordinator {
         let router = VoiceControlCommandRouter(
             fallback: engine, rewrite: rewrite,
             selectionAtInvocation: { [weak self] in
-                await MainActor.run { self?.invocationSnapshot }
+                guard let self else { return nil }
+                return await MainActor.run { self.invocationSnapshot }
             })
         let runner = VoiceControlTurnRunner(adapter: adapter, engine: router, sink: traces)
         self.runner = runner

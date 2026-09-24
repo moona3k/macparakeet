@@ -1,6 +1,6 @@
 # ADR-031: Segment-Timed Transcript Corrections
 
-> Status: **Accepted; implemented in development source**
+> Status: **Accepted; segment-timed corrections ship in stable 0.8.7; reading-view amendment remains unreleased**
 > Date: 2026-09-13
 > Related: [ADR-010](010-speaker-diarization.md),
 > [ADR-027](027-product-north-star.md),
@@ -118,15 +118,16 @@ for audit but is neither replayed nor undoable on the new automatic transcript.
 
 ### Implemented surfaces
 
-The development implementation includes correction replay and migration,
+The implementation includes correction replay and migration,
 effective search/card derivation, Timed and Text views, playback highlighting,
 SRT/VTT/TXT/Markdown/PDF/DOCX and DAPT exports, AI context, encrypted-share
 projection, meeting artifacts, and CLI meeting JSON. Public JSON and artifact
 fields are additive; automatic word evidence stays present for inspection.
 
 Focused model, database, view-model, UI-layout, export, sharing, artifact, and
-CLI tests cover the projection and compatibility rules. Stable-DMG availability
-and hardware interaction remain release evidence, not consequences of this ADR.
+CLI tests cover the projection and compatibility rules. Segment-timed correction
+availability is established by the 0.8.7 DMG; the later reading-view amendment
+is development source. Hardware interaction remains a separate release gate.
 
 ## Consequences
 

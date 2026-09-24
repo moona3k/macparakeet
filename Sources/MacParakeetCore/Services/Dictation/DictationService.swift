@@ -581,6 +581,20 @@ public actor DictationService: DictationServiceProtocol {
     }
 
     public func stopRecording(sessionID: Int?) async throws -> DictationResult {
+        // A replacement can claim its ID while its start still owns the old
+        // recorder cleanup. Reject that provisional take without waiting for
+        // the start permit held by the cleanup owner.
+        if replacementCleanupSessionID == activeSessionID {
+            logger.notice("stopRecording rejected provisional replacement session=\(self.activeSessionID)")
+            throw DictationServiceError.notRecording
+        }
+
+        // Keep capture finalization and live-session cleanup ahead of a new
+        // start. Recorded-file transcription can still overlap that capture.
+        try await startPermit.wait()
+        var holdingStartPermit = true
+        defer { if holdingStartPermit { startPermit.signal() } }
+
         // A cancellation may still own the shared recorder after its state check.
         await waitForCancellationToSettle()
         if let sessionID, sessionID != activeSessionID {
@@ -631,6 +645,8 @@ public actor DictationService: DictationServiceProtocol {
             let device = await audioProcessor.recordingDeviceInfo
             await cancelDisplayPreview(sessionID: currentSession, clearText: false)
             _ = await finishLiveDictationTranscription(sessionID: currentSession)
+            startPermit.signal()
+            holdingStartPermit = false
             logger.debug(
                 "dictation_capture_stopped session=\(currentSession, privacy: .public) path=\(audioURL.path, privacy: .private)"
             )

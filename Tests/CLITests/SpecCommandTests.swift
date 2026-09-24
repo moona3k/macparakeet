@@ -26,6 +26,15 @@ final class SpecCommandTests: XCTestCase {
         XCTAssertTrue((command["output"] as? String)?.contains("needsRetry") == true)
     }
 
+    func testSpecDocumentsVocabularyImportPolicies() throws {
+        let commands = try XCTUnwrap(specPayload()["commands"] as? [[String: Any]])
+        let command = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["vocab", "import"] })
+        let options = try XCTUnwrap(command["options"] as? [[String: Any]])
+        let policy = try XCTUnwrap(options.first { ($0["name"] as? String) == "--policy" })
+        XCTAssertEqual(policy["valueName"] as? String, "skip|replace|replace-all")
+        XCTAssertTrue((policy["summary"] as? String)?.contains("reset manual vocabulary") == true)
+    }
+
     func testSpecDocumentsPromptCollectionCommandsAndMembership() throws {
         let payload = try specPayload()
         let commands = try XCTUnwrap(payload["commands"] as? [[String: Any]])
