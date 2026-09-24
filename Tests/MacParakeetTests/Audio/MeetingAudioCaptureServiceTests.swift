@@ -46,6 +46,16 @@ private extension MeetingAudioCaptureService {
         return report
     }
 
+    func waitForMicrophoneLeaseReleaseForTesting() async throws {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(8))
+        while isMicrophoneLeaseHeld {
+            guard ContinuousClock.now < deadline else {
+                throw MeetingAudioError.captureStartupTimedOut
+            }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+    }
+
     private func waitForSystemStartupForTesting() async throws {
         let deadline = ContinuousClock.now.advanced(by: .seconds(8))
         while isSystemAudioStartPending {
@@ -436,6 +446,8 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         )
 
         await service.stop()
+        // The replacement must own the microphone so retired callbacks race a live session.
+        try await service.waitForMicrophoneLeaseReleaseForTesting()
 
         let replacementMicrophoneBuffers = FactoryInvocationBox()
         let replacementSystemBuffers = FactoryInvocationBox()
