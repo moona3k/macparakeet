@@ -39,6 +39,15 @@ final class PromptResultRepositoryTests: XCTestCase {
         }
     }
 
+    func testLegacyProtocolConformerRefusesUnsafeContentEdit() {
+        let legacy: any PromptResultRepositoryProtocol = LegacyPromptResultRepository()
+        XCTAssertThrowsError(
+            try legacy.updateContent(id: UUID(), expectedContent: "Old", content: "New", editedAt: Date())
+        ) { error in
+            XCTAssertEqual(error as? PromptResultRepositoryError, .conditionalContentUpdateUnavailable)
+        }
+    }
+
     func testSaveAndFetchAllOrdersNewestFirst() throws {
         let transcription = try makeTranscription()
         let older = PromptResult(
@@ -434,9 +443,6 @@ final class PromptResultRepositoryTests: XCTestCase {
 
 private struct LegacyPromptResultRepository: PromptResultRepositoryProtocol {
     func save(_ promptResult: PromptResult) throws {}
-    func updateContent(id: UUID, expectedContent: String, content: String, editedAt: Date) throws -> PromptResult? {
-        nil
-    }
     func fetchAll(transcriptionId: UUID) throws -> [PromptResult] { [] }
     func delete(id: UUID) throws -> Bool { false }
     func deleteAll(transcriptionId: UUID) throws {}

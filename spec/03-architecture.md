@@ -1,6 +1,6 @@
 # MacParakeet: Architecture
 
-> Status: **ACTIVE** — implementation map, audited 2026-09-07.
+> Status: **ACTIVE** — implementation map, audited 2026-09-07 and refreshed for post-0.8.7 paths on 2026-09-24.
 > Source presence describes development capability. The
 > [release and flag table](README.md#release-channels-and-feature-flags)
 > governs availability; this document is not release qualification.
@@ -24,6 +24,7 @@ flowchart TD
     Speech --> Fluid[FluidAudio: Parakeet, Nemotron, Cohere]
     Speech --> Whisper[WhisperKit]
     Core --> AI[RoutingLLMClient: configured HTTP or Local CLI]
+    AI --> AppleAI[Apple Intelligence: on-device Foundation Models when selected]
     App -. opt-in build and developer gate .-> MLX[MacParakeetLocalLLM]
 ```
 
@@ -58,6 +59,9 @@ own downstream copies.
 `AudioProcessor` wraps the dictation recorder and `AudioFileConverter`; feature
 services do not install independent microphone engines. System meeting audio
 comes through `SystemAudioStream` using ScreenCaptureKit.
+The default-off Voice Control experiment shares the microphone stream and STT
+scheduler but owns an ephemeral command session; see
+[ADR-033](adr/033-explicit-voice-control.md).
 
 Meeting source selection is mic, system, or both. Mic-only recording requires
 no Screen Recording permission. The shipping microphone processing mode is
@@ -251,7 +255,10 @@ legacy meeting-type policies are compatibility data only.
 Prompt definitions and versions remain in the same GRDB database; completed `PromptResult` values retain
 the compatibility table name `summaries`. Result prompts snapshot prompt
 content, included notes and effective inference settings so a later edit does
-not rewrite a historical request receipt. Default/unsupported provider settings
+not rewrite a historical request receipt. A source-text hash and correction
+revision let the reading view identify results needing an update; regeneration
+replaces an earlier result only if its content and edit timestamp still match
+the generation snapshot. Default/unsupported provider settings
 follow [spec 14](14-per-prompt-inference-settings.md), not arbitrary passthrough.
 Transforms have separate selected-text capture/replacement and history semantics.
 See [LLM integration](11-llm-integration.md), [processing layer](12-processing-layer.md)

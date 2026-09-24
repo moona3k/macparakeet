@@ -449,6 +449,18 @@ enum CLIErrorType {
     static let validation = "validation"
 
     static func key(for error: Error) -> String {
+        if let importError = error as? VocabularyImportExportService.ImportError {
+            switch importError {
+            case .invalidSchema, .unsupportedVersion, .decodingFailed, .invalidEntry:
+                return importSchema
+            case .emptyReplaceAll:
+                return inputEmpty
+            case .stalePreview:
+                return conflict
+            case .ioFailed:
+                return runtime
+            }
+        }
         if let importError = error as? MeetingImportError {
             switch importError {
             case .invalidSource, .unsupportedFormat, .blankTitle:
@@ -682,6 +694,15 @@ private func rethrowWithOptionalJSONEnvelope(_ error: Error, json: Bool) throws 
 }
 
 func isCLIValidationMisuse(_ error: Error) -> Bool {
+    if let importError = error as? VocabularyImportExportService.ImportError {
+        switch importError {
+        case .invalidSchema, .unsupportedVersion, .decodingFailed, .invalidEntry,
+            .emptyReplaceAll:
+            return true
+        case .ioFailed, .stalePreview:
+            return false
+        }
+    }
     if let importError = error as? MeetingImportError {
         switch importError {
         case .invalidSource, .unsupportedFormat, .blankTitle:

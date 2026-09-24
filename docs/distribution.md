@@ -200,7 +200,10 @@ Because Cloudflare may serve a cached object briefly, also verify with a cache-b
 curl -sI "https://downloads.macparakeet.com/MacParakeet.dmg?ts=$(date +%s)" | head -10
 ```
 
-Confirm `content-length`, `last-modified`, and `etag` match the newly uploaded DMG.
+Confirm `content-length` and the downloaded object's SHA-256 match the signed
+local DMG. `last-modified` and `etag` help diagnose cache behavior, but neither
+establishes artifact identity. Run the exact enclosure-URL digest check in
+Step 3 below.
 
 ## Full release workflow
 
@@ -306,12 +309,20 @@ npx wrangler r2 object put macparakeet-downloads/MacParakeet.dmg \
   --remote
 ```
 
-Verify — **the file size MUST match `dist/MacParakeet.dmg` exactly:**
+Verify the bytes served through the enclosure URL's cache key. **Both size and
+SHA-256 MUST match `dist/MacParakeet.dmg` exactly:**
 ```bash
+set -o pipefail
+BUILD_NUMBER=$(plutil -extract CFBundleVersion raw -o - dist/MacParakeet.app/Contents/Info.plist)
 LOCAL_SIZE=$(stat -f%z dist/MacParakeet.dmg)
-REMOTE_SIZE=$(curl -sI "https://downloads.macparakeet.com/MacParakeet.dmg?ts=$(date +%s)" | grep -i content-length | awk '{print $2}' | tr -d '\r')
+REMOTE_SIZE=$(curl -fsSI "https://downloads.macparakeet.com/MacParakeet.dmg?v=$BUILD_NUMBER" | grep -i content-length | awk '{print $2}' | tr -d '\r')
 echo "Local: $LOCAL_SIZE  Remote: $REMOTE_SIZE"
-# These MUST be identical. If not, re-upload — another process may have overwritten the object.
+test "$LOCAL_SIZE" = "$REMOTE_SIZE"
+LOCAL_SHA=$(shasum -a 256 dist/MacParakeet.dmg | awk '{print $1}')
+REMOTE_SHA=$(curl -fsSL "https://downloads.macparakeet.com/MacParakeet.dmg?v=$BUILD_NUMBER" | shasum -a 256 | awk '{print $1}')
+test "$LOCAL_SHA" = "$REMOTE_SHA"
+# If either check fails, stop: the CDN may be stale or another process may
+# have overwritten the object. Do not publish an appcast for mismatched bytes.
 ```
 
 ### Step 4: Sign DMG for Sparkle
@@ -364,7 +375,8 @@ curl -s "https://macparakeet.com/appcast.xml?ts=$(date +%s)" | grep "sparkle:ver
 
 ### Step 7: Verify end-to-end
 
-1. Confirm R2 file size matches appcast `length`
+1. Repeat the Step 3 size and SHA-256 checks for the published enclosure URL;
+   confirm its length matches the appcast `length`.
 2. Confirm appcast `sparkle:version` is newer than the installed app's build number
 3. Launch the app → "Check for Updates..." from the menu bar → should find and validate the update
 4. Confirm the GitHub release `vX.Y.Z` includes an asset named **exactly**
@@ -540,14 +552,9 @@ Cloudflare CDN caches R2 objects with a ~4 hour TTL based on the full URL includ
 
 R2 ignores query params and serves the current object. Cloudflare CDN treats the new URL as a cache miss and fetches fresh. Each build has a unique build number, so each release gets its own cache slot.
 
-**How to verify:** After uploading, compare local and remote file sizes:
-
-```bash
-LOCAL_SIZE=$(stat -f%z dist/MacParakeet.dmg)
-REMOTE_SIZE=$(curl -sI "https://downloads.macparakeet.com/MacParakeet.dmg?v=$(plutil -extract CFBundleVersion raw dist/MacParakeet.app/Contents/Info.plist)" | grep -i content-length | awk '{print $2}' | tr -d '\r')
-echo "Local: $LOCAL_SIZE  Remote: $REMOTE_SIZE"
-# MUST be identical. If not, wait and retry — CDN propagation can take a few seconds.
-```
+**How to verify:** After uploading, run the size and SHA-256 checks in Step 3
+against the exact `?v={BUILD_NUMBER}` URL used in the appcast. If either value
+differs, stop and resolve the stale or overwritten object before publishing.
 
 #### 3. DMG must include Applications symlink
 
@@ -569,7 +576,7 @@ The Sparkle `sign_update` tool produces an EdDSA signature over the exact bytes 
 3. Run `sign_update` on **that same DMG**
 4. Put the signature in the appcast
 
-If another process or agent overwrites the R2 object between steps 2 and 3, the signature won't match. Always verify file sizes match after upload (Step 3 in the release workflow).
+If another process or agent overwrites the R2 object between steps 2 and 3, the signature won't match. Verify size and SHA-256 after upload (Step 3 in the release workflow).
 
 #### 5. `yt-dlp_macos` is PyInstaller and needs a special signing entitlement
 

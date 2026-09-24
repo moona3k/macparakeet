@@ -1,6 +1,6 @@
 # ADR-033: Explicit Voice Control
 
-Status: ACCEPTED for implementation; release qualification pending.
+Status: ACCEPTED; implemented behind a default-off release flag; release qualification pending.
 Date: 2026-09-19.
 
 ## Decision

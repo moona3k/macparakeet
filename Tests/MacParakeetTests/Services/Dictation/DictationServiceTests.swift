@@ -111,6 +111,44 @@ final class DictationServiceTests: XCTestCase {
         }
     }
 
+    func testRestartWaitsForNormalStopCaptureBeforeStarting() async throws {
+        let delayedSTT = DelayedSTTTranscriber(result: STTResult(text: "Stopped take"))
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: delayedSTT,
+            dictationRepo: dictationRepo
+        )
+        try await service.startRecording(sessionID: 1)
+        await mockAudio.pauseNextStopCaptureUntilReleased()
+
+        let stopTask = Task { try await self.service.stopRecording(sessionID: 1) }
+        await mockAudio.waitUntilStopCaptureIsPaused()
+        let restartTask = Task { try await self.service.startRecording(sessionID: 2) }
+        let startReachedHandoff = await waitForCondition {
+            let queued = await self.service.pendingStartCountForTesting()
+            let starts = await self.mockAudio.startCaptureCallCount
+            return queued == 1 || starts > 1
+        }
+        XCTAssertTrue(startReachedHandoff, "The replacement should reach the capture handoff")
+        let startsWhileStopping = await mockAudio.startCaptureCallCount
+        XCTAssertEqual(startsWhileStopping, 1, "The old stop must finish before replacement capture")
+
+        await mockAudio.releasePausedStopCapture()
+        await delayedSTT.waitForTranscribeCall(1)
+        try await restartTask.value
+        let startsAfterStop = await mockAudio.startCaptureCallCount
+        XCTAssertEqual(startsAfterStop, 2)
+
+        await delayedSTT.releaseTranscribeCall(1)
+        let oldResult = try await stopTask.value
+        XCTAssertEqual(oldResult.dictation.rawTranscript, "Stopped take")
+        let state = await service.state
+        XCTAssertTrue(Self.isRecording(state), "The old result must not replace the new session")
+        let isRecording = await mockAudio.isRecording
+        XCTAssertTrue(isRecording)
+        await service.confirmCancel(sessionID: 2)
+    }
+
     func testRestartWaitsForOlderCancelCaptureStop() async throws {
         await mockSTT.configure(result: STTResult(text: "New take"))
         try await service.startRecording(context: DictationTelemetryContext(), sessionID: 1)

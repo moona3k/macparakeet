@@ -64,12 +64,13 @@ LLM-powered features (summaries, chat/Meeting Ask, AI Formatter, and Transforms)
   Disabling telemetry does not disable Discover, or vice versa.
 - **Explicit submissions**: Feedback and Discover thoughts send the user's
   submitted content and associated diagnostics; these are not STT uploads.
-- **Encrypted share snapshots (planned)**: [ADR-029](029-encrypted-shareable-transcript-snapshots.md)
-  adds an explicit, text-only publication surface at `share.macparakeet.com`.
+- **Encrypted share snapshots (implemented, release-gated)**: [ADR-029](029-encrypted-shareable-transcript-snapshots.md)
+  defines an explicit, text-only publication surface at `share.macparakeet.com`.
   The user previews the selected snapshot, the Mac encrypts it before upload,
   the content key stays in the recipient URL fragment, and source audio remains
-  structurally excluded. This is not Library sync and is not implemented merely
-  because the ADR and contracts exist.
+  structurally excluded. This is not Library sync. The app implementation is
+  behind `AppFeatures.shareLinksEnabled = false`; release builds do not expose
+  the sharing flow.
 - **Dormant licensing**: Free public builds do not require activation.
   Retained activation/deactivation methods use LemonSqueezy when invoked. App
   setup also refreshes a previously stored activation when the last successful
@@ -95,9 +96,13 @@ A local 8B model produces mediocre summaries. Cloud models (Claude, GPT-4) produ
 | No provider (default) | No | No | No LLM features |
 | Ollama | No | No with a localhost server; remote endpoints send text off-device | Depends on configured model |
 | Local CLI | No | Depends on the CLI tool | Varies by tool/provider |
+| Apple Intelligence provider | No | No; MacParakeet uses the on-device Foundation Models API only | Depends on the system model |
 | Cloud API key | No | Yes, for configured AI workflows | Depends on configured model |
 
-Users make an informed choice. The UI makes the tradeoff explicit. Apple Intelligence follows the same pattern — on-device by default, cloud with user consent for complex tasks.
+Users make an informed choice. The UI makes the tradeoff explicit. Apple's
+broader Intelligence platform may use Private Cloud Compute, but MacParakeet's
+Apple Intelligence provider uses the on-device Foundation Models API with no
+cloud fallback.
 
 Core capture, local-file transcription, and local retrieval remain usable
 offline after model setup. Local LLM servers can keep generated text on-device,
@@ -114,7 +119,8 @@ Cloud LLM costs are paid directly by the user to their provider (Anthropic, Open
 - Cursor ($20/mo) — bring your own API key for AI features
 - Raycast — optional AI features with user's API key
 - Char (fastrepl/char) — meeting transcription with cloud + local-provider support
-- Apple Intelligence — on-device default, Private Cloud Compute for complex tasks
+- Apple Intelligence platform — on-device processing and, in other Apple
+  surfaces, Private Cloud Compute; MacParakeet uses only its on-device model
 
 ## Consequences
 
@@ -123,7 +129,7 @@ Cloud LLM costs are paid directly by the user to their provider (Anthropic, Open
 - Audio never leaves the device — core privacy promise intact
 - Transcription works fully offline — no degradation
 - LLM features use best-available models (Claude, GPT-4) without bundling a runtime
-- Local-only users can use Ollama
+- Local-only users can use Ollama or the eligible on-device Apple Intelligence provider
 - Zero resource impact from LLM in the default configuration (no GPU memory, no automatic model downloads; the developer-gated Local MLX path in ADR-011 is explicit opt-in)
 - Business model remains flexible: current public builds are free/GPL, while official paid distribution/support can be added without changing the local-first architecture
 - App Store compatible
@@ -131,8 +137,8 @@ Cloud LLM costs are paid directly by the user to their provider (Anthropic, Open
 ### Negative
 
 - **Messaging complexity**: Local speech and offline core operation are narrower than a no-network app. Discover, updates, opted-in providers, and opt-out telemetry must be described independently.
-- **Cloud LLM features require internet**: Summaries, chat/Meeting Ask, AI Formatter, and Transforms won't work offline unless user runs a local provider. Transcription still works offline.
-- **Transcript text exposure**: When using cloud providers or cloud-backed CLI tools, transcript text is sent to third-party services. Must be clear in UI. Users with sensitive content should use Ollama or skip LLM features.
+- **Cloud providers require internet**: Summaries, chat/Meeting Ask, AI Formatter, and Transforms can run offline only when configured with an available local provider, including eligible on-device Apple Intelligence. Transcription still works offline.
+- **Transcript text exposure**: When using cloud providers or cloud-backed CLI tools, transcript text is sent to third-party services. Must be clear in UI. Users with sensitive content should choose a local provider or skip LLM features.
 - **No cloud backup or sync**: User data stays on-device. If the Mac is lost, dictation history is lost. This is intentional.
 - **No collaborative corpus**: ADR-029 permits a separately encrypted, read-only text snapshot. Real-time collaboration, team vocabularies, comments, and cross-device Library sync remain out of scope.
 
@@ -143,4 +149,6 @@ Cloud LLM costs are paid directly by the user to their provider (Anthropic, Open
 - ADR-008: Previous local LLM approach (HISTORICAL — removed 2026-02-23)
 - WisprFlow Trustpilot reviews: 2.8/5 average, common complaints about delays and reliability
 - Reddit r/macapps sentiment: strong preference for local processing
-- Apple Intelligence strategy: on-device processing as default, cloud only for complex tasks with user consent
+- Apple Intelligence platform strategy: on-device processing plus optional
+  Private Cloud Compute in other Apple surfaces; this app's provider uses only
+  on-device Foundation Models

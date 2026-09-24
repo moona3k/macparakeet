@@ -61,8 +61,11 @@ the [research plan](../../plans/active/2026-09-19-jev-voice-control.md).
 - `GUIMutationArbiter` coordinates foreground effects with dictation, Transforms
   and menu/history paste.
 
-No public CLI speech-control command or external automation API is introduced by
-this boundary. Developer qualification executables are test tools.
+No public CLI command captures speech or executes Voice Control effects, and no
+external live-control API is introduced by this boundary. The experimental
+`voice-control replay` diagnostic below reads saved observations only; its
+report shape is excluded from the stable [CLI JSON v1 contract](cli-json-v1.md).
+Developer qualification executables are test tools.
 
 ## Entry, credentials and consent
 

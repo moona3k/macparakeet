@@ -616,11 +616,13 @@ final class VocabCommandTests: XCTestCase {
             }
         }
 
-        XCTAssertNotNil(thrownError)
+        let failure = try XCTUnwrap(thrownError)
+        XCTAssertEqual(CLI.normalizedExitCode(for: failure), cliValidationMisuseExitCode)
         let decoded = try XCTUnwrap(
             try JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any]
         )
         XCTAssertEqual(decoded["ok"] as? Bool, false)
+        XCTAssertEqual(decoded["errorType"] as? String, "input_empty")
         XCTAssertTrue((decoded["error"] as? String)?.contains("no words or snippets") == true)
 
         let manager = try DatabaseManager(path: dbPath)
@@ -645,13 +647,23 @@ final class VocabCommandTests: XCTestCase {
         let cmd = try VocabImportCommand.parse([
             "--database", dbPath,
             "--input", bundlePath,
+            "--json",
         ])
-        do {
-            try await cmd.run()
-            XCTFail("expected import to throw on invalid schema")
-        } catch {
-            // Expected — invalid schema rejected.
+        var thrownError: Error?
+        let output = try await capturingStdout {
+            do {
+                try await cmd.run()
+            } catch {
+                thrownError = error
+            }
         }
+        let failure = try XCTUnwrap(thrownError)
+        XCTAssertEqual(CLI.normalizedExitCode(for: failure), cliValidationMisuseExitCode)
+        let decoded = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(decoded["ok"] as? Bool, false)
+        XCTAssertEqual(decoded["errorType"] as? String, "import_schema")
     }
 
     // MARK: - Helpers

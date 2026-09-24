@@ -22,12 +22,13 @@ meeting intelligence. Those jobs want opposite LLM properties:
 
 [#408](https://github.com/moona3k/macparakeet/issues/408) asked to separate
 dictation/transform AI from meeting AI on model size, latency, and cost.
-The latency half shipped as independent formatter **enablement** toggles
+The latency half first shipped as independent formatter **enablement** toggles
 ("Use for dictation", "Use for transcripts") plus a transcription input
-cap. Settings still stores **one** default `LLMProviderConfig`.
-`StoredLLMExecutionContextResolver` is task-blind. Prompt and Transform
-`modelOverride` values, and `--model` on commands that use the saved
-Settings route, overlay that route and are not removed by this ADR.
+cap. Settings retains one default `LLMProviderConfig` and now also stores
+optional full-route overrides for cleanup and analysis. The resolver selects
+the task route. Prompt and Transform `modelOverride` values, and `--model` on
+commands that use the saved Settings route, overlay that route and are not
+removed by this ADR.
 Inline CLI commands that pass a full provider context are independent
 configs; they do not require the saved Settings route.
 
@@ -45,8 +46,8 @@ Claude/Ollama list.
 
 ## Decision
 
-If MacParakeet adds per-task model selection, it follows this ADR. This
-does not schedule the work and does not change current runtime behavior.
+The general-LLM task routes in this decision are implemented. Specialist
+recipes and translation remain future work; this ADR does not schedule them.
 
 **Product model:** define a few tasks, then a selector on each task.
 Inherit the default, pick a general LLM route, or — where the task

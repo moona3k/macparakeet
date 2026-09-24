@@ -8,6 +8,12 @@
 agents, and external tools. JSON modes must remain machine-readable on stdout,
 with human progress/status kept off stdout.
 
+`voice-control replay` is the sole experimental output-shape exception. It
+routes a saved Voice Control observation for diagnosis and never observes or
+acts on the live screen. Its report fields may change while Voice Control is
+release-gated; the shared stdout, stderr, and failure-envelope rules below
+still apply.
+
 ## Producers
 
 - `CLIHelpers.printJSON`
@@ -388,6 +394,11 @@ stdout:
 
 The process exit code remains the source of truth for branching. The envelope
 explains why the command failed.
+
+For `vocab import`, malformed or unsupported bundles use `import_schema` and
+exit `2`; an empty `replace-all` bundle uses `input_empty` and exit `2`.
+A stale import preview uses `conflict` and exit `1`; file I/O failures remain
+runtime errors.
 
 ## Exit Codes
 

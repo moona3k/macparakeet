@@ -1534,7 +1534,7 @@ are unaffected.
 - [x] Settings toggles for file/URL and meeting speaker detection (on by default where supported; explicit off is preserved)
 - [x] CLI: `macparakeet-cli transcribe` follows the saved file/URL speaker-detection preference; meeting retranscription follows the saved meeting speaker-detection preference when app-default; `--speaker-detection off` / `--no-diarize` force off per run, and speaker-count constraints force on
 
-**Timed transcript corrections (development source):**
+**Timed transcript corrections (shipping in stable 0.8.7):**
 
 - A completed timed transcript exposes one `Edit transcript` mode for text,
   line boundaries, and speaker attribution. Editing replaces one non-empty
@@ -1553,6 +1553,9 @@ are unaffected.
 - The older whole-transcript editor remains the fallback for transcripts without
   usable timing. Its replacement is explicitly untimed and is never silently
   aligned to automatic words.
+
+**Reading-view additions (development source, after 0.8.7):**
+
 - The Text view of a timed transcript has **Edit**. It opens the same passages
   for rewriting or removal, then **Done** saves them as one `reviseText`
   correction. Removed passages stay out of the effective transcript. **Cancel**
@@ -2040,7 +2043,7 @@ fields.
 - [x] Pill rosette dims and shows pause bars while paused; panel header swaps "Recording" for "Paused" and hides the dual-audio orb
 - [x] Capture-failure detection (USB mic unplug, etc.) fires when `pillViewModel.state` is `.recording` *or* `.paused`, so a failure during pause still routes to the existing stop+transcribe error path
 
-### F43: VAD-Guided Meeting Live Chunking
+### F50: VAD-Guided Meeting Live Chunking
 
 > Status: **IMPLEMENTED; SHIPPING SINCE v0.6.24** — `AppFeatures.meetingVadLiveChunkingEnabled = true`.
 
