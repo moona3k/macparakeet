@@ -436,6 +436,38 @@ final class MeetingRecordingOutputTests: XCTestCase {
         XCTAssertEqual(output.durationSeconds, 12)
     }
 
+    func testArchivedSpeechEngineReadsMetadataWithoutRequiringAudioArtifacts() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        // Dual-source metadata without the raw source files: `loadArchived`
+        // would throw, but naming the engine needs only the metadata.
+        try MeetingRecordingMetadataStore.save(
+            MeetingRecordingMetadata(
+                sourceAlignment: dualSourceAlignment(),
+                speechEngine: SpeechEngineSelection(engine: .whisper, language: "ko")
+            ),
+            folderURL: dir
+        )
+        let mixedURL = dir.appendingPathComponent("meeting-playback.m4a")
+
+        XCTAssertEqual(
+            MeetingRecordingOutput.archivedSpeechEngine(mixedAudioURL: mixedURL),
+            SpeechEngineSelection(engine: .whisper, language: "ko")
+        )
+        XCTAssertThrowsError(
+            try MeetingRecordingOutput.loadArchived(
+                displayName: "Archived", mixedAudioURL: mixedURL, durationSeconds: 12))
+    }
+
+    func testArchivedSpeechEngineIsNilWithoutMetadata() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        XCTAssertNil(
+            MeetingRecordingOutput.archivedSpeechEngine(
+                mixedAudioURL: dir.appendingPathComponent("meeting-playback.m4a")))
+    }
+
     func testLoadArchivedReadsLegacyMeetingAudioFileNames() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }

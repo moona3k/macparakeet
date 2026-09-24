@@ -3716,6 +3716,52 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(option.title, "Retranscribe with speech engine")
     }
 
+    func testRetranscriptionEngineOptionMemoizesArchivedEnginePerTranscriptionRevision() throws {
+        let archivedMeeting = try makeArchivedMeetingRecording(
+            speechEngine: SpeechEngineSelection(engine: .whisper, language: "ko")
+        )
+        defer { try? FileManager.default.removeItem(at: archivedMeeting.folderURL) }
+
+        viewModel = TranscriptionViewModel(
+            isWhisperModelDownloaded: { true },
+            isNemotronModelDownloaded: { true }
+        )
+        var original = Transcription(
+            id: UUID(),
+            fileName: "Memoized Meeting",
+            filePath: archivedMeeting.mixedURL.path,
+            durationMs: 2_000,
+            rawTranscript: "Old meeting transcript",
+            status: .completed,
+            sourceType: .meeting,
+            updatedAt: Date(timeIntervalSince1970: 1_000)
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original)).primaryEngine.engine,
+            .whisper
+        )
+
+        // View bodies re-evaluate this repeatedly; an unchanged revision must
+        // not re-read the archive.
+        try MeetingRecordingMetadataStore.save(
+            MeetingRecordingMetadata(
+                sourceAlignment: MeetingSourceAlignment(meetingOriginHostTime: nil, microphone: nil, system: nil),
+                speechEngine: SpeechEngineSelection(engine: .nemotron)
+            ),
+            folderURL: archivedMeeting.folderURL
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original)).primaryEngine.engine,
+            .whisper
+        )
+
+        original.updatedAt = Date(timeIntervalSince1970: 2_000)
+        XCTAssertEqual(
+            try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original)).primaryEngine.engine,
+            .nemotron
+        )
+    }
+
     func testRetranscriptionEngineOptionUsesCurrentSettingsForLegacyMeetingMetadata() throws {
         let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

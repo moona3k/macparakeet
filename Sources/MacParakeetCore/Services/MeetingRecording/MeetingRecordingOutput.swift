@@ -254,6 +254,25 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         )
     }
 
+    /// The speech engine an archived meeting was captured with, or nil when the
+    /// archive predates engine capture or its metadata cannot be read. Reads only
+    /// the metadata JSON (no audio probing or artifact checks), so presentation
+    /// code can name the original engine without `loadArchived` (#1132).
+    public static func archivedSpeechEngine(
+        mixedAudioURL: URL,
+        fileManager: FileManager = .default
+    ) -> SpeechEngineSelection? {
+        guard
+            let metadata = try? MeetingRecordingMetadataStore.load(
+                from: mixedAudioURL.deletingLastPathComponent(),
+                fileManager: fileManager),
+            metadata.speechEngineWasCaptured
+        else {
+            return nil
+        }
+        return metadata.speechEngine
+    }
+
     private static func probedDurationSeconds(
         at url: URL,
         fileManager: FileManager
