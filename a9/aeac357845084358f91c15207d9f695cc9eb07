@@ -1,0 +1,31 @@
+Sources/MacParakeetCore/Services/System/EventTapTeardown.swift
+  s_a23a957626565c::t_fcd5763183a0e7 1-32
+Sources/MacParakeet/Hotkey/GlobalShortcutManager.swift
+  s_a23a957626565c::t_6d14d8250b1850 31,76
+Sources/MacParakeet/Hotkey/HotkeyManager.swift
+  s_a23a957626565c::t_70e7d355b5a69c 121,178
+Sources/MacParakeet/Hotkey/TransformsHotkeyRegistry.swift
+  s_a23a957626565c::t_a7b0d3122581a2 47,141
+Sources/MacParakeetCore/Services/System/README.md
+  s_a23a957626565c::t_65ac081865e3ed 20
+Sources/MacParakeetCore/Services/System/StreamingCursorInserter.swift
+  s_a23a957626565c::t_ed97175ef3f14a 138
+Tests/MacParakeetTests/Services/System/EventTapTeardownTests.swift
+  s_a23a957626565c::t_50acecac246c4d 1-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a9aeac357845084358f91c15207d9f695cc9eb07",
+  "prompts": {},
+  "sessions": {
+    "s_a23a957626565c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71fc07f7-6e40-481a-b01b-0628589d0e8c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
