@@ -1,0 +1,23 @@
+Sources/MacParakeetViewModels/PromptResultsViewModel.swift
+  s_a23a957626565c::t_2b38132ee7bc12 829-835,848-849,855,865,868
+Sources/MacParakeetViewModels/StreamingTextCoalescer.swift
+  s_a23a957626565c::t_e5746e3191fddd 1-37
+Tests/MacParakeetTests/ViewModels/StreamingTextCoalescerTests.swift
+  s_a23a957626565c::t_0ebc9e98769c56 1-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ff2f0317759ef6fab13cf7c52051782aa9b69d09",
+  "prompts": {},
+  "sessions": {
+    "s_a23a957626565c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71fc07f7-6e40-481a-b01b-0628589d0e8c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
