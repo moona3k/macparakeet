@@ -89,9 +89,9 @@ public struct AudioCaptureHealth: Sendable, Equatable {
         }
 
         if inputBufferCount > 0,
-           audioDurationSeconds >= Self.silentInputMinimumAudioDurationSeconds,
-           nonSilentBufferCount == 0,
-           maxAudioLevel < Self.silentInputMaximumLevel {
+            audioDurationSeconds >= Self.silentInputMinimumAudioDurationSeconds,
+            maxRMS == 0
+        {
             return .silentInput
         }
 

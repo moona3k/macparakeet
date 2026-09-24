@@ -373,9 +373,10 @@ and do not invalidate an explicitly pinned named device.
 remains observability-only. The first-buffer watchdog is now also a
 startup readiness signal: `start()` does not report a healthy recording until
 at least one microphone buffer arrives, and a no-buffer start aborts with a
-microphone-input error. Sustained silent input is classified at `stop()` using
-the capture-health snapshot before STT runs. Keep that signal-level heartbeat
-non-disruptive: actual callback liveness belongs to the shared source owner
+microphone-input error. Sustained exact-zero input is classified at `stop()` using
+the capture-health snapshot before STT runs. Quiet nonzero audio reaches STT
+even when every buffer falls below the level used for diagnostics. Keep that
+signal-level heartbeat non-disruptive: actual callback liveness belongs to the shared source owner
 below, so dictation and meeting capture do not invent competing recovery paths.
 
 **The shared mic source self-heals (gated, bounded recovery).** There are three

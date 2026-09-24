@@ -1467,6 +1467,46 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(operation["language"], "en")
     }
 
+    func testQuietCaptureWithLivePreviewReachesRecordedFileSTT() async throws {
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            dictationPreviewSpeechEngine: { Self.previewSpeechEngine(.parakeet(.v3)) },
+            dictationPreviewInterval: .zero
+        )
+        await mockAudio.configure(
+            lastCaptureHealth: AudioCaptureHealth(
+                sampleCount: 32_000,
+                audioDurationSeconds: 2,
+                wallDurationSeconds: 2,
+                fileBytes: 128_000,
+                inputBufferCount: 20,
+                outputBufferCount: 20,
+                inputFrameCount: 32_000,
+                maxRMS: 0.001,
+                maxAudioLevel: 0.005,
+                nonSilentBufferCount: 0,
+                missingFloatChannelDataBufferCount: 0,
+                invalidFormatBufferCount: 0,
+                noBufferTimeoutFired: false
+            ))
+        await mockSTT.configure(result: STTResult(text: "quiet speech", engine: .parakeet))
+        await mockSTT.configurePreview(result: STTResult(text: "quiet preview", engine: .parakeet))
+
+        try await service.startRecording()
+        await mockAudio.emitLiveSamples([0.001, 0.001])
+        let previewApplied = await waitForCondition { [service] in
+            await service?.liveTranscript == "quiet preview"
+        }
+        XCTAssertTrue(previewApplied)
+
+        let result = try await service.stopRecording()
+        XCTAssertEqual(result.dictation.rawTranscript, "quiet speech")
+        let transcribeCallCount = await mockSTT.transcribeCallCount
+        XCTAssertEqual(transcribeCallCount, 1)
+    }
+
     func testEmptyDictationOperationIncludesSpeechEngineAttribution() async throws {
         let telemetry = DictationTelemetrySpy()
         Telemetry.configure(telemetry)

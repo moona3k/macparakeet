@@ -136,6 +136,10 @@ public actor MeetingAudioCaptureService {
     /// Internal diagnostics and lifecycle tests can observe the actual boundary.
     var isSystemAudioStartPending: Bool { initialSystemStartSignal?.isAwaitingPromotion ?? false }
 
+    /// Stop returns before the shared microphone lease settles. Lifecycle tests
+    /// that restart capture observe this boundary instead of racing it.
+    var isMicrophoneLeaseHeld: Bool { microphoneLease != nil }
+
     public init(
         micProcessingMode: MeetingMicProcessingMode = .raw,
         sourceModeProvider: @escaping @Sendable () -> MeetingAudioSourceMode = { .microphoneAndSystem },
