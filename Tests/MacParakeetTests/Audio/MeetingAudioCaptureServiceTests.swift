@@ -1022,6 +1022,8 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         _ = try await service.startForTesting { events.append($0) }
         defer { Task { await service.stop() } }
 
+        // Microphone start is async; emit only once its callbacks are installed.
+        try await waitUntil { microphone.isStallObserverInstalled }
         let invalidBuffer = try XCTUnwrap(makeInterleavedFloat64StereoBuffer(samples: [0.5, 0.5]))
         microphone.emit(buffer: invalidBuffer, time: AVAudioTime(hostTime: 1))
 
@@ -1048,6 +1050,8 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         _ = try await service.startForTesting { events.append($0) }
         defer { Task { await service.stop() } }
 
+        // Microphone start is async; emit only once its callbacks are installed.
+        try await waitUntil { microphone.isStallObserverInstalled }
         let invalidBuffer = try XCTUnwrap(makeNonInterleavedFloat64MonoBuffer(frames: 4))
         microphone.emit(buffer: invalidBuffer, time: AVAudioTime(hostTime: 1))
 
