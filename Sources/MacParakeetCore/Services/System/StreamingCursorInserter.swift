@@ -135,12 +135,7 @@ private final class HeadInsertStreamingCursorInterruptToken: StreamingCursorInte
         lock.lock()
         defer { lock.unlock() }
         guard eventTap != nil || retainedSelf != nil || runLoopSource != nil else { return }
-        if let tap = eventTap {
-            CGEvent.tapEnable(tap: tap, enable: false)
-        }
-        if let runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
-        }
+        EventTapTeardown.tearDown(tap: eventTap, source: runLoopSource, runLoop: CFRunLoopGetMain())
         retainedSelf?.release()
         retainedSelf = nil
         eventTap = nil

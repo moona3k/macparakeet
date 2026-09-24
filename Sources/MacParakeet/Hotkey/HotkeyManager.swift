@@ -118,12 +118,7 @@ public final class HotkeyManager {
     deinit {
         // Inline cleanup — deinit is nonisolated, can't call @MainActor stop().
         // Safe because deinit guarantees exclusive access to self.
-        if let tap = eventTap {
-            CGEvent.tapEnable(tap: tap, enable: false)
-        }
-        if let source = runLoopSource, let runLoop = installedRunLoop {
-            CFRunLoopRemoveSource(runLoop, source, .commonModes)
-        }
+        EventTapTeardown.tearDown(tap: eventTap, source: runLoopSource, runLoop: installedRunLoop)
         retainedSelf?.release()
         startupTimer?.cancel()
         holdTimer?.cancel()
@@ -180,12 +175,7 @@ public final class HotkeyManager {
 
     /// Stop listening for key events
     public func stop() {
-        if let tap = eventTap {
-            CGEvent.tapEnable(tap: tap, enable: false)
-        }
-        if let source = runLoopSource, let runLoop = installedRunLoop {
-            CFRunLoopRemoveSource(runLoop, source, .commonModes)
-        }
+        EventTapTeardown.tearDown(tap: eventTap, source: runLoopSource, runLoop: installedRunLoop)
         // Balance the passRetained from start() to avoid leaking self
         retainedSelf?.release()
         retainedSelf = nil
