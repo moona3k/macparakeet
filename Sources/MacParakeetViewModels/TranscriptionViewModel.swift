@@ -854,14 +854,9 @@ public final class TranscriptionViewModel {
         let primaryEngine: SpeechEngineSelection
         let primaryReflectsTranscriptEngine: Bool
         if original.sourceType == .meeting,
-            let archivedRecording = archivedMeetingRecording(
-                for: original,
-                mixedAudioURL: URL(fileURLWithPath: filePath),
-                logFailure: false
-            ),
-            archivedRecording.speechEngineWasCaptured
+            let archivedEngine = archivedMeetingSpeechEngine(for: original, filePath: filePath)
         {
-            primaryEngine = archivedRecording.speechEngine
+            primaryEngine = archivedEngine
             primaryReflectsTranscriptEngine = true
         } else if let recordedEngine = original.engine.flatMap(SpeechEnginePreference.init(rawValue:)) {
             primaryEngine = SpeechEngineSelection(engine: recordedEngine, language: original.language)
@@ -1108,10 +1103,43 @@ public final class TranscriptionViewModel {
             ))?.sourceAlignment.system != nil
     }
 
+    private struct ArchivedSpeechEngineCacheKey: Equatable {
+        let transcriptionID: UUID
+        let filePath: String
+        let updatedAt: Date
+    }
+
+    // SwiftUI evaluates `retranscriptionEngineOption` from view bodies, so the
+    // archive metadata read is memoized per transcription revision (#1132).
+    @ObservationIgnored
+    private var archivedSpeechEngineCache:
+        (
+            key: ArchivedSpeechEngineCacheKey,
+            value: SpeechEngineSelection?
+        )?
+
+    private func archivedMeetingSpeechEngine(
+        for original: Transcription,
+        filePath: String
+    ) -> SpeechEngineSelection? {
+        let key = ArchivedSpeechEngineCacheKey(
+            transcriptionID: original.id,
+            filePath: filePath,
+            updatedAt: original.updatedAt
+        )
+        if let cache = archivedSpeechEngineCache, cache.key == key {
+            return cache.value
+        }
+        let value = MeetingRecordingOutput.archivedSpeechEngine(
+            mixedAudioURL: URL(fileURLWithPath: filePath)
+        )
+        archivedSpeechEngineCache = (key, value)
+        return value
+    }
+
     private func archivedMeetingRecording(
         for original: Transcription,
-        mixedAudioURL: URL,
-        logFailure: Bool = true
+        mixedAudioURL: URL
     ) -> MeetingRecordingOutput? {
         let durationSeconds = Double(original.durationMs ?? 0) / 1000.0
         do {
@@ -1121,11 +1149,9 @@ public final class TranscriptionViewModel {
                 durationSeconds: durationSeconds
             )
         } catch {
-            if logFailure {
-                logger.notice(
-                    "Meeting retranscribe falling back to mixed audio path file=\(original.fileName, privacy: .private) error=\(error.localizedDescription, privacy: .private)"
-                )
-            }
+            logger.notice(
+                "Meeting retranscribe falling back to mixed audio path file=\(original.fileName, privacy: .private) error=\(error.localizedDescription, privacy: .private)"
+            )
             return nil
         }
     }
