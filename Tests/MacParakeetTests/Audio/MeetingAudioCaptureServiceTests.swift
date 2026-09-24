@@ -1791,6 +1791,7 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
 
 private final class MockMeetingMicrophoneCapture: MeetingMicrophoneCapturing, @unchecked Sendable {
     private var handler: AudioBufferHandler?
+    private let stallObserverLock = NSLock()
     private var stallObserver: StallObserver?
     private var retainedStartCallbacks: [(handler: AudioBufferHandler, stallObserver: StallObserver?)] = []
     private let startHandler: (MeetingMicProcessingMode) throws -> MeetingMicrophoneCaptureStartReport
@@ -1817,7 +1818,7 @@ private final class MockMeetingMicrophoneCapture: MeetingMicrophoneCapturing, @u
         onStall: StallObserver?
     ) async throws -> MeetingMicrophoneCaptureStartReport {
         self.handler = handler
-        self.stallObserver = onStall
+        stallObserverLock.withLock { self.stallObserver = onStall }
         retainedStartCallbacks.append((handler, onStall))
         requestedModes.append(processingMode)
         let report = try startHandler(processingMode)
@@ -1830,17 +1831,20 @@ private final class MockMeetingMicrophoneCapture: MeetingMicrophoneCapturing, @u
     func stop() async {
         stopCallCount += 1
         handler = nil
-        stallObserver = nil
+        stallObserverLock.withLock { stallObserver = nil }
     }
 
     func emit(buffer: AVAudioPCMBuffer, time: AVAudioTime) {
         handler?(buffer, time)
     }
 
-    var isStallObserverInstalled: Bool { stallObserver != nil }
+    var isStallObserverInstalled: Bool {
+        stallObserverLock.withLock { stallObserver != nil }
+    }
 
     func emitStall(_ error: MeetingAudioError) {
-        stallObserver?(error)
+        let observer = stallObserverLock.withLock { stallObserver }
+        observer?(error)
     }
 
     func retainedCallbacks(
