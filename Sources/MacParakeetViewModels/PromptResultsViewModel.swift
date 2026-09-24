@@ -826,16 +826,13 @@ public final class PromptResultsViewModel {
         streamingTask = Task { @MainActor [weak self] in
             guard let self, let llmService = self.llmService else { return }
             // Each published token re-renders the streaming Markdown view, so
-            // coalesce deltas and publish at a bounded rate (#1132). Nothing is
-            // dropped: the remainder is always published before the stream is
-            // finished, failed, or cancelled.
-            var unpublished = ""
-            var lastPublished = ContinuousClock.now - Self.streamingPublishInterval
-            @MainActor func publishUnpublished() {
-                guard !unpublished.isEmpty else { return }
-                self.appendStreamingToken(unpublished, to: generationID)
-                unpublished = ""
-                lastPublished = .now
+            // publish coalesced deltas (#1132). The remainder is always flushed
+            // before the stream is finished, failed, or cancelled.
+            var coalescer = StreamingTextCoalescer(interval: Self.streamingPublishInterval)
+            @MainActor func flushCoalesced() {
+                if let text = coalescer.flush() {
+                    self.appendStreamingToken(text, to: generationID)
+                }
             }
             do {
                 let stream = llmService.generatePromptResultDetailedStream(
@@ -848,15 +845,14 @@ public final class PromptResultsViewModel {
                 for try await event in stream {
                     switch event {
                     case .text(let token):
-                        unpublished += token
-                        if ContinuousClock.now - lastPublished >= Self.streamingPublishInterval {
-                            publishUnpublished()
+                        if let text = coalescer.append(token, at: .now) {
+                            appendStreamingToken(text, to: generationID)
                         }
                     case .completed(let receipt):
                         terminal = receipt
                     }
                 }
-                publishUnpublished()
+                flushCoalesced()
                 guard !Task.isCancelled else {
                     finishCancelledGeneration(id: generationID)
                     return
@@ -866,10 +862,10 @@ public final class PromptResultsViewModel {
                 }
                 try await finishGeneration(id: generationID, terminal: terminal)
             } catch is CancellationError {
-                publishUnpublished()
+                flushCoalesced()
                 finishCancelledGeneration(id: generationID)
             } catch {
-                publishUnpublished()
+                flushCoalesced()
                 finishFailedGeneration(id: generationID, error: error)
             }
         }
