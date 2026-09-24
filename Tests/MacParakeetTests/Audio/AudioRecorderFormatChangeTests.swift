@@ -345,6 +345,31 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
         }
     }
 
+    func testSharedModeStopKeepsQuietNonzeroCaptureForSTT() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(sharedStream: stream, permissionProvider: { true })
+
+        try await startRecorder(
+            recorder,
+            stream: stream,
+            platform: platform,
+            firstBuffer: try makeMonoFloatBuffer(frameCount: 32_000, sampleValue: 0.001)
+        )
+
+        let url = try await recorder.stop()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let captureHealth = await recorder.lastCaptureHealth
+        let health = try XCTUnwrap(captureHealth)
+        XCTAssertEqual(health.nonSilentBufferCount, 0)
+        XCTAssertGreaterThan(health.maxRMS, 0)
+        XCTAssertLessThan(health.maxAudioLevel, AudioCaptureHealth.silentInputMaximumLevel)
+        XCTAssertNil(health.terminalProblem)
+        let samples = try readFloatSamples(from: url)
+        XCTAssertGreaterThan(samples.count, 4_800)
+        XCTAssertTrue(samples.contains { $0 != 0 })
+    }
+
     func testInstantDictationPrependsWarmPreRoll() async throws {
         let platform = AudioRecorderBlockingPlatform()
         let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
