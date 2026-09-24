@@ -1,0 +1,83 @@
+spec/03-architecture.md
+  s_9138b52c0d7343::t_07637092bb1e5c 3,27,62-64,258-261
+docs/distribution.md
+  s_9138b52c0d7343::t_570f428220f4db 203-204,312-313,315-316,318,320-325,378-379
+  s_9138b52c0d7343::t_8bde12cf2de479 555-557,579
+  s_9138b52c0d7343::t_d6bd99a24b0b6a 205-206
+spec/adr/002-local-only.md
+  s_9138b52c0d7343::t_07505bb55624d1 67-68,71-73
+  s_9138b52c0d7343::t_ba76744db28bc7 141
+  s_9138b52c0d7343::t_07637092bb1e5c 99,102-105,122-123,132,140,152-154
+spec/contracts/cli-json-v1.md
+  s_9138b52c0d7343::t_67e95394a3c56d 11-16
+  s_9138b52c0d7343::t_b47f24a80a6fd6 398-402
+spec/adr/031-timed-transcript-corrections.md
+  s_9138b52c0d7343::t_07505bb55624d1 3,121,128-130
+spec/adr/032-llm-task-group-routing.md
+  s_9138b52c0d7343::t_07505bb55624d1 25,27-31,49-50
+README.md
+  s_9138b52c0d7343::t_07505bb55624d1 67
+Sources/CLI/Commands/SpecCommand.swift
+  s_9138b52c0d7343::t_5421ae5c11ae8b 1153-1156
+Tests/CLITests/SpecCommandTests.swift
+  s_9138b52c0d7343::t_5421ae5c11ae8b 29-37
+spec/02-features.md
+  s_9138b52c0d7343::t_d6bd99a24b0b6a 1556-1558
+  s_9138b52c0d7343::t_07505bb55624d1 1537,2046
+Sources/MacParakeetCore/Audio/README.md
+  s_9138b52c0d7343::t_88df8a1873a54a 261-270
+Tests/CLITests/VocabCommandTests.swift
+  s_9138b52c0d7343::t_5421ae5c11ae8b 619-620,625
+  s_9138b52c0d7343::t_b47f24a80a6fd6 650,652-658,660-666
+docs/audits/2026-09-24-final-0.9.0-readiness.md
+  s_9138b52c0d7343::t_fd3fc9f9f6fd83 18
+  s_9138b52c0d7343::t_615e24d7d941ff 1-10,13-17,19-52,57-65
+  s_9138b52c0d7343::t_552f24b72216ef 11-12,53-56
+Sources/CLI/CHANGELOG.md
+  s_9138b52c0d7343::t_67e95394a3c56d 33-37
+  s_9138b52c0d7343::t_f8eb4d87f60a2e 79
+  s_9138b52c0d7343::t_b47f24a80a6fd6 135-137
+  s_9138b52c0d7343::t_f158a1aabb9135 221
+  s_9138b52c0d7343::t_38ab8a7cfe1d45 110-120
+spec/README.md
+  s_9138b52c0d7343::t_07505bb55624d1 90,161
+Sources/CLI/Commands/VoiceControlCommand.swift
+  s_9138b52c0d7343::t_6106e53dc7ef30 46-51
+Sources/MacParakeet/App/VoiceControlCoordinator.swift
+  s_9138b52c0d7343::t_caf6da5941aae2 283-284
+spec/contracts/voice-control.md
+  s_9138b52c0d7343::t_67e95394a3c56d 64-68
+Sources/MacParakeetCore/Database/PromptResultRepository.swift
+  s_9138b52c0d7343::t_8ef9cbb14338e0 5,10-11,40-45
+spec/13-agent-workflows.md
+  s_9138b52c0d7343::t_07637092bb1e5c 6,34-38
+spec/adr/033-explicit-voice-control.md
+  s_9138b52c0d7343::t_07505bb55624d1 3
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_9138b52c0d7343::t_0d85ccad1f3c6f 114-151
+Tests/MacParakeetTests/Database/PromptResultRepositoryTests.swift
+  s_9138b52c0d7343::t_8ef9cbb14338e0 42-50
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_9138b52c0d7343::t_7927b6c9278b7b 592-598,647-648
+  s_9138b52c0d7343::t_b1fd8d18496682 584-591
+Tests/CLITests/VoiceControlCommandTests.swift
+  s_9138b52c0d7343::t_6106e53dc7ef30 91-113
+Sources/CLI/Commands/CLIHelpers.swift
+  s_9138b52c0d7343::t_5421ae5c11ae8b 452-463,697-705
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "92852f94a07002e23b68d9802df7e01a6f41e4a5",
+  "prompts": {},
+  "sessions": {
+    "s_9138b52c0d7343": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d09c-6f76-7603-bd8f-f6cd7bf7aaa1",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
