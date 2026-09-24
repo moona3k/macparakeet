@@ -1,0 +1,21 @@
+Sources/MacParakeetViewModels/PromptResultsViewModel.swift
+  s_a23a957626565c::t_9f177865f2627f 828-839,851-854,859,869,872,878-879
+Tests/MacParakeetTests/ViewModels/PromptResultsViewModelTests.swift
+  s_a23a957626565c::t_e2ae06ecee4cba 623-638
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "83e08987ca9be3e93040143701623b37bb571d7a",
+  "prompts": {},
+  "sessions": {
+    "s_a23a957626565c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71fc07f7-6e40-481a-b01b-0628589d0e8c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
