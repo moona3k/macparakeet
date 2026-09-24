@@ -1,0 +1,22 @@
+Sources/MacParakeetCore/Audio/MeetingAudioCaptureService.swift
+  s_8cecf21cd0a34b::t_52eeab288fd604 139-142
+Tests/MacParakeetTests/Audio/MeetingAudioCaptureServiceTests.swift
+  s_8cecf21cd0a34b::t_52eeab288fd604 49-58,449
+  s_8cecf21cd0a34b::t_27929bfd1eda51 450
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "307152f69c4d66b2f9c386cd69b4bd1eae151d27",
+  "prompts": {},
+  "sessions": {
+    "s_8cecf21cd0a34b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cec736e1-3646-46f2-9db1-1e2fdb59a1a3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
