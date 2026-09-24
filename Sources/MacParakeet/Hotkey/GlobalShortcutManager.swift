@@ -28,12 +28,7 @@ public final class GlobalShortcutManager {
     }
 
     deinit {
-        if let tap = eventTap {
-            CGEvent.tapEnable(tap: tap, enable: false)
-        }
-        if let source = runLoopSource, let runLoop = installedRunLoop {
-            CFRunLoopRemoveSource(runLoop, source, .commonModes)
-        }
+        EventTapTeardown.tearDown(tap: eventTap, source: runLoopSource, runLoop: installedRunLoop)
         retainedSelf?.release()
     }
 
@@ -78,12 +73,7 @@ public final class GlobalShortcutManager {
     }
 
     public func stop() {
-        if let tap = eventTap {
-            CGEvent.tapEnable(tap: tap, enable: false)
-        }
-        if let source = runLoopSource, let runLoop = installedRunLoop {
-            CFRunLoopRemoveSource(runLoop, source, .commonModes)
-        }
+        EventTapTeardown.tearDown(tap: eventTap, source: runLoopSource, runLoop: installedRunLoop)
         retainedSelf?.release()
         retainedSelf = nil
         eventTap = nil
