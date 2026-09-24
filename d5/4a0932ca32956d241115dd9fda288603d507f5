@@ -1,0 +1,40 @@
+spec/adr/002-local-only.md
+  s_113804a67cf683::t_9dc6fec9cd5153 67-68,71-73
+spec/adr/032-llm-task-group-routing.md
+  s_113804a67cf683::t_9dc6fec9cd5153 25,27-31,49-50
+spec/adr/033-explicit-voice-control.md
+  s_113804a67cf683::t_9dc6fec9cd5153 3
+spec/13-agent-workflows.md
+  s_113804a67cf683::t_9dc6fec9cd5153 6,34-38
+docs/audits/2026-09-23-post-0.8.7-release-readiness.md
+  s_113804a67cf683::t_fa73642a92f0c8 19-21
+  s_113804a67cf683::t_3e11a8fd729f62 12-13,16-18
+  s_113804a67cf683::t_6a64abca7df9e6 3-11,14-15,22-47
+README.md
+  s_113804a67cf683::t_fcab395dc1c219 67
+spec/03-architecture.md
+  s_113804a67cf683::t_3e11a8fd729f62 3
+  s_113804a67cf683::t_f9299ec398d885 27,62-64,258-261
+integrations/README.md
+  s_113804a67cf683::t_1fc90cbc46852e 8-11
+spec/README.md
+  s_113804a67cf683::t_9dc6fec9cd5153 90,161
+docs/distribution.md
+  s_113804a67cf683::t_32edb19b14c08b 203-205,311-312,314-315,317,319-324,377-378
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d54a0932ca32956d241115dd9fda288603d507f5",
+  "prompts": {},
+  "sessions": {
+    "s_113804a67cf683": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d130-8308-7a40-a427-1cc5fbdf8f72",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
