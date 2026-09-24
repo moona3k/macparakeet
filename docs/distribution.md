@@ -317,10 +317,10 @@ BUILD_NUMBER=$(plutil -extract CFBundleVersion raw -o - dist/MacParakeet.app/Con
 LOCAL_SIZE=$(stat -f%z dist/MacParakeet.dmg)
 REMOTE_SIZE=$(curl -fsSI "https://downloads.macparakeet.com/MacParakeet.dmg?v=$BUILD_NUMBER" | grep -i content-length | awk '{print $2}' | tr -d '\r')
 echo "Local: $LOCAL_SIZE  Remote: $REMOTE_SIZE"
-test "$LOCAL_SIZE" = "$REMOTE_SIZE"
+test "$LOCAL_SIZE" = "$REMOTE_SIZE" || exit 1
 LOCAL_SHA=$(shasum -a 256 dist/MacParakeet.dmg | awk '{print $1}')
 REMOTE_SHA=$(curl -fsSL "https://downloads.macparakeet.com/MacParakeet.dmg?v=$BUILD_NUMBER" | shasum -a 256 | awk '{print $1}')
-test "$LOCAL_SHA" = "$REMOTE_SHA"
+test "$LOCAL_SHA" = "$REMOTE_SHA" || exit 1
 # If either check fails, stop: the CDN may be stale or another process may
 # have overwritten the object. Do not publish an appcast for mismatched bytes.
 ```
