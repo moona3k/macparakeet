@@ -261,10 +261,11 @@ live-transcription continuations on cancelled dictations.
 **A dictation restart waits for the previous capture stop to finish.**
 `AudioRecorder.stop()` clears its recording flag before it finishes
 unsubscribing and finalizing the WAV. `DictationService` serializes a normal
-stop through capture-health and device snapshots before a replacement can
-start, then releases the start permit before preview cleanup and transcription.
-This preserves overlap with the old take's STT while keeping recorder state
-owned by one capture at a time. A replacement capture must also wait while
+stop through capture-health and device snapshots, then retires the old display
+preview and live STT session before a replacement can start. It releases the
+start permit before recorded-file transcription and AI processing, preserving
+that overlap while keeping recorder and live-session state owned by one capture
+at a time. A replacement capture must also wait while
 an old cancel or confirm-cancel can still update service state or touch the
 recorder. Cancelled-audio persistence happens after this boundary so
 transcription of a discarded take does not delay the new capture. When a

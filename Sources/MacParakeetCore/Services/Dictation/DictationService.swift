@@ -589,9 +589,8 @@ public actor DictationService: DictationServiceProtocol {
             throw DictationServiceError.notRecording
         }
 
-        // Start may reuse the recorder as soon as it sees .processing. Keep
-        // capture finalization and its health snapshot ahead of that start;
-        // transcription below can still overlap the next recording.
+        // Keep capture finalization and live-session cleanup ahead of a new
+        // start. Recorded-file transcription can still overlap that capture.
         try await startPermit.wait()
         var holdingStartPermit = true
         defer { if holdingStartPermit { startPermit.signal() } }
@@ -644,10 +643,10 @@ public actor DictationService: DictationServiceProtocol {
             let captureHealth = await audioProcessor.lastCaptureHealth
             try rejectUnavailableCaptureIfNeeded(captureHealth, audioURL: audioURL)
             let device = await audioProcessor.recordingDeviceInfo
-            startPermit.signal()
-            holdingStartPermit = false
             await cancelDisplayPreview(sessionID: currentSession, clearText: false)
             _ = await finishLiveDictationTranscription(sessionID: currentSession)
+            startPermit.signal()
+            holdingStartPermit = false
             logger.debug(
                 "dictation_capture_stopped session=\(currentSession, privacy: .public) path=\(audioURL.path, privacy: .private)"
             )
