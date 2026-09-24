@@ -5,9 +5,10 @@
 > people running them) that want to *call* `macparakeet-cli` to add local STT
 > to their stack.
 
-Examples describe the current development contract (CLI 4.4.0), not a
-promise about an older stable or Homebrew binary. Check `--version` and
-`spec --json` first; [release channels](../spec/README.md#release-channels-and-feature-flags)
+Examples describe the current development contract (see
+[`Sources/CLI/CHANGELOG.md`](../Sources/CLI/CHANGELOG.md)), not a promise
+about an older stable or Homebrew binary. Check `--version` and `spec --json`
+first; [release channels](../spec/README.md#release-channels-and-feature-flags)
 distinguish published binaries from the development source.
 
 ## Scope of the CLI
