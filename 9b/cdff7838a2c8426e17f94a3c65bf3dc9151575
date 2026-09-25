@@ -1,0 +1,21 @@
+spec/contracts/voice-control.md
+  s_0eaed612c9fa28::t_2516f7e222c7f1 313-314
+  s_0eaed612c9fa28::t_a855a1d7958075 317
+  s_0eaed612c9fa28::t_6aa3c8925e0b8e 315-316,324-328
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9bcdff7838a2c8426e17f94a3c65bf3dc9151575",
+  "prompts": {},
+  "sessions": {
+    "s_0eaed612c9fa28": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2feda26f-6b71-476a-816a-2b81adbb0857",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
