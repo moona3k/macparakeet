@@ -76,6 +76,10 @@ public final class HotkeyManager {
     /// that. A release the tap saw overrides the snapshot. Cleared whenever
     /// the tap may have missed events.
     private var releaseObservedKeyCodes: Set<UInt16> = []
+    /// Built-in Fn: another key or modifier moved while Fn was held since the
+    /// last Fn press. Survives `resetToIdle`, so a rapid-restart reset cannot
+    /// erase contamination the tap observed during the reset gap.
+    private var fnHeldInterruptionObserved = false
     private var physicalKeyStateProvider: (UInt16) -> Bool
 
     /// Bare-tap filtering: true until another physical key or modifier transition is observed.
@@ -183,6 +187,7 @@ public final class HotkeyManager {
         activeRecordingMode = nil
         pressedNonFnKeyCodes.removeAll(keepingCapacity: true)
         releaseObservedKeyCodes.removeAll(keepingCapacity: true)
+        fnHeldInterruptionObserved = false
         bareTap = true
         gestureController.reset()
         testingTapFilter = HotkeyTapFilter(trigger: trigger)
@@ -355,6 +360,7 @@ public final class HotkeyManager {
                 // Modifier down — start bare-tap tracking
                 bareTap = true
                 if trigger == .fn {
+                    fnHeldInterruptionObserved = false
                     reconcilePassiveFnKeyState()
                     if passiveFnInputIsContaminated(flags: flags) {
                         logFnAdmissionRejected(flags: flags)
@@ -400,6 +406,9 @@ public final class HotkeyManager {
                 changedKeyCode == 57
                 && previousModifierFlags.contains(.maskAlphaShift) != flags.contains(.maskAlphaShift)
             guard !changedModifiers.isEmpty || capsLockChanged else { return [] }
+            if targetModifierWasPressed {
+                fnHeldInterruptionObserved = true
+            }
 
             if targetModifierGestureIsActive {
                 bareTap = false
@@ -423,6 +432,9 @@ public final class HotkeyManager {
     ) -> [HotkeyGestureController.Output] {
         let physicalKeyCode = UInt16(keyCode)
         if trigger == .fn, Self.isTrackableNonFnKeyCode(physicalKeyCode) {
+            if targetModifierWasPressed {
+                fnHeldInterruptionObserved = true
+            }
             releaseObservedKeyCodes.remove(physicalKeyCode)
             guard pressedNonFnKeyCodes.insert(physicalKeyCode).inserted else {
                 return []
@@ -466,6 +478,9 @@ public final class HotkeyManager {
         }
         pressedNonFnKeyCodes.remove(physicalKeyCode)
         releaseObservedKeyCodes.insert(physicalKeyCode)
+        if targetModifierWasPressed {
+            fnHeldInterruptionObserved = true
+        }
         guard targetModifierGestureIsActive else {
             return interruptPendingPassiveFnWindow()
         }
@@ -886,12 +901,14 @@ public final class HotkeyManager {
         // told apart after the reset, so keep the take's accepted state.
         if trigger != .fn {
             bareTap = true
+        } else if fnHeldInterruptionObserved {
+            bareTap = false
         }
         guard !triggerPressed else { return }
         if trigger == .fn {
             reconcilePassiveFnKeyState()
             let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
-            if passiveFnInputIsContaminated(flags: currentFlags) {
+            if fnHeldInterruptionObserved || passiveFnInputIsContaminated(flags: currentFlags) {
                 // Fn came up with another key or modifier still held: treat
                 // it as a non-bare release, as a live tap would have.
                 AudioCaptureDiagnostics.append("dictation_hotkey_release_recovered mode=hold_to_talk outcome=cancel")

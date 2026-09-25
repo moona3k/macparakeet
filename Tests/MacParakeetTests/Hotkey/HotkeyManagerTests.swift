@@ -1922,6 +1922,67 @@ final class HotkeyManagerTests: XCTestCase {
         XCTAssertEqual(stops, 0)
     }
 
+    /// A complete Shift tap during the reset gap, Fn held throughout, still
+    /// contaminates the take, whether Fn is released before or after sync.
+    func testSyncAfterFlowResetRemembersModifierTapFromTheGap() {
+        for releaseBeforeSync in [false, true] {
+            let manager = makeManager(trigger: .fn, gestureMode: .doubleTapAndHold)
+            var stops = 0
+            var cancels = 0
+            manager.onStopRecording = { stops += 1 }
+            manager.onCancelRecording = { cancels += 1 }
+            _ = manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskSecondaryFn],
+                timestampMs: 1_000,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            )
+            XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
+
+            manager.resetToIdle(flags: [.maskSecondaryFn])
+            let fnShift = sideSpecificFlags(
+                CGEventFlags.maskSecondaryFn.rawValue,
+                CGEventFlags.maskShift.rawValue,
+                leftShiftMask
+            )
+            _ = manager.modifierFlagsChangedOutputsForTesting(flags: fnShift, timestampMs: 1_400, changedKeyCode: 56)
+            _ = manager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn], timestampMs: 1_450, changedKeyCode: 56)
+
+            if releaseBeforeSync {
+                _ = manager.modifierFlagsChangedOutputsForTesting(
+                    flags: [],
+                    timestampMs: 1_500,
+                    changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+                )
+                manager.syncRecordingMode(.holdToTalk, flags: [], triggerKeyPressed: false)
+                XCTAssertEqual(cancels, 1, "released before sync")
+            } else {
+                manager.syncRecordingMode(.holdToTalk, flags: [.maskSecondaryFn], triggerKeyPressed: false)
+                let release = manager.modifierFlagsChangedOutputsForTesting(
+                    flags: [],
+                    timestampMs: 2_000,
+                    changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+                )
+                XCTAssertTrue(release.contains(.cancelRecording), "got \(release)")
+            }
+            XCTAssertEqual(stops, 0)
+        }
+    }
+
+    func testSyncAfterFlowResetKeepsKeyCodeHoldReleaseWorking() {
+        let manager = makeManager(trigger: HotkeyTrigger.fromKeyCode(105), gestureMode: .holdOnly)
+        XCTAssertEqual(
+            manager.keyCodeEventDecisionForTesting(type: .keyDown, keyCode: 105, timestampMs: 1_000).outputs,
+            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs)]
+        )
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
+
+        manager.resetToIdle(flags: [])
+        manager.syncRecordingMode(.holdToTalk, flags: [], triggerKeyPressed: true)
+
+        let release = manager.keyCodeEventDecisionForTesting(type: .keyUp, keyCode: 105, timestampMs: 2_000)
+        XCTAssertTrue(release.outputs.contains(.stopRecording), "got \(release.outputs)")
+    }
+
     /// Startup can finish during the stop tail; the sync must not restart it.
     func testSyncDuringPendingStopTailKeepsTheOriginalTail() {
         let manager = HotkeyManager(trigger: .fn, holdToTalkStopTailMs: 50)
