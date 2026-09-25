@@ -226,9 +226,10 @@ Code (all in `Sources/MacParakeetCore/Services/VoiceControl/`):
   `userSegments`), shared by the runner and the Jev client.
 - `VoiceControlTurnRunner.swift`: uses `VoiceControlGoalText`; no behavior change.
 - `JevDecisionClient.swift`: `sourceSpans` from user segments, tails first
-  (cue tails such as the text after `write` first, because all tails of a long
-  message are quadratic in size and cannot fit any budget), within 250 spans
-  and 24 KB, keeping 50 slots and 4 KB for short spans;
+  (cue tails such as the text after `write` first, latest cue first when a
+  preamble carries several, because all tails of a long message are quadratic
+  in size and cannot fit any budget), within 250 spans and 24 KB, keeping 50
+  slots and 4 KB for short spans;
   label-based `Executed` history on both request shapes; retry on
   429/503/529 and dropped connections (at most 2, 150/300 ms, short
   `Retry-After` honored, a longer one fails without retry, consent rechecked, Stop cancels); `usage` decoded.
@@ -239,12 +240,12 @@ Code (all in `Sources/MacParakeetCore/Services/VoiceControl/`):
   and the `latest.md` Jev line.
 
 Tests: new `VoiceControlIntentAnchoringTests` (8) and `JevClientTransportTests`
-(9). Docs: subsystem README, `spec/contracts/voice-control.md`, `product.md`.
+(10). Docs: subsystem README, `spec/contracts/voice-control.md`, `product.md`.
 
 ## Verification
 
 - Focused suites (`VoiceControl|JevLean|JevClient|AXTreeWalk|ScreenTextSource|SpokenDateParser|NativeVoiceControl`,
-  which includes the CLI `voice-control replay` tests): 232 tests, 0 failures,
+  which includes the CLI `voice-control replay` tests): 233 tests, 0 failures,
   1 skipped (the opt-in live E2E, `MACPARAKEET_NATIVE_VOICE_CONTROL_E2E=1`).
   Run from a clean scratch build path because the shared `.build` cache is stale.
 - Every fixed bug was first reproduced against unmodified `main` with a probe
