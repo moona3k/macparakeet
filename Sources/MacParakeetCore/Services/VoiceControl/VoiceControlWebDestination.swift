@@ -75,13 +75,19 @@ public struct VoiceControlWebDestination: Sendable, Equatable {
             let frames = ["open", "go to", "switch to", "launch", "on", "in", "search", "use"]
             if frames.contains(where: { padded.contains(" \($0) \(name) ") }) { return true }
         }
-        // A flight search is the one destination named by its subject, so a
-        // message about a flight is not one.
-        if id == "web:google-flights" {
-            if Self.messageWords.contains(where: { padded.contains(" \($0) ") }) { return false }
-            if Self.leadsWithFlightSearch(padded) { return true }
-        }
+        // Below, the site is inferred rather than named. A sentence about a
+        // message (`reply to Sarah with directions to the office`, `forward the
+        // flights to Paris email`) is work in the current app, unless it leads
+        // with a search verb (`find flights …`, `directions to …`).
+        if Self.isAboutAMessage(padded) { return false }
+        // A flight search is the one destination named by its subject.
+        if id == "web:google-flights", Self.leadsWithFlightSearch(padded) { return true }
         return intentPhrases.contains(where: { padded.contains(" \($0) ") })
+    }
+
+    private static func isAboutAMessage(_ padded: String) -> Bool {
+        let leadsWithSearch = searchLeads.contains { padded.hasPrefix(" \($0) ") }
+        return !leadsWithSearch && messageWords.contains { padded.contains(" \($0) ") }
     }
 
     /// `find cheap one way flights …`: flights are the object of the search verb,
@@ -103,7 +109,9 @@ public struct VoiceControlWebDestination: Sendable, Equatable {
     ]
     private static let messageWords = [
         "email", "emails", "mail", "message", "messages", "confirmation", "booking reference", "itinerary",
+        "reply", "forward", "send", "text", "tell", "share", "invite",
     ]
+    private static let searchLeads = ["find", "search", "look", "book", "compare", "google", "directions", "get"]
 
     /// `click …` / `press …` / `select …` name a control on the current page.
     private static func isControlCommand(_ padded: String) -> Bool {

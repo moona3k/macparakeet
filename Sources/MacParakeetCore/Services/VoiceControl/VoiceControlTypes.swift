@@ -213,19 +213,20 @@ public enum VoiceControlGoalText {
     static let uncertainNote =
         "Some executed effects have unknown outcomes. Inspect the current state; never repeat those effects. Ask if their outcome is necessary but cannot be determined."
 
-    /// The goal as one sentence when every amendment only adds detail: the
-    /// original words plus clarifications (`Find flights` + `from Boston to
-    /// Rome`). Nil when a correction overrides earlier words, the person changed
-    /// fields by hand, or an effect's outcome is uncertain; a deterministic
-    /// plan cannot honour those, so they belong to the model.
-    static func additiveText(_ goal: String) -> String? {
+    /// The original goal while every amendment is a clarification (an answer
+    /// such as `2` or `Rome, Italy` that the runner resolves itself). Nil when a
+    /// correction overrides earlier words, the person changed fields by hand,
+    /// or an effect's outcome is uncertain: a deterministic plan cannot honour
+    /// those, so they belong to the model. Clarifications are never merged into
+    /// the goal, because an answer is not a `from … to … on …` frame.
+    static func unrevisedGoal(_ goal: String) -> String? {
         guard goal.dropPrefix(header) != nil else { return goal }
         let lines = goal.components(separatedBy: "\n")
         let overriding = [correction, manualHeader, uncertainNote]
         guard !lines.contains(where: { line in overriding.contains { line.dropPrefix($0) != nil } }) else {
             return nil
         }
-        return userSegments(goal).joined(separator: " ")
+        return userSegments(goal).first
     }
 
     /// User-authored segments, oldest first. A goal without the scaffold is one segment.

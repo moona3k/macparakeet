@@ -302,10 +302,15 @@ single-occurrence replacement, activating a uniquely named running app,
 opening an allowlisted web destination, filling an already-open search box
 on YouTube/Maps/Wikipedia/Google Search, pressing unique Gmail Compose, and
 the Google Flights form plan (trip type, origin, destination, date, unique
-autocomplete, overlay Escape, Search). The form plan reads the person's words
-only: the original goal plus clarifications. A correction, a hand-edited field
-or an uncertain effect makes the plan step aside so Jev, which reads those
-amendments, takes the turn. A destination route fires only on an
+autocomplete, overlay Escape, Search). The form plan reads the person's original
+goal only, and only while every amendment is a clarification; an answer such
+as `2` is never merged into a form field. A correction, a hand-edited field or
+an uncertain effect makes the plan step aside so Jev, which reads those
+amendments, takes the turn. A site inferred rather than named (an intent
+phrase, or flights as the subject) does not route from a sentence about a
+message (`reply`, `forward`, `send`, `text`, `email`, `itinerary` …) unless it
+leads with a search verb (`find`, `search`, `directions`, `get` …); a named
+site (`… in Gmail`, `open YouTube`) still routes. A destination route fires only on an
 explicit request, matched at word boundaries: its name in a navigation or
 search frame (`open YouTube`, `… on Wikipedia`, `go to Gmail`), an intent
 phrase (`search the web`, `directions to`, `flights from` / `flights to`), or a

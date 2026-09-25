@@ -218,8 +218,8 @@ Code (all in `Sources/MacParakeetCore/Services/VoiceControl/`):
 - `VoiceControlLocalTools.swift`: `alreadyPressedByName` (verified or
   transition; includes `click Search` bound to `Search flights`).
 - `VoiceControlMachine.swift`: a calendar day's label must parse as a date.
-- `VoiceControlFlightPlan.swift`: parses additive goals only (original plus
-  clarifications). On `main` a correction such as `Actually Paris` was sliced
+- `VoiceControlFlightPlan.swift`: parses the original goal only, and only while
+  every amendment is a clarification. On `main` a correction such as `Actually Paris` was sliced
   together with the runner's scaffold into the destination field; now a
   correction, hand-edited field or uncertain effect hands the turn to Jev.
 - `VoiceControlTypes.swift`: `VoiceControlGoalText` (scaffold strings and
@@ -238,13 +238,13 @@ Code (all in `Sources/MacParakeetCore/Services/VoiceControl/`):
 - `VoiceControlTraceStore.swift`: `input_tokens` / `retries` in `events.jsonl`
   and the `latest.md` Jev line.
 
-Tests: new `VoiceControlIntentAnchoringTests` (7) and `JevClientTransportTests`
-(5). Docs: subsystem README, `spec/contracts/voice-control.md`, `product.md`.
+Tests: new `VoiceControlIntentAnchoringTests` (8) and `JevClientTransportTests`
+(9). Docs: subsystem README, `spec/contracts/voice-control.md`, `product.md`.
 
 ## Verification
 
 - Focused suites (`VoiceControl|JevLean|JevClient|AXTreeWalk|ScreenTextSource|SpokenDateParser|NativeVoiceControl`,
-  which includes the CLI `voice-control replay` tests): 227 tests, 0 failures,
+  which includes the CLI `voice-control replay` tests): 232 tests, 0 failures,
   1 skipped (the opt-in live E2E, `MACPARAKEET_NATIVE_VOICE_CONTROL_E2E=1`).
   Run from a clean scratch build path because the shared `.build` cache is stale.
 - Every fixed bug was first reproduced against unmodified `main` with a probe

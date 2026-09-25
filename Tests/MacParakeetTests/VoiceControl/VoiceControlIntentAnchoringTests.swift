@@ -39,7 +39,9 @@ final class VoiceControlIntentAnchoringTests: XCTestCase {
     func testPageCommandsThatMentionASiteStayOnThePage() async throws {
         for goal in [
             "search for headphones", "click the YouTube link", "reply to the email about my flight",
-            "open the flight confirmation", "press the Gmail button", "find the email about my flight",
+            "open the flight confirmation", "press the Gmail button",
+            "reply to Sarah with directions to the office", "forward Bob the directions to the office",
+            "forward the flights to Paris email", "text Mia the flights from Boston", "find the email about my flight",
             "reply to the email about my flight to Denver", "forward the flights to Paris email",
         ] {
             let decision = try await router.decide(goal: goal, snapshot: shopPage(), history: [])
@@ -58,6 +60,8 @@ final class VoiceControlIntentAnchoringTests: XCTestCase {
             "go to Gmail": "web:gmail",
             "Look up Alan Turing on Wikipedia": "web:wikipedia",
             "Directions to the Golden Gate Bridge": "web:google-maps",
+            "get directions to the office": "web:google-maps",
+            "Compose a new email in Gmail": "web:gmail",
             "Search the web for weather in London": "web:google-search",
         ]
         for (goal, destination) in expected {
@@ -91,12 +95,12 @@ final class VoiceControlIntentAnchoringTests: XCTestCase {
         XCTAssertNil(VoiceControlFlightPlan.parse(amended), "a correction belongs to the model, not the form plan")
         let decision = try await router.decide(goal: amended, snapshot: shopPage(), history: [])
         XCTAssertEqual(openedDestination(decision), "web:google-flights")
-        let clarified =
-            VoiceControlGoalText.header + "Find one-way flights\n" + VoiceControlGoalText.clarification
-            + "from Boston to Rome"
-        let plan = VoiceControlFlightPlan.parse(clarified)
+        let picked =
+            VoiceControlGoalText.header + "Find flights from Boston to Rome\n" + VoiceControlGoalText.clarification
+            + "2"
+        let plan = VoiceControlFlightPlan.parse(picked)
         XCTAssertEqual(plan?.origin, "Boston")
-        XCTAssertEqual(plan?.destination, "Rome", "a clarification only adds detail")
+        XCTAssertEqual(plan?.destination, "Rome", "an answer to a pick is not typed into the form")
         let handEdited =
             VoiceControlGoalText.header + "Find flights from Boston to Rome\n" + VoiceControlGoalText.manualHeader
             + "\nWhere to?: Milan"
