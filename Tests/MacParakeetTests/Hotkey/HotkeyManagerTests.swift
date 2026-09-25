@@ -15,17 +15,18 @@ final class HotkeyManagerTests: XCTestCase {
         CGEventFlags(rawValue: masks.reduce(0, |))
     }
 
-    /// Builds a manager that sees no pre-held keys. Built-in Fn is admitted
-    /// only when no other key is held, and the production provider reads the
-    /// live session keyboard, so a key the OS reports as stuck on the test
-    /// machine would otherwise reject every Fn gesture. Tests that model
-    /// held keys install their own provider afterward.
+    /// Builds a manager that sees no pre-held keys or modifiers. Built-in Fn
+    /// is admitted only when no other key is held, and the production
+    /// providers read the live session keyboard, so a key or modifier the OS
+    /// reports as held on the test machine would otherwise change results.
+    /// Tests that model held keys install their own provider afterward.
     private func makeManager(
         trigger: HotkeyTrigger,
         gestureMode: HotkeyGestureController.Mode = .doubleTapAndHold
     ) -> HotkeyManager {
         let manager = HotkeyManager(trigger: trigger, gestureMode: gestureMode)
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
+        manager.setPhysicalFlagsProviderForTesting { [] }
         return manager
     }
 
@@ -1797,214 +1798,21 @@ final class HotkeyManagerTests: XCTestCase {
         XCTAssertEqual(stopCount, 1)
     }
 
-    /// Starting a take while the previous one finishes resets every hotkey
-    /// after the take began. Syncing the recording mode must restore the held
-    /// Fn so the release still stops the take.
-    func testSyncAfterFlowResetKeepsHoldToTalkReleaseWorking() {
-        let manager = makeManager(trigger: .fn, gestureMode: .doubleTapAndHold)
-        _ = manager.modifierFlagsChangedOutputsForTesting(
-            flags: [.maskSecondaryFn],
-            timestampMs: 1_000,
-            changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
-        )
-        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
-
-        manager.resetToIdle(flags: [.maskSecondaryFn])
-        manager.syncRecordingMode(.holdToTalk, flags: [.maskSecondaryFn], triggerKeyPressed: false)
-
-        XCTAssertEqual(
-            manager.modifierFlagsChangedOutputsForTesting(
-                flags: [],
-                timestampMs: 2_000,
-                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
-            ),
-            [.cancelStartupDebounce, .cancelHoldWindow, .stopRecording]
-        )
-    }
-
-    func testSyncAfterFlowResetStopsWhenTriggerAlreadyReleased() {
-        let manager = makeManager(trigger: .fn, gestureMode: .doubleTapAndHold)
-        var stops = 0
-        manager.onStopRecording = { stops += 1 }
-        _ = manager.modifierFlagsChangedOutputsForTesting(
-            flags: [.maskSecondaryFn],
-            timestampMs: 1_000,
-            changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
-        )
-        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
-
-        // The release landed while the flow reset had cleared the gesture.
-        manager.resetToIdle(flags: [])
-        manager.syncRecordingMode(.holdToTalk, flags: [], triggerKeyPressed: false)
-        XCTAssertEqual(stops, 1)
-    }
-
-    func testSyncWhileTriggerHeldLeavesNormalTakeUnchanged() {
-        let manager = makeManager(trigger: .fn, gestureMode: .doubleTapAndHold)
-        var stops = 0
-        manager.onStopRecording = { stops += 1 }
-        _ = manager.modifierFlagsChangedOutputsForTesting(
-            flags: [.maskSecondaryFn],
-            timestampMs: 1_000,
-            changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
-        )
-        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
-        manager.syncRecordingMode(.holdToTalk, flags: [.maskSecondaryFn], triggerKeyPressed: false)
-        XCTAssertEqual(stops, 0)
-        XCTAssertEqual(
-            manager.modifierFlagsChangedOutputsForTesting(
-                flags: [],
-                timestampMs: 2_000,
-                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
-            ),
-            [.cancelStartupDebounce, .cancelHoldWindow, .stopRecording]
-        )
-    }
-
-    /// A take accepted with another modifier already held must still stop,
-    /// not cancel, on release: the sync only restores state a reset lost.
-    func testSyncDoesNotRejudgeAcceptedModifierTake() {
-        let manager = makeManager(trigger: .option, gestureMode: .holdOnly)
-        _ = manager.modifierFlagsChangedOutputsForTesting(flags: [.maskShift], timestampMs: 900)
-        _ = manager.modifierFlagsChangedOutputsForTesting(flags: [.maskShift, .maskAlternate], timestampMs: 1_000)
-        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
-
-        manager.syncRecordingMode(.holdToTalk, flags: [.maskShift, .maskAlternate], triggerKeyPressed: false)
-
-        let release = manager.modifierFlagsChangedOutputsForTesting(flags: [.maskShift], timestampMs: 2_000)
-        XCTAssertTrue(release.contains(.stopRecording), "got \(release)")
-        XCTAssertFalse(release.contains(.cancelRecording))
-    }
-
-    /// Bare Fn: a modifier held when the resync runs contaminates the take,
-    /// so it cancels at once, as a live tap does on Fn+Shift.
-    func testSyncAfterFlowResetCancelsFnTakeWithModifierHeld() {
-        let manager = makeManager(trigger: .fn, gestureMode: .doubleTapAndHold)
-        var stops = 0
-        var cancels = 0
-        manager.onStopRecording = { stops += 1 }
-        manager.onCancelRecording = { cancels += 1 }
-        _ = manager.modifierFlagsChangedOutputsForTesting(
-            flags: [.maskSecondaryFn],
-            timestampMs: 1_000,
-            changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
-        )
-        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
-
-        manager.resetToIdle(flags: [.maskSecondaryFn])
-        manager.syncRecordingMode(.holdToTalk, flags: [.maskSecondaryFn, .maskShift], triggerKeyPressed: false)
-
-        XCTAssertEqual(cancels, 1)
-        XCTAssertEqual(stops, 0)
-        // A later tap-disable recovery with Fn up must not paste the take.
-        _ = manager.recoverFromDisabledTapForTesting(flags: [], timestampMs: 2_000)
-        XCTAssertEqual(stops, 0)
-    }
-
-    /// Fn released during the reset gap while Shift stays held: the missed
-    /// release was not bare, so the take cancels instead of pasting.
-    func testSyncAfterFlowResetCancelsWhenFnReleasedWithModifierHeld() {
-        let manager = makeManager(trigger: .fn, gestureMode: .doubleTapAndHold)
-        var stops = 0
-        var cancels = 0
-        manager.onStopRecording = { stops += 1 }
-        manager.onCancelRecording = { cancels += 1 }
-        _ = manager.modifierFlagsChangedOutputsForTesting(
-            flags: [.maskSecondaryFn],
-            timestampMs: 1_000,
-            changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
-        )
-        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
-
-        manager.resetToIdle(flags: [.maskSecondaryFn])
-        manager.syncRecordingMode(.holdToTalk, flags: [.maskShift], triggerKeyPressed: false)
-
-        XCTAssertEqual(cancels, 1)
-        XCTAssertEqual(stops, 0)
-    }
-
-    /// A complete Shift tap during the reset gap, Fn held throughout, still
-    /// contaminates the take, whether Fn is released before or after sync.
-    func testSyncAfterFlowResetRemembersModifierTapFromTheGap() {
-        for releaseBeforeSync in [false, true] {
-            let manager = makeManager(trigger: .fn, gestureMode: .doubleTapAndHold)
-            var stops = 0
-            var cancels = 0
-            manager.onStopRecording = { stops += 1 }
-            manager.onCancelRecording = { cancels += 1 }
-            _ = manager.modifierFlagsChangedOutputsForTesting(
-                flags: [.maskSecondaryFn],
-                timestampMs: 1_000,
-                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
-            )
-            XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
-
-            manager.resetToIdle(flags: [.maskSecondaryFn])
-            let fnShift = sideSpecificFlags(
-                CGEventFlags.maskSecondaryFn.rawValue,
-                CGEventFlags.maskShift.rawValue,
-                leftShiftMask
-            )
-            _ = manager.modifierFlagsChangedOutputsForTesting(flags: fnShift, timestampMs: 1_400, changedKeyCode: 56)
-            _ = manager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn], timestampMs: 1_450, changedKeyCode: 56)
-
-            if releaseBeforeSync {
-                _ = manager.modifierFlagsChangedOutputsForTesting(
-                    flags: [],
-                    timestampMs: 1_500,
-                    changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
-                )
-                manager.syncRecordingMode(.holdToTalk, flags: [], triggerKeyPressed: false)
-            } else {
-                manager.syncRecordingMode(.holdToTalk, flags: [.maskSecondaryFn], triggerKeyPressed: false)
-            }
-            XCTAssertEqual(cancels, 1, "releaseBeforeSync=\(releaseBeforeSync)")
-            // Neither a later release nor tap-disable recovery may paste it.
-            _ = manager.modifierFlagsChangedOutputsForTesting(
-                flags: [],
-                timestampMs: 2_000,
-                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
-            )
-            _ = manager.recoverFromDisabledTapForTesting(flags: [], timestampMs: 2_100)
-            XCTAssertEqual(stops, 0)
-        }
-    }
-
-    func testSyncAfterFlowResetKeepsKeyCodeHoldReleaseWorking() {
-        let manager = makeManager(trigger: HotkeyTrigger.fromKeyCode(105), gestureMode: .holdOnly)
-        XCTAssertEqual(
-            manager.keyCodeEventDecisionForTesting(type: .keyDown, keyCode: 105, timestampMs: 1_000).outputs,
-            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs)]
-        )
-        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
-
-        manager.resetToIdle(flags: [])
-        manager.syncRecordingMode(.holdToTalk, flags: [], triggerKeyPressed: true)
-
-        let release = manager.keyCodeEventDecisionForTesting(type: .keyUp, keyCode: 105, timestampMs: 2_000)
-        XCTAssertTrue(release.outputs.contains(.stopRecording), "got \(release.outputs)")
-    }
-
-    /// Startup can finish during the stop tail; the sync must not restart it.
-    func testSyncDuringPendingStopTailKeepsTheOriginalTail() {
-        let manager = HotkeyManager(trigger: .fn, holdToTalkStopTailMs: 50)
+    /// Startup finishing during the stop tail must not resume the ending take:
+    /// a re-press then starts a new gesture instead of being ignored.
+    func testSyncDuringStopTailLeavesTheEndingTakeAlone() {
+        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly, holdToTalkStopTailMs: 50)
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
-        var pending = 0
-        var cancelled = 0
-        let stopped = expectation(description: "one stop")
-        manager.onStopPending = { pending += 1 }
-        manager.onStopPendingCancelled = { cancelled += 1 }
-        manager.onStopRecording = { stopped.fulfill() }
-
         _ = manager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn], timestampMs: 1_000)
         XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
         _ = manager.recoverFromDisabledTapForTesting(flags: [], timestampMs: 1_500)
-        XCTAssertEqual(pending, 1)
 
-        manager.syncRecordingMode(.holdToTalk, flags: [], triggerKeyPressed: false)
-        XCTAssertEqual(pending, 1)
-        XCTAssertEqual(cancelled, 0)
-        wait(for: [stopped], timeout: 1.0)
+        manager.syncRecordingMode(.holdToTalk)
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn], timestampMs: 1_550),
+            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs)]
+        )
     }
 
     func testStopTailSignalsPendingThenStops() {

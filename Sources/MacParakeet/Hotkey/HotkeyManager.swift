@@ -76,11 +76,10 @@ public final class HotkeyManager {
     /// that. A release the tap saw overrides the snapshot. Cleared whenever
     /// the tap may have missed events.
     private var releaseObservedKeyCodes: Set<UInt16> = []
-    /// Built-in Fn: another key or modifier moved while Fn was held since the
-    /// last Fn press. Survives `resetToIdle`, so a rapid-restart reset cannot
-    /// erase contamination the tap observed during the reset gap.
-    private var fnHeldInterruptionObserved = false
     private var physicalKeyStateProvider: (UInt16) -> Bool
+    private var physicalFlagsProvider: () -> CGEventFlags = {
+        CGEventSource.flagsState(.combinedSessionState)
+    }
 
     /// Bare-tap filtering: true until another physical key or modifier transition is observed.
     private var bareTap = true
@@ -187,7 +186,6 @@ public final class HotkeyManager {
         activeRecordingMode = nil
         pressedNonFnKeyCodes.removeAll(keepingCapacity: true)
         releaseObservedKeyCodes.removeAll(keepingCapacity: true)
-        fnHeldInterruptionObserved = false
         bareTap = true
         gestureController.reset()
         testingTapFilter = HotkeyTapFilter(trigger: trigger)
@@ -360,7 +358,6 @@ public final class HotkeyManager {
                 // Modifier down — start bare-tap tracking
                 bareTap = true
                 if trigger == .fn {
-                    fnHeldInterruptionObserved = false
                     reconcilePassiveFnKeyState()
                     if passiveFnInputIsContaminated(flags: flags) {
                         logFnAdmissionRejected(flags: flags)
@@ -406,9 +403,6 @@ public final class HotkeyManager {
                 changedKeyCode == 57
                 && previousModifierFlags.contains(.maskAlphaShift) != flags.contains(.maskAlphaShift)
             guard !changedModifiers.isEmpty || capsLockChanged else { return [] }
-            if targetModifierWasPressed {
-                fnHeldInterruptionObserved = true
-            }
 
             if targetModifierGestureIsActive {
                 bareTap = false
@@ -432,9 +426,6 @@ public final class HotkeyManager {
     ) -> [HotkeyGestureController.Output] {
         let physicalKeyCode = UInt16(keyCode)
         if trigger == .fn, Self.isTrackableNonFnKeyCode(physicalKeyCode) {
-            if targetModifierWasPressed {
-                fnHeldInterruptionObserved = true
-            }
             releaseObservedKeyCodes.remove(physicalKeyCode)
             guard pressedNonFnKeyCodes.insert(physicalKeyCode).inserted else {
                 return []
@@ -478,9 +469,6 @@ public final class HotkeyManager {
         }
         pressedNonFnKeyCodes.remove(physicalKeyCode)
         releaseObservedKeyCodes.insert(physicalKeyCode)
-        if targetModifierWasPressed {
-            fnHeldInterruptionObserved = true
-        }
         guard targetModifierGestureIsActive else {
             return interruptPendingPassiveFnWindow()
         }
@@ -529,6 +517,10 @@ public final class HotkeyManager {
     ) {
         physicalKeyStateProvider = provider
         reconcilePassiveFnKeyState()
+    }
+
+    func setPhysicalFlagsProviderForTesting(_ provider: @escaping () -> CGEventFlags) {
+        physicalFlagsProvider = provider
     }
 
     func startupDebounceElapsedForTesting() -> [HotkeyGestureController.Output] {
@@ -862,71 +854,14 @@ public final class HotkeyManager {
     }
 
     public func syncRecordingMode(_ mode: FnKeyStateMachine.RecordingMode) {
-        syncRecordingMode(mode, flags: nil, triggerKeyPressed: currentPhysicalTriggerKeyIsPressed())
-    }
-
-    func syncRecordingMode(
-        _ mode: FnKeyStateMachine.RecordingMode,
-        flags: CGEventFlags?,
-        triggerKeyPressed: Bool
-    ) {
-        guard let resumeMode = Self.resumeMode(mode, for: gestureMode) else {
-            suppressUntilReset()
-            return
-        }
-        // The release already happened and its stop tail is running; the
-        // take is ending, so leave it alone.
+        // Startup can finish during a hold-to-talk stop tail. That take is
+        // ending; resuming it would ignore a re-press until the tail stops
+        // capture under the held trigger.
         guard stopTailTimer == nil else { return }
-        let heldStateLost = !heldTriggerStateIsTracked
-        resumeRecording(mode: resumeMode)
-        guard resumeMode == .holdToTalk, heldStateLost else { return }
-
-        // Starting a take while the previous one is still finishing resets
-        // every hotkey (`.resetHotkeyStateMachine`) after this take began,
-        // clearing the held-trigger state. Restore it from the physical keys,
-        // or the release is ignored and the take records until the next
-        // press.
-        if trigger == .fn {
-            // Bare Fn is admitted only with nothing else held, so any other
-            // key seen during the gap or held now arrived after the take
-            // began. A live tap cancels on that at once; do the same.
-            reconcilePassiveFnKeyState()
-            let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
-            if fnHeldInterruptionObserved || passiveFnInputIsContaminated(flags: currentFlags) {
-                AudioCaptureDiagnostics.append("dictation_hotkey_release_recovered mode=hold_to_talk outcome=cancel")
-                handleOutputs(gestureController.interrupted())
-                return
-            }
-        }
-        let triggerPressed = currentPhysicalTriggerIsPressed(
-            flags: flags,
-            triggerKeyPressed: triggerKeyPressed
-        )
-        syncRecoveredTriggerState(
-            flags: flags,
-            triggerKeyPressed: triggerKeyPressed,
-            triggerPressed: triggerPressed
-        )
-        // Nothing contaminates a bare-Fn take at this point. Custom modifiers
-        // accept already-held modifiers, which cannot be told apart after
-        // the reset, so keep the take's accepted state.
-        bareTap = true
-        guard !triggerPressed else { return }
-        AudioCaptureDiagnostics.append("dictation_hotkey_release_recovered mode=hold_to_talk outcome=stop")
-        handleOutputs(gestureController.triggerReleased(timestampMs: Self.currentTimestampMs()))
-    }
-
-    /// False after a reset cleared the record of the trigger being held.
-    private var heldTriggerStateIsTracked: Bool {
-        switch trigger.kind {
-        case .modifier:
-            return targetModifierGestureIsActive
-        case .modifierChord:
-            return modifierChordGestureIsActive
-        case .keyCode, .chord:
-            return triggerKeyIsPressed
-        case .disabled:
-            return true
+        if let resumeMode = Self.resumeMode(mode, for: gestureMode) {
+            resumeRecording(mode: resumeMode)
+        } else {
+            suppressUntilReset()
         }
     }
 
@@ -988,7 +923,7 @@ public final class HotkeyManager {
         )
 
         if trigger == .fn {
-            let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+            let currentFlags = flags ?? physicalFlagsProvider()
             let capsLockChangedWhileTapWasDisabled =
                 previousModifierFlags.contains(.maskAlphaShift)
                 != currentFlags.contains(.maskAlphaShift)
@@ -1091,7 +1026,7 @@ public final class HotkeyManager {
     ) -> Bool {
         switch trigger.kind {
         case .modifier:
-            let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+            let currentFlags = flags ?? physicalFlagsProvider()
             if let targetKeyCode = trigger.modifierKeyCode {
                 return ModifierKeyMatcher.sideSpecificModifierIsPressed(
                     flags: currentFlags,
@@ -1103,10 +1038,10 @@ public final class HotkeyManager {
             return triggerKeyPressed
         case .chord:
             guard triggerKeyPressed else { return false }
-            let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+            let currentFlags = flags ?? physicalFlagsProvider()
             return currentFlags.rawValue & requiredChordFlags == requiredChordFlags
         case .modifierChord:
-            let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+            let currentFlags = flags ?? physicalFlagsProvider()
             return ModifierKeyMatcher.modifierChordRequiredComponentsArePressed(
                 trigger: trigger,
                 flags: currentFlags
@@ -1155,7 +1090,7 @@ public final class HotkeyManager {
     }
 
     private func recoveredTriggerIsContaminated(flags: CGEventFlags? = nil) -> Bool {
-        let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+        let currentFlags = flags ?? physicalFlagsProvider()
 
         switch trigger.kind {
         case .modifier:
@@ -1243,7 +1178,7 @@ public final class HotkeyManager {
     private func syncModifierPressedState(flags: CGEventFlags? = nil) {
         guard trigger.kind == .modifier else { return }
 
-        let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+        let currentFlags = flags ?? physicalFlagsProvider()
         if let targetKeyCode = trigger.modifierKeyCode {
             targetModifierWasPressed = ModifierKeyMatcher.sideSpecificModifierIsPressed(
                 flags: currentFlags,
@@ -1263,7 +1198,7 @@ public final class HotkeyManager {
     private func syncModifierChordPressedState(flags: CGEventFlags? = nil) {
         guard trigger.kind == .modifierChord else { return }
 
-        let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+        let currentFlags = flags ?? physicalFlagsProvider()
         modifierChordRequiredWasPressed = ModifierKeyMatcher.modifierChordRequiredComponentsArePressed(
             trigger: trigger,
             flags: currentFlags
