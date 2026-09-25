@@ -71,3 +71,7 @@ were used and no Jev inference was invoked during that research. Later
 implementation activity is documented separately in the plan; runtime quality,
 reliability, and distribution compatibility must be judged from its current
 verification record, not inferred from this research.
+
+## Verification
+
+See [verification and open qualification issues](verification.md) for builds, tests, native screenshots, packaged CLI evidence, and the unresolved keyboard-freeze and real-model failures. This is an implemented candidate, not a runtime-qualified release.

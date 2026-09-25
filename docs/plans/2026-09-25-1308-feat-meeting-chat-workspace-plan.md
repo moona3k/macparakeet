@@ -499,3 +499,7 @@ The implementation units above have been delivered in the `feat/meeting-ask-work
 - Ask supports direct model providers and rejects Local CLI. In-process/Apple Intelligence and Ollama/LM Studio loopback are the local consent-free routes. Other endpoints, including generic OpenAI-compatible loopback URLs, need exact-provider consent. Provider choice is frozen and there is no fallback. CLI Ask is additive at version 4.7.0 in this development source; this does not change a stable app release.
 - Before helper work, the user question and durable `incomplete` assistant placeholder are written. Complete, failed, and cancelled results remain distinct; an interrupted process can leave the placeholder incomplete for recovery/inspection.
 - Deferred work remains `@` mentions, graph views, a REPL, embeddings, calendar-series grouping, and implicit whole-Library search.
+
+## Qualification follow-up
+
+Implementation and documentation are complete, but runtime qualification is blocked by the user-reported keyboard/computer freeze and failed real local-model Ask runs. Local QA was stopped after the report. See [verification evidence and remaining work](../research/2026-09-25-meeting-chat-workspace/verification.md). Keep the PR in draft until these issues are diagnosed and verified; successful scripted-provider tests do not close them.
