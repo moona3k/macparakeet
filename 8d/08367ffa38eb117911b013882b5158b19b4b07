@@ -1,0 +1,35 @@
+spec/contracts/voice-control.md
+  s_5242d773558d9d::t_02b62a3b4857e8 113-118,305-308
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTypes.swift
+  s_5242d773558d9d::t_d3e85f009e5cf3 230
+  s_5242d773558d9d::t_88284ade1b1231 216-229
+Sources/MacParakeetCore/Services/VoiceControl/JevDecisionClient.swift
+  s_5242d773558d9d::t_db5f9d2afa3240 516-522,524-532,547-549,552,557,562-568,570-571,577-579,582,589-590
+  s_5242d773558d9d::t_e161d22f5ae21f 572-576,581
+docs/research/2026-09-25-voice-control-jev-deep-review.md
+  s_5242d773558d9d::t_02b62a3b4857e8 221-224,228-231
+Sources/MacParakeetCore/Services/VoiceControl/README.md
+  s_5242d773558d9d::t_02b62a3b4857e8 23
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlFlightPlan.swift
+  s_5242d773558d9d::t_856a058469ce5b 12-18
+Tests/MacParakeetTests/VoiceControl/JevClientTransportTests.swift
+  s_5242d773558d9d::t_841a2ef7b74af5 118-133
+Tests/MacParakeetTests/VoiceControl/VoiceControlIntentAnchoringTests.swift
+  s_5242d773558d9d::t_9c52506bf9f36a 91,97-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8d08367ffa38eb117911b013882b5158b19b4b07",
+  "prompts": {},
+  "sessions": {
+    "s_5242d773558d9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3eca4d69-a0de-45df-9368-93cf24bae1ba",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
