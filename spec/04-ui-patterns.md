@@ -962,8 +962,13 @@ and boundary actions:
   line's start through the last line's end.
 - `Split segment` is unavailable for a text-edited line. The user can undo the
   text edit, split at an automatic word boundary, and edit the new lines.
-- The header actions are the shared `Undo edit`, `Redo edit`, and `Reset edits`
-  history for both speaker and timed-text corrections.
+- A persistent editing bar above the transcript scroll area groups the shared
+  `Undo edit`, `Redo edit`, and `Reset edits` history with a prominent checkmark
+  `Done` button. Done exits editing and clears selection; corrections are
+  already saved by their existing actions. The scrolling header only offers
+  `Edit transcript` / `Edit speakers` when editing is inactive.
+- At narrow pane widths, selection and speaker-assignment tools move to a
+  second row so history and Done remain visible without horizontal scrolling.
 - During playback, untouched text follows automatic word cues. A corrected or
   merged line highlights as one unit only while playback is inside its preserved
   time envelope; no word-level highlight is implied.

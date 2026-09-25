@@ -2508,23 +2508,14 @@ struct TranscriptResultView: View {
                 .parakeetAction(.primaryProminent)
                 .disabled(transcriptDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             } else {
-                if speakerEditingAvailable {
-                    Button {
-                        editingSpeakers.toggle()
-                        if !editingSpeakers {
-                            speakerSelection.clear()
-                        } else if findBarVisible {
-                            closeFindBar()
-                        }
-                    } label: {
+                if speakerEditingAvailable, !editingSpeakers {
+                    Button(action: beginSpeakerEditing) {
                         Label(
-                            editingSpeakers
-                                ? "Done"
-                                : timedTextEditingAvailable ? "Edit transcript" : "Edit speakers",
+                            timedTextEditingAvailable ? "Edit transcript" : "Edit speakers",
                             systemImage: "pencil"
                         )
                     }
-                    .parakeetAction(editingSpeakers ? .primary : .secondary)
+                    .parakeetAction(.secondary)
                     .disabled(activeTranscription.status == .processing)
                 }
 
@@ -4671,6 +4662,31 @@ struct TranscriptResultView: View {
     }
 
     private var speakerEditingActionBar: some View {
+        // Keep completion beside history outside the transcript's ScrollView.
+        // At narrow widths, move selection tools to a second row instead of
+        // compressing or pushing Done beyond the visible pane.
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: DesignSystem.Spacing.md) {
+                speakerSelectionActions
+                Spacer(minLength: DesignSystem.Spacing.sm)
+                speakerEditCompletionActions
+            }
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                HStack {
+                    Spacer(minLength: 0)
+                    speakerEditCompletionActions
+                }
+                speakerSelectionActions
+            }
+        }
+        .padding(DesignSystem.Spacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .fill(DesignSystem.Colors.surfaceElevated)
+        )
+    }
+
+    private var speakerSelectionActions: some View {
         HStack(spacing: DesignSystem.Spacing.sm) {
             Text("\(speakerSelection.count) selected")
                 .font(DesignSystem.Typography.caption)
@@ -4693,42 +4709,61 @@ struct TranscriptResultView: View {
                     }
                 }
             }
+            .parakeetAction(.secondary)
             .disabled(speakerSelection.isEmpty || viewModel.isApplyingSpeakerCorrection)
 
             Button("New speaker…") {
                 presentNewSpeaker(for: selectedSpeakerSegments)
             }
+            .parakeetAction(.secondary)
             .disabled(speakerSelection.isEmpty || viewModel.isApplyingSpeakerCorrection)
 
             Button("Unassigned") {
                 assignSelectedSegments(to: .unassigned)
             }
+            .parakeetAction(.secondary)
             .disabled(speakerSelection.isEmpty || viewModel.isApplyingSpeakerCorrection)
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
 
-            Spacer()
-
+    private var speakerEditCompletionActions: some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
             Button(action: viewModel.undoSpeakerCorrection) {
                 Label("Undo edit", systemImage: "arrow.uturn.backward")
             }
+            .parakeetAction(.secondary)
             .disabled(!viewModel.canUndoSpeakerCorrection || viewModel.isApplyingSpeakerCorrection)
 
             Button(action: viewModel.redoSpeakerCorrection) {
                 Label("Redo edit", systemImage: "arrow.uturn.forward")
             }
+            .parakeetAction(.secondary)
             .disabled(!viewModel.canRedoSpeakerCorrection || viewModel.isApplyingSpeakerCorrection)
 
             if viewModel.speakerCorrectionsApplied {
                 Button("Reset edits") {
                     viewModel.applySpeakerCorrection(.reset)
                 }
+                .parakeetAction(.secondary)
                 .disabled(viewModel.isApplyingSpeakerCorrection)
             }
+
+            Divider()
+                .frame(height: 20)
+                .padding(.horizontal, DesignSystem.Spacing.xs)
+
+            Button {
+                editingSpeakers = false
+                speakerSelection.clear()
+            } label: {
+                Label("Done", systemImage: "checkmark")
+            }
+            .parakeetAction(.primaryProminent)
+            .help("Finish editing the transcript")
+            .accessibilityIdentifier("transcript-edit-done")
         }
-        .padding(DesignSystem.Spacing.sm)
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                .fill(DesignSystem.Colors.surfaceElevated)
-        )
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     private var selectedSpeakerSegments: [SpeakerEditableSegment] {
