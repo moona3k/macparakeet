@@ -1,0 +1,36 @@
+Sources/MacParakeet/Views/Meetings/MeetingsView.swift
+  s_51b335aa4fd398::t_0a2fe44ea99546 1057
+  s_51b335aa4fd398::t_bb0dda66e03e4c 1050-1056
+  s_51b335aa4fd398::t_b23380d9d8297e 346-347
+  s_51b335aa4fd398::t_1e46f6b7e06244 813-814
+  s_51b335aa4fd398::t_7f50cefd7a7e5a 1277-1278,1281
+  s_51b335aa4fd398::t_380cc897d3ffcd 799
+  s_51b335aa4fd398::t_af85d55fedd0b5 1015
+  s_51b335aa4fd398::t_06a8d7f33ad295 500
+  s_51b335aa4fd398::t_5053bbc2321bc6 1010-1014,1016-1023,1026-1049,1058-1069,1077-1144
+  s_51b335aa4fd398::t_184a76603dd2d5 1070-1076
+  s_51b335aa4fd398::t_1cecff2689d286 1024-1025
+Sources/MacParakeet/Views/Transcription/MeetingRecordingTile.swift
+  s_51b335aa4fd398::t_6971fedea29aac 99-102
+  s_51b335aa4fd398::t_5a51f6cd792397 104,107
+spec/04-ui-patterns.md
+  s_51b335aa4fd398::t_894cfda150e35b 90-96
+Sources/MacParakeet/Views/MeetingRecording/MeetingClassificationControls.swift
+  s_51b335aa4fd398::t_0cbc3298c21714 54-56,74-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b3b33681cd0ab9e853637958215fe4c3292780f6",
+  "prompts": {},
+  "sessions": {
+    "s_51b335aa4fd398": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f660f5fc-a997-4482-935e-0e824e5408c1",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
