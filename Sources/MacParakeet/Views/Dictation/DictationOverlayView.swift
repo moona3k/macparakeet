@@ -242,6 +242,11 @@ enum DictationOverlayChrome {
 
 /// The dictation overlay — compact dark capsule during dictation, wider card for errors.
 struct DictationOverlayView: View {
+    /// Pill shape change between states. On a push-to-talk release the pill
+    /// starts collapsing when the stop tail begins, so this should cover the
+    /// tail and land about when the stop does.
+    static let stateTransitionSeconds: Double = 0.25
+
     @Bindable var viewModel: DictationOverlayViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -377,7 +382,7 @@ struct DictationOverlayView: View {
                         .overlay(NoSpeechLightDrift(active: isNoSpeechExpanded))
                         .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
                 )
-                .animation(.easeInOut(duration: 0.25), value: viewModel.pillStateKey)
+                .animation(.easeInOut(duration: Self.stateTransitionSeconds), value: viewModel.pillStateKey)
                 .animation(.easeOut(duration: 0.45), value: noSpeechExpanded)
         }
     }
@@ -426,7 +431,7 @@ struct DictationOverlayView: View {
                 EmptyView()
             }
         }
-        .animation(.easeInOut(duration: 0.25), value: viewModel.pillStateKey)
+        .animation(.easeInOut(duration: Self.stateTransitionSeconds), value: viewModel.pillStateKey)
     }
 
     // MARK: - Ready State

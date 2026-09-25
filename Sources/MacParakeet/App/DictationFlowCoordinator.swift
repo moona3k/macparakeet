@@ -200,6 +200,8 @@ final class DictationFlowCoordinator {
     private var actionTask: Task<Void, Never>?
     private var insertionTask: (generation: Int, task: Task<Void, Never>)?
     private var cancelCountdownTask: Task<Void, Never>?
+    /// The pill shows processing during a push-to-talk stop tail.
+    private var isShowingStopPending = false
     private var displayDismissTask: Task<Void, Never>?
     private var captionGraceTimer: DispatchWorkItem?
     private var captionEscalationTimer: DispatchWorkItem?
@@ -503,6 +505,32 @@ final class DictationFlowCoordinator {
         sendEvent(.stopRequested)
     }
 
+    /// Push-to-talk release. The hotkey keeps recording a short tail so the
+    /// last word is not clipped (#632), then calls `stopDictation()`. Show
+    /// the processing pill now so the release feels immediate; the flow state
+    /// stays `.recording` until the real stop arrives.
+    func showStopPending() {
+        guard case .recording(.holdToTalk) = stateMachine.state,
+            let vm = overlayViewModel,
+            case .recording = vm.state
+        else { return }
+        vm.stopTimer()
+        vm.state = .processing
+        isShowingStopPending = true
+    }
+
+    /// The tail was abandoned without a stop; put the recording pill back.
+    func cancelStopPending() {
+        guard isShowingStopPending else { return }
+        isShowingStopPending = false
+        guard case .recording = stateMachine.state,
+            let vm = overlayViewModel,
+            case .processing = vm.state
+        else { return }
+        vm.state = .recording
+        vm.resumeTimer()
+    }
+
     func cancelDictation(reason: TelemetryDictationCancelReason = .ui) {
         // Map telemetry reason to state machine cancel reason
         let flowReason: DictationFlowCancelReason = reason == .ui ? .ui : .escape
@@ -646,8 +674,10 @@ final class DictationFlowCoordinator {
             vm.previewTextSize = runtimePreferences.dictationPreviewTextSize
             vm.state = .recording
             vm.startTimer()
+            isShowingStopPending = false
 
         case .showProcessingState:
+            isShowingStopPending = false
             overlayViewModel?.stopTimer()
             overlayViewModel?.processingMessage = nil
             overlayViewModel?.busyProcessingMessage = nil

@@ -481,6 +481,12 @@ final class AppEnvironmentConfigurer {
             onStopDictation: {
                 coordinatorRefs.dictation?.stopDictation()
             },
+            onStopDictationPending: {
+                coordinatorRefs.dictation?.showStopPending()
+            },
+            onStopDictationPendingCancelled: {
+                coordinatorRefs.dictation?.cancelStopPending()
+            },
             onCancelDictation: {
                 coordinatorRefs.dictation?.cancelDictation(reason: .escape)
             },

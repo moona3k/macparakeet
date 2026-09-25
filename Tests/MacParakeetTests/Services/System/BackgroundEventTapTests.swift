@@ -36,14 +36,21 @@ final class BackgroundEventTapTests: XCTestCase {
     /// user's input is untouched. Skips where tap creation is denied (CI).
     func testCallbacksRunWhileMainThreadIsBlocked() throws {
         XCTAssertTrue(Thread.isMainThread)
-        let marker: Int64 = 0x4D50_3131
+        let controlMarker: Int64 = 0x4D50_3130
+        let stallMarker: Int64 = 0x4D50_3131
+        let control = LockedEvents()
         let received = LockedEvents()
         guard let tap = BackgroundEventTap.start(
             options: .listenOnly,
             eventsOfInterest: 1 << CGEventType.mouseMoved.rawValue,
             handler: { _, event in
-                if event.getIntegerValueField(.eventSourceUserData) == marker {
+                switch event.getIntegerValueField(.eventSourceUserData) {
+                case controlMarker:
+                    control.append(onTapThread: EventTapThread.shared.isCurrent, at: DispatchTime.now())
+                case stallMarker:
                     received.append(onTapThread: EventTapThread.shared.isCurrent, at: DispatchTime.now())
+                default:
+                    break
                 }
                 return Unmanaged.passUnretained(event)
             }
@@ -52,19 +59,22 @@ final class BackgroundEventTapTests: XCTestCase {
         }
         defer { tap.stop() }
 
+        // Control, with the main run loop free: if even this never arrives,
+        // this environment cannot post synthetic events (missing permission),
+        // which says nothing about main-thread coupling.
+        Self.postMarkedMouseMove(controlMarker)
+        let controlDeadline = Date().addingTimeInterval(1)
+        while control.first == nil, Date() < controlDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+        }
+        guard control.first != nil else {
+            throw XCTSkip("Synthetic events cannot be posted here (Accessibility permission)")
+        }
+
         let postedAt = LockedTime()
         DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + .milliseconds(100)) {
-            guard let location = CGEvent(source: nil)?.location,
-                let event = CGEvent(
-                    mouseEventSource: nil,
-                    mouseType: .mouseMoved,
-                    mouseCursorPosition: location,
-                    mouseButton: .left
-                )
-            else { return }
-            event.setIntegerValueField(.eventSourceUserData, value: marker)
             postedAt.set(DispatchTime.now())
-            event.post(tap: .cgSessionEventTap)
+            Self.postMarkedMouseMove(stallMarker)
         }
 
         let stallStart = DispatchTime.now()
@@ -78,6 +88,20 @@ final class BackgroundEventTapTests: XCTestCase {
         let posted = try XCTUnwrap(postedAt.value)
         let latencyMs = Double(first.at.uptimeNanoseconds - posted.uptimeNanoseconds) / 1_000_000
         XCTAssertLessThan(latencyMs, 100)
+    }
+
+    /// A marked mouse move to the pointer's current position.
+    private static func postMarkedMouseMove(_ marker: Int64) {
+        guard let location = CGEvent(source: nil)?.location,
+            let event = CGEvent(
+                mouseEventSource: nil,
+                mouseType: .mouseMoved,
+                mouseCursorPosition: location,
+                mouseButton: .left
+            )
+        else { return }
+        event.setIntegerValueField(.eventSourceUserData, value: marker)
+        event.post(tap: .cgSessionEventTap)
     }
 
     func testStartStopCyclesDoNotAccumulateTaps() throws {
