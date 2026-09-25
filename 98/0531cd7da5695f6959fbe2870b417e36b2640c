@@ -1,0 +1,23 @@
+Tests/MacParakeetTests/VoiceControl/JevClientTransportTests.swift
+  s_9402e18e9b7c74::t_4b05a983128286 134-137,141-142
+  s_9402e18e9b7c74::t_20479823627599 138-140,143-148
+Sources/MacParakeetCore/Services/VoiceControl/JevDecisionClient.swift
+  s_9402e18e9b7c74::t_bdc4a43b0cbecc 527-532
+  s_9402e18e9b7c74::t_ec900eb2b02d10 574
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "980531cd7da5695f6959fbe2870b417e36b2640c",
+  "prompts": {},
+  "sessions": {
+    "s_9402e18e9b7c74": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "06a85486-e446-412c-af17-793f27d74bfe",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
