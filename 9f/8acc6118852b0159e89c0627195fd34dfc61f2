@@ -1,0 +1,19 @@
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_524b65f0e12bf4::t_41c85b82bec65a 2854-2857,2987-2992,2999-3008
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9f8acc6118852b0159e89c0627195fd34dfc61f2",
+  "prompts": {},
+  "sessions": {
+    "s_524b65f0e12bf4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d9ce-cd34-76b0-9ac6-71fca75d56c7",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
