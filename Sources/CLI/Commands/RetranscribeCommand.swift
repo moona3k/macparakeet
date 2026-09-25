@@ -410,11 +410,44 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
         updated.engineVariant = sttResult.engineVariant
         updated.language = SpeechEnginePreference.normalizeKnownLanguage(sttResult.language)
 
-        try dictationRepo.save(updated)
+        let saved = try Self.persistRetranscribedDictation(
+            updated,
+            original: original,
+            sourceURL: sourceURL,
+            keepAudio: UserDefaultsAppRuntimePreferences(defaults: defaults).shouldSaveAudioRecordings,
+            dictationRepo: dictationRepo
+        )
         if !refinement.expandedSnippetIDs.isEmpty {
             try? snippetRepo.incrementUseCount(ids: refinement.expandedSnippetIDs)
         }
-        return RetranscribeResult(kind: .dictation, sourcePath: sourceURL.path, dictation: updated)
+        return RetranscribeResult(kind: .dictation, sourcePath: sourceURL.path, dictation: saved)
+    }
+
+    /// A failed take kept for recovery completes like History Retry:
+    /// atomically (a concurrent delete wins), then its recording is dropped
+    /// unless Save audio recordings is on. Other rows save as before.
+    static func persistRetranscribedDictation(
+        _ updated: Dictation,
+        original: Dictation,
+        sourceURL: URL,
+        keepAudio: Bool,
+        dictationRepo: DictationRepositoryProtocol
+    ) throws -> Dictation {
+        guard original.status == .error else {
+            try dictationRepo.save(updated)
+            return updated
+        }
+        var completed = updated
+        if !keepAudio {
+            completed.audioPath = nil
+        }
+        guard try dictationRepo.saveIfCurrentStatus(completed, is: .error) else {
+            throw CLILookupError.notFound("Dictation \(original.id.uuidString) is no longer a failed take")
+        }
+        if !keepAudio {
+            try? FileManager.default.removeItem(at: sourceURL)
+        }
+        return completed
     }
 
     static func clearingDictationFormatterMetadata(_ dictation: Dictation) -> Dictation {

@@ -100,6 +100,28 @@ final class PrivateDictationTests: XCTestCase {
         XCTAssertNil(try repo.fetch(id: emptyVisible.id))
     }
 
+    func testSaveIfCurrentStatusNeverResurrectsOrOverwritesMovedRows() throws {
+        var failed = Dictation(durationMs: 1500, rawTranscript: "", status: .error)
+        try repo.save(failed)
+        failed.status = .completed
+        failed.rawTranscript = "recovered words"
+        failed.wordCount = 2
+
+        // Completes the row exactly once and counts it once.
+        XCTAssertTrue(try repo.saveIfCurrentStatus(failed, is: .error))
+        XCTAssertEqual(try repo.fetch(id: failed.id)?.status, .completed)
+        XCTAssertEqual(try repo.stats().totalCount, 1)
+        XCTAssertFalse(try repo.saveIfCurrentStatus(failed, is: .error), "Row has moved on")
+        XCTAssertEqual(try repo.stats().totalCount, 1)
+
+        // A deleted row is not re-inserted.
+        let deleted = Dictation(durationMs: 900, rawTranscript: "", status: .error)
+        try repo.save(deleted)
+        _ = try repo.delete(id: deleted.id)
+        XCTAssertFalse(try repo.saveIfCurrentStatus(deleted, is: .error))
+        XCTAssertNil(try repo.fetch(id: deleted.id))
+    }
+
     func testDeleteHiddenRemovesOnlyHiddenRows() throws {
         let visible = Dictation(durationMs: 1000, rawTranscript: "visible", wordCount: 1)
         let hidden = Dictation(durationMs: 2000, rawTranscript: "", hidden: true, wordCount: 3)

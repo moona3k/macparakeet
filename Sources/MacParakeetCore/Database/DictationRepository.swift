@@ -3,6 +3,10 @@ import GRDB
 
 public protocol DictationRepositoryProtocol: Sendable {
     func save(_ dictation: Dictation) throws
+    /// Writes `dictation` only if its row still exists with `expected` status,
+    /// in one transaction. Never inserts. Returns false when the row is gone
+    /// or has moved on, so a slow retry cannot resurrect a deleted take.
+    func saveIfCurrentStatus(_ dictation: Dictation, is expected: Dictation.DictationStatus) throws -> Bool
     func fetch(id: UUID) throws -> Dictation?
     func fetchAll(limit: Int?) throws -> [Dictation]
     func search(query: String, limit: Int?) throws -> [Dictation]
@@ -131,64 +135,83 @@ public final class DictationRepository: DictationRepositoryProtocol {
             // the pre-write durationMs / wordCount / status. Reordering would silently turn
             // every delta-path save into a zero-delta no-op.
             let existing = try Dictation.fetchOne(db, key: dictation.id)
-            var persisted = dictation
-            if persisted.hidden {
-                persisted.rawTranscript = ""
-                persisted.cleanTranscript = nil
-                persisted.audioPath = nil
-                persisted.pastedToApp = nil
-                persisted.aiFormatterProfileID = nil
-                persisted.aiFormatterProfileName = nil
-                persisted.aiFormatterProfileMatchKind = nil
-            }
-            try persisted.save(db)
+            try Self.write(dictation, existing: existing, db: db)
+        }
+    }
 
-            switch (existing?.status, persisted.status) {
-            case (.some(.completed), .completed):
-                // Mutating an already-counted row (e.g. a future "edit transcript" path).
-                // Apply the delta. longestDurationMs is a high-water mark — never decrements.
-                let prior = existing!  // guaranteed by .some(.completed) match
-                try Self.applyLifetimeDelta(
-                    db: db,
-                    durationDelta: persisted.durationMs - prior.durationMs,
-                    wordDelta: persisted.wordCount - prior.wordCount,
-                    newDurationMs: persisted.durationMs
-                )
-                // Daily stats: apply the delta to the row's original day. The
-                // app treats `Dictation.createdAt` as immutable once a row is
-                // .completed (no current code path mutates it). If a future
-                // feature ever changes createdAt across a day boundary, this
-                // path would leave the old day's count stale and never bump
-                // the new day — add a same-day move handler before shipping
-                // that feature.
-                try Self.applyDailyDelta(
-                    db: db,
-                    day: prior.createdAt,
-                    durationDelta: persisted.durationMs - prior.durationMs,
-                    wordDelta: persisted.wordCount - prior.wordCount
-                )
-            case (_, .completed):
-                // Fresh insert at .completed, or transition (.recording / .processing /
-                // .error → .completed). Increment by the full row.
-                try Self.incrementLifetimeStats(
-                    db: db,
-                    durationMs: persisted.durationMs,
-                    wordCount: persisted.wordCount
-                )
-                try Self.incrementDailyStats(
-                    db: db,
-                    day: persisted.createdAt,
-                    durationMs: persisted.durationMs,
-                    wordCount: persisted.wordCount
-                )
-            default:
-                // Target status isn't .completed — no-op, including cancelled
-                // recoveries that should not inflate lifetime/voice stats.
-                // Note: "lifetime totalCount" is defined as rows that reached
-                // .completed — consistent with `recomputeLifetimeStats`, which
-                // filters on `status = 'completed'`.
-                break
+    public func saveIfCurrentStatus(
+        _ dictation: Dictation,
+        is expected: Dictation.DictationStatus
+    ) throws -> Bool {
+        try dbQueue.write { db in
+            guard let existing = try Dictation.fetchOne(db, key: dictation.id),
+                existing.status == expected
+            else {
+                return false
             }
+            try Self.write(dictation, existing: existing, db: db)
+            return true
+        }
+    }
+
+    private static func write(_ dictation: Dictation, existing: Dictation?, db: Database) throws {
+        var persisted = dictation
+        if persisted.hidden {
+            persisted.rawTranscript = ""
+            persisted.cleanTranscript = nil
+            persisted.audioPath = nil
+            persisted.pastedToApp = nil
+            persisted.aiFormatterProfileID = nil
+            persisted.aiFormatterProfileName = nil
+            persisted.aiFormatterProfileMatchKind = nil
+        }
+        try persisted.save(db)
+
+        switch (existing?.status, persisted.status) {
+        case (.some(.completed), .completed):
+            // Mutating an already-counted row (e.g. a future "edit transcript" path).
+            // Apply the delta. longestDurationMs is a high-water mark — never decrements.
+            let prior = existing!  // guaranteed by .some(.completed) match
+            try Self.applyLifetimeDelta(
+                db: db,
+                durationDelta: persisted.durationMs - prior.durationMs,
+                wordDelta: persisted.wordCount - prior.wordCount,
+                newDurationMs: persisted.durationMs
+            )
+            // Daily stats: apply the delta to the row's original day. The
+            // app treats `Dictation.createdAt` as immutable once a row is
+            // .completed (no current code path mutates it). If a future
+            // feature ever changes createdAt across a day boundary, this
+            // path would leave the old day's count stale and never bump
+            // the new day — add a same-day move handler before shipping
+            // that feature.
+            try Self.applyDailyDelta(
+                db: db,
+                day: prior.createdAt,
+                durationDelta: persisted.durationMs - prior.durationMs,
+                wordDelta: persisted.wordCount - prior.wordCount
+            )
+        case (_, .completed):
+            // Fresh insert at .completed, or transition (.recording / .processing /
+            // .error → .completed). Increment by the full row.
+            try Self.incrementLifetimeStats(
+                db: db,
+                durationMs: persisted.durationMs,
+                wordCount: persisted.wordCount
+            )
+            try Self.incrementDailyStats(
+                db: db,
+                day: persisted.createdAt,
+                durationMs: persisted.durationMs,
+                wordCount: persisted.wordCount
+            )
+        default:
+            // Target status isn't .completed — no-op, including cancelled
+            // recoveries that should not inflate lifetime/voice stats.
+            // Note: "lifetime totalCount" is defined as rows that reached
+            // .completed — consistent with `recomputeLifetimeStats`, which
+            // filters on `status = 'completed'`.
+            break
         }
     }
 

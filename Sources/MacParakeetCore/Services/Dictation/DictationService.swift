@@ -1248,7 +1248,11 @@ public actor DictationService: DictationServiceProtocol {
         if !keepAudio {
             completed.audioPath = nil
         }
-        try dictationRepo.save(completed)
+        // Atomic check-and-write: a delete during the awaits above wins, and
+        // the take is not re-inserted.
+        guard try dictationRepo.saveIfCurrentStatus(completed, is: .error) else {
+            throw DictationServiceError.failedDictationUnavailable
+        }
         if !keepAudio {
             try? FileManager.default.removeItem(atPath: audioPath)
         }
@@ -1264,7 +1268,7 @@ public actor DictationService: DictationServiceProtocol {
         guard var latest = try? dictationRepo.fetch(id: id), latest.status == .error else { return }
         latest.errorMessage = error.localizedDescription
         latest.updatedAt = Date()
-        try? dictationRepo.save(latest)
+        _ = try? dictationRepo.saveIfCurrentStatus(latest, is: .error)
     }
 
     private func expireCancelIfStillCurrent(generation: Int) async {

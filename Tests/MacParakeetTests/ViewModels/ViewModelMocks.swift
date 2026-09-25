@@ -21,6 +21,15 @@ final class MockDictationRepository: DictationRepositoryProtocol, @unchecked Sen
         }
     }
 
+    func saveIfCurrentStatus(_ dictation: Dictation, is expected: Dictation.DictationStatus) throws -> Bool {
+        guard let idx = dictations.firstIndex(where: { $0.id == dictation.id }),
+            dictations[idx].status == expected
+        else { return false }
+        savedDictations.append(dictation)
+        dictations[idx] = dictation
+        return true
+    }
+
     func fetch(id: UUID) throws -> Dictation? {
         dictations.first(where: { $0.id == id })
     }

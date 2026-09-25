@@ -193,6 +193,67 @@ final class RetranscribeCommandTests: XCTestCase {
         )
     }
 
+    func testRetranscribingFailedDictationFollowsHistoryRetryRules() throws {
+        let repo = DictationRepository(dbQueue: try DatabaseManager().dbQueue)
+        let audio = FileManager.default.temporaryDirectory
+            .appendingPathComponent("failed-\(UUID().uuidString).wav")
+        FileManager.default.createFile(atPath: audio.path, contents: Data([0]))
+        defer { try? FileManager.default.removeItem(at: audio) }
+        let original = Dictation(durationMs: 1_000, rawTranscript: "", audioPath: audio.path, status: .error)
+        try repo.save(original)
+        var updated = original
+        updated.status = .completed
+        updated.rawTranscript = "recovered"
+
+        let saved = try RetranscribeCommand.persistRetranscribedDictation(
+            updated,
+            original: original,
+            sourceURL: audio,
+            keepAudio: false,
+            dictationRepo: repo
+        )
+        XCTAssertNil(saved.audioPath)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audio.path))
+        XCTAssertEqual(try repo.fetch(id: original.id)?.status, .completed)
+        XCTAssertNil(try repo.fetch(id: original.id)?.audioPath)
+
+        // A row that is no longer failed (or was deleted) is not written.
+        XCTAssertThrowsError(
+            try RetranscribeCommand.persistRetranscribedDictation(
+                updated,
+                original: original,
+                sourceURL: audio,
+                keepAudio: true,
+                dictationRepo: repo
+            )
+        ) { error in
+            XCTAssertTrue(error is CLILookupError, "\(error)")
+        }
+    }
+
+    func testRetranscribingFailedDictationKeepsAudioWhenSaveAudioIsOn() throws {
+        let repo = DictationRepository(dbQueue: try DatabaseManager().dbQueue)
+        let audio = FileManager.default.temporaryDirectory
+            .appendingPathComponent("failed-\(UUID().uuidString).wav")
+        FileManager.default.createFile(atPath: audio.path, contents: Data([0]))
+        defer { try? FileManager.default.removeItem(at: audio) }
+        let original = Dictation(durationMs: 1_000, rawTranscript: "", audioPath: audio.path, status: .error)
+        try repo.save(original)
+        var updated = original
+        updated.status = .completed
+        updated.rawTranscript = "recovered"
+
+        let saved = try RetranscribeCommand.persistRetranscribedDictation(
+            updated,
+            original: original,
+            sourceURL: audio,
+            keepAudio: true,
+            dictationRepo: repo
+        )
+        XCTAssertEqual(saved.audioPath, audio.path)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: audio.path))
+    }
+
     func testPreservesOriginalTranscriptionMetadataWhileKeepingNewTranscriptFields() {
         let id = UUID(uuidString: "F6666666-6666-6666-6666-666666666666")!
         let createdAt = Date(timeIntervalSince1970: 1_000)

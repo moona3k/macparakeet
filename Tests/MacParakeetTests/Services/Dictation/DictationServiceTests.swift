@@ -3205,6 +3205,39 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: try XCTUnwrap(stored.audioPath)))
     }
 
+    func testRetryDoesNotResurrectRowDeletedWhileTranscribing() async throws {
+        let audioURL = try makeTemporaryAudioURL()
+        addTeardownBlock { try? FileManager.default.removeItem(at: audioURL) }
+        let failed = Dictation(
+            durationMs: 1_000,
+            rawTranscript: "",
+            audioPath: audioURL.path,
+            status: .error,
+            errorMessage: "engine busy"
+        )
+        try dictationRepo.save(failed)
+        let delayedSTT = DelayedSTTTranscriber(result: STTResult(text: "late words"))
+        let service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: delayedSTT,
+            dictationRepo: dictationRepo
+        )
+
+        let retry = Task { try await service.retryFailedDictation(id: failed.id) }
+        await delayedSTT.waitForTranscribeCall(1)
+        _ = try dictationRepo.delete(id: failed.id)
+        await delayedSTT.releaseTranscribeCall(1)
+
+        do {
+            _ = try await retry.value
+            XCTFail("Expected the deleted row to stay deleted")
+        } catch let error as DictationServiceError {
+            XCTAssertEqual(error, .failedDictationUnavailable)
+        }
+        XCTAssertNil(try dictationRepo.fetch(id: failed.id))
+        XCTAssertEqual(try dictationRepo.stats().totalCount, 0)
+    }
+
     func testRetryRejectsRowsThatAreNotFailed() async throws {
         let completed = Dictation(durationMs: 1_000, rawTranscript: "done")
         try dictationRepo.save(completed)
