@@ -1,0 +1,27 @@
+Sources/MacParakeet/Hotkey/HotkeyTapFilter.swift
+  s_07badaed2eede4::t_758699f7feefcd 1-51
+Sources/MacParakeet/Hotkey/HotkeyManager.swift
+  s_07badaed2eede4::t_f3bf8f75ba665a 22-23,32-40,97,122,131,133-135,137-138,150,158-160,176-180,185-187,189-198,200,202,205,207,209,211,213,219-220,225,237,244,517-518,533-534,541-542,548-549,560-561,567-568,591-592,594-600,604,609,613,616,618,622,626,628,633,638-645,649,654-655,661,665,669,671,674,678-679,687,692,697-698,711,1128-1131,1317-1384
+Tests/MacParakeetTests/Hotkey/HotkeyManagerTests.swift
+  s_07badaed2eede4::t_614bd70f14cb08 32-62
+Tests/MacParakeetTests/Hotkey/HotkeyTapFilterTests.swift
+  s_07badaed2eede4::t_349cb6a3a017da 1-62
+spec/adr/009-custom-hotkey.md
+  s_07badaed2eede4::t_c2250564f713dd 100-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c9b972bf599dc6925881ad3641aa6392ef937be2",
+  "prompts": {},
+  "sessions": {
+    "s_07badaed2eede4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ba02ce55-aa30-4077-b679-013fe8351f2d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
