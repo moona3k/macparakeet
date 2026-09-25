@@ -287,8 +287,13 @@ full-height editor using the 15 pt reading-body size and 5 pt line spacing.
 The pane reuses the detail view’s outer inset with an additional 8 pt horizontal
 writing margin. It has no fixed minimum editor height, so shorter windows can
 keep the word count and save/retry controls visible. Copy remains in place but
-is disabled for empty notes; an empty editor shows a non-interactive writing
-prompt. Save status, word count, and warnings stay below the editor.
+is disabled when the draft is blank or belongs to another meeting. An enabled,
+empty editor shows a non-interactive writing prompt. VoiceOver describes
+automatic saving only while the editor is enabled. A deleted meeting hears that
+its notes were not saved, and a mismatched meeting hears that notes cannot be
+edited right now. The Copied confirmation clears when the draft changes, the
+displayed meeting changes, or the pane disappears. Save status, word count, and
+warnings stay below the editor.
 
 Changes auto-save to SQLite after a 500 ms idle debounce. The status is hidden
 on entry, including for empty notes. Editing shows a small spinner; a successful

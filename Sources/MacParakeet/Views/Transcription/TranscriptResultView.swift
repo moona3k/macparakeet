@@ -552,8 +552,7 @@ struct TranscriptResultView: View {
     @State private var copiedResetTask: Task<Void, Never>?
     @State private var resultCopiedResetTask: Task<Void, Never>?
     @State private var resultButtonCopiedResetTask: Task<Void, Never>?
-    @State private var notesCopied = false
-    @State private var notesCopiedResetTask: Task<Void, Never>?
+    @State private var meetingNotesCopyFeedback = SavedMeetingNotesCopyFeedback()
     @State private var savedMeetingNotesViewModel = SavedMeetingNotesViewModel()
     @State private var savedMeetingNotesSaveStatus = SavedMeetingNotesSaveStatusPresentation()
     @State private var dismissTask: Task<Void, Never>?
@@ -2811,39 +2810,35 @@ struct TranscriptResultView: View {
                 Button {
                     if let notes = normalizedMeetingNotesDraft {
                         TranscriptResultActions.copyText(notes)
-                        notesCopied = true
-                        notesCopiedResetTask?.cancel()
-                        notesCopiedResetTask = Task {
-                            try? await Task.sleep(for: .seconds(1))
-                            if !Task.isCancelled {
-                                notesCopied = false
-                            }
-                        }
+                        meetingNotesCopyFeedback.noteCopied()
                     }
                 } label: {
                     HStack(spacing: DesignSystem.Spacing.xs) {
-                        Image(systemName: notesCopied ? "checkmark" : "doc.on.doc")
-                        Text(notesCopied ? "Copied" : "Copy")
+                        Image(systemName: meetingNotesCopyFeedback.isCopied ? "checkmark" : "doc.on.doc")
+                        Text(meetingNotesCopyFeedback.isCopied ? "Copied" : "Copy")
                     }
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(
                         normalizedMeetingNotesDraft == nil
                             ? DesignSystem.Colors.textSecondary
-                            : (notesCopied ? DesignSystem.Colors.successGreen : .primary)
+                            : (meetingNotesCopyFeedback.isCopied ? DesignSystem.Colors.successGreen : .primary)
                     )
                 }
                 .parakeetAction(.secondary)
                 .controlSize(.small)
                 .disabled(normalizedMeetingNotesDraft == nil)
-                .accessibilityLabel(notesCopied ? "Notes copied" : "Copy your notes")
+                .accessibilityLabel(meetingNotesCopyFeedback.isCopied ? "Notes copied" : "Copy your notes")
             }
             // Align with the native text container’s 5 pt line-fragment inset.
             .padding(.horizontal, 5)
 
             TextEditor(text: savedMeetingNotesViewModel.textBinding(for: activeTranscription.id))
                 .disabled(
-                    savedMeetingNotesViewModel.meetingID != activeTranscription.id
-                        || savedMeetingNotesViewModel.saveState == .deleted
+                    !SavedMeetingNotesEditorPresentation.isEditorEnabled(
+                        meetingID: savedMeetingNotesViewModel.meetingID,
+                        displayedMeetingID: activeTranscription.id,
+                        saveState: savedMeetingNotesViewModel.saveState
+                    )
                 )
                 .font(DesignSystem.Typography.bodyLarge)
                 .lineSpacing(5)
@@ -2851,11 +2846,13 @@ struct TranscriptResultView: View {
                 .scrollContentBackground(.hidden)
                 .focused($meetingNotesEditorFocused)
                 .overlay(alignment: .topLeading) {
-                    if savedMeetingNotesViewModel.meetingID == activeTranscription.id
-                        && savedMeetingNotesViewModel.saveState != .deleted
-                        && savedMeetingNotesViewModel.textBinding(for: activeTranscription.id).wrappedValue.isEmpty
-                    {
-                        Text("Add your thoughts, decisions, and next steps…")
+                    if SavedMeetingNotesEditorPresentation.showsWritingPrompt(
+                        meetingID: savedMeetingNotesViewModel.meetingID,
+                        displayedMeetingID: activeTranscription.id,
+                        saveState: savedMeetingNotesViewModel.saveState,
+                        draft: savedMeetingNotesViewModel.text
+                    ) {
+                        Text(SavedMeetingNotesEditorPresentation.writingPrompt)
                             .font(DesignSystem.Typography.bodyLarge)
                             .foregroundStyle(DesignSystem.Colors.textSecondary)
                             .padding(.horizontal, 5)
@@ -2867,7 +2864,11 @@ struct TranscriptResultView: View {
                 .padding(.vertical, DesignSystem.Spacing.sm)
                 .accessibilityLabel("Meeting notes")
                 .accessibilityHint(
-                    "Add private context, decisions, or reminders for this meeting. Changes save automatically."
+                    SavedMeetingNotesEditorPresentation.accessibilityHint(
+                        meetingID: savedMeetingNotesViewModel.meetingID,
+                        displayedMeetingID: activeTranscription.id,
+                        saveState: savedMeetingNotesViewModel.saveState
+                    )
                 )
 
             HStack(spacing: DesignSystem.Spacing.sm) {
@@ -2920,9 +2921,9 @@ struct TranscriptResultView: View {
         } else {
             switch savedMeetingNotesViewModel.saveState {
             case .deleted:
-                Label("Meeting deleted — notes were not saved", systemImage: "trash")
+                Label(SavedMeetingNotesEditorPresentation.deletedStatus, systemImage: "trash")
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    .help("Meeting deleted — notes were not saved")
+                    .help(SavedMeetingNotesEditorPresentation.deletedStatus)
             case .saved where savedMeetingNotesSaveStatus.showsSaveConfirmation:
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 12, weight: .medium))
@@ -2985,10 +2986,10 @@ struct TranscriptResultView: View {
         meetingNotesSection
             .onAppear(perform: beginMeetingNotesSaveStatusPresentation)
             .onChange(of: activeTranscription.id) {
-                resetMeetingNotesCopyFeedback()
+                meetingNotesCopyFeedback.reset()
             }
             .onChange(of: savedMeetingNotesViewModel.text) {
-                resetMeetingNotesCopyFeedback()
+                meetingNotesCopyFeedback.reset()
             }
             .onChange(of: savedMeetingNotesViewModel.meetingID) {
                 beginMeetingNotesSaveStatusPresentation()
@@ -2998,14 +2999,8 @@ struct TranscriptResultView: View {
             }
             .onDisappear {
                 resetMeetingNotesSaveStatusPresentation()
-                resetMeetingNotesCopyFeedback()
+                meetingNotesCopyFeedback.reset()
             }
-    }
-
-    private func resetMeetingNotesCopyFeedback() {
-        notesCopiedResetTask?.cancel()
-        notesCopiedResetTask = nil
-        notesCopied = false
     }
 
     // MARK: - Tab Bar
@@ -5361,10 +5356,11 @@ struct TranscriptResultView: View {
     }
 
     private var normalizedMeetingNotesDraft: String? {
-        guard savedMeetingNotesViewModel.meetingID == activeTranscription.id else { return nil }
-        let notes = savedMeetingNotesViewModel.text
-        guard !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        return notes
+        SavedMeetingNotesEditorPresentation.copyPayload(
+            meetingID: savedMeetingNotesViewModel.meetingID,
+            displayedMeetingID: activeTranscription.id,
+            draft: savedMeetingNotesViewModel.text
+        )
     }
 
     private func requestMeetingNotesNavigation(_ action: MeetingNotesNavigationAction) {

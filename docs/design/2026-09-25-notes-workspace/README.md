@@ -37,8 +37,10 @@ strip is fixture chrome, not a capture of the running application.
   visible while the editor compressed to 436 × 118 pt.
 - Independent correctness and maintainability reviews found no actionable issues.
 
-Full application build, database autosave, VoiceOver, and integrated navigation
-were not exercised by this fixture. Local disk space was below 3 GB, so the
-full dependency build and test suite are delegated to PR CI. Existing notes
-persistence tests remain the regression coverage; no source-text assertions
-were added for this visual change.
+Full application build, database autosave, a VoiceOver pass, and integrated
+navigation were not exercised by this fixture. Hint text, the writing prompt,
+Copy eligibility, and Copied-confirmation reset are covered by
+`SavedMeetingNotesEditorPresentationTests`. Local disk space was below 3 GB
+when the fixture was captured, so the full dependency build and test suite are
+delegated to PR CI. Existing notes persistence tests remain the regression
+coverage for autosave.
