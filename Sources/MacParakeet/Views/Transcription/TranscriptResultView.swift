@@ -2851,7 +2851,7 @@ struct TranscriptResultView: View {
                 .scrollContentBackground(.hidden)
                 .focused($meetingNotesEditorFocused)
                 .overlay(alignment: .topLeading) {
-                    if savedMeetingNotesViewModel.text.isEmpty {
+                    if savedMeetingNotesViewModel.textBinding(for: activeTranscription.id).wrappedValue.isEmpty {
                         Text("Add your thoughts, decisions, and next steps…")
                             .font(DesignSystem.Typography.bodyLarge)
                             .foregroundStyle(DesignSystem.Colors.textSecondary)
