@@ -162,7 +162,10 @@ struct DictationHistoryView: View {
                             },
                             onDownloadAudio: { viewModel.downloadAudio(for: dictation) },
                             onToggleAIEdit: { viewModel.toggleDisplayRawTranscript(for: dictation) },
-                            onBeginBulkSelection: { viewModel.beginBulkSelection(startingWith: dictation) }
+                            onBeginBulkSelection: { viewModel.beginBulkSelection(startingWith: dictation) },
+                            isRetrying: viewModel.retryingDictationIDs.contains(dictation.id),
+                            onRetry: viewModel.canRetryTranscription(for: dictation)
+                                ? { viewModel.retryTranscription(for: dictation) } : nil
                         )
                         .padding(.horizontal, DesignSystem.Spacing.lg)
                         .padding(.bottom, DesignSystem.Spacing.sm)
@@ -380,6 +383,10 @@ struct DictationCardRow: View {
     var onDownloadAudio: (() -> Void)?
     var onToggleAIEdit: (() -> Void)?
     var onBeginBulkSelection: (() -> Void)?
+    /// Failed takes only: a History retry is in flight.
+    var isRetrying: Bool = false
+    /// Failed takes that still have their recording.
+    var onRetry: (() -> Void)?
 
     @State private var isHovered = false
     @State private var expandedTranscriptContentHeight: CGFloat = 0
@@ -422,6 +429,16 @@ struct DictationCardRow: View {
                             Text("Cancelled")
                                 .font(DesignSystem.Typography.caption)
                                 .foregroundStyle(.tertiary)
+                        }
+
+                        if isFailed {
+                            Text("\u{2009}\u{00B7}\u{2009}")
+                                .font(DesignSystem.Typography.caption)
+                                .foregroundStyle(.quaternary)
+
+                            Text("Failed")
+                                .font(DesignSystem.Typography.caption)
+                                .foregroundStyle(.secondary)
                         }
 
                         if dictation.audioPath != nil {
@@ -492,13 +509,15 @@ struct DictationCardRow: View {
                         )
                     }
 
-                    CardActionButton(
-                        icon: isCopied ? "checkmark" : "doc.on.clipboard",
-                        color: isCopied ? DesignSystem.Colors.successGreen : .secondary,
-                        help: isCopied ? "Copied" : "Copy dictation",
-                        action: { onCopy() }
-                    )
-                    .animation(DesignSystem.Animation.hoverTransition, value: isCopied)
+                    if !isFailed {
+                        CardActionButton(
+                            icon: isCopied ? "checkmark" : "doc.on.clipboard",
+                            color: isCopied ? DesignSystem.Colors.successGreen : .secondary,
+                            help: isCopied ? "Copied" : "Copy dictation",
+                            action: { onCopy() }
+                        )
+                        .animation(DesignSystem.Animation.hoverTransition, value: isCopied)
+                    }
 
                     if transcriptIsExpandable || isExpanded {
                         CardActionButton(
@@ -522,15 +541,19 @@ struct DictationCardRow: View {
                 }
             }
 
-            transcriptContent
-                .background(alignment: .topLeading) {
-                    if !isExpanded && canToggleTranscriptExpansion {
-                        transcriptOverflowMeasurementProbe
-                        if transcriptIsExpandable {
-                            expandedTranscriptMeasurementProbe
+            if isFailed {
+                failedTranscriptionContent
+            } else {
+                transcriptContent
+                    .background(alignment: .topLeading) {
+                        if !isExpanded && canToggleTranscriptExpansion {
+                            transcriptOverflowMeasurementProbe
+                            if transcriptIsExpandable {
+                                expandedTranscriptMeasurementProbe
+                            }
                         }
                     }
-                }
+            }
         }
         .padding(DesignSystem.Spacing.md)
         .scaleEffect(isPlayingThis ? 1.005 : 1.0)
@@ -587,6 +610,58 @@ struct DictationCardRow: View {
             return DesignSystem.Colors.accent.opacity(0.24)
         }
         return DesignSystem.Colors.border.opacity(0.5)
+    }
+
+    private var isFailed: Bool {
+        dictation.status == .error
+    }
+
+    /// Body of a take whose transcription failed. The recording stays until a
+    /// retry succeeds or the user deletes the row.
+    private var failedTranscriptionContent: some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(
+                    dictation.audioPath == nil
+                        ? "Transcription failed. The recording is no longer available."
+                        : "Transcription failed. The recording is saved."
+                )
+                .font(DesignSystem.Typography.body)
+                .foregroundStyle(.secondary)
+
+                // The latest failure, including a failed retry, stays visible
+                // so the reason is readable without hovering.
+                if let errorMessage = dictation.errorMessage, !errorMessage.isEmpty {
+                    Text(errorMessage)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(2)
+                        .textSelection(.enabled)
+                }
+            }
+            .accessibilityElement(children: .combine)
+
+            Spacer(minLength: 0)
+
+            if let onRetry {
+                Button {
+                    onRetry()
+                } label: {
+                    if isRetrying {
+                        HStack(spacing: 6) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Retrying")
+                        }
+                    } else {
+                        Label("Retry", systemImage: "arrow.clockwise")
+                    }
+                }
+                .parakeetAction(.secondary)
+                .disabled(isRetrying)
+                .accessibilityLabel(isRetrying ? "Retrying transcription" : "Retry transcription")
+            }
+        }
     }
 
     @ViewBuilder

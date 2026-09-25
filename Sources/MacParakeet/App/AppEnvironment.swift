@@ -429,7 +429,8 @@ final class AppEnvironment {
                     .firstDictationCompleted(
                         activationWindow: TelemetryActivationWindow(secondsSinceOnboarding: secondsSinceOnboarding)
                     ))
-            }
+            },
+            failedDictationAudioDirectory: URL(fileURLWithPath: AppPaths.dictationsDir, isDirectory: true)
         )
 
         let telemetry = TelemetryService()

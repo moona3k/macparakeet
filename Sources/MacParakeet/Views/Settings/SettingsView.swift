@@ -1984,7 +1984,9 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Save audio recordings",
-                    detail: "Keep audio alongside your dictation history.",
+                    detail:
+                        "Keep audio alongside your dictation history. If a transcription fails, "
+                        + "its recording is kept in History for Retry either way.",
                     isOn: $viewModel.saveAudioRecordings
                 )
 

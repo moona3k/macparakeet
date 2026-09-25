@@ -66,6 +66,53 @@ final class DictationHistoryViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.groupedDictations[0].1[0].rawTranscript, "Hello world")
     }
 
+    // MARK: - Failed transcription retry
+
+    func testRetryIsOfferedOnlyForFailedRowsWithAudio() {
+        let failed = Dictation(durationMs: 1000, rawTranscript: "", audioPath: "/tmp/a.wav", status: .error)
+        let failedNoAudio = Dictation(durationMs: 1000, rawTranscript: "", status: .error)
+        let completed = Dictation(durationMs: 1000, rawTranscript: "Hi", audioPath: "/tmp/b.wav")
+
+        viewModel.configure(dictationRepo: mockRepo)
+        XCTAssertFalse(viewModel.canRetryTranscription(for: failed), "No retry action is wired")
+
+        viewModel.configure(dictationRepo: mockRepo, retryFailedDictation: { _ in })
+        XCTAssertTrue(viewModel.canRetryTranscription(for: failed))
+        XCTAssertFalse(viewModel.canRetryTranscription(for: failedNoAudio))
+        XCTAssertFalse(viewModel.canRetryTranscription(for: completed))
+    }
+
+    func testRetryRunsOnceAndReloadsHistory() async {
+        let failed = Dictation(durationMs: 1000, rawTranscript: "", audioPath: "/tmp/a.wav", status: .error)
+        mockRepo.dictations = [failed]
+        let calls = LockedIDRecorder()
+        let gate = AsyncStream<Void>.makeStream()
+        viewModel.configure(
+            dictationRepo: mockRepo,
+            retryFailedDictation: { id in
+                calls.record(id)
+                for await _ in gate.stream { break }
+            }
+        )
+
+        viewModel.retryTranscription(for: failed)
+        viewModel.retryTranscription(for: failed)
+        XCTAssertEqual(viewModel.retryingDictationIDs, [failed.id])
+
+        var completedRow = failed
+        completedRow.status = .completed
+        completedRow.rawTranscript = "Recovered"
+        mockRepo.dictations = [completedRow]
+        gate.continuation.yield()
+
+        for _ in 0..<100 where !viewModel.retryingDictationIDs.isEmpty {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertTrue(viewModel.retryingDictationIDs.isEmpty)
+        XCTAssertEqual(calls.values, [failed.id], "A second tap while retrying must not start another attempt")
+        XCTAssertEqual(viewModel.groupedDictations.first?.1.first?.rawTranscript, "Recovered")
+    }
+
     func testEmptyRepoResultsInEmptyList() {
         viewModel.configure(dictationRepo: mockRepo)
 
@@ -710,5 +757,22 @@ final class DictationHistoryViewModelTests: XCTestCase {
         if !predicate() {
             XCTFail("Timed out waiting for \(description)", file: file, line: line)
         }
+    }
+}
+
+private final class LockedIDRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var ids: [UUID] = []
+
+    func record(_ id: UUID) {
+        lock.lock()
+        ids.append(id)
+        lock.unlock()
+    }
+
+    var values: [UUID] {
+        lock.lock()
+        defer { lock.unlock() }
+        return ids
     }
 }

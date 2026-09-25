@@ -1708,6 +1708,11 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertTrue(partialApplied, "Expected live partial to reach liveTranscript")
 
         await mockAudio.emitLiveSamples([0.1, 0.2, 0.3])
+        // Stop cancels the live stream, so let the append land first.
+        let appendLanded = await waitForCondition {
+            await self.mockSTT.liveAppendCallCount == 1
+        }
+        XCTAssertTrue(appendLanded)
         let result = try await service.stopRecording()
 
         XCTAssertEqual(result.dictation.rawTranscript, "file final")
@@ -1747,6 +1752,11 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(liveTranscript, "")
 
         await mockAudio.emitLiveSamples([0.1, 0.2, 0.3])
+        // Stop cancels the live stream, so let the append land first.
+        let appendLanded = await waitForCondition {
+            await self.mockSTT.liveAppendCallCount == 1
+        }
+        XCTAssertTrue(appendLanded)
         let result = try await service.stopRecording()
 
         XCTAssertEqual(result.dictation.rawTranscript, "file final")
@@ -1772,6 +1782,11 @@ final class DictationServiceTests: XCTestCase {
 
         try await service.startRecording()
         await mockAudio.emitLiveSamples([0.1, 0.2, 0.3])
+        // Stop cancels the live stream, so let the append land first.
+        let appendLanded = await waitForCondition {
+            await self.mockSTT.liveAppendCallCount == 1
+        }
+        XCTAssertTrue(appendLanded)
         let result = try await service.stopRecording()
 
         XCTAssertEqual(result.dictation.rawTranscript, "file fallback")
@@ -2999,6 +3014,246 @@ final class DictationServiceTests: XCTestCase {
 
     // Note: Cancel flow tests, stop-when-not-recording, and STT error propagation
     // are covered in CancelFlowTests.swift to avoid duplication.
+
+    // MARK: - Failed transcription audio (#1131)
+
+    private func makeFailedAudioService(
+        saveHistory: Bool = true,
+        saveAudio: Bool = false
+    ) throws -> (DictationService, URL) {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("failed-dictations-\(UUID().uuidString)", isDirectory: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
+        let service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldSaveAudio: { saveAudio },
+            shouldSaveDictationHistory: { saveHistory },
+            failedDictationAudioDirectory: directory
+        )
+        return (service, directory)
+    }
+
+    func testFailedTranscriptionKeepsRecordingAsRetryableHistoryRow() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+        let (service, directory) = try makeFailedAudioService()
+        let audioURL = try makeTemporaryAudioURL()
+        await mockAudio.configure(captureResult: audioURL)
+        let sttError = STTError.transcriptionFailed("model load failed")
+        await mockSTT.configure(error: sttError)
+
+        try await service.startRecording()
+        do {
+            _ = try await service.stopRecording()
+            XCTFail("Expected the failed stop to throw")
+        } catch let error as DictationServiceError {
+            XCTAssertEqual(error, .transcriptionFailedAudioSaved)
+        }
+
+        let rows = try dictationRepo.fetchAll()
+        let row = try XCTUnwrap(rows.first)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(row.status, .error)
+        XCTAssertEqual(row.rawTranscript, "")
+        XCTAssertEqual(row.errorMessage, sttError.localizedDescription)
+        let keptPath = try XCTUnwrap(row.audioPath)
+        XCTAssertEqual(
+            URL(fileURLWithPath: keptPath).deletingLastPathComponent().standardizedFileURL,
+            directory.standardizedFileURL
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: keptPath))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
+        let completed = try dictationRepo.fetchCompleted()
+        XCTAssertTrue(completed.isEmpty, "A failed take must never become a paste target")
+        let stats = try dictationRepo.stats()
+        XCTAssertEqual(stats.totalCount, 0)
+
+        // Telemetry still classifies the underlying STT failure.
+        let operation = try XCTUnwrap(dictationOperationProps(in: telemetry.snapshot()).last)
+        XCTAssertEqual(operation["outcome"], "failure")
+        XCTAssertEqual(operation["error_type"], TelemetryErrorClassifier.classify(sttError))
+        let state = await service.state
+        if case .idle = state {} else { XCTFail("Expected idle after a failed stop, got \(state)") }
+    }
+
+    func testFailedTranscriptionAfterUndoCancelKeepsRecording() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+        let (service, _) = try makeFailedAudioService()
+        let audioURL = try makeTemporaryAudioURL()
+        await mockAudio.configure(captureResult: audioURL)
+        let sttError = STTError.transcriptionFailed("model load failed")
+        await mockSTT.configure(error: sttError)
+
+        try await service.startRecording()
+        await service.cancelRecording(reason: .hotkey)
+        do {
+            _ = try await service.undoCancel()
+            XCTFail("Expected the undone take to fail")
+        } catch let error as DictationServiceError {
+            XCTAssertEqual(error, .transcriptionFailedAudioSaved)
+        }
+
+        let row = try XCTUnwrap(try dictationRepo.fetchAll().first)
+        XCTAssertEqual(row.status, .error)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: try XCTUnwrap(row.audioPath)))
+        let operation = try XCTUnwrap(dictationOperationProps(in: telemetry.snapshot()).last)
+        XCTAssertEqual(operation["error_type"], TelemetryErrorClassifier.classify(sttError))
+    }
+
+    func testFailedTranscriptionIsDiscardedWhenHistoryIsOff() async throws {
+        let (service, directory) = try makeFailedAudioService(saveHistory: false)
+        let audioURL = try makeTemporaryAudioURL()
+        await mockAudio.configure(captureResult: audioURL)
+        await mockSTT.configure(error: STTError.transcriptionFailed("model load failed"))
+
+        try await service.startRecording()
+        do {
+            _ = try await service.stopRecording()
+            XCTFail("Expected the failed stop to throw")
+        } catch let error as STTError {
+            XCTAssertEqual(
+                error.localizedDescription,
+                STTError.transcriptionFailed("model load failed").localizedDescription
+            )
+        }
+
+        XCTAssertTrue(try dictationRepo.fetchAll().isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
+        let kept = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        XCTAssertTrue(kept.isEmpty)
+    }
+
+    func testCancelledAndSilentTranscriptionsAreNotPreserved() async throws {
+        let (service, _) = try makeFailedAudioService()
+        for error in [CancellationError() as Error, DictationServiceError.emptyTranscript] {
+            let audioURL = try makeTemporaryAudioURL()
+            await mockAudio.configure(captureResult: audioURL)
+            await mockSTT.configure(error: error)
+            try await service.startRecording()
+            _ = try? await service.stopRecording()
+            XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
+        }
+        XCTAssertTrue(try dictationRepo.fetchAll().isEmpty)
+    }
+
+    func testRetryCompletesFailedRowAndDropsRecordingWhenSaveAudioIsOff() async throws {
+        let (service, _) = try makeFailedAudioService(saveAudio: false)
+        let audioURL = try makeTemporaryAudioURL()
+        await mockAudio.configure(captureResult: audioURL)
+        await mockSTT.configure(error: STTError.transcriptionFailed("engine busy"))
+        try await service.startRecording()
+        _ = try? await service.stopRecording()
+        let failed = try XCTUnwrap(try dictationRepo.fetchAll().first)
+        let keptPath = try XCTUnwrap(failed.audioPath)
+
+        await mockSTT.configure(result: STTResult(text: "hello from the retry"))
+        let completed = try await service.retryFailedDictation(id: failed.id)
+
+        XCTAssertEqual(completed.id, failed.id)
+        XCTAssertEqual(completed.createdAt, failed.createdAt)
+        XCTAssertEqual(completed.status, .completed)
+        XCTAssertEqual(completed.rawTranscript, "hello from the retry")
+        XCTAssertNil(completed.errorMessage)
+        XCTAssertNil(completed.audioPath)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: keptPath))
+        let stored = try XCTUnwrap(try dictationRepo.fetch(id: failed.id))
+        XCTAssertEqual(stored.status, .completed)
+        XCTAssertEqual(try dictationRepo.stats().totalCount, 1)
+        XCTAssertEqual(try dictationRepo.fetchCompleted().map(\.id), [failed.id])
+    }
+
+    func testRetryKeepsRecordingWhenSaveAudioIsOn() async throws {
+        let (service, _) = try makeFailedAudioService(saveAudio: true)
+        let audioURL = try makeTemporaryAudioURL()
+        await mockAudio.configure(captureResult: audioURL)
+        await mockSTT.configure(error: STTError.transcriptionFailed("engine busy"))
+        try await service.startRecording()
+        _ = try? await service.stopRecording()
+        let failed = try XCTUnwrap(try dictationRepo.fetchAll().first)
+        let keptPath = try XCTUnwrap(failed.audioPath)
+
+        await mockSTT.configure(result: STTResult(text: "kept audio"))
+        let completed = try await service.retryFailedDictation(id: failed.id)
+
+        XCTAssertEqual(completed.audioPath, keptPath)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: keptPath))
+    }
+
+    func testFailedRetryKeepsRowAndRecordsNewError() async throws {
+        let (service, _) = try makeFailedAudioService()
+        let audioURL = try makeTemporaryAudioURL()
+        await mockAudio.configure(captureResult: audioURL)
+        await mockSTT.configure(error: STTError.transcriptionFailed("first failure"))
+        try await service.startRecording()
+        _ = try? await service.stopRecording()
+        let failed = try XCTUnwrap(try dictationRepo.fetchAll().first)
+
+        let retryError = STTError.transcriptionFailed("second failure")
+        await mockSTT.configure(error: retryError)
+        do {
+            try await service.retryFailedDictation(id: failed.id)
+            XCTFail("Expected the retry to fail")
+        } catch {}
+
+        let stored = try XCTUnwrap(try dictationRepo.fetch(id: failed.id))
+        XCTAssertEqual(stored.status, .error)
+        XCTAssertEqual(stored.errorMessage, retryError.localizedDescription)
+        XCTAssertEqual(stored.audioPath, failed.audioPath)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: try XCTUnwrap(stored.audioPath)))
+    }
+
+    func testRetryDoesNotResurrectRowDeletedWhileTranscribing() async throws {
+        let audioURL = try makeTemporaryAudioURL()
+        addTeardownBlock { try? FileManager.default.removeItem(at: audioURL) }
+        let failed = Dictation(
+            durationMs: 1_000,
+            rawTranscript: "",
+            audioPath: audioURL.path,
+            status: .error,
+            errorMessage: "engine busy"
+        )
+        try dictationRepo.save(failed)
+        let delayedSTT = DelayedSTTTranscriber(result: STTResult(text: "late words"))
+        let service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: delayedSTT,
+            dictationRepo: dictationRepo
+        )
+
+        let retry = Task { try await service.retryFailedDictation(id: failed.id) }
+        await delayedSTT.waitForTranscribeCall(1)
+        _ = try dictationRepo.delete(id: failed.id)
+        await delayedSTT.releaseTranscribeCall(1)
+
+        do {
+            _ = try await retry.value
+            XCTFail("Expected the deleted row to stay deleted")
+        } catch let error as DictationServiceError {
+            XCTAssertEqual(error, .failedDictationUnavailable)
+        }
+        XCTAssertNil(try dictationRepo.fetch(id: failed.id))
+        XCTAssertEqual(try dictationRepo.stats().totalCount, 0)
+    }
+
+    func testRetryRejectsRowsThatAreNotFailed() async throws {
+        let completed = Dictation(durationMs: 1_000, rawTranscript: "done")
+        try dictationRepo.save(completed)
+        do {
+            try await service.retryFailedDictation(id: completed.id)
+            XCTFail("Expected completed rows to be rejected")
+        } catch let error as DictationServiceError {
+            XCTAssertEqual(error, .failedDictationUnavailable)
+        }
+        do {
+            try await service.retryFailedDictation(id: UUID())
+            XCTFail("Expected a missing row to be rejected")
+        } catch let error as DictationServiceError {
+            XCTAssertEqual(error, .failedDictationUnavailable)
+        }
+    }
 
     private func dictationOperationProps(in events: [TelemetryEventSpec]) -> [[String: String]] {
         events.compactMap { event in

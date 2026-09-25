@@ -94,6 +94,21 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- History JSON may now include `"status": "error"` for a dictation whose
+  transcription failed after capture. The row keeps its recording
+  (`audioPath`), has an empty `rawTranscript`, and carries the failure in
+  `errorMessage`. The human-readable list marks those rows `[failed]`.
+
+### Changed
+
+- `retranscribe --kind dictation --update` on a failed dictation completes
+  it the same way History Retry does. The update applies only if the row is
+  still failed; otherwise the command fails with a `lookup` error. After success
+  the kept recording is deleted and `audioPath` cleared, unless Save audio
+  recordings is on.
+
 ## [4.6.0] — 2026-09-23
 
 ### Fixed

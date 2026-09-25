@@ -123,7 +123,13 @@ final class AppEnvironmentConfigurer {
             speakerVoiceprints: AppFeatures.isVoiceProfilesAvailable()
                 ? env.speakerVoiceprintService : nil
         )
-        historyViewModel.configure(dictationRepo: env.dictationRepo)
+        let dictationService = env.dictationService
+        historyViewModel.configure(
+            dictationRepo: env.dictationRepo,
+            retryFailedDictation: { id in
+                try await dictationService.retryFailedDictation(id: id)
+            }
+        )
         libraryViewModel.configure(
             transcriptionRepo: env.transcriptionRepo,
             meetingTypeRepository: env.meetingTypeRepo,
