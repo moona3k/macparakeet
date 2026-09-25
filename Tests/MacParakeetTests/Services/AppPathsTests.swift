@@ -73,17 +73,22 @@ final class AppPathsTests: XCTestCase {
     }
 
     func testDevBundleWithoutOverrideUsesDevStateNotStableData() {
-        let devRoot = AppPaths.resolvedAppSupportDir(
-            environment: [:],
-            bundleIdentifier: AppPaths.developmentBundleIdentifier
+        let applicationSupport = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].path
+        XCTAssertEqual(
+            AppPaths.resolvedAppSupportDir(
+                environment: [:],
+                bundleIdentifier: AppPaths.developmentBundleIdentifier
+            ),
+            applicationSupport + "/MacParakeet-Dev"
         )
-        XCTAssertTrue(devRoot.hasSuffix("/MacParakeet-Dev"), devRoot)
-
-        let stableRoot = AppPaths.resolvedAppSupportDir(
-            environment: [:],
-            bundleIdentifier: "com.macparakeet.MacParakeet"
+        XCTAssertEqual(
+            AppPaths.resolvedAppSupportDir(
+                environment: [:],
+                bundleIdentifier: "com.macparakeet.MacParakeet"
+            ),
+            applicationSupport + "/MacParakeet"
         )
-        XCTAssertTrue(stableRoot.hasSuffix("/MacParakeet"), stableRoot)
 
         // An explicit override still wins for the Dev bundle.
         let custom = FileManager.default.temporaryDirectory
