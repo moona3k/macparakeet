@@ -1530,6 +1530,16 @@ snapshot is retained while parsing. Closing or hiding a pane cancels its
 consumer, and a cancelled parse cannot publish over a replacement renderer.
 Returning to the pane must continue rendering new snapshots.
 
+Saved-result panes keep their actions above the scrolling content; actions wrap
+when the detail pane is narrow. In edit mode, the native text editor owns
+scrolling and expands with the available pane height. Do not place that editor
+inside another vertical scroll view.
+
+Saved Chat retains every streamed token but coalesces message-list publication
+at a 33 ms cadence. Successful completion publishes the entire response before
+clearing streaming state. Stop and failure discard partial responses; navigation
+keeps the existing detached-conversation persistence rules.
+
 Generated Markdown remains read-only and selectable. Task boxes communicate
 their checked state but are not controls. Headings and table cells preserve the
 renderer accessibility structure. Fonts and colors map to `DesignSystem` and

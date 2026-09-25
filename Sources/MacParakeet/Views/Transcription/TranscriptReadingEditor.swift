@@ -1,15 +1,15 @@
-import MacParakeetCore
+import MacParakeetViewModels
 import SwiftUI
 
 /// The transcript the user is already reading, opened for changes.
 struct TranscriptReadingEditor: View {
-    @Binding var drafts: [TranscriptReadingDraft]
+    let session: TranscriptReadingEditSession
     let font: Font
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
-            ForEach($drafts) { $draft in
-                passage($draft)
+        LazyVStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
+            ForEach(session.passages) { passage in
+                TranscriptReadingPassageRow(passage: passage, font: font)
             }
         }
         .padding(DesignSystem.Spacing.lg)
@@ -19,17 +19,21 @@ struct TranscriptReadingEditor: View {
                 .fill(DesignSystem.Colors.surfaceElevated.opacity(0.6))
         )
     }
+}
 
-    @ViewBuilder
-    private func passage(_ draft: Binding<TranscriptReadingDraft>) -> some View {
-        if draft.wrappedValue.removed {
+private struct TranscriptReadingPassageRow: View {
+    @Bindable var passage: TranscriptReadingPassage
+    let font: Font
+
+    var body: some View {
+        if passage.removed {
             HStack(spacing: DesignSystem.Spacing.sm) {
                 Text("Passage removed")
                     .font(DesignSystem.Typography.body)
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
                 Spacer(minLength: DesignSystem.Spacing.sm)
                 Button("Restore") {
-                    draft.wrappedValue.removed = false
+                    passage.removed = false
                 }
                 .parakeetAction(.secondary)
                 .controlSize(.small)
@@ -37,14 +41,14 @@ struct TranscriptReadingEditor: View {
             .accessibilityElement(children: .combine)
         } else {
             HStack(alignment: .firstTextBaseline, spacing: DesignSystem.Spacing.sm) {
-                TextField("Passage", text: draft.text, axis: .vertical)
+                TextField("Passage", text: $passage.text, axis: .vertical)
                     .textFieldStyle(.plain)
                     .font(font)
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
                     .accessibilityLabel("Transcript passage")
 
                 Button {
-                    draft.wrappedValue.removed = true
+                    passage.removed = true
                 } label: {
                     Image(systemName: "minus.circle")
                         .font(.system(size: 14, weight: .semibold))
