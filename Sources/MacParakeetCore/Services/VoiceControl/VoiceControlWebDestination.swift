@@ -62,7 +62,23 @@ public struct VoiceControlWebDestination: Sendable, Equatable {
     /// a question rather than restating the request.
     public static func matchingGoal(_ lower: String) -> VoiceControlWebDestination? {
         guard let request = VoiceControlGoalText.currentRequest(lower) else { return nil }
-        let padded = " " + VoiceControlSessionGrammar.normalize(request) + " "
+        if let destination = match(request) { return destination }
+        // A short correction (`actually Paris`) changes a detail of the task,
+        // not the task, so the original request keeps its site. A correction
+        // that is itself a command or about a message (`reply instead`) does not.
+        let segments = VoiceControlGoalText.kindedSegments(lower)
+        let padded = pad(request)
+        guard segments.contains(where: { $0.kind == .correction }),
+            padded.split(separator: " ").count <= 3, !isControlCommand(padded), !isAboutAMessage(padded),
+            let original = segments.first(where: { $0.kind == .original })?.text
+        else { return nil }
+        return match(original)
+    }
+
+    private static func pad(_ text: String) -> String { " " + VoiceControlSessionGrammar.normalize(text) + " " }
+
+    private static func match(_ text: String) -> VoiceControlWebDestination? {
+        let padded = pad(text)
         guard padded.count > 2, !isControlCommand(padded) else { return nil }
         return all.first { $0.isRequested(by: padded) }
     }
@@ -90,11 +106,14 @@ public struct VoiceControlWebDestination: Sendable, Equatable {
     }
 
     /// `… in Chrome`, `… in Safari`: the person names the browser to use. A
-    /// sentence about a message (`reply that the login fails in Chrome`) does not.
+    /// sentence about a message (`reply that the login fails in Chrome`) does
+    /// not, unless it leads with an opening verb (`open the flight
+    /// confirmation in Chrome`).
     public static func namesBrowser(_ lower: String) -> Bool {
         guard let request = VoiceControlGoalText.currentRequest(lower) else { return false }
-        let padded = " " + VoiceControlSessionGrammar.normalize(request) + " "
-        guard !isControlCommand(padded), !isAboutAMessage(padded) else { return false }
+        let padded = pad(request)
+        let opens = ["open", "go to", "switch to", "launch", "use", "show"].contains { padded.hasPrefix(" \($0) ") }
+        guard !isControlCommand(padded), opens || !isAboutAMessage(padded) else { return false }
         return ["chrome", "safari", "firefox", "brave", "edge"].contains { padded.contains(" in \($0) ") }
     }
 

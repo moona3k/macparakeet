@@ -86,8 +86,10 @@ final class VoiceControlIntentAnchoringTests: XCTestCase {
         if case .action(let action) = login { XCTAssertNotEqual(action.operation, .activateApp) }
         let search = try await router.decide(goal: "find flights to Paris", snapshot: mail, history: [])
         XCTAssertEqual(search, .action(VoiceControlAction(operation: .activateApp, targetID: "app:9")))
-        let named = try await router.decide(goal: "open the release notes in Chrome", snapshot: mail, history: [])
-        XCTAssertEqual(named, .action(VoiceControlAction(operation: .activateApp, targetID: "app:9")))
+        for goal in ["open the release notes in Chrome", "open the flight confirmation in Chrome"] {
+            let named = try await router.decide(goal: goal, snapshot: mail, history: [])
+            XCTAssertEqual(named, .action(VoiceControlAction(operation: .activateApp, targetID: "app:9")), goal)
+        }
     }
 
     /// Only the current request of an amended goal routes: the newest
@@ -105,6 +107,16 @@ final class VoiceControlIntentAnchoringTests: XCTestCase {
             + "actually find flights to Paris"
         XCTAssertEqual(VoiceControlWebDestination.matchingGoal(restated.lowercased())?.id, "web:google-flights")
         XCTAssertNil(VoiceControlFlightPlan.parse(restated), "a correction belongs to the model, not the form plan")
+        let refined =
+            VoiceControlGoalText.header + "find flights to London\n" + VoiceControlGoalText.correction
+            + "actually Paris"
+        XCTAssertEqual(
+            VoiceControlWebDestination.matchingGoal(refined.lowercased())?.id, "web:google-flights",
+            "a short correction changes a detail, not the task")
+        let replaced =
+            VoiceControlGoalText.header + "find flights to London\n" + VoiceControlGoalText.correction
+            + "actually reply instead"
+        XCTAssertNil(VoiceControlWebDestination.matchingGoal(replaced.lowercased()))
         let answered =
             VoiceControlGoalText.header + "Find flights to London\n" + VoiceControlGoalText.clarification + "2"
         XCTAssertEqual(VoiceControlWebDestination.matchingGoal(answered.lowercased())?.id, "web:google-flights")

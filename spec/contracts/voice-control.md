@@ -308,17 +308,20 @@ goal only, and only while every amendment is a clarification; an answer such
 as `2` is never merged into a form field. A correction, a hand-edited field or
 an uncertain effect makes the plan step aside so Jev, which reads those
 amendments, takes the turn. Only the current request of an amended goal routes
-(the newest correction, else the original goal): a correction that names no
-site abandons the earlier one, and a clarification is an answer, not a request.
-Explicit navigation (`open YouTube`, `go to Gmail`, a goal that starts with
-the site's name), an intent phrase (`search the web`, `directions to`,
-`flights from` / `flights to`), or a flight search verb (`find` / `search` /
-`book` … `flights`) always routes, matched at word boundaries against the
-site's name or the verb itself. A site mentioned in passing (`… on YouTube`,
-`… in Wikipedia`), an intent phrase, or flights as the subject does not route
-from a sentence about a message (`reply`, `forward`, `send`, `text`, `email`,
-`itinerary` …) unless it leads with a search verb (`find`, `search`, `play`,
-`directions`, `get` …); mail words never veto Gmail itself. The same rule
+(the newest correction with leading fillers such as `actually` removed, else
+the original goal). A correction that names no site abandons the earlier one,
+except a short fragment of at most three words that is neither a command nor
+about a message (`actually Paris`), which changes a detail and keeps the
+original request's site. A clarification is an answer, not a request.
+Matching is at word boundaries. Explicit navigation (`open YouTube`, `go to
+Gmail`, a goal that starts with the site's name) always routes. A site
+mentioned in passing (`… on YouTube`, `… in Wikipedia`), an intent phrase
+(`search the web`, `directions to`, `flights from` / `flights to`) or a flight
+search verb (`find` / `search` / `book` … `flights`) routes unless the sentence
+is about a message (`reply`, `forward`, `send`, `text`, `email`, `itinerary` …)
+and does not lead with a search verb (`find`, `search`, `play`, `directions`,
+`get` …); mail words never veto Gmail itself. The same rule, plus an exemption
+for a leading opening verb (`open the flight confirmation in Chrome`),
 decides whether `… in Chrome` switches browsers. A calendar day is a pressable
 control whose label reads as a date before `departure date`; a field button
 that leads with its name (`Departure date: September 20`) is not one. A
