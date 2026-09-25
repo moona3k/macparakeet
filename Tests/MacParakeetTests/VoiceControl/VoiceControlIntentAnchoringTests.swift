@@ -81,6 +81,24 @@ final class VoiceControlIntentAnchoringTests: XCTestCase {
         XCTAssertEqual(search, .action(VoiceControlAction(operation: .activateApp, targetID: "app:9")))
     }
 
+    /// A correction wraps the goal in runner scaffolding. The user's own words
+    /// still carry the anchored request, and a control command still blocks it.
+    func testAmendedGoalKeepsItsAnchoredDestination() async throws {
+        let amended =
+            VoiceControlGoalText.header + "Find one-way flights to London\n" + VoiceControlGoalText.correction
+            + "Actually Paris"
+        XCTAssertEqual(VoiceControlWebDestination.matchingGoal(amended.lowercased())?.id, "web:google-flights")
+        XCTAssertNotNil(VoiceControlFlightPlan.parse(amended))
+        let decision = try await router.decide(goal: amended, snapshot: shopPage(), history: [])
+        XCTAssertEqual(openedDestination(decision), "web:google-flights")
+        let clarified =
+            VoiceControlGoalText.header + "Find one-way flights\n" + VoiceControlGoalText.clarification
+            + "from Boston to Rome"
+        XCTAssertEqual(VoiceControlFlightPlan.parse(clarified)?.destination, "Rome")
+        let pressed = VoiceControlGoalText.header + "open YouTube\n" + VoiceControlGoalText.correction + "click Go"
+        XCTAssertNil(VoiceControlWebDestination.matchingGoal(pressed.lowercased()))
+    }
+
     func testSiteQueriesNeedAQueryVerb() {
         XCTAssertNil(VoiceControlWebQuery.parse("like this video on YouTube"))
         XCTAssertNil(VoiceControlWebQuery.parse("click the Wikipedia logo"))

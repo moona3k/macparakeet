@@ -56,11 +56,17 @@ public struct VoiceControlWebDestination: Sendable, Equatable {
     /// at word boundaries and on a navigation or search frame, because this route
     /// runs before the page's own controls: `search for headphones` searches the
     /// open shop, `click the YouTube link` presses a link, and `reply to the email
-    /// about my flight` stays in the mail app.
+    /// about my flight` stays in the mail app. Each user-authored segment of an
+    /// amended goal is anchored on its own, newest first.
     public static func matchingGoal(_ lower: String) -> VoiceControlWebDestination? {
-        let padded = " " + VoiceControlSessionGrammar.normalize(lower) + " "
-        guard padded.count > 2, !isControlCommand(padded) else { return nil }
-        return all.first { $0.isRequested(by: padded) }
+        let segments = VoiceControlGoalText.userSegments(lower).reversed().map {
+            " " + VoiceControlSessionGrammar.normalize($0) + " "
+        }
+        guard let newest = segments.first, !isControlCommand(newest) else { return nil }
+        for padded in segments where padded.count > 2 && !isControlCommand(padded) {
+            if let destination = all.first(where: { $0.isRequested(by: padded) }) { return destination }
+        }
+        return nil
     }
 
     private func isRequested(by padded: String) -> Bool {

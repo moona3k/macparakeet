@@ -214,14 +214,17 @@ public enum VoiceControlGoalText {
         "Some executed effects have unknown outcomes. Inspect the current state; never repeat those effects. Ask if their outcome is necessary but cannot be determined."
 
     /// User-authored segments, oldest first. A goal without the scaffold is one segment.
+    /// Scaffold lines match case-insensitively, because routers read a lowercased goal.
     static func userSegments(_ goal: String) -> [String] {
-        guard goal.hasPrefix(header) else { return goal.isEmpty ? [] : [goal] }
+        guard goal.dropPrefix(header) != nil else { return goal.isEmpty ? [] : [goal] }
         var segments: [String] = []
         var inUserText = false
         for line in goal.components(separatedBy: "\n") {
             if let rest = [header, correction, clarification].lazy.compactMap({ line.dropPrefix($0) }).first {
                 segments.append(rest); inUserText = true
-            } else if line == manualHeader || line == uncertainNote {
+            } else if [manualHeader, uncertainNote].contains(where: {
+                line.caseInsensitiveCompare($0) == .orderedSame
+            }) {
                 inUserText = false
             } else if inUserText, !segments.isEmpty {
                 segments[segments.count - 1] += "\n" + line
@@ -232,5 +235,7 @@ public enum VoiceControlGoalText {
 }
 
 private extension String {
-    func dropPrefix(_ prefix: String) -> String? { hasPrefix(prefix) ? String(dropFirst(prefix.count)) : nil }
+    func dropPrefix(_ prefix: String) -> String? {
+        range(of: prefix, options: [.caseInsensitive, .anchored]).map { String(self[$0.upperBound...]) }
+    }
 }
