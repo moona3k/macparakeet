@@ -363,6 +363,52 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(clipboardSnapshot.pasteCallCount, 0)
     }
 
+    /// Holding Fn for the next take while the success checkmark shows must not
+    /// reset that hotkey: its release has to stop the new take.
+    func testHotkeyRestartDuringSuccessDwellKeepsHoldToTalkRelease() async throws {
+        let harness = try await makeRecordingHarness()
+        await harness.stt.configureSequence(results: [
+            STTResult(text: "first take"),
+            STTResult(text: "second take"),
+        ])
+        await harness.clipboard.setPasteDelayMs(100)
+        let manager = HotkeyManager(trigger: .fn, gestureMode: .doubleTapAndHold)
+        manager.setPhysicalKeyStateProviderForTesting { _ in false }
+        harness.coordinator.hotkeyManagers = [manager]
+
+        harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
+        let firstStarted = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(firstStarted)
+        harness.coordinator.stopDictation()
+        let successVisible = await waitUntil {
+            if case .success = harness.coordinator.overlayStateForTesting { return true }
+            return false
+        }
+        XCTAssertTrue(successVisible)
+
+        _ = manager.modifierFlagsChangedOutputsForTesting(
+            flags: [.maskSecondaryFn],
+            timestampMs: 10_000,
+            changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+        )
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
+        harness.coordinator.startDictation(mode: .holdToTalk, trigger: .hotkey)
+        let secondStarted = await waitUntil {
+            harness.coordinator.flowStateForTesting == .recording(mode: .holdToTalk)
+        }
+        XCTAssertTrue(secondStarted)
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 11_000,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            [.cancelStartupDebounce, .cancelHoldWindow, .stopRecording]
+        )
+        harness.coordinator.stopDictation()
+    }
+
     func testSuccessDwellRestartDoesNotCancelCompletedPaste() async throws {
         let harness = try await makeRecordingHarness()
         await harness.stt.configureSequence(results: [

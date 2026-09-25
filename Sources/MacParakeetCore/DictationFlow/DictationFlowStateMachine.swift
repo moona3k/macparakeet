@@ -484,13 +484,17 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
                 .resetHotkeyStateMachine, .updateMenuBar(.idle), .showIdlePill,
             ]
 
+        // A hotkey press restarts from finishing. Do not reset the hotkeys
+        // here: the one that sent this event is mid-gesture, and a reset would
+        // drop its first tap or its held trigger, so the release would be
+        // ignored. The previous take already reset them when it ended.
         case (.finishing, .readyPillRequested):
             generation += 1
             state = .ready
             return [
                 .cancelAllTimers, .cancelActionTask,
                 .hideOverlay, .reloadHistory,
-                .hideIdlePill, .showReadyPill, .startReadyDismissTimer, .resetHotkeyStateMachine,
+                .hideIdlePill, .showReadyPill, .startReadyDismissTimer,
             ]
 
         case (.finishing, .startRequested(let mode)):
@@ -499,7 +503,7 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
             return [
                 .cancelAllTimers, .cancelActionTask,
                 .hideOverlay, .reloadHistory,
-                .hideIdlePill, .checkEntitlements, .resetHotkeyStateMachine,
+                .hideIdlePill, .checkEntitlements,
             ]
 
         case (.finishing, .cancelRequested), (.finishing, .dismissRequested):

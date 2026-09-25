@@ -739,7 +739,10 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertEqual(m.generation, gen + 1)
         XCTAssertTrue(effects.contains(.checkEntitlements))
         XCTAssertTrue(effects.contains(.hideIdlePill))
-        XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
+        // transcriptionCompleted already reset the hotkeys. Resetting again
+        // would return the double-tapping hotkey to idle, so its next tap
+        // would start a gesture instead of stopping this take.
+        XCTAssertFalse(effects.contains(.resetHotkeyStateMachine))
     }
 
     func testFinishingPasteFailed() {
@@ -881,6 +884,9 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertTrue(effects.contains(.checkEntitlements))
         XCTAssertTrue(effects.contains(.reloadHistory))
         XCTAssertTrue(effects.contains(.cancelActionTask))
+        // The hotkey that sent this is mid-gesture; resetting it would drop
+        // its held trigger and ignore the release.
+        XCTAssertFalse(effects.contains(.resetHotkeyStateMachine))
     }
 
     func testFinishingSuccessReadyPillRequested() {
@@ -893,7 +899,8 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertEqual(m.state, .ready)
         XCTAssertTrue(effects.contains(.showReadyPill))
         XCTAssertTrue(effects.contains(.cancelActionTask))
-        XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
+        // A reset would forget the first tap of this double-tap.
+        XCTAssertFalse(effects.contains(.resetHotkeyStateMachine))
     }
 
     func testFinishingErrorStartRequested() {
