@@ -1,0 +1,19 @@
+Tests/CLITests/SpecCommandTests.swift
+  s_9e7c07c1bf5bea::t_a5163a0cf7da6d 209
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2b74a9e73ef544b8fda5602cf0d3ae8630775987",
+  "prompts": {},
+  "sessions": {
+    "s_9e7c07c1bf5bea": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0da23-642f-7d83-9852-76cf422a9b07",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
