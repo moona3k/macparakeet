@@ -213,24 +213,37 @@ replay corpus, or a product decision:
 
 Code (all in `Sources/MacParakeetCore/Services/VoiceControl/`):
 
-- `VoiceControlWebDestination.swift`: anchored `matchingGoal` (names in a
-  navigation or search frame, intent phrases, a search verb whose object is
-  flights; control commands and flight phrases in a goal about an email,
-  message, confirmation or itinerary never route). `goalHints` became `names` plus `intentPhrases`.
-  `search for` no longer means Google; `navigate to` no longer means Maps.
-- `VoiceControlWebQuery.swift`: a site query needs a query verb.
+- `VoiceControlWebDestination.swift`: `matchingGoal` reads only the current
+  request (`VoiceControlGoalText.currentRequest`); explicit navigation (`open
+  YouTube`, a goal starting with the site's name) always routes, a passing
+  mention or intent phrase is vetoed by the same message-sentence rule as
+  flight searches unless it leads with a search verb, and mail words never
+  veto Gmail itself. `namesBrowser` applies the same rule to `… in Chrome`.
+  `goalHints` became `names` plus `intentPhrases`. `search for` no longer
+  means Google; `navigate to` is a Maps query verb again.
+- `VoiceControlWebQuery.swift`: also reads the current request, so an amended
+  goal's scaffold never becomes the query; a site query still needs a query
+  verb.
 - `VoiceControlCommandRouter.swift`: `browserForWebGoal` uses the anchored
-  matcher; a one-shot named press that verified or moved the interface finishes.
+  matcher plus `namesBrowser`; a one-shot named press that verified or moved
+  the interface finishes.
 - `VoiceControlLocalTools.swift`: `alreadyPressedByName` (verified or
   transition; includes `click Search` bound to `Search flights`).
-- `VoiceControlMachine.swift`: a calendar day's label must parse as a date.
+- `VoiceControlMachine.swift`: a calendar day's label must read as a date
+  before `departure date`, so a field button that leads with its name
+  (`Departure date: September 20`) is not one.
 - `VoiceControlFlightPlan.swift`: parses the original goal only, and only while
   every amendment is a clarification. On `main` a correction such as `Actually Paris` was sliced
   together with the runner's scaffold into the destination field; now a
   correction, hand-edited field or uncertain effect hands the turn to Jev.
-- `VoiceControlTypes.swift`: `VoiceControlGoalText` (scaffold strings and
-  `userSegments`), shared by the runner and the Jev client.
-- `VoiceControlTurnRunner.swift`: uses `VoiceControlGoalText`; no behavior change.
+- `VoiceControlTypes.swift`: `VoiceControlGoalText` gained `currentRequest`
+  (the newest correction with its leading filler stripped, else the original
+  goal; a clarification keeps the original) alongside `userSegments`, shared
+  by the router, the Flights plan and the Jev client. Segment parsing stops at
+  the first manual-field or uncertain-effect metadata line.
+- `VoiceControlTurnRunner.swift`: uses `VoiceControlGoalText`; writes each
+  hand-edited field value on one line so a multiline value cannot read as a
+  scaffold line.
 - `JevDecisionClient.swift`: `sourceSpans` from user segments, tails first
   (cue tails such as the text after `write` first, latest cue first when a
   preamble carries several, because all tails of a long message are quadratic
