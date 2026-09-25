@@ -1,0 +1,23 @@
+docs/research/2026-09-19-jev-voice-control/README.md
+  s_5242d773558d9d::t_6a8b63f64749a1 17
+docs/research/2026-09-19-jev-voice-control/product.md
+  s_5242d773558d9d::t_6a8b63f64749a1 50
+docs/research/2026-09-25-voice-control-jev-deep-review.md
+  s_5242d773558d9d::t_a655414c475cac 1-256
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0403ad3f952a26f412aa740df92500b00044a8da",
+  "prompts": {},
+  "sessions": {
+    "s_5242d773558d9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3eca4d69-a0de-45df-9368-93cf24bae1ba",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
