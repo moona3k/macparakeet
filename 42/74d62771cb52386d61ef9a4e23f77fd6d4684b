@@ -1,0 +1,21 @@
+Sources/MacParakeetCore/Services/System/BackgroundEventTap.swift
+  s_ea43f113115380::t_714d2912a86cdb 45-49,52,57,62-77
+Tests/MacParakeetTests/Services/System/BackgroundEventTapTests.swift
+  s_ea43f113115380::t_9a73e41c54e05f 21-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4274d62771cb52386d61ef9a4e23f77fd6d4684b",
+  "prompts": {},
+  "sessions": {
+    "s_ea43f113115380": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e866346-f6a4-47b5-b1bd-f77f4f655aab",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
