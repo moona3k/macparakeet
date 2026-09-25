@@ -4703,6 +4703,18 @@ struct TranscriptResultView: View {
                 }
                 speakerSelectionActions
             }
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                Menu("Edit actions") {
+                    Text("\(speakerSelection.count) selected")
+                    speakerSelectionControls
+                    Divider()
+                    speakerHistoryControls
+                }
+                .parakeetAction(.secondary)
+                .help("Selection, speaker assignment, and edit history")
+                Spacer(minLength: DesignSystem.Spacing.sm)
+                finishSpeakerEditingButton
+            }
         }
         .padding(DesignSystem.Spacing.sm)
         .background(
@@ -4716,79 +4728,91 @@ struct TranscriptResultView: View {
             Text("\(speakerSelection.count) selected")
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
-
-            if !speakerSelection.isEmpty {
-                Button("Clear") {
-                    speakerSelection.clear()
-                }
-                .parakeetAction(.subtle)
-                .foregroundStyle(DesignSystem.Colors.textSecondary)
-                .disabled(viewModel.isApplyingSpeakerCorrection)
-                .help("Deselect all transcript segments")
-            }
-
-            Menu("Assign to…") {
-                ForEach(viewModel.speakerAttribution?.speakers ?? [], id: \.id) { speaker in
-                    Button(speaker.label) {
-                        assignSelectedSegments(to: .speaker(id: speaker.id))
-                    }
-                }
-            }
-            .parakeetAction(.secondary)
-            .disabled(speakerSelection.isEmpty || viewModel.isApplyingSpeakerCorrection)
-
-            Button("New speaker…") {
-                presentNewSpeaker(for: selectedSpeakerSegments)
-            }
-            .parakeetAction(.secondary)
-            .disabled(speakerSelection.isEmpty || viewModel.isApplyingSpeakerCorrection)
-
-            Button("Unassigned") {
-                assignSelectedSegments(to: .unassigned)
-            }
-            .parakeetAction(.secondary)
-            .disabled(speakerSelection.isEmpty || viewModel.isApplyingSpeakerCorrection)
+            speakerSelectionControls
         }
         .fixedSize(horizontal: true, vertical: false)
     }
 
+    @ViewBuilder
+    private var speakerSelectionControls: some View {
+        if !speakerSelection.isEmpty {
+            Button("Clear") {
+                speakerSelection.clear()
+            }
+            .parakeetAction(.subtle)
+            .foregroundStyle(DesignSystem.Colors.textSecondary)
+            .disabled(viewModel.isApplyingSpeakerCorrection)
+            .help("Deselect all transcript segments")
+        }
+
+        Menu("Assign to…") {
+            ForEach(viewModel.speakerAttribution?.speakers ?? [], id: \.id) { speaker in
+                Button(speaker.label) {
+                    assignSelectedSegments(to: .speaker(id: speaker.id))
+                }
+            }
+        }
+        .parakeetAction(.secondary)
+        .disabled(speakerSelection.isEmpty || viewModel.isApplyingSpeakerCorrection)
+
+        Button("New speaker…") {
+            presentNewSpeaker(for: selectedSpeakerSegments)
+        }
+        .parakeetAction(.secondary)
+        .disabled(speakerSelection.isEmpty || viewModel.isApplyingSpeakerCorrection)
+
+        Button("Unassigned") {
+            assignSelectedSegments(to: .unassigned)
+        }
+        .parakeetAction(.secondary)
+        .disabled(speakerSelection.isEmpty || viewModel.isApplyingSpeakerCorrection)
+    }
+
     private var speakerEditCompletionActions: some View {
         HStack(spacing: DesignSystem.Spacing.sm) {
-            Button(action: viewModel.undoSpeakerCorrection) {
-                Label("Undo edit", systemImage: "arrow.uturn.backward")
-            }
-            .parakeetAction(.secondary)
-            .disabled(!viewModel.canUndoSpeakerCorrection || viewModel.isApplyingSpeakerCorrection)
-
-            Button(action: viewModel.redoSpeakerCorrection) {
-                Label("Redo edit", systemImage: "arrow.uturn.forward")
-            }
-            .parakeetAction(.secondary)
-            .disabled(!viewModel.canRedoSpeakerCorrection || viewModel.isApplyingSpeakerCorrection)
-
-            if viewModel.speakerCorrectionsApplied {
-                Button("Reset edits…") {
-                    pendingResetEditsTranscriptionID = activeTranscription.id
-                }
-                .parakeetAction(.secondary)
-                .disabled(viewModel.isApplyingSpeakerCorrection)
-            }
-
+            speakerHistoryControls
             Divider()
                 .frame(height: 20)
                 .padding(.horizontal, DesignSystem.Spacing.xs)
-
-            Button {
-                editingSpeakers = false
-                speakerSelection.clear()
-            } label: {
-                Label("Done", systemImage: "checkmark")
-            }
-            .parakeetAction(.primaryProminent)
-            .help("Finish editing the transcript")
-            .accessibilityIdentifier("transcript-edit-done")
+            finishSpeakerEditingButton
         }
         .fixedSize(horizontal: true, vertical: false)
+    }
+
+    @ViewBuilder
+    private var speakerHistoryControls: some View {
+        Button(action: viewModel.undoSpeakerCorrection) {
+            Label("Undo edit", systemImage: "arrow.uturn.backward")
+        }
+        .parakeetAction(.secondary)
+        .disabled(!viewModel.canUndoSpeakerCorrection || viewModel.isApplyingSpeakerCorrection)
+
+        Button(action: viewModel.redoSpeakerCorrection) {
+            Label("Redo edit", systemImage: "arrow.uturn.forward")
+        }
+        .parakeetAction(.secondary)
+        .disabled(!viewModel.canRedoSpeakerCorrection || viewModel.isApplyingSpeakerCorrection)
+
+        if viewModel.speakerCorrectionsApplied {
+            Button("Reset edits…") {
+                pendingResetEditsTranscriptionID = activeTranscription.id
+            }
+            .parakeetAction(.secondary)
+            .disabled(viewModel.isApplyingSpeakerCorrection)
+        }
+    }
+
+    private var finishSpeakerEditingButton: some View {
+        Button {
+            editingSpeakers = false
+            speakerSelection.clear()
+        } label: {
+            Label("Done", systemImage: "checkmark")
+        }
+        .parakeetAction(.primaryProminent)
+        .fixedSize()
+        .help("Finish editing the transcript")
+        .accessibilityIdentifier("transcript-edit-done")
     }
 
     private var selectedSpeakerSegments: [SpeakerEditableSegment] {

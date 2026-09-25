@@ -974,6 +974,8 @@ and boundary actions:
   to the transcript that opened it and is dismissed when switching transcripts.
 - At narrow pane widths, selection and speaker-assignment tools move to a
   second row so history and Done remain visible without horizontal scrolling.
+  In still narrower video split panes, selection and history use an `Edit
+  actions` menu while Done remains a directly visible button.
 - During playback, untouched text follows automatic word cues. A corrected or
   merged line highlights as one unit only while playback is inside its preserved
   time envelope; no word-level highlight is implied.
