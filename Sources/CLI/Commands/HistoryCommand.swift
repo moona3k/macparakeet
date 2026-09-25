@@ -67,7 +67,12 @@ struct DictationsSubcommand: ParsableCommand {
                 // the CLI matches what the GUI shows for the same row.
                 let text = d.displayText
                 let preview = text.count > 80 ? String(text.prefix(80)) + "..." : text
-                let statusLabel = d.status == .cancelled ? " [cancelled]" : ""
+                let statusLabel: String
+                switch d.status {
+                case .cancelled: statusLabel = " [cancelled]"
+                case .error: statusLabel = " [failed]"
+                default: statusLabel = ""
+                }
                 print("[\(date)] (\(seconds)s)\(statusLabel) \(preview)  (\(d.id.uuidString.prefix(8)))")
             }
 

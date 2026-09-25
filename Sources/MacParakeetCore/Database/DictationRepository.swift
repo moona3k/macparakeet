@@ -281,10 +281,16 @@ public final class DictationRepository: DictationRepositoryProtocol {
         }
     }
 
+    /// Launch cleanup for blank rows. Failed takes (`status = 'error'`) are
+    /// blank by design and keep their recording for a History retry.
     public func deleteEmpty() throws -> Int {
         try dbQueue.write { db in
             try db.execute(
-                sql: "DELETE FROM dictations WHERE hidden = 0 AND (TRIM(rawTranscript) = '' OR rawTranscript IS NULL)"
+                sql: """
+                    DELETE FROM dictations
+                    WHERE hidden = 0 AND status != 'error'
+                      AND (TRIM(rawTranscript) = '' OR rawTranscript IS NULL)
+                    """
             )
             return db.changesCount
         }

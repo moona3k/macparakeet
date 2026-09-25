@@ -128,6 +128,9 @@ public actor DictationService: DictationServiceProtocol {
     private let dictationPreviewInterval: Duration
     private let dictationPreviewCancellationTimeout: Duration
     private let liveDictationCancellationTimeout: Duration
+    /// Where a failed take's recording is kept for History retry. `nil`
+    /// disables preservation (the historical delete-on-failure behavior).
+    private let failedDictationAudioDirectory: URL?
     private let dictationPreviewWindowSampleCount: Int
     private let startPermit = AsyncPermit()
 
@@ -236,6 +239,7 @@ public actor DictationService: DictationServiceProtocol {
         dictationPreviewInterval: Duration = .seconds(1),
         dictationPreviewCancellationTimeout: Duration = .seconds(2),
         liveDictationCancellationTimeout: Duration = .seconds(2),
+        failedDictationAudioDirectory: URL? = nil,
         dictationPreviewWindowSeconds: Double = 15
     ) {
         self.audioProcessor = audioProcessor
@@ -278,6 +282,7 @@ public actor DictationService: DictationServiceProtocol {
         self.dictationPreviewInterval = dictationPreviewInterval
         self.dictationPreviewCancellationTimeout = dictationPreviewCancellationTimeout
         self.liveDictationCancellationTimeout = liveDictationCancellationTimeout
+        self.failedDictationAudioDirectory = failedDictationAudioDirectory
         self.dictationPreviewWindowSampleCount = max(1, Int((dictationPreviewWindowSeconds * 16_000).rounded()))
     }
 
@@ -704,7 +709,13 @@ public actor DictationService: DictationServiceProtocol {
             recordingStartedAt = nil
             clearCurrentOperation()
             return result
-        } catch {
+        } catch let thrown {
+            // Telemetry classifies the real STT failure; the caller learns the
+            // recording was kept so the overlay can say so.
+            let preserved = thrown as? PreservedTranscriptionFailure
+            let error = preserved?.underlying ?? thrown
+            let surfacedError: Error =
+                preserved == nil ? thrown : DictationServiceError.transcriptionFailedAudioSaved
             await cancelDisplayPreview(sessionID: currentSession, clearText: true)
             await cancelLiveDictationTranscription(sessionID: currentSession)
             // Snapshot device before setting state to .idle — prevents reentrancy
@@ -714,7 +725,7 @@ public actor DictationService: DictationServiceProtocol {
                 logger.notice(
                     "stopRecording error discarded session=\(currentSession) replaced by=\(self.activeSessionID)"
                 )
-                throw error
+                throw surfacedError
             }
             _state = .idle
             if error is CancellationError {
@@ -753,7 +764,7 @@ public actor DictationService: DictationServiceProtocol {
             logger.error(
                 "stopRecording failed session=\(currentSession) error_type=\(Self.errorType(for: error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
-            throw error
+            throw surfacedError
         }
     }
 
@@ -1059,13 +1070,17 @@ public actor DictationService: DictationServiceProtocol {
             recordingStartedAt = nil
             clearCurrentOperation()
             return result
-        } catch {
+        } catch let thrown {
+            let preserved = thrown as? PreservedTranscriptionFailure
+            let error = preserved?.underlying ?? thrown
+            let surfacedError: Error =
+                preserved == nil ? thrown : DictationServiceError.transcriptionFailedAudioSaved
             let device = await audioProcessor.recordingDeviceInfo
             guard activeSessionID == currentSession else {
                 logger.notice(
                     "undoCancel error discarded session=\(currentSession) replaced by=\(self.activeSessionID)"
                 )
-                throw error
+                throw surfacedError
             }
             _state = .idle
             if error is CancellationError {
@@ -1101,7 +1116,7 @@ public actor DictationService: DictationServiceProtocol {
             }
             recordingStartedAt = nil
             clearCurrentOperation()
-            throw error
+            throw surfacedError
         }
     }
 
@@ -1181,6 +1196,75 @@ public actor DictationService: DictationServiceProtocol {
                 "discarded_dictation_persist_failed error_type=\(Self.errorType(for: error), privacy: .public)"
             )
         }
+    }
+
+    /// Transcribes a failed take kept in History and completes its row. Nothing
+    /// is pasted and the AI Formatter is not re-run; the current processing
+    /// mode, custom words, and snippets apply. The recording is removed after
+    /// success unless Save audio is on. A failure updates the row's
+    /// `errorMessage` and rethrows.
+    @discardableResult
+    public func retryFailedDictation(id: UUID) async throws -> Dictation {
+        guard let dictation = try dictationRepo.fetch(id: id),
+            dictation.status == .error,
+            let audioPath = dictation.audioPath,
+            FileManager.default.fileExists(atPath: audioPath)
+        else {
+            throw DictationServiceError.failedDictationUnavailable
+        }
+
+        let result: STTResult
+        do {
+            result = try await sttTranscriber.transcribe(audioPath: audioPath, job: .dictation)
+            guard !result.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw DictationServiceError.emptyTranscript
+            }
+        } catch {
+            recordRetryFailure(id: id, error: error)
+            throw error
+        }
+        let refined = await refineDictationText(result.text)
+
+        // The row may have been deleted or retried elsewhere during the awaits.
+        guard var completed = try dictationRepo.fetch(id: id), completed.status == .error else {
+            throw DictationServiceError.failedDictationUnavailable
+        }
+        let finalText = refined.refinement.text ?? result.text
+        completed.status = .completed
+        completed.errorMessage = nil
+        completed.rawTranscript = result.text
+        completed.cleanTranscript = refined.refinement.text
+        completed.processingMode = refined.mode
+        completed.wordCount = finalText.split(whereSeparator: \.isWhitespace).count
+        completed.durationMs = Self.computeDurationMs(
+            from: result,
+            capturedDurationMs: completed.durationMs > 0 ? completed.durationMs : nil
+        )
+        completed.engine = result.engine.rawValue
+        completed.engineVariant = result.engineVariant
+        completed.language = SpeechEnginePreference.normalizeKnownLanguage(result.language)
+        completed.updatedAt = Date()
+        let keepAudio = shouldSaveAudio?() ?? false
+        if !keepAudio {
+            completed.audioPath = nil
+        }
+        try dictationRepo.save(completed)
+        if !keepAudio {
+            try? FileManager.default.removeItem(atPath: audioPath)
+        }
+        AudioCaptureDiagnostics.append("dictation_failed_audio_retry_complete")
+        NotificationCenter.default.post(name: .macParakeetDictationHistoryDidChange, object: nil)
+        return completed
+    }
+
+    private func recordRetryFailure(id: UUID, error: Error) {
+        AudioCaptureDiagnostics.append(
+            "dictation_failed_audio_retry_failed \(AudioCaptureDiagnostics.errorFields(error))"
+        )
+        guard var latest = try? dictationRepo.fetch(id: id), latest.status == .error else { return }
+        latest.errorMessage = error.localizedDescription
+        latest.updatedAt = Date()
+        try? dictationRepo.save(latest)
     }
 
     private func expireCancelIfStillCurrent(generation: Int) async {
@@ -1610,55 +1694,76 @@ public actor DictationService: DictationServiceProtocol {
         }
     }
 
-    private func processCapturedAudio(
+    /// Moves a failed take's WAV into dictation storage and records it as an
+    /// `.error` row that History can retry. Returns false when the take should
+    /// be discarded as before: cancellation, no speech, history off, or a
+    /// storage failure.
+    private func preserveFailedDictation(
         audioURL: URL,
         capturedDurationMs: Int?,
-        formatterContext: AppPromptContext?,
-        aiFormatterEnabled: Bool,
-        status: Dictation.DictationStatus = .completed,
-        captureMs: Int? = nil
-    ) async throws -> DictationResult {
-        let transcribeStartedAt = Date()
-        // Track whether the audio file is consumed (moved or explicitly deleted).
-        // If an error occurs before that point, clean up the temp file.
-        var audioConsumed = false
-        defer {
-            if !audioConsumed {
-                try? FileManager.default.removeItem(at: audioURL)
-            }
+        error: Error
+    ) -> Bool {
+        guard let directory = failedDictationAudioDirectory,
+            !(error is CancellationError),
+            !Self.isNoSpeechError(error),
+            shouldSaveDictationHistory?() ?? true
+        else {
+            return false
         }
-
-        AudioCaptureDiagnostics.append(
-            "dictation_transcribe_begin file_bytes=\(Self.fileSizeBytes(at: audioURL).map(String.init) ?? "unknown")"
-        )
-        let result = try await sttTranscriber.transcribe(audioPath: audioURL.path, job: .dictation)
-        logger.debug("dictation_transcription_complete chars=\(result.text.count, privacy: .public)")
-        let transcriptWordCount =
-            result.words.isEmpty
-            ? Observability.wordCount(result.text)
-            : result.words.count
-        AudioCaptureDiagnostics.append(
-            [
-                "dictation_transcribe_complete",
-                "chars=\(result.text.count)",
-                "words=\(transcriptWordCount)",
-                "engine=\(result.engine.rawValue)",
-                "variant=\(result.engineVariant ?? "none")",
-                Self.transcriptionTimingDiagnosticFields(
-                    words: result.words,
-                    capturedDurationMs: capturedDurationMs
-                ),
-            ].joined(separator: " ")
-        )
-
-        let trimmed = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            // defer will clean up audioURL
-            logger.warning("dictation_transcription_empty")
-            AudioCaptureDiagnostics.append("dictation_transcribe_empty")
-            throw DictationServiceError.emptyTranscript
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        } catch let directoryError {
+            logger.error(
+                "dictation_directory_create_failed error_type=\(Self.errorType(for: directoryError), privacy: .public)"
+            )
+            return false
         }
+        let dictation = Dictation(
+            durationMs: max(0, capturedDurationMs ?? 0),
+            rawTranscript: "",
+            processingMode: processingMode(),
+            status: .error,
+            errorMessage: error.localizedDescription
+        )
+        let destURL = directory.appendingPathComponent("\(dictation.id.uuidString).wav")
+        do {
+            try FileManager.default.moveItem(at: audioURL, to: destURL)
+        } catch let moveError {
+            logger.error(
+                "dictation_failed_audio_move_failed error_type=\(Self.errorType(for: moveError), privacy: .public)"
+            )
+            return false
+        }
+        var persisted = dictation
+        persisted.audioPath = destURL.path
+        do {
+            try dictationRepo.save(persisted)
+        } catch let saveError {
+            logger.error(
+                "dictation_failed_audio_save_failed error_type=\(Self.errorType(for: saveError), privacy: .public)"
+            )
+            // Hand the file back so the caller's cleanup owns it again.
+            try? FileManager.default.moveItem(at: destURL, to: audioURL)
+            return false
+        }
+        AudioCaptureDiagnostics.append(
+            "dictation_failed_audio_preserved \(AudioCaptureDiagnostics.errorFields(error))"
+        )
+        NotificationCenter.default.post(name: .macParakeetDictationHistoryDidChange, object: nil)
+        return true
+    }
 
+    private struct DictationTextRefinement {
+        let mode: Dictation.ProcessingMode
+        let insertionStyle: DictationInsertionStyle
+        let words: [CustomWord]
+        let snippets: [TextSnippet]
+        let refinement: TextRefinementResult
+    }
+
+    /// Applies the current processing mode, custom words, snippets, and Voice
+    /// Return triggers to raw STT text. Shared by stop and History retry.
+    private func refineDictationText(_ rawText: String) async -> DictationTextRefinement {
         let mode = processingMode()
         let insertionStyle = mode.usesDeterministicPipeline ? dictationInsertionStyle() : .sentence
         let shouldRemoveUmFiller = removeUmFiller()
@@ -1688,7 +1793,7 @@ public actor DictationService: DictationServiceProtocol {
                 ))
         }
         let refinement = await textRefinementService.refine(
-            rawText: result.text,
+            rawText: rawText,
             mode: mode,
             customWords: words,
             snippets: snippets,
@@ -1696,6 +1801,87 @@ public actor DictationService: DictationServiceProtocol {
             spokenPunctuationEnabled: spokenPunctuationEnabled(),
             removeUmFiller: shouldRemoveUmFiller
         )
+        return DictationTextRefinement(
+            mode: mode,
+            insertionStyle: insertionStyle,
+            words: words,
+            snippets: snippets,
+            refinement: refinement
+        )
+    }
+
+    private func processCapturedAudio(
+        audioURL: URL,
+        capturedDurationMs: Int?,
+        formatterContext: AppPromptContext?,
+        aiFormatterEnabled: Bool,
+        status: Dictation.DictationStatus = .completed,
+        captureMs: Int? = nil
+    ) async throws -> DictationResult {
+        let transcribeStartedAt = Date()
+        // Track whether the audio file is consumed (moved or explicitly deleted).
+        // If an error occurs before that point, clean up the temp file.
+        var audioConsumed = false
+        defer {
+            if !audioConsumed {
+                try? FileManager.default.removeItem(at: audioURL)
+            }
+        }
+
+        AudioCaptureDiagnostics.append(
+            "dictation_transcribe_begin file_bytes=\(Self.fileSizeBytes(at: audioURL).map(String.init) ?? "unknown")"
+        )
+        let result: STTResult
+        do {
+            result = try await sttTranscriber.transcribe(audioPath: audioURL.path, job: .dictation)
+        } catch {
+            // A normal stop keeps its recording in History when STT fails, so
+            // the take can be retried instead of lost (#1131).
+            if status == .completed,
+                preserveFailedDictation(
+                    audioURL: audioURL,
+                    capturedDurationMs: capturedDurationMs,
+                    error: error
+                )
+            {
+                audioConsumed = true
+                throw PreservedTranscriptionFailure(underlying: error)
+            }
+            throw error
+        }
+        logger.debug("dictation_transcription_complete chars=\(result.text.count, privacy: .public)")
+        let transcriptWordCount =
+            result.words.isEmpty
+            ? Observability.wordCount(result.text)
+            : result.words.count
+        AudioCaptureDiagnostics.append(
+            [
+                "dictation_transcribe_complete",
+                "chars=\(result.text.count)",
+                "words=\(transcriptWordCount)",
+                "engine=\(result.engine.rawValue)",
+                "variant=\(result.engineVariant ?? "none")",
+                Self.transcriptionTimingDiagnosticFields(
+                    words: result.words,
+                    capturedDurationMs: capturedDurationMs
+                ),
+            ].joined(separator: " ")
+        )
+
+        let trimmed = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            // defer will clean up audioURL
+            logger.warning("dictation_transcription_empty")
+            AudioCaptureDiagnostics.append("dictation_transcribe_empty")
+            throw DictationServiceError.emptyTranscript
+        }
+
+        let refined = await refineDictationText(result.text)
+        let mode = refined.mode
+        let insertionStyle = refined.insertionStyle
+        let words = refined.words
+        let snippets = refined.snippets
+        let refinement = refined.refinement
         let cleanTranscript = refinement.text
         let expandedSnippetIDs = refinement.expandedSnippetIDs
         let protectedLeadingTerms = TextProcessingPipeline().protectedLeadingTerms(
@@ -1987,6 +2173,10 @@ public enum DictationServiceError: Error, LocalizedError {
     case notCancelled
     case noPendingCancelledAudio
     case emptyTranscript
+    /// STT failed after capture; the recording was kept in History for retry.
+    case transcriptionFailedAudioSaved
+    /// A History retry target is gone, already transcribed, or missing audio.
+    case failedDictationUnavailable
 
     public var errorDescription: String? {
         switch self {
@@ -1994,6 +2184,15 @@ public enum DictationServiceError: Error, LocalizedError {
         case .notCancelled: return "Not currently in the cancel window"
         case .noPendingCancelledAudio: return "No cancelled recording to process"
         case .emptyTranscript: return "Couldn't hear you — try speaking closer to the microphone."
+        case .transcriptionFailedAudioSaved:
+            return "Transcription failed. Your recording is saved in History, where you can retry it."
+        case .failedDictationUnavailable: return "This recording can no longer be retried."
         }
     }
+}
+
+/// Carries the original STT error out of `processCapturedAudio` after the
+/// take's recording was preserved, so telemetry still classifies the real cause.
+private struct PreservedTranscriptionFailure: Error {
+    let underlying: Error
 }

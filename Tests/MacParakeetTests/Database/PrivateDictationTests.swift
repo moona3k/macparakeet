@@ -81,6 +81,25 @@ final class PrivateDictationTests: XCTestCase {
         XCTAssertNotNil(fetchedHidden, "Hidden row must survive deleteEmpty")
     }
 
+    func testDeleteEmptyPreservesFailedRowsAwaitingRetry() throws {
+        // A failed take is blank by design and keeps its recording for retry.
+        let failed = Dictation(
+            durationMs: 1500,
+            rawTranscript: "",
+            audioPath: "/tmp/failed.wav",
+            status: .error,
+            errorMessage: "Transcription failed"
+        )
+        let emptyVisible = Dictation(durationMs: 500, rawTranscript: "")
+        try repo.save(failed)
+        try repo.save(emptyVisible)
+
+        let deleted = try repo.deleteEmpty()
+        XCTAssertEqual(deleted, 1)
+        XCTAssertNotNil(try repo.fetch(id: failed.id), "Failed rows must survive launch cleanup")
+        XCTAssertNil(try repo.fetch(id: emptyVisible.id))
+    }
+
     func testDeleteHiddenRemovesOnlyHiddenRows() throws {
         let visible = Dictation(durationMs: 1000, rawTranscript: "visible", wordCount: 1)
         let hidden = Dictation(durationMs: 2000, rawTranscript: "", hidden: true, wordCount: 3)

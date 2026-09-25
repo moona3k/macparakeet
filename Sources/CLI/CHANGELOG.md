@@ -94,6 +94,14 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- History JSON may now include `"status": "error"` for a dictation whose
+  transcription failed after capture. The row keeps its recording
+  (`audioPath`), has an empty `rawTranscript`, and carries the failure in
+  `errorMessage`. The human-readable list marks those rows `[failed]`. The
+  app offers Retry in History; the CLI does not retry them.
+
 ## [4.6.0] — 2026-09-23
 
 ### Fixed
