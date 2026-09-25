@@ -96,11 +96,15 @@ struct MeetingRecordingTile: View {
 
     // MARK: - Background
 
+    private var tileCornerRadius: CGFloat {
+        isCompact ? DesignSystem.Layout.rowCornerRadius : DesignSystem.Layout.dropZoneCornerRadius
+    }
+
     private var background: some View {
-        RoundedRectangle(cornerRadius: isCompact ? 12 : DesignSystem.Layout.dropZoneCornerRadius)
+        RoundedRectangle(cornerRadius: tileCornerRadius)
             .fill(DesignSystem.Colors.surfaceElevated)
             .overlay(
-                RoundedRectangle(cornerRadius: isCompact ? 12 : DesignSystem.Layout.dropZoneCornerRadius)
+                RoundedRectangle(cornerRadius: tileCornerRadius)
                     .strokeBorder(borderColor, lineWidth: 0.6)
             )
             .cardShadow(DesignSystem.Shadows.cardRest)

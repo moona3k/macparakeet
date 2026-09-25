@@ -343,7 +343,8 @@ struct MeetingsView: View {
                 case .unavailable:
                     unavailableCalendarState
                 case .off:
-                    // The controls already show Off and explain how to enable it.
+                    // Off is explained by the controls above, including what
+                    // connecting Calendar enables before access is granted.
                     EmptyView()
                 case .permissionNeeded:
                     // The controls row above owns the permission CTA (inline
@@ -496,7 +497,7 @@ struct MeetingsView: View {
                     .foregroundStyle(DesignSystem.Colors.accent)
                     .frame(width: 22)
 
-                Text("Choose notes to generate after each meeting.")
+                Text("Choose notes to generate after each meeting. Click a note to turn it on or off.")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -795,7 +796,7 @@ struct MeetingsView: View {
     }
 
     private var recentMeetingsToolbar: some View {
-        HStack(spacing: DesignSystem.Spacing.sm) {
+        RecentMeetingsToolbarLayout(spacing: DesignSystem.Spacing.sm, searchMinimumWidth: 120) {
             if shouldShowRecentMeetingSearch {
                 recentMeetingSearchField
                     .frame(minWidth: 120)
@@ -809,9 +810,9 @@ struct MeetingsView: View {
     private var recentMeetingsFilterActions: some View {
         HStack(spacing: DesignSystem.Spacing.sm) {
             MeetingClassificationFilterBar(
-                libraryViewModel: viewModel.recentMeetingsViewModel
+                libraryViewModel: viewModel.recentMeetingsViewModel,
+                fillsAvailableWidth: false
             )
-            .fixedSize(horizontal: true, vertical: false)
 
             if showsRecentMeetingsSelectManyButton {
                 Button {
@@ -1006,6 +1007,141 @@ struct MeetingsView: View {
     }
 }
 
+/// Keeps search and filter controls as one view tree. When the row is too
+/// narrow for the search field's minimum plus the filters, the search field
+/// takes the next line instead of clipping Select Many.
+private struct RecentMeetingsToolbarLayout: Layout {
+    var spacing: CGFloat = 8
+    var searchMinimumWidth: CGFloat = 120
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let arrangement = arrange(subviews: subviews, availableWidth: proposal.width)
+        let width = proposal.width ?? arrangement.contentWidth
+        return CGSize(width: width, height: arrangement.height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let availableWidth = proposal.width.flatMap { $0.isFinite ? $0 : nil } ?? bounds.width
+        let arrangement = arrange(subviews: subviews, availableWidth: availableWidth)
+        for placement in arrangement.placements {
+            subviews[placement.index].place(
+                at: CGPoint(x: bounds.minX + placement.x, y: bounds.minY + placement.y),
+                anchor: .topLeading,
+                proposal: ProposedViewSize(width: placement.width, height: placement.height)
+            )
+        }
+    }
+
+    private struct Placement {
+        var index: Int
+        var x: CGFloat
+        var y: CGFloat
+        var width: CGFloat
+        var height: CGFloat
+    }
+
+    private struct Arrangement {
+        var placements: [Placement]
+        var contentWidth: CGFloat
+        var height: CGFloat
+    }
+
+    private func arrange(subviews: Subviews, availableWidth: CGFloat?) -> Arrangement {
+        let ideals = subviews.enumerated().map { index, subview in
+            let ideal = finiteSize(subview.sizeThatFits(.unspecified))
+            // The search field is flexible. Measure the width it can actually
+            // shrink to; its unspecified width is often the placeholder, which
+            // would wrap the toolbar while the field still fits.
+            guard index == 0, subviews.count > 1 else { return ideal }
+            let minimum = finiteSize(subview.sizeThatFits(ProposedViewSize(width: 0, height: nil)))
+            return CGSize(width: max(minimum.width, searchMinimumWidth), height: ideal.height)
+        }
+        guard !ideals.isEmpty else {
+            return Arrangement(placements: [], contentWidth: 0, height: 0)
+        }
+
+        let width = availableWidth.flatMap { $0.isFinite ? $0 : nil }
+        if ideals.count == 1 || width == nil || fitsOnOneRow(ideals: ideals, width: width ?? 0) {
+            return singleRow(ideals: ideals, width: width, stretchSearch: ideals.count > 1 && width != nil)
+        }
+        return stacked(ideals: ideals, width: width ?? 0)
+    }
+
+    private func finiteSize(_ size: CGSize) -> CGSize {
+        CGSize(
+            width: size.width.isFinite ? size.width : 0,
+            height: size.height.isFinite ? size.height : 0
+        )
+    }
+
+    private func fitsOnOneRow(ideals: [CGSize], width: CGFloat) -> Bool {
+        rowWidth(of: ideals) <= width
+    }
+
+    private func rowWidth(of sizes: [CGSize]) -> CGFloat {
+        sizes.map(\.width).reduce(0, +) + CGFloat(max(sizes.count - 1, 0)) * spacing
+    }
+
+    private func singleRow(ideals: [CGSize], width: CGFloat?, stretchSearch: Bool) -> Arrangement {
+        let rowHeight = ideals.map(\.height).max() ?? 0
+        let trailingWidth = rowWidth(of: Array(ideals.dropFirst()))
+        let searchWidth: CGFloat
+        if stretchSearch, let width {
+            searchWidth = max(ideals[0].width, width - trailingWidth - spacing)
+        } else {
+            searchWidth = ideals[0].width
+        }
+
+        var placements: [Placement] = []
+        var x: CGFloat = 0
+        for (index, ideal) in ideals.enumerated() {
+            let itemWidth = index == 0 ? searchWidth : ideal.width
+            placements.append(
+                Placement(
+                    index: index,
+                    x: x,
+                    y: (rowHeight - ideal.height) / 2,
+                    width: itemWidth,
+                    height: ideal.height
+                )
+            )
+            x += itemWidth
+            if index < ideals.count - 1 {
+                x += spacing
+            }
+        }
+        return Arrangement(placements: placements, contentWidth: x, height: rowHeight)
+    }
+
+    private func stacked(ideals: [CGSize], width: CGFloat) -> Arrangement {
+        let searchHeight = ideals[0].height
+        var placements: [Placement] = [
+            Placement(index: 0, x: 0, y: 0, width: width, height: searchHeight)
+        ]
+        var x: CGFloat = 0
+        let y = searchHeight + spacing
+        var filterRowHeight: CGFloat = 0
+        for (offset, ideal) in ideals.dropFirst().enumerated() {
+            placements.append(
+                Placement(
+                    index: offset + 1,
+                    x: x,
+                    y: y,
+                    width: ideal.width,
+                    height: ideal.height
+                )
+            )
+            x += ideal.width + spacing
+            filterRowHeight = max(filterRowHeight, ideal.height)
+        }
+        return Arrangement(
+            placements: placements,
+            contentWidth: max(width, x),
+            height: searchHeight + spacing + filterRowHeight
+        )
+    }
+}
+
 private struct CalendarInlineControlsRow: View {
     @Bindable var settingsViewModel: SettingsViewModel
     var onOpenCalendarSettings: () -> Void
@@ -1138,10 +1274,11 @@ private struct CalendarInlineControlsRow: View {
         // branch only ever sees `.notDetermined` / `.denied`.
         guard controlsEnabled else {
             if settingsViewModel.calendarPermissionStatus == .denied {
-                return "Calendar access is blocked. Re-enable it in System Settings to use reminders."
+                return
+                    "Calendar access is blocked. Re-enable it in System Settings to use reminders and auto-start."
             }
             return
-                "Connect calendars from this Mac, including Microsoft 365 and Exchange accounts added in System Settings."
+                "Connect Calendar to enable reminders and auto-start. Microsoft 365 and Exchange accounts added in System Settings are included."
         }
 
         switch settingsViewModel.calendarAutoStartMode {

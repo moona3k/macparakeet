@@ -87,9 +87,13 @@ The Meetings overview uses the available content width with 20pt side insets
 and 16pt section spacing. At 960pt content width it places a flexible meeting
 list beside a 300pt utility rail; narrower windows stack the sections. The
 recording tile uses compact insets and a content-driven minimum height so status
-messages can grow. Search, label filters, and Select Many share one toolbar; the search field
-absorbs the available width. Bulk actions retain their own contextual bar. Calendar Off is explained once in the inline controls; loading,
-permission, error, and upcoming-event states remain visible when applicable.
+messages can grow. Search, label filters, and Select Many share one toolbar. The
+search field absorbs leftover width when that row fits; when it does not, the
+search field moves above the filters and those controls stay in place. Bulk
+actions retain their own contextual bar. Calendar Off is explained once in the
+inline controls, including what connecting Calendar enables before access is
+granted. Loading, permission, error, and upcoming-event states remain visible
+when applicable.
 
 Upcoming calendar rows stay list-like: no persistent Skip button. A context
 menu offers **Don't auto-record this meeting**, and **Don't auto-record this
