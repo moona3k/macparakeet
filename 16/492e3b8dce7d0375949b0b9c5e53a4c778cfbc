@@ -1,0 +1,22 @@
+scripts/dev/test_stop_app_processes_appkit.sh
+  s_9e7c07c1bf5bea::t_d77dfa6532770f 92-93,98,101-107
+  s_9e7c07c1bf5bea::t_b7354b72069353 108
+scripts/dev/stop_app_processes.swift
+  s_9e7c07c1bf5bea::t_53a464d0d7f224 117-124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "16492e3b8dce7d0375949b0b9c5e53a4c778cfbc",
+  "prompts": {},
+  "sessions": {
+    "s_9e7c07c1bf5bea": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0da23-642f-7d83-9852-76cf422a9b07",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
