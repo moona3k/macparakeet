@@ -18,6 +18,7 @@ replace them with mocks.
 - `ClipboardService.swift` -- pasteboard writes and restore behavior.
 - `StreamingCursorScheduler.swift` / `StreamingCursorInserter.swift` -- optional default-off dictation caret stream (#449); paste remains the default path.
 - `EventTapTeardown.swift` -- shared CGEvent tap teardown; always invalidates the Mach port (#1132).
+- `BackgroundEventTap.swift` -- `EventTapThread` and `BackgroundEventTap`: every CGEvent tap runs on one dedicated thread, never the main run loop (#1142).
 - `AccessibilityService.swift` -- selected-text reads through Accessibility
   attributes, parameterized strings, or a selected range in the full value.
 - `SelectionCaptureService.swift` and `SelectionReplacementService.swift` --
@@ -46,6 +47,13 @@ timing, copy, or recovery behavior changes.
 error, or ordering of a system operation, make the path async and await it.
 Fire-and-forget tasks are only appropriate for deliberately detached cleanup,
 best-effort telemetry, or UI effects whose cancellation is harmless.
+
+**Event taps never run on the main run loop.** macOS holds each keyboard event
+until a filtering tap returns, so a tap on the UI thread turns any UI stall into
+system-wide typing lag (#1142). Create taps with `BackgroundEventTap`; its
+handler runs on `EventTapThread`. That thread must never wait on the main
+thread: post UI work asynchronously. `stop()` returns only after callbacks have
+ended, so release callback state after it.
 
 **Keep `@MainActor` work short.** AppKit and Accessibility entry points often
 start on the main actor, but long-running I/O, process execution, model work,

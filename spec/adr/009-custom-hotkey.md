@@ -97,3 +97,23 @@ shortcuts. The watch stops once access is granted and restarts if it is revoked.
 ## Amendment: Optional Escape cancel (2026-09-21)
 
 Escape stays blocked as a dictation hotkey. Cancel-on-Escape remains the default (`escapeCancelsDictation`). Turning it off leaves Escape for the front app during a live take and does not cancel that take. A pending hold or second-tap window that has not started a take still clears. Idle overlay dismiss, the meeting countdown toast, and the Settings hotkey recorder are unchanged.
+
+## Amendment: Event taps off the main run loop (2026-09-24)
+
+macOS holds each keyboard event until a filtering tap's callback returns. With
+taps on the main run loop, a MacParakeet UI stall delayed typing in every other
+app (#1142). All `CGEvent` taps now run on one dedicated thread
+(`EventTapThread`, via `BackgroundEventTap`), which never waits on the main
+thread.
+
+- Auxiliary shortcuts and the Transforms registry match on the tap thread; their
+  triggers hop to the main actor.
+- `HotkeyManager` decides on the tap thread only whether to consume an event,
+  which depends on the trigger and the event stream alone. It forwards every
+  event to the main queue in order, where the gesture state machine, timers and
+  coordinator callbacks run unchanged. A per-start generation drops events a
+  stopped tap already queued.
+- The Transforms registry installs its tap only while a binding exists.
+
+Tap options, masks and consumed keys are unchanged. A main-thread stall now
+delays only gesture processing, not other apps' input.

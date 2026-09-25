@@ -2096,7 +2096,7 @@ authoritative transcript and is unchanged by this live-preview strategy.
 **Implementation:**
 - Transforms are `Prompt` rows with `category == .transform`; they reuse Prompt Library persistence but have their own sidebar surface and never appear in summary prompt pickers.
 - `prompts.keyboardShortcut` stores an encoded `KeyboardShortcut`; `prompts.runningLabel` stores optional progress-pill copy.
-- `TransformsHotkeyRegistry` owns one process-wide event tap and dispatches hotkeys to Transform prompt IDs.
+- `TransformsHotkeyRegistry` owns one process-wide event tap and dispatches hotkeys to Transform prompt IDs. The tap runs on the shared event-tap thread, not the main run loop, and is installed only while at least one binding exists (#1142).
 - Selection capture is AX-first with clipboard fallback; replacement uses clipboard paste with snapshot/restore guards so the output lands in the currently focused target rather than forcing activation back to the selection source.
 - `TransformExecutor` uses `LLMService.transformStream` in the GUI so the progress pill can react to streamed output; CLI JSON uses the detailed LLM path for provider/model/latency metadata where available.
 - `transform_history` stores local input/output/source-app/timing rows for completed Transform runs. This is deliberate local user data; telemetry records only privacy-safe `transform_executed`, `transform_failed`, and `transform_operation` metadata and does not duplicate the content.

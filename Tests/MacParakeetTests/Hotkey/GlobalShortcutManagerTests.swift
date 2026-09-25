@@ -28,12 +28,17 @@ final class GlobalShortcutManagerTests: XCTestCase {
         XCTAssertEqual(eventTapCountForThisProcess(), baseline)
     }
 
-    private func eventTapCountForThisProcess() -> Int? {
-        var count: UInt32 = 0
-        guard CGGetEventTapList(0, nil, &count) == .success else { return nil }
-        var taps = [CGEventTapInformation](repeating: CGEventTapInformation(), count: Int(count))
-        guard CGGetEventTapList(count, &taps, &count) == .success else { return nil }
-        return taps.prefix(Int(count)).filter { $0.tappingProcess == getpid() }.count
+    /// #1142: the filtering tap must not share the UI run loop.
+    func testTapRunsOnEventTapThreadNotMainRunLoop() throws {
+        let manager = GlobalShortcutManager(trigger: .defaultMeetingRecording)
+        guard manager.start() else {
+            throw XCTSkip("Event tap creation needs Input Monitoring permission")
+        }
+        defer { manager.stop() }
+
+        let source = try XCTUnwrap(manager.runLoopSourceForTesting)
+        XCTAssertFalse(CFRunLoopContainsSource(CFRunLoopGetMain(), source, .commonModes))
+        XCTAssertTrue(CFRunLoopContainsSource(EventTapThread.shared.runLoop, source, .commonModes))
     }
 
     private func sideSpecificFlags(_ masks: UInt64...) -> CGEventFlags {

@@ -29,6 +29,37 @@ final class HotkeyManagerTests: XCTestCase {
         return manager
     }
 
+    /// #1142: dictation taps, including filtering non-Fn triggers, must not
+    /// share the UI run loop.
+    func testTapRunsOnEventTapThreadNotMainRunLoop() throws {
+        for trigger in [HotkeyTrigger.fn, .chord(modifiers: ["control", "shift"], keyCode: 15)] {
+            let manager = makeManager(trigger: trigger)
+            guard manager.start() else {
+                throw XCTSkip("Event tap creation needs Input Monitoring permission")
+            }
+            let source = try XCTUnwrap(manager.runLoopSourceForTesting)
+            XCTAssertFalse(CFRunLoopContainsSource(CFRunLoopGetMain(), source, .commonModes))
+            XCTAssertTrue(CFRunLoopContainsSource(EventTapThread.shared.runLoop, source, .commonModes))
+            manager.stop()
+            XCTAssertNil(manager.runLoopSourceForTesting)
+        }
+    }
+
+    func testStartStopCyclesDoNotAccumulateEventTaps() throws {
+        let manager = makeManager(trigger: .chord(modifiers: ["control", "shift"], keyCode: 15))
+        guard manager.start() else {
+            throw XCTSkip("Event tap creation needs Input Monitoring permission")
+        }
+        manager.stop()
+        let baseline = try XCTUnwrap(eventTapCountForThisProcess())
+        for _ in 0..<10 {
+            XCTAssertTrue(manager.start())
+            XCTAssertTrue(manager.start())
+            manager.stop()
+        }
+        XCTAssertEqual(eventTapCountForThisProcess(), baseline)
+    }
+
     func testBareFnUsesListenOnlyTapWithoutChangingOtherHotkeyTapBehavior() {
         let keyUpMask: CGEventMask = 1 << CGEventType.keyUp.rawValue
 
