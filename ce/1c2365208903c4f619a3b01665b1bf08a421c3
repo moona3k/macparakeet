@@ -1,0 +1,45 @@
+Sources/MacParakeetCore/Services/VoiceControl/JevDecisionClient.swift
+  s_5242d773558d9d::t_dfd0f8a15f6617 42,53-54,57-60,145,147,149,162,167,169-170,189,392,394-397,405-439,441-455,457,480,482,484,506,510-516,519-524,527-549,558-571,576,579-585
+Sources/MacParakeetCore/Services/VoiceControl/README.md
+  s_5242d773558d9d::t_e7022574bde1a9 19,21,23-25
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlCommandRouter.swift
+  s_5242d773558d9d::t_be34955f9b91df 103,265-271
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlDiagnostics.swift
+  s_5242d773558d9d::t_1367c995f8c6c2 51-54,57-58,63,67,80-81,340-342,346-348
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlLocalTools.swift
+  s_5242d773558d9d::t_0099a651d74f5f 63-71,73,77
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlMachine.swift
+  s_5242d773558d9d::t_544ce6b6ba0772 85-87,90
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTraceStore.swift
+  s_5242d773558d9d::t_2278c0c6de76f1 341-342,356-357
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTurnRunner.swift
+  s_5242d773558d9d::t_e2b9380e61e9d6 146,184,360,363,366
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTypes.swift
+  s_5242d773558d9d::t_77a6ac8872cc0f 203-236
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlWebDestination.swift
+  s_5242d773558d9d::t_3fcf02c3f6cb7b 10-14,21-22,27,32,37,42,47,55-59,61-75,77-84
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlWebQuery.swift
+  s_5242d773558d9d::t_9d7400dc5c735b 40-41,44,48,51,54,56,60-61,69,81-89
+Tests/MacParakeetTests/VoiceControl/JevClientTransportTests.swift
+  s_5242d773558d9d::t_415ef95903d93a 1-161
+Tests/MacParakeetTests/VoiceControl/VoiceControlIntentAnchoringTests.swift
+  s_5242d773558d9d::t_7aeafa3004606a 1-143
+spec/contracts/voice-control.md
+  s_5242d773558d9d::t_eaecb07a9860c6 109-118,299-309,326
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ce1c2365208903c4f619a3b01665b1bf08a421c3",
+  "prompts": {},
+  "sessions": {
+    "s_5242d773558d9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3eca4d69-a0de-45df-9368-93cf24bae1ba",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
