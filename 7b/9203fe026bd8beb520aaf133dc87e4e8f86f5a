@@ -1,0 +1,33 @@
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTypes.swift
+  s_5242d773558d9d::t_14803d979dc279 216-222,229
+Tests/MacParakeetTests/VoiceControl/VoiceControlIntentAnchoringTests.swift
+  s_5242d773558d9d::t_14803d979dc279 98-101,103
+  s_5242d773558d9d::t_a864982527e3a1 42-44,63-64
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlFlightPlan.swift
+  s_5242d773558d9d::t_14803d979dc279 12-16,18
+Sources/MacParakeetCore/Services/VoiceControl/README.md
+  s_5242d773558d9d::t_6e5cbcd8734c19 23
+docs/research/2026-09-25-voice-control-jev-deep-review.md
+  s_5242d773558d9d::t_6e5cbcd8734c19 221-222
+  s_5242d773558d9d::t_66b37e82cb7808 241-242,247
+spec/contracts/voice-control.md
+  s_5242d773558d9d::t_6e5cbcd8734c19 305-313
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlWebDestination.swift
+  s_5242d773558d9d::t_a864982527e3a1 78-84,88-92,112,114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7b9203fe026bd8beb520aaf133dc87e4e8f86f5a",
+  "prompts": {},
+  "sessions": {
+    "s_5242d773558d9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3eca4d69-a0de-45df-9368-93cf24bae1ba",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
