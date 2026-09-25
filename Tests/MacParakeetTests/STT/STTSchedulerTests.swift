@@ -140,6 +140,39 @@ final class STTSchedulerTests: XCTestCase {
         XCTAssertEqual(finalAvailability, .available)
     }
 
+    func testLiveCancelKeepsLaneReservedUntilInFlightAppendReturns() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.setCurrentSelection(SpeechEngineSelection(engine: .nemotron))
+        await runtime.blockNextLiveAppend()
+        let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 8)
+
+        let sessionID = try await scheduler.beginLiveDictationTranscription { _ in }
+        let appendTask = Task {
+            try await scheduler.appendLiveDictationSamples([0.1], sessionID: sessionID)
+        }
+        await runtime.waitForLiveAppendStart()
+
+        // Native cancel returns promptly, but the append is still inside the
+        // runtime. The next interactive job must not share the manager with it.
+        let cancelTask = Task {
+            await scheduler.cancelLiveDictationTranscription(sessionID: sessionID)
+        }
+        let dictationTask = Task {
+            try await scheduler.transcribe(audioPath: "dictation", job: .dictation)
+        }
+        let cancelReachedRuntime = await waitUntilLiveCancelCount(runtime: runtime, count: 1)
+        XCTAssertTrue(cancelReachedRuntime)
+        try await Task.sleep(for: .milliseconds(50))
+        let startedWhileAppendInFlight = await runtime.startedPaths()
+        XCTAssertEqual(startedWhileAppendInFlight, [])
+
+        await runtime.resumeLiveAppend()
+        try await appendTask.value
+        await cancelTask.value
+        let dictationResult = try await dictationTask.value
+        XCTAssertEqual(dictationResult.text, "dictation:dictation")
+    }
+
     func testLiveDictationBeginAllowsParakeetSelectionForUnifiedRuntime() async throws {
         let runtime = MockSTTRuntime()
         await runtime.setCurrentSelection(
@@ -1252,6 +1285,19 @@ final class STTSchedulerTests: XCTestCase {
         _ = try await blockerTask.value
     }
 
+    private func waitUntilLiveCancelCount(
+        runtime: MockSTTRuntime,
+        count: Int,
+        timeout: Duration = .seconds(2)
+    ) async -> Bool {
+        let start = ContinuousClock.now
+        while await runtime.liveCancelCallCount < count {
+            if start.duration(to: .now) > timeout { return false }
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        return true
+    }
+
     private func waitForStartedPaths(
         runtime: MockSTTRuntime,
         count: Int,
@@ -1537,6 +1583,10 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     private(set) var liveDictationSamples: [[Float]] = []
     private(set) var liveCancelCallCount = 0
     private var shouldBlockNextLiveCancel = false
+    private var shouldBlockNextLiveAppend = false
+    private var liveAppendContinuation: CheckedContinuation<Void, Never>?
+    private var liveAppendStartContinuation: CheckedContinuation<Void, Never>?
+    private var liveAppendStartedCount = 0
     private var liveCancelContinuation: CheckedContinuation<Void, Never>?
     private var liveCancelStartContinuation: CheckedContinuation<Void, Never>?
     private var shouldBlockNextLiveFinish = false
@@ -1655,6 +1705,31 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
             throw STTLiveDictationTranscriptionError.sessionNotActive
         }
         liveDictationSamples.append(samples)
+        liveAppendStartContinuation?.resume()
+        liveAppendStartContinuation = nil
+        liveAppendStartedCount += 1
+        if shouldBlockNextLiveAppend {
+            shouldBlockNextLiveAppend = false
+            await withCheckedContinuation { continuation in
+                liveAppendContinuation = continuation
+            }
+        }
+    }
+
+    func blockNextLiveAppend() {
+        shouldBlockNextLiveAppend = true
+    }
+
+    func waitForLiveAppendStart() async {
+        guard liveAppendStartedCount == 0 else { return }
+        await withCheckedContinuation { continuation in
+            liveAppendStartContinuation = continuation
+        }
+    }
+
+    func resumeLiveAppend() {
+        liveAppendContinuation?.resume()
+        liveAppendContinuation = nil
     }
 
     func finishLiveDictationTranscription(sessionID: UUID) async throws -> STTResult {

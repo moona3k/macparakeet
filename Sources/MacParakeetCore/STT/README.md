@@ -168,7 +168,9 @@ interactive queue until the session finishes or cancels (rejecting them
 would cost the caller its WAV, #1131), engine-switch availability reports
 `transcribing`, and quiesce/shutdown cancels the session (or waits out an
 in-flight finish). Meeting live chunks and finalize are unaffected — they
-stay on the background slot.
+stay on the background slot. A cancel keeps the reservation until any
+in-flight append returns, so a late append never shares the native manager
+with the next interactive job.
 `DictationService` always records the WAV alongside the live stream and uses
 recorded-file transcription for the final paste/history result. Native live
 partials remain display-only, so stop, dismiss, and restart cancel the

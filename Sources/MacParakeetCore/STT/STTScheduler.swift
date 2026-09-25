@@ -98,6 +98,11 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
         }
     }
     private var liveDictationSessionWaiters: [CheckedContinuation<Void, Never>] = []
+    /// Appends still inside the runtime. A cancel keeps the lane reserved
+    /// until they return: a late append would otherwise run inference on the
+    /// same native manager as the next interactive job.
+    private var liveDictationAppendsInFlight = 0
+    private var liveDictationAppendDrainWaiters: [CheckedContinuation<Void, Never>] = []
 
     /// - Parameter meetingLiveChunkBacklogLimit: Maximum pending live-preview chunks before the
     ///   oldest is dropped. 120 ≈ 4 minutes of dual-source 5-second chunks emitted every ~4
@@ -259,7 +264,26 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
         guard liveDictationSession == .active(sessionID) else {
             throw STTLiveDictationTranscriptionError.sessionNotActive
         }
+        liveDictationAppendsInFlight += 1
+        defer {
+            liveDictationAppendsInFlight -= 1
+            if liveDictationAppendsInFlight == 0 {
+                let waiters = liveDictationAppendDrainWaiters
+                liveDictationAppendDrainWaiters = []
+                for waiter in waiters {
+                    waiter.resume()
+                }
+            }
+        }
         try await runtime.appendLiveDictationSamples(samples, sessionID: sessionID)
+    }
+
+    private func waitForLiveDictationAppendsToDrain() async {
+        while liveDictationAppendsInFlight > 0 {
+            await withCheckedContinuation { continuation in
+                liveDictationAppendDrainWaiters.append(continuation)
+            }
+        }
     }
 
     public func finishLiveDictationTranscription(sessionID: UUID) async throws -> STTResult {
@@ -280,6 +304,7 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
         liveDictationSession = .cancelling(sessionID)
         await observingRuntimeTimeout(reason: "live_dictation_cancel") {
             await runtime.cancelLiveDictationTranscription(sessionID: sessionID)
+            await waitForLiveDictationAppendsToDrain()
         }
         if liveDictationSession == .cancelling(sessionID) {
             liveDictationSession = nil
@@ -741,6 +766,7 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
         case .active(let sessionID):
             liveDictationSession = .cancelling(sessionID)
             await runtime.cancelLiveDictationTranscription(sessionID: sessionID)
+            await waitForLiveDictationAppendsToDrain()
             if liveDictationSession == .cancelling(sessionID) {
                 liveDictationSession = nil
             }
