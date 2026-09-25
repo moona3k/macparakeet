@@ -20,6 +20,25 @@ The user has settled these product choices:
 
 Read the [research and source pins](../research/2026-09-25-nemotron-diarization-evaluation.md) first, then the [Omarchy review](../research/2026-09-25-omarchy-meeting-recorder-diarization-review.md). The key discovery is that **FluidAudio v0.17.4 already provides Nemotron 3 in Swift/CoreML**. Start with that route. A replacement of the entire SDK or a new Rust/C++ runtime is unnecessary unless this route fails a measured requirement.
 
+## Execution record and next-agent boundary
+
+The [measured report](../../benchmarks/diarization/2026-09-25-nemotron-evaluation.md)
+and its result receipt supersede prospective claims below. The implementation
+adopts `fast128` with the explicit-count/voice-profile compatibility path after
+216 complete matched runs, real-model product E2E, CLI constraints, and SDK
+regression controls. Manual AMI and some AliMeeting far recordings regress;
+the report records those losses rather than claiming a universal winner.
+
+The original approach below remains useful for follow-up qualification. This
+execution did not preregister numerical acceptance margins, tune on a separate
+development set, reproduce upstream NeMo checkpoint numerics, or establish
+speaker-aware word accuracy. Short-reference-interval coverage is a narrower
+diagnostic than genuine conversational-turn recall. Timing uses existing model
+assets on a shared Mac, not a controlled first-install benchmark. Physical
+capture/echo routes, other Macs and broader ASR engines remain separate checks.
+Do not infer completion of those experiments from the default change or test
+suite. Keep future smoothing changes and shared-microphone work separate.
+
 ## Invariants
 
 Preserve separate retained sources, original timestamps, ASR words, user corrections, recovery artifacts, local processing, and non-fatal diarization failure handling. A model failure must not destroy a usable transcript. Keep speaker identity matching separate from acoustic clustering. No audio, transcripts, or embeddings leave the device for this evaluation.

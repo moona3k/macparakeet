@@ -29,6 +29,9 @@ are not comparable. The standalone runner has no cross-process macOS 14 ANE gate
 
 ## Build and run
 
+The standalone benchmark requires Swift 6.2 or newer for package traits. This
+does not change the app package's tools-version or its CI toolchain requirement.
+
 From this directory:
 
 ```bash

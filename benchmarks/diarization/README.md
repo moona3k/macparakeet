@@ -89,6 +89,17 @@ meeting finalization, persistence, file transcription and model reuse. See its
 environment-variable instructions before running it. Normal tests do not
 download models or process real recordings.
 
+Its JSON contains `fixedASRWordProjections` for both diarizers with identical
+ASR word evidence, raw intervals, labels before smoothing, and final words.
+To reproduce the report's conditional word-label diagnostic, clip/rebase AMI
+ES2004a references from 50–230 seconds, use NIST `-M` to map each arm's raw
+intervals independently, and hold that mapping fixed for both projections.
+At each recognized word's midpoint, score only exactly one active reference
+speaker (start inclusive/end exclusive); count nil/unmapped predictions as
+wrong and report zero-activity/overlap exclusions. This is not cpWER or a
+reference-word-aligned accuracy measure. The result receipt records mappings,
+hashes, eligible counts and transitions.
+
 ## Existing speaker-count slice
 
 Labeled public clips for checking whether MacParakeet honours Exact /
