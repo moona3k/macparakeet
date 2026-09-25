@@ -84,18 +84,22 @@ public struct VoiceControlWebDestination: Sendable, Equatable {
     }
 
     private func isRequested(by padded: String) -> Bool {
-        // Explicit navigation always routes: `open YouTube`, `go to Gmail`, `Wikipedia …`.
+        // Explicit navigation routes: `open YouTube`, `go to Gmail`, `Wikipedia …`.
+        // Inside a sentence about a message it must lead the request: `reply to
+        // Sarah with the words open YouTube` quotes the phrase, it does not ask.
+        let aboutAMessage = Self.isAboutAMessage(padded)
         for name in names {
             if padded.hasPrefix(" \(name) ") { return true }
             let navigation = ["open", "go to", "switch to", "launch", "use"]
-            if navigation.contains(where: { padded.contains(" \($0) \(name) ") }) { return true }
+            if navigation.contains(where: { padded.hasPrefix(" \($0) \(name) ") }) { return true }
+            if !aboutAMessage, navigation.contains(where: { padded.contains(" \($0) \(name) ") }) { return true }
         }
         // Below, the site is mentioned in passing or inferred. A sentence about
         // a message (`forward the video on YouTube to Sarah`, `reply to Sarah
         // with directions to the office`) is work in the current app, unless it
         // leads with a search verb (`find flights …`, `directions to …`). Mail
         // words are the subject matter of Gmail itself, so they never veto it.
-        if id != "web:gmail", Self.isAboutAMessage(padded) { return false }
+        if id != "web:gmail", aboutAMessage { return false }
         for name in names {
             if padded.contains(" \(name) for ") { return true }
             if ["on", "in", "search"].contains(where: { padded.contains(" \($0) \(name) ") }) { return true }

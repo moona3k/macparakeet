@@ -42,7 +42,7 @@ final class VoiceControlIntentAnchoringTests: XCTestCase {
             "open the flight confirmation", "press the Gmail button",
             "reply to Sarah with directions to the office", "forward Bob the directions to the office",
             "forward the flights to Paris email", "text Mia the flights from Boston",
-            "forward the video on YouTube to Sarah", "find the email about my flight",
+            "forward the video on YouTube to Sarah", "reply to Sarah with the words open YouTube", "find the email about my flight",
             "reply to the email about my flight to Denver", "forward the flights to Paris email",
         ] {
             let decision = try await router.decide(goal: goal, snapshot: shopPage(), history: [])
@@ -86,6 +86,17 @@ final class VoiceControlIntentAnchoringTests: XCTestCase {
         if case .action(let action) = login { XCTAssertNotEqual(action.operation, .activateApp) }
         let search = try await router.decide(goal: "find flights to Paris", snapshot: mail, history: [])
         XCTAssertEqual(search, .action(VoiceControlAction(operation: .activateApp, targetID: "app:9")))
+        let safari = VoiceControlTarget(
+            id: "app:8", label: "Safari", role: "application", operations: [.activateApp], isNavigation: true)
+        let twoBrowsers = VoiceControlSnapshot(
+            contextID: mail.contextID, applicationName: "Mail", targets: mail.targets + [safari])
+        let corrected =
+            VoiceControlGoalText.header + "open the release notes in Safari\n" + VoiceControlGoalText.correction
+            + "actually open the release notes in Chrome"
+        let switched = try await router.decide(goal: corrected, snapshot: twoBrowsers, history: [])
+        XCTAssertEqual(
+            switched, .action(VoiceControlAction(operation: .activateApp, targetID: "app:9")),
+            "the correction's browser wins")
         for goal in ["open the release notes in Chrome", "open the flight confirmation in Chrome"] {
             let named = try await router.decide(goal: goal, snapshot: mail, history: [])
             XCTAssertEqual(named, .action(VoiceControlAction(operation: .activateApp, targetID: "app:9")), goal)

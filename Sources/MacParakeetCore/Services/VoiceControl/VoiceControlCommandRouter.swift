@@ -270,8 +270,10 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
         let browsers = snapshot.targets.filter {
             $0.operations.contains(.activateApp) && isBrowserName($0.label)
         }
-        if lower.contains("safari") { return browsers.first { $0.label.lowercased().contains("safari") } }
-        if lower.contains("firefox") { return browsers.first { $0.label.lowercased().contains("firefox") } }
+        // The browser named in the current request, not in a request a correction replaced.
+        let request = VoiceControlGoalText.currentRequest(lower)?.lowercased() ?? lower
+        if request.contains("safari") { return browsers.first { $0.label.lowercased().contains("safari") } }
+        if request.contains("firefox") { return browsers.first { $0.label.lowercased().contains("firefox") } }
         if let chrome = browsers.first(where: { $0.label.lowercased().contains("chrome") }) { return chrome }
         return browsers.count == 1 ? browsers[0] : nil
     }
