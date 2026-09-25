@@ -1876,10 +1876,14 @@ final class HotkeyManagerTests: XCTestCase {
         XCTAssertFalse(release.contains(.cancelRecording))
     }
 
-    /// Bare Fn: a modifier pressed during the reset gap still contaminates
-    /// the take, so releasing Fn with Shift held cancels.
-    func testSyncAfterFlowResetKeepsFnContaminationFromTheGap() {
+    /// Bare Fn: a modifier held when the resync runs contaminates the take,
+    /// so it cancels at once, as a live tap does on Fn+Shift.
+    func testSyncAfterFlowResetCancelsFnTakeWithModifierHeld() {
         let manager = makeManager(trigger: .fn, gestureMode: .doubleTapAndHold)
+        var stops = 0
+        var cancels = 0
+        manager.onStopRecording = { stops += 1 }
+        manager.onCancelRecording = { cancels += 1 }
         _ = manager.modifierFlagsChangedOutputsForTesting(
             flags: [.maskSecondaryFn],
             timestampMs: 1_000,
@@ -1888,16 +1892,13 @@ final class HotkeyManagerTests: XCTestCase {
         XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
 
         manager.resetToIdle(flags: [.maskSecondaryFn])
-        _ = manager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn, .maskShift], timestampMs: 1_500)
         manager.syncRecordingMode(.holdToTalk, flags: [.maskSecondaryFn, .maskShift], triggerKeyPressed: false)
 
-        let release = manager.modifierFlagsChangedOutputsForTesting(
-            flags: [.maskShift],
-            timestampMs: 2_000,
-            changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
-        )
-        XCTAssertTrue(release.contains(.cancelRecording), "got \(release)")
-        XCTAssertFalse(release.contains(.stopRecording))
+        XCTAssertEqual(cancels, 1)
+        XCTAssertEqual(stops, 0)
+        // A later tap-disable recovery with Fn up must not paste the take.
+        _ = manager.recoverFromDisabledTapForTesting(flags: [], timestampMs: 2_000)
+        XCTAssertEqual(stops, 0)
     }
 
     /// Fn released during the reset gap while Shift stays held: the missed
@@ -1954,16 +1955,17 @@ final class HotkeyManagerTests: XCTestCase {
                     changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
                 )
                 manager.syncRecordingMode(.holdToTalk, flags: [], triggerKeyPressed: false)
-                XCTAssertEqual(cancels, 1, "released before sync")
             } else {
                 manager.syncRecordingMode(.holdToTalk, flags: [.maskSecondaryFn], triggerKeyPressed: false)
-                let release = manager.modifierFlagsChangedOutputsForTesting(
-                    flags: [],
-                    timestampMs: 2_000,
-                    changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
-                )
-                XCTAssertTrue(release.contains(.cancelRecording), "got \(release)")
             }
+            XCTAssertEqual(cancels, 1, "releaseBeforeSync=\(releaseBeforeSync)")
+            // Neither a later release nor tap-disable recovery may paste it.
+            _ = manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 2_000,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            )
+            _ = manager.recoverFromDisabledTapForTesting(flags: [], timestampMs: 2_100)
             XCTAssertEqual(stops, 0)
         }
     }

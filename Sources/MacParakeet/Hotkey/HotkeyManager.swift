@@ -885,7 +885,19 @@ public final class HotkeyManager {
         // every hotkey (`.resetHotkeyStateMachine`) after this take began,
         // clearing the held-trigger state. Restore it from the physical keys,
         // or the release is ignored and the take records until the next
-        // press. If the trigger was already released, stop now.
+        // press.
+        if trigger == .fn {
+            // Bare Fn is admitted only with nothing else held, so any other
+            // key seen during the gap or held now arrived after the take
+            // began. A live tap cancels on that at once; do the same.
+            reconcilePassiveFnKeyState()
+            let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+            if fnHeldInterruptionObserved || passiveFnInputIsContaminated(flags: currentFlags) {
+                AudioCaptureDiagnostics.append("dictation_hotkey_release_recovered mode=hold_to_talk outcome=cancel")
+                handleOutputs(gestureController.interrupted())
+                return
+            }
+        }
         let triggerPressed = currentPhysicalTriggerIsPressed(
             flags: flags,
             triggerKeyPressed: triggerKeyPressed
@@ -895,27 +907,11 @@ public final class HotkeyManager {
             triggerKeyPressed: triggerKeyPressed,
             triggerPressed: triggerPressed
         )
-        // Bare Fn is admitted only with nothing else held, so any key held
-        // now arrived after the take began and genuinely contaminates it.
-        // Custom modifiers accept already-held modifiers, which cannot be
-        // told apart after the reset, so keep the take's accepted state.
-        if trigger != .fn {
-            bareTap = true
-        } else if fnHeldInterruptionObserved {
-            bareTap = false
-        }
+        // Nothing contaminates a bare-Fn take at this point. Custom modifiers
+        // accept already-held modifiers, which cannot be told apart after
+        // the reset, so keep the take's accepted state.
+        bareTap = true
         guard !triggerPressed else { return }
-        if trigger == .fn {
-            reconcilePassiveFnKeyState()
-            let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
-            if fnHeldInterruptionObserved || passiveFnInputIsContaminated(flags: currentFlags) {
-                // Fn came up with another key or modifier still held: treat
-                // it as a non-bare release, as a live tap would have.
-                AudioCaptureDiagnostics.append("dictation_hotkey_release_recovered mode=hold_to_talk outcome=cancel")
-                handleOutputs(gestureController.nonBareTriggerReleased())
-                return
-            }
-        }
         AudioCaptureDiagnostics.append("dictation_hotkey_release_recovered mode=hold_to_talk outcome=stop")
         handleOutputs(gestureController.triggerReleased(timestampMs: Self.currentTimestampMs()))
     }
