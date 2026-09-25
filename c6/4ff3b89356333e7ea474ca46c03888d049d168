@@ -1,0 +1,27 @@
+Sources/MacParakeetCore/STT/STTScheduler.swift
+  s_ea43f113115380::t_cbc10ababaf940 267-277,281-286
+  s_ea43f113115380::t_13dc5f011e24c7 307
+  s_ea43f113115380::t_40d0ea49d7bebc 101-105
+  s_ea43f113115380::t_041f56913e50c3 769
+  s_ea43f113115380::t_51d270464c5939 287-288
+Sources/MacParakeetCore/STT/README.md
+  s_ea43f113115380::t_d417713e1d640b 171-173
+Tests/MacParakeetTests/STT/STTSchedulerTests.swift
+  s_ea43f113115380::t_31fd2a80918386 143-175,1288-1300,1586-1589,1708-1732
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c64ff3b89356333e7ea474ca46c03888d049d168",
+  "prompts": {},
+  "sessions": {
+    "s_ea43f113115380": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e866346-f6a4-47b5-b1bd-f77f4f655aab",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
