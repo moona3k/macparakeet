@@ -206,6 +206,7 @@ final class SpecCommandTests: XCTestCase {
         XCTAssertEqual(
             documentedTopLevelCommands,
             [
+                "ask",
                 "calendar",
                 "cards",
                 "config",
