@@ -1,0 +1,19 @@
+scripts/tests/test_process_tap_runner.py
+  s_92e7a5a337f87e::t_a4390b5aee36b7 48-52,84-85,104,106-107,146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1432d4a673780adfd1630f67b6bffe8d666a04ef",
+  "prompts": {},
+  "sessions": {
+    "s_92e7a5a337f87e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0da10-207e-72c3-b98a-5ec552024f4a",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
