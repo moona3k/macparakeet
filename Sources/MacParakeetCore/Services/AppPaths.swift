@@ -6,14 +6,30 @@ public enum AppPaths {
     public static let preferencesSuiteName = "com.macparakeet.MacParakeet"
     public static let meetingArtifactsFolderKey = "meetingArtifactsFolder"
     public static let debugAppStateDirEnvironmentKey = "MACPARAKEET_DEBUG_APP_STATE_DIR"
+    /// Bundle ID of the `scripts/dev/run_app.sh` build (`MacParakeet-Dev.app`).
+    public static let developmentBundleIdentifier = "com.macparakeet.dev"
+
+    /// Matches the `run_app.sh` default for `MACPARAKEET_DEBUG_APP_STATE_DIR`.
+    static var defaultDevelopmentAppStateDir: String {
+        let base =
+            FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first?
+            .path
+            ?? (NSHomeDirectory() + "/Library/Application Support")
+        return base + "/MacParakeet-Dev"
+    }
 
     /// Application Support directory
     public static var appSupportDir: String {
         resolvedAppSupportDir(environment: ProcessInfo.processInfo.environment)
     }
 
-    static func resolvedAppSupportDir(environment: [String: String]) -> String {
-        if let override = debugAppStateDir(environment: environment) {
+    static func resolvedAppSupportDir(
+        environment: [String: String],
+        bundleIdentifier: String? = Bundle.main.bundleIdentifier
+    ) -> String {
+        if let override = debugAppStateDir(environment: environment, bundleIdentifier: bundleIdentifier) {
             return override
         }
         let path =
@@ -271,13 +287,20 @@ public enum AppPaths {
         return FileManager.default.isExecutableFile(atPath: ffmpegPath) ? ffmpegPath : nil
     }
 
-    private static func debugAppStateDir(environment: [String: String]) -> String? {
+    private static func debugAppStateDir(
+        environment: [String: String],
+        bundleIdentifier: String? = Bundle.main.bundleIdentifier
+    ) -> String? {
         guard
             let raw = environment[debugAppStateDirEnvironmentKey]?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
             !raw.isEmpty
         else {
-            return nil
+            // A Dev bundle launched without run_app.sh (Finder, `open`, a
+            // relaunch) must use the same Dev root run_app.sh passes, never
+            // the stable app's database and media.
+            guard bundleIdentifier == developmentBundleIdentifier else { return nil }
+            return defaultDevelopmentAppStateDir
         }
         let expanded = (raw as NSString).expandingTildeInPath
         guard (expanded as NSString).isAbsolutePath else {

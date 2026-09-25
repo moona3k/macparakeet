@@ -49,7 +49,9 @@ the `EquatableMacros` plugin, so Xcode builds must keep
 `-skipMacroValidation`; otherwise dependency resolution stops with
 `Macro “EquatableMacros” ... must be enabled before it can be used`. The dev
 script owns this flag. Do not install another Markdown renderer or edit the
-package checkout to work around the error. The script must confirm this worktree’s replaced dev executables have exited
+package checkout to work around the error. A `com.macparakeet.dev` bundle
+launched any other way (Finder, `open`, a relaunch) still defaults to the
+`MacParakeet-Dev` state root, never the stable app's data. The script must confirm this worktree’s replaced dev executables have exited
 before it rebuilds or re-signs their bundle; preserve unrelated app instances.
 Re-signing a bundle in place while macOS is executing it can cause a delayed
 `SIGKILL (Code Signature Invalid)` when a menu or sheet loads another page.
