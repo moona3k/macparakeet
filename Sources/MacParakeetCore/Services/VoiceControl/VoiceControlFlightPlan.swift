@@ -9,7 +9,13 @@ public struct VoiceControlFlightPlan: Equatable, Sendable {
     public var date: String?
     public var oneWay: Bool
 
-    public static func parse(_ goal: String) -> VoiceControlFlightPlan? {
+    /// Parses the person's original words only (`VoiceControlGoalText.unrevisedGoal`):
+    /// slicing the runner's scaffold, or a clarification such as `2`, would type
+    /// it into the form. A correction (`Actually Paris`) or a hand-edited field
+    /// makes this nil, because a deterministic plan cannot honour it; Jev, which
+    /// reads the amendments, takes those turns.
+    public static func parse(_ rawGoal: String) -> VoiceControlFlightPlan? {
+        guard let goal = VoiceControlGoalText.unrevisedGoal(rawGoal) else { return nil }
         let lower = goal.lowercased()
         guard VoiceControlWebDestination.matchingGoal(lower)?.id == "web:google-flights" else { return nil }
         var plan = VoiceControlFlightPlan(origin: nil, destination: nil, date: nil, oneWay: isOneWay(lower))

@@ -143,7 +143,7 @@ public actor VoiceControlTurnRunner {
         let normalized = correction.lowercased().trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
         otherRequested = ["other one", "the other one", "no the other one", "no, the other one", "not that one"].contains(normalized)
         chosenAlternative = nil; chosenTargetID = nil; alternativeLabels = []; alternativeIDs = []; alternativeRawLabels = []
-        amendments.append("User correction (overrides earlier conflicting requirements): " + correction)
+        amendments.append(VoiceControlGoalText.correction + correction)
         if amendments.count > 20 { amendments.removeFirst(amendments.count - 20) }
         record("revision", outcome: otherRequested ? "alternative_requested" : "goal_amended")
         continuation.yield(.activity("Correction: " + correction))
@@ -181,7 +181,7 @@ public actor VoiceControlTurnRunner {
                 if alternativeIDs.indices.contains(index) { chosenTargetID = alternativeIDs[index] }
             }
         }
-        amendments.append("User clarification: " + answer); revision += 1
+        amendments.append(VoiceControlGoalText.clarification + answer); revision += 1
         record("revision", outcome: "clarified")
         await run()
     }
@@ -357,13 +357,16 @@ public actor VoiceControlTurnRunner {
     }
     private var effectiveGoal: String {
         guard !amendments.isEmpty || !manualOverrides.isEmpty || !uncertainEffects.isEmpty else { return goal }
-        var parts = ["Continue this task using the latest corrections. Original goal: " + goal]
+        var parts = [VoiceControlGoalText.header + goal]
         parts += amendments
         if !manualOverrides.isEmpty {
-            parts.append("The user manually changed these fields. Preserve their current values; these override earlier conflicting requirements:")
-            parts += manualOverrides.keys.sorted().map { "\($0): \(manualOverrides[$0]!)" }
+            parts.append(VoiceControlGoalText.manualHeader)
+            // One line per field: a multiline value must not read as scaffold lines.
+            parts += manualOverrides.keys.sorted().map {
+                "\($0): \(manualOverrides[$0]!)".components(separatedBy: .newlines).joined(separator: " ")
+            }
         }
-        if !uncertainEffects.isEmpty { parts.append("Some executed effects have unknown outcomes. Inspect the current state; never repeat those effects. Ask if their outcome is necessary but cannot be determined.") }
+        if !uncertainEffects.isEmpty { parts.append(VoiceControlGoalText.uncertainNote) }
         return parts.joined(separator: "\n")
     }
     private func absorbManualChanges(_ snapshot: VoiceControlSnapshot) -> Bool {
