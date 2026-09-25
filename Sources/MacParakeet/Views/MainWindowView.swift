@@ -207,15 +207,6 @@ struct MainWindowView: View {
                             ) { transcription in
                                 transcriptionViewModel.currentTranscription = transcription
                             }
-                            .sheet(
-                                isPresented: $showingPromptLibrary,
-                                onDismiss: {
-                                    promptsViewModel.editingPrompt = nil
-                                    promptResultsViewModel.loadVisiblePrompts()
-                                }
-                            ) {
-                                PromptLibraryView(viewModel: promptsViewModel)
-                            }
                         }
                     case .dictations:
                         DictationHistoryView(viewModel: historyViewModel)
@@ -324,6 +315,18 @@ struct MainWindowView: View {
             minHeight: DesignSystem.Layout.windowMinHeight
         )
         .environment(\.shareManagement, shareManagementViewModel)
+        // Presented from the window root, not the Library list: a finishing
+        // transcription or menu navigation replaces the list while the sheet
+        // may hold an unsaved prompt edit.
+        .sheet(
+            isPresented: $showingPromptLibrary,
+            onDismiss: {
+                promptsViewModel.editingPrompt = nil
+                promptResultsViewModel.loadVisiblePrompts()
+            }
+        ) {
+            PromptLibraryView(viewModel: promptsViewModel)
+        }
         .sheet(item: Binding(get: { shareManagementViewModel?.draft }, set: { shareManagementViewModel?.draft = $0 })) { draft in
             if let sharing = shareManagementViewModel {
                 ShareTranscriptSheet(draft: draft, management: sharing)
