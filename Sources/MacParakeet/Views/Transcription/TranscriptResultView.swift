@@ -3063,16 +3063,15 @@ struct TranscriptResultView: View {
         .contentShape(Capsule())
         .foregroundStyle(isSelected ? DesignSystem.Colors.accent : DesignSystem.Colors.textSecondary)
         .animation(.easeInOut(duration: 0.3), value: isCopiedTab)
-        .onTapGesture {
-            guard viewModel.selectedTab != tab else { return }
-            if case .notes = viewModel.selectedTab {
-                startMeetingNotesNavigation(isCurrent: { viewModel.selectedTab == .notes }) {
-                    viewModel.selectedTab = tab
-                }
-                return
-            }
-            viewModel.selectedTab = tab
-        }
+        .onTapGesture { selectTab(tab) }
+        // A tap gesture alone exposes no press action, so VoiceOver, Voice
+        // Control, and other assistive clients could not switch tabs. These
+        // come before .contextMenu so the combined element keeps its menu.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(tabLabel(tab))
+        .accessibilityValue(tabAccessibilityValue(tab, isStreaming: isStreamingTab))
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction { selectTab(tab) }
         .contextMenu {
             if case .result(let id) = tab,
                 let promptResult = promptResultsViewModel.promptResults.first(where: { $0.id == id })
@@ -3104,10 +3103,28 @@ struct TranscriptResultView: View {
                 }
             }
         }
-        .accessibilityAddTraits(.isButton)
         .onHover { hovering in
             if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
         }
+    }
+
+    /// Speaks the state the capsule shows visually: the streaming pulse and
+    /// the unread dot.
+    private func tabAccessibilityValue(_ tab: TranscriptionViewModel.TranscriptTab, isStreaming: Bool) -> String {
+        if isStreaming { return "Generating" }
+        if case .result(let id) = tab, promptResultsViewModel.hasUnreadPromptResult(id) { return "Unread" }
+        return ""
+    }
+
+    private func selectTab(_ tab: TranscriptionViewModel.TranscriptTab) {
+        guard viewModel.selectedTab != tab else { return }
+        if case .notes = viewModel.selectedTab {
+            startMeetingNotesNavigation(isCurrent: { viewModel.selectedTab == .notes }) {
+                viewModel.selectedTab = tab
+            }
+            return
+        }
+        viewModel.selectedTab = tab
     }
 
     private var generateTabButton: some View {
