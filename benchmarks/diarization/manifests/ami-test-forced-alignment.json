@@ -333,6 +333,7 @@
       "durationSeconds": 2142.709375,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/EN2002a/audio/EN2002a.Mix-Headset.wav",
+        "sha256": "a15017d0d3c871866971ee178052a0ce3a7e44d6fbf89fc23dcab326511b65f5",
         "channelSelection": "official mono headset mix",
         "sampleRate": 16000,
         "channels": 1,
@@ -360,6 +361,7 @@
       "durationSeconds": 2142.709375,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/EN2002a/audio/EN2002a.Array1-01.wav",
+        "sha256": "6c0644431679e59adc70129f2ba6c2fb737fa731cf1ffe8a033cd7f0c441170e",
         "channelSelection": "array 1 microphone 1, no beamforming/downmix",
         "sampleRate": 16000,
         "channels": 1,
@@ -387,6 +389,7 @@
       "durationSeconds": 1786.848,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/EN2002b/audio/EN2002b.Mix-Headset.wav",
+        "sha256": "50e2c8e4737850c4bf3cc24e7087c755e1c733cd91822106afd0df485ba64893",
         "channelSelection": "official mono headset mix",
         "sampleRate": 16000,
         "channels": 1,
@@ -414,6 +417,7 @@
       "durationSeconds": 1786.848,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/EN2002b/audio/EN2002b.Array1-01.wav",
+        "sha256": "e3650cc84250caa0992ac0398f4a3127a8c14ed2c93edc10535245335cc41077",
         "channelSelection": "array 1 microphone 1, no beamforming/downmix",
         "sampleRate": 16000,
         "channels": 1,
@@ -441,6 +445,7 @@
       "durationSeconds": 2972.256,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/EN2002c/audio/EN2002c.Mix-Headset.wav",
+        "sha256": "a057708b3adb553f709fcde97d2af8e0455076bc3f88c250975227433d6e0270",
         "channelSelection": "official mono headset mix",
         "sampleRate": 16000,
         "channels": 1,
@@ -468,6 +473,7 @@
       "durationSeconds": 2972.256,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/EN2002c/audio/EN2002c.Array1-01.wav",
+        "sha256": "5e8b41c7ab6f7dca07c52c354ece85e31a71491a47ef0493407cb89b12a41f60",
         "channelSelection": "array 1 microphone 1, no beamforming/downmix",
         "sampleRate": 16000,
         "channels": 1,
@@ -495,6 +501,7 @@
       "durationSeconds": 2209.898688,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/EN2002d/audio/EN2002d.Mix-Headset.wav",
+        "sha256": "6aa99d9d71cb695ea699d6be277f78eff68e847c93560031486eba9f18164ebe",
         "channelSelection": "official mono headset mix",
         "sampleRate": 16000,
         "channels": 1,
@@ -522,6 +529,7 @@
       "durationSeconds": 2209.898688,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/EN2002d/audio/EN2002d.Array1-01.wav",
+        "sha256": "7a131dcaaf871a32a0af9ac0c9a21acbf78ed4f2e343d29969a7f4551c966723",
         "channelSelection": "array 1 microphone 1, no beamforming/downmix",
         "sampleRate": 16000,
         "channels": 1,
@@ -549,6 +557,7 @@
       "durationSeconds": 1049.354687,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2004a/audio/ES2004a.Mix-Headset.wav",
+        "sha256": "3e2560b19bee6952c7c7ce041b0f1ea8a7ea9468044c4eea79d2a2c67e24ab0f",
         "channelSelection": "official mono headset mix",
         "sampleRate": 16000,
         "channels": 1,
@@ -576,6 +585,7 @@
       "durationSeconds": 1049.354687,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2004a/audio/ES2004a.Array1-01.wav",
+        "sha256": "6936edac5d0904fc5c4ab175546c5cc5366601fdc1b1e5183a6ea2c10f05d150",
         "channelSelection": "array 1 microphone 1, no beamforming/downmix",
         "sampleRate": 16000,
         "channels": 1,
@@ -603,6 +613,7 @@
       "durationSeconds": 2345.493375,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2004b/audio/ES2004b.Mix-Headset.wav",
+        "sha256": "ad0cf07c42b1694ccf7bea8f1a37348d9cfab194787abc7d050b29ba56e365c8",
         "channelSelection": "official mono headset mix",
         "sampleRate": 16000,
         "channels": 1,
@@ -630,6 +641,7 @@
       "durationSeconds": 2345.493375,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2004b/audio/ES2004b.Array1-01.wav",
+        "sha256": "8a58a53413f7a47a29f8bd4d1b49e42cd4874eecc0c3f023c28a4702ecb50d88",
         "channelSelection": "array 1 microphone 1, no beamforming/downmix",
         "sampleRate": 16000,
         "channels": 1,
@@ -657,6 +669,7 @@
       "durationSeconds": 2334.368,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2004c/audio/ES2004c.Mix-Headset.wav",
+        "sha256": "47dc9bd2e3b1d174842091ae9e1fe765218f0c87658b17d6469c404e03ec2ac5",
         "channelSelection": "official mono headset mix",
         "sampleRate": 16000,
         "channels": 1,
@@ -684,6 +697,7 @@
       "durationSeconds": 2334.368,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2004c/audio/ES2004c.Array1-01.wav",
+        "sha256": "dc11abf7f87d1ca14a4d08f31d2356ec06541a19bae63700d6e64951d69c0cb7",
         "channelSelection": "array 1 microphone 1, no beamforming/downmix",
         "sampleRate": 16000,
         "channels": 1,
@@ -711,6 +725,7 @@
       "durationSeconds": 2222.290687,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2004d/audio/ES2004d.Mix-Headset.wav",
+        "sha256": "3cfce3297ebb7faeb53c02727eea5e9f2c76e9ed4b62db3b03d73e66836e91f3",
         "channelSelection": "official mono headset mix",
         "sampleRate": 16000,
         "channels": 1,
@@ -738,6 +753,7 @@
       "durationSeconds": 2222.290687,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2004d/audio/ES2004d.Array1-01.wav",
+        "sha256": "f55f83cf1f563c460030bf2790849428a102c41f296c401cedfa1be96ab1f2f7",
         "channelSelection": "array 1 microphone 1, no beamforming/downmix",
         "sampleRate": 16000,
         "channels": 1,
@@ -765,6 +781,7 @@
       "durationSeconds": 838.833313,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/IS1009a/audio/IS1009a.Mix-Headset.wav",
+        "sha256": "6eb5a0ede0d9e72794f976ce7bea5b78133eae969f99b4c5418b43c2468d25b1",
         "channelSelection": "official mono headset mix",
         "sampleRate": 16000,
         "channels": 1,
@@ -792,6 +809,7 @@
       "durationSeconds": 838.833313,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/IS1009a/audio/IS1009a.Array1-01.wav",
+        "sha256": "23fd54fd6dbe23870f10317b256f7c648fe0fd587e56d2f940840309f1578b60",
         "channelSelection": "array 1 microphone 1, no beamforming/downmix",
         "sampleRate": 16000,
         "channels": 1,
@@ -819,6 +837,7 @@
       "durationSeconds": 2052.333312,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/IS1009b/audio/IS1009b.Mix-Headset.wav",
+        "sha256": "07c2891ae6ad7c507b2a4f15b2dcd0a2343491df9e4e6a58f9db0d0b2c5e1382",
         "channelSelection": "official mono headset mix",
         "sampleRate": 16000,
         "channels": 1,
@@ -846,6 +865,7 @@
       "durationSeconds": 2052.333312,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/IS1009b/audio/IS1009b.Array1-01.wav",
+        "sha256": "d4f4556adb90eac335d3a50e5cfcd36b3186e8de0ba1b3f0b07a3d21088e7ba3",
         "channelSelection": "array 1 microphone 1, no beamforming/downmix",
         "sampleRate": 16000,
         "channels": 1,
@@ -873,6 +893,7 @@
       "durationSeconds": 1820.833312,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/IS1009c/audio/IS1009c.Mix-Headset.wav",
+        "sha256": "f317910070db0f2649315decbb34686d648bbe9dc3f7576710184f4d572bdbcc",
         "channelSelection": "official mono headset mix",
         "sampleRate": 16000,
         "channels": 1,
@@ -900,6 +921,7 @@
       "durationSeconds": 1820.833312,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/IS1009c/audio/IS1009c.Array1-01.wav",
+        "sha256": "53211f01571e702be9c7871dd042951c3a787c85d5f501fa950967acd5374b9f",
         "channelSelection": "array 1 microphone 1, no beamforming/downmix",
         "sampleRate": 16000,
         "channels": 1,
@@ -927,6 +949,7 @@
       "durationSeconds": 1944.5,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/IS1009d/audio/IS1009d.Mix-Headset.wav",
+        "sha256": "470440114ee2ed076cfc77c53136ad5d3af500d8a5a6ca36755e83534f5ca4ea",
         "channelSelection": "official mono headset mix",
         "sampleRate": 16000,
         "channels": 1,
@@ -954,6 +977,7 @@
       "durationSeconds": 1944.5,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/IS1009d/audio/IS1009d.Array1-01.wav",
+        "sha256": "7f568d1eafa0802a0eb6d8ad975eb182568dfda2b815ae338fd8b9967aa2b5d1",
         "channelSelection": "array 1 microphone 1, no beamforming/downmix",
         "sampleRate": 16000,
         "channels": 1,
@@ -981,6 +1005,7 @@
       "durationSeconds": 1505.642625,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/TS3003a/audio/TS3003a.Mix-Headset.wav",
+        "sha256": "b6ce59ff735c234afdd94b13744aa26f6785af746170543fd03b33160e920a6d",
         "channelSelection": "official mono headset mix",
         "sampleRate": 16000,
         "channels": 1,
@@ -1008,6 +1033,7 @@
       "durationSeconds": 1505.642625,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/TS3003a/audio/TS3003a.Array1-01.wav",
+        "sha256": "46f81fb403e40a98c1b694c842404c0db24f3a6c67397b247faf0d3f42cf9163",
         "channelSelection": "array 1 microphone 1, no beamforming/downmix",
         "sampleRate": 16000,
         "channels": 1,
@@ -1035,6 +1061,7 @@
       "durationSeconds": 2210.304,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/TS3003b/audio/TS3003b.Mix-Headset.wav",
+        "sha256": "0c94f3a09ab747caa7714efe8852f5ff37d36cf272b75709344991df1aa266ca",
         "channelSelection": "official mono headset mix",
         "sampleRate": 16000,
         "channels": 1,
@@ -1062,6 +1089,7 @@
       "durationSeconds": 2210.304,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/TS3003b/audio/TS3003b.Array1-01.wav",
+        "sha256": "dea4276863ba77b49d304e28638ae354bcd815e4ebeecf98902ce30782f8ba5a",
         "channelSelection": "array 1 microphone 1, no beamforming/downmix",
         "sampleRate": 16000,
         "channels": 1,
@@ -1089,6 +1117,7 @@
       "durationSeconds": 2570.0,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/TS3003c/audio/TS3003c.Mix-Headset.wav",
+        "sha256": "b9f455870e8cb0ba765523a1767cc366775ab7e5e3eabf37d9c91289e5a1a70a",
         "channelSelection": "official mono headset mix",
         "sampleRate": 16000,
         "channels": 1,
@@ -1116,6 +1145,7 @@
       "durationSeconds": 2570.0,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/TS3003c/audio/TS3003c.Array1-01.wav",
+        "sha256": "b2957066c100051d7835ac50231ec55ad5f35fafb2e2a9340670a0acaefb4173",
         "channelSelection": "array 1 microphone 1, no beamforming/downmix",
         "sampleRate": 16000,
         "channels": 1,
@@ -1143,6 +1173,7 @@
       "durationSeconds": 2618.2,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/TS3003d/audio/TS3003d.Mix-Headset.wav",
+        "sha256": "ece4a41c37c1092c737d1dfe313afb18248364625991f745fed4b372c3c67eb3",
         "channelSelection": "official mono headset mix",
         "sampleRate": 16000,
         "channels": 1,
@@ -1170,6 +1201,7 @@
       "durationSeconds": 2618.2,
       "audio": {
         "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/TS3003d/audio/TS3003d.Array1-01.wav",
+        "sha256": "16f5463568010ac6c8c71d2d5f9d703b71b200c7748c8b6a5f608118bf8b16d0",
         "channelSelection": "array 1 microphone 1, no beamforming/downmix",
         "sampleRate": 16000,
         "channels": 1,

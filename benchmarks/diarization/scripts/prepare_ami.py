@@ -46,6 +46,14 @@ def download(url: str, destination: Path, expected_hash: str | None = None) -> N
         temporary.unlink(missing_ok=True)
 
 
+def audio_hash(row: dict) -> str:
+    """Scored recordings are pinned bytes; header metadata alone is not identity."""
+    pinned = row["audio"].get("sha256")
+    if not pinned:
+        raise ValueError(f"Frozen audio hash missing for {row['id']}")
+    return pinned
+
+
 def validate_audio(path: Path, row: dict) -> dict:
     """Validate the frozen WAV header separately from the reference UEM extent.
 
@@ -97,9 +105,9 @@ def main() -> int:
             download(source["url"], args.root / "references" / (row["id"] + "." + suffix), source["sha256"])
         if args.recording:
             path = args.root / "audio" / (row["id"] + ".wav")
-            download(row["audio"]["url"], path)
+            download(row["audio"]["url"], path, audio_hash(row))
             audio_metadata = validate_audio(path, row)
-            evidence = {"id": row["id"], "url": row["audio"]["url"], "sha256": sha256(path),
+            evidence = {"id": row["id"], "url": row["audio"]["url"], "sha256": row["audio"]["sha256"],
                         **audio_metadata,
                         "channelSelection": row["audio"]["channelSelection"]}
             evidence_path = args.root / "audio-metadata" / (row["id"] + ".json")

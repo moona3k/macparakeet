@@ -9,7 +9,8 @@ import wave
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "scripts"))
-from prepare_ami import validate_audio
+from prepare_ami import audio_hash, download, validate_audio
+from score_diarization import load_manifest
 
 
 class AudioDurationTests(unittest.TestCase):
@@ -50,6 +51,25 @@ class AudioDurationTests(unittest.TestCase):
             path.write_bytes(path.read_bytes()[:-100])
             with self.assertRaisesRegex(ValueError, "bytes mismatch"):
                 validate_audio(path, row)
+
+
+class AudioHashTests(unittest.TestCase):
+    def test_manifest_without_audio_hash_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "audio hash missing"):
+            audio_hash({"id": "ami_example_mhm", "audio": {"url": "https://example.invalid/a.wav"}})
+
+    def test_existing_audio_with_matching_header_but_different_bytes_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "clip.wav"
+            path.write_bytes(b"changed samples")
+            with self.assertRaisesRegex(ValueError, "differs from pinned content"):
+                download("https://example.invalid/a.wav", path, "0" * 64)
+
+    def test_frozen_manifests_pin_every_scored_recording(self):
+        manifests = Path(__file__).resolve().parent / "manifests"
+        for name in ("ami-test.json", "ami-test-forced-alignment.json"):
+            for row in load_manifest(manifests / name):
+                self.assertRegex(audio_hash(row), "^[0-9a-f]{64}$", row["id"])
 
 
 if __name__ == "__main__":

@@ -33,6 +33,7 @@ swift build -c release --package-path benchmarks/diarization/Baseline
 `prepare_ami.py --root /path/to/ami` downloads references and the scorer;
 add `--recording ami_ES2004a_mhm` to download a particular official WAV.
 Acquire every ID in the selected manifest before running the comparison.
+Each WAV must match its pinned SHA-256; a changed or partial file is rejected.
 Its frozen audio headers distinguish actual capture duration from the original
 UEM; four distant-microphone recordings have small unscored tails. No timing
 shift, cropping or padding is applied to AMI audio.
