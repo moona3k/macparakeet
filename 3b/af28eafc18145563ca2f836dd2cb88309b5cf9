@@ -1,0 +1,23 @@
+Sources/MacParakeet/Views/Meetings/MeetingsView.swift
+  s_bc498f6029b472::t_d915cee9455698 29-30,39,46-47,49,51-52,285,302-303,309,320,338-340,346-347,499,569,797-811,814,818-838,868,925-926,1158,1580,1680
+Sources/MacParakeet/Views/Transcription/MeetingRecordingTile.swift
+  s_bc498f6029b472::t_e896e80d5ee6ba 75,89-94,100,103
+spec/04-ui-patterns.md
+  s_bc498f6029b472::t_411cea77ca700f 86-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3baf28eafc18145563ca2f836dd2cb88309b5cf9",
+  "prompts": {},
+  "sessions": {
+    "s_bc498f6029b472": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d9ff-e096-7d11-83c5-a860519469f5",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
