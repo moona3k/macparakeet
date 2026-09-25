@@ -1,0 +1,33 @@
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  s_ea43f113115380::t_f5f6bebb4367cd 24-32
+Sources/CLI/CHANGELOG.md
+  s_ea43f113115380::t_c144af4f86103c 102-110
+Sources/CLI/Commands/RetranscribeCommand.swift
+  s_ea43f113115380::t_55a3d1fd16b254 413-419,423-450
+Sources/MacParakeetCore/Database/DictationRepository.swift
+  s_ea43f113115380::t_cc909c04750869 6-9,138-150,152-214
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_ea43f113115380::t_2cea69cf906ed8 1251-1255,1271
+Tests/CLITests/RetranscribeCommandTests.swift
+  s_ea43f113115380::t_de8ca04de91cb6 196-256
+Tests/MacParakeetTests/Database/PrivateDictationTests.swift
+  s_ea43f113115380::t_b031c3d873aa26 103-124
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_ea43f113115380::t_ce07667a8ea95c 3208-3240
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "42017992f5e9d1cc4a2d3303874988578f3212a5",
+  "prompts": {},
+  "sessions": {
+    "s_ea43f113115380": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e866346-f6a4-47b5-b1bd-f77f4f655aab",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
