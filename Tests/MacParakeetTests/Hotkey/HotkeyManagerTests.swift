@@ -1876,6 +1876,30 @@ final class HotkeyManagerTests: XCTestCase {
         XCTAssertFalse(release.contains(.cancelRecording))
     }
 
+    /// Bare Fn: a modifier pressed during the reset gap still contaminates
+    /// the take, so releasing Fn with Shift held cancels.
+    func testSyncAfterFlowResetKeepsFnContaminationFromTheGap() {
+        let manager = makeManager(trigger: .fn, gestureMode: .doubleTapAndHold)
+        _ = manager.modifierFlagsChangedOutputsForTesting(
+            flags: [.maskSecondaryFn],
+            timestampMs: 1_000,
+            changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+        )
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
+
+        manager.resetToIdle(flags: [.maskSecondaryFn])
+        _ = manager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn, .maskShift], timestampMs: 1_500)
+        manager.syncRecordingMode(.holdToTalk, flags: [.maskSecondaryFn, .maskShift], triggerKeyPressed: false)
+
+        let release = manager.modifierFlagsChangedOutputsForTesting(
+            flags: [.maskShift],
+            timestampMs: 2_000,
+            changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+        )
+        XCTAssertTrue(release.contains(.cancelRecording), "got \(release)")
+        XCTAssertFalse(release.contains(.stopRecording))
+    }
+
     /// Startup can finish during the stop tail; the sync must not restart it.
     func testSyncDuringPendingStopTailKeepsTheOriginalTail() {
         let manager = HotkeyManager(trigger: .fn, holdToTalkStopTailMs: 50)

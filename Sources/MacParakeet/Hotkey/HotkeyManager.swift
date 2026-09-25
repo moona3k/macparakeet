@@ -880,9 +880,13 @@ public final class HotkeyManager {
             triggerKeyPressed: triggerKeyPressed,
             triggerPressed: triggerPressed
         )
-        // The take was already accepted; the reset lost its bare state, so
-        // do not re-judge it against keys held now.
-        bareTap = true
+        // Bare Fn is admitted only with nothing else held, so any key held
+        // now arrived after the take began and genuinely contaminates it.
+        // Custom modifiers accept already-held modifiers, which cannot be
+        // told apart after the reset, so keep the take's accepted state.
+        if trigger != .fn {
+            bareTap = true
+        }
         guard !triggerPressed else { return }
         AudioCaptureDiagnostics.append("dictation_hotkey_release_recovered mode=hold_to_talk")
         handleOutputs(gestureController.triggerReleased(timestampMs: Self.currentTimestampMs()))
