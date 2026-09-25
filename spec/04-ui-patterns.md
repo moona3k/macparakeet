@@ -975,7 +975,8 @@ and boundary actions:
 - At narrow pane widths, selection and speaker-assignment tools move to a
   second row so history and Done remain visible without horizontal scrolling.
   In still narrower video split panes, selection and history use an `Edit
-  actions` menu while Done remains a directly visible button.
+  actions` overflow menu below Done. This final layout stacks the controls so
+  the menu never competes with Done for horizontal space.
 - During playback, untouched text follows automatic word cues. A corrected or
   merged line highlights as one unit only while playback is inside its preserved
   time envelope; no word-level highlight is implied.

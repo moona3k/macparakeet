@@ -4704,18 +4704,21 @@ struct TranscriptResultView: View {
                 }
                 speakerSelectionActions
             }
-            HStack(spacing: DesignSystem.Spacing.sm) {
-                Menu("Edit actions") {
+            VStack(alignment: .trailing, spacing: DesignSystem.Spacing.sm) {
+                finishSpeakerEditingButton
+                Menu {
                     Text("\(speakerSelection.count) selected")
                     speakerSelectionControls
                     Divider()
                     speakerHistoryControls
+                } label: {
+                    Label("Edit actions", systemImage: "ellipsis")
+                        .labelStyle(.iconOnly)
                 }
                 .parakeetAction(.secondary)
                 .help("Selection, speaker assignment, and edit history")
-                Spacer(minLength: DesignSystem.Spacing.sm)
-                finishSpeakerEditingButton
             }
+            .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding(DesignSystem.Spacing.sm)
         .background(
