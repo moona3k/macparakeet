@@ -262,12 +262,10 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
     /// Web tasks should start in a browser, not the terminal or IDE that issued the command.
     static func browserForWebGoal(_ lower: String, snapshot: VoiceControlSnapshot) -> VoiceControlTarget? {
         guard !isBrowserName(snapshot.applicationName) else { return nil }
-        // The same anchored destination match as the web routes: a mail about a
-        // flight is not a reason to leave the mail app.
-        let browserHints = ["in chrome", "in safari", "in firefox", "in brave", "in edge"]
-        guard
-            VoiceControlWebDestination.matchingGoal(lower) != nil
-                || browserHints.contains(where: { lower.contains($0) })
+        // The same anchored matching as the web routes: a mail about a flight,
+        // or a reply saying the login fails in Chrome, is not a reason to leave
+        // the mail app.
+        guard VoiceControlWebDestination.matchingGoal(lower) != nil || VoiceControlWebDestination.namesBrowser(lower)
         else { return nil }
         let browsers = snapshot.targets.filter {
             $0.operations.contains(.activateApp) && isBrowserName($0.label)

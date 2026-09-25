@@ -109,11 +109,12 @@ visible text appears in a Jev context snapshot.
 Executed history reaches Jev as operation, control label, entered value and
 receipt outcome; target ids from older observations, model ids and scores do
 not. Candidate field values are exact spans of the user's own words only (the
-original goal and later corrections or clarifications, newest first, every
-tails before shorter spans; tails that start right after a value cue such as
-`write`, `saying`, `with`, `to` or a word ending in `:` within the first 24
-words come first, then other tails while their budget lasts; at most 250 spans
-and 24 KB, of which tails leave 50 slots and 4 KB for shorter spans). Because
+original goal and later corrections or clarifications, newest first).
+Utterance tails come before shorter spans: tails that start right after a
+value cue such as `write`, `saying`, `with`, `to` or a word ending in `:`
+within the first 24 words come first, latest cue first, then other tails
+while their budget lasts. At most 250 spans and 24 KB are offered, of which
+tails leave 50 slots and 4 KB for shorter spans. Because
 all tails of a long message cost far more than the budget, only the cue tails
 are guaranteed for long dictation. Amended-goal scaffolding and manually
 entered field values are never offered as values. A `429`, `503` or `529`
@@ -306,11 +307,18 @@ autocomplete, overlay Escape, Search). The form plan reads the person's original
 goal only, and only while every amendment is a clarification; an answer such
 as `2` is never merged into a form field. A correction, a hand-edited field or
 an uncertain effect makes the plan step aside so Jev, which reads those
-amendments, takes the turn. A site inferred rather than named (an intent
-phrase, or flights as the subject) does not route from a sentence about a
-message (`reply`, `forward`, `send`, `text`, `email`, `itinerary` …) unless it
-leads with a search verb (`find`, `search`, `directions`, `get` …); a named
-site (`… in Gmail`, `open YouTube`) still routes. A destination route fires only on an
+amendments, takes the turn. Only the current request of an amended goal routes
+(the newest correction, else the original goal): a correction that names no
+site abandons the earlier one, and a clarification is an answer, not a request.
+Explicit navigation (`open YouTube`, `go to Gmail`, a goal that starts with the
+site's name) always routes. A site mentioned in passing (`… on YouTube`,
+`… in Wikipedia`), an intent phrase, or flights as the subject does not route
+from a sentence about a message (`reply`, `forward`, `send`, `text`, `email`,
+`itinerary` …) unless it leads with a search verb (`find`, `search`, `play`,
+`directions`, `get` …); mail words never veto Gmail itself. The same rule
+decides whether `… in Chrome` switches browsers. A calendar day is a pressable
+control whose label reads as a date before `departure date`; a field button
+that leads with its name (`Departure date: September 20`) is not one. A destination route fires only on an
 explicit request, matched at word boundaries: its name in a navigation or
 search frame (`open YouTube`, `… on Wikipedia`, `go to Gmail`), an intent
 phrase (`search the web`, `directions to`, `flights from` / `flights to`), or a
@@ -319,8 +327,7 @@ starts with `click` / `press` / `tap` / `select` / `choose`, or only mentions a
 site (`search for headphones`, `reply to the email about my flight`), stays
 with the current page. Site search boxes are filled only after a query verb
 (`play`, `look up`, `search … for`). A one-shot named press whose effect
-verified or moved the interface finishes without another decision. A calendar
-day is a pressable `departure date` control whose label parses as a date. Competing overlay suggestions become
+verified or moved the interface finishes without another decision. Competing overlay suggestions become
 enabled events for one Jev Choice; Return is not enabled while a suggestion
 or date picker is open. Jev is never offered `role=url`
 destinations. When no local route or enabled event applies, the open-ended

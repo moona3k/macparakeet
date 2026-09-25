@@ -213,8 +213,65 @@ public enum VoiceControlGoalText {
     static let uncertainNote =
         "Some executed effects have unknown outcomes. Inspect the current state; never repeat those effects. Ask if their outcome is necessary but cannot be determined."
 
-    /// The original goal while every amendment is a clarification (an answer
-    /// such as `2` or `Rome, Italy` that the runner resolves itself). Nil when a
+    enum SegmentKind { case original, correction, clarification }
+
+    /// User-authored segments with their kind, oldest first. A goal without
+    /// the scaffold is one original segment. The runner writes every
+    /// amendment before the manual-field and uncertain-effect metadata, so
+    /// parsing stops at the first metadata line: a hand-edited field value
+    /// that happens to start with `User clarification:` is never read as
+    /// the user's words. Scaffold lines match case-insensitively, because
+    /// routers read a lowercased goal.
+    static func kindedSegments(_ goal: String) -> [(kind: SegmentKind, text: String)] {
+        guard goal.dropPrefix(header) != nil else { return goal.isEmpty ? [] : [(.original, goal)] }
+        var segments: [(kind: SegmentKind, text: String)] = []
+        let prefixes: [(String, SegmentKind)] = [
+            (header, .original), (correction, .correction), (clarification, .clarification),
+        ]
+        for line in goal.components(separatedBy: "\n") {
+            if [manualHeader, uncertainNote].contains(where: { line.caseInsensitiveCompare($0) == .orderedSame }) {
+                break
+            }
+            if let (rest, kind) = prefixes.lazy.compactMap({ prefix, kind in
+                line.dropPrefix(prefix).map { ($0, kind) }
+            }).first {
+                segments.append((kind, rest))
+            } else if !segments.isEmpty {
+                segments[segments.count - 1].text += "\n" + line
+            }
+        }
+        return segments.filter { !$0.text.isEmpty }
+    }
+
+    /// User-authored segments, oldest first.
+    static func userSegments(_ goal: String) -> [String] { kindedSegments(goal).map(\.text) }
+
+    /// What the person is asking for now: the newest correction, else the
+    /// original goal. Clarifications answer questions (`2`, `Rome, Italy`) and
+    /// never restate the request. A correction that names no site abandons an
+    /// earlier one (`actually reply to the email instead`).
+    static func currentRequest(_ goal: String) -> String? {
+        let segments = kindedSegments(goal)
+        if let correction = segments.last(where: { $0.kind == .correction }) {
+            return withoutLeadingFiller(correction.text)
+        }
+        return segments.first { $0.kind == .original }?.text
+    }
+
+    /// `actually play blues` -> `play blues`: a correction's opening filler
+    /// hides the verb that anchors a route.
+    static func withoutLeadingFiller(_ text: String) -> String {
+        let fillers: Set<String> = ["actually", "no", "sorry", "wait", "instead", "rather", "oh", "um", "uh"]
+        var rest = Substring(text)
+        while let word = rest.split(whereSeparator: { $0.isWhitespace }).first,
+            fillers.contains(word.lowercased().trimmingCharacters(in: .punctuationCharacters))
+        {
+            rest = rest[word.endIndex...].drop { $0.isWhitespace || $0.isPunctuation }
+        }
+        return rest.isEmpty ? text : String(rest)
+    }
+
+    /// The original goal while every amendment is a clarification. Nil when a
     /// correction overrides earlier words, the person changed fields by hand,
     /// or an effect's outcome is uncertain: a deterministic plan cannot honour
     /// those, so they belong to the model. Clarifications are never merged into
@@ -227,26 +284,6 @@ public enum VoiceControlGoalText {
             return nil
         }
         return userSegments(goal).first
-    }
-
-    /// User-authored segments, oldest first. A goal without the scaffold is one segment.
-    /// Scaffold lines match case-insensitively, because routers read a lowercased goal.
-    static func userSegments(_ goal: String) -> [String] {
-        guard goal.dropPrefix(header) != nil else { return goal.isEmpty ? [] : [goal] }
-        var segments: [String] = []
-        var inUserText = false
-        for line in goal.components(separatedBy: "\n") {
-            if let rest = [header, correction, clarification].lazy.compactMap({ line.dropPrefix($0) }).first {
-                segments.append(rest); inUserText = true
-            } else if [manualHeader, uncertainNote].contains(where: {
-                line.caseInsensitiveCompare($0) == .orderedSame
-            }) {
-                inUserText = false
-            } else if inUserText, !segments.isEmpty {
-                segments[segments.count - 1] += "\n" + line
-            }
-        }
-        return segments.filter { !$0.isEmpty }
     }
 }
 

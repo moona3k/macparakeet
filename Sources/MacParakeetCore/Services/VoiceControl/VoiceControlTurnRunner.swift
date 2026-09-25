@@ -361,7 +361,10 @@ public actor VoiceControlTurnRunner {
         parts += amendments
         if !manualOverrides.isEmpty {
             parts.append(VoiceControlGoalText.manualHeader)
-            parts += manualOverrides.keys.sorted().map { "\($0): \(manualOverrides[$0]!)" }
+            // One line per field: a multiline value must not read as scaffold lines.
+            parts += manualOverrides.keys.sorted().map {
+                "\($0): \(manualOverrides[$0]!)".components(separatedBy: .newlines).joined(separator: " ")
+            }
         }
         if !uncertainEffects.isEmpty { parts.append(VoiceControlGoalText.uncertainNote) }
         return parts.joined(separator: "\n")

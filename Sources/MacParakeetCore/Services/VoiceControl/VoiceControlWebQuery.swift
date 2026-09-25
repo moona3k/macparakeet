@@ -6,7 +6,10 @@ public struct VoiceControlWebQuery: Equatable, Sendable {
     public let destinationID: String
     public let query: String
 
-    public static func parse(_ goal: String) -> VoiceControlWebQuery? {
+    /// Reads the current request only (`VoiceControlGoalText.currentRequest`),
+    /// so an amended goal's scaffold never becomes the query.
+    public static func parse(_ rawGoal: String) -> VoiceControlWebQuery? {
+        guard let goal = VoiceControlGoalText.currentRequest(rawGoal) else { return nil }
         let lower = goal.lowercased()
         guard let destination = VoiceControlWebDestination.matchingGoal(lower),
             destination.id != "web:google-flights"
@@ -48,7 +51,7 @@ public struct VoiceControlWebQuery: Equatable, Sendable {
             prefixes = ["play ", "watch ", "search youtube for ", "search for ", "find ", "youtube ", "open youtube "]
         case "web:google-maps":
             text = strip(text, suffixes: [" on google maps", " in google maps"])
-            prefixes = ["directions to ", "get directions to ", "google maps to ", "maps to "]
+            prefixes = ["directions to ", "get directions to ", "navigate to ", "google maps to ", "maps to "]
         case "web:wikipedia":
             text = strip(text, suffixes: [" on wikipedia", " in wikipedia", " wikipedia"])
             prefixes = ["search wikipedia for ", "look up ", "search for ", "find ", "wikipedia "]

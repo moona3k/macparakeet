@@ -56,33 +56,46 @@ public struct VoiceControlWebDestination: Sendable, Equatable {
     /// at word boundaries and on a navigation or search frame, because this route
     /// runs before the page's own controls: `search for headphones` searches the
     /// open shop, `click the YouTube link` presses a link, and `reply to the email
-    /// about my flight` stays in the mail app. Each user-authored segment of an
-    /// amended goal is anchored on its own, newest first.
+    /// about my flight` stays in the mail app. Only the current request of an
+    /// amended goal counts (`VoiceControlGoalText.currentRequest`): a correction
+    /// that names no site abandons the earlier one, and a clarification answers
+    /// a question rather than restating the request.
     public static func matchingGoal(_ lower: String) -> VoiceControlWebDestination? {
-        let segments = VoiceControlGoalText.userSegments(lower).reversed().map {
-            " " + VoiceControlSessionGrammar.normalize($0) + " "
-        }
-        guard let newest = segments.first, !isControlCommand(newest) else { return nil }
-        for padded in segments where padded.count > 2 && !isControlCommand(padded) {
-            if let destination = all.first(where: { $0.isRequested(by: padded) }) { return destination }
-        }
-        return nil
+        guard let request = VoiceControlGoalText.currentRequest(lower) else { return nil }
+        let padded = " " + VoiceControlSessionGrammar.normalize(request) + " "
+        guard padded.count > 2, !isControlCommand(padded) else { return nil }
+        return all.first { $0.isRequested(by: padded) }
     }
 
     private func isRequested(by padded: String) -> Bool {
+        // Explicit navigation always routes: `open YouTube`, `go to Gmail`, `Wikipedia …`.
         for name in names {
-            if padded.hasPrefix(" \(name) ") || padded.contains(" \(name) for ") { return true }
-            let frames = ["open", "go to", "switch to", "launch", "on", "in", "search", "use"]
-            if frames.contains(where: { padded.contains(" \($0) \(name) ") }) { return true }
+            if padded.hasPrefix(" \(name) ") { return true }
+            let navigation = ["open", "go to", "switch to", "launch", "use"]
+            if navigation.contains(where: { padded.contains(" \($0) \(name) ") }) { return true }
         }
-        // Below, the site is inferred rather than named. A sentence about a
-        // message (`reply to Sarah with directions to the office`, `forward the
-        // flights to Paris email`) is work in the current app, unless it leads
-        // with a search verb (`find flights …`, `directions to …`).
-        if Self.isAboutAMessage(padded) { return false }
+        // Below, the site is mentioned in passing or inferred. A sentence about
+        // a message (`forward the video on YouTube to Sarah`, `reply to Sarah
+        // with directions to the office`) is work in the current app, unless it
+        // leads with a search verb (`find flights …`, `directions to …`). Mail
+        // words are the subject matter of Gmail itself, so they never veto it.
+        if id != "web:gmail", Self.isAboutAMessage(padded) { return false }
+        for name in names {
+            if padded.contains(" \(name) for ") { return true }
+            if ["on", "in", "search"].contains(where: { padded.contains(" \($0) \(name) ") }) { return true }
+        }
         // A flight search is the one destination named by its subject.
         if id == "web:google-flights", Self.leadsWithFlightSearch(padded) { return true }
         return intentPhrases.contains(where: { padded.contains(" \($0) ") })
+    }
+
+    /// `… in Chrome`, `… in Safari`: the person names the browser to use. A
+    /// sentence about a message (`reply that the login fails in Chrome`) does not.
+    public static func namesBrowser(_ lower: String) -> Bool {
+        guard let request = VoiceControlGoalText.currentRequest(lower) else { return false }
+        let padded = " " + VoiceControlSessionGrammar.normalize(request) + " "
+        guard !isControlCommand(padded), !isAboutAMessage(padded) else { return false }
+        return ["chrome", "safari", "firefox", "brave", "edge"].contains { padded.contains(" in \($0) ") }
     }
 
     private static func isAboutAMessage(_ padded: String) -> Bool {
@@ -111,7 +124,9 @@ public struct VoiceControlWebDestination: Sendable, Equatable {
         "email", "emails", "mail", "message", "messages", "confirmation", "booking reference", "itinerary",
         "reply", "forward", "send", "text", "tell", "share", "invite",
     ]
-    private static let searchLeads = ["find", "search", "look", "book", "compare", "google", "directions", "get"]
+    private static let searchLeads = [
+        "find", "search", "look", "book", "compare", "google", "directions", "get", "play", "watch",
+    ]
 
     /// `click …` / `press …` / `select …` name a control on the current page.
     private static func isControlCommand(_ padded: String) -> Bool {

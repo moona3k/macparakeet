@@ -435,12 +435,13 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
                 try Self.validate(answer, offered: Set(question.criteria.keys))
             }
             return Sent(
-                answers: decoded.answers, bytes: encoded.count, inputTokens: decoded.usage?.inputTokens,
+                answers: decoded.answers, bytes: encoded.count * (attempt + 1), inputTokens: decoded.usage?.inputTokens,
                 retries: attempt)
         }
     }
 
     struct Sent {
+        /// Bytes posted across every attempt, retries included.
         let answers: [String: Answer]; let bytes: Int; let inputTokens: Int?; let retries: Int
     }
     static let retryableStatuses: Set<Int> = [429, 503, 529]

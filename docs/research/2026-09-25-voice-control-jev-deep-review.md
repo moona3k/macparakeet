@@ -126,6 +126,12 @@ before fixing. Regression tests now cover them
   (about 240 to 300 ms).
 - **Evaluation gates are defined but none has passed** (`evaluation.md`). The
   decision corpus is 24 goals.
+- **Heuristic routing keeps producing edge cases.** Review of this change
+  alone surfaced about a dozen routing misfires (`forward the video on YouTube
+  to Sarah`, a correction that abandons a site, `… fails in Chrome` in a mail
+  reply). Each is fixed and tested, but the class is open-ended: a local
+  keyword router cannot tell what a sentence is about. That is the strongest
+  argument for the Jev `route` decision recommended below.
 - **Doc sprawl.** 17 documents in the research folder plus a 45 KB proposal
   plan that is mostly unbuilt vision. The TCU review's promised six-document
   consolidation did not happen. `pr-description-draft.md` links to a
@@ -240,12 +246,12 @@ Code (all in `Sources/MacParakeetCore/Services/VoiceControl/`):
   and the `latest.md` Jev line.
 
 Tests: new `VoiceControlIntentAnchoringTests` (8) and `JevClientTransportTests`
-(10). Docs: subsystem README, `spec/contracts/voice-control.md`, `product.md`.
+(11). Docs: subsystem README, `spec/contracts/voice-control.md`, `product.md`.
 
 ## Verification
 
 - Focused suites (`VoiceControl|JevLean|JevClient|AXTreeWalk|ScreenTextSource|SpokenDateParser|NativeVoiceControl`,
-  which includes the CLI `voice-control replay` tests): 233 tests, 0 failures,
+  which includes the CLI `voice-control replay` tests): 234 tests, 0 failures,
   1 skipped (the opt-in live E2E, `MACPARAKEET_NATIVE_VOICE_CONTROL_E2E=1`).
   Run from a clean scratch build path because the shared `.build` cache is stale.
 - Every fixed bug was first reproduced against unmodified `main` with a probe

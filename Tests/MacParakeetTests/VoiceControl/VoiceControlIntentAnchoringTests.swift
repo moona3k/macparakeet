@@ -41,7 +41,8 @@ final class VoiceControlIntentAnchoringTests: XCTestCase {
             "search for headphones", "click the YouTube link", "reply to the email about my flight",
             "open the flight confirmation", "press the Gmail button",
             "reply to Sarah with directions to the office", "forward Bob the directions to the office",
-            "forward the flights to Paris email", "text Mia the flights from Boston", "find the email about my flight",
+            "forward the flights to Paris email", "text Mia the flights from Boston",
+            "forward the video on YouTube to Sarah", "find the email about my flight",
             "reply to the email about my flight to Denver", "forward the flights to Paris email",
         ] {
             let decision = try await router.decide(goal: goal, snapshot: shopPage(), history: [])
@@ -81,20 +82,36 @@ final class VoiceControlIntentAnchoringTests: XCTestCase {
             ])
         let decision = try await router.decide(goal: "reply to the email about my flight", snapshot: mail, history: [])
         if case .action(let action) = decision { XCTAssertNotEqual(action.operation, .activateApp) }
+        let login = try await router.decide(goal: "reply that the login fails in Chrome", snapshot: mail, history: [])
+        if case .action(let action) = login { XCTAssertNotEqual(action.operation, .activateApp) }
         let search = try await router.decide(goal: "find flights to Paris", snapshot: mail, history: [])
         XCTAssertEqual(search, .action(VoiceControlAction(operation: .activateApp, targetID: "app:9")))
+        let named = try await router.decide(goal: "open the release notes in Chrome", snapshot: mail, history: [])
+        XCTAssertEqual(named, .action(VoiceControlAction(operation: .activateApp, targetID: "app:9")))
     }
 
-    /// A correction wraps the goal in runner scaffolding. The user's own words
-    /// still carry the anchored request, and a control command still blocks it.
-    func testAmendedGoalKeepsItsAnchoredDestination() async throws {
-        let amended =
+    /// Only the current request of an amended goal routes: the newest
+    /// correction, else the original. A correction that names no site abandons
+    /// the earlier one; a clarification answers a question and keeps it.
+    func testAmendedGoalRoutesOnlyItsCurrentRequest() async throws {
+        let abandoned =
+            VoiceControlGoalText.header + "find flights to London\n" + VoiceControlGoalText.correction
+            + "actually reply to the email about my flight instead"
+        XCTAssertNil(VoiceControlWebDestination.matchingGoal(abandoned.lowercased()))
+        let decision = try await router.decide(goal: abandoned, snapshot: shopPage(), history: [])
+        XCTAssertNil(openedDestination(decision), "the cancelled destination must not open")
+        let restated =
             VoiceControlGoalText.header + "Find one-way flights to London\n" + VoiceControlGoalText.correction
-            + "Actually Paris"
-        XCTAssertEqual(VoiceControlWebDestination.matchingGoal(amended.lowercased())?.id, "web:google-flights")
-        XCTAssertNil(VoiceControlFlightPlan.parse(amended), "a correction belongs to the model, not the form plan")
-        let decision = try await router.decide(goal: amended, snapshot: shopPage(), history: [])
-        XCTAssertEqual(openedDestination(decision), "web:google-flights")
+            + "actually find flights to Paris"
+        XCTAssertEqual(VoiceControlWebDestination.matchingGoal(restated.lowercased())?.id, "web:google-flights")
+        XCTAssertNil(VoiceControlFlightPlan.parse(restated), "a correction belongs to the model, not the form plan")
+        let answered =
+            VoiceControlGoalText.header + "Find flights to London\n" + VoiceControlGoalText.clarification + "2"
+        XCTAssertEqual(VoiceControlWebDestination.matchingGoal(answered.lowercased())?.id, "web:google-flights")
+        let query =
+            VoiceControlGoalText.header + "play jazz on YouTube\n" + VoiceControlGoalText.correction
+            + "actually play blues on YouTube"
+        XCTAssertEqual(VoiceControlWebQuery.parse(query)?.query, "blues", "the scaffold never becomes the query")
         let picked =
             VoiceControlGoalText.header + "Find flights from Boston to Rome\n" + VoiceControlGoalText.clarification
             + "2"
@@ -118,6 +135,7 @@ final class VoiceControlIntentAnchoringTests: XCTestCase {
         XCTAssertEqual(VoiceControlWebQuery.parse("Look up Alan Turing on Wikipedia")?.query, "Alan Turing")
         XCTAssertEqual(
             VoiceControlWebQuery.parse("Search the web for weather in London")?.query, "weather in London")
+        XCTAssertEqual(VoiceControlWebQuery.parse("navigate to the station on Google Maps")?.query, "the station")
     }
 
     /// A closed form's date button names no date. It must not turn an ordinary
@@ -140,6 +158,9 @@ final class VoiceControlIntentAnchoringTests: XCTestCase {
                 VoiceControlTarget(id: "n:1", label: "Add to cart", role: "AXButton", operations: [.press]),
             ])
         XCTAssertEqual(VoiceControlSituation.classify(open), .datePicker)
+        let selected = VoiceControlTarget(
+            id: "n:3", label: "Departure date: September 20, 2026", role: "AXButton", operations: [.press])
+        XCTAssertFalse(VoiceControlLegality.isCalendarDay(selected), "a field button showing its date is not a day")
     }
 
     /// `Submit search` stays ordinary by design; a final submit is left to the
