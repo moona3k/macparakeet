@@ -142,10 +142,18 @@ final class TranscriptDocumentLayoutTests: XCTestCase {
         let scroll = try XCTUnwrap(descendants(host).compactMap { $0 as? NSScrollView }.first)
         let document = try XCTUnwrap(scroll.documentView)
         print(
-            "\(label), width \(width): first layout \(Date().timeIntervalSince(start)) s, document width \(document.bounds.width), viewport \(scroll.contentView.bounds.width)"
+            "\(label), width \(width): first layout \(Date().timeIntervalSince(start)) s, "
+                + "document \(document.bounds.width), pane \(scroll.bounds.width), "
+                + "clip \(scroll.contentView.bounds.width)"
         )
         XCTAssertLessThanOrEqual(host.bounds.width, width + 1)
-        XCTAssertLessThanOrEqual(document.bounds.width, scroll.contentView.bounds.width + 1)
+        // Compare against the scroll view, not its clip. A visible legacy scroller
+        // insets the clip by about 15 pt while the document stays at the pane width.
+        XCTAssertLessThanOrEqual(
+            document.bounds.width,
+            scroll.bounds.width + 1,
+            "Wide content must stay inside the offered pane, not the scroller inset"
+        )
         XCTAssertGreaterThan(document.bounds.height, scroll.contentView.bounds.height)
         for _ in 0..<2 {
             scroll.contentView.scroll(
