@@ -51,11 +51,11 @@ private struct LiveDictationTranscriptionState: Sendable {
     let sampleContinuation: AsyncStream<[Float]>.Continuation
     let partialContinuation: AsyncStream<String>.Continuation
     let partialTask: Task<Void, Never>
-    let task: Task<STTResult, Error>
+    let task: Task<Void, Never>
     /// Set when the live stream is no longer a faithful rendition of the
     /// recorded WAV (backpressure dropped samples, or the pre-roll was
-    /// discarded from the file after being streamed). A degraded session is
-    /// cancelled instead of flushed; the final dictation result always comes
+    /// discarded from the file after being streamed). Diagnostic only: live
+    /// partials are display-only and the final dictation result always comes
     /// from recorded-file transcription.
     let degradeReason: OSAllocatedUnfairLock<String?>
 
@@ -81,7 +81,7 @@ private struct DictationDisplayPreviewState: Sendable {
     let task: Task<Void, Never>
 }
 
-private typealias DictationPreviewDrainGate = OneShotVoidContinuation
+private typealias DictationDrainGate = OneShotContinuation<Bool>
 
 public enum AIFormatterAppContextPhase: Sendable {
     case start
@@ -127,6 +127,7 @@ public actor DictationService: DictationServiceProtocol {
     private let cancelWindow: Duration
     private let dictationPreviewInterval: Duration
     private let dictationPreviewCancellationTimeout: Duration
+    private let liveDictationCancellationTimeout: Duration
     private let dictationPreviewWindowSampleCount: Int
     private let startPermit = AsyncPermit()
 
@@ -234,6 +235,7 @@ public actor DictationService: DictationServiceProtocol {
         cancelWindow: Duration = .seconds(5),
         dictationPreviewInterval: Duration = .seconds(1),
         dictationPreviewCancellationTimeout: Duration = .seconds(2),
+        liveDictationCancellationTimeout: Duration = .seconds(2),
         dictationPreviewWindowSeconds: Double = 15
     ) {
         self.audioProcessor = audioProcessor
@@ -275,6 +277,7 @@ public actor DictationService: DictationServiceProtocol {
         self.cancelWindow = cancelWindow
         self.dictationPreviewInterval = dictationPreviewInterval
         self.dictationPreviewCancellationTimeout = dictationPreviewCancellationTimeout
+        self.liveDictationCancellationTimeout = liveDictationCancellationTimeout
         self.dictationPreviewWindowSampleCount = max(1, Int((dictationPreviewWindowSeconds * 16_000).rounded()))
     }
 
@@ -644,7 +647,9 @@ public actor DictationService: DictationServiceProtocol {
             try rejectUnavailableCaptureIfNeeded(captureHealth, audioURL: audioURL)
             let device = await audioProcessor.recordingDeviceInfo
             await cancelDisplayPreview(sessionID: currentSession, clearText: false)
-            _ = await finishLiveDictationTranscription(sessionID: currentSession)
+            // Live partials are display-only, so stop retires the session
+            // without a final pass. Recorded-file STT queues behind it.
+            await cancelLiveDictationTranscription(sessionID: currentSession, clearText: false)
             startPermit.signal()
             holdingStartPermit = false
             logger.debug(
@@ -774,8 +779,8 @@ public actor DictationService: DictationServiceProtocol {
         // recorder. A delayed media-pause callback must not trim that take.
         guard replacementCleanupSessionID != activeSessionID else { return }
         // The pre-roll was already mirrored into the live STT stream, but the
-        // recorder will now trim it from the WAV. Cancel the live stream rather
-        // than flushing a final over audio that is no longer in the source file.
+        // recorder will now trim it from the WAV. Record that the live stream
+        // no longer matches the source file; its partials stay display-only.
         if let state = liveTranscriptionState, state.dictationSessionID == activeSessionID {
             state.markDegraded(reason: "preroll_discarded")
         }
@@ -1265,6 +1270,9 @@ public actor DictationService: DictationServiceProtocol {
             let sttSessionID = try await liveTranscriber.beginLiveDictationTranscription { partial in
                 partialContinuation.yield(partial)
             }
+            // The session is always cancelled, never flushed. A live final
+            // would be discarded (the recorded WAV is the final source), and
+            // flushing it cost an inference pass that could stall stop.
             let task = Task { [liveTranscriber, sttSessionID] in
                 do {
                     for await samples in stream {
@@ -1274,21 +1282,13 @@ public actor DictationService: DictationServiceProtocol {
                             sessionID: sttSessionID
                         )
                     }
-                    if degradeReason.withLock({ $0 != nil }) {
-                        await liveTranscriber.cancelLiveDictationTranscription(sessionID: sttSessionID)
-                        throw CancellationError()
-                    }
-                    try Task.checkCancellation()
-                    return try await liveTranscriber.finishLiveDictationTranscription(
-                        sessionID: sttSessionID
-                    )
                 } catch is CancellationError {
-                    await liveTranscriber.cancelLiveDictationTranscription(sessionID: sttSessionID)
-                    throw CancellationError()
                 } catch {
-                    await liveTranscriber.cancelLiveDictationTranscription(sessionID: sttSessionID)
-                    throw error
+                    AudioCaptureDiagnostics.append(
+                        "dictation_live_transcribe_failed \(AudioCaptureDiagnostics.errorFields(error))"
+                    )
                 }
+                await liveTranscriber.cancelLiveDictationTranscription(sessionID: sttSessionID)
             }
 
             liveTranscriptionState = LiveDictationTranscriptionState(
@@ -1527,89 +1527,60 @@ public actor DictationService: DictationServiceProtocol {
         if let previewTranscriber = sttTranscriber as? any STTDictationPreviewTranscribing {
             await previewTranscriber.cancelDictationPreview()
         }
-        await waitForDisplayPreviewCancellation(state.task)
+        _ = await Self.waitForDrain(state.task, timeout: dictationPreviewCancellationTimeout)
     }
 
-    private func waitForDisplayPreviewCancellation(_ task: Task<Void, Never>) async {
-        let timeout = dictationPreviewCancellationTimeout
+    /// Waits for `task` to finish, up to `timeout`. Returns false on timeout;
+    /// the task keeps running and is not awaited again.
+    private static func waitForDrain(_ task: Task<Void, Never>, timeout: Duration) async -> Bool {
         await withCheckedContinuation { continuation in
-            let gate = DictationPreviewDrainGate(continuation)
+            let gate = DictationDrainGate(continuation)
             Task {
-                _ = await task.result
-                gate.resume()
+                await task.value
+                gate.resume(returning: true)
             }
             Task {
                 try? await Task.sleep(for: timeout)
-                gate.resume()
+                gate.resume(returning: false)
             }
         }
     }
 
-    private func finishLiveDictationTranscription(sessionID: Int) async -> STTResult? {
-        guard let state = liveTranscriptionState,
-            state.dictationSessionID == sessionID
-        else {
-            return nil
-        }
-        liveTranscriptionState = nil
-        state.sampleContinuation.finish()
-        state.partialContinuation.finish()
-        state.partialTask.cancel()
-
-        // Capture stopped before this runs, so no further degrade writes can
-        // race this read.
-        if let reason = state.degradeReason.withLock({ $0 }) {
-            AudioCaptureDiagnostics.append(
-                "dictation_live_transcribe_degraded reason=\(reason)"
-            )
-            state.task.cancel()
-            if let liveTranscriber = sttTranscriber as? any STTLiveDictationTranscribing {
-                await liveTranscriber.cancelLiveDictationTranscription(sessionID: state.sttSessionID)
-            }
-            _ = await state.task.result
-            return nil
-        }
-
-        do {
-            let result = try await state.task.value
-            let trimmedText = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmedText.isEmpty else {
-                // An empty live final is indistinguishable from a streaming
-                // hiccup. The recorded-file final remains the source of truth.
-                AudioCaptureDiagnostics.append("dictation_live_transcribe_empty_fallback")
-                return nil
-            }
-            AudioCaptureDiagnostics.append(
-                "dictation_live_transcribe_complete chars=\(result.text.count)"
-            )
-            return result
-        } catch is CancellationError {
-            AudioCaptureDiagnostics.append("dictation_live_transcribe_cancelled")
-            return nil
-        } catch {
-            AudioCaptureDiagnostics.append(
-                "dictation_live_transcribe_failed \(AudioCaptureDiagnostics.errorFields(error))"
-            )
-            return nil
-        }
-    }
-
-    private func cancelLiveDictationTranscription(sessionID: Int) async {
+    /// Retires the take's live session. The wait is bounded: a native append
+    /// or cancel that never returns must not hold stop, dismiss, or restart
+    /// (issue #1131). A stalled session keeps its scheduler reservation, so a
+    /// replacement take records without live partials and recorded-file STT
+    /// queues behind it rather than failing.
+    private func cancelLiveDictationTranscription(sessionID: Int, clearText: Bool = true) async {
         guard let state = liveTranscriptionState,
             state.dictationSessionID == sessionID
         else {
             return
         }
         liveTranscriptionState = nil
-        clearLiveTranscript()
+        if clearText {
+            clearLiveTranscript()
+        }
         state.task.cancel()
         state.sampleContinuation.finish()
         state.partialContinuation.finish()
         state.partialTask.cancel()
-        if let liveTranscriber = sttTranscriber as? any STTLiveDictationTranscribing {
-            await liveTranscriber.cancelLiveDictationTranscription(sessionID: state.sttSessionID)
+        if let reason = state.degradeReason.withLock({ $0 }) {
+            AudioCaptureDiagnostics.append("dictation_live_transcribe_degraded reason=\(reason)")
         }
-        _ = await state.task.result
+        let liveTranscriber = sttTranscriber as? any STTLiveDictationTranscribing
+        let sttSessionID = state.sttSessionID
+        let liveTask = state.task
+        let drain = Task {
+            await liveTranscriber?.cancelLiveDictationTranscription(sessionID: sttSessionID)
+            await liveTask.value
+        }
+        let drained = await Self.waitForDrain(drain, timeout: liveDictationCancellationTimeout)
+        if !drained {
+            logger.warning("dictation_live_cancel_timeout session=\(sessionID, privacy: .public)")
+            AudioCaptureDiagnostics.append("dictation_live_transcribe_cancel_timeout")
+            Telemetry.send(.sttRuntimeUnhealthy(reason: "dictation_live_cancel_drain"))
+        }
     }
 
     private static func combinedSampleSink(

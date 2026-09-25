@@ -84,7 +84,7 @@ runtime for app features.
 
 | Lane | Work and policy |
 |---|---|
-| Interactive | Reserved for dictation. Native live dictation sessions occupy it for their lifetime. |
+| Interactive | Reserved for dictation. Native live dictation sessions occupy it for their lifetime; recorded-file dictation jobs queue behind them instead of failing. |
 | Background | `meetingFinalize` > `meetingLiveChunk` > `fileTranscription` among pending work. An already running file job is not preempted by meeting stop. |
 | Display preview | Parakeet TDT tail-window preview uses a bounded single-flight path outside those job slots; it has cancellation/drain and engine-switch guards. |
 

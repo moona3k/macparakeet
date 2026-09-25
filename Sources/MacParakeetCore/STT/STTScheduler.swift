@@ -86,15 +86,23 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
     private var dictationPreviewExecution: DictationPreviewExecution?
     private var liveDictationSession: LiveDictationSessionState? {
         didSet {
-            guard liveDictationSession == nil, !liveDictationSessionWaiters.isEmpty else { return }
+            guard oldValue != nil, liveDictationSession == nil else { return }
             let waiters = liveDictationSessionWaiters
             liveDictationSessionWaiters = []
             for waiter in waiters {
                 waiter.resume()
             }
+            // A recorded-file dictation job may be waiting for the live
+            // session to release the interactive lane.
+            startNextJobsIfNeeded()
         }
     }
     private var liveDictationSessionWaiters: [CheckedContinuation<Void, Never>] = []
+    /// Appends still inside the runtime. A cancel keeps the lane reserved
+    /// until they return: a late append would otherwise run inference on the
+    /// same native manager as the next interactive job.
+    private var liveDictationAppendsInFlight = 0
+    private var liveDictationAppendDrainWaiters: [CheckedContinuation<Void, Never>] = []
 
     /// - Parameter meetingLiveChunkBacklogLimit: Maximum pending live-preview chunks before the
     ///   oldest is dropped. 120 ≈ 4 minutes of dual-source 5-second chunks emitted every ~4
@@ -256,7 +264,26 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
         guard liveDictationSession == .active(sessionID) else {
             throw STTLiveDictationTranscriptionError.sessionNotActive
         }
+        liveDictationAppendsInFlight += 1
+        defer {
+            liveDictationAppendsInFlight -= 1
+            if liveDictationAppendsInFlight == 0 {
+                let waiters = liveDictationAppendDrainWaiters
+                liveDictationAppendDrainWaiters = []
+                for waiter in waiters {
+                    waiter.resume()
+                }
+            }
+        }
         try await runtime.appendLiveDictationSamples(samples, sessionID: sessionID)
+    }
+
+    private func waitForLiveDictationAppendsToDrain() async {
+        while liveDictationAppendsInFlight > 0 {
+            await withCheckedContinuation { continuation in
+                liveDictationAppendDrainWaiters.append(continuation)
+            }
+        }
     }
 
     public func finishLiveDictationTranscription(sessionID: UUID) async throws -> STTResult {
@@ -275,7 +302,10 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
     public func cancelLiveDictationTranscription(sessionID: UUID) async {
         guard liveDictationSession == .active(sessionID) else { return }
         liveDictationSession = .cancelling(sessionID)
-        await runtime.cancelLiveDictationTranscription(sessionID: sessionID)
+        await observingRuntimeTimeout(reason: "live_dictation_cancel") {
+            await runtime.cancelLiveDictationTranscription(sessionID: sessionID)
+            await waitForLiveDictationAppendsToDrain()
+        }
         if liveDictationSession == .cancelling(sessionID) {
             liveDictationSession = nil
         }
@@ -531,11 +561,9 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
             return
         }
 
-        guard !(job.slot == .interactive && liveDictationSession != nil) else {
-            continuation.resume(throwing: STTError.engineBusy)
-            return
-        }
-
+        // An interactive job that arrives while a live dictation session owns
+        // the lane waits for it instead of failing. Rejecting it would cost
+        // the caller its recorded audio (issue #1131).
         continuations[job.id] = continuation
         var currentSlotState = slotState(for: job.slot)
 
@@ -599,6 +627,9 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
     private func startNextJobIfNeeded(in slot: SchedulerSlot) {
         var currentSlotState = slotState(for: slot)
         guard currentSlotState.currentJob == nil else { return }
+        // The native engine's interactive lane belongs to the live session
+        // until it finishes or cancels; the didSet above restarts this slot.
+        guard !(slot == .interactive && liveDictationSession != nil) else { return }
         guard let next = dequeueNextJob(in: &currentSlotState) else {
             setSlotState(currentSlotState, for: slot)
             return
@@ -735,6 +766,7 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
         case .active(let sessionID):
             liveDictationSession = .cancelling(sessionID)
             await runtime.cancelLiveDictationTranscription(sessionID: sessionID)
+            await waitForLiveDictationAppendsToDrain()
             if liveDictationSession == .cancelling(sessionID) {
                 liveDictationSession = nil
             }
