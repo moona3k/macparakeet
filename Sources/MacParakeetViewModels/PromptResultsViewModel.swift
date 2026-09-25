@@ -954,8 +954,10 @@ public final class PromptResultsViewModel {
             promptResults.insert(promptResult, at: 0)
         }
 
-        await refreshMeetingArtifacts(transcriptionId: generation.transcriptionId)
-
+        // Hand the selected pending tab to its saved result in the same
+        // main-actor turn that removes the pending generation. If this waited
+        // for the artifact refresh below, SwiftUI could render the missing
+        // pending tab first and fall back to the transcript.
         onPromptResultsChanged?(generation.transcriptionId, true)
         onGenerationCompleted?(generation.id, promptResult.id)
         if let replacingPromptResultID = generation.replacingPromptResultID {
@@ -964,6 +966,8 @@ public final class PromptResultsViewModel {
         if shouldMarkPromptResultUnread?(promptResult.id) ?? true {
             unreadPromptResultIDs.insert(promptResult.id)
         }
+
+        await refreshMeetingArtifacts(transcriptionId: generation.transcriptionId)
 
         processNextQueuedGeneration()
     }
