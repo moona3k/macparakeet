@@ -349,15 +349,8 @@ public final class LocalCLIExecutor: Sendable {
     }
 
     static func executionWorkingDirectory(fileManager: FileManager = .default) throws -> URL {
-        let appSupportDirectory = try fileManager.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
-        let workingDirectory =
-            appSupportDirectory
-            .appendingPathComponent("MacParakeet", isDirectory: true)
+        // Through AppPaths so Dev and override launches stay in their own root.
+        let workingDirectory = URL(fileURLWithPath: AppPaths.appSupportDir, isDirectory: true)
             .appendingPathComponent("LocalCLI", isDirectory: true)
         try fileManager.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
         return workingDirectory

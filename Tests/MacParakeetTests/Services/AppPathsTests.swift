@@ -72,6 +72,37 @@ final class AppPathsTests: XCTestCase {
         XCTAssertEqual(AppPaths.defaultMeetingRecordingsDir(environment: environment), root.appendingPathComponent("meeting-recordings").path)
     }
 
+    func testDevBundleWithoutOverrideUsesDevStateNotStableData() {
+        let applicationSupport = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].path
+        XCTAssertEqual(
+            AppPaths.resolvedAppSupportDir(
+                environment: [:],
+                bundleIdentifier: AppPaths.developmentBundleIdentifier
+            ),
+            applicationSupport + "/MacParakeet-Dev"
+        )
+        XCTAssertEqual(
+            AppPaths.resolvedAppSupportDir(
+                environment: [:],
+                bundleIdentifier: "com.macparakeet.MacParakeet"
+            ),
+            applicationSupport + "/MacParakeet"
+        )
+
+        // An explicit override still wins for the Dev bundle.
+        let custom = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-debug-state-\(UUID().uuidString)", isDirectory: true)
+            .standardizedFileURL
+        XCTAssertEqual(
+            AppPaths.resolvedAppSupportDir(
+                environment: [AppPaths.debugAppStateDirEnvironmentKey: custom.path],
+                bundleIdentifier: AppPaths.developmentBundleIdentifier
+            ),
+            custom.path
+        )
+    }
+
     func testDeveloperAppStateDirScopesFluidAudioModelsInsideThrowawayRoot() {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("macparakeet-debug-state-\(UUID().uuidString)", isDirectory: true)
