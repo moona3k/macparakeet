@@ -131,6 +131,21 @@ final class JevClientTransportTests: XCTestCase {
         XCTAssertTrue(spans.contains("launch plan"))
     }
 
+    /// When a preamble carries several value cues (`reply`, `to`, `saying`,
+    /// `that`, `write:`), the tail after the LAST cue -- the actual message --
+    /// must still be offered whole, not crowded out by the earlier cues'
+    /// longer, near-duplicate tails.
+    func testLongMessageAfterSeveralCuesIsOfferedWhole() {
+        let words = "please send the revised launch plan and the updated budget before friday so we can review it"
+            .split(separator: " ")
+        let message = (0..<400).map { String(words[$0 % words.count]) }.joined(separator: " ") + "."
+        let goal = "Reply to Sarah saying that the plan is confirmed and write: " + message
+        let spans = JevDecisionClient.sourceSpans(goal)
+        XCTAssertTrue(spans.contains(message))
+        XCTAssertTrue(spans.contains(String(message.dropLast())))
+        XCTAssertLessThanOrEqual(spans.reduce(0) { $0 + $1.utf8.count }, JevDecisionClient.spanByteBudget)
+    }
+
     func testAmendedGoalOffersOnlyTheUsersWords() {
         let goal = [
             VoiceControlGoalText.header + "search flights to Paris",

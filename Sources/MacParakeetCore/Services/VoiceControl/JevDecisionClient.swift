@@ -524,8 +524,12 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
     /// below Jev's option limit and a byte budget. Long values (`write Hi team,
     /// I'll be ten minutes late …`) are almost always the rest of the utterance
     /// after a short instruction, so utterance tails come first: tails that
-    /// start right after a value cue, then every other tail while the tail
-    /// budget lasts. Tails' combined size grows with the square of the utterance
+    /// start right after a value cue, latest cue first, then every other tail
+    /// while the tail budget lasts. Latest-cue-first matters when a preamble
+    /// carries more than one cue word (`reply to … with … that … write: `):
+    /// the tail after the last cue is the shortest and cleanest, so it must be
+    /// offered before the earlier cues' longer, near-duplicate tails can spend
+    /// the budget. Tails' combined size grows with the square of the utterance
     /// length, so for a long message only the cue tails are affordable. Then
     /// every span up to 12 words, shortest first. Tails never take the last 50
     /// slots or `shortSpanReserve` bytes. Scaffold sentences and manually
@@ -567,7 +571,7 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
             if text.lowercased().hasPrefix("type "), !offer(text.dropFirst(5), budget: tailBudget, count: tailCount) {
                 break tails
             }
-            for index in ranges.indices.prefix(24) where index + 1 < ranges.count {
+            for index in ranges.indices.prefix(24).reversed() where index + 1 < ranges.count {
                 let word = text[ranges[index]]
                 let cue =
                     word.hasSuffix(":") || valueCues.contains(word.lowercased().trimmingCharacters(in: punctuation))
