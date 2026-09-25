@@ -1,0 +1,29 @@
+Tests/MacParakeetTests/Services/Diarization/NemotronDiarizationServiceTests.swift
+  s_b2a4348fbbe602::t_2efd9300914b58 302-305
+  s_b2a4348fbbe602::t_518a84c4a35a30 292-301,306-318
+  s_b2a4348fbbe602::t_884e3f5480c3e8 223-244
+Sources/MacParakeetCore/Services/Diarization/NemotronDiarizationService.swift
+  s_b2a4348fbbe602::t_e71a4a6ff8c4c5 138-151,222-223,247-252,254-255,268,270-274
+benchmarks/diarization/2026-09-25-nemotron-evaluation.md
+  s_b2a4348fbbe602::t_901b02f2042ec3 318-327
+spec/06-stt-engine.md
+  s_b2a4348fbbe602::t_7d150b64648a18 595,597,599-616,626-627,632,638,646-647,654,661-662,664,666-667,673-675,678-685
+spec/adr/010-speaker-diarization.md
+  s_b2a4348fbbe602::t_5f525fee8f2c60 43-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "211baccb216117671acbd9de5792584af2c09144",
+  "prompts": {},
+  "sessions": {
+    "s_b2a4348fbbe602": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7ccaaa3-188e-48c5-b585-b975d4599a0d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
