@@ -283,6 +283,7 @@ public final class TranscriptChatViewModel {
         streamingTask = Task { @MainActor [weak self] in
             guard let self else { return }
             var accumulated = ""
+            var coalescer = StreamingTextCoalescer(interval: .milliseconds(33))
             do {
                 let stream = llmService.chatStream(
                     question: question,
@@ -294,8 +295,12 @@ public final class TranscriptChatViewModel {
                 )
                 for try await token in stream {
                     accumulated += token
-                    // UI update — silently no-ops if message was removed (detached)
-                    if let idx = messages.firstIndex(where: { $0.id == assistantID }) {
+                    // Keep every token in the authoritative response, but bound
+                    // message-list/Markdown invalidation just as generated results do.
+                    if coalescer.append(token, at: .now) != nil,
+                        streamingAssistantID == assistantID,
+                        let idx = messages.firstIndex(where: { $0.id == assistantID })
+                    {
                         messages[idx].content = accumulated
                     }
                 }
@@ -312,8 +317,13 @@ public final class TranscriptChatViewModel {
                 let assistantMsg = ChatMessage(role: .assistant, content: accumulated)
 
                 if streamingAssistantID == assistantID {
-                    // Still the active task — normal UI update and persistence
+                    // Publish the complete response before marking it finished.
+                    // Cancellation/failure still discard partial replies; detached
+                    // conversations persist the full accumulated text below.
                     if let idx = messages.firstIndex(where: { $0.id == assistantID }) {
+                        if messages[idx].content != accumulated {
+                            messages[idx].content = accumulated
+                        }
                         messages[idx].isStreaming = false
                     }
                     chatHistory.append(assistantMsg)

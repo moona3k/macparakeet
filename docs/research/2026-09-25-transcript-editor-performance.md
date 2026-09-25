@@ -9,7 +9,8 @@ rescanning the entire transcript or invalidating the transcript detail view.
 Keep passage identity, timing envelopes, the immutable automatic transcript,
 remove/restore, whitespace normalization, Cancel, and one atomic `reviseText`
 save. Preserve the existing save token and transcription-identity checks.
-The read-only Text and Timed layouts and correction persistence are out of scope.
+The follow-up audit below covers other detail tabs. Read-only Text/Timed layout
+policy and correction persistence remain unchanged.
 
 ## Findings
 
@@ -88,3 +89,50 @@ No Jev step is needed: this change makes no semantic classification or routing
 decision. Native tests use direct AppKit field-editor input. They do not prove
 physical keyboard/IME interaction, the user's actual recording, or signed-release
 behavior.
+
+## Follow-up: other transcript/detail tabs
+
+The expanded review covered Text reading, Timed reading/editing, Notes,
+Summary/Chapter/custom results, Chat, and their shared Markdown renderer.
+Keep saving, cancellation, conversation ownership, selection behavior, and
+on-device data unchanged. Fix measured costs or layout defects instead of
+replacing every stack with a lazy layout.
+
+| Surface | Finding and disposition |
+| --- | --- |
+| Text reading | A single selectable Text is bounded at a 500 pt viewport with 10,000 words and settles after scrolling. No production change. |
+| Timed transcript | Existing eager/lazy threshold (400) and speaker-card cap (24) already bound long transcripts while preserving short-transcript selection. All 10 existing native layout smoke cases passed, including 964 single-speaker segments and 10,000 flat segments. No production change. |
+| Notes | A separate concurrent Notes workspace refinement already removes nested cards and gives the native editor available height. Reviewed that change and its native fixture report; left its ownership with that branch. Existing saved-note view-model tests pass here. This branch does not deliver the separate Notes changes. |
+| Saved results | The outer ScrollView constrained TextEditor to 280 pt even when the window grew 300 pt. A flexible pane now keeps wrapping actions above a scrolling Markdown body or a native editor that owns its scrolling. |
+| Chat | The model mutated its observable message array for every token despite downstream Markdown buffering. A 1,000-token burst caused 1,001 message-array publications. Use the existing 33 ms StreamingTextCoalescer before publication, preserve all authoritative tokens, and flush complete text on success. |
+| Shared Markdown | Existing serial latest-snapshot renderer and cancellation ownership are sound. Long parsed documents, wide code, and 12-column tables remain inside 500/900 pt panes and settle after scrolling. No renderer change. |
+
+### Follow-up evidence
+
+- The Chat regression failed at 1,001 publications before the fix; the fixed
+  run measured **3**, with identical complete UI and persisted content. Buffered
+  provider failures and cancellation discard the response and never persist its
+  tail. Existing conversation detachment, replacement, Stop, and persistence
+  tests pass.
+- A test hosts the actual `TranscriptResultView` with synthetic model state and
+  isolated UserDefaults. Before the fix its saved-result editor stayed
+  **280 → 280 pt**; after the fix it grows **273 → 573 pt** when the window
+  grows 650 → 950 pt. It also checks a compact 500 pt pane and return to reading
+  without modifying the saved result. Native compact captures were inspected.
+- Long Markdown first layout took **0.37–0.55 s**, including a 100 ms run-loop
+  pump; the 10,000-word selectable Text took **0.94–0.97 s**. These shared-machine
+  debug samples are observations, not latency guarantees. Tests assert bounds
+  and eventual quiet layout, not those timings.
+- 154 focused tests passed across Chat, publication, coalescing, saved results,
+  saved Notes, and native document layouts before adding the two buffered-error
+  cases; the six final new publication/document cases also pass. The PR records
+  the final full-suite and hosted checks separately.
+- Independent correctness and maintainability reviews found no production
+  defects. Their suggestions led to buffered-error/cancellation tests and
+  compact full-pane checks.
+
+Renderer tests await parsing before hosting `DocumentView` with the app's
+configuration. They cover the common rendering layer, not every whole-tab
+interaction. The full saved-result pane test does cover actual production view
+composition. No private meeting, live provider, physical keyboard/IME, or signed
+release behavior was exercised. No Jev step was needed.
