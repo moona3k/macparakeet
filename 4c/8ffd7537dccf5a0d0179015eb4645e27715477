@@ -1,0 +1,31 @@
+benchmarks/diarization/Baseline/README.md
+  s_fc431665d16421::t_9ba9c926f89e0f 32-34
+benchmarks/diarization/2026-09-25-nemotron-evaluation.md
+  s_fc431665d16421::t_2c6c0c5b0d672e 122-125,145-164
+  s_fc431665d16421::t_db9525f332266f 249-300
+  s_fc431665d16421::t_c764dc1ab93a75 10-21,113-114,165-183
+  s_fc431665d16421::t_e6ad6784cf70ac 211-231
+  s_fc431665d16421::t_cc7f04b17a0d3b 301-303
+docs/plans/2026-09-25-nemotron-diarization-evaluation-plan.md
+  s_fc431665d16421::t_b72fa41832a3aa 23-41
+benchmarks/diarization/README.md
+  s_fc431665d16421::t_e6ad6784cf70ac 92-102
+benchmarks/diarization/2026-09-25-nemotron-results.json
+  s_fc431665d16421::t_88f7abccff4455 1-10779
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4c8ffd7537dccf5a0d0179015eb4645e27715477",
+  "prompts": {},
+  "sessions": {
+    "s_fc431665d16421": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d8f6-e373-7060-9ce6-c25215540c80",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
