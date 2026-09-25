@@ -1,0 +1,25 @@
+spec/contracts/voice-control.md
+  s_5242d773558d9d::t_240558280cf326 311-324
+Tests/MacParakeetTests/VoiceControl/VoiceControlIntentAnchoringTests.swift
+  s_5242d773558d9d::t_94f30a11750ecb 89-92,110-119
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlWebDestination.swift
+  s_5242d773558d9d::t_94f30a11750ecb 65-81,109-111,114-116
+Sources/MacParakeetCore/Services/VoiceControl/README.md
+  s_5242d773558d9d::t_240558280cf326 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f62386ddfd3807b4f68c0726dee58a5744b8cf74",
+  "prompts": {},
+  "sessions": {
+    "s_5242d773558d9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3eca4d69-a0de-45df-9368-93cf24bae1ba",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
