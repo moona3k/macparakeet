@@ -859,8 +859,12 @@ public final class HotkeyManager {
             suppressUntilReset()
             return
         }
+        // The release already happened and its stop tail is running; the
+        // take is ending, so leave it alone.
+        guard stopTailTimer == nil else { return }
+        let heldStateLost = !heldTriggerStateIsTracked
         resumeRecording(mode: resumeMode)
-        guard resumeMode == .holdToTalk else { return }
+        guard resumeMode == .holdToTalk, heldStateLost else { return }
 
         // Starting a take while the previous one is still finishing resets
         // every hotkey (`.resetHotkeyStateMachine`) after this take began,
@@ -876,9 +880,26 @@ public final class HotkeyManager {
             triggerKeyPressed: triggerKeyPressed,
             triggerPressed: triggerPressed
         )
+        // The take was already accepted; the reset lost its bare state, so
+        // do not re-judge it against keys held now.
+        bareTap = true
         guard !triggerPressed else { return }
         AudioCaptureDiagnostics.append("dictation_hotkey_release_recovered mode=hold_to_talk")
         handleOutputs(gestureController.triggerReleased(timestampMs: Self.currentTimestampMs()))
+    }
+
+    /// False after a reset cleared the record of the trigger being held.
+    private var heldTriggerStateIsTracked: Bool {
+        switch trigger.kind {
+        case .modifier:
+            return targetModifierGestureIsActive
+        case .modifierChord:
+            return modifierChordGestureIsActive
+        case .keyCode, .chord:
+            return triggerKeyIsPressed
+        case .disabled:
+            return true
+        }
     }
 
     /// Reset state machine to idle (e.g., after cancel countdown expires).

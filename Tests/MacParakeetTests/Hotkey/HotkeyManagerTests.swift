@@ -1861,6 +1861,43 @@ final class HotkeyManagerTests: XCTestCase {
         )
     }
 
+    /// A take accepted with another modifier already held must still stop,
+    /// not cancel, on release: the sync only restores state a reset lost.
+    func testSyncDoesNotRejudgeAcceptedModifierTake() {
+        let manager = makeManager(trigger: .option, gestureMode: .holdOnly)
+        _ = manager.modifierFlagsChangedOutputsForTesting(flags: [.maskShift], timestampMs: 900)
+        _ = manager.modifierFlagsChangedOutputsForTesting(flags: [.maskShift, .maskAlternate], timestampMs: 1_000)
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
+
+        manager.syncRecordingMode(.holdToTalk, flags: [.maskShift, .maskAlternate], triggerKeyPressed: false)
+
+        let release = manager.modifierFlagsChangedOutputsForTesting(flags: [.maskShift], timestampMs: 2_000)
+        XCTAssertTrue(release.contains(.stopRecording), "got \(release)")
+        XCTAssertFalse(release.contains(.cancelRecording))
+    }
+
+    /// Startup can finish during the stop tail; the sync must not restart it.
+    func testSyncDuringPendingStopTailKeepsTheOriginalTail() {
+        let manager = HotkeyManager(trigger: .fn, holdToTalkStopTailMs: 50)
+        manager.setPhysicalKeyStateProviderForTesting { _ in false }
+        var pending = 0
+        var cancelled = 0
+        let stopped = expectation(description: "one stop")
+        manager.onStopPending = { pending += 1 }
+        manager.onStopPendingCancelled = { cancelled += 1 }
+        manager.onStopRecording = { stopped.fulfill() }
+
+        _ = manager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn], timestampMs: 1_000)
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
+        _ = manager.recoverFromDisabledTapForTesting(flags: [], timestampMs: 1_500)
+        XCTAssertEqual(pending, 1)
+
+        manager.syncRecordingMode(.holdToTalk, flags: [], triggerKeyPressed: false)
+        XCTAssertEqual(pending, 1)
+        XCTAssertEqual(cancelled, 0)
+        wait(for: [stopped], timeout: 1.0)
+    }
+
     func testStopTailSignalsPendingThenStops() {
         let manager = HotkeyManager(trigger: .fn, holdToTalkStopTailMs: 20)
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
