@@ -218,9 +218,13 @@ Code (all in `Sources/MacParakeetCore/Services/VoiceControl/`):
   YouTube`, a goal starting with the site's name) always routes, a passing
   mention or intent phrase is vetoed by the same message-sentence rule as
   flight searches unless it leads with a search verb, and mail words never
-  veto Gmail itself. `namesBrowser` applies the same rule to `… in Chrome`.
-  `goalHints` became `names` plus `intentPhrases`. `search for` no longer
-  means Google; `navigate to` is a Maps query verb again.
+  veto Gmail itself. A short correction of at most three words that is
+  neither a command nor about a message (`actually Paris`) keeps the original
+  request's site instead of abandoning it. `namesBrowser` applies the same
+  message-sentence rule to `… in Chrome`, except after a leading opening verb
+  (`open the flight confirmation in Chrome`). `goalHints` became `names` plus
+  `intentPhrases`. `search for` no longer means Google; `navigate to` is a
+  Maps query verb again.
 - `VoiceControlWebQuery.swift`: also reads the current request, so an amended
   goal's scaffold never becomes the query; a site query still needs a query
   verb.
