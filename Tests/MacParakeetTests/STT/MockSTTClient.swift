@@ -369,6 +369,11 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
         if let liveBeginError {
             throw liveBeginError
         }
+        // Mirrors STTScheduler: a held append keeps the lane reserved, so a
+        // new live session is refused until it returns.
+        guard liveAppendHoldContinuations.isEmpty else {
+            throw STTError.engineBusy
+        }
         let id = UUID()
         liveSessionID = id
         livePartialHandler = onPartial

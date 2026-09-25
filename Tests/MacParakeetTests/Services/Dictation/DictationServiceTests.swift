@@ -1805,7 +1805,7 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(liveAppendCallCount, 0)
     }
 
-    func testStopDismissAndRestartDoNotWaitForStalledLiveAppend() async throws {
+    func testStopAndRestartDoNotWaitForStalledLiveAppend() async throws {
         service = DictationService(
             audioProcessor: mockAudio,
             sttTranscriber: mockSTT,
@@ -1831,19 +1831,43 @@ final class DictationServiceTests: XCTestCase {
         let liveFinishCallCount = await mockSTT.liveFinishCallCount
         XCTAssertEqual(liveFinishCallCount, 0)
 
+        // The stalled session still owns the lane, so the replacement records
+        // without live partials instead of overlapping it.
         try await service.startRecording(sessionID: 2)
         let startCaptureCallCount = await mockAudio.startCaptureCallCount
         XCTAssertEqual(startCaptureCallCount, 2, "Restart must not wait for the stalled live append")
+        let liveBeginCallCount = await mockSTT.liveBeginCallCount
+        XCTAssertEqual(liveBeginCallCount, 2)
         await mockAudio.emitLiveSamples([0.3, 0.4])
-        let secondAppendStarted = await waitForCondition {
-            await self.mockSTT.liveAppendCallCount == 2
-        }
-        XCTAssertTrue(secondAppendStarted)
+        let secondResult = try await service.stopRecording(sessionID: 2)
+        XCTAssertEqual(secondResult.dictation.rawTranscript, "file final")
+        let liveAppendCallCount = await mockSTT.liveAppendCallCount
+        XCTAssertEqual(liveAppendCallCount, 1, "The replacement must not stream into a second session")
+        await mockSTT.releaseLiveAppends()
+    }
 
-        await service.cancelRecording(sessionID: 2)
+    func testDismissDoesNotWaitForStalledLiveAppend() async throws {
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldAttemptLiveDictationTranscription: { true },
+            liveDictationCancellationTimeout: .milliseconds(100)
+        )
+        await mockSTT.configureLive(result: STTResult(text: "live final", engine: .nemotron))
+        await mockSTT.holdLiveAppends()
+
+        try await service.startRecording(sessionID: 1)
+        await mockAudio.emitLiveSamples([0.1, 0.2])
+        let appendStarted = await waitForCondition {
+            await self.mockSTT.liveAppendCallCount == 1
+        }
+        XCTAssertTrue(appendStarted)
+
+        await service.cancelRecording(sessionID: 1)
         let state = await service.state
         XCTAssertTrue(Self.isCancelled(state), "Dismiss must not wait for the stalled live append")
-        await service.confirmCancel(sessionID: 2)
+        await service.confirmCancel(sessionID: 1)
         await mockSTT.releaseLiveAppends()
     }
 
