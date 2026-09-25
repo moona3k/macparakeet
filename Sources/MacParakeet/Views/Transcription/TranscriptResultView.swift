@@ -742,8 +742,9 @@ struct TranscriptResultView: View {
                 }
                 Button("Reset edits", role: .destructive) {
                     guard activeTranscription.id == transcriptionID,
-                          viewModel.currentTranscription?.id == transcriptionID,
-                          !viewModel.isApplyingSpeakerCorrection else { return }
+                        viewModel.currentTranscription?.id == transcriptionID,
+                        !viewModel.isApplyingSpeakerCorrection
+                    else { return }
                     viewModel.applySpeakerCorrection(.reset)
                 }
                 .disabled(viewModel.isApplyingSpeakerCorrection)
