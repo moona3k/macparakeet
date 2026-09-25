@@ -1,0 +1,24 @@
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_a265323ce94cb4::t_115dcf8e36d275 3072
+  s_a265323ce94cb4::t_b6093e9f765e8a 3066
+  s_a265323ce94cb4::t_ea3a87a482c33b 3129
+  s_a265323ce94cb4::t_4952d90e15c316 3070-3071,3073-3074,3119-3127
+  s_a265323ce94cb4::t_21c6c9210c3bd6 3111-3118,3128
+  s_a265323ce94cb4::t_d7e780a2d8b97b 3067-3069
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ed0462ee540e0fb24c8c2fc02fb459f1535f2f34",
+  "prompts": {},
+  "sessions": {
+    "s_a265323ce94cb4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc1d8752-7618-4e8c-85bb-0289637eed74",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
