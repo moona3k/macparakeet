@@ -1,0 +1,19 @@
+Package.resolved
+  s_07badaed2eede4::t_546bd95849b176 87-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4e661432156e5d81a69bd0a4e3844ad6a71c82bd",
+  "prompts": {},
+  "sessions": {
+    "s_07badaed2eede4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ba02ce55-aa30-4077-b679-013fe8351f2d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
