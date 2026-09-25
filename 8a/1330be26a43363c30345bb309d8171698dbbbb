@@ -1,0 +1,39 @@
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_5242d773558d9d::t_019c4258794768 3215-3225,3227-3235,3239-3244,3246-3262,3264-3278,3280-3287,3289-3292,3294-3298,3300,3302,3304,3308-3309,3311-3313,3315-3316,3318-3327,3329-3334,3336-3339,3341-3344,3346-3351,3353-3355,3357-3378,3385-3386
+Sources/MacParakeetViewModels/TranscriptChatViewModel.swift
+  s_fb4acb953a049c::t_472978a2303205 286,298-303,320-322,324-326
+Tests/MacParakeetTests/ViewModels/TranscriptChatPublicationTests.swift
+  s_fb4acb953a049c::t_afe6767ca5bebf 1-88
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  s_fb4acb953a049c::t_21673453fdc025 894,1136
+Tests/MacParakeetTests/Views/TranscriptDocumentLayoutTests.swift
+  s_fb4acb953a049c::t_fd0af2b0fa1649 1-177
+docs/research/2026-09-25-transcript-editor-performance.md
+  s_fb4acb953a049c::t_6f341af0a78d5d 12-13,92-138
+spec/04-ui-patterns.md
+  s_fb4acb953a049c::t_ca850c279e5e7f 1520-1529
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8a1330be26a43363c30345bb309d8171698dbbbb",
+  "prompts": {},
+  "sessions": {
+    "s_5242d773558d9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3eca4d69-a0de-45df-9368-93cf24bae1ba",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_fb4acb953a049c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d9c5-91bc-76f3-9ed2-e62f8fdca49e",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
