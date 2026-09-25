@@ -1,0 +1,23 @@
+AGENTS.md
+  s_ea43f113115380::t_0b7f50cc3c3f83 52-54
+Sources/MacParakeetCore/Services/AppPaths.swift
+  s_ea43f113115380::t_949350df5f0168 9-21,28-32,290-293,299-303
+Tests/MacParakeetTests/Services/AppPathsTests.swift
+  s_ea43f113115380::t_8437ea9438d433 75-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b327c464ed3f66264486bc6172e39c01c4367e51",
+  "prompts": {},
+  "sessions": {
+    "s_ea43f113115380": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e866346-f6a4-47b5-b1bd-f77f4f655aab",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
