@@ -795,21 +795,12 @@ struct MeetingsView: View {
     }
 
     private var recentMeetingsToolbar: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: DesignSystem.Spacing.sm) {
-                if shouldShowRecentMeetingSearch {
-                    recentMeetingSearchField
-                        .frame(minWidth: 160)
-                }
-                recentMeetingsFilterActions
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            if shouldShowRecentMeetingSearch {
+                recentMeetingSearchField
+                    .frame(minWidth: 120)
             }
-
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                if shouldShowRecentMeetingSearch {
-                    recentMeetingSearchField
-                }
-                recentMeetingsFilterActions
-            }
+            recentMeetingsFilterActions
         }
         .padding(12)
         .overlay(alignment: .bottom) { Divider() }
