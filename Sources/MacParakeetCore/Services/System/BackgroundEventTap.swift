@@ -42,17 +42,36 @@ public final class EventTapThread: @unchecked Sendable {
     public func performAndWait<T>(_ body: () -> T) -> T {
         if isCurrent { return body() }
         return withoutActuallyEscaping(body) { escapable in
-            nonisolated(unsafe) let work = escapable
-            nonisolated(unsafe) var result: T?
+            // The run loop may release the performed block after `done.wait()`
+            // returns. The block holds only this box, and the box drops `body`
+            // before signalling, so nothing retains `body` once this scope
+            // exits. Capturing `body` directly traps intermittently.
+            let box = PerformBox(work: escapable)
             let done = DispatchSemaphore(value: 0)
             CFRunLoopPerformBlock(runLoop, CFRunLoopMode.defaultMode.rawValue) {
-                result = work()
+                box.run()
                 done.signal()
             }
             CFRunLoopWakeUp(runLoop)
             done.wait()
-            return result!
+            return box.result!
         }
+    }
+}
+
+/// Carries a `performAndWait` body to the tap thread. The semaphore orders the
+/// tap thread's writes before the caller's read.
+private final class PerformBox<T>: @unchecked Sendable {
+    private var work: (() -> T)?
+    private(set) var result: T?
+
+    init(work: @escaping () -> T) {
+        self.work = work
+    }
+
+    func run() {
+        result = work?()
+        work = nil
     }
 }
 
