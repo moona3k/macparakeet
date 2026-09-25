@@ -1,0 +1,27 @@
+benchmarks/diarization/README.md
+  s_b2a4348fbbe602::t_096db1bf4fa09e 36
+benchmarks/diarization/manifests/ami-test-forced-alignment.json
+  s_b2a4348fbbe602::t_1bcf38a5d06599 336,364,392,420,448,476,504,532,560,588,616,644,672,700,728,756,784,812,840,868,896,924,952,980,1008,1036,1064,1092,1120,1148,1176,1204
+benchmarks/diarization/manifests/ami-test.json
+  s_b2a4348fbbe602::t_1a4d03370cd6f9 31,59,87,115,143,171,199,227,255,283,311,339,367,395,423,451,479,507,535,563,591,619,647,675,703,731,759,787,815,843,871,899
+benchmarks/diarization/scripts/prepare_ami.py
+  s_b2a4348fbbe602::t_c64f6e2d0da51c 49-56,108,110
+benchmarks/diarization/test_prepare_ami.py
+  s_b2a4348fbbe602::t_79f3b605046295 12-13,56-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "99822307f03ed5b24bdc9128efbc746487a9df0c",
+  "prompts": {},
+  "sessions": {
+    "s_b2a4348fbbe602": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7ccaaa3-188e-48c5-b585-b975d4599a0d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
