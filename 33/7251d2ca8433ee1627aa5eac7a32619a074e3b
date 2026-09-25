@@ -1,0 +1,39 @@
+Sources/MacParakeetCore/Services/VoiceControl/JevDecisionClient.swift
+  s_bbba923eeec84d::t_9d71a3c71993ff 448-450,453-454,516-521,534-535,539-540,542,548-550,552-554,561-563
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlWebDestination.swift
+  s_bbba923eeec84d::t_9d71a3c71993ff 72-89,94-100
+Sources/MacParakeetCore/Services/VoiceControl/README.md
+  s_5242d773558d9d::t_3d1ba3c6eadfc5 19,21,23
+Tests/MacParakeetTests/VoiceControl/JevClientTransportTests.swift
+  s_5242d773558d9d::t_21504a550beab6 21-23,46-49,94-104,136-153
+Tests/MacParakeetTests/VoiceControl/VoiceControlIntentAnchoringTests.swift
+  s_5242d773558d9d::t_212027bfcb9f43 42-43,55
+docs/research/2026-09-25-voice-control-jev-deep-review.md
+  s_bbba923eeec84d::t_963ac09ade848f 211-213,224-225,228
+spec/contracts/voice-control.md
+  s_5242d773558d9d::t_ff12d594198559 113-114,117-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "337251d2ca8433ee1627aa5eac7a32619a074e3b",
+  "prompts": {},
+  "sessions": {
+    "s_5242d773558d9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3eca4d69-a0de-45df-9368-93cf24bae1ba",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_bbba923eeec84d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1af66751-e42e-4947-bc0a-776cc5bc74b8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
