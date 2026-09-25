@@ -110,8 +110,12 @@ Executed history reaches Jev as operation, control label, entered value and
 receipt outcome; target ids from older observations, model ids and scores do
 not. Candidate field values are exact spans of the user's own words only (the
 original goal and later corrections or clarifications, newest first, every
-utterance tail before shorter spans, at most 250 spans and 24 KB, of which
-tails, longest first, leave 4 KB for shorter spans). Amended-goal scaffolding and manually
+tails before shorter spans; tails that start right after a value cue such as
+`write`, `saying`, `with`, `to` or a word ending in `:` within the first 24
+words come first, then other tails while their budget lasts; at most 250 spans
+and 24 KB, of which tails leave 50 slots and 4 KB for shorter spans). Because
+all tails of a long message cost far more than the budget, only the cue tails
+are guaranteed for long dictation. Amended-goal scaffolding and manually
 entered field values are never offered as values. A `429`, `503` or `529`
 response, or a dropped connection, retries at most twice with 150/300 ms
 backoff (a `Retry-After` of at most 2 s wins; a longer one fails the decision
@@ -298,7 +302,10 @@ single-occurrence replacement, activating a uniquely named running app,
 opening an allowlisted web destination, filling an already-open search box
 on YouTube/Maps/Wikipedia/Google Search, pressing unique Gmail Compose, and
 the Google Flights form plan (trip type, origin, destination, date, unique
-autocomplete, overlay Escape, Search). A destination route fires only on an
+autocomplete, overlay Escape, Search). The form plan reads the person's words
+only: the original goal plus clarifications. A correction, a hand-edited field
+or an uncertain effect makes the plan step aside so Jev, which reads those
+amendments, takes the turn. A destination route fires only on an
 explicit request, matched at word boundaries: its name in a navigation or
 search frame (`open YouTube`, `… on Wikipedia`, `go to Gmail`), an intent
 phrase (`search the web`, `directions to`, `flights from` / `flights to`), or a

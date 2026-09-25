@@ -513,12 +513,23 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
     /// Part of the span budget tails may not take, so short spans still fit.
     static let shortSpanReserve = 4_000
 
+    /// Words after which dictated content usually begins (`write …`, `reply
+    /// saying …`, `fill it with …`, `a note to …`). Only the first 24 words of an
+    /// utterance are searched for them.
+    static let valueCues: Set<String> = [
+        "write", "type", "say", "saying", "says", "reply", "text", "with", "to", "that", "reads", "as",
+    ]
+
     /// Candidate field values: exact spans of the user's own words, capped
-    /// below Jev's option limit. Every tail of an utterance comes first, longest
-    /// first, because long values (`write Hi team, I'll be ten minutes late …`)
-    /// are almost always the rest of the sentence after a short instruction;
-    /// then every span up to 12 words, shortest first. Scaffold sentences and
-    /// manually entered values in an amended goal are never offered
+    /// below Jev's option limit and a byte budget. Long values (`write Hi team,
+    /// I'll be ten minutes late …`) are almost always the rest of the utterance
+    /// after a short instruction, so utterance tails come first: tails that
+    /// start right after a value cue, then every other tail while the tail
+    /// budget lasts. Tails' combined size grows with the square of the utterance
+    /// length, so for a long message only the cue tails are affordable. Then
+    /// every span up to 12 words, shortest first. Tails never take the last 50
+    /// slots or `shortSpanReserve` bytes. Scaffold sentences and manually
+    /// entered values in an amended goal are never offered
     /// (`VoiceControlGoalText.userSegments`).
     static func sourceSpans(_ goal: String, limit: Int = 250) -> [String] {
         // Preserve original spelling, punctuation and whitespace between token boundaries.
@@ -533,33 +544,50 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
         var values: [String] = []
         var seen = Set<String>()
         var bytes = 0
-        func offer(_ span: Substring, budget: Int) -> Bool {
+        let punctuation = CharacterSet(charactersIn: ".,!?;:\"'“”‘’")
+        /// False once `count` values exist. A candidate over `budget` is skipped, not fatal.
+        func offer(_ span: Substring, budget: Int, count: Int) -> Bool {
             // ASR often appends sentence punctuation. Offer the boundary-trimmed
             // substring alongside the original; never alter interior punctuation.
-            let trimmed = span.trimmingCharacters(in: CharacterSet(charactersIn: ".,!?;:\"'“”‘’"))
+            let trimmed = span.trimmingCharacters(in: punctuation)
             for candidate in [String(span), trimmed]
             where !candidate.isEmpty && bytes + candidate.utf8.count <= budget && seen.insert(candidate).inserted {
                 values.append(candidate)
                 bytes += candidate.utf8.count
-                if values.count == limit { return false }
+                if values.count >= count { return false }
             }
             return true
         }
         let tailBudget = spanByteBudget - shortSpanReserve
-        for (text, ranges) in segments {
-            if text.lowercased().hasPrefix("type "), !offer(text.dropFirst(5), budget: tailBudget) {
-                return values
+        let tailCount = max(1, limit - 50)
+        func tail(_ text: String, _ ranges: [Range<String.Index>], from start: Int) -> Substring {
+            text[ranges[start].lowerBound..<ranges[ranges.count - 1].upperBound]
+        }
+        tails: for (text, ranges) in segments {
+            if text.lowercased().hasPrefix("type "), !offer(text.dropFirst(5), budget: tailBudget, count: tailCount) {
+                break tails
             }
+            for index in ranges.indices.prefix(24) where index + 1 < ranges.count {
+                let word = text[ranges[index]]
+                let cue =
+                    word.hasSuffix(":") || valueCues.contains(word.lowercased().trimmingCharacters(in: punctuation))
+                if cue, !offer(tail(text, ranges, from: index + 1), budget: tailBudget, count: tailCount) {
+                    break tails
+                }
+            }
+        }
+        rest: for (text, ranges) in segments {
             for start in ranges.indices
-            where !offer(text[ranges[start].lowerBound..<ranges[ranges.count - 1].upperBound], budget: tailBudget) {
-                return values
+            where !offer(tail(text, ranges, from: start), budget: tailBudget, count: tailCount) {
+                break rest
             }
         }
         for width in 1...12 {
             for (text, ranges) in segments where width <= ranges.count {
                 for start in 0...(ranges.count - width)
                 where !offer(
-                    text[ranges[start].lowerBound..<ranges[start + width - 1].upperBound], budget: spanByteBudget)
+                    text[ranges[start].lowerBound..<ranges[start + width - 1].upperBound], budget: spanByteBudget,
+                    count: limit)
                 {
                     return values
                 }

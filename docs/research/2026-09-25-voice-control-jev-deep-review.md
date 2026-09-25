@@ -218,11 +218,17 @@ Code (all in `Sources/MacParakeetCore/Services/VoiceControl/`):
 - `VoiceControlLocalTools.swift`: `alreadyPressedByName` (verified or
   transition; includes `click Search` bound to `Search flights`).
 - `VoiceControlMachine.swift`: a calendar day's label must parse as a date.
+- `VoiceControlFlightPlan.swift`: parses additive goals only (original plus
+  clarifications). On `main` a correction such as `Actually Paris` was sliced
+  together with the runner's scaffold into the destination field; now a
+  correction, hand-edited field or uncertain effect hands the turn to Jev.
 - `VoiceControlTypes.swift`: `VoiceControlGoalText` (scaffold strings and
   `userSegments`), shared by the runner and the Jev client.
 - `VoiceControlTurnRunner.swift`: uses `VoiceControlGoalText`; no behavior change.
-- `JevDecisionClient.swift`: `sourceSpans` from user segments, tails first,
-  within a 24 KB span budget (tails, longest first, leave 4 KB for shorter spans);
+- `JevDecisionClient.swift`: `sourceSpans` from user segments, tails first
+  (cue tails such as the text after `write` first, because all tails of a long
+  message are quadratic in size and cannot fit any budget), within 250 spans
+  and 24 KB, keeping 50 slots and 4 KB for short spans;
   label-based `Executed` history on both request shapes; retry on
   429/503/529 and dropped connections (at most 2, 150/300 ms, short
   `Retry-After` honored, a longer one fails without retry, consent rechecked, Stop cancels); `usage` decoded.

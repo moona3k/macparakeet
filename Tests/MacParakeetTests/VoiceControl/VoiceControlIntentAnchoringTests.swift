@@ -88,13 +88,19 @@ final class VoiceControlIntentAnchoringTests: XCTestCase {
             VoiceControlGoalText.header + "Find one-way flights to London\n" + VoiceControlGoalText.correction
             + "Actually Paris"
         XCTAssertEqual(VoiceControlWebDestination.matchingGoal(amended.lowercased())?.id, "web:google-flights")
-        XCTAssertNotNil(VoiceControlFlightPlan.parse(amended))
+        XCTAssertNil(VoiceControlFlightPlan.parse(amended), "a correction belongs to the model, not the form plan")
         let decision = try await router.decide(goal: amended, snapshot: shopPage(), history: [])
         XCTAssertEqual(openedDestination(decision), "web:google-flights")
         let clarified =
             VoiceControlGoalText.header + "Find one-way flights\n" + VoiceControlGoalText.clarification
             + "from Boston to Rome"
-        XCTAssertEqual(VoiceControlFlightPlan.parse(clarified)?.destination, "Rome")
+        let plan = VoiceControlFlightPlan.parse(clarified)
+        XCTAssertEqual(plan?.origin, "Boston")
+        XCTAssertEqual(plan?.destination, "Rome", "a clarification only adds detail")
+        let handEdited =
+            VoiceControlGoalText.header + "Find flights from Boston to Rome\n" + VoiceControlGoalText.manualHeader
+            + "\nWhere to?: Milan"
+        XCTAssertNil(VoiceControlFlightPlan.parse(handEdited), "the plan must not overwrite a hand-edited field")
         let pressed = VoiceControlGoalText.header + "open YouTube\n" + VoiceControlGoalText.correction + "click Go"
         XCTAssertNil(VoiceControlWebDestination.matchingGoal(pressed.lowercased()))
     }

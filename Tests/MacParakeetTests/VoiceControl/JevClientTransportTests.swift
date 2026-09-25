@@ -115,6 +115,22 @@ final class JevClientTransportTests: XCTestCase {
         XCTAssertTrue(spans.contains("the launch"))
     }
 
+    /// All tails of a long message cost far more than the budget, whatever
+    /// their order. The tail that starts right after the value cue (`write`)
+    /// must still be offered whole.
+    func testThreeHundredWordMessageAfterAPreambleIsOfferedWhole() {
+        let words = "please send the revised launch plan and the updated budget before friday so we can review it"
+            .split(separator: " ")
+        let message = (0..<300).map { String(words[$0 % words.count]) }.joined(separator: " ") + "."
+        let spans = JevDecisionClient.sourceSpans("Open Messages and in the message to Bob write " + message)
+        XCTAssertTrue(spans.contains(message))
+        XCTAssertTrue(spans.contains(String(message.dropLast())))
+        XCTAssertLessThanOrEqual(spans.reduce(0) { $0 + $1.utf8.count }, JevDecisionClient.spanByteBudget)
+        XCTAssertLessThanOrEqual(spans.count, 250)
+        XCTAssertTrue(spans.contains("Bob"), "short spans still fit")
+        XCTAssertTrue(spans.contains("launch plan"))
+    }
+
     func testAmendedGoalOffersOnlyTheUsersWords() {
         let goal = [
             VoiceControlGoalText.header + "search flights to Paris",
