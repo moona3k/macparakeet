@@ -1,0 +1,43 @@
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlWebQuery.swift
+  s_5242d773558d9d::t_4b189331fd4128 9-12,54
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTypes.swift
+  s_5242d773558d9d::t_5760abefd5a88c 216-254,272-274
+  s_5242d773558d9d::t_5cdfc1a1cd3096 255-271
+Tests/MacParakeetTests/VoiceControl/JevClientTransportTests.swift
+  s_5242d773558d9d::t_33940970cea95b 178-192
+Tests/MacParakeetTests/VoiceControl/VoiceControlIntentAnchoringTests.swift
+  s_5242d773558d9d::t_33940970cea95b 44-45,85-86,89-90,93-103,105-114,138,161-163
+docs/research/2026-09-25-voice-control-jev-deep-review.md
+  s_5242d773558d9d::t_6c0550f0522dbb 129-134,249,254
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlMachine.swift
+  s_5242d773558d9d::t_4b189331fd4128 85-89,91-94
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTurnRunner.swift
+  s_5242d773558d9d::t_5760abefd5a88c 364-367
+Sources/MacParakeetCore/Services/VoiceControl/README.md
+  s_5242d773558d9d::t_89c456c40e63d4 21,25
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlCommandRouter.swift
+  s_5242d773558d9d::t_c4d8ead07a60f0 265-268
+spec/contracts/voice-control.md
+  s_5242d773558d9d::t_4715bed5783061 112-117,310-321,330
+Sources/MacParakeetCore/Services/VoiceControl/JevDecisionClient.swift
+  s_5242d773558d9d::t_4b189331fd4128 438,444
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlWebDestination.swift
+  s_5242d773558d9d::t_c4d8ead07a60f0 59-62,64-67,71-82,84-85,92-100,127-128
+  s_5242d773558d9d::t_02f0bedb378388 129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e986946547f88c110e29ba02adff644ee1e7aeb8",
+  "prompts": {},
+  "sessions": {
+    "s_5242d773558d9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3eca4d69-a0de-45df-9368-93cf24bae1ba",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
