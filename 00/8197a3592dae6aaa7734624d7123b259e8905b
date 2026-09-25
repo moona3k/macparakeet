@@ -1,0 +1,21 @@
+Sources/MacParakeet/Hotkey/HotkeyManager.swift
+  s_ef9575b40b18b4::t_60894a23961941 862-865,867,883-885,891-904
+Tests/MacParakeetTests/Hotkey/HotkeyManagerTests.swift
+  s_ef9575b40b18b4::t_e6be8b96e53b7d 1864-1900
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "008197a3592dae6aaa7734624d7123b259e8905b",
+  "prompts": {},
+  "sessions": {
+    "s_ef9575b40b18b4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "76519bb4-2f14-46c2-92b3-f3d3b9a4ec7c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
