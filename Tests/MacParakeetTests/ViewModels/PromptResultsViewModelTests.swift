@@ -750,6 +750,66 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertEqual(markdown, expectedMarkdown)
     }
 
+    func testGenerationCompletionHandsOffSelectionBeforeMeetingArtifactRefresh() async throws {
+        let transcriptionID = UUID()
+        try transcriptionRepo.save(
+            Transcription(
+                id: transcriptionID,
+                fileName: "Design Review",
+                rawTranscript: "Alice will send the draft tomorrow.",
+                status: .completed,
+                sourceType: .meeting
+            )
+        )
+        let prompt = Prompt(
+            name: "Action Items",
+            content: "Extract action items only.",
+            category: .result,
+            isBuiltIn: false,
+            sortOrder: 99
+        )
+        promptRepo.prompts = [prompt]
+        let artifactStore = GatedMeetingArtifactStore()
+        // Never leave the generation task parked if an assertion fails early.
+        defer { artifactStore.release() }
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo,
+            transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: artifactStore
+        )
+        viewModel.loadPromptResults(transcriptionId: transcriptionID)
+        viewModel.selectedPrompt = prompt
+        llm.streamTokens = ["Task ", "one"]
+
+        var completions: [(generationID: UUID, promptResultID: UUID)] = []
+        var selectedResultID: UUID?
+        viewModel.shouldMarkPromptResultUnread = { $0 != selectedResultID }
+        viewModel.onGenerationCompleted = { generationID, promptResultID in
+            completions.append((generationID, promptResultID))
+            selectedResultID = promptResultID
+        }
+
+        viewModel.generatePromptResult(
+            transcript: "Alice will send the draft tomorrow.",
+            transcriptionId: transcriptionID
+        )
+
+        // The artifact refresh is parked; the view must already be able to
+        // select the saved result, because the pending tab is gone.
+        try await waitUntil { artifactStore.materializeStarted }
+        XCTAssertEqual(completions.count, 1)
+        let completion = try XCTUnwrap(completions.first)
+        XCTAssertNil(viewModel.pendingGeneration(id: completion.generationID))
+        XCTAssertEqual(viewModel.promptResults.first?.id, completion.promptResultID)
+        XCTAssertFalse(viewModel.hasUnreadPromptResult(completion.promptResultID))
+
+        artifactStore.release()
+        try await waitUntil { artifactStore.materializeFinished }
+        XCTAssertEqual(completions.count, 1)
+    }
+
     func testGeneratePromptResultDoesNotPersistEmptyStream() async throws {
         let transcriptionID = UUID()
         let prompt = Prompt(
@@ -2356,6 +2416,47 @@ final class PromptResultsViewModelTests: XCTestCase {
 }
 
 private struct PromptAutoRunFetchError: Error {}
+
+/// Parks `materialize` until the test releases it, so a test can observe
+/// view-model state while the meeting artifact refresh is still in flight.
+private final class GatedMeetingArtifactStore: MeetingArtifactStoring, @unchecked Sendable {
+    private struct Released: Error {}
+    private let lock = NSLock()
+    private var started = false
+    private var finished = false
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var isReleased = false
+
+    var materializeStarted: Bool { lock.withLock { started } }
+    var materializeFinished: Bool { lock.withLock { finished } }
+
+    func release() {
+        let pending: CheckedContinuation<Void, Never>? = lock.withLock {
+            isReleased = true
+            defer { continuation = nil }
+            return continuation
+        }
+        pending?.resume()
+    }
+
+    func materialize(
+        transcription: Transcription,
+        promptResults: [PromptResult]
+    ) async throws -> MeetingArtifactSnapshot {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let resumeNow: Bool = lock.withLock {
+                started = true
+                if isReleased { return true }
+                self.continuation = continuation
+                return false
+            }
+            if resumeNow { continuation.resume() }
+        }
+        lock.withLock { finished = true }
+        // The refresh logs and ignores failures, so no snapshot is needed.
+        throw Released()
+    }
+}
 
 private final class PromptLabelPolicyRepositoryMock: PromptLabelPolicyRepositoryProtocol, @unchecked Sendable {
     var policiesByPromptID: [UUID: [PromptLabelPolicy]] = [:]
