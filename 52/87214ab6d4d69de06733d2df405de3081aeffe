@@ -1,0 +1,47 @@
+Sources/MacParakeet/Views/Transcription/TranscriptReadingEditor.swift
+  s_f246df98cf2346::t_e2664c74c3ed41 1,6,10-12,22-26,28-29,36,44,51
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_fb4acb953a049c::t_ca10a835695085 564,844,2485,2670-2673,5442,5449,5456,5467,5489
+Sources/MacParakeetViewModels/TranscriptReadingEditSession.swift
+  s_fb4acb953a049c::t_b36c8e5229a2fa 1-66
+Tests/MacParakeetTests/Views/TranscriptReadingEditSessionTests.swift
+  s_fb4acb953a049c::t_5fdfa5b2350b5c 1-87
+Tests/MacParakeetTests/Views/TranscriptReadingEditorLayoutTests.swift
+  s_097627cf5335ee::t_3b879e27bdec8f 1-138
+docs/research/2026-09-25-transcript-editor-performance.md
+  s_fb4acb953a049c::t_c26312635d2fe3 1-90
+spec/adr/031-timed-transcript-corrections.md
+  s_fb4acb953a049c::t_5e8cf1ccf5119f 176-182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5287214ab6d4d69de06733d2df405de3081aeffe",
+  "prompts": {},
+  "sessions": {
+    "s_097627cf5335ee": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d9b1-3acf-7fb1-a953-139a53b02248",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_f246df98cf2346": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d9cb-e21e-7fa3-badf-01881ec517c2",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_fb4acb953a049c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d9c5-91bc-76f3-9ed2-e62f8fdca49e",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
