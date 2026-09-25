@@ -92,6 +92,20 @@ ArgumentParser's plain-text stderr path with exit code `2`. Downstream
 agents that branch on `errorType` should also handle the parse-error case
 by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
+## [4.7.0] — 2026-09-25 (development source; not a stable app release)
+
+This CLI source version adds Ask automation on this development branch. It does
+not qualify or change the stable MacParakeet.app release or standalone CLI
+channel.
+
+### Added
+
+- `ask list|new|show|rename|delete|sources|select|draft|send|evidence` exposes
+  saved source-scoped Ask conversations through JSON by default. Writes use
+  conversation revisions; `send` requires an explicit inline provider and
+  `--revision`, requires `--allow-remote` for accepted remote endpoints, and
+  can emit NDJSON activity/text plus the final conversation with `--stream`.
+
 ## [Unreleased]
 
 ### Added

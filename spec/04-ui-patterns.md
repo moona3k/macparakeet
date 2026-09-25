@@ -12,11 +12,12 @@ MacParakeet has these primary UI surfaces:
 5. **Meeting Recording Pill** -- Default-on, hideable floating pill during meeting recording (sacred geometry icon); shares state with the Transcribe tile
 6. **Meeting Recording Panel** -- Floating Notes / Transcript / Ask panel with audio levels and stop controls
 7. **Meetings Workspace** -- Dedicated route for upcoming, live, and saved meeting work
-8. **Transforms Tab** -- Productized selected-text rewrite management for `Polish`, `Distill`, `Decide`, and custom Transforms
-9. **Transform Progress Pill** -- Floating progress/cancel surface while a Transform is running
-10. **Menu Bar** -- Quick access and status
-11. **Calendar Countdown Toasts** -- Implemented and enabled (`AppFeatures.calendarEnabled = true`); surface only when a user opts into calendar auto-start. Phase 2b: toast ✕ persists an occurrence skip (#609).
-12. **Settings** -- Preferences, permissions, local speech models, and update controls; calendar controls appear once Calendar access is granted
+8. **Ask Workspace** -- Durable, source-scoped research conversations across selected Library transcripts
+9. **Transforms Tab** -- Productized selected-text rewrite management for `Polish`, `Distill`, `Decide`, and custom Transforms
+10. **Transform Progress Pill** -- Floating progress/cancel surface while a Transform is running
+11. **Menu Bar** -- Quick access and status
+12. **Calendar Countdown Toasts** -- Implemented and enabled (`AppFeatures.calendarEnabled = true`); surface only when a user opts into calendar auto-start. Phase 2b: toast ✕ persists an occurrence skip (#609).
+13. **Settings** -- Preferences, permissions, local speech models, and update controls; calendar controls appear once Calendar access is granted
 
 Design philosophy: **Simple, native, stays out of the way.** No chrome, no clutter. The app should feel like part of macOS, not a web app in a wrapper.
 
@@ -69,6 +70,7 @@ The sidebar uses NavigationSplitView with flat items (icon + label):
 
 - **Transcribe** (`waveform`) -- Capture hub: YouTube card + file drop card + Meeting Recording tile
 - **Library** (`square.grid.2x2`) -- All transcriptions; every filter offers the same persistent Grid/List switch, and the header **Prompts** button opens transcript prompt management
+- **Ask** (`bubble.left.and.bubble.right`) -- Saved conversations over explicitly selected Library transcripts; a separate destination from transcript chat and live meeting Ask
 - **Dictations** (`clock.arrow.circlepath`) -- Flat history list with bottom bar player
 - **Meetings** (`person.2.wave.2`) -- Workflow space for upcoming, live, and saved meeting work; visible when `AppFeatures.meetingRecordingEnabled` is true
 - **Transforms** (`sparkles`) -- Saved selected-text rewrites backed by `.transform` prompt rows; visible when `AppFeatures.transformsEnabled` is true
@@ -98,6 +100,39 @@ of events; per-calendar include stays the coarse filter. Collapse plus the
 Upcoming cap means not every fetched occurrence is reachable from this list.
 
 Column width: `min: 160, ideal: 180, max: 220`. Window minimum width: 800pt.
+
+### Ask Workspace (development)
+
+Ask is a top-level destination adjacent to Library. A new conversation starts
+with an empty source set; **Ask selected** in Library creates a conversation
+with the chosen records. The conversation menu provides New, recent
+conversations, Rename, and Delete. Deleting a conversation removes its own
+questions, answers, and draft; Library sources remain intact.
+
+The header shows the conversation title and selected-source count. A compact
+source strip names up to two sources and summarizes the remainder. The thread
+and composer stay at readable width; the footer shows the configured provider
+and model. Remote consent identifies the provider and explains that the
+question, relevant conversation context, and selected excerpts may be sent.
+Stopping a run preserves its question and records an explicit cancelled state.
+If the process exits before a terminal write, the durable assistant placeholder
+remains marked incomplete.
+
+**Choose sources** opens a searchable sheet, initially filtered to meetings.
+Users can switch to all source types and filter by title, date, type, or
+existing labels. Selection remains intact while filters change; up to 32
+completed Library transcripts can be selected. Apply replaces the active
+membership and starts a new context section; Cancel leaves the prior section
+unchanged. A changed context keeps earlier messages visible without reusing
+them in future model input.
+
+Selecting a citation opens the evidence inspector on the right in a wide window
+or as a sheet at narrower widths. It shows the current source title/date and
+revision-checked passage, including a timecode when one is available; the
+**Open in Library** action returns to that recording. Untimed legacy edits and
+text-only sources use a text passage label. Changed, removed, out-of-scope, or
+invalid references show an unavailable-state explanation instead of substituting
+new transcript text for old evidence.
 
 Content transitions between tabs use `DesignSystem.Animation.contentSwap` (0.2s easeInOut).
 

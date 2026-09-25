@@ -2436,6 +2436,26 @@ public final class DatabaseManager: Sendable {
             }
         }
 
+        // Independent Ask history keeps historical source identities after a
+        // Library recording is removed. The lease coordinates app and CLI runs
+        // through the same SQLite row; there is deliberately no source FK.
+        migrator.registerMigration("v0.49-ask-conversations") { db in
+            try db.create(table: "ask_conversations") { t in
+                t.column("id", .text).primaryKey()
+                t.column("payload", .blob).notNull()
+                t.column("revision", .integer).notNull()
+                t.column("createdAt", .datetime).notNull()
+                t.column("updatedAt", .datetime).notNull()
+                t.column("runToken", .text)
+                t.column("runLeaseUntil", .datetime)
+            }
+            try db.create(
+                index: "idx_ask_conversations_updated_at",
+                on: "ask_conversations",
+                columns: ["updatedAt"]
+            )
+        }
+
         return migrator
     }
 

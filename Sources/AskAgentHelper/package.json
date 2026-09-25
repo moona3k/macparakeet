@@ -1,0 +1,17 @@
+{
+  "name": "macparakeet-ask-helper",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/main.js --bundle --platform=node --target=node24 --format=cjs --outfile=dist/ask-helper.cjs --metafile=dist/ask-helper.meta.json",
+    "test": "npm run build && node scripts/notices.js dist/Legal && node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@earendil-works/pi-agent-core": "0.87.1",
+    "@earendil-works/pi-ai": "0.87.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12"
+  }
+}

@@ -63,6 +63,7 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
     private let feedbackViewModel: FeedbackViewModel
     private let discoverViewModel: DiscoverViewModel
     private let libraryViewModel: TranscriptionLibraryViewModel
+    private let askWorkspaceViewModel: AskWorkspaceViewModel
     private let meetingsWorkspaceViewModel: MeetingsWorkspaceViewModel
     private let meetingPillViewModel: MeetingRecordingPillViewModel
     private let meetingSplitViewModel: MeetingSplitViewModel
@@ -70,6 +71,7 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
     private let shareManagementViewModel: ShareManagementViewModel?
     private let updaterController: SPUStandardUpdaterController
     private let onRecordMeeting: () -> Void
+    private let onOpenAskSource: (UUID) -> Void
     private let onRecordMeetingFromWorkspace: () -> Void
     private let onPauseToggleMeeting: (() -> Void)?
     private let onHotkeyRecordingStateChanged: (Bool) -> Void
@@ -96,6 +98,7 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
         feedbackViewModel: FeedbackViewModel,
         discoverViewModel: DiscoverViewModel,
         libraryViewModel: TranscriptionLibraryViewModel,
+        askWorkspaceViewModel: AskWorkspaceViewModel,
         meetingsWorkspaceViewModel: MeetingsWorkspaceViewModel,
         meetingPillViewModel: MeetingRecordingPillViewModel,
         meetingSplitViewModel: MeetingSplitViewModel,
@@ -103,6 +106,7 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
         shareManagementViewModel: ShareManagementViewModel? = nil,
         updaterController: SPUStandardUpdaterController,
         onRecordMeeting: @escaping () -> Void,
+        onOpenAskSource: @escaping (UUID) -> Void,
         onRecordMeetingFromWorkspace: @escaping () -> Void,
         onPauseToggleMeeting: (() -> Void)? = nil,
         onHotkeyRecordingStateChanged: @escaping (Bool) -> Void,
@@ -125,6 +129,7 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
         self.feedbackViewModel = feedbackViewModel
         self.discoverViewModel = discoverViewModel
         self.libraryViewModel = libraryViewModel
+        self.askWorkspaceViewModel = askWorkspaceViewModel
         self.meetingsWorkspaceViewModel = meetingsWorkspaceViewModel
         self.meetingPillViewModel = meetingPillViewModel
         self.meetingSplitViewModel = meetingSplitViewModel
@@ -132,6 +137,7 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
         self.shareManagementViewModel = shareManagementViewModel
         self.updaterController = updaterController
         self.onRecordMeeting = onRecordMeeting
+        self.onOpenAskSource = onOpenAskSource
         self.onRecordMeetingFromWorkspace = onRecordMeetingFromWorkspace
         self.onPauseToggleMeeting = onPauseToggleMeeting
         self.onHotkeyRecordingStateChanged = onHotkeyRecordingStateChanged
@@ -241,6 +247,7 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
             feedbackViewModel: feedbackViewModel,
             discoverViewModel: discoverViewModel,
             libraryViewModel: libraryViewModel,
+            askWorkspaceViewModel: askWorkspaceViewModel,
             meetingsWorkspaceViewModel: meetingsWorkspaceViewModel,
             meetingPillViewModel: meetingPillViewModel,
             meetingSplitViewModel: meetingSplitViewModel,
@@ -248,6 +255,7 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
             shareManagementViewModel: shareManagementViewModel,
             updater: updaterController.updater,
             onRecordMeeting: onRecordMeeting,
+            onOpenAskSource: onOpenAskSource,
             onRecordMeetingFromWorkspace: onRecordMeetingFromWorkspace,
             onPauseToggleMeeting: onPauseToggleMeeting,
             onHotkeyRecordingStateChanged: onHotkeyRecordingStateChanged

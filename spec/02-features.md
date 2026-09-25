@@ -1292,6 +1292,34 @@ Overlay shows selected text preview (truncated) so the user confirms the right t
 - [x] Failed responses surface inline error with retry path
 - [x] Current provider/model readiness is visible in the panel
 
+### Ask Workspace (development; ADR-034)
+
+> Status: **Implemented in development; release qualification is separate.**
+> The stable app remains 0.8.7.
+
+Ask is a top-level destination for saved conversations over up to 32 explicitly
+selected completed Library transcripts. Users can start from Library's **Ask
+selected** action or curate sources inside a conversation. The picker reuses
+source type, date, title, and label filters; changing membership appends a
+context section so earlier answers remain visible but are excluded from future
+model context.
+
+The app reads current corrected transcript passages with bounded lexical search
+and passage reads. Fresh result-category summaries may orient the investigation;
+answers require valid passage citations. Citations store source identity,
+revision, and passage index, plus optional display metadata; they do not copy
+the quoted text. Ask resolves evidence against the live source and marks
+changed/deleted evidence stale or unavailable. Long or legacy-edited text can
+have a text anchor without a timecode.
+
+Each run uses a private Pi agent-core helper with only source listing, lexical
+search, passage read, and current-summary tools. Swift owns source authority,
+the configured direct model call, evidence validation, persistence, and
+cancellation. Local CLI providers are unsupported; remote inference requires
+explicit consent for the configured endpoint and has no fallback. See the
+[Ask workspace contract](contracts/ask-workspace.md) for persistence, limits,
+provider consent, CLI and failure-state details.
+
 ---
 
 ### F11: Video & Podcast URL Transcription
@@ -2166,8 +2194,9 @@ Current development exposes segment FTS search, bounded transcript context,
 current knowledge-card reads/backfill, and saved meeting artifacts through
 `macparakeet-cli`. Cards are derived routing hints: verify candidate actions and
 decisions against cited transcript segments. Dictations retain their separate
-history search; a unified corpus Ask endpoint, embeddings, workflow engine,
-and MCP service are not implied. The [integration guide](../integrations/README.md)
+history search. Ask adds a separate explicit-source workspace and CLI family;
+it does not search the whole Library implicitly or add embeddings, a workflow
+engine, or an MCP service. The [integration guide](../integrations/README.md)
 and [CLI boundary contract](contracts/cli-json-v1.md) own command examples,
 JSON/errors, write boundaries, and safe isolation.
 
@@ -2261,8 +2290,8 @@ surface against the [canonical status table](README.md#release-channels-and-feat
 | Edit saved AI results | Saved summaries, chapters, and action items can be edited in place with Cancel/Save. Save or cancel an edit before regenerating; editing is unavailable while its replacement is queued or streaming. Prompt snapshots stay the generation receipt; `contentEditedAt` marks a recorded user edit and meeting artifacts refresh. | [Issue #884](https://github.com/moona3k/macparakeet/issues/884) |
 
 These do not enable activity-based meeting detection, app-aware AI Formatter
-profiles or public in-process MLX. Corpus-wide Ask and cross-file speaker
-identity remain future work.
+profiles or public in-process MLX. Implicit whole-Library Ask and cross-file
+speaker identity remain future work.
 
 ## Future Features (Post-Launch)
 

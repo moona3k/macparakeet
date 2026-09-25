@@ -40,6 +40,7 @@ class MacparakeetCli < Formula
   def install
     odie "macparakeet-cli requires macOS 14.2 or later" if MacOS.version < "14.2"
     bin.install "macparakeet-cli"
+    libexec.install "libexec/macparakeet-cli"
   end
 
   def caveats

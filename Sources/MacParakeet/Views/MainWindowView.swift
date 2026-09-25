@@ -6,6 +6,7 @@ import MacParakeetViewModels
 enum SidebarItem: String, CaseIterable, Identifiable {
     case transcribe = "Transcribe"
     case library = "Library"
+    case ask = "Ask"
     case sharedPages = "Shared pages"
     case dictations = "Dictations"
     case meetings = "Meetings"
@@ -22,6 +23,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .transcribe: return "waveform"
         case .meetings: return "person.2.wave.2"
         case .library: return "square.grid.2x2"
+        case .ask: return "text.bubble"
         case .sharedPages: return "link"
         case .dictations: return "clock.arrow.circlepath"
         case .transforms: return "wand.and.stars"
@@ -36,7 +38,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     /// universal archive; Meetings is the workflow space for live/upcoming
     /// and saved meeting work.
     static var primaryItems: [SidebarItem] {
-        var items: [SidebarItem] = [.transcribe, .library, .dictations]
+        var items: [SidebarItem] = [.transcribe, .library, .ask, .dictations]
         if AppFeatures.meetingRecordingEnabled {
             items.append(.meetings)
         }
@@ -81,6 +83,7 @@ struct MainWindowView: View {
     let feedbackViewModel: FeedbackViewModel
     let discoverViewModel: DiscoverViewModel
     let libraryViewModel: TranscriptionLibraryViewModel
+    let askWorkspaceViewModel: AskWorkspaceViewModel
     let meetingsWorkspaceViewModel: MeetingsWorkspaceViewModel
     let meetingPillViewModel: MeetingRecordingPillViewModel
     let meetingSplitViewModel: MeetingSplitViewModel
@@ -88,6 +91,7 @@ struct MainWindowView: View {
     let shareManagementViewModel: ShareManagementViewModel?
     let updater: SPUUpdater
     let onRecordMeeting: () -> Void
+    let onOpenAskSource: (UUID) -> Void
     let onRecordMeetingFromWorkspace: () -> Void
     let onPauseToggleMeeting: (() -> Void)?
     /// Routed to `AppHotkeyCoordinator.suspend` / `resume` while a hotkey
@@ -203,11 +207,29 @@ struct MainWindowView: View {
                                 },
                                 onManagePrompts: {
                                     showingPromptLibrary = true
+                                },
+                                onAskSelected: { ids in
+                                    let destinationBeforeHandoff = state.selectedItem
+                                    Task {
+                                        await askWorkspaceViewModel.startFromLibrary(sourceIDs: ids)
+                                        if state.selectedItem == destinationBeforeHandoff {
+                                            state.navigateToAsk()
+                                        }
+                                    }
+                                },
+                                onReviewAskConversations: {
+                                    state.navigateToAsk()
                                 }
                             ) { transcription in
                                 transcriptionViewModel.currentTranscription = transcription
                             }
                         }
+                    case .ask:
+                        AskWorkspaceView(
+                            model: askWorkspaceViewModel,
+                            onOpenAISettings: { state.navigateToSettings(tab: .ai) },
+                            onOpenSource: onOpenAskSource
+                        )
                     case .dictations:
                         DictationHistoryView(viewModel: historyViewModel)
                     case .sharedPages:

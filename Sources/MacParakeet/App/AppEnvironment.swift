@@ -77,6 +77,7 @@ final class AppEnvironment {
     let llmClient: RoutingLLMClient
     let llmConfigStore: LLMConfigStore
     let llmService: LLMService
+    let askWorkspaceService: AskWorkspaceService
     let cardGenerationService: CardGenerationService
     let runtimePreferences: AppRuntimePreferencesProtocol
     let derivedFieldsBackfill: DerivedFieldsBackfillService
@@ -371,6 +372,14 @@ final class AppEnvironment {
         #endif
         self.llmConfigStore = llmConfigStore
         llmService = LLMService(
+            client: llmClient,
+            contextResolver: StoredLLMExecutionContextResolver(
+                configStore: llmConfigStore,
+                cliConfigStore: LocalCLIConfigStore()
+            )
+        )
+        askWorkspaceService = AskWorkspaceService(
+            databaseManager: databaseManager,
             client: llmClient,
             contextResolver: StoredLLMExecutionContextResolver(
                 configStore: llmConfigStore,

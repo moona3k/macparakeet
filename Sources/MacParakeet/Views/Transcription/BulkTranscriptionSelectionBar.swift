@@ -12,6 +12,8 @@ struct BulkTranscriptionSelectionBar: View {
     let onClear: () -> Void
     let onCancel: () -> Void
     var onExport: (() -> Void)?
+    var onAskSelected: (() -> Void)?
+    var isAskDisabled = false
     let onDeleteAudioOnly: () -> Void
     let onDeleteItems: () -> Void
 
@@ -119,6 +121,7 @@ struct BulkTranscriptionSelectionBar: View {
             selectVisibleAction
             clearAction
             exportAction
+            askAction
         }
     }
 
@@ -137,6 +140,7 @@ struct BulkTranscriptionSelectionBar: View {
             selectVisibleAction
             clearAction
             exportAction
+            askAction
             if showsAudioAction {
                 deleteAudioAction
             }
@@ -190,6 +194,20 @@ struct BulkTranscriptionSelectionBar: View {
                 isDisabled: isExportDisabled,
                 action: onExport
             )
+        }
+    }
+
+    @ViewBuilder
+    private var askAction: some View {
+        if let onAskSelected {
+            SelectionBarActionButton(
+                title: "Ask selected",
+                systemImage: "text.bubble",
+                tone: .utility,
+                isDisabled: selectedCount == 0 || isAskDisabled || isPerformingOperation,
+                action: onAskSelected
+            )
+            .help(isAskDisabled ? "Choose up to 32 recordings for Ask" : "Start Ask with selected recordings")
         }
     }
 

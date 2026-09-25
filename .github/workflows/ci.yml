@@ -168,8 +168,17 @@ jobs:
           set -o pipefail
           swift build --build-path .build-swift6-no-whisper -Xswiftc -swift-version -Xswiftc 6 2>&1 | tee .ci-logs/swift-6-language-mode.log
 
+      - name: Ask Pi Helper
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          scripts/build_ask_helper.sh .build/ask-runtime/AskAgentHelper .build/ask-runtime/node
+          .build/ask-runtime/node --test Sources/AskAgentHelper/test/*.test.js
+
       - name: Swift Test
         timeout-minutes: 25
+        env:
+          MACPARAKEET_ASK_TEST_NODE: ${{ github.workspace }}/.build/ask-runtime/node
         run: |
           mkdir -p .ci-logs
           set -o pipefail

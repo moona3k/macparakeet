@@ -65,8 +65,14 @@ final class MainWindowStateTests: XCTestCase {
         XCTAssertEqual(state.selectedItem, .meetings)
     }
 
+    func testNavigateToAskSelectsWorkspace() {
+        let state = MainWindowState()
+        state.navigateToAsk()
+        XCTAssertEqual(state.selectedItem, .ask)
+    }
+
     func testPrimarySidebarOrderRespectsMeetingFeatureFlag() {
-        var expected: [SidebarItem] = [.transcribe, .library, .dictations]
+        var expected: [SidebarItem] = [.transcribe, .library, .ask, .dictations]
         if AppFeatures.meetingRecordingEnabled {
             expected.append(.meetings)
         }

@@ -29,9 +29,41 @@ does not claim their compiler executables are redistributed in the app.
 
 ## Node.js
 
-- License: MIT License
+- Version: 24.13.1 (the official Node.js distribution; build-time override supported)
+- License: Node.js license and the notices distributed with the official runtime
 - Source: <https://nodejs.org/>
-- Used for: Bundled runtime for yt-dlp JavaScript extractors
+- Used for: yt-dlp JavaScript extractors and the private Ask agent helper
+- Notice location: the complete upstream `LICENSE` is copied beside the bundled
+  runtime in app and standalone CLI distributions; see `docs/distribution.md`.
+
+## Ask agent helper and bundled npm packages
+
+Ask packages a private, app-supplied helper bundle built from the pinned
+`Sources/AskAgentHelper/package-lock.json`. It uses Pi agent core and Pi AI
+0.87.1; it does not bundle or run the Pi coding-agent CLI. Build output includes
+`AskAgentHelper/Legal/dependencies.json` (generated from the esbuild metafile)
+and the license/notice files found for each package under
+`AskAgentHelper/Legal/Dependencies/`. Keep that generated per-package manifest
+and all listed notices with both app and CLI bundles; this summary is not a
+replacement for those package notices.
+
+The current helper bundle includes these nine npm packages:
+
+| Package | Version | License |
+| --- | --- | --- |
+| `@earendil-works/chord` | 0.87.1 | MIT |
+| `@earendil-works/pi-agent-core` | 0.87.1 | MIT |
+| `@earendil-works/pi-ai` | 0.87.1 | MIT |
+| `@earendil-works/pi-telemetry` | 0.87.1 | MIT |
+| `diff` | As recorded in generated manifest | BSD-3-Clause |
+| `ignore` | As recorded in generated manifest | MIT |
+| `partial-json` | As recorded in generated manifest | MIT |
+| `typebox` | As recorded in generated manifest | MIT |
+| `yaml` | As recorded in generated manifest | ISC |
+
+Pi's four package license files are from the pinned published source tree's
+MIT license. Build-time packaging records each package's resolved version,
+declared license, and included license filenames in the generated manifest.
 
 ## LocalVQE
 

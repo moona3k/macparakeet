@@ -150,6 +150,9 @@ cp "$ROOT_DIR/Sources/MacParakeet/Resources/Legal/MarkdownDependencies.txt" "$RE
 cp "$ROOT_DIR/Sources/MacParakeet/Resources/Legal/NemotronDiarization.txt" "$RESOURCES_DIR/Legal/NemotronDiarization.txt"
 cp "$ROOT_DIR/THIRD_PARTY_LICENSES.md" "$RESOURCES_DIR/Legal/THIRD_PARTY_LICENSES.md"
 
+# Ask runs with a bundle-local Node executable and prebuilt Pi helper.
+"$ROOT_DIR/scripts/build_ask_helper.sh" "$RESOURCES_DIR/AskAgentHelper" "$RESOURCES_DIR/node"
+
 # Copy frameworks into the bundle so dyld loads only bundle-local paths.
 BUNDLE_FW_DIR="$APP_BUNDLE/Contents/Frameworks"
 rm -rf "$BUNDLE_FW_DIR"

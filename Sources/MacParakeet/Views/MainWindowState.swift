@@ -24,6 +24,10 @@ final class MainWindowState {
         selectedItem = item
     }
 
+    func navigateToAsk() {
+        selectedItem = .ask
+    }
+
     func startNewTranscription() {
         selectedItem = .transcribe
         showingProgressDetail = false
