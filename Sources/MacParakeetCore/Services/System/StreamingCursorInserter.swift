@@ -86,11 +86,9 @@ final class HeadInsertStreamingCursorInterrupt: StreamingCursorInterruptListenin
 }
 
 private final class HeadInsertStreamingCursorInterruptToken: StreamingCursorInterruptToken, @unchecked Sendable {
-    private var eventTap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
-    private var retainedSelf: Unmanaged<HeadInsertStreamingCursorInterruptToken>?
     private let onInterrupt: @Sendable () -> Void
     private let lock = NSLock()
+    private var eventTap: BackgroundEventTap?
     private var didInterrupt = false
 
     init(onInterrupt: @escaping @Sendable () -> Void) {
@@ -101,45 +99,26 @@ private final class HeadInsertStreamingCursorInterruptToken: StreamingCursorInte
             | (1 << CGEventType.rightMouseDown.rawValue)
             | (1 << CGEventType.otherMouseDown.rawValue)
 
-        let retained = Unmanaged.passRetained(self)
-        retainedSelf = retained
-        guard
-            let tap = CGEvent.tapCreate(
-                tap: .cgSessionEventTap,
-                place: .headInsertEventTap,
-                options: .defaultTap,
-                eventsOfInterest: mask,
-                callback: { _, type, event, refcon -> Unmanaged<CGEvent>? in
-                    guard let refcon else { return Unmanaged.passUnretained(event) }
-                    let token = Unmanaged<HeadInsertStreamingCursorInterruptToken>
-                        .fromOpaque(refcon)
-                        .takeUnretainedValue()
-                    return token.handle(type: type, event: event)
-                },
-                userInfo: retained.toOpaque()
-            )
-        else {
-            retained.release()
-            retainedSelf = nil
-            return
-        }
-        eventTap = tap
-        runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        if let runLoopSource {
-            CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
-        }
-        CGEvent.tapEnable(tap: tap, enable: true)
+        // Runs on `EventTapThread`, so a stalled main thread cannot hold the
+        // user's keys and clicks while text streams (#1142).
+        let tap = BackgroundEventTap.start(
+            options: .defaultTap,
+            eventsOfInterest: mask,
+            handler: { [weak self] type, event in
+                guard let self else { return Unmanaged.passUnretained(event) }
+                return self.handle(type: type, event: event)
+            }
+        )
+        lock.withLock { eventTap = tap }
     }
 
     func invalidate() {
-        lock.lock()
-        defer { lock.unlock() }
-        guard eventTap != nil || retainedSelf != nil || runLoopSource != nil else { return }
-        EventTapTeardown.tearDown(tap: eventTap, source: runLoopSource, runLoop: CFRunLoopGetMain())
-        retainedSelf?.release()
-        retainedSelf = nil
-        eventTap = nil
-        runLoopSource = nil
+        let tap = lock.withLock {
+            let tap = eventTap
+            eventTap = nil
+            return tap
+        }
+        tap?.stop()
     }
 
     deinit {
@@ -148,9 +127,7 @@ private final class HeadInsertStreamingCursorInterruptToken: StreamingCursorInte
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if let tap = eventTap {
-                CGEvent.tapEnable(tap: tap, enable: true)
-            }
+            // `BackgroundEventTap` already re-enabled the tap.
             return Unmanaged.passUnretained(event)
         }
         if StreamingCursorEventMarker.isMarked(event) {
@@ -242,24 +219,14 @@ public final class StreamingCursorInserter: StreamingCursorInserting, @unchecked
     }
 
     private func startInterruptTap(playback: StreamingCursorPlayback) -> any StreamingCursorInterruptToken {
-        let start = { [interrupts] in
-            interrupts.start {
-                playback.interruptAndDrain()
-            }
+        // The tap lives on `EventTapThread`; no main-thread hop is needed.
+        interrupts.start {
+            playback.interruptAndDrain()
         }
-        if Thread.isMainThread {
-            return start()
-        }
-        return DispatchQueue.main.sync(execute: start)
     }
 
     private func invalidateInterruptTap(_ token: any StreamingCursorInterruptToken) {
-        let invalidate = { token.invalidate() }
-        if Thread.isMainThread {
-            invalidate()
-            return
-        }
-        DispatchQueue.main.sync(execute: invalidate)
+        token.invalidate()
     }
 }
 
