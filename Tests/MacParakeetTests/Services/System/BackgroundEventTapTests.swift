@@ -18,6 +18,18 @@ final class BackgroundEventTapTests: XCTestCase {
         XCTAssertFalse(thread.isCurrent)
     }
 
+    /// The run loop can release a performed block after the caller resumes.
+    /// A block that captured the non-escaping body tripped
+    /// `withoutActuallyEscaping`'s runtime check about one run in five.
+    func testPerformAndWaitNeverLeaksBodyPastReturn() {
+        let thread = EventTapThread.shared
+        var total = 0
+        for value in 0..<5_000 {
+            total += thread.performAndWait { value }
+        }
+        XCTAssertEqual(total, (0..<5_000).reduce(0, +))
+    }
+
     /// The #1142 acceptance check: with the main thread blocked for 500 ms,
     /// tap callbacks still run promptly. Listen-only, and the only event
     /// posted is a marked mouse move to the pointer's current position, so the
