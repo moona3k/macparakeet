@@ -90,7 +90,8 @@ public final class BackgroundEventTap: @unchecked Sendable {
     }
 
     /// Disables and invalidates the tap. Idempotent. After it returns, the
-    /// handler will not be called again.
+    /// handler will not be called again. Call it from the owner, not from
+    /// inside this tap's own handler.
     public func stop() {
         EventTapThread.shared.performAndWait {
             EventTapTeardown.tearDown(tap: tap, source: source, runLoop: EventTapThread.shared.runLoop)
