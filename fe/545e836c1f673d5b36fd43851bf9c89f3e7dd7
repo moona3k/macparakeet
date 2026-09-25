@@ -1,0 +1,21 @@
+Tests/MacParakeetTests/STT/MockSTTClient.swift
+  s_ea43f113115380::t_c69f7400c86e20 372-376
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_ea43f113115380::t_2f4e4d4051ffbe 1808,1834-1835,1839-1840,1842-1863,1865,1867,1870
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fe545e836c1f673d5b36fd43851bf9c89f3e7dd7",
+  "prompts": {},
+  "sessions": {
+    "s_ea43f113115380": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e866346-f6a4-47b5-b1bd-f77f4f655aab",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
