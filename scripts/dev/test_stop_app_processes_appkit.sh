@@ -89,11 +89,22 @@ TARGET="$TEST_DIR/owned (dev)[1]/Fixture.app/Contents/MacOS/Fixture"
 start_fixture 'owned (dev)[1]' allow
 start_fixture production cancel "$TARGET"
 start_fixture other-worktree cancel
+start_fixture unlinked-worktree cancel
+rm "$TEST_DIR/unlinked-worktree/Fixture.app/Contents/MacOS/Fixture"
 stop_app_processes 3 "$TEST_DIR" "$TARGET"
 [[ -e "$TEST_DIR/state-owned (dev)[1]/finalized" ]]
 [[ ! -e "$TEST_DIR/state-production/quit-requested" ]]
 [[ ! -e "$TEST_DIR/state-other-worktree/quit-requested" ]]
+[[ ! -e "$TEST_DIR/state-unlinked-worktree/quit-requested" ]]
 printf 'PASS: ordinary quit awaits finalization and ignores other executable paths/argument-only matches\n'
+
+start_fixture unlinked-owned allow
+UNLINKED_TARGET="$TEST_DIR/unlinked-owned/Fixture.app/Contents/MacOS/Fixture"
+rm "$UNLINKED_TARGET"
+stop_app_processes 3 "$TEST_DIR" "$UNLINKED_TARGET"
+[[ -e "$TEST_DIR/state-unlinked-owned/finalized" ]]
+[[ ! -e "$TEST_DIR/state-unlinked-worktree/quit-requested" ]]
+printf 'PASS: unlinked registered apps retain exact checkout ownership\n'
 
 ln -s "$TEST_DIR/production/Fixture.app" "$TEST_DIR/linked.app"
 if stop_app_processes 0.5 "$TEST_DIR" "$TEST_DIR/linked.app/Contents/MacOS/Fixture"; then
