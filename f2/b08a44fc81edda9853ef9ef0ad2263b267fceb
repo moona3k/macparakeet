@@ -1,0 +1,23 @@
+docs/plans/2026-09-25-1308-feat-meeting-chat-workspace-plan.md
+  s_9e7c07c1bf5bea::t_4092fd27e15fba 502-505
+docs/research/2026-09-25-meeting-chat-workspace/README.md
+  s_9e7c07c1bf5bea::t_e355c1c39a782c 74-77
+docs/research/2026-09-25-meeting-chat-workspace/verification.md
+  s_9e7c07c1bf5bea::t_e3af8a8ae51fdf 1-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f2b08a44fc81edda9853ef9ef0ad2263b267fceb",
+  "prompts": {},
+  "sessions": {
+    "s_9e7c07c1bf5bea": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0da23-642f-7d83-9852-76cf422a9b07",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
