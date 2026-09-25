@@ -12,8 +12,10 @@ It reads `~/Library/Logs/MacParakeet/dictation-audio.log`, performs no network
 requests, and never modifies the source. `--path` overrides
 `MACPARAKEET_AUDIO_DIAGNOSTICS_LOG_PATH`, which overrides the usual location.
 When `MACPARAKEET_DEBUG_APP_STATE_DIR` is set, the default is
-`<state-root>/logs/dictation-audio.log`. Explicit paths are useful for copied
-support attachments. The utility does not open audio, transcripts, or databases.
+`<state-root>/logs/dictation-audio.log`. The Dev build (`com.macparakeet.dev`)
+always writes under its Dev root, even when launched without that variable, so
+query it with `--path "$HOME/Library/Application Support/MacParakeet-Dev/logs/dictation-audio.log"`.
+Explicit paths are also useful for copied support attachments. The utility does not open audio, transcripts, or databases.
 
 JSON output has `schema_version: 1`. `records` contains timestamp, event, and
 parsed `fields`; field values stay strings, including booleans and numbers.
