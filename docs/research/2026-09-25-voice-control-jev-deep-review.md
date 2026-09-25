@@ -159,8 +159,22 @@ every app with Accessibility, and is what macOS Voice Control does poorly
 20." This is planning. A per-step classifier plus hand-written site plans does
 not generalize, and each new site adds brittle code to the core.
 
-Recommendation:
+The core mismatch: Jev is a System One classifier (bounded choices over
+host-listed options, about 250 ms, no generation), and B asks it to plan. The
+runner makes one greedy Choice per screen with no plan state and an inferred
+`finished`, so it cannot finish a real multi-step task without a hand-written
+site script. The routing order is also inverted: substring rules run first and
+Jev runs last, while the repo's own guidance says semantic routing belongs to
+Jev. Review of this PR alone surfaced about a dozen routing misfires, and each
+fix produced new edge cases. That is the empirical case for the change below.
 
+Recommendation, in order:
+
+0. **Build the eval harness before building more.** The replay corpus exists
+   (`macparakeet-cli voice-control replay`); add a live-Jev run over a fixed set
+   of A-class commands and record wrong-target rate, clarification rate and
+   p50/p95 voice-to-effect latency. Every change below should be measured
+   against it, and the flag decision should rest on those numbers.
 1. **Ship A first and make it the product.** Qualify it live (microphone to
    verified effect) on a fixed set of apps: Finder, Mail, Safari/Chrome,
    Notes, System Settings, Slack. Measure p50/p95 voice-to-effect latency and
@@ -183,12 +197,23 @@ Recommendation:
    MCP, per the ADR-027 north star) instead of growing a planner in core.
 5. **Stable target identity.** Derive ids from the AX fingerprint so an id
    means the same control across observations, then delete the rebinding
-   special cases it makes unnecessary.
-6. **Cut request cost after measuring.** Send targets once (`null` criteria,
-   compact state lines) and replace the consequence Choice with per-hazard
-   Nouls. Do both only behind the replay corpus with a live Jev key, because
-   they change model behavior.
-7. **Consolidate docs** to product, architecture, contract, evidence and later.
+   special cases it makes unnecessary. A large share of the 750-line turn
+   runner (label rebinding, stale-confirmation pauses, duplicate guards)
+   exists to compensate for walk-position ids.
+6. **Pass a structured goal, not a string.** The runner joins the original
+   goal, corrections, clarifications, hand-edited field values and notes into
+   one text block, and the router and Jev client parse it back apart
+   (`VoiceControlGoalText`, added in this PR, is that parser). A `Goal` value
+   with typed parts removes the parser and the ambiguity it guards against.
+7. **Cut request cost after measuring.** Send targets once (`null` criteria,
+   compact state lines), replace the consequence Choice with per-hazard Nouls,
+   and choose long values with two linear heads (start word, end word) instead
+   of enumerating spans, whose total size grows with the square of the
+   utterance and forced the cue-word and byte-budget rules in this PR. Scale
+   the 0.5 confidence gate by consequence instead of one threshold for a
+   scroll and an unknown press alike. Do all of this behind the eval harness,
+   because it changes what the model reads.
+8. **Consolidate docs** to product, architecture, contract, evidence and later.
    Archive the 45 KB plan as historical.
 
 ## Recommendations not implemented
