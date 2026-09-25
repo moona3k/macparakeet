@@ -222,7 +222,7 @@ Code (all in `Sources/MacParakeetCore/Services/VoiceControl/`):
   `userSegments`), shared by the runner and the Jev client.
 - `VoiceControlTurnRunner.swift`: uses `VoiceControlGoalText`; no behavior change.
 - `JevDecisionClient.swift`: `sourceSpans` from user segments, tails first,
-  within a 24 KB span budget (tails at most 16 KB);
+  within a 24 KB span budget (tails, longest first, leave 4 KB for shorter spans);
   label-based `Executed` history on both request shapes; retry on
   429/503/529 and dropped connections (at most 2, 150/300 ms, short
   `Retry-After` honored, a longer one fails without retry, consent rechecked, Stop cancels); `usage` decoded.

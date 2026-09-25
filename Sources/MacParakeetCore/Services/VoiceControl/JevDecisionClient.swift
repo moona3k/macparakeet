@@ -507,18 +507,19 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
         return decision
     }
 
-    /// Candidate field values: exact spans of the user's own words, capped
-    /// below Jev's option limit. Every tail of an utterance comes first, because
-    /// long values (`write Hi team, I'll be ten minutes late …`) are almost always
-    /// the rest of the sentence; then every span up to 12 words, shortest first.
-    /// Scaffold sentences and manually entered values in an amended goal are
-    /// never offered (`VoiceControlGoalText.userSegments`).
-    /// Total UTF-8 size of all offered spans. Tails may take only part of it, so
-    /// a long dictated message still leaves room for short spans and the request
-    /// stays well under the size ceiling.
+    /// Total UTF-8 size of all offered spans, so a long dictated message keeps
+    /// the request well under the size ceiling.
     static let spanByteBudget = 24_000
-    static let tailByteBudget = 16_000
+    /// Part of the span budget tails may not take, so short spans still fit.
+    static let shortSpanReserve = 4_000
 
+    /// Candidate field values: exact spans of the user's own words, capped
+    /// below Jev's option limit. Every tail of an utterance comes first, longest
+    /// first, because long values (`write Hi team, I'll be ten minutes late …`)
+    /// are almost always the rest of the sentence after a short instruction;
+    /// then every span up to 12 words, shortest first. Scaffold sentences and
+    /// manually entered values in an amended goal are never offered
+    /// (`VoiceControlGoalText.userSegments`).
     static func sourceSpans(_ goal: String, limit: Int = 250) -> [String] {
         // Preserve original spelling, punctuation and whitespace between token boundaries.
         let expression = try! NSRegularExpression(pattern: "\\S+")
@@ -544,14 +545,13 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
             }
             return true
         }
+        let tailBudget = spanByteBudget - shortSpanReserve
         for (text, ranges) in segments {
-            if text.lowercased().hasPrefix("type "), !offer(text.dropFirst(5), budget: tailByteBudget) {
+            if text.lowercased().hasPrefix("type "), !offer(text.dropFirst(5), budget: tailBudget) {
                 return values
             }
             for start in ranges.indices
-            where !offer(
-                text[ranges[start].lowerBound..<ranges[ranges.count - 1].upperBound], budget: tailByteBudget)
-            {
+            where !offer(text[ranges[start].lowerBound..<ranges[ranges.count - 1].upperBound], budget: tailBudget) {
                 return values
             }
         }

@@ -102,6 +102,19 @@ final class JevClientTransportTests: XCTestCase {
         XCTAssertTrue(spans.contains("word7 word8"))
     }
 
+    /// A normal preamble must not spend the tail budget before the message
+    /// itself is offered.
+    func testLongMessageAfterALongPreambleIsOfferedExactly() {
+        let sentence = "Thanks for the update on the launch plan and the budget numbers for next quarter."
+        let message = Array(repeating: sentence, count: 10).joined(separator: " ")
+        let spans = JevDecisionClient.sourceSpans("Open Messages and in the message to Bob write " + message)
+        XCTAssertTrue(spans.contains(message))
+        XCTAssertTrue(spans.contains(String(message.dropLast())))
+        XCTAssertLessThanOrEqual(spans.reduce(0) { $0 + $1.utf8.count }, JevDecisionClient.spanByteBudget)
+        XCTAssertTrue(spans.contains("Bob"), "short spans still fit")
+        XCTAssertTrue(spans.contains("the launch"))
+    }
+
     func testAmendedGoalOffersOnlyTheUsersWords() {
         let goal = [
             VoiceControlGoalText.header + "search flights to Paris",
