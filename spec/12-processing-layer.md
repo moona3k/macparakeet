@@ -423,9 +423,10 @@ independent of the UI dependency.
 
 ### Management surface
 
-Prompts is directly accessible from the main sidebar and from the generation
-popover. The initial view is one searchable list, with prompt-kind and collection
-filters. Built-in provenance is row metadata rather than a separate CRUD model.
+The prompt manager opens as a sheet from the Library header **Prompts** button,
+from the generation popover's **Manage Prompts** action, and from Meetings'
+**After each meeting** card. The initial view is one searchable list of
+transcript prompts with an optional collection filter. Built-in provenance is row metadata rather than a separate CRUD model.
 **New prompt** and **Manage collections** open separate sheets, leaving browsing
 and editing as the main page's purpose.
 

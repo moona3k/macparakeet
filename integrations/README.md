@@ -579,9 +579,9 @@ These commands accept `--database <path>` for an isolated automation database.
 Set source-specific auto-run (`--source`) in a separate command from collection
 assignment; the CLI rejects combining those mutations.
 
-The GUI's Prompts destination contains Transcript prompts and Live Ask.
-Meetings provides contextual access to the same managers. Transforms remains
-its own selected-text rewrite destination. This navigation does not change
+In the GUI, transcript prompts are managed from the Library header **Prompts**
+button and from completed transcripts; Live Ask is managed from Meetings.
+Transforms remains its own selected-text rewrite destination. This navigation does not change
 CLI categories or storage: Live Ask uses the separate quick-prompt commands
 below, and existing prompt/version commands continue to support Transforms.
 

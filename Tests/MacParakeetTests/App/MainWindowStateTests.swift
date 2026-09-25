@@ -73,14 +73,13 @@ final class MainWindowStateTests: XCTestCase {
         XCTAssertEqual(SidebarItem.primaryItems, expected)
     }
 
-    func testPromptManagerIsAFirstClassSidebarDestination() {
-        XCTAssertFalse(SidebarItem.primaryItems.contains(.prompts))
-        XCTAssertEqual(SidebarItem.configItems.first, .prompts)
+    func testPromptsAreManagedInContextRatherThanFromTheSidebar() {
+        XCTAssertNil(SidebarItem(rawValue: "Prompts"))
+        var expected: [SidebarItem] = [.vocabulary, .feedback, .settings]
         if AppFeatures.transformsEnabled {
-            XCTAssertEqual(SidebarItem.configItems.dropFirst().first, .transforms)
+            expected.insert(.transforms, at: 0)
         }
-        XCTAssertEqual(SidebarItem.prompts.rawValue, "Prompts")
-        XCTAssertEqual(SidebarItem.prompts.icon, "text.quote")
+        XCTAssertEqual(SidebarItem.configItems, expected)
     }
 
     func testStartNewTranscriptionReturnsToTranscribeAndHidesProgressDetail() {

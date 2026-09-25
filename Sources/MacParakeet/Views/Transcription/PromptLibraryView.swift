@@ -43,13 +43,6 @@ struct PromptLibraryView: View {
     @State private var librarySheet: LibrarySheet?
     @Environment(\.dismiss) private var dismiss
     @Bindable var viewModel: PromptsViewModel
-    var showsDismissButton = true
-    /// Drops the sheet minimum size so this manager can sit in the Prompts
-    /// workspace detail column. The main window minimum is 860pt with a ~200pt
-    /// sidebar, leaving ~660pt — below `sheetMinWidth`, which otherwise clips
-    /// the library (issue #1105). Meetings and completed-transcript sheets
-    /// keep the default `false`.
-    var isEmbedded = false
     var presentation: PromptLibraryPresentation = .library
     @State private var editName: String = ""
     @State private var editContent: String = ""
@@ -97,12 +90,10 @@ struct PromptLibraryView: View {
                     }
                     .parakeetAction(.primaryProminent)
                     .controlSize(.large)
-                    if showsDismissButton, !isEmbedded {
-                        Button("Done") { dismiss() }
-                            .parakeetAction(.secondary)
-                            .controlSize(.large)
-                            .keyboardShortcut(.cancelAction)
-                    }
+                    Button("Done") { dismiss() }
+                        .parakeetAction(.secondary)
+                        .controlSize(.large)
+                        .keyboardShortcut(.cancelAction)
                 }
 
                 HStack(spacing: DesignSystem.Spacing.md) {
@@ -175,10 +166,7 @@ struct PromptLibraryView: View {
             }
             .ignoresSafeArea()
         }
-        .frame(
-            minWidth: Self.minimumWidth(isEmbedded: isEmbedded),
-            minHeight: Self.minimumHeight(isEmbedded: isEmbedded)
-        )
+        .frame(minWidth: Self.sheetMinWidth, minHeight: Self.sheetMinHeight)
         .onAppear { viewModel.refresh() }
         .onChange(of: viewModel.collections.map(\.id)) { _, ids in
             if let collectionFilterID, !ids.contains(collectionFilterID) {
@@ -1420,18 +1408,9 @@ struct PromptLibraryView: View {
 }
 
 extension PromptLibraryView {
-    /// Comfortable size for sheet presentations. Embedded workspace use must
-    /// not apply these; see `isEmbedded`.
+    /// Comfortable minimum size for the sheet presentations.
     static let sheetMinWidth: CGFloat = 720
     static let sheetMinHeight: CGFloat = 560
-
-    static func minimumWidth(isEmbedded: Bool) -> CGFloat? {
-        isEmbedded ? nil : sheetMinWidth
-    }
-
-    static func minimumHeight(isEmbedded: Bool) -> CGFloat? {
-        isEmbedded ? nil : sheetMinHeight
-    }
 }
 
 private struct GenerationSettingsEditor: View {

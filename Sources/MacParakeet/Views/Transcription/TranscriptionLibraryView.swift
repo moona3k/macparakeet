@@ -15,6 +15,9 @@ struct TranscriptionLibraryView: View {
     var showsFilterBar: Bool = true
     var primaryActionTitle: String? = nil
     var onPrimaryAction: (() -> Void)? = nil
+    /// Opens the transcript prompt manager. Library is the home for prompts
+    /// because they run on the transcripts listed here.
+    var onManagePrompts: (() -> Void)? = nil
     var emptyTitle: String = "No transcriptions yet"
     var emptyMessage: String = "Transcribe a file or video link to get started."
     var onSelect: (Transcription) -> Void
@@ -84,6 +87,10 @@ struct TranscriptionLibraryView: View {
                 .accessibilityLabel("Library layout")
                 .frame(width: 76)
                 .help(libraryLayoutMode == .grid ? "Switch to list view" : "Switch to grid view")
+
+                if let onManagePrompts {
+                    LibraryManagePromptsButton(action: onManagePrompts)
+                }
 
                 if showsSelectManyButton {
                     LibrarySelectManyButton {
@@ -1224,6 +1231,20 @@ private struct LibraryPrimaryActionButton: View {
         .pointingHandCursor(isActive: isHovered)
         .accessibilityLabel(title)
         .accessibilityHint("Starts a new transcription")
+    }
+}
+
+private struct LibraryManagePromptsButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label("Prompts", systemImage: "text.quote")
+                .font(DesignSystem.Typography.bodySmall.weight(.semibold))
+        }
+        .parakeetAction(.secondary)
+        .help("Manage the prompts that generate outputs from transcripts")
+        .accessibilityHint("Opens the transcript prompt manager")
     }
 }
 
