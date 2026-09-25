@@ -16,6 +16,11 @@ public final class HotkeyManager {
     public var onCancelRecording: (() -> Void)?
     public var onDiscardRecording: ((Bool) -> Void)?
     public var onReadyForSecondTap: (() -> Void)?
+    /// Hold-to-talk release with a stop tail: recording continues for the
+    /// tail, then `onStopRecording` fires. Lets the UI answer the release now.
+    public var onStopPending: (() -> Void)?
+    /// A pending stop tail was abandoned before `onStopRecording` fired.
+    public var onStopPendingCancelled: (() -> Void)?
     public var onEscapeWhileIdle: (() -> Void)?
     /// When false, a live take ignores Escape so the key reaches other apps.
     /// Pending gestures that have not started a take still clear, and an idle
@@ -65,6 +70,12 @@ public final class HotkeyManager {
     /// observed via flagsChanged keyCode 57 + alphaShift delta.
     private static let capsLockKeyCode: UInt16 = 57
     private var pressedNonFnKeyCodes: Set<UInt16> = []
+    /// Keys whose most recent event seen by the tap was a keyUp. The
+    /// session key-state snapshot can report a key as held forever when some
+    /// app posted a keyDown without its keyUp; a physical press cannot clear
+    /// that. A release the tap saw overrides the snapshot. Cleared whenever
+    /// the tap may have missed events.
+    private var releaseObservedKeyCodes: Set<UInt16> = []
     private var physicalKeyStateProvider: (UInt16) -> Bool
 
     /// Bare-tap filtering: true until another physical key or modifier transition is observed.
@@ -160,7 +171,7 @@ public final class HotkeyManager {
         tapGeneration &+= 1
         startupTimer?.cancel()
         holdTimer?.cancel()
-        stopTailTimer?.cancel()
+        cancelStopTailTimer()
         targetModifierWasPressed = false
         previousModifierFlags = []
         targetModifierGestureIsActive = false
@@ -171,6 +182,7 @@ public final class HotkeyManager {
         modifierChordBlockedUntilRelease = false
         activeRecordingMode = nil
         pressedNonFnKeyCodes.removeAll(keepingCapacity: true)
+        releaseObservedKeyCodes.removeAll(keepingCapacity: true)
         bareTap = true
         gestureController.reset()
         testingTapFilter = HotkeyTapFilter(trigger: trigger)
@@ -193,6 +205,9 @@ public final class HotkeyManager {
         case .tapReenabled:
             // macOS disabled the tap (slow callback or secure input) and the
             // tap thread re-enabled it; resync with the physical key state.
+            AudioCaptureDiagnostics.append(
+                "dictation_hotkey_tap_reenabled mode=\(diagnosticMode(activeRecordingMode))"
+            )
             recoverFromDisabledTap()
         case .key(let event):
             process(event)
@@ -282,7 +297,10 @@ public final class HotkeyManager {
                     return gestureController.triggerPressed(timestampMs: timestampMs)
                 }
 
-                guard targetModifierGestureIsActive else { return [] }
+                guard targetModifierGestureIsActive else {
+                    logReleaseIgnoredIfRecording()
+                    return []
+                }
                 targetModifierGestureIsActive = false
 
                 let outputs: [HotkeyGestureController.Output]
@@ -339,6 +357,7 @@ public final class HotkeyManager {
                 if trigger == .fn {
                     reconcilePassiveFnKeyState()
                     if passiveFnInputIsContaminated(flags: flags) {
+                        logFnAdmissionRejected(flags: flags)
                         targetModifierGestureIsActive = false
                         bareTap = false
                         return interruptPendingPassiveFnWindow()
@@ -350,7 +369,10 @@ public final class HotkeyManager {
                 return gestureController.triggerPressed(timestampMs: timestampMs)
             }
 
-            guard targetModifierGestureIsActive else { return [] }
+            guard targetModifierGestureIsActive else {
+                logReleaseIgnoredIfRecording()
+                return []
+            }
             targetModifierGestureIsActive = false
             let outputs: [HotkeyGestureController.Output]
             if bareTap {
@@ -401,6 +423,7 @@ public final class HotkeyManager {
     ) -> [HotkeyGestureController.Output] {
         let physicalKeyCode = UInt16(keyCode)
         if trigger == .fn, Self.isTrackableNonFnKeyCode(physicalKeyCode) {
+            releaseObservedKeyCodes.remove(physicalKeyCode)
             guard pressedNonFnKeyCodes.insert(physicalKeyCode).inserted else {
                 return []
             }
@@ -442,6 +465,7 @@ public final class HotkeyManager {
             return []
         }
         pressedNonFnKeyCodes.remove(physicalKeyCode)
+        releaseObservedKeyCodes.insert(physicalKeyCode)
         guard targetModifierGestureIsActive else {
             return interruptPendingPassiveFnWindow()
         }
@@ -823,11 +847,38 @@ public final class HotkeyManager {
     }
 
     public func syncRecordingMode(_ mode: FnKeyStateMachine.RecordingMode) {
-        if let resumeMode = Self.resumeMode(mode, for: gestureMode) {
-            resumeRecording(mode: resumeMode)
-        } else {
+        syncRecordingMode(mode, flags: nil, triggerKeyPressed: currentPhysicalTriggerKeyIsPressed())
+    }
+
+    func syncRecordingMode(
+        _ mode: FnKeyStateMachine.RecordingMode,
+        flags: CGEventFlags?,
+        triggerKeyPressed: Bool
+    ) {
+        guard let resumeMode = Self.resumeMode(mode, for: gestureMode) else {
             suppressUntilReset()
+            return
         }
+        resumeRecording(mode: resumeMode)
+        guard resumeMode == .holdToTalk else { return }
+
+        // Starting a take while the previous one is still finishing resets
+        // every hotkey (`.resetHotkeyStateMachine`) after this take began,
+        // clearing the held-trigger state. Restore it from the physical keys,
+        // or the release is ignored and the take records until the next
+        // press. If the trigger was already released, stop now.
+        let triggerPressed = currentPhysicalTriggerIsPressed(
+            flags: flags,
+            triggerKeyPressed: triggerKeyPressed
+        )
+        syncRecoveredTriggerState(
+            flags: flags,
+            triggerKeyPressed: triggerKeyPressed,
+            triggerPressed: triggerPressed
+        )
+        guard !triggerPressed else { return }
+        AudioCaptureDiagnostics.append("dictation_hotkey_release_recovered mode=hold_to_talk")
+        handleOutputs(gestureController.triggerReleased(timestampMs: Self.currentTimestampMs()))
     }
 
     /// Reset state machine to idle (e.g., after cancel countdown expires).
@@ -880,6 +931,8 @@ public final class HotkeyManager {
         triggerKeyPressed: Bool,
         timestampMs: UInt64
     ) -> [HotkeyGestureController.Output] {
+        // The tap may have missed events, so trust the key-state snapshot again.
+        releaseObservedKeyCodes.removeAll(keepingCapacity: true)
         let triggerPressed = currentPhysicalTriggerIsPressed(
             flags: flags,
             triggerKeyPressed: triggerKeyPressed
@@ -1091,7 +1144,9 @@ public final class HotkeyManager {
         guard trigger == .fn else { return }
         pressedNonFnKeyCodes = Set(
             Self.ordinaryKeyCodeRange.filter { keyCode in
-                Self.isTrackableNonFnKeyCode(keyCode) && physicalKeyStateProvider(keyCode)
+                Self.isTrackableNonFnKeyCode(keyCode)
+                    && !releaseObservedKeyCodes.contains(keyCode)
+                    && physicalKeyStateProvider(keyCode)
             }
         )
     }
@@ -1193,6 +1248,7 @@ public final class HotkeyManager {
             switch output {
             case .startRecording(let mode):
                 cancelStopTailTimer()
+                AudioCaptureDiagnostics.append("dictation_hotkey_start mode=\(diagnosticMode(mode))")
                 onStartRecording?(mode)
             case .stopRecording:
                 handleStopRecordingOutput(recordingModeBeforeOutputs: recordingModeBeforeOutputs)
@@ -1247,6 +1303,7 @@ public final class HotkeyManager {
             deadline: .now() + .milliseconds(tailMs),
             execute: timer
         )
+        onStopPending?()
     }
 
     private func diagnosticMode(_ mode: FnKeyStateMachine.RecordingMode?) -> String {
@@ -1300,8 +1357,27 @@ public final class HotkeyManager {
     }
 
     private func cancelStopTailTimer() {
-        stopTailTimer?.cancel()
+        guard let timer = stopTailTimer else { return }
+        timer.cancel()
         stopTailTimer = nil
+        onStopPendingCancelled?()
+    }
+
+    /// Bare Fn refused because another key or modifier reads as held. Key
+    /// codes only, never characters.
+    private func logFnAdmissionRejected(flags: CGEventFlags) {
+        let heldKeyCodes = pressedNonFnKeyCodes.sorted().map(String.init).joined(separator: ",")
+        let otherModifiers = flags.intersection(ModifierKeyMatcher.trackedModifierMasks)
+            .subtracting(targetMask ?? [])
+        AudioCaptureDiagnostics.append(
+            "dictation_hotkey_fn_rejected held_keycodes=[\(heldKeyCodes)] other_modifiers=0x\(String(otherModifiers.rawValue, radix: 16))"
+        )
+    }
+
+    /// A trigger release that cannot stop a live hold-to-talk take.
+    private func logReleaseIgnoredIfRecording() {
+        guard activeRecordingMode == .holdToTalk else { return }
+        AudioCaptureDiagnostics.append("dictation_hotkey_release_ignored mode=hold_to_talk reason=gesture_inactive")
     }
 
     private func cancelStartupTimer() {

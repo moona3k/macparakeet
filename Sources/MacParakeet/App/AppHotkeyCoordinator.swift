@@ -9,6 +9,8 @@ final class AppHotkeyCoordinator {
     private let settingsViewModel: SettingsViewModel
     private let onStartDictation: (FnKeyStateMachine.RecordingMode, Bool?, Bool) -> Bool
     private let onStopDictation: () -> Void
+    private let onStopDictationPending: () -> Void
+    private let onStopDictationPendingCancelled: () -> Void
     private let onCancelDictation: () -> Void
     private let onDiscardRecording: (Bool) -> Void
     private let onReadyForSecondTap: () -> Void
@@ -38,6 +40,8 @@ final class AppHotkeyCoordinator {
         settingsViewModel: SettingsViewModel,
         onStartDictation: @escaping (FnKeyStateMachine.RecordingMode, Bool?, Bool) -> Bool,
         onStopDictation: @escaping () -> Void,
+        onStopDictationPending: @escaping () -> Void = {},
+        onStopDictationPendingCancelled: @escaping () -> Void = {},
         onCancelDictation: @escaping () -> Void,
         onDiscardRecording: @escaping (Bool) -> Void,
         onReadyForSecondTap: @escaping () -> Void,
@@ -54,6 +58,8 @@ final class AppHotkeyCoordinator {
         self.settingsViewModel = settingsViewModel
         self.onStartDictation = onStartDictation
         self.onStopDictation = onStopDictation
+        self.onStopDictationPending = onStopDictationPending
+        self.onStopDictationPendingCancelled = onStopDictationPendingCancelled
         self.onCancelDictation = onCancelDictation
         self.onDiscardRecording = onDiscardRecording
         self.onReadyForSecondTap = onReadyForSecondTap
@@ -337,6 +343,12 @@ final class AppHotkeyCoordinator {
             self?.activeDictationHotkey = nil
             self?.resetDictationHotkeyGestures()
             self?.onStopDictation()
+        }
+        manager.onStopPending = { [weak self] in
+            self?.onStopDictationPending()
+        }
+        manager.onStopPendingCancelled = { [weak self] in
+            self?.onStopDictationPendingCancelled()
         }
         manager.onCancelRecording = { [weak self] in
             self?.activeDictationHotkey = nil

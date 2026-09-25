@@ -403,7 +403,11 @@ final class HotkeyManagerTests: XCTestCase {
         )
         XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [])
 
+        // Pressed again: the tap sees the keyDown, so Fn stays blocked. A
+        // release the tap saw survives resetToIdle (#1142 follow-up): a stale
+        // snapshot key must not block Fn after every take.
         pressedKeyCodes.insert(0)
+        _ = manager.modifierKeyDownOutputsForTesting(keyCode: 0, timestampMs: 1_180)
         manager.resetToIdle(flags: [])
         XCTAssertEqual(
             manager.modifierFlagsChangedOutputsForTesting(
@@ -1791,6 +1795,161 @@ final class HotkeyManagerTests: XCTestCase {
 
         wait(for: [stopExpectation], timeout: 1.0)
         XCTAssertEqual(stopCount, 1)
+    }
+
+    /// Starting a take while the previous one finishes resets every hotkey
+    /// after the take began. Syncing the recording mode must restore the held
+    /// Fn so the release still stops the take.
+    func testSyncAfterFlowResetKeepsHoldToTalkReleaseWorking() {
+        let manager = makeManager(trigger: .fn, gestureMode: .doubleTapAndHold)
+        _ = manager.modifierFlagsChangedOutputsForTesting(
+            flags: [.maskSecondaryFn],
+            timestampMs: 1_000,
+            changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+        )
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
+
+        manager.resetToIdle(flags: [.maskSecondaryFn])
+        manager.syncRecordingMode(.holdToTalk, flags: [.maskSecondaryFn], triggerKeyPressed: false)
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 2_000,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            [.cancelStartupDebounce, .cancelHoldWindow, .stopRecording]
+        )
+    }
+
+    func testSyncAfterFlowResetStopsWhenTriggerAlreadyReleased() {
+        let manager = makeManager(trigger: .fn, gestureMode: .doubleTapAndHold)
+        var stops = 0
+        manager.onStopRecording = { stops += 1 }
+        _ = manager.modifierFlagsChangedOutputsForTesting(
+            flags: [.maskSecondaryFn],
+            timestampMs: 1_000,
+            changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+        )
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
+
+        // The release landed while the flow reset had cleared the gesture.
+        manager.resetToIdle(flags: [])
+        manager.syncRecordingMode(.holdToTalk, flags: [], triggerKeyPressed: false)
+        XCTAssertEqual(stops, 1)
+    }
+
+    func testSyncWhileTriggerHeldLeavesNormalTakeUnchanged() {
+        let manager = makeManager(trigger: .fn, gestureMode: .doubleTapAndHold)
+        var stops = 0
+        manager.onStopRecording = { stops += 1 }
+        _ = manager.modifierFlagsChangedOutputsForTesting(
+            flags: [.maskSecondaryFn],
+            timestampMs: 1_000,
+            changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+        )
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
+        manager.syncRecordingMode(.holdToTalk, flags: [.maskSecondaryFn], triggerKeyPressed: false)
+        XCTAssertEqual(stops, 0)
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 2_000,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            [.cancelStartupDebounce, .cancelHoldWindow, .stopRecording]
+        )
+    }
+
+    func testStopTailSignalsPendingThenStops() {
+        let manager = HotkeyManager(trigger: .fn, holdToTalkStopTailMs: 20)
+        manager.setPhysicalKeyStateProviderForTesting { _ in false }
+        var pending = 0
+        var cancelled = 0
+        let stopped = expectation(description: "stop after tail")
+        manager.onStopPending = { pending += 1 }
+        manager.onStopPendingCancelled = { cancelled += 1 }
+        manager.onStopRecording = {
+            XCTAssertEqual(pending, 1, "the UI hears about the release before the stop")
+            stopped.fulfill()
+        }
+
+        _ = manager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn], timestampMs: 1_000)
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
+        _ = manager.recoverFromDisabledTapForTesting(flags: [], timestampMs: 1_500)
+        XCTAssertEqual(pending, 1)
+
+        wait(for: [stopped], timeout: 1.0)
+        XCTAssertEqual(cancelled, 0)
+    }
+
+    func testAbandonedStopTailSignalsPendingCancelled() {
+        let manager = HotkeyManager(trigger: .fn, holdToTalkStopTailMs: 50)
+        manager.setPhysicalKeyStateProviderForTesting { _ in false }
+        var pending = 0
+        var cancelled = 0
+        manager.onStopPending = { pending += 1 }
+        manager.onStopPendingCancelled = { cancelled += 1 }
+        manager.onStopRecording = { XCTFail("an abandoned tail must not stop") }
+
+        _ = manager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn], timestampMs: 1_000)
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
+        _ = manager.recoverFromDisabledTapForTesting(flags: [], timestampMs: 1_500)
+        XCTAssertEqual(pending, 1)
+
+        manager.suppressUntilReset()
+        XCTAssertEqual(cancelled, 1)
+        manager.suppressUntilReset()
+        XCTAssertEqual(cancelled, 1, "only a pending tail reports cancellation")
+
+        let settle = expectation(description: "tail window passes")
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(120)) { settle.fulfill() }
+        wait(for: [settle], timeout: 1.0)
+    }
+
+    /// Some app posted a keyDown without its keyUp, so the session snapshot
+    /// reports the key held forever. Once the tap sees that key released,
+    /// bare Fn is admitted again.
+    func testPassiveFnIgnoresSnapshotKeyTheTapSawReleased() {
+        let manager = makeManager(trigger: .fn, gestureMode: .holdOnly)
+        manager.setPhysicalKeyStateProviderForTesting { $0 == 9 }
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn], timestampMs: 1_000),
+            [],
+            "a snapshot-held key still blocks Fn"
+        )
+        _ = manager.modifierFlagsChangedOutputsForTesting(flags: [], timestampMs: 1_100)
+
+        _ = manager.modifierKeyDownOutputsForTesting(keyCode: 9, timestampMs: 1_200)
+        _ = manager.modifierKeyUpOutputsForTesting(keyCode: 9, timestampMs: 1_300)
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn], timestampMs: 2_000),
+            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs)]
+        )
+    }
+
+    func testPassiveFnTrustsSnapshotAgainAfterKeyDownOrTapRecovery() {
+        let manager = makeManager(trigger: .fn, gestureMode: .holdOnly)
+        manager.setPhysicalKeyStateProviderForTesting { $0 == 9 }
+
+        _ = manager.modifierKeyUpOutputsForTesting(keyCode: 9, timestampMs: 1_000)
+        _ = manager.modifierKeyDownOutputsForTesting(keyCode: 9, timestampMs: 1_100)
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn], timestampMs: 1_200),
+            [],
+            "a keyDown after the release means the key really is held"
+        )
+        _ = manager.modifierFlagsChangedOutputsForTesting(flags: [], timestampMs: 1_300)
+
+        _ = manager.modifierKeyUpOutputsForTesting(keyCode: 9, timestampMs: 1_400)
+        _ = manager.recoverFromDisabledTapForTesting(flags: [], timestampMs: 1_500)
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn], timestampMs: 1_600),
+            [],
+            "after a disabled tap, events may have been missed, so the snapshot counts again"
+        )
     }
 
     func testTapRecoveryDuringActiveHoldWithAdditionalModifierCancelsOnRelease() {

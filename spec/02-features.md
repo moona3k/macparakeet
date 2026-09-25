@@ -183,7 +183,11 @@ Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migra
   observed cancellation event pass through unchanged. Other configurable
   hotkeys retain their established active-tap behavior.
 - Built-in Fn is admitted only when a combined-session snapshot shows no
-  pre-held non-Fn modifier or ordinary physical key. A latched Caps Lock state
+  pre-held non-Fn modifier or ordinary physical key. A key the tap has seen
+  released since it last saw that key go down no longer counts, because an app
+  that posts a keyDown without its keyUp can leave the snapshot reporting the
+  key held indefinitely. Tap-disable recovery trusts the snapshot again.
+  Rejections are logged with the held key codes (`dictation_hotkey_fn_rejected`). A latched Caps Lock state
   alone is allowed because it does not prove the physical key remains held;
   an observed Caps Lock transition still cancels. While Fn is held, every
   non-Fn key-down/key-up or modifier transition cancels the gesture. Escape

@@ -552,6 +552,48 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         XCTAssertTrue(leftRecording, "Releasing hold-to-talk must leave the recording state")
     }
 
+    /// The collapse starts at release and should not finish long before the
+    /// tail's audio stops being recorded.
+    func testPillCollapseCoversThePushToTalkStopTail() {
+        let tailSeconds = Double(AppHotkeyCoordinator.holdToTalkStopTailMs) / 1_000
+        XCTAssertGreaterThanOrEqual(DictationOverlayView.stateTransitionSeconds, tailSeconds)
+    }
+
+    /// Releasing push-to-talk shows the processing pill during the stop tail,
+    /// before the real stop arrives; an abandoned tail restores recording.
+    func testStopPendingShowsProcessingBeforeStopAndCanRevert() async throws {
+        let harness = try await makeMicPermissionHarness(
+            microphonePermission: .granted,
+            requestMicResult: true
+        )
+        harness.coordinator.startDictation(mode: .holdToTalk, trigger: .hotkey)
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+
+        harness.coordinator.showStopPending()
+        guard case .processing = harness.coordinator.overlayStateForTesting else {
+            return XCTFail("Expected the processing pill during the stop tail")
+        }
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .recording(mode: .holdToTalk))
+
+        harness.coordinator.cancelStopPending()
+        guard case .recording = harness.coordinator.overlayStateForTesting else {
+            return XCTFail("An abandoned tail must restore the recording pill")
+        }
+
+        harness.coordinator.showStopPending()
+        harness.coordinator.stopDictation()
+        let leftRecording = await waitUntil {
+            !self.isFlowRecording(harness.coordinator.flowStateForTesting)
+        }
+        XCTAssertTrue(leftRecording)
+        // A late cancel after the real stop must not bring the recording pill back.
+        harness.coordinator.cancelStopPending()
+        if case .recording = harness.coordinator.overlayStateForTesting {
+            XCTFail("cancelStopPending after stop must not restore recording")
+        }
+    }
+
     func testHoldToTalkSecondHoldStartsCaptureAfterMicSheetGrant() async throws {
         let harness = try await makeMicPermissionHarness(
             microphonePermission: .notDetermined,
