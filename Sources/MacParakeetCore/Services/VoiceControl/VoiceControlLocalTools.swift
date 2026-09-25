@@ -60,11 +60,21 @@ enum VoiceControlLocalTools {
     }
 
     static func alreadyVerifiedNamedPress(command: String, history: [VoiceControlAction]) -> Bool {
+        alreadyPressedByName(command: command, history: history, statuses: [.verified])
+    }
+
+    /// `click Save` pressed Save and the interface moved. The single command is
+    /// done; the next screen is not a reason to ask the model for another step.
+    static func alreadyPressedByName(
+        command: String, history: [VoiceControlAction],
+        statuses: Set<VoiceControlReceipt.Status> = [.verified, .transitionObserved]
+    ) -> Bool {
         guard let phrase = spokenControlName(command),
-            let last = history.last, last.receiptStatus == .verified,
+            let last = history.last, let status = last.receiptStatus, statuses.contains(status),
             [.press, .activateApp].contains(last.operation),
             VoiceControlSessionGrammar.normalize(last.targetLabel ?? "") == phrase
                 || last.targetLabel?.localizedStandardCompare(phrase) == .orderedSame
+                || (hasClickPrefix(command) && labelHasPhrasePrefix(last.targetLabel ?? "", phrase: phrase))
         else { return false }
         return true
     }

@@ -82,8 +82,12 @@ public enum VoiceControlLegality {
             && !target.label.localizedStandardContains("Toggle")
     }
 
+    /// A day cell names a date. A closed form's "Choose departure date" button
+    /// does not, and must not turn an ordinary page into a date picker that
+    /// hides every other control.
     public static func isCalendarDay(_ target: VoiceControlTarget) -> Bool {
         target.operations.contains(.press) && target.label.localizedStandardContains("departure date")
+            && SpokenDateParser.firstDate(in: target.label) != nil
     }
 
     public static func offeredTargets(in snapshot: VoiceControlSnapshot) -> [VoiceControlTarget] {

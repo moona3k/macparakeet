@@ -338,6 +338,8 @@ public actor VoiceControlTraceStore: VoiceControlTraceSink {
             "heads": heads,
         ]
         if let situation = decision.situation { event["situation"] = situation }
+        if let tokens = decision.inputTokens { event["input_tokens"] = tokens }
+        if decision.retries > 0 { event["retries"] = decision.retries }
         return event
     }
 
@@ -351,6 +353,8 @@ public actor VoiceControlTraceStore: VoiceControlTraceSink {
             observations.last?.targets.map { ($0.id, $0.label) } ?? [], uniquingKeysWith: { first, _ in first })
         var lines = [
             "jev: \(decision.kind) \(decision.resolution) \(decision.latencyMilliseconds)ms \(decision.requestBytes)B"
+                + (decision.inputTokens.map { " \($0)tok" } ?? "")
+                + (decision.retries > 0 ? " retries=\(decision.retries)" : "")
                 + (decision.situation.map { " situation=\($0)" } ?? "")
         ]
         for name in decision.heads.keys.sorted() {

@@ -100,6 +100,7 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
         if VoiceControlLocalTools.alreadyVerifiedNamedPress(command: command, history: history) {
             return .directCompleted("Done. The requested change was verified.")
         }
+        if VoiceControlLocalTools.alreadyPressedByName(command: command, history: history) { return .finished }
         if let destination = VoiceControlWebDestination.matchingGoal(lower),
             snapshot.targets.contains(where: { $0.id == destination.id }),
             !VoiceControlWebDestination.pageMatches(snapshot, destination: destination),
@@ -261,12 +262,13 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
     /// Web tasks should start in a browser, not the terminal or IDE that issued the command.
     static func browserForWebGoal(_ lower: String, snapshot: VoiceControlSnapshot) -> VoiceControlTarget? {
         guard !isBrowserName(snapshot.applicationName) else { return nil }
-        let hints = [
-            "flight", "flights", "youtube", "gmail", "search the web", "google search", "google for",
-            "in chrome", "in safari", "in firefox", "in brave", "in edge", "google maps",
-            "wikipedia", "directions to",
-        ]
-        guard hints.contains(where: { lower.contains($0) }) else { return nil }
+        // The same anchored destination match as the web routes: a mail about a
+        // flight is not a reason to leave the mail app.
+        let browserHints = ["in chrome", "in safari", "in firefox", "in brave", "in edge"]
+        guard
+            VoiceControlWebDestination.matchingGoal(lower) != nil
+                || browserHints.contains(where: { lower.contains($0) })
+        else { return nil }
         let browsers = snapshot.targets.filter {
             $0.operations.contains(.activateApp) && isBrowserName($0.label)
         }

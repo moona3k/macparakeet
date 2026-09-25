@@ -1,0 +1,143 @@
+import Foundation
+import XCTest
+
+@testable import MacParakeetCore
+
+/// Local routes run before the page's own controls, so they must fire only on
+/// an explicit request. A word that merely appears in a command is page content.
+final class VoiceControlIntentAnchoringTests: XCTestCase {
+    private struct Fallback: VoiceControlDecisionEngine {
+        func decide(goal: String, snapshot: VoiceControlSnapshot, history: [VoiceControlAction]) async throws
+            -> VoiceControlDecision
+        { .clarify("fallback") }
+    }
+
+    private let router = VoiceControlCommandRouter(fallback: Fallback())
+
+    /// A shop page in Chrome: the adapter always appends the allowlisted destinations.
+    private func shopPage() -> VoiceControlSnapshot {
+        VoiceControlSnapshot(
+            contextID: "ax:1", applicationName: "Google Chrome",
+            targets: [
+                VoiceControlTarget(
+                    id: "n:0", label: "Search Amazon", role: "AXTextField", value: "",
+                    operations: [.setValue, .insertText, .press], isFocused: true),
+                VoiceControlTarget(id: "n:1", label: "Go", role: "AXButton", operations: [.press]),
+            ]
+                + VoiceControlWebDestination.all.map {
+                    VoiceControlTarget(
+                        id: $0.id, label: $0.label, role: "url", operations: [.press], isNavigation: true)
+                },
+            summary: "Amazon.com")
+    }
+
+    private func openedDestination(_ decision: VoiceControlDecision) -> String? {
+        guard case .action(let action) = decision, action.targetID.hasPrefix("web:") else { return nil }
+        return action.targetID
+    }
+
+    func testPageCommandsThatMentionASiteStayOnThePage() async throws {
+        for goal in [
+            "search for headphones", "click the YouTube link", "reply to the email about my flight",
+            "open the flight confirmation", "press the Gmail button",
+        ] {
+            let decision = try await router.decide(goal: goal, snapshot: shopPage(), history: [])
+            XCTAssertNil(openedDestination(decision), "\(goal) must not navigate away")
+        }
+    }
+
+    func testExplicitDestinationRequestsStillNavigate() async throws {
+        let expected = [
+            "Find flights to London": "web:google-flights",
+            "Find one-way flights from Zurich to London on September 20 2026.": "web:google-flights",
+            "flights from Boston to Denver": "web:google-flights",
+            "open YouTube": "web:youtube",
+            "Play the Apollo 11 documentary on YouTube": "web:youtube",
+            "go to Gmail": "web:gmail",
+            "Look up Alan Turing on Wikipedia": "web:wikipedia",
+            "Directions to the Golden Gate Bridge": "web:google-maps",
+            "Search the web for weather in London": "web:google-search",
+        ]
+        for (goal, destination) in expected {
+            let decision = try await router.decide(goal: goal, snapshot: shopPage(), history: [])
+            XCTAssertEqual(openedDestination(decision), destination, goal)
+        }
+    }
+
+    func testMailAboutAFlightDoesNotSwitchToTheBrowser() async throws {
+        let mail = VoiceControlSnapshot(
+            contextID: "ax:2", applicationName: "Mail",
+            targets: [
+                VoiceControlTarget(id: "n:0", label: "Reply", role: "AXButton", operations: [.press]),
+                VoiceControlTarget(
+                    id: "app:9", label: "Google Chrome", role: "application", operations: [.activateApp],
+                    isNavigation: true),
+            ])
+        let decision = try await router.decide(goal: "reply to the email about my flight", snapshot: mail, history: [])
+        if case .action(let action) = decision { XCTAssertNotEqual(action.operation, .activateApp) }
+        let search = try await router.decide(goal: "find flights to Paris", snapshot: mail, history: [])
+        XCTAssertEqual(search, .action(VoiceControlAction(operation: .activateApp, targetID: "app:9")))
+    }
+
+    func testSiteQueriesNeedAQueryVerb() {
+        XCTAssertNil(VoiceControlWebQuery.parse("like this video on YouTube"))
+        XCTAssertNil(VoiceControlWebQuery.parse("click the Wikipedia logo"))
+        XCTAssertEqual(
+            VoiceControlWebQuery.parse("Play the Apollo 11 documentary on YouTube")?.query,
+            "the Apollo 11 documentary")
+        XCTAssertEqual(VoiceControlWebQuery.parse("Look up Alan Turing on Wikipedia")?.query, "Alan Turing")
+        XCTAssertEqual(
+            VoiceControlWebQuery.parse("Search the web for weather in London")?.query, "weather in London")
+    }
+
+    /// A closed form's date button names no date. It must not turn an ordinary
+    /// page into a date picker that hides every other control from the decision.
+    func testDateButtonWithoutADateLeavesThePagePlain() {
+        let snapshot = VoiceControlSnapshot(
+            contextID: "ax:3", applicationName: "Safari",
+            targets: [
+                VoiceControlTarget(id: "n:0", label: "Choose departure date", role: "AXButton", operations: [.press]),
+                VoiceControlTarget(id: "n:1", label: "Add to cart", role: "AXButton", operations: [.press]),
+            ])
+        XCTAssertEqual(VoiceControlSituation.classify(snapshot), .plain)
+        XCTAssertEqual(VoiceControlLegality.offeredTargets(in: snapshot).map(\.id), ["n:0", "n:1"])
+        let open = VoiceControlSnapshot(
+            contextID: "ax:3", applicationName: "Safari",
+            targets: [
+                VoiceControlTarget(
+                    id: "n:2", label: "Sunday, September 20, 2026, departure date. , 276 US dollars",
+                    role: "AXButton", operations: [.press]),
+                VoiceControlTarget(id: "n:1", label: "Add to cart", role: "AXButton", operations: [.press]),
+            ])
+        XCTAssertEqual(VoiceControlSituation.classify(open), .datePicker)
+    }
+
+    /// `Submit search` stays ordinary by design; a final submit is left to the
+    /// model's consequence head. These words have no ordinary short reading.
+    func testDiscardUninstallAndDonateConfirmEvenWhenTheModelSaysOrdinary() {
+        for (label, expected) in [
+            ("Discard draft", VoiceControlConsequence.destructive), ("Uninstall", .destructive),
+            ("Donate now", .payment),
+        ] {
+            let target = VoiceControlTarget(id: "n:0", label: label, role: "AXButton", operations: [.press])
+            let action = VoiceControlAction(operation: .press, targetID: "n:0", consequence: .ordinary)
+            XCTAssertEqual(VoiceControlConsequencePolicy.consequence(of: action, target: target), expected, label)
+        }
+    }
+
+    /// A one-shot press that moved the interface is finished. The next screen
+    /// must not become an open-ended model request the person never made.
+    func testNamedPressThatChangedTheScreenFinishesWithoutTheModel() async throws {
+        let dialogClosed = VoiceControlSnapshot(
+            contextID: "ax:4", applicationName: "TextEdit",
+            targets: [VoiceControlTarget(id: "n:0", label: "Cancel", role: "AXButton", operations: [.press])])
+        for (goal, pressed) in [("click Save", "Save"), ("Save", "Save"), ("click Search", "Search flights")] {
+            let history = [
+                VoiceControlAction(
+                    operation: .press, targetID: "n:7", targetLabel: pressed, receiptStatus: .transitionObserved)
+            ]
+            let decision = try await router.decide(goal: goal, snapshot: dialogClosed, history: history)
+            XCTAssertEqual(decision, .finished, goal)
+        }
+    }
+}

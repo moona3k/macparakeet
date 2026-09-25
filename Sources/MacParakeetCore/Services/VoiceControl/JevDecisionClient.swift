@@ -39,7 +39,7 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
     }
 
     private func observe(
-        kind: String, situation: String?, answers: [String: Answer], requestBytes: Int,
+        kind: String, situation: String?, answers: [String: Answer], sent: [Sent],
         started: ContinuousClock.Instant, resolution: String, truncatedTargets: Int = 0
     ) async {
         guard let onDecision else { return }
@@ -50,10 +50,14 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
         }
         await onDecision(
             VoiceControlDecisionTrace(
-                model: Self.model, kind: kind, situation: situation, heads: heads, requestBytes: requestBytes,
+                model: Self.model, kind: kind, situation: situation, heads: heads,
+                requestBytes: sent.reduce(0) { $0 + $1.bytes },
                 latencyMilliseconds: Int(elapsed.components.seconds) * 1000
                     + Int(elapsed.components.attoseconds / 1_000_000_000_000_000),
-                resolution: resolution, truncatedTargets: truncatedTargets))
+                resolution: resolution, truncatedTargets: truncatedTargets,
+                inputTokens: sent.allSatisfy { $0.inputTokens != nil }
+                    ? sent.reduce(0) { $0 + ($1.inputTokens ?? 0) } : nil,
+                retries: sent.reduce(0) { $0 + $1.retries }))
     }
 
     public func decide(goal: String, snapshot: VoiceControlSnapshot, history: [VoiceControlAction]) async throws
@@ -138,10 +142,11 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
                 instructions: Self.valueInstructions(for: focusedEditable), criteria: values)
         }
         let wireSnapshot = Self.wireSnapshot(snapshot, targets: available)
-        let state = State(goal: goal, observation: wireSnapshot, executed: history)
+        let state = State(goal: goal, observation: wireSnapshot, executed: history.map(Executed.init))
         let started = ContinuousClock.now
-        let (answers, requestBytes) = try await send(
+        let first = try await send(
             Request(model: Self.model, state: state, questions: questions), questions: questions)
+        let answers = first.answers
         var decision = Self.resolveLean(answers, targets: available, focusedEditable: focusedEditable, values: values)
         if let selected = Self.selectedTarget(decision, in: legal),
             legal.contains(where: { $0.id != selected.id && Self.sameDecisionEvidence($0, selected) })
@@ -154,15 +159,15 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
 
         // A fill into a field that was not focused needs its own value head. One
         // more small request beats a payload with a value head per field.
-        var followUp: (answers: [String: Answer], bytes: Int)?
+        var followUp: Sent?
         if case .fillNeedsValue(let target, let confidence, let consequence) = decision {
             let valueQuestions = [
                 "value": Question(instructions: Self.valueInstructions(for: target), criteria: values)
             ]
-            let (valueAnswers, bytes) = try await send(
+            let sent = try await send(
                 Request(model: Self.model, state: state, questions: valueQuestions), questions: valueQuestions)
-            followUp = (valueAnswers, bytes)
-            if let selected = valueAnswers["value"], selected.choice != "none", selected.confidence >= Self.gate,
+            followUp = sent
+            if let selected = sent.answers["value"], selected.choice != "none", selected.confidence >= Self.gate,
                 let span = values[selected.choice]
             {
                 decision = .decided(
@@ -181,7 +186,7 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
         if let followUp { mergedAnswers["value_followup"] = followUp.answers["value"] }
         await observe(
             kind: "unconstrained", situation: VoiceControlSituation.classify(snapshot).rawValue,
-            answers: mergedAnswers, requestBytes: requestBytes + (followUp?.bytes ?? 0), started: started,
+            answers: mergedAnswers, sent: [first] + (followUp.map { [$0] } ?? []), started: started,
             resolution: Self.resolutionToken(final), truncatedTargets: offered.dropped)
         return final
     }
@@ -384,11 +389,12 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
         }
     }
 
-    /// One HTTPS round trip: encode, size-check, post, consent re-check, decode,
+    /// One decision request: encode, size-check, post, consent re-check, decode,
     /// strict validation of every head against the criteria it was offered.
-    private func send<Body: Encodable>(_ body: Body, questions: [String: Question]) async throws -> (
-        [String: Answer], Int
-    ) {
+    /// Rate limits and overloads (429/503/529) and a dropped connection retry with
+    /// bounded exponential backoff, as the Jev API asks direct HTTP callers to do.
+    /// A decision has no side effect, so a retry cannot duplicate one.
+    private func send<Body: Encodable>(_ body: Body, questions: [String: Question]) async throws -> Sent {
         var request = URLRequest(url: URL(string: "https://api.typesafe.ai/v1/systemone")!)
         request.httpMethod = "POST"; request.timeoutInterval = 15
         request.setValue("Bearer " + apiKey, forHTTPHeaderField: "Authorization")
@@ -396,27 +402,59 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
         let encoded = try JSONEncoder().encode(body)
         guard encoded.count <= 120_000 else { throw JevDecisionError.contextTooLarge }
         request.httpBody = encoded
-        let data: Data
-        let response: URLResponse
-        do { (data, response) = try await transport(request) } catch is CancellationError {
-            throw CancellationError()
-        } catch { throw JevDecisionError.unavailable }
-        guard consent() else { throw JevDecisionError.consentRequired }
-        guard (response as? HTTPURLResponse)?.statusCode == 200, data.count <= 1_000_000 else {
-            throw JevDecisionError.unavailable
+        var attempt = 0
+        while true {
+            let data: Data
+            let response: URLResponse
+            do { (data, response) = try await transport(request) } catch is CancellationError {
+                throw CancellationError()
+            } catch let error as URLError where error.code == .networkConnectionLost && attempt < Self.maxRetries {
+                attempt += 1
+                try await Self.backoff(attempt: attempt, retryAfter: nil)
+                guard consent() else { throw JevDecisionError.consentRequired }
+                continue
+            } catch { throw JevDecisionError.unavailable }
+            guard consent() else { throw JevDecisionError.consentRequired }
+            let http = response as? HTTPURLResponse
+            if let http, Self.retryableStatuses.contains(http.statusCode), attempt < Self.maxRetries {
+                attempt += 1
+                try await Self.backoff(attempt: attempt, retryAfter: http.value(forHTTPHeaderField: "Retry-After"))
+                guard consent() else { throw JevDecisionError.consentRequired }
+                continue
+            }
+            guard http?.statusCode == 200, data.count <= 1_000_000 else { throw JevDecisionError.unavailable }
+            let decoded: Response
+            do { decoded = try JSONDecoder().decode(Response.self, from: data) } catch {
+                throw JevDecisionError.invalidResponse
+            }
+            guard decoded.model == Self.model, Set(decoded.answers.keys) == Set(questions.keys) else {
+                throw JevDecisionError.invalidResponse
+            }
+            for (key, question) in questions {
+                guard let answer = decoded.answers[key] else { throw JevDecisionError.invalidResponse }
+                try Self.validate(answer, offered: Set(question.criteria.keys))
+            }
+            return Sent(
+                answers: decoded.answers, bytes: encoded.count, inputTokens: decoded.usage?.inputTokens,
+                retries: attempt)
         }
-        let decoded: Response
-        do { decoded = try JSONDecoder().decode(Response.self, from: data) } catch {
-            throw JevDecisionError.invalidResponse
+    }
+
+    struct Sent {
+        let answers: [String: Answer]; let bytes: Int; let inputTokens: Int?; let retries: Int
+    }
+    static let retryableStatuses: Set<Int> = [429, 503, 529]
+    static let maxRetries = 2
+    /// 150 ms, then 300 ms; a short `Retry-After` (at most 2 s) wins. Cancellation
+    /// (Stop) ends the wait immediately.
+    static func backoff(attempt: Int, retryAfter: String?) async throws {
+        var delay = 0.15 * pow(2, Double(attempt - 1))
+        if let retryAfter, let seconds = Double(retryAfter.trimmingCharacters(in: .whitespaces)), seconds >= 0,
+            seconds <= 2
+        {
+            delay = seconds
         }
-        guard decoded.model == Self.model, Set(decoded.answers.keys) == Set(questions.keys) else {
-            throw JevDecisionError.invalidResponse
-        }
-        for (key, question) in questions {
-            guard let answer = decoded.answers[key] else { throw JevDecisionError.invalidResponse }
-            try Self.validate(answer, offered: Set(question.criteria.keys))
-        }
-        return (decoded.answers, encoded.count)
+        try await Task.sleep(for: .milliseconds(Int(delay * 1000)))
     }
 
     private func choose(
@@ -439,10 +477,11 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
         let state = EventState(
             goal: goal, situation: situation.rawValue, kind: "outcome",
             events: events.map { EventState.Offered(id: $0.id, criteria: $0.criteria) },
-            executed: history.map { "\($0.operation.rawValue):\($0.targetID)" })
+            executed: history.map(Executed.init))
         let started = ContinuousClock.now
-        let (answers, requestBytes) = try await send(
+        let sent = try await send(
             EventRequest(model: Self.model, state: state, questions: questions), questions: questions)
+        let answers = sent.answers
         guard let answer = answers["outcome"] else { throw JevDecisionError.invalidResponse }
         let decision: VoiceControlDecision
         if answer.confidence < 0.5 {
@@ -464,28 +503,50 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
         }
         await observe(
             kind: "outcome", situation: situation.rawValue, answers: answers,
-            requestBytes: requestBytes, started: started, resolution: Self.resolutionToken(decision))
+            sent: [sent], started: started, resolution: Self.resolutionToken(decision))
         return decision
     }
 
-    static func sourceSpans(_ text: String) -> [String] {
+    /// Candidate field values: exact spans of the user's own words, capped
+    /// below Jev's option limit. Every tail of an utterance comes first, because
+    /// long values (`write Hi team, I'll be ten minutes late …`) are almost always
+    /// the rest of the sentence; then every span up to 12 words, shortest first.
+    /// Scaffold sentences and manually entered values in an amended goal are
+    /// never offered (`VoiceControlGoalText.userSegments`).
+    static func sourceSpans(_ goal: String, limit: Int = 250) -> [String] {
         // Preserve original spelling, punctuation and whitespace between token boundaries.
         let expression = try! NSRegularExpression(pattern: "\\S+")
-        let ranges = expression.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap {
-            Range($0.range, in: text)
+        // Newest correction first: it overrides the original goal.
+        let segments = VoiceControlGoalText.userSegments(goal).reversed().map { text in
+            let ranges = expression.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap {
+                Range($0.range, in: text)
+            }
+            return (text: text, ranges: ranges)
         }
         var values: [String] = []
-        if text.lowercased().hasPrefix("type ") { values.append(String(text.dropFirst(5))) }
-        for width in 1...max(1, min(12, ranges.count)) {
-            guard width <= ranges.count else { continue }
-            for start in 0...(ranges.count - width) {
-                let span = String(text[ranges[start].lowerBound..<ranges[start + width - 1].upperBound])
-                // ASR often appends sentence punctuation. Offer the boundary-trimmed
-                // substring alongside the original; never alter interior punctuation.
-                let trimmed = span.trimmingCharacters(in: CharacterSet(charactersIn: ".,!?;:\"'“”‘’"))
-                for candidate in [span, trimmed] where !candidate.isEmpty {
-                    if !values.contains(candidate) { values.append(candidate) }
-                    if values.count == 250 { return values }
+        var seen = Set<String>()
+        func offer(_ span: Substring) -> Bool {
+            // ASR often appends sentence punctuation. Offer the boundary-trimmed
+            // substring alongside the original; never alter interior punctuation.
+            let trimmed = span.trimmingCharacters(in: CharacterSet(charactersIn: ".,!?;:\"'“”‘’"))
+            for candidate in [String(span), trimmed] where !candidate.isEmpty && seen.insert(candidate).inserted {
+                values.append(candidate)
+                if values.count == limit { return false }
+            }
+            return true
+        }
+        for (text, ranges) in segments {
+            if text.lowercased().hasPrefix("type "), !offer(text.dropFirst(5)) { return values }
+            for start in ranges.indices
+            where !offer(text[ranges[start].lowerBound..<ranges[ranges.count - 1].upperBound]) {
+                return values
+            }
+        }
+        for width in 1...12 {
+            for (text, ranges) in segments where width <= ranges.count {
+                for start in 0...(ranges.count - width)
+                where !offer(text[ranges[start].lowerBound..<ranges[start + width - 1].upperBound]) {
+                    return values
                 }
             }
         }
@@ -494,15 +555,34 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
 
     struct Question: Encodable { let type = "choice"; let instructions: String; let criteria: [String: String] }
     struct State: Encodable {
-        let goal: String; let observation: VoiceControlSnapshot; let executed: [VoiceControlAction]
+        let goal: String; let observation: VoiceControlSnapshot; let executed: [Executed]
+    }
+    /// An executed step as the model should read it. Target ids are walk
+    /// positions from an older observation and can name a different control
+    /// now, so history carries the control's label, never its id; model ids,
+    /// scores and postconditions are host bookkeeping.
+    struct Executed: Encodable, Equatable {
+        let operation: String; let control: String?; let value: String?; let outcome: String?
+        init(_ action: VoiceControlAction) {
+            operation = action.operation.rawValue
+            control = action.targetLabel.flatMap { $0.isEmpty ? nil : String($0.prefix(240)) }
+            value = action.value.map { String($0.prefix(500)) }
+            outcome = action.receiptStatus?.rawValue
+        }
     }
     struct Request: Encodable { let model: String; let state: State; let questions: [String: Question] }
     struct EventState: Encodable {
         struct Offered: Encodable { let id: String; let criteria: String }
-        let goal: String; let situation: String; let kind: String; let events: [Offered]; let executed: [String]
+        let goal: String; let situation: String; let kind: String; let events: [Offered]; let executed: [Executed]
     }
     struct EventRequest: Encodable { let model: String; let state: EventState; let questions: [String: Question] }
-    struct Response: Decodable { let model: String; let answers: [String: Answer] }
+    struct Response: Decodable {
+        struct Usage: Decodable {
+            let inputTokens: Int?
+            enum CodingKeys: String, CodingKey { case inputTokens = "input_tokens" }
+        }
+        let model: String; let answers: [String: Answer]; let usage: Usage?
+    }
     struct Answer: Decodable {
         let type: String; let choice: String; let probabilities: [String: Double]; let confidence: Double
     }

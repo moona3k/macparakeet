@@ -37,26 +37,28 @@ public struct VoiceControlWebQuery: Equatable, Sendable {
         return nil
     }
 
+    /// The words to search for, only when the goal carries a query verb. `like
+    /// this video on YouTube` names the site but asks for no search.
     static func extractQuery(from goal: String, destinationID: String) -> String? {
         var text = goal
+        let prefixes: [String]
         switch destinationID {
         case "web:youtube":
             text = strip(text, suffixes: [" on youtube", " on you tube", " youtube"])
-            text = strip(text, prefixes: ["play ", "watch ", "search youtube for ", "youtube ", "open youtube "])
+            prefixes = ["play ", "watch ", "search youtube for ", "search for ", "find ", "youtube ", "open youtube "]
         case "web:google-maps":
-            text = strip(text, prefixes: ["directions to ", "navigate to ", "google maps to ", "maps to "])
             text = strip(text, suffixes: [" on google maps", " in google maps"])
+            prefixes = ["directions to ", "get directions to ", "google maps to ", "maps to "]
         case "web:wikipedia":
             text = strip(text, suffixes: [" on wikipedia", " in wikipedia", " wikipedia"])
-            text = strip(text, prefixes: ["search wikipedia for ", "look up ", "wikipedia "])
+            prefixes = ["search wikipedia for ", "look up ", "search for ", "find ", "wikipedia "]
         case "web:google-search":
-            text = strip(text, prefixes: ["search the web for ", "google for ", "google ", "search google for ", "search for "])
-        case "web:gmail":
-            return nil
+            prefixes = ["search the web for ", "google for ", "google ", "search google for ", "search for "]
         default:
             return nil
         }
-        let query = text.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+        guard let stripped = strip(text, prefixes: prefixes) else { return nil }
+        let query = stripped.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
         let residual = query.lowercased()
         if query.isEmpty || ["youtube", "gmail", "maps", "google", "open", "wikipedia"].contains(residual) {
             return nil
@@ -64,7 +66,7 @@ public struct VoiceControlWebQuery: Equatable, Sendable {
         return query
     }
 
-    private static func strip(_ value: String, prefixes: [String] = [], suffixes: [String] = []) -> String {
+    private static func strip(_ value: String, suffixes: [String]) -> String {
         var text = value
         for suffix in suffixes {
             if let range = text.range(of: suffix, options: [.caseInsensitive, .anchored, .backwards]) {
@@ -73,10 +75,16 @@ public struct VoiceControlWebQuery: Equatable, Sendable {
                 text = String(text[..<range.lowerBound])
             }
         }
-        for prefix in prefixes where text.lowercased().hasPrefix(prefix) {
-            text = String(text.dropFirst(prefix.count))
-        }
         return text
+    }
+
+    /// The text after the first matching query verb, or nil when none leads the goal.
+    private static func strip(_ value: String, prefixes: [String]) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        for prefix in prefixes where trimmed.lowercased().hasPrefix(prefix) {
+            return String(trimmed.dropFirst(prefix.count))
+        }
+        return nil
     }
 
     private func searchField(in snapshot: VoiceControlSnapshot) -> VoiceControlTarget? {

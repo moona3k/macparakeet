@@ -200,3 +200,37 @@ public enum VoiceControlEvent: Sendable, Equatable {
     /// Ephemeral task content for the panel, deliberately excluded from diagnostic traces.
     case activity(String)
 }
+
+/// The runner's amended-goal text. Only the user's own words in it are
+/// candidates for a field value: scaffold sentences and manually entered field
+/// values are context, never text to type.
+public enum VoiceControlGoalText {
+    static let header = "Continue this task using the latest corrections. Original goal: "
+    static let correction = "User correction (overrides earlier conflicting requirements): "
+    static let clarification = "User clarification: "
+    static let manualHeader =
+        "The user manually changed these fields. Preserve their current values; these override earlier conflicting requirements:"
+    static let uncertainNote =
+        "Some executed effects have unknown outcomes. Inspect the current state; never repeat those effects. Ask if their outcome is necessary but cannot be determined."
+
+    /// User-authored segments, oldest first. A goal without the scaffold is one segment.
+    static func userSegments(_ goal: String) -> [String] {
+        guard goal.hasPrefix(header) else { return goal.isEmpty ? [] : [goal] }
+        var segments: [String] = []
+        var inUserText = false
+        for line in goal.components(separatedBy: "\n") {
+            if let rest = [header, correction, clarification].lazy.compactMap({ line.dropPrefix($0) }).first {
+                segments.append(rest); inUserText = true
+            } else if line == manualHeader || line == uncertainNote {
+                inUserText = false
+            } else if inUserText, !segments.isEmpty {
+                segments[segments.count - 1] += "\n" + line
+            }
+        }
+        return segments.filter { !$0.isEmpty }
+    }
+}
+
+private extension String {
+    func dropPrefix(_ prefix: String) -> String? { hasPrefix(prefix) ? String(dropFirst(prefix.count)) : nil }
+}
