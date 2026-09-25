@@ -10,7 +10,7 @@ main-thread stall in MacParakeet delayed typing in every other app, and a long
 enough stall made macOS disable the tap (#1132, #1133).
 
 Default installs have two filtering taps: the meeting shortcut
-(`GlobalShortcutManager`, Cmd+Shift+.) and the Transforms registry, which was
+(`GlobalShortcutManager`, Cmd+Shift+M) and the Transforms registry, which was
 installed even with no bound Transforms. Users whose dictation or push-to-talk
 trigger is not bare Fn also have a filtering `HotkeyManager` tap. Bare Fn is
 listen-only.
