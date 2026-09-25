@@ -1714,9 +1714,11 @@ final class DictationServiceTests: XCTestCase {
         let transcribeCallCount = await mockSTT.transcribeCallCount
         let liveAppendCallCount = await mockSTT.liveAppendCallCount
         let liveFinishCallCount = await mockSTT.liveFinishCallCount
+        let liveCancelCallCount = await mockSTT.liveCancelCallCount
         XCTAssertEqual(transcribeCallCount, 1)
         XCTAssertEqual(liveAppendCallCount, 1)
-        XCTAssertEqual(liveFinishCallCount, 1)
+        XCTAssertEqual(liveFinishCallCount, 0, "Live partials are display-only; stop never flushes a final")
+        XCTAssertEqual(liveCancelCallCount, 1)
     }
 
     func testLiveNemotronPreviewDisabledStillUsesRecordedFileAndHidesPartials() async throws {
@@ -1751,9 +1753,11 @@ final class DictationServiceTests: XCTestCase {
         let transcribeCallCount = await mockSTT.transcribeCallCount
         let liveAppendCallCount = await mockSTT.liveAppendCallCount
         let liveFinishCallCount = await mockSTT.liveFinishCallCount
+        let liveCancelCallCount = await mockSTT.liveCancelCallCount
         XCTAssertEqual(transcribeCallCount, 1)
         XCTAssertEqual(liveAppendCallCount, 1)
-        XCTAssertEqual(liveFinishCallCount, 1)
+        XCTAssertEqual(liveFinishCallCount, 0, "Live partials are display-only; stop never flushes a final")
+        XCTAssertEqual(liveCancelCallCount, 1)
     }
 
     func testStopRecordingFallsBackToRecordedFileWhenLiveNemotronFails() async throws {
@@ -1801,46 +1805,46 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(liveAppendCallCount, 0)
     }
 
-    func testStopRecordingFallsBackToRecordedFileWhenLiveFinishFails() async throws {
+    func testStopDismissAndRestartDoNotWaitForStalledLiveAppend() async throws {
         service = DictationService(
             audioProcessor: mockAudio,
             sttTranscriber: mockSTT,
             dictationRepo: dictationRepo,
-            shouldAttemptLiveDictationTranscription: { true }
+            shouldAttemptLiveDictationTranscription: { true },
+            liveDictationCancellationTimeout: .milliseconds(100)
         )
-        await mockSTT.configure(result: STTResult(text: "file fallback"))
-        await mockSTT.configureLive(finishError: STTError.transcriptionFailed("finish failed"))
+        await service.setSuccessDisplayWaiterForTesting {}
+        await mockSTT.configure(result: STTResult(text: "file final"))
+        await mockSTT.configureLive(result: STTResult(text: "live final", engine: .nemotron))
+        // Held appends ignore cancellation, modeling a native call that never returns.
+        await mockSTT.holdLiveAppends()
 
-        try await service.startRecording()
-        await mockAudio.emitLiveSamples([0.1, 0.2, 0.3])
-        let result = try await service.stopRecording()
+        try await service.startRecording(sessionID: 1)
+        await mockAudio.emitLiveSamples([0.1, 0.2])
+        let appendStarted = await waitForCondition {
+            await self.mockSTT.liveAppendCallCount == 1
+        }
+        XCTAssertTrue(appendStarted)
 
-        XCTAssertEqual(result.dictation.rawTranscript, "file fallback")
-        let transcribeCallCount = await mockSTT.transcribeCallCount
+        let result = try await service.stopRecording(sessionID: 1)
+        XCTAssertEqual(result.dictation.rawTranscript, "file final")
         let liveFinishCallCount = await mockSTT.liveFinishCallCount
-        XCTAssertEqual(transcribeCallCount, 1)
-        XCTAssertEqual(liveFinishCallCount, 1)
-    }
+        XCTAssertEqual(liveFinishCallCount, 0)
 
-    func testStopRecordingFallsBackToRecordedFileWhenLiveFinalIsEmpty() async throws {
-        service = DictationService(
-            audioProcessor: mockAudio,
-            sttTranscriber: mockSTT,
-            dictationRepo: dictationRepo,
-            shouldAttemptLiveDictationTranscription: { true }
-        )
-        await mockSTT.configure(result: STTResult(text: "file fallback"))
-        await mockSTT.configureLive(result: STTResult(text: "  \n", words: [], engine: .nemotron))
+        try await service.startRecording(sessionID: 2)
+        let startCaptureCallCount = await mockAudio.startCaptureCallCount
+        XCTAssertEqual(startCaptureCallCount, 2, "Restart must not wait for the stalled live append")
+        await mockAudio.emitLiveSamples([0.3, 0.4])
+        let secondAppendStarted = await waitForCondition {
+            await self.mockSTT.liveAppendCallCount == 2
+        }
+        XCTAssertTrue(secondAppendStarted)
 
-        try await service.startRecording()
-        await mockAudio.emitLiveSamples([0.1, 0.2, 0.3])
-        let result = try await service.stopRecording()
-
-        XCTAssertEqual(result.dictation.rawTranscript, "file fallback")
-        let transcribeCallCount = await mockSTT.transcribeCallCount
-        let liveFinishCallCount = await mockSTT.liveFinishCallCount
-        XCTAssertEqual(transcribeCallCount, 1)
-        XCTAssertEqual(liveFinishCallCount, 1)
+        await service.cancelRecording(sessionID: 2)
+        let state = await service.state
+        XCTAssertTrue(Self.isCancelled(state), "Dismiss must not wait for the stalled live append")
+        await service.confirmCancel(sessionID: 2)
+        await mockSTT.releaseLiveAppends()
     }
 
     func testStopRecordingFallsBackToRecordedFileWhenLiveSamplesAreDropped() async throws {
@@ -3038,6 +3042,11 @@ final class DictationServiceTests: XCTestCase {
 
     private static func isRecording(_ state: DictationState) -> Bool {
         if case .recording = state { return true }
+        return false
+    }
+
+    private static func isCancelled(_ state: DictationState) -> Bool {
+        if case .cancelled = state { return true }
         return false
     }
 }
