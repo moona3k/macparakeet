@@ -103,6 +103,14 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Changed
 
+- Automatic speaker detection uses Nemotron 3 through FluidAudio 0.17.4,
+  with up to eight speakers per analyzed source. Explicit `--speaker-count`,
+  `--speaker-min`, and `--speaker-max` retain the Community-1 pipeline and
+  existing count semantics. Model setup prepares both backends for offline use, readiness covers both,
+  and `models clear` removes both speaker caches. Legacy unmarked speaker
+  caches need one connected `models warm-up` after the upgrade. Existing JSON fields and the microphone's `Me`
+  attribution are preserved.
+
 - `retranscribe --kind dictation --update` on a failed dictation completes
   it the same way History Retry does. The update applies only if the row is
   still failed; otherwise the command fails with a `lookup` error. After success

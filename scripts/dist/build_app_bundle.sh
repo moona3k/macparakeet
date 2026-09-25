@@ -607,6 +607,7 @@ if [[ -f "$ROOT_DIR/THIRD_PARTY_LICENSES.md" ]]; then
   cp "$ROOT_DIR/THIRD_PARTY_LICENSES.md" "$LEGAL_DIR/THIRD_PARTY_LICENSES.md"
 fi
 cp "$ROOT_DIR/Sources/MacParakeet/Resources/Legal/MarkdownDependencies.txt" "$LEGAL_DIR/MarkdownDependencies.txt"
+cp "$ROOT_DIR/Sources/MacParakeet/Resources/Legal/NemotronDiarization.txt" "$LEGAL_DIR/NemotronDiarization.txt"
 echo "Bundled legal notices: $LEGAL_DIR"
 
 echo "[3/4] Writing Info.plist…"

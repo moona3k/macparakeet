@@ -2,9 +2,57 @@
 
 > Status: **Accepted**
 > Date: 2026-03-04
-> Current scope (2026-09-15): offline file/URL transcription and optional isolated system-track meeting refinement. The original comparison tables and performance rationale below are historical; the 2026-09-06 amendment governs the high-accuracy preset, the 2026-09-13 amendment records the FluidAudio 0.15.7 pin, and the 2026-09-15 amendment records conservative word-assignment smoothing (#1046).
+> Current scope (2026-09-25): post-ASR file/URL transcription and isolated system-track meeting refinement. The Nemotron amendment below governs the default and FluidAudio 0.17.4 pin. Earlier model comparisons, throughput claims and Community-1-only decisions remain historical context. This development decision does not describe the stable DMG.
 
-## Context
+## Nemotron default decision (2026-09-25)
+
+Use **Nemotron 3 `fast128` through FluidAudio 0.17.4** for automatic speaker
+detection after recording. Keep the existing Community-1/WeSpeaker/VBx service
+for explicit Exact/Range choices and experimental voice-profile builds, whose
+identity embeddings Nemotron does not provide. The shared factory supplies the
+app, CLI transcription/retranscription, health and model preparation paths.
+
+Nemotron has eight activity channels per analyzed source. This is an accepted
+limit for the default meeting use case, not a way to detect or correctly split
+an arbitrary number of participants. Choosing an explicit speaker count keeps
+the existing Community-1 behavior, including counts above eight. Automatic
+calendar bounds remain advisory inputs: a natural Nemotron count within the
+bounds is accepted; a nonempty result outside them takes the existing constrained
+Community-1 path. If that advisory fallback is unavailable, retain the successful
+Nemotron result and log the unapplied bound; cancellation still propagates.
+Explicit count failures retain their existing behavior. Silence stays empty
+rather than inventing a minimum speaker.
+
+The microphone track remains **Me**. Only isolated system audio is diarized in
+meetings. Neither live transcription, ASR selection, source reconciliation nor
+speaker-word smoothing changes. Nemotron preserves overlapping acoustic intervals
+and brief activity at the service boundary; words still receive one label through
+the existing merger. A model's overlapping output is not itself source separation
+or proof that simultaneous speech was transcribed correctly.
+
+Model assets are pinned to CoreML export revision
+`1b0b133f6f8820292010afd776d8f9fbc9fca17e`, with size and SHA-256 verification in
+an app-owned cache. The `fast128` download is approximately 199 MB. Setup also prepares the existing
+Community-1 assets for explicit count choices; cached/ready status covers both.
+Ordinary automatic inference needs only the Nemotron model. An upgrade from an
+unmarked 0.15.7 Community-1 cache needs one connected setup: the SDK now requires
+a matching revision marker. Readiness rejects old markers, and PLDA metadata
+repair uses the same pinned revision. Preparation
+runs outside the inference gate, shares one retryable load, and does not cancel
+other callers when one waiter cancels. Queued inference is cancellable; active
+inference checks cancellation between one-second feeds. The decoder currently
+materializes the entire input before those feeds. A fresh diarizer resets stream
+state for every recording. macOS 14 uses CPU/GPU routing; the `offline` preset
+also uses CPU/GPU and is retained only for evaluation, not as a user setting.
+
+The [matched evaluation](../../benchmarks/diarization/2026-09-25-nemotron-evaluation.md)
+records separate AMI manual/forced-reference results, AliMeeting conditions,
+ASR regression controls and product E2E evidence. The earlier evaluation-only
+Nemotron licensing note is superseded by the final model's OpenMDW-1.1 license;
+attribution and its full license accompany the app. FluidAudio itself uses
+Apache-2.0. No new runtime or cloud speech service is introduced.
+
+## Context (original decision)
 
 MacParakeet v0.4 adds speaker diarization to file transcription (F13). Users who transcribe interviews, podcasts, and meetings need to know "who said what" — not just the raw text.
 

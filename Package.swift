@@ -28,11 +28,10 @@ let packageDependencies: [Package.Dependency] = [
     // FluidAudio for Parakeet, Nemotron, and Cohere STT plus offline speaker
     // diarization on CoreML/ANE. Pinned exact: the STT engines depend on the
     // registry's model file names and the ModelHub download API, and the
-    // diarizer's clustering semantics changed between minor releases
-    // (0.15.5 / 0.15.6 clustering, 0.15.7 speaker-cap dual-census / FluidAudio
-    // #891; see ADR-010). Bump deliberately with an STT regression pass and a
-    // diarization before/after comparison.
-    .package(url: "https://github.com/FluidInference/FluidAudio", exact: "0.15.7"),
+    // diarizer's model/cache and clustering contracts change between releases.
+    // 0.17.4 adds native Nemotron 3 diarization with the M3 ANE compilation fix.
+    // See ADR-010 and the matched diarization comparison before future bumps.
+    .package(url: "https://github.com/FluidInference/FluidAudio", exact: "0.17.4"),
     // ArgumentParser for CLI
     .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
     // Sparkle for auto-updates (non-App Store distribution)
@@ -119,11 +118,21 @@ let package = Package(
     products: [
         .executable(name: "MacParakeet", targets: ["MacParakeet"]),
         .executable(name: "macparakeet-cli", targets: ["CLI"]),
+        .executable(name: "diarization-benchmark", targets: ["DiarizationBenchmark"]),
         .library(name: "MacParakeetCore", targets: ["MacParakeetCore"]),
         .library(name: "MacParakeetViewModels", targets: ["MacParakeetViewModels"])
     ],
     dependencies: packageDependencies,
     targets: [
+        // Local quality harness; never linked into or bundled with the app.
+        .executableTarget(
+            name: "DiarizationBenchmark",
+            dependencies: [
+                "MacParakeetCore",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ],
+            path: "benchmarks/diarization/Sources"
+        ),
         // Main GUI app
         .executableTarget(
             name: "MacParakeet",

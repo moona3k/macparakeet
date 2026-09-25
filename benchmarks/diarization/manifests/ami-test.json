@@ -1,0 +1,881 @@
+{
+  "schemaVersion": 1,
+  "dataset": "AMI official full-corpus-ASR test; only_words manual references",
+  "license": "CC-BY-4.0",
+  "source": "https://groups.inf.ed.ac.uk/ami/download/",
+  "annotationRevision": "67c2d539286e89f68952d5dcf83912bd9f01dfae",
+  "notes": [
+    "16 meetings, two correlated microphone conditions: do not claim 32 independent meetings.",
+    "MHM means official Mix-Headset.wav; SDM means true Array1-01.wav.",
+    "Explicit UEM includes leading/trailing silence; never truncate to predicted speech.",
+    "durationSeconds on each recording is the original UEM end; audio.durationSeconds is the separately verified WAV duration. IS1009a/b/c/d SDM signals extend approximately 164/104/9.313/161.313 ms beyond their UEMs. Those tails are outside the fixed scoring region; neither audio nor reference timing is changed."
+  ],
+  "recordings": [
+    {
+      "id": "ami_EN2002a_mhm",
+      "meetingId": "EN2002a",
+      "referenceId": "EN2002a",
+      "corpus": "ami",
+      "condition": "mhm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/EN2002a.rttm",
+        "sha256": "a93919ae5f18e476614b7e5a2713c4dc6bba23e95149fba18dbe68602b13ee40"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/EN2002a.uem",
+        "sha256": "3126782a9c64efc2ed2919b8c9e1666a6254b1abedf6279de9512829472244d1"
+      },
+      "durationSeconds": 2142.709375,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/EN2002a/audio/EN2002a.Mix-Headset.wav",
+        "channelSelection": "official mono headset mix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 34283350,
+        "durationSeconds": 2142.709375,
+        "bytes": 68566744,
+        "headerVerification": "existing local official WAV"
+      }
+    },
+    {
+      "id": "ami_EN2002a_sdm",
+      "meetingId": "EN2002a",
+      "referenceId": "EN2002a",
+      "corpus": "ami",
+      "condition": "sdm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/EN2002a.rttm",
+        "sha256": "a93919ae5f18e476614b7e5a2713c4dc6bba23e95149fba18dbe68602b13ee40"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/EN2002a.uem",
+        "sha256": "3126782a9c64efc2ed2919b8c9e1666a6254b1abedf6279de9512829472244d1"
+      },
+      "durationSeconds": 2142.709375,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/EN2002a/audio/EN2002a.Array1-01.wav",
+        "channelSelection": "array 1 microphone 1, no beamforming/downmix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 34283350,
+        "durationSeconds": 2142.709375,
+        "bytes": 68566744,
+        "headerVerification": "existing local official WAV"
+      }
+    },
+    {
+      "id": "ami_EN2002b_mhm",
+      "meetingId": "EN2002b",
+      "referenceId": "EN2002b",
+      "corpus": "ami",
+      "condition": "mhm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/EN2002b.rttm",
+        "sha256": "c4e6ef3f9f493d82d14664a9669479aca378de05639e4640f02f8398e2ef714a"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/EN2002b.uem",
+        "sha256": "1564099fe3c8aa91e2208536aa3c7fa6aca7602e5b964e00860472e7d10d55ae"
+      },
+      "durationSeconds": 1786.848,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/EN2002b/audio/EN2002b.Mix-Headset.wav",
+        "channelSelection": "official mono headset mix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 28589568,
+        "durationSeconds": 1786.848,
+        "bytes": 57179180,
+        "headerVerification": "existing local official WAV"
+      }
+    },
+    {
+      "id": "ami_EN2002b_sdm",
+      "meetingId": "EN2002b",
+      "referenceId": "EN2002b",
+      "corpus": "ami",
+      "condition": "sdm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/EN2002b.rttm",
+        "sha256": "c4e6ef3f9f493d82d14664a9669479aca378de05639e4640f02f8398e2ef714a"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/EN2002b.uem",
+        "sha256": "1564099fe3c8aa91e2208536aa3c7fa6aca7602e5b964e00860472e7d10d55ae"
+      },
+      "durationSeconds": 1786.848,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/EN2002b/audio/EN2002b.Array1-01.wav",
+        "channelSelection": "array 1 microphone 1, no beamforming/downmix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 28589568,
+        "durationSeconds": 1786.848,
+        "bytes": 57179180,
+        "headerVerification": "existing local official WAV"
+      }
+    },
+    {
+      "id": "ami_EN2002c_mhm",
+      "meetingId": "EN2002c",
+      "referenceId": "EN2002c",
+      "corpus": "ami",
+      "condition": "mhm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/EN2002c.rttm",
+        "sha256": "e595fa5953a923cbd62ffc881bd9725df98a6587bc14730dd279937773953bca"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/EN2002c.uem",
+        "sha256": "d79841d470555dde6f0d17dbb4fb8585ab516bf1aa932228cc42e66652ba3d39"
+      },
+      "durationSeconds": 2972.256,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/EN2002c/audio/EN2002c.Mix-Headset.wav",
+        "channelSelection": "official mono headset mix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 47556096,
+        "durationSeconds": 2972.256,
+        "bytes": 95112236,
+        "headerVerification": "existing local official WAV"
+      }
+    },
+    {
+      "id": "ami_EN2002c_sdm",
+      "meetingId": "EN2002c",
+      "referenceId": "EN2002c",
+      "corpus": "ami",
+      "condition": "sdm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/EN2002c.rttm",
+        "sha256": "e595fa5953a923cbd62ffc881bd9725df98a6587bc14730dd279937773953bca"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/EN2002c.uem",
+        "sha256": "d79841d470555dde6f0d17dbb4fb8585ab516bf1aa932228cc42e66652ba3d39"
+      },
+      "durationSeconds": 2972.256,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/EN2002c/audio/EN2002c.Array1-01.wav",
+        "channelSelection": "array 1 microphone 1, no beamforming/downmix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 47556096,
+        "durationSeconds": 2972.256,
+        "bytes": 95112236,
+        "headerVerification": "existing local official WAV"
+      }
+    },
+    {
+      "id": "ami_EN2002d_mhm",
+      "meetingId": "EN2002d",
+      "referenceId": "EN2002d",
+      "corpus": "ami",
+      "condition": "mhm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/EN2002d.rttm",
+        "sha256": "f11eeb70b0e1721b5b4b831a891d2b70c0b1a6ad368d0495d73c998335148463"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/EN2002d.uem",
+        "sha256": "7da1bbbd6a68771294df9f6e06eb9588f5ee18442392347eb49bdef34837ca99"
+      },
+      "durationSeconds": 2209.898688,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/EN2002d/audio/EN2002d.Mix-Headset.wav",
+        "channelSelection": "official mono headset mix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 35358379,
+        "durationSeconds": 2209.8986875,
+        "bytes": 70716802,
+        "headerVerification": "existing local official WAV"
+      }
+    },
+    {
+      "id": "ami_EN2002d_sdm",
+      "meetingId": "EN2002d",
+      "referenceId": "EN2002d",
+      "corpus": "ami",
+      "condition": "sdm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/EN2002d.rttm",
+        "sha256": "f11eeb70b0e1721b5b4b831a891d2b70c0b1a6ad368d0495d73c998335148463"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/EN2002d.uem",
+        "sha256": "7da1bbbd6a68771294df9f6e06eb9588f5ee18442392347eb49bdef34837ca99"
+      },
+      "durationSeconds": 2209.898688,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/EN2002d/audio/EN2002d.Array1-01.wav",
+        "channelSelection": "array 1 microphone 1, no beamforming/downmix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 35358379,
+        "durationSeconds": 2209.8986875,
+        "bytes": 70716802,
+        "headerVerification": "existing local official WAV"
+      }
+    },
+    {
+      "id": "ami_ES2004a_mhm",
+      "meetingId": "ES2004a",
+      "referenceId": "ES2004a",
+      "corpus": "ami",
+      "condition": "mhm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/ES2004a.rttm",
+        "sha256": "9869c6146c2fd9595403edb36c2caeda65c12ffa2c0af4ce48d6814b673fd5a9"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/ES2004a.uem",
+        "sha256": "514373eae2841ddf15fb07938a7d74bbecc2acad8afc2a28a93e0f7b24bfb446"
+      },
+      "durationSeconds": 1049.354687,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2004a/audio/ES2004a.Mix-Headset.wav",
+        "channelSelection": "official mono headset mix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 16789675,
+        "durationSeconds": 1049.3546875,
+        "bytes": 33579394,
+        "headerVerification": "existing local official WAV"
+      }
+    },
+    {
+      "id": "ami_ES2004a_sdm",
+      "meetingId": "ES2004a",
+      "referenceId": "ES2004a",
+      "corpus": "ami",
+      "condition": "sdm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/ES2004a.rttm",
+        "sha256": "9869c6146c2fd9595403edb36c2caeda65c12ffa2c0af4ce48d6814b673fd5a9"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/ES2004a.uem",
+        "sha256": "514373eae2841ddf15fb07938a7d74bbecc2acad8afc2a28a93e0f7b24bfb446"
+      },
+      "durationSeconds": 1049.354687,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2004a/audio/ES2004a.Array1-01.wav",
+        "channelSelection": "array 1 microphone 1, no beamforming/downmix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 16789675,
+        "durationSeconds": 1049.3546875,
+        "bytes": 33579394,
+        "headerVerification": "existing local official WAV"
+      }
+    },
+    {
+      "id": "ami_ES2004b_mhm",
+      "meetingId": "ES2004b",
+      "referenceId": "ES2004b",
+      "corpus": "ami",
+      "condition": "mhm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/ES2004b.rttm",
+        "sha256": "97a04fa14a37249b09581969939e5024324bbe3fc9c7a77e19976af41147ad7d"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/ES2004b.uem",
+        "sha256": "dd5deb09abaedbce54872c17150c51808143b90b995732f4d3274ea7560ecc75"
+      },
+      "durationSeconds": 2345.493375,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2004b/audio/ES2004b.Mix-Headset.wav",
+        "channelSelection": "official mono headset mix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 37527894,
+        "durationSeconds": 2345.493375,
+        "bytes": 75055832,
+        "headerVerification": "existing local official WAV"
+      }
+    },
+    {
+      "id": "ami_ES2004b_sdm",
+      "meetingId": "ES2004b",
+      "referenceId": "ES2004b",
+      "corpus": "ami",
+      "condition": "sdm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/ES2004b.rttm",
+        "sha256": "97a04fa14a37249b09581969939e5024324bbe3fc9c7a77e19976af41147ad7d"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/ES2004b.uem",
+        "sha256": "dd5deb09abaedbce54872c17150c51808143b90b995732f4d3274ea7560ecc75"
+      },
+      "durationSeconds": 2345.493375,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2004b/audio/ES2004b.Array1-01.wav",
+        "channelSelection": "array 1 microphone 1, no beamforming/downmix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 37527894,
+        "durationSeconds": 2345.493375,
+        "bytes": 75055832,
+        "headerVerification": "existing local official WAV"
+      }
+    },
+    {
+      "id": "ami_ES2004c_mhm",
+      "meetingId": "ES2004c",
+      "referenceId": "ES2004c",
+      "corpus": "ami",
+      "condition": "mhm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/ES2004c.rttm",
+        "sha256": "fccef2416fe556133db1784f4f755029fd8961d2929b69e102375240e95493ed"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/ES2004c.uem",
+        "sha256": "2b5f3a3c8c1c11b748cf10be4a17f0a98ec684f7bf4244f95e8e1ae940cdefa1"
+      },
+      "durationSeconds": 2334.368,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2004c/audio/ES2004c.Mix-Headset.wav",
+        "channelSelection": "official mono headset mix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 37349888,
+        "durationSeconds": 2334.368,
+        "bytes": 74699820,
+        "headerVerification": "existing local official WAV"
+      }
+    },
+    {
+      "id": "ami_ES2004c_sdm",
+      "meetingId": "ES2004c",
+      "referenceId": "ES2004c",
+      "corpus": "ami",
+      "condition": "sdm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/ES2004c.rttm",
+        "sha256": "fccef2416fe556133db1784f4f755029fd8961d2929b69e102375240e95493ed"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/ES2004c.uem",
+        "sha256": "2b5f3a3c8c1c11b748cf10be4a17f0a98ec684f7bf4244f95e8e1ae940cdefa1"
+      },
+      "durationSeconds": 2334.368,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2004c/audio/ES2004c.Array1-01.wav",
+        "channelSelection": "array 1 microphone 1, no beamforming/downmix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 37349888,
+        "durationSeconds": 2334.368,
+        "bytes": 74699820,
+        "headerVerification": "existing local official WAV"
+      }
+    },
+    {
+      "id": "ami_ES2004d_mhm",
+      "meetingId": "ES2004d",
+      "referenceId": "ES2004d",
+      "corpus": "ami",
+      "condition": "mhm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/ES2004d.rttm",
+        "sha256": "bb9fdfc402391bd2ff88d5a0caef159a0825d18ff85b346d4c28ce7bf1a714b6"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/ES2004d.uem",
+        "sha256": "b5cb9200c94c5389072508d673945a0d07e80293ab6191767b8cf2aff2ca457d"
+      },
+      "durationSeconds": 2222.290687,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2004d/audio/ES2004d.Mix-Headset.wav",
+        "channelSelection": "official mono headset mix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 35556651,
+        "durationSeconds": 2222.2906875,
+        "bytes": 71113346,
+        "headerVerification": "existing local official WAV"
+      }
+    },
+    {
+      "id": "ami_ES2004d_sdm",
+      "meetingId": "ES2004d",
+      "referenceId": "ES2004d",
+      "corpus": "ami",
+      "condition": "sdm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/ES2004d.rttm",
+        "sha256": "bb9fdfc402391bd2ff88d5a0caef159a0825d18ff85b346d4c28ce7bf1a714b6"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/ES2004d.uem",
+        "sha256": "b5cb9200c94c5389072508d673945a0d07e80293ab6191767b8cf2aff2ca457d"
+      },
+      "durationSeconds": 2222.290687,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2004d/audio/ES2004d.Array1-01.wav",
+        "channelSelection": "array 1 microphone 1, no beamforming/downmix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 35556651,
+        "durationSeconds": 2222.2906875,
+        "bytes": 71113346,
+        "headerVerification": "existing local official WAV"
+      }
+    },
+    {
+      "id": "ami_IS1009a_mhm",
+      "meetingId": "IS1009a",
+      "referenceId": "IS1009a",
+      "corpus": "ami",
+      "condition": "mhm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/IS1009a.rttm",
+        "sha256": "ba38d35ca567f3f1e061d90fdc33579ce60d2060fc8664eaeb77d2e0fcd88b01"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/IS1009a.uem",
+        "sha256": "afdc9548c0178876108b7ac88b0464ace094fab910c5e8661c135837b81514c6"
+      },
+      "durationSeconds": 838.833313,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/IS1009a/audio/IS1009a.Mix-Headset.wav",
+        "channelSelection": "official mono headset mix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 13421333,
+        "durationSeconds": 838.8333125,
+        "bytes": 26844093,
+        "headerVerification": "existing local official WAV"
+      }
+    },
+    {
+      "id": "ami_IS1009a_sdm",
+      "meetingId": "IS1009a",
+      "referenceId": "IS1009a",
+      "corpus": "ami",
+      "condition": "sdm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/IS1009a.rttm",
+        "sha256": "ba38d35ca567f3f1e061d90fdc33579ce60d2060fc8664eaeb77d2e0fcd88b01"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/IS1009a.uem",
+        "sha256": "afdc9548c0178876108b7ac88b0464ace094fab910c5e8661c135837b81514c6"
+      },
+      "durationSeconds": 838.833313,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/IS1009a/audio/IS1009a.Array1-01.wav",
+        "channelSelection": "array 1 microphone 1, no beamforming/downmix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 13423957,
+        "durationSeconds": 838.9973125,
+        "bytes": 26849383,
+        "headerVerification": "existing local official WAV"
+      }
+    },
+    {
+      "id": "ami_IS1009b_mhm",
+      "meetingId": "IS1009b",
+      "referenceId": "IS1009b",
+      "corpus": "ami",
+      "condition": "mhm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/IS1009b.rttm",
+        "sha256": "5cb6ae3948c09ce8356991cc79bb593abc1f0d23f1dbadeeb88e17e055283e67"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/IS1009b.uem",
+        "sha256": "2370ae36daa0067211ef8508b537410304b53af11f0390f52c29c6ab2094f258"
+      },
+      "durationSeconds": 2052.333312,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/IS1009b/audio/IS1009b.Mix-Headset.wav",
+        "channelSelection": "official mono headset mix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 32837333,
+        "durationSeconds": 2052.3333125,
+        "bytes": 65676093,
+        "headerVerification": "official HTTP Range bytes=0-65535"
+      }
+    },
+    {
+      "id": "ami_IS1009b_sdm",
+      "meetingId": "IS1009b",
+      "referenceId": "IS1009b",
+      "corpus": "ami",
+      "condition": "sdm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/IS1009b.rttm",
+        "sha256": "5cb6ae3948c09ce8356991cc79bb593abc1f0d23f1dbadeeb88e17e055283e67"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/IS1009b.uem",
+        "sha256": "2370ae36daa0067211ef8508b537410304b53af11f0390f52c29c6ab2094f258"
+      },
+      "durationSeconds": 2052.333312,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/IS1009b/audio/IS1009b.Array1-01.wav",
+        "channelSelection": "array 1 microphone 1, no beamforming/downmix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 32838997,
+        "durationSeconds": 2052.4373125,
+        "bytes": 65679463,
+        "headerVerification": "official HTTP Range bytes=0-65535"
+      }
+    },
+    {
+      "id": "ami_IS1009c_mhm",
+      "meetingId": "IS1009c",
+      "referenceId": "IS1009c",
+      "corpus": "ami",
+      "condition": "mhm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/IS1009c.rttm",
+        "sha256": "356ec69ac61ceec7f95ea66108a6dfe917e83e977f66487c525de5c18b02bbb2"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/IS1009c.uem",
+        "sha256": "eff2f847c289329c21259105ae75118ea67b5d33ec96cb9b9249c0fea87e00bd"
+      },
+      "durationSeconds": 1820.833312,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/IS1009c/audio/IS1009c.Mix-Headset.wav",
+        "channelSelection": "official mono headset mix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 29133333,
+        "durationSeconds": 1820.8333125,
+        "bytes": 58268093,
+        "headerVerification": "official HTTP Range bytes=0-65535"
+      }
+    },
+    {
+      "id": "ami_IS1009c_sdm",
+      "meetingId": "IS1009c",
+      "referenceId": "IS1009c",
+      "corpus": "ami",
+      "condition": "sdm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/IS1009c.rttm",
+        "sha256": "356ec69ac61ceec7f95ea66108a6dfe917e83e977f66487c525de5c18b02bbb2"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/IS1009c.uem",
+        "sha256": "eff2f847c289329c21259105ae75118ea67b5d33ec96cb9b9249c0fea87e00bd"
+      },
+      "durationSeconds": 1820.833312,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/IS1009c/audio/IS1009c.Array1-01.wav",
+        "channelSelection": "array 1 microphone 1, no beamforming/downmix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 29133482,
+        "durationSeconds": 1820.842625,
+        "bytes": 58268433,
+        "headerVerification": "official HTTP Range bytes=0-65535"
+      }
+    },
+    {
+      "id": "ami_IS1009d_mhm",
+      "meetingId": "IS1009d",
+      "referenceId": "IS1009d",
+      "corpus": "ami",
+      "condition": "mhm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/IS1009d.rttm",
+        "sha256": "512f5b84fefaa9a5049ace143ef1a24b219baca6fcfe64a9a8c30b7331fe2e4a"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/IS1009d.uem",
+        "sha256": "1a4eafc5abef24a763b2c718dce928f37821fdb7f0ed21a0223f19ff4ad07c9c"
+      },
+      "durationSeconds": 1944.5,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/IS1009d/audio/IS1009d.Mix-Headset.wav",
+        "channelSelection": "official mono headset mix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 31112000,
+        "durationSeconds": 1944.5,
+        "bytes": 62225427,
+        "headerVerification": "official HTTP Range bytes=0-65535"
+      }
+    },
+    {
+      "id": "ami_IS1009d_sdm",
+      "meetingId": "IS1009d",
+      "referenceId": "IS1009d",
+      "corpus": "ami",
+      "condition": "sdm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/IS1009d.rttm",
+        "sha256": "512f5b84fefaa9a5049ace143ef1a24b219baca6fcfe64a9a8c30b7331fe2e4a"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/IS1009d.uem",
+        "sha256": "1a4eafc5abef24a763b2c718dce928f37821fdb7f0ed21a0223f19ff4ad07c9c"
+      },
+      "durationSeconds": 1944.5,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/IS1009d/audio/IS1009d.Array1-01.wav",
+        "channelSelection": "array 1 microphone 1, no beamforming/downmix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 31114581,
+        "durationSeconds": 1944.6613125,
+        "bytes": 62230631,
+        "headerVerification": "official HTTP Range bytes=0-65535"
+      }
+    },
+    {
+      "id": "ami_TS3003a_mhm",
+      "meetingId": "TS3003a",
+      "referenceId": "TS3003a",
+      "corpus": "ami",
+      "condition": "mhm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/TS3003a.rttm",
+        "sha256": "57137f098ee3be9b8d77c9faa4b16e9155e821bdbf21b974dd8771d7e646d185"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/TS3003a.uem",
+        "sha256": "88c25acf7872a0813ec26fc88f5fdc2e6a69eedf4c7c3b66a571b77df669e8fd"
+      },
+      "durationSeconds": 1505.642625,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/TS3003a/audio/TS3003a.Mix-Headset.wav",
+        "channelSelection": "official mono headset mix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 24090282,
+        "durationSeconds": 1505.642625,
+        "bytes": 48180608,
+        "headerVerification": "official HTTP Range bytes=0-65535"
+      }
+    },
+    {
+      "id": "ami_TS3003a_sdm",
+      "meetingId": "TS3003a",
+      "referenceId": "TS3003a",
+      "corpus": "ami",
+      "condition": "sdm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/TS3003a.rttm",
+        "sha256": "57137f098ee3be9b8d77c9faa4b16e9155e821bdbf21b974dd8771d7e646d185"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/TS3003a.uem",
+        "sha256": "88c25acf7872a0813ec26fc88f5fdc2e6a69eedf4c7c3b66a571b77df669e8fd"
+      },
+      "durationSeconds": 1505.642625,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/TS3003a/audio/TS3003a.Array1-01.wav",
+        "channelSelection": "array 1 microphone 1, no beamforming/downmix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 24090282,
+        "durationSeconds": 1505.642625,
+        "bytes": 48183678,
+        "headerVerification": "official HTTP Range bytes=0-65535"
+      }
+    },
+    {
+      "id": "ami_TS3003b_mhm",
+      "meetingId": "TS3003b",
+      "referenceId": "TS3003b",
+      "corpus": "ami",
+      "condition": "mhm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/TS3003b.rttm",
+        "sha256": "c728c1b1305a977a5adc32830c8299f1ee6084dee113a7e56f6d9cce540e5b3a"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/TS3003b.uem",
+        "sha256": "ca9efd5a2ab0d66e2c80857da97f001bf764b0594201dde559483fbb86bb56dd"
+      },
+      "durationSeconds": 2210.304,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/TS3003b/audio/TS3003b.Mix-Headset.wav",
+        "channelSelection": "official mono headset mix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 35364864,
+        "durationSeconds": 2210.304,
+        "bytes": 70729772,
+        "headerVerification": "official HTTP Range bytes=0-65535"
+      }
+    },
+    {
+      "id": "ami_TS3003b_sdm",
+      "meetingId": "TS3003b",
+      "referenceId": "TS3003b",
+      "corpus": "ami",
+      "condition": "sdm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/TS3003b.rttm",
+        "sha256": "c728c1b1305a977a5adc32830c8299f1ee6084dee113a7e56f6d9cce540e5b3a"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/TS3003b.uem",
+        "sha256": "ca9efd5a2ab0d66e2c80857da97f001bf764b0594201dde559483fbb86bb56dd"
+      },
+      "durationSeconds": 2210.304,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/TS3003b/audio/TS3003b.Array1-01.wav",
+        "channelSelection": "array 1 microphone 1, no beamforming/downmix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 35364864,
+        "durationSeconds": 2210.304,
+        "bytes": 70730794,
+        "headerVerification": "official HTTP Range bytes=0-65535"
+      }
+    },
+    {
+      "id": "ami_TS3003c_mhm",
+      "meetingId": "TS3003c",
+      "referenceId": "TS3003c",
+      "corpus": "ami",
+      "condition": "mhm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/TS3003c.rttm",
+        "sha256": "62e491fd0e4265b74bb114c17d1351de7c907af6582a2efbd4f765211ec44d52"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/TS3003c.uem",
+        "sha256": "7942f2356d7d446e2627ac10db6c980d1ee1d267b9511b27861cd52caed63827"
+      },
+      "durationSeconds": 2570.0,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/TS3003c/audio/TS3003c.Mix-Headset.wav",
+        "channelSelection": "official mono headset mix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 41120000,
+        "durationSeconds": 2570.0,
+        "bytes": 82240044,
+        "headerVerification": "official HTTP Range bytes=0-65535"
+      }
+    },
+    {
+      "id": "ami_TS3003c_sdm",
+      "meetingId": "TS3003c",
+      "referenceId": "TS3003c",
+      "corpus": "ami",
+      "condition": "sdm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/TS3003c.rttm",
+        "sha256": "62e491fd0e4265b74bb114c17d1351de7c907af6582a2efbd4f765211ec44d52"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/TS3003c.uem",
+        "sha256": "7942f2356d7d446e2627ac10db6c980d1ee1d267b9511b27861cd52caed63827"
+      },
+      "durationSeconds": 2570.0,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/TS3003c/audio/TS3003c.Array1-01.wav",
+        "channelSelection": "array 1 microphone 1, no beamforming/downmix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 41120000,
+        "durationSeconds": 2570.0,
+        "bytes": 82240044,
+        "headerVerification": "official HTTP Range bytes=0-65535"
+      }
+    },
+    {
+      "id": "ami_TS3003d_mhm",
+      "meetingId": "TS3003d",
+      "referenceId": "TS3003d",
+      "corpus": "ami",
+      "condition": "mhm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/TS3003d.rttm",
+        "sha256": "dfdc8e4721d13c9e7a63dee29a32d19b534ed3b99cb5abeda6a4185432a07f86"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/TS3003d.uem",
+        "sha256": "dc61d084174efb98f0c0bceb6e1d7cbc1915cb439f1fc06d73f2e0865dd30584"
+      },
+      "durationSeconds": 2618.2,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/TS3003d/audio/TS3003d.Mix-Headset.wav",
+        "channelSelection": "official mono headset mix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 41891200,
+        "durationSeconds": 2618.2,
+        "bytes": 83782444,
+        "headerVerification": "official HTTP Range bytes=0-65535"
+      }
+    },
+    {
+      "id": "ami_TS3003d_sdm",
+      "meetingId": "TS3003d",
+      "referenceId": "TS3003d",
+      "corpus": "ami",
+      "condition": "sdm",
+      "reference": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/only_words/rttms/test/TS3003d.rttm",
+        "sha256": "dfdc8e4721d13c9e7a63dee29a32d19b534ed3b99cb5abeda6a4185432a07f86"
+      },
+      "uem": {
+        "url": "https://raw.githubusercontent.com/pyannote/AMI-diarization-setup/67c2d539286e89f68952d5dcf83912bd9f01dfae/uems/test/TS3003d.uem",
+        "sha256": "dc61d084174efb98f0c0bceb6e1d7cbc1915cb439f1fc06d73f2e0865dd30584"
+      },
+      "durationSeconds": 2618.2,
+      "audio": {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/TS3003d/audio/TS3003d.Array1-01.wav",
+        "channelSelection": "array 1 microphone 1, no beamforming/downmix",
+        "sampleRate": 16000,
+        "channels": 1,
+        "sampleWidthBytes": 2,
+        "frameCount": 41891200,
+        "durationSeconds": 2618.2,
+        "bytes": 83782444,
+        "headerVerification": "official HTTP Range bytes=0-65535"
+      }
+    }
+  ],
+  "audioMetadataVerifiedOn": "2026-09-25",
+  "audioDurationPolicy": "Validate each source against its frozen WAV frame count, sample format and byte length. Preserve original sample origin and fixed original UEM; do not trim, pad or shift the input."
+}

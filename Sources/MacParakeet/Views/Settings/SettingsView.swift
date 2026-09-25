@@ -1397,7 +1397,10 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Speaker detection",
-                    detail: "Split captured system audio into other speakers after recording when audio is clear.",
+                    detail: AppFeatures.isVoiceProfilesAvailable()
+                        ? "Split captured system audio into other speakers after recording when audio is clear."
+                        : "Automatically label up to eight other speakers in system audio after recording. "
+                            + "Your microphone stays labeled Me.",
                     isOn: $viewModel.meetingSpeakerDiarization
                 )
 
@@ -1685,7 +1688,9 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Speaker detection",
-                    detail: "Add speaker labels to file and URL transcriptions when audio is clear.",
+                    detail: AppFeatures.isVoiceProfilesAvailable()
+                        ? "Add speaker labels to file and URL transcriptions when audio is clear."
+                        : "Automatically label up to eight speakers in file and URL transcriptions.",
                     isOn: $viewModel.speakerDiarization
                 )
 

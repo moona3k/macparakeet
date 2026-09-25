@@ -214,17 +214,19 @@ small user vocabularies rather than full dictionaries.
 | Capability | Model | Details |
 |-----------|-------|---------|
 | Streaming ASR | Parakeet EOU 1.1B | Real-time with end-of-utterance detection, 160ms-1600ms chunks |
-| Speaker diarization (offline) | Pyannote community-1 + WeSpeaker v2 + VBx clustering | ~130 MB assets; no fixed four-speaker cap. Uses the app high-accuracy preset; current-pin DER has not been measured. See ADR-010. |
+| Speaker diarization (automatic, after ASR) | Nemotron 3, `fast128`, through FluidAudio 0.17.4 | ~199 MB pinned assets; eight-speaker limit per source; overlapping activity retained. See ADR-010 and the matched evaluation in `benchmarks/diarization/2026-09-25-nemotron-evaluation.md`. |
+| Speaker diarization (explicit count / experimental voice profiles) | Pyannote community-1 + WeSpeaker v2 + VBx clustering | Existing high-accuracy configuration and speaker-count constraints; no fixed eight-speaker cap. Also handles a calendar bound violated by Nemotron. |
 | Speaker diarization (streaming) | Sortformer (NVIDIA) | ~32% DER, 4 speaker max. Not used — see ADR-010 for rationale. |
 | Voice activity detection | Silero | 96% accuracy, 1220x RTF |
 | Custom vocabulary | CTC/TDT keyword boosting | 110M sidecar for Parakeet TDT v2/v3 enabled anchors |
 
-**Note:** ASR (Parakeet TDT) and diarization (pyannote/WeSpeaker) are entirely separate model pipelines. Parakeet does NOT include diarization. Both are bundled in the FluidAudio SDK — no additional dependencies needed.
+**Note:** ASR (Parakeet TDT) and diarization (Nemotron 3 or pyannote/WeSpeaker) are entirely separate model pipelines. Parakeet does NOT include diarization. Both are bundled in the FluidAudio SDK — no additional dependencies needed.
 
 > **Dependency surface (not shipped):** the pinned FluidAudio also exposes
 > streaming diarizers (`LSEENDDiarizer`, `SortformerDiarizer`) and
-> speaker-enrollment APIs. MacParakeet ships none of these — offline batch is
-> the only diarizer it uses. They are surveyed as a *future* tentative-live /
+> speaker-enrollment APIs. These are not the default product path. Nemotron 3 uses
+> a streaming model internally, but product diarization still runs after ASR on
+> the complete saved source; it does not change live transcription. They are surveyed as a *future* tentative-live /
 > speaker-memory option in the ADR-010 amendment (2026-06-14) and
 > `docs/research/speaker-diarization-frontier-2026-06.md`.
 
@@ -402,12 +404,12 @@ Dictation:
 
 File transcription (v0.4+):
   FFmpeg (video demux) → .wav → STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → queued background-slot selected-engine STTResult
-                                                                                                             → OfflineDiarizerManager.process() → DiarizationResult
+                                                                                                             → DiarizationServiceFactory.live() → DiarizationResult
                                                                                                              → Merge word timestamps + speaker segments
 
 YouTube (v0.4+):
   yt-dlp → .m4a → FFmpeg → .wav → STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → queued background-slot selected-engine STTResult
-                                                                                                        → OfflineDiarizerManager.process() → DiarizationResult
+                                                                                                        → DiarizationServiceFactory.live() → DiarizationResult
                                                                                                         → Merge word timestamps + speaker segments
 
   Download and metadata extraction happen before STT admission. Only the

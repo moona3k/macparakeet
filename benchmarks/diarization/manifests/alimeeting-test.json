@@ -1,0 +1,504 @@
+{
+  "schemaVersion": 1,
+  "dataset": "AliMeeting official Test (20 sessions); not Eval (8 sessions)",
+  "license": "CC-BY-SA-4.0",
+  "source": "https://www.openslr.org/119/",
+  "archive": {
+    "url": "https://speech-lab-share-data.oss-cn-shanghai.aliyuncs.com/AliMeeting/openlr/Test_Ali.tar.gz",
+    "bytes": 9555497666,
+    "etag": "21EE833EF74F821338E9DEA468BBB9F9-912",
+    "crc64ecma": "6026635572991813033"
+  },
+  "memberListDiscovery": {
+    "repository": "ggfox00000/dia-alimeeting-test",
+    "revision": "cef2837c4a1a0762074522c1bbbbb90eb4d1acf5",
+    "note": "Names discovered via mirror only; audio and original TextGrid annotations must come from official archive and all expected names are checked. Mirror audio and converted RTTM are not used."
+  },
+  "notes": [
+    "Scoring UEM is 0 to decoded audio duration, including silence.",
+    "Near is multi-participant headset mix, never a single headset diarized against full meeting labels.",
+    "Whole archive SHA256, original TextGrid SHA256, decoded audio SHA256 and exact ffmpeg version are recorded by acquisition."
+  ],
+  "recordings": [
+    {
+      "id": "ali_R8002_M8002_far",
+      "meetingId": "R8002_M8002",
+      "referenceId": "R8002_M8002",
+      "corpus": "ali",
+      "condition": "far",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_far/audio_dir/R8002_M8002_MS802.wav"
+      ],
+      "channelSelection": "first array channel (c0)"
+    },
+    {
+      "id": "ali_R8002_M8002_near",
+      "meetingId": "R8002_M8002",
+      "referenceId": "R8002_M8002",
+      "corpus": "ali",
+      "condition": "near",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_near/audio_dir/R8002_M8002_N_SPK8005.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8002_M8002_N_SPK8006.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8002_M8002_N_SPK8007.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8002_M8002_N_SPK8008.wav"
+      ],
+      "channelSelection": "arithmetic mean of aligned participant headset signals, longest duration, no normalization beyond 1/N"
+    },
+    {
+      "id": "ali_R8002_M8003_far",
+      "meetingId": "R8002_M8003",
+      "referenceId": "R8002_M8003",
+      "corpus": "ali",
+      "condition": "far",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_far/audio_dir/R8002_M8003_MS803.wav"
+      ],
+      "channelSelection": "first array channel (c0)"
+    },
+    {
+      "id": "ali_R8002_M8003_near",
+      "meetingId": "R8002_M8003",
+      "referenceId": "R8002_M8003",
+      "corpus": "ali",
+      "condition": "near",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_near/audio_dir/R8002_M8003_N_SPK8009.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8002_M8003_N_SPK8010.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8002_M8003_N_SPK8011.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8002_M8003_N_SPK8012.wav"
+      ],
+      "channelSelection": "arithmetic mean of aligned participant headset signals, longest duration, no normalization beyond 1/N"
+    },
+    {
+      "id": "ali_R8004_M8005_far",
+      "meetingId": "R8004_M8005",
+      "referenceId": "R8004_M8005",
+      "corpus": "ali",
+      "condition": "far",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_far/audio_dir/R8004_M8005_MS803.wav"
+      ],
+      "channelSelection": "first array channel (c0)"
+    },
+    {
+      "id": "ali_R8004_M8005_near",
+      "meetingId": "R8004_M8005",
+      "referenceId": "R8004_M8005",
+      "corpus": "ali",
+      "condition": "near",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_near/audio_dir/R8004_M8005_N_SPK8017.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8004_M8005_N_SPK8018.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8004_M8005_N_SPK8019.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8004_M8005_N_SPK8020.wav"
+      ],
+      "channelSelection": "arithmetic mean of aligned participant headset signals, longest duration, no normalization beyond 1/N"
+    },
+    {
+      "id": "ali_R8004_M8006_far",
+      "meetingId": "R8004_M8006",
+      "referenceId": "R8004_M8006",
+      "corpus": "ali",
+      "condition": "far",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_far/audio_dir/R8004_M8006_MS805.wav"
+      ],
+      "channelSelection": "first array channel (c0)"
+    },
+    {
+      "id": "ali_R8004_M8006_near",
+      "meetingId": "R8004_M8006",
+      "referenceId": "R8004_M8006",
+      "corpus": "ali",
+      "condition": "near",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_near/audio_dir/R8004_M8006_N_SPK8031.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8004_M8006_N_SPK8032.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8004_M8006_N_SPK8033.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8004_M8006_N_SPK8034.wav"
+      ],
+      "channelSelection": "arithmetic mean of aligned participant headset signals, longest duration, no normalization beyond 1/N"
+    },
+    {
+      "id": "ali_R8005_M8007_far",
+      "meetingId": "R8005_M8007",
+      "referenceId": "R8005_M8007",
+      "corpus": "ali",
+      "condition": "far",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_far/audio_dir/R8005_M8007_MS806.wav"
+      ],
+      "channelSelection": "first array channel (c0)"
+    },
+    {
+      "id": "ali_R8005_M8007_near",
+      "meetingId": "R8005_M8007",
+      "referenceId": "R8005_M8007",
+      "corpus": "ali",
+      "condition": "near",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_near/audio_dir/R8005_M8007_N_SPK8035.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8005_M8007_N_SPK8036.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8005_M8007_N_SPK8037.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8005_M8007_N_SPK8038.wav"
+      ],
+      "channelSelection": "arithmetic mean of aligned participant headset signals, longest duration, no normalization beyond 1/N"
+    },
+    {
+      "id": "ali_R8005_M8008_far",
+      "meetingId": "R8005_M8008",
+      "referenceId": "R8005_M8008",
+      "corpus": "ali",
+      "condition": "far",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_far/audio_dir/R8005_M8008_MS806.wav"
+      ],
+      "channelSelection": "first array channel (c0)"
+    },
+    {
+      "id": "ali_R8005_M8008_near",
+      "meetingId": "R8005_M8008",
+      "referenceId": "R8005_M8008",
+      "corpus": "ali",
+      "condition": "near",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_near/audio_dir/R8005_M8008_N_SPK8039.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8005_M8008_N_SPK8040.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8005_M8008_N_SPK8041.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8005_M8008_N_SPK8042.wav"
+      ],
+      "channelSelection": "arithmetic mean of aligned participant headset signals, longest duration, no normalization beyond 1/N"
+    },
+    {
+      "id": "ali_R8005_M8009_far",
+      "meetingId": "R8005_M8009",
+      "referenceId": "R8005_M8009",
+      "corpus": "ali",
+      "condition": "far",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_far/audio_dir/R8005_M8009_MS802.wav"
+      ],
+      "channelSelection": "first array channel (c0)"
+    },
+    {
+      "id": "ali_R8005_M8009_near",
+      "meetingId": "R8005_M8009",
+      "referenceId": "R8005_M8009",
+      "corpus": "ali",
+      "condition": "near",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_near/audio_dir/R8005_M8009_N_SPK8043.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8005_M8009_N_SPK8044.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8005_M8009_N_SPK8045.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8005_M8009_N_SPK8046.wav"
+      ],
+      "channelSelection": "arithmetic mean of aligned participant headset signals, longest duration, no normalization beyond 1/N"
+    },
+    {
+      "id": "ali_R8006_M8012_far",
+      "meetingId": "R8006_M8012",
+      "referenceId": "R8006_M8012",
+      "corpus": "ali",
+      "condition": "far",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_far/audio_dir/R8006_M8012_MS803.wav"
+      ],
+      "channelSelection": "first array channel (c0)"
+    },
+    {
+      "id": "ali_R8006_M8012_near",
+      "meetingId": "R8006_M8012",
+      "referenceId": "R8006_M8012",
+      "corpus": "ali",
+      "condition": "near",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_near/audio_dir/R8006_M8012_N_SPK8070.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8006_M8012_N_SPK8071.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8006_M8012_N_SPK8072.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8006_M8012_N_SPK8073.wav"
+      ],
+      "channelSelection": "arithmetic mean of aligned participant headset signals, longest duration, no normalization beyond 1/N"
+    },
+    {
+      "id": "ali_R8008_M8014_far",
+      "meetingId": "R8008_M8014",
+      "referenceId": "R8008_M8014",
+      "corpus": "ali",
+      "condition": "far",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_far/audio_dir/R8008_M8014_MS807.wav"
+      ],
+      "channelSelection": "first array channel (c0)"
+    },
+    {
+      "id": "ali_R8008_M8014_near",
+      "meetingId": "R8008_M8014",
+      "referenceId": "R8008_M8014",
+      "corpus": "ali",
+      "condition": "near",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_near/audio_dir/R8008_M8014_N_SPK8051.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8008_M8014_N_SPK8052.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8008_M8014_N_SPK8053.wav"
+      ],
+      "channelSelection": "arithmetic mean of aligned participant headset signals, longest duration, no normalization beyond 1/N"
+    },
+    {
+      "id": "ali_R8008_M8015_far",
+      "meetingId": "R8008_M8015",
+      "referenceId": "R8008_M8015",
+      "corpus": "ali",
+      "condition": "far",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_far/audio_dir/R8008_M8015_MS808.wav"
+      ],
+      "channelSelection": "first array channel (c0)"
+    },
+    {
+      "id": "ali_R8008_M8015_near",
+      "meetingId": "R8008_M8015",
+      "referenceId": "R8008_M8015",
+      "corpus": "ali",
+      "condition": "near",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_near/audio_dir/R8008_M8015_N_SPK8057.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8008_M8015_N_SPK8058.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8008_M8015_N_SPK8059.wav"
+      ],
+      "channelSelection": "arithmetic mean of aligned participant headset signals, longest duration, no normalization beyond 1/N"
+    },
+    {
+      "id": "ali_R8008_M8016_far",
+      "meetingId": "R8008_M8016",
+      "referenceId": "R8008_M8016",
+      "corpus": "ali",
+      "condition": "far",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_far/audio_dir/R8008_M8016_MS808.wav"
+      ],
+      "channelSelection": "first array channel (c0)"
+    },
+    {
+      "id": "ali_R8008_M8016_near",
+      "meetingId": "R8008_M8016",
+      "referenceId": "R8008_M8016",
+      "corpus": "ali",
+      "condition": "near",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_near/audio_dir/R8008_M8016_N_SPK8060.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8008_M8016_N_SPK8061.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8008_M8016_N_SPK8062.wav"
+      ],
+      "channelSelection": "arithmetic mean of aligned participant headset signals, longest duration, no normalization beyond 1/N"
+    },
+    {
+      "id": "ali_R8008_M8017_far",
+      "meetingId": "R8008_M8017",
+      "referenceId": "R8008_M8017",
+      "corpus": "ali",
+      "condition": "far",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_far/audio_dir/R8008_M8017_MS808.wav"
+      ],
+      "channelSelection": "first array channel (c0)"
+    },
+    {
+      "id": "ali_R8008_M8017_near",
+      "meetingId": "R8008_M8017",
+      "referenceId": "R8008_M8017",
+      "corpus": "ali",
+      "condition": "near",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_near/audio_dir/R8008_M8017_N_SPK8063.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8008_M8017_N_SPK8064.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8008_M8017_N_SPK8065.wav"
+      ],
+      "channelSelection": "arithmetic mean of aligned participant headset signals, longest duration, no normalization beyond 1/N"
+    },
+    {
+      "id": "ali_R8009_M8021_far",
+      "meetingId": "R8009_M8021",
+      "referenceId": "R8009_M8021",
+      "corpus": "ali",
+      "condition": "far",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_far/audio_dir/R8009_M8021_MS810.wav"
+      ],
+      "channelSelection": "first array channel (c0)"
+    },
+    {
+      "id": "ali_R8009_M8021_near",
+      "meetingId": "R8009_M8021",
+      "referenceId": "R8009_M8021",
+      "corpus": "ali",
+      "condition": "near",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_near/audio_dir/R8009_M8021_N_SPK8027.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8009_M8021_N_SPK8028.wav"
+      ],
+      "channelSelection": "arithmetic mean of aligned participant headset signals, longest duration, no normalization beyond 1/N"
+    },
+    {
+      "id": "ali_R8009_M8022_far",
+      "meetingId": "R8009_M8022",
+      "referenceId": "R8009_M8022",
+      "corpus": "ali",
+      "condition": "far",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_far/audio_dir/R8009_M8022_MS810.wav"
+      ],
+      "channelSelection": "first array channel (c0)"
+    },
+    {
+      "id": "ali_R8009_M8022_near",
+      "meetingId": "R8009_M8022",
+      "referenceId": "R8009_M8022",
+      "corpus": "ali",
+      "condition": "near",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_near/audio_dir/R8009_M8022_N_SPK8029.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8009_M8022_N_SPK8030.wav"
+      ],
+      "channelSelection": "arithmetic mean of aligned participant headset signals, longest duration, no normalization beyond 1/N"
+    },
+    {
+      "id": "ali_R8009_M8023_far",
+      "meetingId": "R8009_M8023",
+      "referenceId": "R8009_M8023",
+      "corpus": "ali",
+      "condition": "far",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_far/audio_dir/R8009_M8023_MS811.wav"
+      ],
+      "channelSelection": "first array channel (c0)"
+    },
+    {
+      "id": "ali_R8009_M8023_near",
+      "meetingId": "R8009_M8023",
+      "referenceId": "R8009_M8023",
+      "corpus": "ali",
+      "condition": "near",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_near/audio_dir/R8009_M8023_N_SPK8074.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8009_M8023_N_SPK8075.wav"
+      ],
+      "channelSelection": "arithmetic mean of aligned participant headset signals, longest duration, no normalization beyond 1/N"
+    },
+    {
+      "id": "ali_R8009_M8024_far",
+      "meetingId": "R8009_M8024",
+      "referenceId": "R8009_M8024",
+      "corpus": "ali",
+      "condition": "far",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_far/audio_dir/R8009_M8024_MS811.wav"
+      ],
+      "channelSelection": "first array channel (c0)"
+    },
+    {
+      "id": "ali_R8009_M8024_near",
+      "meetingId": "R8009_M8024",
+      "referenceId": "R8009_M8024",
+      "corpus": "ali",
+      "condition": "near",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_near/audio_dir/R8009_M8024_N_SPK8076.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8009_M8024_N_SPK8077.wav"
+      ],
+      "channelSelection": "arithmetic mean of aligned participant headset signals, longest duration, no normalization beyond 1/N"
+    },
+    {
+      "id": "ali_R8009_M8025_far",
+      "meetingId": "R8009_M8025",
+      "referenceId": "R8009_M8025",
+      "corpus": "ali",
+      "condition": "far",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_far/audio_dir/R8009_M8025_MS811.wav"
+      ],
+      "channelSelection": "first array channel (c0)"
+    },
+    {
+      "id": "ali_R8009_M8025_near",
+      "meetingId": "R8009_M8025",
+      "referenceId": "R8009_M8025",
+      "corpus": "ali",
+      "condition": "near",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_near/audio_dir/R8009_M8025_N_SPK8078.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8009_M8025_N_SPK8079.wav"
+      ],
+      "channelSelection": "arithmetic mean of aligned participant headset signals, longest duration, no normalization beyond 1/N"
+    },
+    {
+      "id": "ali_R8009_M8026_far",
+      "meetingId": "R8009_M8026",
+      "referenceId": "R8009_M8026",
+      "corpus": "ali",
+      "condition": "far",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_far/audio_dir/R8009_M8026_MS812.wav"
+      ],
+      "channelSelection": "first array channel (c0)"
+    },
+    {
+      "id": "ali_R8009_M8026_near",
+      "meetingId": "R8009_M8026",
+      "referenceId": "R8009_M8026",
+      "corpus": "ali",
+      "condition": "near",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_near/audio_dir/R8009_M8026_N_SPK8080.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8009_M8026_N_SPK8081.wav"
+      ],
+      "channelSelection": "arithmetic mean of aligned participant headset signals, longest duration, no normalization beyond 1/N"
+    },
+    {
+      "id": "ali_R8009_M8027_far",
+      "meetingId": "R8009_M8027",
+      "referenceId": "R8009_M8027",
+      "corpus": "ali",
+      "condition": "far",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_far/audio_dir/R8009_M8027_MS812.wav"
+      ],
+      "channelSelection": "first array channel (c0)"
+    },
+    {
+      "id": "ali_R8009_M8027_near",
+      "meetingId": "R8009_M8027",
+      "referenceId": "R8009_M8027",
+      "corpus": "ali",
+      "condition": "near",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_near/audio_dir/R8009_M8027_N_SPK8082.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8009_M8027_N_SPK8083.wav"
+      ],
+      "channelSelection": "arithmetic mean of aligned participant headset signals, longest duration, no normalization beyond 1/N"
+    },
+    {
+      "id": "ali_R8009_M8028_far",
+      "meetingId": "R8009_M8028",
+      "referenceId": "R8009_M8028",
+      "corpus": "ali",
+      "condition": "far",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_far/audio_dir/R8009_M8028_MS812.wav"
+      ],
+      "channelSelection": "first array channel (c0)"
+    },
+    {
+      "id": "ali_R8009_M8028_near",
+      "meetingId": "R8009_M8028",
+      "referenceId": "R8009_M8028",
+      "corpus": "ali",
+      "condition": "near",
+      "audioMembers": [
+        "Test_Ali/Test_Ali_near/audio_dir/R8009_M8028_N_SPK8084.wav",
+        "Test_Ali/Test_Ali_near/audio_dir/R8009_M8028_N_SPK8085.wav"
+      ],
+      "channelSelection": "arithmetic mean of aligned participant headset signals, longest duration, no normalization beyond 1/N"
+    }
+  ]
+}

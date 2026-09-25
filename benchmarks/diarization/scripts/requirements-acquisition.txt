@@ -1,0 +1,3 @@
+# Only the official AliMeeting TextGrid importer requires this tiny dependency.
+# AMI download and DER scoring use Python's standard library, plus Perl.
+textgrid==1.6.1

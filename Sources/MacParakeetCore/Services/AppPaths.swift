@@ -221,6 +221,10 @@ public enum AppPaths {
             return .parakeetV2
         case .v3:
             return .parakeetV3
+        case .redux:
+            return .parakeetRedux
+        case .ultra:
+            return .parakeetUltra
         case .tdtCtc110m:
             return .parakeetTdtCtc110m
         case .tdtJa:

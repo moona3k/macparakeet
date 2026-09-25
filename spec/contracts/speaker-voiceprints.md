@@ -30,6 +30,12 @@ merging into `main` does not establish meeting accuracy or authorize release.
   are not consumers of the voiceprint tables. They may use transcript labels
   explicitly applied through the existing correction path.
 
+The default Nemotron 3 service emits anonymous activity and no reusable speaker
+embeddings. When experimental voice profiles are available, the shared factory
+selects the existing Community-1/WeSpeaker service instead. Its aggregation
+revision is `fluidaudio-0.17.4`; existing mismatch safeguards still apply and no
+profile data is deleted by this dependency upgrade.
+
 ## Availability And Consent
 
 `AppFeatures.voiceProfilesEnabled` is `false`. The availability helper
