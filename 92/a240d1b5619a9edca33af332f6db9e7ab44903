@@ -1,0 +1,23 @@
+Sources/CLI/Commands/RetranscribeCommand.swift
+  s_ea43f113115380::t_36117b9602bdb2 445-451
+Sources/MacParakeet/Views/History/DictationHistoryView.swift
+  s_ea43f113115380::t_b0d539a3c9bedd 623-642
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_ea43f113115380::t_846348de0fdb2c 1252-1267
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "92a240d1b5619a9edca33af332f6db9e7ab44903",
+  "prompts": {},
+  "sessions": {
+    "s_ea43f113115380": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e866346-f6a4-47b5-b1bd-f77f4f655aab",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
