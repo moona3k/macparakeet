@@ -1,0 +1,29 @@
+Sources/MacParakeet/Hotkey/GlobalShortcutManager.swift
+  s_07badaed2eede4::t_e085c2e982c150 8-13,20,34,38,46-48,51-54,58,63-65,73-77,80
+Sources/MacParakeet/Hotkey/TransformsHotkeyRegistry.swift
+  s_07badaed2eede4::t_38ff7f7bfe6b8e 15-22,40-41,43,46-49,54,63-68,73-74,81-85,90-110,114-115,118-136,138,142,145-148,156,160-161,166,169,184,208
+Sources/MacParakeetCore/Services/System/StreamingCursorInserter.swift
+  s_07badaed2eede4::t_cff504f5aec065 91,102-112,116-121,130,222-224,229
+Tests/MacParakeetTests/Hotkey/GlobalShortcutManagerTests.swift
+  s_07badaed2eede4::t_6f732e9cdb8e15 31-41
+Tests/MacParakeetTests/Hotkey/TransformsHotkeyRegistryTests.swift
+  s_07badaed2eede4::t_5e9f0dedf59852 179-224
+spec/02-features.md
+  s_07badaed2eede4::t_b9b9939933e33a 2099
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f01adbad49e86771923325a4aa9968499c9517bd",
+  "prompts": {},
+  "sessions": {
+    "s_07badaed2eede4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ba02ce55-aa30-4077-b679-013fe8351f2d",
+        "model": "unknown"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
