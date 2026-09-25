@@ -57,7 +57,7 @@ final class AppEnvironment {
     let dictationService: DictationService
     let transcriptionService: TranscriptionService
     let youtubeDownloader: YouTubeDownloader
-    let diarizationService: DiarizationService
+    let diarizationService: any DiarizationServiceProtocol
     /// Stateless; fetches the Silero VAD model for VAD-guided meeting live
     /// chunking. Consumed by `AppDelegate.scheduleDeferredSpeechPreWarm` on every
     /// launch (gated on `AppFeatures.meetingVadLiveChunkingEnabled`) so the
@@ -307,7 +307,7 @@ final class AppEnvironment {
         Task.detached(priority: .utility) {
             await binaryBootstrap.autoUpdateYtDlpIfNeeded()
         }
-        diarizationService = DiarizationService()
+        diarizationService = DiarizationServiceFactory.live.make(speakerConstraint: nil)
 
         let voiceReturnTriggersClosure: @Sendable () -> [String] = { [runtimePreferences] in
             runtimePreferences.voiceReturnTriggers

@@ -84,6 +84,11 @@ final class DiarizationServiceTests: XCTestCase {
             FileManager.default.createFile(atPath: modelURL.path, contents: Data())
         }
 
+        XCTAssertFalse(DiarizationService.isModelCached(directory: tempDirectory), "Legacy unmarked caches need setup.")
+        let marker = repoDirectory.appendingPathComponent(".fluidaudio-revision")
+        try Data("stale-revision".utf8).write(to: marker)
+        XCTAssertFalse(DiarizationService.isModelCached(directory: tempDirectory))
+        try Data((Repo.diarizer.revision + "\n").utf8).write(to: marker)
         XCTAssertTrue(DiarizationService.isModelCached(directory: tempDirectory))
 
         DiarizationService.clearModelCache(directory: tempDirectory)
@@ -328,7 +333,8 @@ final class DiarizationServiceTests: XCTestCase {
         let metadata = DiarizationService.modelCacheDirectory(directory: directory).appendingPathComponent("plda-parameters.json")
         let replacement = Data(#"{"tensors":{"psi":{"data_base64":"AACAPw=="}}}"#.utf8)
         try await DiarizationService.repairPLDAParameters(directory: directory, offlineMode: false) { url in
-            XCTAssertEqual(url, try ModelRegistry.resolveModel(Repo.diarizer.remotePath, "plda-parameters.json"))
+            XCTAssertEqual(url, try ModelRegistry.resolveModel(
+                Repo.diarizer.remotePath, "plda-parameters.json", revision: Repo.diarizer.revision))
             return replacement
         }
         XCTAssertEqual(try Data(contentsOf: metadata), replacement)
@@ -382,6 +388,7 @@ final class DiarizationServiceTests: XCTestCase {
             try Data("model sentinel".utf8).write(to: file)
         }
         try Data("malformed".utf8).write(to: repo.appendingPathComponent("plda-parameters.json"))
+        try Data(Repo.diarizer.revision.utf8).write(to: repo.appendingPathComponent(".fluidaudio-revision"))
         return directory
     }
 

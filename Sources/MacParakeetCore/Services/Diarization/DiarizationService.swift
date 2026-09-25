@@ -9,7 +9,7 @@ public struct MacParakeetDiarizationResult: Sendable {
     /// Keyed by the same stable ids as `speakers`. A speaker is absent when its
     /// centroid carried no direction; it keeps its segments and label either way.
     public let speakerEmbeddings: [String: SpeakerEmbedding]
-    /// Offline segments are exclusive, so these are plain sums.
+    /// Activity durations per speaker. Different speakers may overlap.
     public let speechMsBySpeaker: [String: Int]
 
     public init(
@@ -72,7 +72,8 @@ public enum RetranscriptionSpeakerSelection: Equatable, Sendable {
 
     public func validated() throws -> Self {
         if case .exact(let count) = self,
-           !Self.supportedExactCount.contains(count) {
+            !Self.supportedExactCount.contains(count)
+        {
             throw RetranscriptionSpeakerSelectionError.unsupportedExactCount(count)
         }
         return self
@@ -108,11 +109,28 @@ public struct DiarizationServiceFactory: Sendable {
         makeService(speakerConstraint)
     }
 
+    /// Clear all speaker backends without touching speech-recognition models.
+    public static func clearModelCaches(directory: URL? = nil) {
+        DiarizationService.clearModelCache(directory: directory)
+        NemotronDiarizationService.clearModelCache(directory: directory)
+    }
+
     public static let live = Self { constraint in
+        makeLiveService(speakerConstraint: constraint, voiceProfilesAvailable: AppFeatures.isVoiceProfilesAvailable())
+    }
+
+    static func makeLiveService(
+        speakerConstraint constraint: SpeakerDiarizationConstraint?, voiceProfilesAvailable: Bool
+    ) -> any DiarizationServiceProtocol {
         if let constraint {
             return DiarizationService(speakerConstraint: constraint)
         }
-        return DiarizationService()
+        // Voice profiles require Community-1's embeddings. Nemotron emits
+        // activity channels, not compatible identity embeddings.
+        if voiceProfilesAvailable {
+            return DiarizationService()
+        }
+        return NemotronDiarizationService()
     }
 }
 
@@ -268,7 +286,8 @@ public actor DiarizationService: DiarizationServiceProtocol {
             return SpeakerSegment(speakerId: mappedId, startMs: startMs, endMs: endMs)
         }
 
-        let speakers: [SpeakerInfo] = idMapping
+        let speakers: [SpeakerInfo] =
+            idMapping
             .sorted { Int($0.value.dropFirst()) ?? 0 < Int($1.value.dropFirst()) ?? 0 }
             .map { _, stableId in
                 let number = String(stableId.dropFirst())
@@ -357,7 +376,8 @@ public actor DiarizationService: DiarizationServiceProtocol {
         guard FileManager.default.fileExists(atPath: file.path) else { return }
         let existing = try Data(contentsOf: file)
         guard !validPLDAParameters(existing) else { return }
-        let url = try ModelRegistry.resolveModel(Repo.diarizer.remotePath, "plda-parameters.json")
+        let url = try ModelRegistry.resolveModel(
+            Repo.diarizer.remotePath, "plda-parameters.json", revision: Repo.diarizer.revision)
         let replacement = try await fetch(url)
         try Task.checkCancellation()
         guard validPLDAParameters(replacement) else {
@@ -410,6 +430,12 @@ public actor DiarizationService: DiarizationServiceProtocol {
 
     public nonisolated static func isModelCached(directory: URL? = nil) -> Bool {
         let repoDirectory = modelCacheDirectory(directory: directory)
+        // FluidAudio 0.17 pins this repository and will not load legacy,
+        // unmarked caches offline. Match its revision check before saying ready.
+        let marker = repoDirectory.appendingPathComponent(".fluidaudio-revision")
+        guard let revision = try? String(contentsOf: marker, encoding: .utf8),
+            revision.trimmingCharacters(in: .whitespacesAndNewlines) == Repo.diarizer.revision
+        else { return false }
         return requiredModelNames().allSatisfy { modelName in
             FileManager.default.fileExists(
                 atPath: repoDirectory.appendingPathComponent(modelName, isDirectory: false).path
@@ -467,7 +493,7 @@ public actor DiarizationService: DiarizationServiceProtocol {
 
     /// Bump on any FluidAudio upgrade that could move the clustering centroid,
     /// even when the embedding model is untouched.
-    private nonisolated static let pipelineRevision = "fluidaudio-0.15.7"
+    private nonisolated static let pipelineRevision = "fluidaudio-0.17.4"
 
     /// Identity of the representation the shipping configuration produces.
     public nonisolated static var defaultModelIdentity: SpeakerModelIdentity {

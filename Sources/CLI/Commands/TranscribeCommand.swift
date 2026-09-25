@@ -129,7 +129,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     @Option(help: "Path to SQLite database file (defaults to the app database).")
     var database: String?
 
-    @Option(name: .long, help: "Speaker detection: app-default, on, off. Default: app-default, which follows the saved GUI/CLI preference.")
+    @Option(name: .long, help: "Speaker detection: app-default, on, off. Default: app-default, which follows the saved GUI/CLI preference. Automatic detection supports up to eight speakers; use count constraints for larger groups.")
     var speakerDetection: SpeakerDetectionOption = .appDefault
 
     @Option(name: .long, help: "Exact speaker count for this run. Mutually exclusive with --speaker-min/--speaker-max; implies speaker detection for app-default.")
@@ -443,12 +443,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
 
     static func makeDiarizationService(
         for speakerDetection: ResolvedSpeakerDetection
-    ) -> DiarizationService? {
+    ) -> (any DiarizationServiceProtocol)? {
         guard speakerDetection.enabled else { return nil }
-        guard let constraint = speakerDetection.constraint else {
-            return DiarizationService()
-        }
-        return DiarizationService(speakerConstraint: constraint)
+        return DiarizationServiceFactory.live.make(speakerConstraint: speakerDetection.constraint)
     }
 
     static func localFileURL(for input: String) -> URL {

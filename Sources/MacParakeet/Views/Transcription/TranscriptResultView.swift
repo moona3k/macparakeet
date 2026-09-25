@@ -1442,6 +1442,13 @@ struct TranscriptResultView: View {
             }
             .pickerStyle(.segmented)
 
+            if !retranscriptionUsesExactSpeakerCount, !AppFeatures.isVoiceProfilesAvailable() {
+                Text("Auto detects up to eight speakers. Choose Exact for a larger group.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             if retranscriptionUsesExactSpeakerCount {
                 Stepper(
                     value: $retranscriptionExactSpeakerCount,

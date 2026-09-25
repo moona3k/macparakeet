@@ -111,7 +111,7 @@ extension ModelsCommand {
                         Task { await sttClient.shutdown() }
                     }
                 }
-                let diarizationService = DiarizationService()
+                let diarizationService = DiarizationServiceFactory.live.make(speakerConstraint: nil)
                 let status = await loadSpeechStackStatus(
                     sttClient: sttClient,
                     diarizationService: diarizationService,
@@ -230,7 +230,7 @@ extension ModelsCommand {
                     Task { await sttClient.shutdown() }
                 }
             }
-            let diarizationService = DiarizationService()
+            let diarizationService = DiarizationServiceFactory.live.make(speakerConstraint: nil)
             try await prepareSpeechStack(
                 attempts: attempts,
                 sttClient: sttClient,
@@ -262,7 +262,7 @@ extension ModelsCommand {
                     Task { await sttClient.shutdown() }
                 }
             }
-            let diarizationService = DiarizationService()
+            let diarizationService = DiarizationServiceFactory.live.make(speakerConstraint: nil)
             try await prepareSpeechStack(
                 attempts: attempts,
                 sttClient: sttClient,
@@ -462,7 +462,7 @@ struct ModelCacheClearError: Error, LocalizedError {
 func clearModelCachesForCLI(
     json: Bool,
     sttClient: STTClientProtocol = makeParakeetSTTClient(),
-    clearSpeakerCache: @Sendable () -> Void = { DiarizationService.clearModelCache() },
+    clearSpeakerCache: @Sendable () -> Void = { DiarizationServiceFactory.clearModelCaches() },
     clearWhisperModels: @Sendable () throws -> Void = {
         do {
             try FileManager.default.removeItem(atPath: AppPaths.whisperModelsDir)

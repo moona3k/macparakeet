@@ -55,8 +55,17 @@ does not claim their compiler executables are redistributed in the app.
 
 ### FluidAudio
 
-- License: MIT License
-- Source/notes: Speech recognition SDK
+- License: Apache License 2.0
+- Source: <https://github.com/FluidInference/FluidAudio>
+- Used for: Local speech recognition and speaker diarization
+
+### NVIDIA Nemotron 3 Diarization
+
+- License: OpenMDW License Agreement, version 1.1
+- Model source: <https://huggingface.co/nvidia/Nemotron-3-Diarization>
+- CoreML conversion: <https://huggingface.co/FluidInference/nemotron-3-diarization-coreml>, by Fluid Inference
+- Used for: Local speaker activity detection, up to eight speakers per analyzed source
+- Model files download separately. Attribution and the license text are included in [`NemotronDiarization.txt`](Sources/MacParakeet/Resources/Legal/NemotronDiarization.txt), copied into app bundles under `Contents/Resources/Legal/`.
 
 ### WhisperKit
 

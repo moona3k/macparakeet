@@ -1,16 +1,122 @@
-# Speaker-count evaluation
+# Speaker diarization evaluation
+
+## Nemotron comparison
+
+The [2026-09-25 evaluation](2026-09-25-nemotron-evaluation.md) records the
+measured comparison, integration decision, and remaining qualification limits.
+
+The matched acoustic runner compares the frozen FluidAudio 0.15.7 Community-1
+configuration with the new Nemotron adapter. It preserves overlaps and brief
+intervals and scores zero-collar DER with overlap included. Downloaded audio,
+model caches, and large prediction files stay outside Git.
+
+- `manifests/ami-test.json`: all 16 AMI test meetings, mixed headset and true
+  single distant microphone conditions, manual references and original UEMs.
+- `manifests/ami-test-forced-alignment.json`: the same signals and UEMs with
+  separately pinned word-aligned references, for reference-sensitivity analysis.
+- `manifests/alimeeting-test.json`: all 20 official AliMeeting Test sessions,
+  far channel one and a fixed arithmetic mean of every participant headset.
+- `Baseline/`: isolated SDK 0.15.7 executable; reads existing models offline
+  and records model/audio hashes. The app executable uses SDK 0.17.4.
+- `scripts/run_comparison.py`: sequential matched runs, alternating backend
+  order, checking audio identity, retaining failures and per-recording logs.
+- `scripts/score_diarization.py`: pinned dscore/NIST engine, explicit coverage
+  checks, per-recording errors, weighted condition totals and speaker counts.
+
+Build the two release executables:
+
+```sh
+swift build -c release --product diarization-benchmark
+swift build -c release --package-path benchmarks/diarization/Baseline
+```
+
+`prepare_ami.py --root /path/to/ami` downloads references and the scorer;
+add `--recording ami_ES2004a_mhm` to download a particular official WAV.
+Acquire every ID in the selected manifest before running the comparison.
+Each WAV must match its pinned SHA-256; a changed or partial file is rejected.
+Its frozen audio headers distinguish actual capture duration from the original
+UEM; four distant-microphone recordings have small unscored tails. No timing
+shift, cropping or padding is applied to AMI audio.
+
+AliMeeting acquisition needs ffmpeg and the pinned requirements in
+`scripts/requirements-acquisition.txt`. `prepare_alimeeting.py --root
+/path/to/ali` streams the official 9.55 GB archive and retains approximately
+2.4 GB of mono audio. It requires an empty destination and verifies complete
+member coverage. Near headsets share the recording origin; shorter headset
+tails contribute silence to the fixed 1/N mean. Audio, original annotations,
+decoded durations and archive hashes are retained as provenance.
+
+```sh
+python3 benchmarks/diarization/scripts/run_comparison.py \
+  --manifest benchmarks/diarization/manifests/ami-test.json \
+  --audio-root /path/to/ami/audio \
+  --baseline benchmarks/diarization/Baseline/.build/release/diarization-baseline \
+  --candidate .build/release/diarization-benchmark \
+  --baseline-models /path/to/baseline-models \
+  --candidate-models /path/to/candidate-models \
+  --output /path/to/results --include-offline
+
+python3 benchmarks/diarization/scripts/score_diarization.py \
+  --manifest benchmarks/diarization/manifests/ami-test.json \
+  --reference-root /path/to/ami/references \
+  --predictions community1-0.15.7=/path/to/results/community1-0.15.7 \
+  --predictions nemotron=/path/to/results/nemotron \
+  --predictions nemotron-offline=/path/to/results/nemotron-offline \
+  --md-eval /path/to/ami/tools/md-eval-22.pl \
+  --output /path/to/results/ami-manual-scores.json
+```
+
+Use the separate forced-alignment manifest and reference directory to rescore
+the same predictions. Never pool microphone conditions as independent meetings
+or mix reference conventions into one headline score. Vendor numbers use a
+different scorer; matching reference files alone does not reproduce its run.
+
+After scoring, optional activity diagnostics reuse NIST's global speaker
+mapping and validate the saved error totals before measuring coverage:
+
+```sh
+python3 benchmarks/diarization/scripts/analyze_activity.py \
+  --results /path/to/results --md-eval /path/to/ami/tools/md-eval-22.pl
+```
+
+This reports mapped reference interval coverage for <=200 ms, 200 ms–1 s,
+and longer intervals, plus minority speakers. It is not conversational turn
+recall, word accuracy, or precision; extra predicted activity is not penalized.
+The output lists any missing protocols, so a partial diagnostic cannot be
+mistaken for complete corpus coverage.
+
+The opt-in `NemotronDiarizationE2ETests` exercises real ASR, source-separated
+meeting finalization, persistence, file transcription and model reuse. See its
+environment-variable instructions before running it. Normal tests do not
+download models or process real recordings.
+
+Its JSON contains `fixedASRWordProjections` for both diarizers with identical
+ASR word evidence, raw intervals, labels before smoothing, and final words.
+To reproduce the report's conditional word-label diagnostic, clip/rebase AMI
+ES2004a references from 50–230 seconds, use NIST `-M` to map each arm's raw
+intervals independently, and hold that mapping fixed for both projections.
+At each recognized word's midpoint, score only exactly one active reference
+speaker (start inclusive/end exclusive); count nil/unmapped predictions as
+wrong and report zero-activity/overlap exclusions. This is not cpWER or a
+reference-word-aligned accuracy measure. The result receipt records mappings,
+hashes, eligible counts and transitions.
+
+## Existing speaker-count slice
 
 Labeled public clips for checking whether MacParakeet honours Exact /
 `--speaker-count` / `--speaker-max`. Audio is **not** in git. Ground truth is
 RTTM speaker identity counts from [VoxConverse v0.3](https://github.com/joonson/voxconverse)
 (CC BY 4.0).
 
-This is **not** a DER harness and does **not** close Auto 1:1 over-splits
+This older count-only slice does **not** measure DER or close Auto 1:1 over-splits
 ([#944](https://github.com/moona3k/macparakeet/issues/944)). Auto still allows
 `max = n + 1`. This suite tests the constraint path ([#1023](https://github.com/moona3k/macparakeet/issues/1023)).
 
 Unconstrained Auto over-split on the same seven files is a separate gate:
 [2026-09-15-issue-1046-baseline.md](2026-09-15-issue-1046-baseline.md) ([#1046](https://github.com/moona3k/macparakeet/issues/1046)).
+
+Nemotron trained on VoxConverse development and test, so this slice is a
+regression check rather than held-out evidence for its model quality.
 
 ## Layout
 

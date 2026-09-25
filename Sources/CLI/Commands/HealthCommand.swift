@@ -118,7 +118,7 @@ struct HealthCommand: AsyncParsableCommand {
                 Task { await sttClient.shutdown() }
             }
         }
-        let diarizationService = DiarizationService()
+        let diarizationService = DiarizationServiceFactory.live.make(speakerConstraint: nil)
         let status = await loadSpeechStackStatus(
             sttClient: sttClient,
             diarizationService: diarizationService,
