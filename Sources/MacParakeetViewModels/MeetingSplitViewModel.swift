@@ -218,6 +218,31 @@ public final class MeetingSplitViewModel {
         revalidate()
     }
 
+    /// Playback can replace incomplete target text, but must not rely on stale
+    /// numeric values from another incomplete row or create invalid geometry.
+    public func canUseCurrentPosition(at index: Int, toMs value: Int) -> Bool {
+        guard loadState == .ready, let state = editing,
+            state.sourceId == presentedSourceId, !isProcessingActive,
+            operation == nil, !isExternallyOwned,
+            boundaryText.indices.contains(index),
+            MeetingSplitTimecode.parse(boundaryText[index]) != value
+        else { return false }
+
+        let proposedCuts = boundaryText.enumerated().compactMap { offset, text in
+            offset == index ? value : MeetingSplitTimecode.parse(text)
+        }
+        guard proposedCuts.count == boundaryText.count else { return false }
+        return
+            (try? MeetingSplitGeometry.ranges(
+                durationMs: state.totalDurationMs, cutPointsMs: proposedCuts
+            )) != nil
+    }
+
+    public func useCurrentPosition(at index: Int, toMs value: Int) {
+        guard canUseCurrentPosition(at: index, toMs: value) else { return }
+        updateCut(at: index, toMs: value)
+    }
+
     public func updateCut(at index: Int, toMs value: Int) {
         guard var state = editing, !isProcessingActive, state.cutPointsMs.indices.contains(index) else { return }
         state.cutPointsMs[index] = value
@@ -254,6 +279,18 @@ public final class MeetingSplitViewModel {
             validationError = state.partTitles.allSatisfy {
                 !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             } ? nil : "Every part needs a title."
+        } catch let error as MeetingSplitCutValidationError {
+            switch error {
+            case .invalidDuration:
+                validationError = "This recording has no usable duration to split."
+            case .noCuts:
+                validationError = "Add a split time to create separate parts."
+            case .cutOutOfRange:
+                validationError = "Choose split times after the start and before the end of the recording."
+            case .unorderedOrDuplicateCuts:
+                validationError =
+                    "Each split time must come after the previous one. Choose a different time for each split."
+            }
         } catch {
             validationError = error.localizedDescription
         }
