@@ -2851,7 +2851,10 @@ struct TranscriptResultView: View {
                 .scrollContentBackground(.hidden)
                 .focused($meetingNotesEditorFocused)
                 .overlay(alignment: .topLeading) {
-                    if savedMeetingNotesViewModel.textBinding(for: activeTranscription.id).wrappedValue.isEmpty {
+                    if savedMeetingNotesViewModel.meetingID == activeTranscription.id
+                        && savedMeetingNotesViewModel.saveState != .deleted
+                        && savedMeetingNotesViewModel.textBinding(for: activeTranscription.id).wrappedValue.isEmpty
+                    {
                         Text("Add your thoughts, decisions, and next steps…")
                             .font(DesignSystem.Typography.bodyLarge)
                             .foregroundStyle(DesignSystem.Colors.textSecondary)
@@ -2981,13 +2984,28 @@ struct TranscriptResultView: View {
     private var meetingNotesPane: some View {
         meetingNotesSection
             .onAppear(perform: beginMeetingNotesSaveStatusPresentation)
+            .onChange(of: activeTranscription.id) {
+                resetMeetingNotesCopyFeedback()
+            }
+            .onChange(of: savedMeetingNotesViewModel.text) {
+                resetMeetingNotesCopyFeedback()
+            }
             .onChange(of: savedMeetingNotesViewModel.meetingID) {
                 beginMeetingNotesSaveStatusPresentation()
             }
             .onChange(of: savedMeetingNotesViewModel.saveState) { previousState, saveState in
                 observeMeetingNotesSaveState(from: previousState, to: saveState)
             }
-            .onDisappear(perform: resetMeetingNotesSaveStatusPresentation)
+            .onDisappear {
+                resetMeetingNotesSaveStatusPresentation()
+                resetMeetingNotesCopyFeedback()
+            }
+    }
+
+    private func resetMeetingNotesCopyFeedback() {
+        notesCopiedResetTask?.cancel()
+        notesCopiedResetTask = nil
+        notesCopied = false
     }
 
     // MARK: - Tab Bar
