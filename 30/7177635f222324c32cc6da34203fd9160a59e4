@@ -1,0 +1,157 @@
+Tests/MacParakeetTests/Services/Diarization/NemotronDiarizationServiceTests.swift
+  s_fc431665d16421::t_f0db69641852fa 1-35,77,80-83,85,98-110,113-115,117-124,160-170,172-184,191,193-196,263-265,268-279
+  s_fc431665d16421::t_eff96b96bb0fe6 266-267
+  s_fc431665d16421::t_060ea1d625b2d5 36-69,78-79,84,86,94-96,116,171,185-190,192,201-205
+  s_fc431665d16421::t_93fe647102702d 111-112,230-235,240-241,244,246-250
+  s_fc431665d16421::t_29a77d17a1e4d4 197-200,206-229,245,261-262
+  s_fc431665d16421::t_0ddf1ad25e2ce5 236-239,242-243,251-260
+  s_fc431665d16421::t_2823ac9ca2a316 70-76,87-93,97,125-159
+benchmarks/diarization/test_prepare_ami.py
+  s_fc431665d16421::t_dc4b21f048981a 1-56
+benchmarks/diarization/scripts/prepare_ami.py
+  s_fc431665d16421::t_dc4b21f048981a 49-81,101,103
+  s_fc431665d16421::t_b8193f35f3b972 1-48,82-100,102,104-113
+benchmarks/diarization/Baseline/Sources/DiarizationBaseline/DiarizationBaseline.swift
+  s_fc431665d16421::t_3b28ba1548ea85 1-186
+  s_fc431665d16421::t_67711bcb4eecab 187-191
+Sources/CLI/Commands/ModelsCommand.swift
+  s_fc431665d16421::t_15a4980bca3773 114,233,265
+  s_fc431665d16421::t_93fe647102702d 465
+Tests/MacParakeetTests/Services/Diarization/DiarizationServiceTests.swift
+  s_fc431665d16421::t_5f564704b9b899 87-91,336-337,391
+benchmarks/diarization/scripts/score_diarization.py
+  s_fc431665d16421::t_254a65209deaf6 149-153,156-157,161-164,186-187
+  s_fc431665d16421::t_e82ee6f448f8f1 1-148,154-155,158-160,165-185,188-222
+scripts/dist/build_app_bundle.sh
+  s_fc431665d16421::t_d53d51d1d3e401 610
+benchmarks/diarization/Baseline/README.md
+  s_fc431665d16421::t_ed31b8470a7e63 5
+  s_fc431665d16421::t_3b28ba1548ea85 1-4,6-55
+  s_fc431665d16421::t_1beca05ec47a12 56-57
+benchmarks/diarization/Baseline/Package.swift
+  s_fc431665d16421::t_3b28ba1548ea85 1-19
+scripts/dev/run_app.sh
+  s_fc431665d16421::t_d53d51d1d3e401 150
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_fc431665d16421::t_69fefc9b7b77be 1400-1403,1691-1693
+benchmarks/diarization/scripts/requirements-acquisition.txt
+  s_fc431665d16421::t_254a65209deaf6 1-3
+benchmarks/diarization/README.md
+  s_fc431665d16421::t_81bb9bcbcfbfad 5-7
+  s_fc431665d16421::t_6f86f827876430 1-4,8-72,87-92,99,106-107
+  s_fc431665d16421::t_b7b38c82ac7b12 73-86
+  s_fc431665d16421::t_e1061469da3756 108
+Tests/MacParakeetTests/Services/Diarization/NemotronDiarizationE2ETests.swift
+  s_fc431665d16421::t_1c57ab9e789b8a 24-26,110-112,115-117,120-123,148-149,153-154,219-220,312-317,319-320,381-383,386-387,389-393,397-399,421-426
+  s_fc431665d16421::t_c7e2f6aceec834 2,18,32-33,35,186-207,215,226-271,355-365,371,384,388
+  s_fc431665d16421::t_f01473010d11c2 1,3-17,19-23,27-31,34,36-109,114,124-147,150-152,155-185,208-211,214,216-218,221-225,272-311,318,321-348,350-354,366-370,372-380,385,394-396,400-420,427-428
+  s_fc431665d16421::t_f93a35c924162f 113,118-119,212-213,349
+  s_fc431665d16421::t_b55a339f419580 429-433
+benchmarks/diarization/scripts/prepare_alimeeting.py
+  s_fc431665d16421::t_fb394933c6d936 1-4,6-13,15-68,70-75,81-85,87-95,97-100,103-108,110-140,143-180,182-192,211-222,225-250
+  s_fc431665d16421::t_254a65209deaf6 14,69,223-224
+  s_fc431665d16421::t_de4edd7831f7bb 96,101-102,109,181,193-210
+  s_fc431665d16421::t_d2a8a3b5040cfc 5,76-80,86,141-142
+Sources/CLI/Commands/SavedMeetingProcessingContext.swift
+  s_fc431665d16421::t_15a4980bca3773 58
+benchmarks/diarization/scripts/run_comparison.py
+  s_fc431665d16421::t_db4c6e1995704d 13,15,27,41-42
+  s_fc431665d16421::t_604d5a19028671 1-12,14,16-26,28-40,43-64
+THIRD_PARTY_LICENSES.md
+  s_fc431665d16421::t_d53d51d1d3e401 58-68
+Sources/MacParakeetCore/Services/AppPaths.swift
+  s_fc431665d16421::t_eff96b96bb0fe6 224-227
+benchmarks/diarization/test_prepare_alimeeting.py
+  s_fc431665d16421::t_aa7bda3c88a9c7 1-16,18-66,71-92,96-102,120-123
+  s_fc431665d16421::t_d2a8a3b5040cfc 17,103-119
+  s_fc431665d16421::t_de4edd7831f7bb 67-70,93-95
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_fc431665d16421::t_15a4980bca3773 60,310
+benchmarks/diarization/2026-09-25-nemotron-evaluation.md
+  s_fc431665d16421::t_81bb9bcbcfbfad 1-205
+Sources/MacParakeetCore/Services/Diarization/NemotronDiarizationModelStore.swift
+  s_fc431665d16421::t_30101da65311a4 1-92
+  s_fc431665d16421::t_6483222dc763e1 93-101
+Sources/MacParakeetCore/Services/Diarization/DiarizationService.swift
+  s_fc431665d16421::t_93fe647102702d 75-76,112-117,289-290
+  s_fc431665d16421::t_5f564704b9b899 379-380
+  s_fc431665d16421::t_a658ac87e9463d 433-438
+  s_fc431665d16421::t_0ddf1ad25e2ce5 119-124,130
+  s_fc431665d16421::t_29a77d17a1e4d4 496
+  s_fc431665d16421::t_15a4980bca3773 12,128-129,131-133
+Sources/CLI/Commands/HealthCommand.swift
+  s_fc431665d16421::t_15a4980bca3773 121
+Package.swift
+  s_fc431665d16421::t_e4033a6a89b315 31-34
+  s_fc431665d16421::t_fa41732dc4ebd0 121,127-135
+Sources/MacParakeetCore/Services/Diarization/NemotronDiarizationService.swift
+  s_fc431665d16421::t_30101da65311a4 1-3,5-16,23,25-29,31-44,46-57,59-64,67-71,73-77,81-83,93,99-105,107-113,126-127,140-170,172-217,221,224-228,230-231,233-257,263-265
+  s_fc431665d16421::t_060ea1d625b2d5 4,30,114-125,130-131,218-220,222-223
+  s_fc431665d16421::t_29a77d17a1e4d4 45,58,65-66,72,106,128-129,132-139
+  s_fc431665d16421::t_c75114922624ed 232
+  s_fc431665d16421::t_2823ac9ca2a316 78-80,84-92
+  s_fc431665d16421::t_93fe647102702d 94-98
+  s_fc431665d16421::t_eff96b96bb0fe6 17-22,24,171,229,258-262
+benchmarks/diarization/scripts/analyze_activity.py
+  s_fc431665d16421::t_76d0b6baec896c 1-138,140-257
+  s_fc431665d16421::t_1b0baecead8363 139
+benchmarks/diarization/Sources/DiarizationBenchmark.swift
+  s_fc431665d16421::t_db4c6e1995704d 61-65,71
+  s_fc431665d16421::t_fa41732dc4ebd0 1-60,81-82,84-98
+  s_fc431665d16421::t_29a77d17a1e4d4 66-70,72-80,83
+  s_fc431665d16421::t_c814e0bd263a67 99-102
+benchmarks/diarization/test_score_diarization.py
+  s_fc431665d16421::t_1cb37c7ec10bf6 1-110
+benchmarks/diarization/test_analyze_activity.py
+  s_fc431665d16421::t_1b0baecead8363 40-50,145-150
+  s_fc431665d16421::t_76d0b6baec896c 1-39,51-144,151-154
+Sources/CLI/Commands/TranscribeCommand.swift
+  s_fc431665d16421::t_15a4980bca3773 446,448
+  s_fc431665d16421::t_3aeeea87111afe 132
+Package.resolved
+  s_fc431665d16421::t_24e26bd128370e 26-27
+Sources/CLI/CHANGELOG.md
+  s_fc431665d16421::t_d28cbed4b3f637 106-113
+Sources/MacParakeet/Resources/Legal/NemotronDiarization.txt
+  s_fc431665d16421::t_78a822440ac309 1-26
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_fc431665d16421::t_bc38459571a3a3 1445-1451
+benchmarks/diarization/Baseline/Package.resolved
+  s_fc431665d16421::t_d5d28c5074be86 1-15
+benchmarks/diarization/manifests/alimeeting-test.json
+  s_fc431665d16421::t_ed3d53468730aa 1-504
+benchmarks/diarization/manifests/ami-test-forced-alignment.json
+  s_fc431665d16421::t_74e011ad4323b1 1-1186
+benchmarks/diarization/manifests/ami-test.json
+  s_fc431665d16421::t_8b4233cb8aa162 1-881
+docs/plans/2026-09-25-nemotron-diarization-evaluation-plan.md
+  s_fc431665d16421::t_b95619e349d059 1-132
+docs/research/2026-09-25-nemotron-diarization-evaluation.md
+  s_fc431665d16421::t_464e55cf56ce2d 1-154
+docs/research/2026-09-25-omarchy-meeting-recorder-diarization-review.md
+  s_fc431665d16421::t_84d7a442e12b1f 1-265
+spec/06-stt-engine.md
+  s_fc431665d16421::t_2507596e64784e 217-218,223,227-229,407,412
+spec/adr/010-speaker-diarization.md
+  s_fc431665d16421::t_9e58b1d7686f60 5,7-55
+spec/contracts/audio-speaker-timeline-v1.md
+  s_fc431665d16421::t_b0e9bbdbcd4969 18,41
+spec/contracts/speaker-voiceprints.md
+  s_fc431665d16421::t_a2bf5d234dfe6c 33-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "307177635f222324c32cc6da34203fd9160a59e4",
+  "prompts": {},
+  "sessions": {
+    "s_fc431665d16421": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d8f6-e373-7060-9ce6-c25215540c80",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
