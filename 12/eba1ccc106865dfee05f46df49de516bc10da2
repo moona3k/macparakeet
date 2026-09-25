@@ -1,0 +1,27 @@
+Sources/MacParakeet/Hotkey/HotkeyManager.swift
+  s_ef9575b40b18b4::t_9092b30c671f19 80-82,522-525,857-860,926,1029,1041,1044,1093,1181,1201
+Sources/MacParakeetCore/DictationFlow/DictationFlowStateMachine.swift
+  s_ef9575b40b18b4::t_6e674ca6c27146 397-400,405,493
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_ef9575b40b18b4::t_434a993f793973 376,378
+Tests/MacParakeetTests/DictationFlow/DictationFlowStateMachineTests.swift
+  s_ef9575b40b18b4::t_753d99ebd051f6 599-600,612
+Tests/MacParakeetTests/Hotkey/HotkeyManagerTests.swift
+  s_ef9575b40b18b4::t_590cfeac194d39 18-22,29,1801-1817
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "12eba1ccc106865dfee05f46df49de516bc10da2",
+  "prompts": {},
+  "sessions": {
+    "s_ef9575b40b18b4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "76519bb4-2f14-46c2-92b3-f3d3b9a4ec7c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
