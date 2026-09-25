@@ -561,7 +561,7 @@ struct TranscriptResultView: View {
     @State private var titleDraft = ""
     @State private var editingTranscript = false
     @State private var editingReadingTranscript = false
-    @State private var readingDrafts: [TranscriptReadingDraft] = []
+    @State private var readingEditSession: TranscriptReadingEditSession?
     @State private var savingReadingTranscript = false
     @State private var readingSaveID: UUID?
     @State private var transcriptDraft = ""
@@ -841,7 +841,7 @@ struct TranscriptResultView: View {
         titleDraft = ""
         editingTranscript = false
         editingReadingTranscript = false
-        readingDrafts = []
+        readingEditSession = nil
         savingReadingTranscript = false
         readingSaveID = nil
         transcriptDraft = ""
@@ -2482,7 +2482,7 @@ struct TranscriptResultView: View {
                     Label(savingReadingTranscript ? "Saving…" : "Done", systemImage: "checkmark")
                 }
                 .parakeetAction(.primaryProminent)
-                .disabled(savingReadingTranscript || TranscriptReadingEdit.command(for: readingDrafts) == nil)
+                .disabled(savingReadingTranscript || readingEditSession?.hasChanges != true)
             } else if editingTranscript {
                 if hasEditedTranscript {
                     Button {
@@ -2667,8 +2667,10 @@ struct TranscriptResultView: View {
     @ViewBuilder
     private var transcriptDocumentBody: some View {
         if editingReadingTranscript {
-            TranscriptReadingEditor(drafts: $readingDrafts, font: scaledTranscriptFont)
-                .disabled(savingReadingTranscript)
+            if let readingEditSession {
+                TranscriptReadingEditor(session: readingEditSession, font: scaledTranscriptFont)
+                    .disabled(savingReadingTranscript)
+            }
         } else if editingTranscript {
             transcriptEditor
         } else if transcriptDisplayMode == .timed,
@@ -5437,20 +5439,21 @@ struct TranscriptResultView: View {
 
     private func beginReadingEdit() {
         guard let segments = viewModel.speakerAttribution?.editableSegments, !segments.isEmpty else { return }
-        readingDrafts = segments.map { segment in
+        let drafts = segments.map { segment in
             TranscriptReadingDraft(
                 target: correctionTarget(for: segment),
                 originalText: segment.text,
                 text: segment.text
             )
         }
+        readingEditSession = TranscriptReadingEditSession(drafts: drafts)
         transcriptEditError = nil
         editingReadingTranscript = true
     }
 
     private func cancelReadingEdit() {
         guard !savingReadingTranscript else { return }
-        readingDrafts = []
+        readingEditSession = nil
         editingReadingTranscript = false
         transcriptEditError = nil
     }
@@ -5461,7 +5464,7 @@ struct TranscriptResultView: View {
             transcriptEditError = "Transcript changed. Reopen it to save your edits."
             return
         }
-        guard let command = TranscriptReadingEdit.command(for: readingDrafts) else {
+        guard let command = readingEditSession?.command() else {
             cancelReadingEdit()
             return
         }
@@ -5483,7 +5486,7 @@ struct TranscriptResultView: View {
             savingReadingTranscript = false
             guard viewModel.currentTranscription?.id == savingTranscriptionID else { return }
             if succeeded {
-                readingDrafts = []
+                readingEditSession = nil
                 editingReadingTranscript = false
             } else {
                 transcriptEditError = "Couldn't save. Your edits are still here."

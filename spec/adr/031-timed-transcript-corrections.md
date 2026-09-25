@@ -173,3 +173,10 @@ rejected.
 A saved prompt result records the correction revision it was generated from.
 When that revision no longer matches, the summary offers **Update summary**.
 Editing does not recall a summary that already ran.
+
+The reading editor realizes passage fields lazily. An edit session owns every
+passage draft independently of row visibility, so scrolling cannot discard
+unsaved text or removals. Typing updates the active passage; the save control
+observes only whether the session has changes. The complete ordered correction
+command is assembled at save time. This presentation change leaves the journal,
+alignment, atomic save, and automatic word evidence contracts unchanged.
