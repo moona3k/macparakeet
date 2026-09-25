@@ -208,8 +208,9 @@ replay corpus, or a product decision:
 Code (all in `Sources/MacParakeetCore/Services/VoiceControl/`):
 
 - `VoiceControlWebDestination.swift`: anchored `matchingGoal` (names in a
-  navigation or search frame, intent phrases, flight search verbs; control
-  commands never route). `goalHints` became `names` plus `intentPhrases`.
+  navigation or search frame, intent phrases, a search verb whose object is
+  flights; control commands and flight phrases in a goal about an email,
+  message, confirmation or itinerary never route). `goalHints` became `names` plus `intentPhrases`.
   `search for` no longer means Google; `navigate to` no longer means Maps.
 - `VoiceControlWebQuery.swift`: a site query needs a query verb.
 - `VoiceControlCommandRouter.swift`: `browserForWebGoal` uses the anchored
@@ -220,10 +221,11 @@ Code (all in `Sources/MacParakeetCore/Services/VoiceControl/`):
 - `VoiceControlTypes.swift`: `VoiceControlGoalText` (scaffold strings and
   `userSegments`), shared by the runner and the Jev client.
 - `VoiceControlTurnRunner.swift`: uses `VoiceControlGoalText`; no behavior change.
-- `JevDecisionClient.swift`: `sourceSpans` from user segments, tails first;
+- `JevDecisionClient.swift`: `sourceSpans` from user segments, tails first,
+  within a 24 KB span budget (tails at most 16 KB);
   label-based `Executed` history on both request shapes; retry on
   429/503/529 and dropped connections (at most 2, 150/300 ms, short
-  `Retry-After` honored, consent rechecked, Stop cancels); `usage` decoded.
+  `Retry-After` honored, a longer one fails without retry, consent rechecked, Stop cancels); `usage` decoded.
 - `VoiceControlDiagnostics.swift`: `VoiceControlDecisionTrace.inputTokens` and
   `retries` (decoding stays backward compatible); keyword floor adds
   `donate`, `discard`, `uninstall`.

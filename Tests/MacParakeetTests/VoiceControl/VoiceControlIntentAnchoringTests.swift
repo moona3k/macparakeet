@@ -39,7 +39,8 @@ final class VoiceControlIntentAnchoringTests: XCTestCase {
     func testPageCommandsThatMentionASiteStayOnThePage() async throws {
         for goal in [
             "search for headphones", "click the YouTube link", "reply to the email about my flight",
-            "open the flight confirmation", "press the Gmail button",
+            "open the flight confirmation", "press the Gmail button", "find the email about my flight",
+            "reply to the email about my flight to Denver", "forward the flights to Paris email",
         ] {
             let decision = try await router.decide(goal: goal, snapshot: shopPage(), history: [])
             XCTAssertNil(openedDestination(decision), "\(goal) must not navigate away")
@@ -51,6 +52,7 @@ final class VoiceControlIntentAnchoringTests: XCTestCase {
             "Find flights to London": "web:google-flights",
             "Find one-way flights from Zurich to London on September 20 2026.": "web:google-flights",
             "flights from Boston to Denver": "web:google-flights",
+            "find cheap flights to Rome": "web:google-flights",
             "open YouTube": "web:youtube",
             "Play the Apollo 11 documentary on YouTube": "web:youtube",
             "go to Gmail": "web:gmail",

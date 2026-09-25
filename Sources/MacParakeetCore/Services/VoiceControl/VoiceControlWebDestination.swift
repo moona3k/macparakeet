@@ -64,20 +64,40 @@ public struct VoiceControlWebDestination: Sendable, Equatable {
     }
 
     private func isRequested(by padded: String) -> Bool {
-        if intentPhrases.contains(where: { padded.contains(" \($0) ") }) { return true }
         for name in names {
             if padded.hasPrefix(" \(name) ") || padded.contains(" \(name) for ") { return true }
             let frames = ["open", "go to", "switch to", "launch", "on", "in", "search", "use"]
             if frames.contains(where: { padded.contains(" \($0) \(name) ") }) { return true }
         }
-        // A flight search is the one destination named by its subject.
-        if id == "web:google-flights", padded.contains(" flight ") || padded.contains(" flights ") {
-            return Self.searchVerbs.contains { padded.hasPrefix(" \($0) ") }
+        // A flight search is the one destination named by its subject, so a
+        // message about a flight is not one.
+        if id == "web:google-flights" {
+            if Self.messageWords.contains(where: { padded.contains(" \($0) ") }) { return false }
+            if Self.leadsWithFlightSearch(padded) { return true }
         }
-        return false
+        return intentPhrases.contains(where: { padded.contains(" \($0) ") })
+    }
+
+    /// `find cheap one way flights …`: flights are the object of the search verb,
+    /// with only articles and fare modifiers in between.
+    private static func leadsWithFlightSearch(_ padded: String) -> Bool {
+        let words = padded.split(separator: " ").map(String.init)
+        return searchVerbs.contains { verb in
+            let verbWords = verb.split(separator: " ").map(String.init)
+            guard words.starts(with: verbWords) else { return false }
+            let object = words.dropFirst(verbWords.count).drop { flightModifiers.contains($0) }
+            return object.first == "flight" || object.first == "flights"
+        }
     }
 
     private static let searchVerbs = ["find", "search", "search for", "look for", "book", "compare"]
+    private static let flightModifiers: Set<String> = [
+        "a", "an", "the", "some", "cheap", "cheapest", "one", "way", "round", "trip", "nonstop", "non", "stop",
+        "direct", "return",
+    ]
+    private static let messageWords = [
+        "email", "emails", "mail", "message", "messages", "confirmation", "booking reference", "itinerary",
+    ]
 
     /// `click …` / `press …` / `select …` name a control on the current page.
     private static func isControlCommand(_ padded: String) -> Bool {

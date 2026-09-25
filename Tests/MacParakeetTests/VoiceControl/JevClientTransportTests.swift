@@ -18,7 +18,9 @@ final class JevClientTransportTests: XCTestCase {
 
     /// Replies with each status in `statuses` in turn (200 once they run out),
     /// answering every head with its first option.
-    private func client(statuses: [Int], calls: Calls, usage: Int? = 1_234) -> JevDecisionClient {
+    private func client(statuses: [Int], calls: Calls, usage: Int? = 1_234, retryAfter: String? = nil)
+        -> JevDecisionClient
+    {
         let script = Script(statuses)
         return JevDecisionClient(
             apiKey: "test", consent: { true },
@@ -41,7 +43,10 @@ final class JevClientTransportTests: XCTestCase {
                 if let usage { reply["usage"] = ["input_tokens": usage, "output_tokens": 0] }
                 let data = status == 200 ? try JSONSerialization.data(withJSONObject: reply) : Data()
                 return (
-                    data, HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!
+                    data,
+                    HTTPURLResponse(
+                        url: request.url!, statusCode: status, httpVersion: nil,
+                        headerFields: status == 200 ? nil : retryAfter.map { ["Retry-After": $0] })!
                 )
             },
             onDecision: { await calls.note($0) })
@@ -86,6 +91,17 @@ final class JevClientTransportTests: XCTestCase {
         XCTAssertTrue(many.contains((40..<60).map { "w\($0)" }.joined(separator: " ")), "tails survive the cap")
     }
 
+    /// Tails grow with the square of the command length. A dictated message of
+    /// about 125 words must stay inside the span budget and keep short spans.
+    func testLongDictationStaysInsideTheSpanBudget() {
+        let message = (0..<125).map { "word\($0)" }.joined(separator: " ") + "."
+        let spans = JevDecisionClient.sourceSpans("In the message field write " + message)
+        XCTAssertLessThanOrEqual(spans.reduce(0) { $0 + $1.utf8.count }, JevDecisionClient.spanByteBudget)
+        XCTAssertTrue(spans.contains(String(message.dropLast())), "the whole message is still offered")
+        XCTAssertTrue(spans.contains("word7"), "short spans still fit")
+        XCTAssertTrue(spans.contains("word7 word8"))
+    }
+
     func testAmendedGoalOffersOnlyTheUsersWords() {
         let goal = [
             VoiceControlGoalText.header + "search flights to Paris",
@@ -115,6 +131,24 @@ final class JevClientTransportTests: XCTestCase {
         let trace = await calls.decisions.last
         XCTAssertEqual(trace?.retries, 2)
         XCTAssertEqual(trace?.inputTokens, 1_234)
+    }
+
+    /// Retrying inside a longer server-requested wait would only add load.
+    func testLongRetryAfterFailsWithoutRetryingAndShortOneRetries() async throws {
+        let calls = Calls()
+        do {
+            _ = try await client(statuses: [429], calls: calls, retryAfter: "30").decide(
+                goal: "pick", snapshot: snapshot, history: [], events: events)
+            XCTFail("expected unavailable")
+        } catch { XCTAssertEqual(error as? JevDecisionError, .unavailable) }
+        let single = await calls.bodies.count
+        XCTAssertEqual(single, 1)
+
+        let short = Calls()
+        _ = try await client(statuses: [503], calls: short, retryAfter: "0").decide(
+            goal: "pick", snapshot: snapshot, history: [], events: events)
+        let retried = await short.bodies.count
+        XCTAssertEqual(retried, 2)
     }
 
     func testRetriesAreBoundedAndOtherErrorsDoNotRetry() async {

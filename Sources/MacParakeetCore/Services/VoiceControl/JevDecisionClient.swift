@@ -445,13 +445,13 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
     }
     static let retryableStatuses: Set<Int> = [429, 503, 529]
     static let maxRetries = 2
-    /// 150 ms, then 300 ms; a short `Retry-After` (at most 2 s) wins. Cancellation
-    /// (Stop) ends the wait immediately.
+    /// 150 ms, then 300 ms; a short `Retry-After` (at most 2 s) wins, and a longer
+    /// one fails the decision instead of retrying early. Cancellation (Stop) ends
+    /// the wait immediately.
     static func backoff(attempt: Int, retryAfter: String?) async throws {
         var delay = 0.15 * pow(2, Double(attempt - 1))
-        if let retryAfter, let seconds = Double(retryAfter.trimmingCharacters(in: .whitespaces)), seconds >= 0,
-            seconds <= 2
-        {
+        if let retryAfter, let seconds = Double(retryAfter.trimmingCharacters(in: .whitespaces)), seconds >= 0 {
+            guard seconds <= 2 else { throw JevDecisionError.unavailable }
             delay = seconds
         }
         try await Task.sleep(for: .milliseconds(Int(delay * 1000)))
@@ -513,6 +513,12 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
     /// the rest of the sentence; then every span up to 12 words, shortest first.
     /// Scaffold sentences and manually entered values in an amended goal are
     /// never offered (`VoiceControlGoalText.userSegments`).
+    /// Total UTF-8 size of all offered spans. Tails may take only part of it, so
+    /// a long dictated message still leaves room for short spans and the request
+    /// stays well under the size ceiling.
+    static let spanByteBudget = 24_000
+    static let tailByteBudget = 16_000
+
     static func sourceSpans(_ goal: String, limit: Int = 250) -> [String] {
         // Preserve original spelling, punctuation and whitespace between token boundaries.
         let expression = try! NSRegularExpression(pattern: "\\S+")
@@ -525,27 +531,36 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
         }
         var values: [String] = []
         var seen = Set<String>()
-        func offer(_ span: Substring) -> Bool {
+        var bytes = 0
+        func offer(_ span: Substring, budget: Int) -> Bool {
             // ASR often appends sentence punctuation. Offer the boundary-trimmed
             // substring alongside the original; never alter interior punctuation.
             let trimmed = span.trimmingCharacters(in: CharacterSet(charactersIn: ".,!?;:\"'“”‘’"))
-            for candidate in [String(span), trimmed] where !candidate.isEmpty && seen.insert(candidate).inserted {
+            for candidate in [String(span), trimmed]
+            where !candidate.isEmpty && bytes + candidate.utf8.count <= budget && seen.insert(candidate).inserted {
                 values.append(candidate)
+                bytes += candidate.utf8.count
                 if values.count == limit { return false }
             }
             return true
         }
         for (text, ranges) in segments {
-            if text.lowercased().hasPrefix("type "), !offer(text.dropFirst(5)) { return values }
+            if text.lowercased().hasPrefix("type "), !offer(text.dropFirst(5), budget: tailByteBudget) {
+                return values
+            }
             for start in ranges.indices
-            where !offer(text[ranges[start].lowerBound..<ranges[ranges.count - 1].upperBound]) {
+            where !offer(
+                text[ranges[start].lowerBound..<ranges[ranges.count - 1].upperBound], budget: tailByteBudget)
+            {
                 return values
             }
         }
         for width in 1...12 {
             for (text, ranges) in segments where width <= ranges.count {
                 for start in 0...(ranges.count - width)
-                where !offer(text[ranges[start].lowerBound..<ranges[start + width - 1].upperBound]) {
+                where !offer(
+                    text[ranges[start].lowerBound..<ranges[start + width - 1].upperBound], budget: spanByteBudget)
+                {
                     return values
                 }
             }

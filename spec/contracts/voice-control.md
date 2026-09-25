@@ -110,10 +110,12 @@ Executed history reaches Jev as operation, control label, entered value and
 receipt outcome; target ids from older observations, model ids and scores do
 not. Candidate field values are exact spans of the user's own words only (the
 original goal and later corrections or clarifications, newest first, every
-utterance tail before shorter spans). Amended-goal scaffolding and manually
+utterance tail before shorter spans, at most 250 spans and 24 KB, of which
+tails take at most 16 KB). Amended-goal scaffolding and manually
 entered field values are never offered as values. A `429`, `503` or `529`
 response, or a dropped connection, retries at most twice with 150/300 ms
-backoff (a `Retry-After` of at most 2 s wins); consent is rechecked before each
+backoff (a `Retry-After` of at most 2 s wins; a longer one fails the decision
+without retry); consent is rechecked before each
 retry, Stop cancels the wait, and every other error fails the decision without
 retry. A decision request has no effect, so a retry cannot duplicate one.
 
