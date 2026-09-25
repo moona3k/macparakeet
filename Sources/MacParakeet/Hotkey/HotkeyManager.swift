@@ -77,6 +77,9 @@ public final class HotkeyManager {
     /// the tap may have missed events.
     private var releaseObservedKeyCodes: Set<UInt16> = []
     private var physicalKeyStateProvider: (UInt16) -> Bool
+    private var physicalFlagsProvider: () -> CGEventFlags = {
+        CGEventSource.flagsState(.combinedSessionState)
+    }
 
     /// Bare-tap filtering: true until another physical key or modifier transition is observed.
     private var bareTap = true
@@ -516,6 +519,10 @@ public final class HotkeyManager {
         reconcilePassiveFnKeyState()
     }
 
+    func setPhysicalFlagsProviderForTesting(_ provider: @escaping () -> CGEventFlags) {
+        physicalFlagsProvider = provider
+    }
+
     func startupDebounceElapsedForTesting() -> [HotkeyGestureController.Output] {
         let outputs = gestureController.startupDebounceElapsed()
         rememberRecordingState(for: outputs)
@@ -847,6 +854,10 @@ public final class HotkeyManager {
     }
 
     public func syncRecordingMode(_ mode: FnKeyStateMachine.RecordingMode) {
+        // Startup can finish during a hold-to-talk stop tail. That take is
+        // ending; resuming it would ignore a re-press until the tail stops
+        // capture under the held trigger.
+        guard stopTailTimer == nil else { return }
         if let resumeMode = Self.resumeMode(mode, for: gestureMode) {
             resumeRecording(mode: resumeMode)
         } else {
@@ -912,7 +923,7 @@ public final class HotkeyManager {
         )
 
         if trigger == .fn {
-            let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+            let currentFlags = flags ?? physicalFlagsProvider()
             let capsLockChangedWhileTapWasDisabled =
                 previousModifierFlags.contains(.maskAlphaShift)
                 != currentFlags.contains(.maskAlphaShift)
@@ -1015,7 +1026,7 @@ public final class HotkeyManager {
     ) -> Bool {
         switch trigger.kind {
         case .modifier:
-            let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+            let currentFlags = flags ?? physicalFlagsProvider()
             if let targetKeyCode = trigger.modifierKeyCode {
                 return ModifierKeyMatcher.sideSpecificModifierIsPressed(
                     flags: currentFlags,
@@ -1027,10 +1038,10 @@ public final class HotkeyManager {
             return triggerKeyPressed
         case .chord:
             guard triggerKeyPressed else { return false }
-            let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+            let currentFlags = flags ?? physicalFlagsProvider()
             return currentFlags.rawValue & requiredChordFlags == requiredChordFlags
         case .modifierChord:
-            let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+            let currentFlags = flags ?? physicalFlagsProvider()
             return ModifierKeyMatcher.modifierChordRequiredComponentsArePressed(
                 trigger: trigger,
                 flags: currentFlags
@@ -1079,7 +1090,7 @@ public final class HotkeyManager {
     }
 
     private func recoveredTriggerIsContaminated(flags: CGEventFlags? = nil) -> Bool {
-        let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+        let currentFlags = flags ?? physicalFlagsProvider()
 
         switch trigger.kind {
         case .modifier:
@@ -1167,7 +1178,7 @@ public final class HotkeyManager {
     private func syncModifierPressedState(flags: CGEventFlags? = nil) {
         guard trigger.kind == .modifier else { return }
 
-        let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+        let currentFlags = flags ?? physicalFlagsProvider()
         if let targetKeyCode = trigger.modifierKeyCode {
             targetModifierWasPressed = ModifierKeyMatcher.sideSpecificModifierIsPressed(
                 flags: currentFlags,
@@ -1187,7 +1198,7 @@ public final class HotkeyManager {
     private func syncModifierChordPressedState(flags: CGEventFlags? = nil) {
         guard trigger.kind == .modifierChord else { return }
 
-        let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+        let currentFlags = flags ?? physicalFlagsProvider()
         modifierChordRequiredWasPressed = ModifierKeyMatcher.modifierChordRequiredComponentsArePressed(
             trigger: trigger,
             flags: currentFlags

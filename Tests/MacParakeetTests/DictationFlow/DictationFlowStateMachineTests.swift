@@ -596,6 +596,8 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertTrue(effects.contains(.showNoSpeech))
         XCTAssertTrue(effects.contains(.updateMenuBar(.idle)))
         XCTAssertTrue(effects.contains(.startDisplayDismissTimer(seconds: DictationFlowTiming.noSpeechDismissSeconds)))
+        // A pill-stopped take never reset its hotkeys; do it on the way out.
+        XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
     }
 
     func testProcessingTranscriptionFailed() {
@@ -607,6 +609,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertTrue(effects.contains(.showError("STT error")))
         XCTAssertTrue(effects.contains(.updateMenuBar(.idle)))
         XCTAssertTrue(effects.contains(.startDisplayDismissTimer(seconds: 5)))
+        XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
     }
 
     func testProcessingCancelRequested() {

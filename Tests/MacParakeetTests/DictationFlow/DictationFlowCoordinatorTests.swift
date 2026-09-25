@@ -373,7 +373,9 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         ])
         await harness.clipboard.setPasteDelayMs(100)
         let manager = HotkeyManager(trigger: .fn, gestureMode: .doubleTapAndHold)
+        // The flow's resets read physical state; keep the real keyboard out.
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
+        manager.setPhysicalFlagsProviderForTesting { [] }
         harness.coordinator.hotkeyManagers = [manager]
 
         harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)

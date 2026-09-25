@@ -15,17 +15,18 @@ final class HotkeyManagerTests: XCTestCase {
         CGEventFlags(rawValue: masks.reduce(0, |))
     }
 
-    /// Builds a manager that sees no pre-held keys. Built-in Fn is admitted
-    /// only when no other key is held, and the production provider reads the
-    /// live session keyboard, so a key the OS reports as stuck on the test
-    /// machine would otherwise reject every Fn gesture. Tests that model
-    /// held keys install their own provider afterward.
+    /// Builds a manager that sees no pre-held keys or modifiers. Built-in Fn
+    /// is admitted only when no other key is held, and the production
+    /// providers read the live session keyboard, so a key or modifier the OS
+    /// reports as held on the test machine would otherwise change results.
+    /// Tests that model held keys install their own provider afterward.
     private func makeManager(
         trigger: HotkeyTrigger,
         gestureMode: HotkeyGestureController.Mode = .doubleTapAndHold
     ) -> HotkeyManager {
         let manager = HotkeyManager(trigger: trigger, gestureMode: gestureMode)
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
+        manager.setPhysicalFlagsProviderForTesting { [] }
         return manager
     }
 
@@ -1795,6 +1796,23 @@ final class HotkeyManagerTests: XCTestCase {
 
         wait(for: [stopExpectation], timeout: 1.0)
         XCTAssertEqual(stopCount, 1)
+    }
+
+    /// Startup finishing during the stop tail must not resume the ending take:
+    /// a re-press then starts a new gesture instead of being ignored.
+    func testSyncDuringStopTailLeavesTheEndingTakeAlone() {
+        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly, holdToTalkStopTailMs: 50)
+        manager.setPhysicalKeyStateProviderForTesting { _ in false }
+        _ = manager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn], timestampMs: 1_000)
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
+        _ = manager.recoverFromDisabledTapForTesting(flags: [], timestampMs: 1_500)
+
+        manager.syncRecordingMode(.holdToTalk)
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn], timestampMs: 1_550),
+            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs)]
+        )
     }
 
     func testStopTailSignalsPendingThenStops() {
