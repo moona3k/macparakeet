@@ -1,0 +1,30 @@
+Tests/MacParakeetTests/ViewModels/PromptResultsViewModelTests.swift
+  s_a265323ce94cb4::t_290e6d20c62361 2439
+  s_a265323ce94cb4::t_cc1ab6daf88dd0 755-763
+  s_a265323ce94cb4::t_8d48c03c9eec50 753-754,764-772,775-808,810-812,2438,2440,2454,2458
+  s_a265323ce94cb4::t_4e15339004c102 2420-2434,2444-2450
+  s_a265323ce94cb4::t_45458dc77ddb07 773-774
+  s_a265323ce94cb4::t_5044e9f79ee55b 809
+  s_a265323ce94cb4::t_554e1b9ebcf6be 2441-2443,2451-2453
+  s_a265323ce94cb4::t_c56aea654bbcf9 2455-2457
+  s_a265323ce94cb4::t_f51b313debff33 2435-2437
+  s_a265323ce94cb4::t_3129c2ef119aea 2459-2460
+Sources/MacParakeetViewModels/PromptResultsViewModel.swift
+  s_a265323ce94cb4::t_68b30a73d7aeec 957-960,970-971
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c1e41cefb9a9ecd4d08fc0377e3c8db3d1d7a43c",
+  "prompts": {},
+  "sessions": {
+    "s_a265323ce94cb4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc1d8752-7618-4e8c-85bb-0289637eed74",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    }
+  }
+}
