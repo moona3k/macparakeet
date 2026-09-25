@@ -1,0 +1,20 @@
+Tests/MacParakeetTests/Views/TranscriptDocumentLayoutTests.swift
+  s_e2ddbb61c10667::t_37341e3623130e 145-147
+  s_e2ddbb61c10667::t_91429506a0bbf7 150-156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "802dd36e4d92af336a444a60be35e72ff145668d",
+  "prompts": {},
+  "sessions": {
+    "s_e2ddbb61c10667": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f8dbc569-babf-4868-941d-f49808d2268c",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
