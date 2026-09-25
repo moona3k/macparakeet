@@ -1,0 +1,25 @@
+Sources/MacParakeet/Hotkey/HotkeyManager.swift
+  s_ef9575b40b18b4::t_1a79f6eb6bf147 850-852
+Sources/MacParakeetCore/DictationFlow/DictationFlowStateMachine.swift
+  s_ef9575b40b18b4::t_082f867191dbd1 487-490,497,506
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_ef9575b40b18b4::t_bbfe5f2cd55891 366-411
+Tests/MacParakeetTests/DictationFlow/DictationFlowStateMachineTests.swift
+  s_ef9575b40b18b4::t_69974782d17071 742-745,887-889,902-903
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7fe1e8d573b67bec83f7d901d56398c140ede1bf",
+  "prompts": {},
+  "sessions": {
+    "s_ef9575b40b18b4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "76519bb4-2f14-46c2-92b3-f3d3b9a4ec7c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
