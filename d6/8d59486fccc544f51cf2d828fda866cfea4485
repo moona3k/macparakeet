@@ -1,0 +1,20 @@
+docs/research/2026-09-25-voice-control-jev-deep-review.md
+  s_4917860e46eead::t_12726a9f64f19a 243,248
+  s_4917860e46eead::t_2fc8e522d85308 229-232
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d68d59486fccc544f51cf2d828fda866cfea4485",
+  "prompts": {},
+  "sessions": {
+    "s_4917860e46eead": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a04552a7-eca1-4687-bfd6-b119652523d0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
