@@ -1,0 +1,21 @@
+scripts/process-tap-audio-only-probe.swift
+  s_92e7a5a337f87e::t_caad8a841f3937 413-438,494,591-592
+scripts/tests/test_process_tap_runner.py
+  s_92e7a5a337f87e::t_a2175366bb7440 13-39,51-53,56-62,84,103,106-109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c191570e73444870c0877e8f28c61014b61bb3b5",
+  "prompts": {},
+  "sessions": {
+    "s_92e7a5a337f87e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0da10-207e-72c3-b98a-5ec552024f4a",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
