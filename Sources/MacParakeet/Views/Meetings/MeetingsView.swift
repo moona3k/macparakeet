@@ -26,8 +26,8 @@ struct MeetingsView: View {
     @State private var showingMeetingImport = false
     @FocusState private var recentMeetingsSelectionFocused: Bool
 
-    private static let rightRailWidth: CGFloat = 280
-    private static let twoColumnMinimumWidth: CGFloat = 1_100
+    private static let rightRailWidth: CGFloat = 300
+    private static let twoColumnMinimumWidth: CGFloat = 960
 
     var body: some View {
         sheetContent
@@ -36,20 +36,20 @@ struct MeetingsView: View {
     private var layoutContent: some View {
         GeometryReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                     header
                     recordingSurface
                     contentColumns(
                         usesTwoColumnLayout: proxy.size.width >= Self.twoColumnMinimumWidth
                     )
                 }
-                .padding(.horizontal, DesignSystem.Spacing.lg)
-                .padding(.top, DesignSystem.Spacing.lg)
+                .padding(.horizontal, 20)
+                .padding(.top, DesignSystem.Spacing.md)
                 .padding(.bottom, DesignSystem.Spacing.xl)
-                .frame(maxWidth: 1180, alignment: .topLeading)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            // Center the width-capped content column so extra window width
-            // becomes even margins instead of piling up on the right.
+            // Use the available workspace width; the utility rail stays fixed
+            // while the meeting list receives the extra space.
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(DesignSystem.Colors.contentBackground)
         }
@@ -282,6 +282,7 @@ struct MeetingsView: View {
         MeetingRecordingTile(
             viewModel: viewModel.meetingPillViewModel,
             permissionState: meetingPermissionState,
+            isCompact: true,
             onTap: onRecordMeeting,
             onPauseToggle: onPauseToggleMeeting
         )
@@ -298,14 +299,14 @@ struct MeetingsView: View {
     }
 
     private var twoColumnContent: some View {
-        HStack(alignment: .top, spacing: DesignSystem.Spacing.lg) {
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
+        HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                 upcomingSection
                 recentMeetingsSection
             }
             .frame(minWidth: 480, maxWidth: .infinity, alignment: .topLeading)
 
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                 attentionSection
                 intelligenceSection
                 autoNotesSection
@@ -316,7 +317,7 @@ struct MeetingsView: View {
     }
 
     private var oneColumnContent: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
             upcomingSection
             attentionSection
             recentMeetingsSection
@@ -334,20 +335,16 @@ struct MeetingsView: View {
                     settingsViewModel: viewModel.settingsViewModel,
                     onOpenCalendarSettings: onOpenCalendarSettings
                 )
-                MeetingsHairline()
+                if viewModel.calendarStatus != .off {
+                    MeetingsHairline()
+                }
 
                 switch viewModel.calendarStatus {
                 case .unavailable:
                     unavailableCalendarState
                 case .off:
-                    MeetingsInlineState(
-                        icon: "calendar",
-                        title: "Calendar reminders are off",
-                        detail: calendarOffDetail,
-                        actionTitle: nil,
-                        actionIcon: nil,
-                        action: nil
-                    )
+                    // The controls already show Off and explain how to enable it.
+                    EmptyView()
                 case .permissionNeeded:
                     // The controls row above owns the permission CTA (inline
                     // "Connect Calendar"), so this is context-only — no second
@@ -499,7 +496,7 @@ struct MeetingsView: View {
                     .foregroundStyle(DesignSystem.Colors.accent)
                     .frame(width: 22)
 
-                Text("Written automatically when a meeting ends. Click a note to turn it on or off.")
+                Text("Choose notes to generate after each meeting.")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -569,20 +566,10 @@ struct MeetingsView: View {
     private var recentMeetingsSection: some View {
         MeetingsSection(title: "Recent Meetings", icon: "clock.arrow.circlepath") {
             VStack(alignment: .leading, spacing: 0) {
-                MeetingClassificationFilterBar(
-                    libraryViewModel: viewModel.recentMeetingsViewModel
-                )
-                .padding(.horizontal, DesignSystem.Spacing.md)
-                .padding(.vertical, DesignSystem.Spacing.sm)
-
-                if shouldShowRecentMeetingSearch {
-                    recentMeetingSearchField
-                }
+                recentMeetingsToolbar
 
                 if viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled {
                     recentMeetingsSelectionBar
-                } else if showsRecentMeetingsSelectManyButton {
-                    recentMeetingsSelectManyRow
                 }
 
                 if viewModel.recentMeetingsViewModel.isLoading
@@ -807,21 +794,46 @@ struct MeetingsView: View {
         )
     }
 
-    private var recentMeetingsSelectManyRow: some View {
-        HStack {
-            Spacer()
-            Button {
-                viewModel.recentMeetingsViewModel.beginBulkSelection()
-            } label: {
-                Label("Select Many", systemImage: "checklist")
+    private var recentMeetingsToolbar: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                if shouldShowRecentMeetingSearch {
+                    recentMeetingSearchField
+                        .frame(minWidth: 160)
+                }
+                recentMeetingsFilterActions
             }
-            .parakeetAction(.secondary)
-            .help("Select multiple recent meetings")
-            .accessibilityHint("Shows selection controls for bulk cleanup")
+
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                if shouldShowRecentMeetingSearch {
+                    recentMeetingSearchField
+                }
+                recentMeetingsFilterActions
+            }
         }
-        .padding(.horizontal, DesignSystem.Spacing.lg)
-        .padding(.vertical, DesignSystem.Spacing.sm)
+        .padding(12)
         .overlay(alignment: .bottom) { Divider() }
+    }
+
+    private var recentMeetingsFilterActions: some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            MeetingClassificationFilterBar(
+                libraryViewModel: viewModel.recentMeetingsViewModel
+            )
+            .fixedSize(horizontal: true, vertical: false)
+
+            if showsRecentMeetingsSelectManyButton {
+                Button {
+                    viewModel.recentMeetingsViewModel.beginBulkSelection()
+                } label: {
+                    Label("Select Many", systemImage: "checklist")
+                }
+                .parakeetAction(.secondary)
+                .fixedSize()
+                .help("Select multiple recent meetings")
+                .accessibilityHint("Shows selection controls for bulk cleanup")
+            }
+        }
     }
 
     private var recentMeetingSearchField: some View {
@@ -853,7 +865,7 @@ struct MeetingsView: View {
             }
         }
         .padding(.horizontal, DesignSystem.Spacing.md)
-        .padding(.vertical, 10)
+        .padding(.vertical, 7)
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(DesignSystem.Colors.surfaceElevated.opacity(0.55))
@@ -862,9 +874,6 @@ struct MeetingsView: View {
                         .strokeBorder(DesignSystem.Colors.border.opacity(0.55), lineWidth: 0.5)
                 )
         )
-        .padding(.horizontal, DesignSystem.Spacing.md)
-        .padding(.top, DesignSystem.Spacing.md)
-        .padding(.bottom, DesignSystem.Spacing.sm)
     }
 
     private var meetingPermissionState: MeetingRecordingTile.PermissionState {
@@ -913,7 +922,8 @@ struct MeetingsView: View {
     }
 
     private var showsRecentMeetingsSelectManyButton: Bool {
-        !viewModel.recentMeetingsViewModel.filteredTranscriptions.isEmpty
+        !viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled
+            && !viewModel.recentMeetingsViewModel.filteredTranscriptions.isEmpty
     }
 
     private var recentMeetingsBulkOperationTitle: String {
@@ -970,17 +980,6 @@ struct MeetingsView: View {
             return "Calendar reminders are on."
         case .autoStart:
             return "Calendar auto-start is on."
-        }
-    }
-
-    private var calendarOffDetail: String {
-        switch viewModel.settingsViewModel.calendarPermissionStatus {
-        case .granted:
-            return "Turn on Reminders or Auto-start above to preview matching calendar events."
-        case .notDetermined:
-            return "Connect Calendar above to enable reminders and auto-start."
-        case .denied:
-            return "Re-enable Calendar access in System Settings to use reminders and auto-start."
         }
     }
 
@@ -1156,7 +1155,7 @@ private struct CalendarInlineControlsRow: View {
 
         switch settingsViewModel.calendarAutoStartMode {
         case .off:
-            return "Turn on calendar matching without leaving Meetings."
+            return "Choose Reminders or Auto-start to see upcoming meetings."
         case .notify:
             return "Preview matching events and remind before they start."
         case .autoStart:
@@ -1578,7 +1577,7 @@ private struct IntelligenceReadyRow: View {
     var onOpenSettings: () -> Void
 
     var body: some View {
-        // The Intelligence card lives in the fixed 280pt right rail (see
+        // The Intelligence card lives in the fixed 300pt right rail (see
         // `rightRailWidth`). A provider badge ("Google Gemini · External ☁")
         // and an "AI Settings" button cannot fit side by side at that width —
         // the squeeze previously collapsed the unconstrained "External" label
@@ -1678,7 +1677,7 @@ private struct LiveAskPromptRow: View {
                         }
                     }
 
-                    Text("Quick prompts available while a meeting is live.")
+                    Text("Pinned questions for live meetings.")
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(DesignSystem.Colors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
