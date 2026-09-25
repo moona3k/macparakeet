@@ -1,0 +1,34 @@
+Sources/MacParakeet/Views/Transcription/SavedMeetingNotesEditorPresentation.swift
+  s_51b335aa4fd398::t_44b91fa3dc46c5 1-122
+Tests/MacParakeetTests/Views/SavedMeetingNotesEditorPresentationTests.swift
+  s_51b335aa4fd398::t_31581afa73e361 1-4,6-236
+  s_51b335aa4fd398::t_2695be7892b239 5
+spec/04-ui-patterns.md
+  s_51b335aa4fd398::t_b2082ab80cbbd4 290-296
+docs/design/2026-09-25-notes-workspace/README.md
+  s_51b335aa4fd398::t_aa511f33ea46d3 40-46
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_51b335aa4fd398::t_4ee706ea76e132 555
+  s_51b335aa4fd398::t_63fa7a14e34627 2989,2992
+  s_51b335aa4fd398::t_ece35b4257cd9c 3002
+  s_51b335aa4fd398::t_9352b595dbf838 2813,2817-2818,2824,2830
+  s_51b335aa4fd398::t_d03fff45fd2e82 2924,2926
+  s_51b335aa4fd398::t_454d705cbb57eb 5359-5363
+  s_51b335aa4fd398::t_0f0014fa76348a 2837-2841,2849-2855,2867-2871
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "76530082460e106741edc76a0b299d1a0b6ef65f",
+  "prompts": {},
+  "sessions": {
+    "s_51b335aa4fd398": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f660f5fc-a997-4482-935e-0e824e5408c1",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
