@@ -135,7 +135,20 @@ public actor NemotronDiarizationService: DiarizationServiceProtocol {
         defer { inferencePermit.signal() }
         try Task.checkCancellation()
         return try await inferenceGate.withExclusiveAccess {
-            try runner.process(audioURL: audioURL)
+            // Long synchronous CoreML work must not occupy this actor, or
+            // readiness and setup calls wait for the whole recording. Hop
+            // explicitly instead of relying on this closure's inferred
+            // isolation. Awaiting the value keeps the permit and gate held
+            // until the models are released; the runner observes forwarded
+            // cancellation per chunk.
+            let inference = Task.detached(priority: Task.currentPriority) {
+                try runner.process(audioURL: audioURL)
+            }
+            return try await withTaskCancellationHandler {
+                try await inference.value
+            } onCancel: {
+                inference.cancel()
+            }
         }
     }
 
@@ -206,6 +219,8 @@ public actor NemotronDiarizationService: DiarizationServiceProtocol {
 /// MLMultiArrays are mutable; even different diarizers must not share them
 /// during inference. No await occurs while the lock is held.
 private final class NativeNemotronDiarizationRunner: NemotronDiarizationRunning, @unchecked Sendable {
+    /// One second at the model's 16 kHz input rate.
+    private static let feedSamples = 16_000
     private let lock = NSLock()
     private let models: Nemotron3Models
     private let config: Nemotron3Config
@@ -229,9 +244,15 @@ private final class NativeNemotronDiarizationRunner: NemotronDiarizationRunning,
     func process(audioURL: URL) throws -> [NemotronSpeakerActivity] {
         try lock.withLock {
             try Task.checkCancellation()
-            let samples = try AudioConverter().resampleAudioFile(path: audioURL.path)
+            // Match Community-1's memory profile: stage the 16 kHz samples in a
+            // memory-mapped temporary file instead of a whole-recording array.
+            let (source, _) = try AudioSourceFactory().makeDiskBackedSource(
+                from: audioURL, targetSampleRate: Self.feedSamples
+            )
+            defer { source.cleanup() }
             try Task.checkCancellation()
-            guard !samples.isEmpty else { return [] }
+            let sampleCount = source.sampleCount
+            guard sampleCount > 0 else { return [] }
             let diarizer = Nemotron3Diarizer(config: config, models: models)
             defer { diarizer.reset() }
             var probabilities: [Float] = []
@@ -244,9 +265,13 @@ private final class NativeNemotronDiarizationRunner: NemotronDiarizationRunning,
             }
             // Bounded feeds allow cancellation between individual inferences;
             // processComplete would run the whole recording without a check.
-            for offset in stride(from: 0, to: samples.count, by: 16_000) {
+            for offset in stride(from: 0, to: sampleCount, by: Self.feedSamples) {
                 try Task.checkCancellation()
-                diarizer.appendAudio(Array(samples[offset..<min(offset + 16_000, samples.count)]))
+                var feed = [Float](repeating: 0, count: min(Self.feedSamples, sampleCount - offset))
+                try feed.withUnsafeMutableBufferPointer { buffer in
+                    try source.copySamples(into: buffer.baseAddress!, offset: offset, count: buffer.count)
+                }
+                diarizer.appendAudio(feed)
                 append(try diarizer.processBufferedAudio())
             }
             try Task.checkCancellation()

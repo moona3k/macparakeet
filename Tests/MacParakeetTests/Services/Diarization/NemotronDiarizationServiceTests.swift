@@ -220,6 +220,28 @@ final class NemotronDiarizationServiceTests: XCTestCase {
         await task.value
     }
 
+    func testReadinessStaysResponsiveAndCancellationReachesRunningInference() async throws {
+        let runner = BlockingRunner()
+        let service = NemotronDiarizationService(loadRunner: { runner }, fallback: MockDiarizationService())
+        let task = Task { try await service.diarize(audioURL: audioURL) }
+        let deadline = Date().addingTimeInterval(5)
+        while !runner.started, Date() < deadline {
+            try await Task.sleep(nanoseconds: 1_000_000)
+        }
+        XCTAssertTrue(runner.started)
+
+        // Before inference moved off the actor, this waited for the runner.
+        _ = await service.isReady()
+        XCTAssertTrue(runner.running, "Readiness must not wait for an in-flight recording")
+
+        task.cancel()
+        do {
+            _ = try await task.value
+            XCTFail("Cancellation must propagate")
+        } catch is CancellationError {}
+        XCTAssertTrue(runner.observedCancellation)
+    }
+
     func testAutomaticAndExplicitFactoryPolicies() async {
         XCTAssertTrue(DiarizationServiceFactory.live.make(speakerConstraint: nil) is NemotronDiarizationService)
         for constraint in [SpeakerDiarizationConstraint.exact(12), .range(min: 2, max: 5)] {
@@ -265,6 +287,33 @@ final class NemotronDiarizationServiceTests: XCTestCase {
     private struct FixtureRunner: NemotronDiarizationRunning {
         let segments: [NemotronSpeakerActivity]
         func process(audioURL: URL) throws -> [NemotronSpeakerActivity] { segments }
+    }
+
+    /// Spins like chunked inference until cancelled, giving up after a bound
+    /// so a regression fails the assertions instead of hanging the suite.
+    private final class BlockingRunner: NemotronDiarizationRunning, @unchecked Sendable {
+        private let lock = NSLock()
+        private var state = (started: false, running: false, observedCancellation: false)
+        var started: Bool { lock.withLock { state.started } }
+        var running: Bool { lock.withLock { state.running } }
+        var observedCancellation: Bool { lock.withLock { state.observedCancellation } }
+
+        func process(audioURL: URL) throws -> [NemotronSpeakerActivity] {
+            lock.withLock {
+                state.started = true
+                state.running = true
+            }
+            defer { lock.withLock { state.running = false } }
+            let deadline = Date().addingTimeInterval(5)
+            while Date() < deadline {
+                if Task.isCancelled {
+                    lock.withLock { state.observedCancellation = true }
+                    throw CancellationError()
+                }
+                usleep(1_000)
+            }
+            return []
+        }
     }
 
     private enum TestFailure: Error { case firstLoad }

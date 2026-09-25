@@ -40,8 +40,9 @@ a matching revision marker. Readiness rejects old markers, and PLDA metadata
 repair uses the same pinned revision. Preparation
 runs outside the inference gate, shares one retryable load, and does not cancel
 other callers when one waiter cancels. Queued inference is cancellable; active
-inference checks cancellation between one-second feeds. The decoder currently
-materializes the entire input before those feeds. A fresh diarizer resets stream
+inference checks cancellation between one-second feeds and runs off the service
+actor. Samples are staged in a temporary memory-mapped file, matching
+Community-1's memory profile, rather than a whole-recording array. A fresh diarizer resets stream
 state for every recording. macOS 14 uses CPU/GPU routing; the `offline` preset
 also uses CPU/GPU and is retained only for evaluation, not as a user setting.
 

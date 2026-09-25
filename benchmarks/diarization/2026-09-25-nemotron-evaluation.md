@@ -315,11 +315,16 @@ capture qualification are separate; local Swift builds do not establish those.
 Preparation and inference timings are separate. Backend processes ran
 sequentially, but this shared development Mac also ran builds and other work;
 wall times are indicative. Peak RSS is a process high-water mark, not total
-system/accelerator memory or energy. The native decoder materializes the input
-before feeding one-second chunks. Inference cancellation is checked between
-feeds; decode-time cancellation and memory are not bounded for arbitrary-length
-files. The measured meeting durations do not qualify multi-hour capture on a
-lower-memory Mac.
+system/accelerator memory or energy. The corpus runs above materialized each
+input as one sample array before feeding one-second chunks. After review, the
+service stages samples in a temporary memory-mapped file instead (the
+Community-1 input path). That change was checked with the release benchmark
+binary: segments were identical to the previous input path on
+`ami_IS1009a_mhm`, `ami_ES2004a_sdm` and a 2.9-hour concatenation of four AMI
+headset mixes. On the long file, peak memory footprint fell from 916 MB to
+234 MB. Inference cancellation is checked between feeds; the WAV staging step
+is not cancellable mid-file. The measured meeting durations do not qualify
+multi-hour capture on a lower-memory Mac.
 
 Review addressed advisory-fallback failure, compatibility-model readiness,
 revision-marker readiness, pinned PLDA repair and complete speaker-cache clearing.
