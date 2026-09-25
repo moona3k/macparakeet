@@ -888,7 +888,18 @@ public final class HotkeyManager {
             bareTap = true
         }
         guard !triggerPressed else { return }
-        AudioCaptureDiagnostics.append("dictation_hotkey_release_recovered mode=hold_to_talk")
+        if trigger == .fn {
+            reconcilePassiveFnKeyState()
+            let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+            if passiveFnInputIsContaminated(flags: currentFlags) {
+                // Fn came up with another key or modifier still held: treat
+                // it as a non-bare release, as a live tap would have.
+                AudioCaptureDiagnostics.append("dictation_hotkey_release_recovered mode=hold_to_talk outcome=cancel")
+                handleOutputs(gestureController.nonBareTriggerReleased())
+                return
+            }
+        }
+        AudioCaptureDiagnostics.append("dictation_hotkey_release_recovered mode=hold_to_talk outcome=stop")
         handleOutputs(gestureController.triggerReleased(timestampMs: Self.currentTimestampMs()))
     }
 
