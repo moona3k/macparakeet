@@ -403,6 +403,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupDiscoverContent()
         #if DEBUG
         showDebugDictationPreviewQAIfRequested()
+        DebugMainThreadStall.startIfRequested()
         #endif
     }
 
