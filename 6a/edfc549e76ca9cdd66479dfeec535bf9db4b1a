@@ -1,0 +1,19 @@
+docs/pr-review-workflow.md
+  s_cd24f4dcd4b258::t_dcfcf3c8dba9ad 180
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6aedfc549e76ca9cdd66479dfeec535bf9db4b1a",
+  "prompts": {},
+  "sessions": {
+    "s_cd24f4dcd4b258": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71fdb922-a8bf-480a-a3fc-3cd13f483b9d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
