@@ -437,6 +437,11 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
             try dictationRepo.save(updated)
             return updated
         }
+        // Like History Retry: an empty result leaves the failed take and its
+        // recording untouched rather than completing a blank row.
+        guard !updated.rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw DictationServiceError.emptyTranscript
+        }
         var completed = updated
         guard try dictationRepo.saveIfCurrentStatus(completed, is: .error) else {
             throw CLILookupError.notFound("Dictation \(original.id.uuidString) is no longer a failed take")

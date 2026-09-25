@@ -231,6 +231,36 @@ final class RetranscribeCommandTests: XCTestCase {
         }
     }
 
+    func testEmptyRetranscriptionLeavesFailedDictationAndRecording() throws {
+        let repo = DictationRepository(dbQueue: try DatabaseManager().dbQueue)
+        let audio = FileManager.default.temporaryDirectory
+            .appendingPathComponent("failed-\(UUID().uuidString).wav")
+        FileManager.default.createFile(atPath: audio.path, contents: Data([0]))
+        defer { try? FileManager.default.removeItem(at: audio) }
+        let original = Dictation(durationMs: 1_000, rawTranscript: "", audioPath: audio.path, status: .error)
+        try repo.save(original)
+        var updated = original
+        updated.status = .completed
+        updated.rawTranscript = "  \n"
+
+        XCTAssertThrowsError(
+            try RetranscribeCommand.persistRetranscribedDictation(
+                updated,
+                original: original,
+                sourceURL: audio,
+                keepAudio: false,
+                dictationRepo: repo
+            )
+        ) { error in
+            XCTAssertEqual(error as? DictationServiceError, .emptyTranscript)
+        }
+        let stored = try XCTUnwrap(try repo.fetch(id: original.id))
+        XCTAssertEqual(stored.status, .error)
+        XCTAssertEqual(stored.audioPath, audio.path)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: audio.path))
+        XCTAssertEqual(try repo.stats().totalCount, 0)
+    }
+
     func testRetranscribingFailedDictationKeepsAudioWhenSaveAudioIsOn() throws {
         let repo = DictationRepository(dbQueue: try DatabaseManager().dbQueue)
         let audio = FileManager.default.temporaryDirectory
