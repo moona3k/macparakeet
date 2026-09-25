@@ -9,7 +9,6 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     case sharedPages = "Shared pages"
     case dictations = "Dictations"
     case meetings = "Meetings"
-    case prompts = "Prompts"
     case transforms = "Transforms"
     case vocabulary = "Vocabulary"
     case feedback = "Feedback"
@@ -25,7 +24,6 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .library: return "square.grid.2x2"
         case .sharedPages: return "link"
         case .dictations: return "clock.arrow.circlepath"
-        case .prompts: return "text.quote"
         case .transforms: return "wand.and.stars"
         case .vocabulary: return "book.fill"
         case .feedback: return "bubble.left.and.text.bubble.right"
@@ -46,12 +44,14 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         return items
     }
 
-    /// Automation, configuration, and support items. Prompt automation stays
-    /// above Transforms (ADR-022) when the latter feature is enabled.
+    /// Configuration and support items. Transforms (ADR-022) is inserted
+    /// here at runtime when `AppFeatures.transformsEnabled == true`.
+    /// Transcript prompts are managed from Library and completed transcripts;
+    /// Live Ask questions are managed from Meetings.
     static var configItems: [SidebarItem] {
-        var items: [SidebarItem] = [.prompts, .vocabulary, .feedback, .settings]
+        var items: [SidebarItem] = [.vocabulary, .feedback, .settings]
         if AppFeatures.transformsEnabled {
-            items.insert(.transforms, at: 1)
+            items.insert(.transforms, at: 0)
         }
         return items
     }
@@ -64,6 +64,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
 struct MainWindowView: View {
     @Bindable var state: MainWindowState
     @State private var showGlobalCancelConfirmation = false
+    @State private var showingPromptLibrary = false
 
     let transcriptionViewModel: TranscriptionViewModel
     let historyViewModel: DictationHistoryViewModel
@@ -199,6 +200,9 @@ struct MainWindowView: View {
                                 onPrimaryAction: {
                                     transcriptionViewModel.showInputPortal()
                                     state.selectedItem = .transcribe
+                                },
+                                onManagePrompts: {
+                                    showingPromptLibrary = true
                                 }
                             ) { transcription in
                                 transcriptionViewModel.currentTranscription = transcription
@@ -210,11 +214,6 @@ struct MainWindowView: View {
                         if let sharing = shareManagementViewModel {
                             SharedSharesView(model: sharing) { state.selectedItem = .library }
                         }
-                    case .prompts:
-                        PromptsWorkspaceView(
-                            promptsViewModel: promptsViewModel,
-                            quickPromptsViewModel: meetingsWorkspaceViewModel.quickPromptsViewModel
-                        )
                     case .transforms:
                         TransformsView(
                             viewModel: transformsViewModel,
@@ -316,6 +315,18 @@ struct MainWindowView: View {
             minHeight: DesignSystem.Layout.windowMinHeight
         )
         .environment(\.shareManagement, shareManagementViewModel)
+        // Presented from the window root, not the Library list: a finishing
+        // transcription or menu navigation replaces the list while the sheet
+        // may hold an unsaved prompt edit.
+        .sheet(
+            isPresented: $showingPromptLibrary,
+            onDismiss: {
+                promptsViewModel.editingPrompt = nil
+                promptResultsViewModel.loadVisiblePrompts()
+            }
+        ) {
+            PromptLibraryView(viewModel: promptsViewModel)
+        }
         .sheet(item: Binding(get: { shareManagementViewModel?.draft }, set: { shareManagementViewModel?.draft = $0 })) { draft in
             if let sharing = shareManagementViewModel {
                 ShareTranscriptSheet(draft: draft, management: sharing)

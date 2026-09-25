@@ -17,9 +17,6 @@ struct AskPromptsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var viewModel: QuickPromptsViewModel
 
-    /// Removes sheet-only chrome when this manager is rendered in the Prompts workspace.
-    var isEmbedded: Bool = false
-
     @State private var hoveredID: UUID?
     @State private var pendingDelete: QuickPrompt?
     @State private var showingResetConfirm = false
@@ -72,10 +69,7 @@ struct AskPromptsSheet: View {
             }
         }
         .background(.thickMaterial)
-        .frame(
-            minWidth: isEmbedded ? nil : 720,
-            minHeight: isEmbedded ? nil : 640
-        )
+        .frame(minWidth: 720, minHeight: 640)
         .alert(
             "Delete prompt?",
             isPresented: Binding(
@@ -167,20 +161,18 @@ struct AskPromptsSheet: View {
             .polishedTooltip("More options")
             .accessibilityLabel("More options")
 
-            if !isEmbedded {
-                Button {
-                    dismiss()
-                } label: {
-                    Text("Done")
-                        .font(DesignSystem.Typography.body.weight(.semibold))
-                        .padding(.horizontal, DesignSystem.Spacing.sm)
-                }
-                .parakeetAction(.primaryProminent)
-                .controlSize(.large)
-                // Esc dismisses (Apple HIG default for sheets). `.cancelAction`
-                // is Esc + Cmd-. on macOS — both reach the close intent.
-                .keyboardShortcut(.cancelAction)
+            Button {
+                dismiss()
+            } label: {
+                Text("Done")
+                    .font(DesignSystem.Typography.body.weight(.semibold))
+                    .padding(.horizontal, DesignSystem.Spacing.sm)
             }
+            .parakeetAction(.primaryProminent)
+            .controlSize(.large)
+            // Esc dismisses (Apple HIG default for sheets). `.cancelAction`
+            // is Esc + Cmd-. on macOS — both reach the close intent.
+            .keyboardShortcut(.cancelAction)
         }
         .padding(DesignSystem.Spacing.xl)
         .background(DesignSystem.Colors.surface)

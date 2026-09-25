@@ -68,10 +68,9 @@ Minimum window width: 800pt.
 The sidebar uses NavigationSplitView with flat items (icon + label):
 
 - **Transcribe** (`waveform`) -- Capture hub: YouTube card + file drop card + Meeting Recording tile
-- **Library** (`square.grid.2x2`) -- All transcriptions; every filter offers the same persistent Grid/List switch
+- **Library** (`square.grid.2x2`) -- All transcriptions; every filter offers the same persistent Grid/List switch, and the header **Prompts** button opens transcript prompt management
 - **Dictations** (`clock.arrow.circlepath`) -- Flat history list with bottom bar player
 - **Meetings** (`person.2.wave.2`) -- Workflow space for upcoming, live, and saved meeting work; visible when `AppFeatures.meetingRecordingEnabled` is true
-- **Prompts** (`text.quote`) -- First-class prompt manager for versioned result prompts and Transforms
 - **Transforms** (`sparkles`) -- Saved selected-text rewrites backed by `.transform` prompt rows; visible when `AppFeatures.transformsEnabled` is true
 - **Vocabulary** (`book.fill`) -- Processing mode, pipeline guide, custom words & snippets management
 - **Feedback** (`bubble.left.and.text.bubble.right`) -- Bug reports, feature requests, community link
@@ -1312,18 +1311,27 @@ Button to re-run onboarding flow: "Run Onboarding Again..."
 
 ## Prompts
 
-The sidebar **Prompts** destination is the management home for **Transcript
-prompts** and **Live Ask**. Transcript prompts generate outputs from completed
-meeting, file, podcast and video transcripts. Live Ask manages reusable questions
-for ongoing meetings using the existing QuickPrompt model and manager. These are
-clearly named sections, not an All prompts / Results / Transforms type picker.
+Prompts are set-up-once configuration, so they are managed where they run
+rather than from a sidebar destination of their own:
+
+- **Transcript prompts** generate outputs from completed meeting, file, podcast
+  and video transcripts. Their manager opens as a sheet from the **Library**
+  header **Prompts** button (the primary home, since Library lists every
+  transcript they run on), from **Manage Prompts** in a transcript's generation
+  popover, and from **After each meeting → Prompts** in Meetings.
+- **Live Ask** questions are reusable questions for ongoing meetings, using the
+  existing QuickPrompt model and manager. They are managed from the Meetings
+  **Meeting Prompts** section and from the live Ask pane.
+
+v0.8.0 through v0.8.7 exposed both managers from a sidebar **Prompts**
+destination; that destination was removed because neither kind of prompt
+applies to dictation and neither is a daily destination.
 
 **Transforms** remains its existing self-contained selected-text rewrite
-surface. This navigation change does not add another Transform manager or change
-its editor. Transcript management does not expose Transform rows, including
+surface. Transcript management does not expose Transform rows, including
 creation and Trash. Stored categories, versions, metadata and CLI commands remain
-compatible; advanced Transform controls formerly exposed through the mixed
-Prompts manager are outside this UI change.
+compatible. The AI Formatter's transcript and dictation prompts stay in
+Settings → AI beside the switches they configure.
 
 Transcript prompt lists retain search and optional collection filtering. **New
 prompt** creates a transcript prompt; **Manage collections** opens collection
@@ -1332,8 +1340,8 @@ without redundant Result/Transform category badges. No search matches is a filte
 empty state, not a claim that the user has no custom prompts.
 
 The Meetings **After each meeting → Prompts** entry reuses transcript management;
-Live Ask contextual management reuses the same question manager available from
-Prompts. Meetings remains the place to use live questions and choose automatic
+Live Ask management reuses the same question manager from the Meeting Prompts
+section and the live Ask pane. Meetings remains the place to use live questions and choose automatic
 post-meeting outputs. The **After each meeting** chips read and write
 `Prompt.autoRuns(for: .meeting)` via `PromptRepository.setAutoRun(id:source:.meeting)`,
 gated by current `prompt_label_policies` availability for an unlabeled recording.
