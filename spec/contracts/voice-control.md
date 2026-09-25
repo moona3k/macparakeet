@@ -310,23 +310,22 @@ an uncertain effect makes the plan step aside so Jev, which reads those
 amendments, takes the turn. Only the current request of an amended goal routes
 (the newest correction, else the original goal): a correction that names no
 site abandons the earlier one, and a clarification is an answer, not a request.
-Explicit navigation (`open YouTube`, `go to Gmail`, a goal that starts with the
-site's name) always routes. A site mentioned in passing (`… on YouTube`,
+Explicit navigation (`open YouTube`, `go to Gmail`, a goal that starts with
+the site's name), an intent phrase (`search the web`, `directions to`,
+`flights from` / `flights to`), or a flight search verb (`find` / `search` /
+`book` … `flights`) always routes, matched at word boundaries against the
+site's name or the verb itself. A site mentioned in passing (`… on YouTube`,
 `… in Wikipedia`), an intent phrase, or flights as the subject does not route
 from a sentence about a message (`reply`, `forward`, `send`, `text`, `email`,
 `itinerary` …) unless it leads with a search verb (`find`, `search`, `play`,
 `directions`, `get` …); mail words never veto Gmail itself. The same rule
 decides whether `… in Chrome` switches browsers. A calendar day is a pressable
 control whose label reads as a date before `departure date`; a field button
-that leads with its name (`Departure date: September 20`) is not one. A destination route fires only on an
-explicit request, matched at word boundaries: its name in a navigation or
-search frame (`open YouTube`, `… on Wikipedia`, `go to Gmail`), an intent
-phrase (`search the web`, `directions to`, `flights from` / `flights to`), or a
-flight search verb (`find` / `search` / `book` … `flights`). A command that
-starts with `click` / `press` / `tap` / `select` / `choose`, or only mentions a
-site (`search for headphones`, `reply to the email about my flight`), stays
-with the current page. Site search boxes are filled only after a query verb
-(`play`, `look up`, `search … for`). A one-shot named press whose effect
+that leads with its name (`Departure date: September 20`) is not one. A
+command that starts with `click` / `press` / `tap` / `select` / `choose` stays
+with the current page regardless of any site or intent phrase it mentions.
+Site search boxes are filled only after a query verb (`play`, `look up`,
+`search … for`). A one-shot named press whose effect
 verified or moved the interface finishes without another decision. Competing overlay suggestions become
 enabled events for one Jev Choice; Return is not enabled while a suggestion
 or date picker is open. Jev is never offered `role=url`
