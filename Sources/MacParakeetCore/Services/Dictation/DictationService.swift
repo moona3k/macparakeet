@@ -1244,17 +1244,27 @@ public actor DictationService: DictationServiceProtocol {
         completed.engineVariant = result.engineVariant
         completed.language = SpeechEnginePreference.normalizeKnownLanguage(result.language)
         completed.updatedAt = Date()
-        let keepAudio = shouldSaveAudio?() ?? false
-        if !keepAudio {
-            completed.audioPath = nil
-        }
         // Atomic check-and-write: a delete during the awaits above wins, and
         // the take is not re-inserted.
         guard try dictationRepo.saveIfCurrentStatus(completed, is: .error) else {
             throw DictationServiceError.failedDictationUnavailable
         }
-        if !keepAudio {
-            try? FileManager.default.removeItem(atPath: audioPath)
+        if !(shouldSaveAudio?() ?? false) {
+            // Clear the path only once the file is gone, so a failed removal
+            // leaves the recording owned by the row instead of orphaned.
+            do {
+                try FileManager.default.removeItem(atPath: audioPath)
+                completed.audioPath = nil
+                _ = try dictationRepo.saveIfCurrentStatus(completed, is: .completed)
+            } catch {
+                logger.error(
+                    "dictation_failed_audio_cleanup_failed error_type=\(Self.errorType(for: error), privacy: .public)"
+                )
+            }
+        }
+        markFirstDictationCompleted?()
+        if !refined.refinement.expandedSnippetIDs.isEmpty {
+            try? snippetRepo?.incrementUseCount(ids: refined.refinement.expandedSnippetIDs)
         }
         AudioCaptureDiagnostics.append("dictation_failed_audio_retry_complete")
         NotificationCenter.default.post(name: .macParakeetDictationHistoryDidChange, object: nil)

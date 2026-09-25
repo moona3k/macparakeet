@@ -438,14 +438,17 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
             return updated
         }
         var completed = updated
-        if !keepAudio {
-            completed.audioPath = nil
-        }
         guard try dictationRepo.saveIfCurrentStatus(completed, is: .error) else {
             throw CLILookupError.notFound("Dictation \(original.id.uuidString) is no longer a failed take")
         }
         if !keepAudio {
-            try? FileManager.default.removeItem(at: sourceURL)
+            // Clear the path only once the file is gone, so a failed removal
+            // leaves the recording owned by the row instead of orphaned.
+            do {
+                try FileManager.default.removeItem(at: sourceURL)
+                completed.audioPath = nil
+                _ = try dictationRepo.saveIfCurrentStatus(completed, is: .completed)
+            } catch {}
         }
         return completed
     }

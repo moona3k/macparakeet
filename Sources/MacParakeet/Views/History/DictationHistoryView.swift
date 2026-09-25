@@ -620,14 +620,26 @@ struct DictationCardRow: View {
     /// retry succeeds or the user deletes the row.
     private var failedTranscriptionContent: some View {
         HStack(spacing: DesignSystem.Spacing.sm) {
-            Text(
-                dictation.audioPath == nil
-                    ? "Transcription failed. The recording is no longer available."
-                    : "Transcription failed. The recording is saved."
-            )
-            .font(DesignSystem.Typography.body)
-            .foregroundStyle(.secondary)
-            .help(dictation.errorMessage ?? "")
+            VStack(alignment: .leading, spacing: 2) {
+                Text(
+                    dictation.audioPath == nil
+                        ? "Transcription failed. The recording is no longer available."
+                        : "Transcription failed. The recording is saved."
+                )
+                .font(DesignSystem.Typography.body)
+                .foregroundStyle(.secondary)
+
+                // The latest failure, including a failed retry, stays visible
+                // so the reason is readable without hovering.
+                if let errorMessage = dictation.errorMessage, !errorMessage.isEmpty {
+                    Text(errorMessage)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(2)
+                        .textSelection(.enabled)
+                }
+            }
+            .accessibilityElement(children: .combine)
 
             Spacer(minLength: 0)
 
