@@ -967,6 +967,11 @@ and boundary actions:
   `Done` button. Done exits editing and clears selection; corrections are
   already saved by their existing actions. The scrolling header only offers
   `Edit transcript` / `Edit speakers` when editing is inactive.
+- `Reset edits…` opens a confirmation alert before restoring the automatic
+  transcript's text, speaker names/assignments, and segment boundaries. Cancel
+  leaves edits intact; `Reset edits` confirms. Reset remains in correction
+  history and can itself be reversed with `Undo edit`. A confirmation belongs
+  to the transcript that opened it and is dismissed when switching transcripts.
 - At narrow pane widths, selection and speaker-assignment tools move to a
   second row so history and Done remain visible without horizontal scrolling.
 - During playback, untouched text follows automatic word cues. A corrected or

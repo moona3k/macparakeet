@@ -595,6 +595,7 @@ struct TranscriptResultView: View {
     /// of the transcript the user is already looking at.
     @State private var voiceProfileRenameContexts: [String: String] = [:]
     @State private var editingSpeakers = false
+    @State private var pendingResetEditsTranscriptionID: UUID?
     @State private var speakerSelection = SpeakerEditSelectionModel()
     @State private var showingNewSpeakerPrompt = false
     @State private var newSpeakerLabel = ""
@@ -728,6 +729,29 @@ struct TranscriptResultView: View {
             ) {
                 PromptLibraryView(viewModel: promptsViewModel)
             }
+            .alert(
+                "Reset all transcript edits?",
+                isPresented: Binding(
+                    get: { pendingResetEditsTranscriptionID != nil },
+                    set: { if !$0 { pendingResetEditsTranscriptionID = nil } }
+                ),
+                presenting: pendingResetEditsTranscriptionID
+            ) { transcriptionID in
+                Button("Cancel", role: .cancel) {
+                    pendingResetEditsTranscriptionID = nil
+                }
+                Button("Reset edits", role: .destructive) {
+                    guard activeTranscription.id == transcriptionID,
+                          viewModel.currentTranscription?.id == transcriptionID,
+                          !viewModel.isApplyingSpeakerCorrection else { return }
+                    viewModel.applySpeakerCorrection(.reset)
+                }
+                .disabled(viewModel.isApplyingSpeakerCorrection)
+            } message: { _ in
+                Text(
+                    "Restore the original transcript text and speaker assignments, including speaker names and segment boundaries. You can undo this reset with Undo edit."
+                )
+            }
             .alert("New speaker", isPresented: $showingNewSpeakerPrompt) {
                 TextField("Speaker name", text: $newSpeakerLabel)
                 Button("Cancel", role: .cancel) {
@@ -854,6 +878,7 @@ struct TranscriptResultView: View {
         // would anchor a prompt to whoever happens to be `S1` here.
         voiceProfileRenameContexts.removeAll()
         editingSpeakers = false
+        pendingResetEditsTranscriptionID = nil
         speakerSelection.clear()
         showingNewSpeakerPrompt = false
         newSpeakerLabel = ""
@@ -4742,8 +4767,8 @@ struct TranscriptResultView: View {
             .disabled(!viewModel.canRedoSpeakerCorrection || viewModel.isApplyingSpeakerCorrection)
 
             if viewModel.speakerCorrectionsApplied {
-                Button("Reset edits") {
-                    viewModel.applySpeakerCorrection(.reset)
+                Button("Reset edits…") {
+                    pendingResetEditsTranscriptionID = activeTranscription.id
                 }
                 .parakeetAction(.secondary)
                 .disabled(viewModel.isApplyingSpeakerCorrection)
