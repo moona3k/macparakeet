@@ -1,0 +1,52 @@
+Sources/MacParakeetCore/STT/STTScheduler.swift
+  s_ea43f113115380::t_6985681ebde916 89,95-97
+  s_ea43f113115380::t_029cef3084cf65 605-607
+  s_ea43f113115380::t_122d3c27f14af6 281-283
+  s_ea43f113115380::t_9cbf3b84de76dc 539-541
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_ea43f113115380::t_08ea971e47169e 84
+  s_ea43f113115380::t_9598e52a290f1f 650-652
+  s_ea43f113115380::t_17180e3a82d159 782-783
+  s_ea43f113115380::t_9d84e23310e848 130
+  s_ea43f113115380::t_0ba38fbb4945f8 1530,1533-1535,1537,1539-1540,1544,1549-1554,1558,1561-1564,1569,1571-1576,1580-1582
+  s_ea43f113115380::t_58a8dfd37a607c 280
+  s_ea43f113115380::t_a1a3aa3f868c7e 1578-1579
+  s_ea43f113115380::t_9ca2e908fe92f4 54,57-58
+  s_ea43f113115380::t_6e916c69ef7330 238
+  s_ea43f113115380::t_05b26f8c58a258 1273-1275,1287-1289,1291
+Tests/MacParakeetTests/STT/STTSchedulerTests.swift
+  s_ea43f113115380::t_d984857da3938a 1680-1687,1691-1705
+  s_ea43f113115380::t_11a0afb1e687de 1539-1541
+  s_ea43f113115380::t_298065ed509ada 56-59,67-68,77-138
+  s_681cecf35642ba::t_75d283c6c4bef2 1706
+Sources/MacParakeetCore/STT/README.md
+  s_ea43f113115380::t_ed3b2c362bf92e 165-171,174-179
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_ea43f113115380::t_4d250bd6b375c0 1717,1720-1721,1756,1759-1760,1808,1813-1814,1816-1820,1822-1827,1829-1830,1832,1834-1841,1843-1847,3047-3051
+spec/03-architecture.md
+  s_ea43f113115380::t_0b85ba683a1ed8 87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e12f6965966332cd9e6e8afce646d435a42f3083",
+  "prompts": {},
+  "sessions": {
+    "s_681cecf35642ba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "eff76036-839b-48a6-87ee-68d4d4ea6b6d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_ea43f113115380": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e866346-f6a4-47b5-b1bd-f77f4f655aab",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
