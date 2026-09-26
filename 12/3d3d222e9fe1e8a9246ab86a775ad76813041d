@@ -1,0 +1,20 @@
+Tests/MacParakeetTests/Services/MeetingSplit/MeetingSplitAudioExporterTests.swift
+  s_fee522d67e04b7::t_4065370ad5d6f4 618-625,636,641,654,656,664-666
+  s_fee522d67e04b7::t_850a4697579cbc 937-986
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "123d3d222e9fe1e8a9246ab86a775ad76813041d",
+  "prompts": {},
+  "sessions": {
+    "s_fee522d67e04b7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2fd5e2ab-7d53-4cfb-ae98-2b751ee9d37d",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
