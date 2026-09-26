@@ -6,10 +6,15 @@ It is opt-in for ordinary local tests because it launches XCTest subprocesses,
 runs AVFoundation codecs, and intentionally kills its own active writer. The CI
 behavior lane runs this exact test separately with the opt-in flag, the existing
 build's concurrency flags, a three-minute step timeout, and output retained in
-`ci-logs/meeting-process-recovery.log`. Hosted portability remains unverified until
-that step passes on the hosted macOS runner.
+`ci-logs/meeting-process-recovery.log`. The final PR-head hosted run executed
+and passed this dedicated test; see [hosted verification](#hosted-verification).
 
-Run from the worktree that owns the code, on an Apple Silicon Mac with Xcode selected:
+Run from the worktree that owns the code, on an Apple Silicon Mac with Xcode selected.
+The real recovery path requires FFmpeg: install it with `brew install ffmpeg`
+and keep it in `PATH`, or set `MACPARAKEET_FFMPEG_PATH` to the executable.
+The behavior CI job installs this prerequisite before testing.
+
+Run the journey:
 
 ```sh
 MACPARAKEET_CRASH_RECOVERY_TESTS=1 swift test --jobs 4 \
@@ -62,7 +67,7 @@ audio capture are absent. Logs use files rather than pipes. Writer startup has a
 30-second deadline and recovery children have 60-second deadlines. Cleanup kills
 and reaps remaining owned children before removing their disposable root.
 
-This covers orderly process death after SIGKILL on the running host. It does not
+This covers abrupt process death from SIGKILL on the running host. It does not
 qualify power loss, disk-full/I/O failure, real speech accuracy, Bluetooth/TCC,
 dual-source alignment/AEC, or the native recovery UI. The earlier
 `testKillNineMidRecordingProducesPlayableFiles` remains as the lower-level raw
@@ -73,8 +78,28 @@ writer check; deterministic recovery service tests still own fault permutations.
 On the development Apple Silicon Mac running macOS 26.6.2, three post-fix
 process journeys passed in 7.174, 7.077, and 7.578 seconds (excluding build time).
 The initial focused artifact/recovery group passed 67 tests. After review, all
-48 recovery service tests passed, including the real-GRDB explicit-clear retry
-regression; the 20 artifact-store cases passed in the earlier focused group. These are local results, not hosted CI or
+49 recovery service tests passed, including the real-GRDB explicit-clear retry
+regression and the final fixture correction; the 20 artifact-store cases passed in the earlier focused group. These are local results, not hosted CI or
 physical capture qualification. Before the fix, the new journey observed
 `manifest.meeting.recoveredFromCrash == false` while the database row was `true`;
 the parity assertion failed. Recovery now refreshes after saving that metadata.
+
+## Hosted verification
+
+The first hosted run [36218994386](https://github.com/moona3k/macparakeet/actions/runs/36218994386)
+failed because the real recovery journey lacked FFmpeg. One unit fixture also
+unintentionally depended on real FFmpeg. The final reviewed head `b4742e67`
+installs FFmpeg in CI and uses the existing mock in that unit fixture.
+
+In successful run [36221389691](https://github.com/moona3k/macparakeet/actions/runs/36221389691),
+the dedicated `Meeting Process Recovery` step ran with
+`MACPARAKEET_CRASH_RECOVERY_TESTS=1` and executed **one test, zero failures,
+9.541 seconds**. The step occupied 05:55:00–05:55:21 UTC on 26 September 2026,
+including command overhead. This is explicit execution evidence, not an opt-in
+skip inferred from the ordinary suite. PR [#1173](https://github.com/moona3k/macparakeet/pull/1173)
+merged as `529e23ad`. The [combined-main run](https://github.com/moona3k/macparakeet/actions/runs/36247644540)
+also passed all required jobs; its dedicated recovery execution passed one test
+with zero failures in 10.203 seconds.
+
+Synthetic input and stub recognition still leave physical capture, real speech
+inference, power loss, and the native recovery UI unqualified.

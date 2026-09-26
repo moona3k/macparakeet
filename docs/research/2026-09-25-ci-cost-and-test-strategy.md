@@ -1,6 +1,36 @@
 # CI cost and test strategy: evidence and recommendations
 
-Research date: 25 September 2026, Pacific time. Source snapshot: [`59e7adf085277ea82ee9bb5f15a7b8cb315ebd91`](https://github.com/moona3k/macparakeet/tree/59e7adf085277ea82ee9bb5f15a7b8cb315ebd91). This is an investigation and proposed sequence, not an implemented optimization. No workflows, tests, product code, or user data were changed; no local builds, full-suite runs, or physical-device tests were performed.
+Research date: 25 September 2026, Pacific time. Source snapshot: [`59e7adf085277ea82ee9bb5f15a7b8cb315ebd91`](https://github.com/moona3k/macparakeet/tree/59e7adf085277ea82ee9bb5f15a7b8cb315ebd91). The investigation below records that snapshot. Subsequent implementation and measured results are separated here; the original research did not change code or execute physical-device tests.
+
+## Implemented result
+
+Merged [PR #1161](https://github.com/moona3k/macparakeet/pull/1161) split behavior and distribution into independent required jobs, reused one consistent test build, retained the full Release product and Xcode bundle checks, and repaired downloadable evidence. The aggregate `swift-test` verdict requires both jobs to succeed. Release product narrowing, compiled caches, framework migration, and broad test deletion were deliberately not part of this change.
+
+| Observation | Before: [36205356185](https://github.com/moona3k/macparakeet/actions/runs/36205356185) | Reviewed CI head: [36209359562](https://github.com/moona3k/macparakeet/actions/runs/36209359562) |
+| --- | ---: | ---: |
+| Creation to last required job completion | 55m 11s | 24m 47s |
+| Occupied macOS job time, summed | 55m 04s | 46m 23s |
+| Creation to Swift Test step start | 45m 05s | 8m 58s |
+| Test step | 10m 01s, including compilation | 7m 45s, compilation separated |
+| Downloadable logs/results | Missing | Both evidence artifacts downloaded and inspected |
+
+The after run also used a three-second Linux aggregate job. An earlier after run, [36207574811](https://github.com/moona3k/macparakeet/actions/runs/36207574811), completed in 27m 55s. The 55m 11s → 24m 47s comparison is observed whole-pipeline wall time, not a controlled benchmark, test-execution speedup, or billing claim. These observations support earlier feedback and lower elapsed time; they do not establish a fixed speedup under different queues or cache states. Later batches experienced substantial queue delay, which must remain separate from occupied execution time.
+
+The final CI-foundation artifact contains 7,567 XCTest entries with zero failures/errors and a companion 30-test Swift Testing pass. The xUnit format did not expose skip markers, so these entries are not proof that every hardware/model case ran. Per-case durations include process/setup/concurrency overhead and cannot be summed into promised test-body savings.
+
+The [test-value audit and implementation ledger](2026-09-25-test-value-audit.md#implementation-evidence-following-the-audit) records focused replacements, demonstrated fault detection, and the subsequent end-to-end journeys. The recommendations below remain the original research context rather than an assertion that every experiment was implemented.
+
+## Final qualification PR runs
+
+All three qualification PRs merged. The following are separate successful PR-head runs, measured from workflow creation to the last required job completion. They include scheduling and aggregate-job overhead and are not controlled comparisons with the historical CI-foundation pair above.
+
+| Merged PR | Reviewed head | Successful CI run | Whole-pipeline wall time |
+| --- | --- | --- | ---: |
+| [#1171: model driver](https://github.com/moona3k/macparakeet/pull/1171) | `498a58f1` | [36220535782](https://github.com/moona3k/macparakeet/actions/runs/36220535782) | 34m 56s |
+| [#1172: native Library driver](https://github.com/moona3k/macparakeet/pull/1172) | `ce36cfc3` | [36219773490](https://github.com/moona3k/macparakeet/actions/runs/36219773490) | 31m 09s |
+| [#1173: process recovery](https://github.com/moona3k/macparakeet/pull/1173) | `b4742e67` | [36221389691](https://github.com/moona3k/macparakeet/actions/runs/36221389691) | 34m 19s |
+
+The combined-main run [36247644540](https://github.com/moona3k/macparakeet/actions/runs/36247644540) at `529e23ad` passed on 26 September 2026 in **27m 05s** from creation to final required job completion. Both behavior/Swift 6 and Release/bundle jobs passed; occupied macOS job time summed to 47m 58s. The dedicated process-recovery test ran again with one test, zero failures, in 10.203 seconds. Successful PR checks prove neither actual native GUI execution nor real model inference or physical capture. The dedicated synthetic writer/SIGKILL/recovery test did execute successfully in the final recovery run; its [guide](../testing/meeting-process-recovery.md#hosted-verification) records the earlier FFmpeg prerequisite failure and final passing evidence.
 
 ## What the evidence says
 
