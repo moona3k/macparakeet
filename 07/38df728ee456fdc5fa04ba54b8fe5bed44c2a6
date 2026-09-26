@@ -1,0 +1,24 @@
+Sources/MacParakeetCore/Services/Ask/AskSourceService.swift
+  s_7a9a9a004a075a::t_b8d4ac8fcb3ada 217-220,222-230,287-312
+  s_7a9a9a004a075a::t_b907840213125c 313-314
+Sources/CLI/CHANGELOG.md
+  s_7a9a9a004a075a::t_a3d9868d15fe0c 137-142
+Tests/MacParakeetTests/Ask/AskSourceServiceTests.swift
+  s_7a9a9a004a075a::t_1cfac4a595206e 438-489
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0738df728ee456fdc5fa04ba54b8fe5bed44c2a6",
+  "prompts": {},
+  "sessions": {
+    "s_7a9a9a004a075a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8d5528fa-ef43-4ed0-857f-55d046df4134",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
