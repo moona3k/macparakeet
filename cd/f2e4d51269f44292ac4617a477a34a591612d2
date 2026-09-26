@@ -1,0 +1,19 @@
+docs/research/2026-09-26-ci-optimization.md
+  s_c299e83108feed::t_801a6476423011 63-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "cdf2e4d51269f44292ac4617a477a34a591612d2",
+  "prompts": {},
+  "sessions": {
+    "s_c299e83108feed": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dc15-ddf7-71f2-a669-23235022dc65",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
