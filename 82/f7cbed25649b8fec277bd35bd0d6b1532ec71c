@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/Services/Dictation/DictationServiceErrorTests.swift
+  s_cac8ea75717892::t_35fe523442941a 14-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "82f7cbed25649b8fec277bd35bd0d6b1532ec71c",
+  "prompts": {},
+  "sessions": {
+    "s_cac8ea75717892": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0db21-43eb-73f3-b873-a8a718ab6d72",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
