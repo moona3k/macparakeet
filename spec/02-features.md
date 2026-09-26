@@ -1564,8 +1564,8 @@ are unaffected.
 - [x] Speaking time (from diarization segments) and word count per speaker (Step 8 — UI PR)
 - [x] Export includes speaker information in all formats
 - [x] SRT/VTT cues split at speaker boundaries
-- [x] Works with 2+ speakers (no artificial upper limit)
-- [x] Diarization models downloaded during onboarding (~130 MB)
+- [x] Automatic Nemotron detection supports up to eight speakers; explicit speaker-count constraints support larger groups through Community-1
+- [x] Diarization models downloaded during onboarding: Nemotron (~199 MB) and Community-1 (~130 MB)
 - [x] Single-speaker files handled gracefully (one speaker label)
 - [x] Diarization failure is non-fatal (ASR result preserved)
 - [x] Progress shows "Identifying speakers..." headline
