@@ -23,6 +23,20 @@ This creates `dist/MacParakeet.app` and bundles:
 - Standalone helper binaries (FFmpeg, yt-dlp helper seed, and optional Node runtime) into `Contents/Resources/` when configured by the build scripts
 - No Python runtime or `uv` bootstrap is bundled (FluidAudio/CoreML STT is native Swift)
 
+The Ask workspace uses a private JavaScript helper bundle. The app and
+standalone CLI bundle the pinned Pi agent-core helper plus the official Node.js
+24.13.1 runtime; `scripts/build_ask_helper.sh` installs npm packages at build
+time with `npm ci` and esbuild, not when the app launches. The app places the
+helper and its generated per-package notices under
+`Contents/Resources/AskAgentHelper/Legal/`; its Node license is at
+`Contents/Resources/Legal/Node/LICENSE`. The standalone CLI uses
+`libexec/macparakeet-cli/AskAgentHelper/Legal/` and
+`libexec/macparakeet-cli/Legal/Node/LICENSE`. Keep
+`AskAgentHelper/Legal/dependencies.json` and every package license listed by it
+with the bundle. The helper receives no provider credentials; Swift retains
+provider calls and source access. See [THIRD_PARTY_LICENSES.md](../THIRD_PARTY_LICENSES.md)
+for the bundled package inventory and notice policy.
+
 `build_app_bundle.sh` automatically downloads a **statically-linked FFmpeg** from [ffmpeg.martin-riedl.de](https://ffmpeg.martin-riedl.de/) (macOS arm64, SHA256-verified). No Homebrew dependency. To use a custom binary instead, set `FFMPEG_PATH`:
 
 ```bash

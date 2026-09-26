@@ -36,6 +36,7 @@ processes own their connections.
   - `PromptResultRepository.swift` — saved prompt outputs.
   - `QuickPromptRepository.swift` — quick-prompt entries (Ask tab).
   - `ChatConversationRepository.swift` — multi-turn chat history.
+  - `AskConversationRepository.swift` — independent Ask workspace history, revision checks, and cross-process run leases.
   - `TransformHistoryRepository.swift` — local Transform run history (input/output/source app/timings; ADR-022).
   - `AIFormatterProfileRepository.swift` — app/category formatter profiles (normal product exposure remains feature-gated).
   - `LLMRunRepository.swift` — local metadata ledger for persisted LLM runs (provider/model/tokens/latency/status/required source link; no prompt/input/output content).
@@ -49,6 +50,8 @@ processes own their connections.
   changes.
 - ADR-013 — prompt library + multi-summary architecture (drives
   several of the repositories above).
+- [Ask workspace contract](../../../spec/contracts/ask-workspace.md) — independent
+  conversations, source revisions, citations, and run lifecycle.
 - `Sources/MacParakeetCore/Models/` — the row types each repository
   reads and writes.
 
@@ -206,6 +209,14 @@ too; an uncertain create keeps its ciphertext-only request until it can be
 reconciled and stopped. Recovered rows use a nullable locator and cannot
 reconstruct a URL or update content. A source existence check inside publication
 creation prevents a stale draft from publishing after its source was deleted.
+
+**Ask conversations deliberately have no foreign key to Library recordings.**
+`ask_conversations` stores source UUIDs inside its bounded JSON payload so a
+recording deletion cannot cascade through a multi-source conversation. Evidence
+resolution rechecks the live source and revision instead. Writes use a SQL
+revision compare-and-swap; a short run lease coordinates app and CLI processes,
+and the final completed answer revalidates its source revisions in the same
+write transaction that saves it.
 An atomic first-attempt marker distinguishes a definitively rejected initial
 create from a retry after an uncertain response; only the former can be
 discarded, and never by cascading a separately queued terminal stop.

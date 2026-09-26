@@ -26,6 +26,12 @@
 | 14 | [Per-Prompt Inference Settings](14-per-prompt-inference-settings.md) | Version-owned generation settings and effective-setting snapshots | Implemented; shipped in 0.8.0 via [PR #968](https://github.com/moona3k/macparakeet/pull/968) and [PR #961](https://github.com/moona3k/macparakeet/pull/961) |
 | 15 | [Shareable Transcript Snapshots](15-shareable-transcripts.md) | Explicit encrypted text sharing, recipient experience, lifecycle, and privacy boundary | Implemented behind a default-off flag; public release pending |
 
+Ask is a default-off development workspace with its shared native/CLI semantics documented
+in the [Ask workspace contract](contracts/ask-workspace.md) and governed by
+[ADR-034](adr/034-meeting-ask-workspace.md). It is not part of the stable 0.8.7
+DMG. Debug app and CLI builds require `--enable-ask-workspace`; release builds
+ignore this opt-in. Model and native qualification are required before enabling it.
+
 ## Boundary Contracts
 
 [`spec/contracts/`](contracts/) is the canonical home for tested public and
@@ -40,6 +46,9 @@ behind that gate is separate from accuracy evaluation and official release.
 [Share Link and Bundle v1](contracts/share-link-bundle-v1.md) and
 [Share Service v1](contracts/share-service-v1.md) define the encrypted
 recipient-link, bundle, anonymous owner, lifecycle, and deletion boundaries.
+The [Ask workspace contract](contracts/ask-workspace.md) defines independent
+conversation ownership, source revisions, run leases, citations, remote
+consent, and additive CLI behavior.
 
 [Voice Control](contracts/voice-control.md) defines explicit command capture,
 cloud consent, target authority, effect receipts and browser pairing. Its
@@ -92,7 +101,7 @@ versioned separately under its own compatibility policy.
 | Channel | Status | Notes |
 |---------|--------|-------|
 | Stable DMG `0.8.7` | User-facing release, recommended for normal use | Hold-to-talk restored when the microphone is already granted, Fn admitted with Caps Lock latched, hold-to-talk overlay keeps 16pt while cancelled/Undo is 7pt, dictation, file/media URL transcription, System Default microphone routing, separate live/final speech-engine routes, meeting recording with cleaned-mic finalization, independent source startup, and bounded capture lifecycle, calendar auto-start and activity-based auto-stop (both opt-in, default off), per-event calendar skip, start-meetings-muted (default off), Microsoft 365/Exchange calendar setup, meeting import and split, live transcription during recording (default on), timed transcript corrections, isolated speaker-assignment smoothing, Seed of Life library covers when a recording has no thumbnail, Clean English “um” stripping (Portuguese/German opt-out), optional preserved discarded dictations, Transcribe tile no longer sticks on Wrapping up after stop (status label only), skip-microphone onboarding for file-only users, AI Formatter off by default with separate dictation and transcript prompts, optional streaming-cursor dictation insert (default off), China-lab LLM providers, Sonoma Parakeet encoder off ANE, Transforms, VAD-guided meeting live-preview chunking, optional Nemotron Beta, Cohere, and WhisperKit, bundled CLI 4.4.0, exports, vocabulary, AI features |
-| Development source (this revision) | Unreleased; `main` and feature branches are not the stable download | Since 0.8.7, this branch adds four-step onboarding with practice dictation, new dictation shortcuts and controls, menu-bar Transforms, reading-view transcript edits, Apple Intelligence, prompt routing, vocabulary replace-all, and an Orukeet preview. Experimental Voice Control remains disabled in release builds. Voice profiles and encrypted share links also remain gated off. See [Sources/CLI/CHANGELOG.md](../Sources/CLI/CHANGELOG.md) for CLI version history. Check branch/commit identity; do not attribute these changes to the stable DMG. |
+| Development source (this revision) | Unreleased; `main` and feature branches are not the stable download | Since 0.8.7, this source adds four-step onboarding with practice dictation, new dictation shortcuts and controls, menu-bar Transforms, reading-view transcript edits, Apple Intelligence, prompt routing, vocabulary replace-all, an Orukeet preview, and the default-off Ask workspace. The CLI source version is 4.7.0; neither it nor Ask changes the stable app release. Experimental Voice Control remains disabled in release builds. Voice profiles and encrypted share links also remain gated off. See [Sources/CLI/CHANGELOG.md](../Sources/CLI/CHANGELOG.md) for CLI version history. Check branch/commit identity; do not attribute these changes to the stable DMG. |
 
 Feature gates in the current source (`Sources/MacParakeetCore/AppFeatures.swift`); an implemented gated surface is not a shipped feature:
 
@@ -164,6 +173,7 @@ accepted direction is not proof that every phase is implemented or released.
 | [ADR-031](adr/031-timed-transcript-corrections.md) | One effective transcript from immutable automatic evidence plus reversible segment-timed text and speaker corrections |
 | [ADR-032](adr/032-llm-task-group-routing.md) | Per-task LLM selection — cleanup/analysis inherit default or pick a general route; Transforms inherit default; specialists not shipped |
 | [ADR-033](adr/033-explicit-voice-control.md) | Explicit Voice Control — implemented behind a default-off release flag; native/browser and speech qualification pending |
+| [ADR-034](adr/034-meeting-ask-workspace.md) | Independent, source-scoped Ask conversations with revision-bound evidence and a private Pi helper |
 
 The [meeting import v1 contract](contracts/meeting-import-v1.md) defines the shared app/CLI input, ownership, and durable-result boundary.
 

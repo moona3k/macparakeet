@@ -230,7 +230,7 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
             try await loadRuntime(for: context.providerConfig)
 
             let response: CollectedLocalLLMResponse
-            if shouldChunk(messages) {
+            if options.allowsLocalChunking && shouldChunk(messages) {
                 response = try await generateChunked(
                     messages: messages,
                     options: options,

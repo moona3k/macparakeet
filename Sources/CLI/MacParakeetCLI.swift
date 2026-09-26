@@ -22,6 +22,7 @@ struct CLI: AsyncParsableCommand {
             SearchReindexCommand.self,
             TranscriptCommand.self,
             CardsCommand.self,
+            AskCommand.self,
             HistoryCommand.self,
             ExportCommand.self,
             StatsCommand.self,

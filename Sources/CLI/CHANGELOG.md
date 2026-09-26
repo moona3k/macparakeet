@@ -94,9 +94,22 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
-## [4.7.0] — 2026-09-26
+## [4.7.0] — 2026-09-26 (development source; not a stable app release)
+
+This CLI source version adds saved-result editing, batch text revisions, shared
+AI routes and experimental Ask automation. It does not qualify or change the
+stable MacParakeet.app release or standalone CLI channel.
 
 ### Added
+
+- `ask list|new|show|rename|delete|sources|select|draft|send|evidence` exposes
+  saved source-scoped Ask conversations through JSON by default. Writes use
+  conversation revisions; `send` requires an explicit inline provider and
+  `--revision`, requires `--allow-remote` for accepted remote endpoints, and
+  can emit NDJSON activity/text plus the final conversation with `--stream`.
+  Ask is experimental and disabled by default: developer builds require
+  `--enable-ask-workspace` on each command. Release builds reject Ask even with
+  that flag, before opening the database or constructing a model provider.
 
 - `meetings results edit <meeting> <result-uuid>` edits saved AI content in
   place with a required exact-content precondition, preserving result identity

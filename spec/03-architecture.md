@@ -18,6 +18,11 @@ flowchart TD
     App --> Core[MacParakeetCore services]
     VM --> Core
     CLI[macparakeet-cli] --> Core
+    App --> AskVM[AskWorkspaceViewModel]
+    AskVM --> Ask[AskWorkspaceService]
+    CLI --> Ask
+    Ask --> Pi[Private Pi agent-core helper]
+    Ask --> DB
     Core --> DB[GRDB repositories and SQLite]
     Core --> Files[Local audio and meeting artifacts]
     Core --> Speech[STTScheduler and STTRuntime]
@@ -226,8 +231,25 @@ and file/URL transcripts. Dictation history remains a separate search surface.
 `CardGenerationService` validates bounded JSON and citations, then checks source
 freshness again after provider latency and inside persistence. Failed generation
 does not erase the previous valid card. `KnowledgeLayerMutationService` owns
-cross-table invalidation/replacement. Corpus-wide Ask, semantic retrieval and
-cross-file speaker identity are not implied by these components.
+cross-table invalidation/replacement. The Ask workspace adds explicit,
+conversation-owned source selection for up to 32 Library transcriptions. Its
+source service reads current corrected passages lexically, freezes their
+content revisions per run, and resolves stored citations against those
+revisions. This is bounded selected-source Ask, not implicit whole-corpus Ask,
+semantic retrieval, or cross-file speaker identity.
+
+`AskConversationRepository` persists one bounded conversation payload with SQL
+revision and run-lease columns but no source foreign key. `AskWorkspaceService`
+shares the native and CLI lifecycle: it verifies provider consent, snapshots
+source revisions, filters active-section history to completed question-and-
+answer pairs with matching revision maps, records an assistant placeholder,
+runs the agent, and atomically revalidates source revisions and used summary
+receipts with the final completed write. The private Node helper uses Pi agent-core's
+`runAgentLoop`; Swift handles model requests through a validated one-action JSON
+bridge and streams final text through the configured client. The helper
+receives no credentials and exposes only four read-only source tools. See
+[ADR-034](adr/034-meeting-ask-workspace.md) and the
+[Ask contract](contracts/ask-workspace.md).
 
 Saved meeting notes are user-authored SQLite state. `SavedMeetingNotesViewModel`
 and `SavedMeetingNotesCoordinator` debounce saves and flush before dependent
@@ -286,6 +308,7 @@ is untimed. The
 | Dictation/file/media retained audio | App-managed paths and workflow-specific retention preferences; see `AppPaths` and storage contracts. |
 | Speech models and downloaded helper binaries | FluidAudio-managed caches, MacParakeet's Whisper cache and app `bin/` paths. |
 | Optional local LLM models | Explicitly downloaded `LLMModels/` directory; no model bundled or automatically downloaded. |
+| Ask runtime | Private bundled JavaScript helper plus official Node runtime in app/CLI packaging; model credentials and source access stay in Swift. |
 | Diagnostics | Bounded local audio log, OSLog and explicit exports; governed separately from transmitted telemetry. |
 
 SQLite is the canonical structured record store, not a complete backup of all

@@ -150,6 +150,38 @@ CREATE INDEX idx_meeting_split_operations_source ON meeting_split_operations(sou
   deletion of the source or any sibling and needs no join to read. `NULL` for
   every non-split row; existing readers are unaffected.
 
+## Ask Workspace Persistence (v0.49)
+
+`v0.49-ask-conversations` stores saved Ask threads independently from Library
+recordings. The JSON payload owns the ordered source-context sections, messages,
+draft, title and citation identities; SQL columns provide compare-and-swap
+revision and a cross-process run lease. The table deliberately has no foreign
+key to `transcriptions`, so removing a source leaves its conversation and
+historical messages intact. Deleting a conversation deletes only that Ask row.
+
+```sql
+CREATE TABLE ask_conversations (
+    id TEXT PRIMARY KEY NOT NULL,
+    payload BLOB NOT NULL,                -- bounded JSON AskConversation, <= 8 MiB
+    revision INTEGER NOT NULL,
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL,
+    runToken TEXT,
+    runLeaseUntil TEXT
+);
+CREATE INDEX idx_ask_conversations_updated_at
+    ON ask_conversations(updatedAt);
+```
+
+The repository accepts at most 32 unique source UUIDs per section and validates
+that message sections, source-revision maps and citations agree. A successful
+save increments `revision` only when `expectedRevision` still matches. Active
+runs use a 45-second maximum lease and renew every 15 seconds. A final completed
+answer supplies the source revision map to the same database write transaction,
+which rechecks current canonical transcript revisions before committing. See
+the [Ask workspace contract](contracts/ask-workspace.md) for retrieval and
+privacy behavior.
+
 ## Relationship Diagram (selected domains)
 
 ```
@@ -166,6 +198,10 @@ CREATE INDEX idx_meeting_split_operations_source ON meeting_split_operations(sou
 │                  │◄──FK──│speaker_correction_states│  v0.32 — Undo/Redo cursor
 └──────────────────┘       └─────────────────────────┘
    v0.1 — File transcription records
+
+┌────────────────────┐
+│ ask_conversations  │   v0.49 — Independent source-scoped Ask history
+└────────────────────┘   Source UUIDs are payload references, not foreign keys.
 
 ┌──────────────────┐
 │   custom_words   │   v0.2 — Vocabulary corrections
@@ -618,6 +654,22 @@ CREATE INDEX idx_chat_conversations_transcription_id ON chat_conversations(trans
 - Legacy `chatMessages` field on `transcriptions` is nulled out after migration but kept for backward compatibility.
 
 ---
+
+### `ask_conversations` (v0.49)
+
+Stores an independent Ask workspace conversation, not a chat owned by its first
+transcript. Sections freeze the selected Library source UUIDs for each context
+period. A section change appends a new membership snapshot; existing messages
+remain history. The model only receives complete messages from the current
+section whose saved source revisions still match the current run snapshot.
+
+The single bounded payload is a Codable `AskConversation`. `revision`,
+`createdAt`, `updatedAt`, `runToken`, and `runLeaseUntil` remain indexed SQL
+columns so GUI and CLI processes can arbitrate without decoding competing
+payloads. Citations store `(sourceID, sourceRevision, segmentIndex)` plus
+optional source title/date snapshots, not a duplicate passage quote. Source
+records are validated when evidence is read. Recording deletion marks its
+historical citations unavailable without deleting the whole conversation.
 
 ### `prompts` (v0.7)
 
@@ -1303,6 +1355,56 @@ extension ChatConversation: FetchableRecord, PersistableRecord {
 }
 ```
 
+### AskConversation
+
+```swift
+struct AskConversation: Codable, Identifiable {
+    var id: UUID
+    var title: String
+    var sections: [AskContextSection]
+    var messages: [AskMessage]
+    var draft: String
+    var revision: Int
+    var createdAt: Date
+    var updatedAt: Date
+}
+
+struct AskContextSection: Codable, Identifiable {
+    var id: UUID
+    var sourceIDs: [UUID]
+    var createdAt: Date
+}
+
+struct AskMessage: Codable, Identifiable {
+    enum Role: String, Codable { case user, assistant }
+    enum Status: String, Codable { case complete, incomplete, failed, cancelled }
+    var id: UUID
+    var sectionID: UUID
+    var role: Role
+    var status: Status
+    var content: String
+    var citations: [AskEvidenceReference]
+    var sourceRevisions: [UUID: String]
+    var failureReason: String?
+    var provider: AskProviderDisclosure?
+    var createdAt: Date
+}
+
+struct AskEvidenceReference: Codable {
+    var sourceID: UUID
+    var sourceRevision: String
+    var segmentIndex: Int
+    var sourceTitle: String?
+    var recordedAt: Date?
+}
+```
+
+`AskConversation` is stored as the payload of `ask_conversations`, not as a
+GRDB row type. An assistant placeholder is saved as `incomplete` before model
+work begins. Terminal outcomes distinguish `complete`, `failed`, and
+`cancelled`; an interrupted process may leave the durable placeholder
+`incomplete`.
+
 ### Prompt
 
 ```swift
@@ -1726,6 +1828,8 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 // v0.45-prompt-result-content-edits — summaries.contentEditedAt
 // v0.46-reading-transcript-corrections — widen correction operations for reading edits
 // v0.47-meeting-ai-output-language — summaries.outputLanguagePolicySnapshot
+// v0.48-prompt-result-source-transcript — summaries.sourceTranscriptHash
+// v0.49-ask-conversations — independent Ask history and cross-process run lease
 ```
 
 ### Migration Rules
@@ -1763,6 +1867,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `dictations.hidden` | v0.5 | Private dictation mode flag |
 | `dictations.wordCount` | v0.5 | Cached word count for voice stats |
 | `chat_conversations` | v0.5 | Multi-conversation chat per transcription (FK → transcriptions) |
+| `ask_conversations` | v0.49-ask-conversations | Independent Ask conversations; bounded Codable payload, revision and run lease; no source foreign key |
 | `transcriptions.thumbnailURL` | v0.5 | YouTube video thumbnail URL |
 | `transcriptions.channelName` | v0.5 | YouTube channel name |
 | `transcriptions.videoDescription` | v0.5 | YouTube video description |

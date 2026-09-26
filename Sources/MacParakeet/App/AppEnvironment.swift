@@ -77,6 +77,7 @@ final class AppEnvironment {
     let llmClient: RoutingLLMClient
     let llmConfigStore: LLMConfigStore
     let llmService: LLMService
+    let askWorkspaceService: AskWorkspaceService?
     let cardGenerationService: CardGenerationService
     let runtimePreferences: AppRuntimePreferencesProtocol
     let derivedFieldsBackfill: DerivedFieldsBackfillService
@@ -84,7 +85,8 @@ final class AppEnvironment {
     init(databaseManager: DatabaseManager) throws {
         SpeechEnginePreference.migrateMaterializedFinalTranscriptionOverrideIfNeeded()
         self.databaseManager = databaseManager
-        shareCoordinator = AppFeatures.isShareLinksAvailable()
+        shareCoordinator =
+            AppFeatures.isShareLinksAvailable()
             ? ShareCoordinator(dbQueue: databaseManager.dbQueue, origin: .production) : nil
 
         // Repositories
@@ -377,6 +379,18 @@ final class AppEnvironment {
                 cliConfigStore: LocalCLIConfigStore()
             )
         )
+        if AppFeatures.isAskWorkspaceAvailable() {
+            askWorkspaceService = AskWorkspaceService(
+                databaseManager: databaseManager,
+                client: llmClient,
+                contextResolver: StoredLLMExecutionContextResolver(
+                    configStore: llmConfigStore,
+                    cliConfigStore: LocalCLIConfigStore()
+                )
+            )
+        } else {
+            askWorkspaceService = nil
+        }
         cardGenerationService = CardGenerationService(
             transcriptionRepository: transcriptionRepo,
             segmentRepository: segmentRepo,

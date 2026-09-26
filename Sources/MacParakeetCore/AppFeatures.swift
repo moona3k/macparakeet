@@ -4,6 +4,19 @@ import Foundation
 /// without touching every call site. Release builds should set these to the
 /// shipping configuration before tagging a version.
 public enum AppFeatures {
+    /// Experimental cross-recording Ask. Mergeable for development while model
+    /// reliability and native interaction qualification remain release gates.
+    public static let askWorkspaceEnabled = false
+    public static let askWorkspaceDeveloperLaunchArgument = "--enable-ask-workspace"
+
+    public static func isAskWorkspaceAvailable(arguments: [String] = ProcessInfo.processInfo.arguments) -> Bool {
+        #if DEBUG
+        askWorkspaceEnabled || arguments.contains(askWorkspaceDeveloperLaunchArgument)
+        #else
+        askWorkspaceEnabled
+        #endif
+    }
+
     /// Encrypted text sharing remains opt-in for development until its separate
     /// privacy, service and interoperability release gates are complete.
     public static let shareLinksEnabled = false

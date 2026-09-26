@@ -546,6 +546,44 @@ the transcript, say so. Be concise and specific, citing relevant parts when help
 
 **User notes (meeting recordings, optional):** When the transcription has non-empty `userNotes`, the chat system prompt gains a `User's notes from the meeting:\n…` block before the transcript block. Empty / nil / whitespace-only notes are omitted entirely — chat behavior is byte-identical to a chat without notes. Threaded via `LLMService.chat / chatStream / chatDetailed`'s `userNotes: String?` parameter; the GUI calls `TranscriptChatViewModel.bindUserNotesProvider(_:)` with a closure that returns the latest notes at chat-send time (static for saved transcriptions, live for in-meeting Ask). Saved-note editing does not add a Chat checkbox or otherwise change this policy: the next send reads the latest committed value. See ADR-020's amendments for the distinction between Chat and opt-in result-prompt context.
 
+### Ask Workspace (ADR-034)
+
+The Ask workspace is a separate multi-source product surface from single-
+transcript chat and live meeting Ask. It freezes a maximum of 32 explicitly
+selected completed transcripts per context section. Every run reads the
+effective corrected transcript projection and its content revision. The only
+agent tools are source listing, lexical search over selected passages, bounded
+passage reads, and reads of current linked result-category summaries. Search
+is lexical and bounded; multi-source hits are interleaved round-robin, an
+optional source ID narrows search, and results expose `hasMore`. Search can
+miss wording; summaries are orientation only. A model answer must cite a
+validated passage handle to be marked complete.
+
+The private Node helper runs Pi agent-core's `runAgentLoop` from the pinned
+0.87.1 packages. Its model adapter is `AskModelBridge` in Swift: one decision
+per turn comes back as validated JSON, using the provider's JSON-schema response
+format only when supported. This is not provider-native function calling. The
+final answer uses the configured LLM client's real streaming API. The helper
+has no provider credentials and can call only the four app-owned source tools;
+the bundled runtime exposes no shell, filesystem, web, plugin, or arbitrary
+code tool.
+
+Ask freezes the configured direct model route for each run. In-process MLX,
+Apple Intelligence, and Ollama/LM Studio loopback are consent-free local
+routes. Other endpoints, including a generic OpenAI-compatible loopback
+endpoint, require explicit consent. Ask rejects Local CLI providers and never
+falls back to another route. On source-set changes, only completed user and
+assistant pairs from the current section with a matching source-revision map
+enter later model context; interrupted, failed, cancelled, and stale messages
+do not. Citation records store source UUID, revision and passage index plus
+optional display metadata, not a copied quote. Final persistence rechecks the
+source revisions and any summary receipts used inside the same database
+transaction; uncited responses remain incomplete, and invalid or invented
+citation handles fail validation. A durable incomplete assistant placeholder
+is saved before helper work so process interruption has an honest stored state.
+See the
+[Ask workspace contract](contracts/ask-workspace.md).
+
 ### 3. Transforms
 
 > Superseded design note: the original dedicated custom-transform concept used UserDefaults and transcript-view actions. The current implementation is ADR-022: system-wide selected-text rewrites stored as `Prompt` rows with `category == .transform`.
