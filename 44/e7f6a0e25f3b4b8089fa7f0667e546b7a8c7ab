@@ -1,0 +1,21 @@
+Tests/MacParakeetTests/Audio/FixedMeetingLiveAudioChunkerTests.swift
+  s_cac8ea75717892::t_1fd4a821dc5233 47-61
+Tests/MacParakeetTests/Audio/MeetingVADChunkingSimulatorTests.swift
+  s_cac8ea75717892::t_c1937e4ac9c47f 4-5,7,9-12,14-15,19-25,31-33,35-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "44e7f6a0e25f3b4b8089fa7f0667e546b7a8c7ab",
+  "prompts": {},
+  "sessions": {
+    "s_cac8ea75717892": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0db21-43eb-73f3-b873-a8a718ab6d72",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
