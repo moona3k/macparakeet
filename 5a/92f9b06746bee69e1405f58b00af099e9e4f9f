@@ -1,0 +1,179 @@
+.github/workflows/ci.yml
+  s_d9d4b7d7a74eef::t_db6b0cfe25bccb 109-117,121-122,134-151,247-253
+Sources/AskAgentHelper/.gitignore
+  s_d9d4b7d7a74eef::t_28b206e8fa337b 1-2
+Sources/AskAgentHelper/README.md
+  s_d9d4b7d7a74eef::t_4f33566e289d77 1-11
+Sources/AskAgentHelper/legal/Pi-MIT-LICENSE
+  s_d9d4b7d7a74eef::t_64793f30ccd291 1-21
+Sources/AskAgentHelper/package-lock.json
+  s_d9d4b7d7a74eef::t_9022cfb9bfa361 1-2109
+Sources/AskAgentHelper/package.json
+  s_d9d4b7d7a74eef::t_201fcd0cb252d8 1-17
+Sources/AskAgentHelper/scripts/notices.js
+  s_d9d4b7d7a74eef::t_ca0715acb3261a 1-33
+Sources/AskAgentHelper/src/main.js
+  s_d9d4b7d7a74eef::t_57a406fb841dca 1-175
+Sources/AskAgentHelper/test/helper.test.js
+  s_d9d4b7d7a74eef::t_17dc3a630bd1aa 1-250
+Sources/CLI/CHANGELOG.md
+  s_d9d4b7d7a74eef::t_32abad5c140d78 97-101,105-113
+Sources/CLI/Commands/AskCommand.swift
+  s_d9d4b7d7a74eef::t_2a2af59c6b9baa 1-252
+Sources/CLI/Commands/SpecCommand.swift
+  s_d9d4b7d7a74eef::t_3b12383feefb7c 152-159,178-283
+Sources/CLI/MacParakeetCLI.swift
+  s_d9d4b7d7a74eef::t_1d8f8fd6ac7acc 25
+Sources/CLI/README.md
+  s_d9d4b7d7a74eef::t_e09dfb5212f8b0 23,29,32,39-40
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_d9d4b7d7a74eef::t_1949bee47af908 80,88-89,382-393
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_d9d4b7d7a74eef::t_6d1eafdcc3c8b6 55,75,92,143-145
+Sources/MacParakeet/App/AppWindowCoordinator.swift
+  s_d9d4b7d7a74eef::t_7bcb697725437b 66,74,101,109,132,140,250,258
+Sources/MacParakeet/AppDelegate.swift
+  s_d9d4b7d7a74eef::t_0fb999046466ea 78,126,234,244-255
+Sources/MacParakeet/Views/Ask/AskEvidenceView.swift
+  s_d9d4b7d7a74eef::t_13718a0949861b 1-99
+Sources/MacParakeet/Views/Ask/AskMessageView.swift
+  s_d9d4b7d7a74eef::t_0c8cb881950145 1-87
+Sources/MacParakeet/Views/Ask/AskSourcePickerView.swift
+  s_d9d4b7d7a74eef::t_d9da391902d57e 1-379
+Sources/MacParakeet/Views/Ask/AskWorkspaceView.swift
+  s_d9d4b7d7a74eef::t_fcfb762426a83b 1-445
+Sources/MacParakeet/Views/MainWindowState.swift
+  s_d9d4b7d7a74eef::t_d75aaff8f910c1 8-17,23-26,40-43
+Sources/MacParakeet/Views/MainWindowView.swift
+  s_d9d4b7d7a74eef::t_8e0308a3a7ffaf 9,26,41-43,72,89,97,215-232,238-245,273-274,292-293,298-310,312,369-370,376-386,440-443,451-453,486-493
+Sources/MacParakeet/Views/Transcription/BulkTranscriptionSelectionBar.swift
+  s_d9d4b7d7a74eef::t_d9ec557f0ea844 2,16-17,29-30,126,145,202-215
+Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift
+  s_d9d4b7d7a74eef::t_f70c0659fd4be4 21-22,189-194,260-268,600-610,1093,1099,1104,1117,1120-1126
+Sources/MacParakeetCore/AppFeatures.swift
+  s_d9d4b7d7a74eef::t_15a2d14a37fff0 7-19
+Sources/MacParakeetCore/Database/AskConversationRepository.swift
+  s_d9d4b7d7a74eef::t_2fc5d8911318f1 1-249
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_d9d4b7d7a74eef::t_0106ba1a64ffb0 2428-2447
+Sources/MacParakeetCore/Database/README.md
+  s_d9d4b7d7a74eef::t_145aec60a78301 39,53-54,212-219
+Sources/MacParakeetCore/Models/AskWorkspace.swift
+  s_d9d4b7d7a74eef::t_d97e57bf57bbe7 1-241
+Sources/MacParakeetCore/Models/LLMTypes.swift
+  s_d9d4b7d7a74eef::t_5a65ef409a25ee 33,38-39,44,50,56,87,152-154,164-165,177,195
+Sources/MacParakeetCore/Services/Ask/AskAgentTypes.swift
+  s_d9d4b7d7a74eef::t_f2f645da07d0b8 1-71
+Sources/MacParakeetCore/Services/Ask/AskModelBridge.swift
+  s_d9d4b7d7a74eef::t_33230591656f6c 1-251
+Sources/MacParakeetCore/Services/Ask/AskSourceService.swift
+  s_d9d4b7d7a74eef::t_c7593ef7a1d18e 1-486
+Sources/MacParakeetCore/Services/Ask/AskWorkspaceService.swift
+  s_d9d4b7d7a74eef::t_0d4ada012902c9 1-497
+Sources/MacParakeetCore/Services/Ask/AskWorkspaceServing.swift
+  s_d9d4b7d7a74eef::t_8187d23fd863cb 1-54
+Sources/MacParakeetCore/Services/Ask/PiAskAgent.swift
+  s_d9d4b7d7a74eef::t_944b1ca6e34e09 1-353
+Sources/MacParakeetCore/Services/LLM/InProcessLLMClient.swift
+  s_d9d4b7d7a74eef::t_8d9595fa9c67e0 233
+Sources/MacParakeetViewModels/AskWorkspaceViewModel.swift
+  s_d9d4b7d7a74eef::t_041287b7a78d7a 1-742
+THIRD_PARTY_LICENSES.md
+  s_d9d4b7d7a74eef::t_d22072b6b2721a 32-33,35-66
+Tests/CLITests/AskCommandTests.swift
+  s_d9d4b7d7a74eef::t_24d9c60617a577 1-98
+Tests/CLITests/SpecCommandTests.swift
+  s_d9d4b7d7a74eef::t_454953a4da5791 27-49,253
+Tests/MacParakeetTests/App/MainWindowStateTests.swift
+  s_d9d4b7d7a74eef::t_219225cc00132e 68-89,93,95
+Tests/MacParakeetTests/Ask/AskConversationRepositoryTests.swift
+  s_d9d4b7d7a74eef::t_789555d4ca0369 1-195
+Tests/MacParakeetTests/Ask/AskFeatureGateTests.swift
+  s_d9d4b7d7a74eef::t_1793b10bd184ea 1-19
+Tests/MacParakeetTests/Ask/AskModelBridgeTests.swift
+  s_d9d4b7d7a74eef::t_9ff3328069ea18 1-513
+Tests/MacParakeetTests/Ask/AskSourceServiceTests.swift
+  s_d9d4b7d7a74eef::t_0ee605f310f707 1-313
+Tests/MacParakeetTests/Ask/AskWorkspaceServiceTests.swift
+  s_d9d4b7d7a74eef::t_4db60bfa0097a3 1-516
+Tests/MacParakeetTests/Ask/AskWorkspaceViewModelTests.swift
+  s_d9d4b7d7a74eef::t_d18960c5992380 1-861
+Tests/MacParakeetTests/Ask/PiAskAgentTests.swift
+  s_d9d4b7d7a74eef::t_5b4ef315e679b8 1-292
+Tests/MacParakeetTests/Services/LLM/InProcessLLMClientTests.swift
+  s_d9d4b7d7a74eef::t_774d06fa82d8be 72-113
+docs/audits/2026-09-26-release-0.8.x-review.md
+  s_d9d4b7d7a74eef::t_7bec902395afdf 192-220
+docs/distribution.md
+  s_d9d4b7d7a74eef::t_3d209fa6d487f7 26-39
+docs/plans/2026-09-25-1308-feat-meeting-chat-workspace-plan.md
+  s_d9d4b7d7a74eef::t_a9de1735b28fad 1-505
+docs/research/2026-09-25-meeting-agent-harness-competitor-evidence.md
+  s_d9d4b7d7a74eef::t_a0afa933b58276 1-5
+docs/research/2026-09-25-meeting-chat-workspace/README.md
+  s_d9d4b7d7a74eef::t_ac1f78ce2d01a1 1-77
+docs/research/2026-09-25-meeting-chat-workspace/competitor-evidence.md
+  s_d9d4b7d7a74eef::t_99c533c6a08be2 1-108
+docs/research/2026-09-25-meeting-chat-workspace/model-agnostic-design.md
+  s_d9d4b7d7a74eef::t_0d74003ef1f492 1-125
+docs/research/2026-09-25-meeting-chat-workspace/opensource-harnesses.md
+  s_d9d4b7d7a74eef::t_4e519f80b141ab 1-108
+docs/research/2026-09-25-meeting-chat-workspace/opensource-retrieval-and-rlm.md
+  s_d9d4b7d7a74eef::t_2fdc0d6f5d6a34 1-71
+docs/research/2026-09-25-meeting-chat-workspace/verification.md
+  s_d9d4b7d7a74eef::t_069ec04f0580af 1-251
+integrations/README.md
+  s_d9d4b7d7a74eef::t_c930d8aa1d758e 479-517
+scripts/build_ask_helper.sh
+  s_d9d4b7d7a74eef::t_df560ca244db80 1-52
+scripts/dev/ask_workspace_qualification.py
+  s_d9d4b7d7a74eef::t_f6f992561fa830 1-507
+scripts/dev/run_app.sh
+  s_d9d4b7d7a74eef::t_71109c80f452b2 153-166
+scripts/dev/stop_app_processes.swift
+  s_d9d4b7d7a74eef::t_8b8c6dac7cf0e5 117-124
+scripts/dev/test_stop_app_processes_appkit.sh
+  s_d9d4b7d7a74eef::t_9f7d43ec10df19 92-93,98,101-108
+scripts/dev/tests/test_ask_workspace_qualification.py
+  s_d9d4b7d7a74eef::t_49b1bae5f550ef 1-154
+scripts/dist/build_app_bundle.sh
+  s_d9d4b7d7a74eef::t_efa39b2f407f76 409-410,431-433
+scripts/dist/build_cli_archive.sh
+  s_d9d4b7d7a74eef::t_d8aeb2ecdb3674 1-58
+scripts/dist/homebrew-tap-scaffold/HOWTO.md
+  s_d9d4b7d7a74eef::t_72d8612bf329ff 35-36,39,50,55,57-58,61-66,72-78,106-109
+scripts/dist/homebrew-tap-scaffold/macparakeet-cli.rb
+  s_d9d4b7d7a74eef::t_a68df5b3ef8e35 43-44
+spec/01-data-model.md
+  s_d9d4b7d7a74eef::t_c2769c826f59f8 153-184,202-205,658-673,1358-1407,1831-1832,1870
+spec/02-features.md
+  s_d9d4b7d7a74eef::t_766a1cc5c9f893 1295-1326,2201-2203,2297-2298
+spec/03-architecture.md
+  s_d9d4b7d7a74eef::t_3fdff58d375eee 21-25,234-252,311
+spec/04-ui-patterns.md
+  s_d9d4b7d7a74eef::t_64c8a43df6af45 15-20,73,116-149
+spec/11-llm-integration.md
+  s_d9d4b7d7a74eef::t_57f9d8fa02b5d7 549-586
+spec/README.md
+  s_d9d4b7d7a74eef::t_7a7eaf70cc824a 29-34,49-51,104,176
+spec/adr/034-meeting-ask-workspace.md
+  s_d9d4b7d7a74eef::t_9dce5c19673c1e 1-95
+spec/contracts/ask-workspace.md
+  s_d9d4b7d7a74eef::t_cc169a17e78906 1-210
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5a92f9b06746bee69e1405f58b00af099e9e4f9f",
+  "prompts": {},
+  "sessions": {
+    "s_d9d4b7d7a74eef": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0de46-6a9a-76a2-9a49-b0aba9f9ea74",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
