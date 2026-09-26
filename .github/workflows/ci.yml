@@ -106,9 +106,20 @@ jobs:
           set -o pipefail
           swift build --build-tests -Xswiftc -warn-concurrency 2>&1 | tee ci-logs/swift-test-build.log
 
+      - name: Ask Pi Helper
+        timeout-minutes: 5
+        env:
+          MACPARAKEET_ASK_TEST_HELPER: ${{ github.workspace }}/.build/ask-runtime/AskAgentHelper/ask-helper.cjs
+        run: |
+          set -euo pipefail
+          scripts/build_ask_helper.sh .build/ask-runtime/AskAgentHelper .build/ask-runtime/node
+          .build/ask-runtime/node --test Sources/AskAgentHelper/test/*.test.js
+
       - name: Swift Test
         id: tests
         timeout-minutes: 20
+        env:
+          MACPARAKEET_ASK_TEST_NODE: ${{ github.workspace }}/.build/ask-runtime/node
         run: |
           set -o pipefail
           export MACPARAKEET_CLI_TEST_EXECUTABLE="$PWD/.build/debug/macparakeet-cli"
@@ -119,6 +130,24 @@ jobs:
         run: |
           set -o pipefail
           python3 scripts/ci/summarize-tests.py ci-logs/swift-tests.xml ci-logs/swift-test.log | tee ci-logs/test-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Ask CLI Qualification
+        timeout-minutes: 5
+        env:
+          CLI_BINARY: ${{ github.workspace }}/.build/debug/macparakeet-cli
+          NODE_BINARY: ${{ github.workspace }}/.build/ask-runtime/node
+          NODE_LICENSE_FILE: ${{ github.workspace }}/.build/ask-runtime/Legal/Node/LICENSE
+          OUT_DIR: ${{ github.workspace }}/.build/ask-cli-archive
+          VERSION: ci
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s scripts/dev/tests -p test_ask_workspace_qualification.py
+          scripts/dist/build_cli_archive.sh
+          mkdir -p .build/ask-cli-extracted
+          tar -xzf "$OUT_DIR/macparakeet-cli-ci-darwin-$(uname -m).tar.gz" -C .build/ask-cli-extracted
+          python3 scripts/dev/ask_workspace_qualification.py \
+            --cli .build/ask-cli-extracted/macparakeet-cli \
+            --output-dir ci-logs/ask-qualification
 
       - name: CLI Persistence Smoke
         if: ${{ !cancelled() && steps.test_build.outcome == 'success' }}
@@ -214,6 +243,13 @@ jobs:
           mkdir -p ci-logs
           set -o pipefail
           swift build -c release 2>&1 | tee ci-logs/swift-build-release.log
+
+      - name: Ask Release Gate
+        timeout-minutes: 2
+        run: |
+          python3 scripts/dev/ask_workspace_qualification.py \
+            --cli .build/release/macparakeet-cli \
+            --output-dir ci-logs/ask-disabled --expect-disabled
 
       - name: Release Bundle Smoke
         timeout-minutes: 25

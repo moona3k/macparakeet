@@ -406,6 +406,8 @@ if [[ "$BUNDLE_NODE" == "1" ]]; then
       exit 1
     fi
     install -m 0755 "$node_bin" "$out"
+    mkdir -p "$RESOURCES_DIR/Legal/Node"
+    tar -xOzf "$tarball" "${asset%.tar.gz}/LICENSE" > "$RESOURCES_DIR/Legal/Node/LICENSE"
   }
 
   if [[ "$UNIVERSAL" == "1" ]]; then
@@ -425,6 +427,9 @@ if [[ "$BUNDLE_NODE" == "1" ]]; then
 else
   echo "Skipping Node bundling (BUNDLE_NODE=0)"
 fi
+
+# The private Pi helper is bundled JavaScript; npm is needed only on the build host.
+"$ROOT_DIR/scripts/build_ask_helper.sh" "$RESOURCES_DIR/AskAgentHelper"
 
 bundle_meeting_echo_assets() {
   local should_bundle="${BUNDLE_MEETING_ECHO_ASSETS:-}"

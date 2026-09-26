@@ -52,6 +52,7 @@ final class AppEnvironmentConfigurer {
     private let textSnippetsViewModel: TextSnippetsViewModel
     private let vocabularyBackupViewModel: VocabularyBackupViewModel
     private let libraryViewModel: TranscriptionLibraryViewModel
+    private let askWorkspaceViewModel: AskWorkspaceViewModel
     private let meetingsWorkspaceViewModel: MeetingsWorkspaceViewModel
     private let llmSettingsViewModel: LLMSettingsViewModel
     private let chatViewModel: TranscriptChatViewModel
@@ -71,6 +72,7 @@ final class AppEnvironmentConfigurer {
         textSnippetsViewModel: TextSnippetsViewModel,
         vocabularyBackupViewModel: VocabularyBackupViewModel,
         libraryViewModel: TranscriptionLibraryViewModel,
+        askWorkspaceViewModel: AskWorkspaceViewModel,
         meetingsWorkspaceViewModel: MeetingsWorkspaceViewModel,
         llmSettingsViewModel: LLMSettingsViewModel,
         chatViewModel: TranscriptChatViewModel,
@@ -87,6 +89,7 @@ final class AppEnvironmentConfigurer {
         self.textSnippetsViewModel = textSnippetsViewModel
         self.vocabularyBackupViewModel = vocabularyBackupViewModel
         self.libraryViewModel = libraryViewModel
+        self.askWorkspaceViewModel = askWorkspaceViewModel
         self.meetingsWorkspaceViewModel = meetingsWorkspaceViewModel
         self.llmSettingsViewModel = llmSettingsViewModel
         self.chatViewModel = chatViewModel
@@ -137,6 +140,9 @@ final class AppEnvironmentConfigurer {
             meetingClassificationService: env.meetingClassificationService,
             speakerAttributionReader: env.speakerAttributionReader
         )
+        if let askWorkspaceService = env.askWorkspaceService {
+            askWorkspaceViewModel.configure(service: askWorkspaceService)
+        }
         meetingsWorkspaceViewModel.configure(
             transcriptionRepo: env.transcriptionRepo,
             quickPromptRepo: env.quickPromptRepo,

@@ -75,6 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let feedbackViewModel = FeedbackViewModel()
     private let discoverViewModel = DiscoverViewModel()
     private let libraryViewModel = TranscriptionLibraryViewModel()
+    private let askWorkspaceViewModel = AskWorkspaceViewModel()
     /// One shared app-owned handle for native Split and transcribe: created
     /// eagerly (before `AppEnvironment` exists) and `configure`d once it does,
     /// so a single running batch survives the sheet closing and is reachable
@@ -122,6 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         textSnippetsViewModel: textSnippetsViewModel,
         vocabularyBackupViewModel: vocabularyBackupViewModel,
         libraryViewModel: libraryViewModel,
+        askWorkspaceViewModel: askWorkspaceViewModel,
         meetingsWorkspaceViewModel: meetingsWorkspaceViewModel,
         llmSettingsViewModel: llmSettingsViewModel,
         chatViewModel: chatViewModel,
@@ -229,6 +231,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         feedbackViewModel: feedbackViewModel,
         discoverViewModel: discoverViewModel,
         libraryViewModel: libraryViewModel,
+        askWorkspaceViewModel: askWorkspaceViewModel,
         meetingsWorkspaceViewModel: meetingsWorkspaceViewModel,
         meetingPillViewModel: meetingPillViewModel,
         meetingSplitViewModel: meetingSplitViewModel,
@@ -237,6 +240,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updaterController: updaterController,
         onRecordMeeting: { [weak self] in
             self?.toggleMeetingRecording(originatesFromWindow: true)
+        },
+        onOpenAskSource: { [weak self] id in
+            guard let self, let repository = self.appEnvironment?.transcriptionRepo else { return }
+            Task { @MainActor [weak self] in
+                let transcription = try? await Task.detached(priority: .userInitiated) {
+                    try repository.fetch(id: id)
+                }.value
+                guard let self, self.mainWindowState.selectedItem == .ask,
+                      let transcription else { return }
+                self.transcriptionViewModel.currentTranscription = transcription
+                self.mainWindowState.navigateToTranscription(from: .ask)
+            }
         },
         onRecordMeetingFromWorkspace: { [weak self] in
             self?.startMeetingRecordingFromWorkspace()

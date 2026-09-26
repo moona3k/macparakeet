@@ -476,6 +476,45 @@ appears in the aggregate report, and makes the command exit `1`.
 The `selected` count for `--stale` is the SQL-prefiltered stale/missing subset;
 the backfill also rebuilds the card FTS index for integrity recovery.
 
+### Investigate selected recordings in Ask
+
+The additive `ask` command family manages saved, source-scoped conversations.
+It is default-off. The examples below require a Debug CLI and
+`--enable-ask-workspace` on each command; Release builds reject this flag and
+perform no Ask database/model work. Existing single-transcript chat is separate.
+Use `ask sources` to find completed recordings by picker metadata, then pass
+their full UUIDs to `ask new`. A run reads only that selected set. Conversation
+and source revisions are returned in JSON; carry the latest conversation
+revision into each mutation or send so stale writes fail instead of overwriting
+another app or CLI change.
+
+```bash
+macparakeet-cli ask sources --enable-ask-workspace --search pricing --type meeting --limit 20
+macparakeet-cli ask new --enable-ask-workspace --source <recording-uuid-1> --source <recording-uuid-2>
+macparakeet-cli ask show --enable-ask-workspace <conversation-uuid>
+macparakeet-cli ask select --enable-ask-workspace <conversation-uuid> --revision 1 \
+  --source <recording-uuid-1> --source <recording-uuid-3>
+macparakeet-cli ask draft --enable-ask-workspace <conversation-uuid> "What changed in the decision?" --revision 2
+macparakeet-cli ask send --enable-ask-workspace <conversation-uuid> \
+  --question "What changed in the decision?" --revision 3 \
+  --provider openai --model gpt-4o --api-key-env OPENAI_API_KEY --allow-remote
+macparakeet-cli ask evidence --enable-ask-workspace <recording-uuid> \
+  --source-revision <revision-from-citation> --segment 4
+```
+
+`ask list`, `new`, `show`, `rename`, `delete`, `sources`, `select`, `draft`,
+`send`, and `evidence` emit JSON by default. Use `send --stream` for NDJSON
+activity and text records followed by a final conversation record. Provider
+configuration is inline for each send; Ask accepts direct model providers and
+rejects Local CLI. `--allow-remote` is required for providers that may receive
+selected transcript content, including generic OpenAI-compatible endpoints
+even when their URL is loopback. In-process/Apple Intelligence and Ollama or
+LM Studio loopback routes are the consent-free local paths. Ask never silently
+switches providers. See the [Ask contract](../spec/contracts/ask-workspace.md)
+for source revisions, citations, consent, and lifecycle behavior. CLI 4.7.0
+adds this surface in development source; it does not announce a stable app or
+standalone CLI release.
+
 ### Search past dictations
 
 ```bash
