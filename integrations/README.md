@@ -651,6 +651,73 @@ The bundle envelope is stable within the CLI major version:
 Meeting commands are deterministic local database operations. They do not
 require an LLM provider.
 
+Saved results can be edited in place without replacing their IDs or generation
+receipts. Read the existing content first, then supply it as a write
+precondition. A stale precondition fails with `conflict`; reload before retrying.
+
+```bash
+macparakeet-cli meetings results edit <meeting-id> <result-uuid> \
+  --expected-content-file original.md --file edited.md --json
+```
+
+For the equivalent of the reading editor's batch edit, write a JSON array using
+segment IDs from the latest `meetings transcript --format json` response:
+
+```json
+[
+  {"segment": "<first-segment-uuid>", "text": "Corrected passage."},
+  {"segment": "<second-segment-uuid>", "omit": true}
+]
+```
+
+```bash
+macparakeet-cli meetings corrections revise-text <meeting-id> \
+  --expected-revision 0 --file changes.json --json
+```
+
+The whole batch is one Undo step. Omissions affect the effective transcript,
+exports and AI context while preserving the original recognition and audio.
+Use `--database <path>` for an owned database; see the isolation rules below.
+
+### Inspect and configure AI task routes
+
+```bash
+macparakeet-cli llm routes list --json
+macparakeet-cli llm routes set cleanup --provider ollama --model <local-model> --json
+macparakeet-cli llm routes set analysis --provider anthropic \
+  --model <analysis-model> --api-key-env ANTHROPIC_API_KEY --json
+macparakeet-cli llm routes reset analysis --json
+```
+
+List reports default, cleanup, analysis and transform routes with effective
+provider/model and inheritance. It omits credentials and exposes only endpoint
+origins without reading Keychain. Mutation descriptions also avoid credential
+reads. Set changes one cleanup/analysis override; reset restores inheritance
+without deleting keys. Configure Default AI in GUI Settings first; a saved
+task override alone does not enable AI in the app. `configured` describes the
+stored route, not app or provider readiness. Default configuration remains
+managed in GUI Settings.
+When `--model` is omitted, a saved route uses the provider's current GUI default.
+Explicit model names and custom-provider requirements still apply. One-off inline
+LLM commands retain their historical model defaults for script compatibility.
+No LLM request is made by these commands. Explicit key flags take precedence
+over saved provider keys, then provider environment variables; keys are shared
+per provider, so explicitly replacing a key also affects other routes using it.
+Local CLI routes reuse the existing shared command template and reject a
+different `--command`. Preferences and Keychain are shared with the GUI and are
+not isolated by `--database` or a state-directory override. Relaunch or refresh
+a running GUI if it still displays cached settings. Close AI Settings before
+changing routes from the CLI, then reopen it: saving an already-open Settings
+draft writes its cached configuration, including routes and provider keys.
+The GUI model picker rejects a stale selection if a concurrent CLI change has
+replaced or reset the displayed route. Route metadata updates are coordinated
+across processes; credentials remain separate, shared per-provider Keychain values.
+Competing changes fail busy before mutation, including while another operation
+awaits Keychain authorization. An unconfirmed-save error means publication could
+not be confirmed after mutation; inspect the current routes before retrying.
+
+### Other meeting commands
+
 ```bash
 macparakeet-cli meetings list --json
 macparakeet-cli meetings list --type "Customer" --label "QBR" --json

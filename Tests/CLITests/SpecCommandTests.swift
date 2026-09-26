@@ -2,6 +2,27 @@ import XCTest
 @testable import CLI
 
 final class SpecCommandTests: XCTestCase {
+    func testSpecIncludesRevisionCheckedEditsAndTaskRoutes() throws {
+        let commands = try XCTUnwrap(specPayload()["commands"] as? [[String: Any]])
+        for (path, readOnly, requiredOptions) in [
+            (
+                ["meetings", "results", "edit"], false,
+                ["--expected-content", "--expected-content-file", "--file", "--stdin"]
+            ),
+            (["meetings", "corrections", "revise-text"], false, ["--expected-revision", "--file", "--stdin"]),
+            (["llm", "routes", "list"], true, []),
+            (["llm", "routes", "set"], false, ["--provider", "--model", "--api-key-env"]),
+            (["llm", "routes", "reset"], false, []),
+        ] {
+            let command = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == path })
+            XCTAssertEqual(command["readOnly"] as? Bool, readOnly)
+            XCTAssertEqual(command["jsonMode"] as? String, "--json")
+            let options = try XCTUnwrap(command["options"] as? [[String: Any]])
+            for name in requiredOptions {
+                XCTAssertTrue(options.contains { ($0["name"] as? String) == name }, "Missing \(name) on \(path)")
+            }
+        }
+    }
 
     func testEveryAskCommandDocumentsDeveloperOptInAndReleaseContainment() throws {
         let commands = try XCTUnwrap(specPayload()["commands"] as? [[String: Any]])

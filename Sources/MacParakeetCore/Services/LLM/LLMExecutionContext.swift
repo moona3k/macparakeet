@@ -60,10 +60,7 @@ public final class StoredLLMExecutionContextResolver: LLMExecutionContextResolvi
     }
 
     public func resolveContext(for task: LLMTaskGroup) throws -> LLMExecutionContext? {
-        if task.allowsOverride, let override = try configStore.loadTaskOverride(task) {
-            return try makeContext(from: override)
-        }
-        return try resolveContext()
+        try makeContext(from: configStore.loadConfig(for: task))
     }
 
     private func makeContext(from providerConfig: LLMProviderConfig?) throws -> LLMExecutionContext? {

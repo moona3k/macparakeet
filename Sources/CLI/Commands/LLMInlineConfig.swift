@@ -104,7 +104,7 @@ struct LLMInlineOptions: ParsableArguments {
     @Flag(name: .long, help: "Mark provider as local (smaller context budget).")
     var local: Bool = false
 
-    private func providerID() throws -> LLMProviderID {
+    func providerID() throws -> LLMProviderID {
         // Accept simple aliases for provider names used in docs and terminals.
         let normalized: String
         switch provider.lowercased() {
@@ -136,7 +136,8 @@ struct LLMInlineOptions: ParsableArguments {
 
     func buildExecutionContext(
         environment: [String: String] = ProcessInfo.processInfo.environment,
-        emitWarnings: Bool = true
+        emitWarnings: Bool = true,
+        persistedRouteDefault: Bool = false
     ) throws -> InlineLLMExecutionContext {
         let providerID = try providerID()
         if providerID == .appleIntelligence {
@@ -158,6 +159,13 @@ struct LLMInlineOptions: ParsableArguments {
         var providerConfig: LLMProviderConfig
         var localCLIConfig: LocalCLIConfig?
 
+        // Inline one-off commands keep historical model defaults for script
+        // compatibility; a saved app route must match the app's own current
+        // default (LLMProviderDescriptor.defaultModelName) instead.
+        func resolvedDefault(_ inlineCompatibilityDefault: String) -> String {
+            persistedRouteDefault ? providerID.defaultModelName : inlineCompatibilityDefault
+        }
+
         switch providerID {
         case .anthropic:
             let key = try requiredAPIKey(
@@ -174,7 +182,7 @@ struct LLMInlineOptions: ParsableArguments {
             )
             providerConfig = .openai(
                 apiKey: key,
-                model: model ?? InlineLLMCompatibilityDefaults.openAIModel,
+                model: model ?? resolvedDefault(InlineLLMCompatibilityDefaults.openAIModel),
                 baseURL: overrideURL
             )
         case .openaiCompatible:
@@ -195,7 +203,7 @@ struct LLMInlineOptions: ParsableArguments {
             )
             providerConfig = .gemini(
                 apiKey: key,
-                model: model ?? InlineLLMCompatibilityDefaults.geminiModel,
+                model: model ?? resolvedDefault(InlineLLMCompatibilityDefaults.geminiModel),
                 baseURL: overrideURL
             )
         case .openrouter:
@@ -206,7 +214,7 @@ struct LLMInlineOptions: ParsableArguments {
             )
             providerConfig = .openrouter(
                 apiKey: key,
-                model: model ?? InlineLLMCompatibilityDefaults.openRouterModel,
+                model: model ?? resolvedDefault(InlineLLMCompatibilityDefaults.openRouterModel),
                 baseURL: overrideURL
             )
         case .moonshot:
@@ -380,11 +388,13 @@ struct LLMInlineOptions: ParsableArguments {
 
     func buildConfig(
         environment: [String: String] = ProcessInfo.processInfo.environment,
-        emitWarnings: Bool = true
+        emitWarnings: Bool = true,
+        persistedRouteDefault: Bool = false
     ) throws -> LLMProviderConfig {
         try buildExecutionContext(
             environment: environment,
-            emitWarnings: emitWarnings
+            emitWarnings: emitWarnings,
+            persistedRouteDefault: persistedRouteDefault
         ).context.providerConfig
     }
 }

@@ -92,11 +92,13 @@ ArgumentParser's plain-text stderr path with exit code `2`. Downstream
 agents that branch on `errorType` should also handle the parse-error case
 by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
-## [4.7.0] — 2026-09-25 (development source; not a stable app release)
+## [Unreleased]
 
-This CLI source version adds Ask automation on this development branch. It does
-not qualify or change the stable MacParakeet.app release or standalone CLI
-channel.
+## [4.7.0] — 2026-09-26 (development source; not a stable app release)
+
+This CLI source version adds saved-result editing, batch text revisions, shared
+AI routes and experimental Ask automation. It does not qualify or change the
+stable MacParakeet.app release or standalone CLI channel.
 
 ### Added
 
@@ -109,10 +111,27 @@ channel.
   `--enable-ask-workspace` on each command. Release builds reject Ask even with
   that flag, before opening the database or constructing a model provider.
 
-## [Unreleased]
-
-### Added
-
+- `meetings results edit <meeting> <result-uuid>` edits saved AI content in
+  place with a required exact-content precondition, preserving result identity
+  and generation receipts. It refreshes artifacts and records `contentEditedAt`;
+  stale writes fail with `conflict` instead of overwriting another edit.
+- `meetings corrections revise-text` applies a revision-checked JSON batch of
+  replacements and omissions as one reversible correction. Original audio and
+  recognition evidence are preserved.
+- `llm routes list|set|reset` inspects effective routes and configures or clears
+  cleanup/analysis overrides in the same stores as GUI Settings. Output omits
+  credentials and endpoint secrets; local CLI routes reuse the shared template.
+  Listing and mutation receipts read persisted route metadata only, never
+  Keychain. `routes set` without `--model` picks the provider's current app
+  default (matching GUI Settings), not the historical one-off inline-CLI
+  compatibility default that other inline LLM commands still use for scripts.
+  `set`/`reset` coordinate with the GUI and other CLI processes on a shared
+  lease: a concurrent mutation fails fast (exit `1`, "AI settings are being
+  updated") instead of racing, and a publication I/O failure reports an
+  unconfirmed save rather than a silent no-op. See
+  `spec/contracts/cli-json-v1.md` for the full contract.
+- `spec --json` documents the new commands and their mutation/precondition
+  boundaries. Existing commands, JSON fields and exit codes remain supported.
 - History JSON may now include `"status": "error"` for a dictation whose
   transcription failed after capture. The row keeps its recording
   (`audioPath`), has an empty `rawTranscript`, and carries the failure in

@@ -630,6 +630,201 @@ final class TranscriptChatViewModelTests: XCTestCase {
         XCTAssertFalse(vm.canSendMessage)
     }
 
+    func testUnconfirmedModelPublicationDoesNotReportPickerSuccess() throws {
+        let domain = "picker-publication.\(UUID().uuidString)"
+        let lockURL = FileManager.default.temporaryDirectory.appendingPathComponent(domain).appendingPathComponent(
+            "routes.lock")
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: domain))
+        defer {
+            defaults.removePersistentDomain(forName: domain)
+            try? FileManager.default.removeItem(at: lockURL.deletingLastPathComponent())
+        }
+        let keys = InMemoryKeyValueStore()
+        let seed = LLMConfigStore(preferencesDomain: domain, lockURL: lockURL, keychain: keys)
+        try seed.saveConfig(.ollama(model: "old"))
+        // Configure reads metadata and a hydrated discovery config (calls 1,2).
+        // Selection refreshes at 3 and its publication fails at 4.
+        let fault = LLMRouteSynchronizationFault(failingCalls: [4])
+        let store = LLMConfigStore(
+            preferencesDomain: domain, lockURL: lockURL, keychain: keys,
+            synchronizePreferences: { fault.synchronize($0) })
+        viewModel.configure(
+            llmService: mockService, transcriptText: "Transcript", transcriptionRepo: mockRepo,
+            configStore: store, conversationRepo: mockConversationRepo)
+        var callbacks = 0
+        viewModel.onModelChanged = { callbacks += 1 }
+        viewModel.selectModel("unconfirmed")
+        XCTAssertEqual(callbacks, 0)
+    }
+
+    func testBusyMetadataRefreshRetainsPickerAndDoesNotReportSuccess() {
+        let store = MockLLMConfigStore()
+        store.config = .openai(apiKey: "key", model: "original")
+        viewModel.configure(
+            llmService: mockService, transcriptText: "Transcript", transcriptionRepo: mockRepo,
+            configStore: store, conversationRepo: mockConversationRepo)
+        var callbacks = 0
+        viewModel.onModelChanged = { callbacks += 1 }
+        store.metadataReadError = NSError(domain: "busy", code: 1)
+        viewModel.selectModel("rejected")
+        XCTAssertTrue(viewModel.canSelectModel)
+        XCTAssertEqual(viewModel.currentModelName, "original")
+        XCTAssertEqual(callbacks, 0)
+        store.metadataReadError = nil
+        viewModel.selectModel("accepted")
+        XCTAssertEqual(viewModel.currentModelName, "accepted")
+        XCTAssertEqual(callbacks, 1)
+    }
+
+    func testResetBetweenPickerCheckAndWriteCannotRetargetDefault() {
+        let store = MockLLMConfigStore()
+        let original = LLMProviderConfig.openai(apiKey: "test", model: "original")
+        store.config = original
+        store.taskOverrides[.analysis] = original
+        viewModel.configure(
+            llmService: mockService, transcriptText: "Transcript", transcriptionRepo: mockRepo,
+            configStore: store, conversationRepo: mockConversationRepo)
+        var callbacks = 0
+        viewModel.onModelChanged = { callbacks += 1 }
+        store.afterNextTaskOverrideRead = { store.taskOverrides.removeValue(forKey: .analysis) }
+
+        viewModel.selectModel("stale-selection")
+
+        XCTAssertEqual(store.config, original)
+        XCTAssertNil(store.taskOverrides[.analysis])
+        XCTAssertEqual(callbacks, 0)
+        XCTAssertEqual(viewModel.currentModelName, original.modelName)
+    }
+
+    func testStaleAnalysisPickerDoesNotRetargetResetOrChangedRoute() {
+        let original = LLMProviderConfig.openai(apiKey: "test", model: "original-model")
+        let cleanup = LLMProviderConfig.ollama(model: "cleanup-model")
+        let changedEndpoint = LLMProviderConfig(
+            id: original.id, baseURL: URL(string: "https://other.example/v1")!,
+            apiKey: original.apiKey, modelName: original.modelName, isLocal: original.isLocal
+        )
+        // Reset to the identical default must still invalidate an override picker.
+        for replacement in [nil, LLMProviderConfig.ollama(model: "changed-model"), changedEndpoint,
+                            .openai(apiKey: "test", model: "changed-model")] as [LLMProviderConfig?] {
+            let store = MockLLMConfigStore()
+            store.config = original
+            store.taskOverrides[.analysis] = original
+            store.taskOverrides[.cleanup] = cleanup
+            viewModel.configure(llmService: mockService, transcriptText: "Transcript", transcriptionRepo: mockRepo, configStore: store, conversationRepo: mockConversationRepo)
+            var callbackCount = 0
+            viewModel.onModelChanged = { callbackCount += 1 }
+            store.taskOverrides[.analysis] = replacement
+
+            viewModel.selectModel("stale-selection")
+
+            XCTAssertEqual(store.config, original)
+            XCTAssertEqual(store.taskOverrides[.analysis], replacement)
+            XCTAssertEqual(store.taskOverrides[.cleanup], cleanup)
+            XCTAssertEqual(viewModel.currentProviderID, (replacement ?? original).id)
+            XCTAssertEqual(viewModel.currentModelName, (replacement ?? original).modelName)
+            XCTAssertEqual(callbackCount, 0)
+        }
+    }
+
+    func testStaleInheritedPickerDoesNotRetargetNewOverride() {
+        let store = MockLLMConfigStore()
+        let original = LLMProviderConfig.openai(apiKey: "test", model: "original-model")
+        store.config = original
+        viewModel.configure(llmService: mockService, transcriptText: "Transcript", transcriptionRepo: mockRepo, configStore: store, conversationRepo: mockConversationRepo)
+        store.taskOverrides[.analysis] = original
+        viewModel.selectModel("stale-selection")
+        XCTAssertEqual(store.config, original)
+        XCTAssertEqual(store.taskOverrides[.analysis], original)
+        // Once refreshed, the same picker can update the displayed override.
+        viewModel.selectModel("fresh-selection")
+        XCTAssertEqual(store.config, original)
+        XCTAssertEqual(store.taskOverrides[.analysis]?.modelName, "fresh-selection")
+    }
+
+    func testAnalysisModelPickerUsesAndUpdatesAnalysisRoute() async throws {
+        let store = MockLLMConfigStore()
+        store.config = .openai(apiKey: "test", model: "default-model")
+        store.taskOverrides[.analysis] = .openai(apiKey: "analysis-key", model: "analysis-model")
+        let client = MockLLMClient()
+        client.modelsList = ["discovered-analysis-model"]
+        viewModel.configure(
+            llmService: mockService, transcriptText: "Transcript", transcriptionRepo: mockRepo,
+            configStore: store, llmClient: client, conversationRepo: mockConversationRepo
+        )
+        try await waitForModelDiscovery {
+            self.viewModel.availableModels.contains("discovered-analysis-model")
+        }
+        XCTAssertEqual(viewModel.currentProviderID, .openai)
+        XCTAssertEqual(viewModel.currentModelName, "analysis-model")
+        XCTAssertEqual(viewModel.availableModels, ["analysis-model", "discovered-analysis-model"])
+        XCTAssertEqual(client.capturedContext?.providerConfig.id, .openai)
+        XCTAssertEqual(client.capturedContext?.providerConfig.apiKey, "analysis-key")
+        viewModel.selectModel("new-analysis-model")
+        XCTAssertEqual(store.config?.modelName, "default-model")
+        XCTAssertEqual(store.taskOverrides[.analysis]?.modelName, "new-analysis-model")
+    }
+
+    func testAnalysisModelDiscoveryDiscardsResultAfterRouteChanges() async throws {
+        let store = MockLLMConfigStore()
+        store.config = .openai(apiKey: "test", model: "default-model")
+        let analysis = LLMProviderConfig.ollama(model: "analysis-model")
+        store.taskOverrides[.analysis] = analysis
+        let client = MockLLMClient()
+        client.modelsList = ["stale-discovered-model"]
+        client.holdListModels = true
+        viewModel.availableModels = []
+        let task = try XCTUnwrap(LLMModelAvailability.refreshPickerModelsTask(
+            for: analysis, llmClient: client, configStore: store, task: .analysis
+        ) { models in
+            self.viewModel.availableModels = models
+        })
+        try await waitForModelDiscovery { client.listModelsCallCount == 1 }
+        store.taskOverrides[.analysis] = .ollama(model: "changed-analysis-model")
+        client.releaseHeldListModels()
+        await task.value
+        XCTAssertEqual(client.listModelsCompletedCount, 1)
+        XCTAssertTrue(viewModel.availableModels.isEmpty)
+    }
+
+    private func waitForModelDiscovery(_ condition: () -> Bool) async throws {
+        let deadline = ContinuousClock.now + .seconds(2)
+        while !condition() {
+            guard ContinuousClock.now < deadline else {
+                XCTFail("Timed out waiting for model discovery")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
+    func testAnalysisLocalCLIAndAppleRoutesDoNotAllowModelMutation() {
+        for route in [LLMProviderConfig.localCLI(), .appleIntelligence()] {
+            let store = MockLLMConfigStore()
+            store.config = .openai(apiKey: "test", model: "default-model")
+            store.taskOverrides[.analysis] = route
+            viewModel.configure(
+                llmService: mockService, transcriptText: "Transcript", transcriptionRepo: mockRepo,
+                configStore: store, conversationRepo: mockConversationRepo
+            )
+            XCTAssertEqual(viewModel.currentProviderID, route.id)
+            viewModel.selectModel("invalid-model")
+            XCTAssertEqual(store.config?.modelName, "default-model")
+            XCTAssertEqual(store.taskOverrides[.analysis], route)
+        }
+    }
+
+    func testAnalysisModelPickerKeepsInheritedRouteInherited() {
+        let store = MockLLMConfigStore()
+        store.config = .openai(apiKey: "test", model: "default-model")
+        viewModel.configure(
+            llmService: mockService, transcriptText: "Transcript", transcriptionRepo: mockRepo,
+            configStore: store, conversationRepo: mockConversationRepo
+        )
+        viewModel.selectModel("new-default-model")
+        XCTAssertEqual(store.config?.modelName, "new-default-model")
+        XCTAssertNil(store.taskOverrides[.analysis])
+    }
+
     func testRefreshModelInfoShowsLocalCLIPresetName() throws {
         let suiteName = "test.chat.localcli.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

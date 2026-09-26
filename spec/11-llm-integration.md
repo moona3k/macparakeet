@@ -63,6 +63,16 @@ and does not report AI setup as ready until the system model can generate.
 Saving the default and both task routes prepares credentials and encoded
 settings before publishing the routes; a failed credential write leaves the
 previous routes active.
+Route metadata is refreshed and read or written under a shared nonblocking
+cross-process lease. Mutations acquire it before changing credentials and keep
+it through metadata publication; competing operations fail busy without changes,
+including while Keychain authorization is pending. Effective-route resolution uses one metadata snapshot before loading the
+selected provider's credentials outside that lock. Model pickers compare their
+displayed route and inheritance identity as part of the same store operation
+that changes the model, so a simultaneous CLI route change cannot redirect a
+stale selection. Keychain and preferences do not share a durable transaction:
+a publication failure after mutation reports an unconfirmed save that may have
+changed state. This does not replace Settings' full-draft save behavior.
 
 ### Provider Protocol
 
@@ -510,7 +520,15 @@ appended; if notes are empty, enabling the checkbox changes no prompt bytes.
 `PromptResult.userNotesSnapshot` stores the exact effective notes value used,
 while `includeMeetingNotesSnapshot` records the captured preference. Retry
 reuses the queued values; regenerate reuses the Boolean receipt with current
-committed notes. This path was implemented and locally verified on 2026-09-05.
+committed notes. Regeneration reuses the saved model only when its provider receipt
+matches the current analysis provider; after a provider change or when provider
+provenance is absent, it uses the current analysis model and provider inference
+defaults so historical provider-specific settings cannot invalidate the new route. Apple Intelligence and
+Local CLI always use their system or configured command model. The saved prompt and
+version remain regeneration inputs, with inference settings reused only for the
+same provider; the original result
+and receipt remain intact until successful replacement records the new execution.
+This path was implemented and locally verified on 2026-09-05.
 
 ### 2. Chat with Transcript
 

@@ -163,6 +163,39 @@ final class LLMConfigCommandTests: XCTestCase {
         XCTAssertEqual(openRouterConfig.modelName, "anthropic/claude-sonnet-5")
     }
 
+    func testInlineOneOffOmittedModelKeepsHistoricalCompatibilityDefault() throws {
+        let openAIOptions = try LLMInlineOptions.parse(["--provider", "openai"])
+        let geminiOptions = try LLMInlineOptions.parse(["--provider", "gemini"])
+
+        let openAIConfig = try openAIOptions.buildConfig(environment: ["OPENAI_API_KEY": "sk-env"])
+        let geminiConfig = try geminiOptions.buildConfig(environment: ["GEMINI_API_KEY": "sk-env"])
+
+        XCTAssertEqual(openAIConfig.modelName, "gpt-4.1")
+        XCTAssertEqual(geminiConfig.modelName, "gemini-2.5-flash")
+    }
+
+    func testPersistedRouteOmittedModelUsesCurrentProviderDefaultNotCompatibilityDefault() throws {
+        let openAIOptions = try LLMInlineOptions.parse(["--provider", "openai"])
+        let geminiOptions = try LLMInlineOptions.parse(["--provider", "gemini"])
+
+        let openAIConfig = try openAIOptions.buildConfig(
+            environment: ["OPENAI_API_KEY": "sk-env"], persistedRouteDefault: true)
+        let geminiConfig = try geminiOptions.buildConfig(
+            environment: ["GEMINI_API_KEY": "sk-env"], persistedRouteDefault: true)
+
+        XCTAssertEqual(openAIConfig.modelName, LLMProviderID.openai.defaultModelName)
+        XCTAssertEqual(geminiConfig.modelName, LLMProviderID.gemini.defaultModelName)
+        XCTAssertNotEqual(openAIConfig.modelName, "gpt-4.1")
+        XCTAssertNotEqual(geminiConfig.modelName, "gemini-2.5-flash")
+    }
+
+    func testPersistedRouteDefaultDoesNotOverrideExplicitModel() throws {
+        let options = try LLMInlineOptions.parse(["--provider", "openai", "--model", "gpt-4.1"])
+        let config = try options.buildConfig(
+            environment: ["OPENAI_API_KEY": "sk-env"], persistedRouteDefault: true)
+        XCTAssertEqual(config.modelName, "gpt-4.1")
+    }
+
     func testInlineOptionsReadExplicitAPIKeyEnvironment() throws {
         let options = try LLMInlineOptions.parse([
             "--provider", "openai-compatible",

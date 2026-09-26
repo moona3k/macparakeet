@@ -77,6 +77,7 @@ public final class TranscriptChatViewModel {
     private var chatHistory: [ChatMessage] = []
     private var streamingTask: Task<Void, Never>?
     private var modelListTask: Task<Void, Never>?
+    private var displayedModelRoute: LLMModelSelectionRoute?
     private var streamingAssistantID: UUID?
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "TranscriptChatViewModel")
 
@@ -116,12 +117,23 @@ public final class TranscriptChatViewModel {
 
     public func refreshModelInfo() {
         modelListTask?.cancel()
-        guard let configStore, let config = try? configStore.loadConfig() else {
+        let loadedRoute: LLMModelSelectionRoute?
+        do {
+            loadedRoute = try configStore?.loadRouteMetadata(for: .analysis)
+        } catch {
+            // A brief competing writer must not permanently disable the picker.
+            // The conditional write still revalidates this retained snapshot.
+            return
+        }
+        displayedModelRoute = nil
+        guard let configStore, let route = loadedRoute else {
             currentModelName = ""
             currentProviderID = nil
             availableModels = []
             return
         }
+        displayedModelRoute = route
+        let config = route.config
         currentProviderID = config.id
         if config.id == .localCLI {
             let displayName =
@@ -136,14 +148,31 @@ public final class TranscriptChatViewModel {
 
         currentModelName = config.modelName
         availableModels = LLMModelAvailability.pickerModels(for: config, discoveredModels: [])
-        refreshAvailableModels(for: config)
+        // Discovery needs credentials, but picker identity and writes never do.
+        let discoveryConfig = try? configStore.loadConfig(for: .analysis)
+        if let discoveryConfig,
+            LLMModelSelectionRoute(config: discoveryConfig, isOverride: route.isOverride) == route
+        {
+            refreshAvailableModels(for: discoveryConfig)
+        }
+    }
+
+    public var canSelectModel: Bool {
+        configStore != nil && currentProviderID != nil
+            && currentProviderID != .localCLI && currentProviderID != .appleIntelligence
+            && !isStreaming
     }
 
     public func selectModel(_ modelName: String) {
-        guard let configStore, currentProviderID != .localCLI else { return }
+        guard let configStore, canSelectModel else { return }
         do {
-            try configStore.updateModelName(modelName)
-            currentModelName = modelName
+            guard let displayedModelRoute,
+                try configStore.updateModelName(modelName, for: .analysis, expected: displayedModelRoute)
+            else {
+                refreshModelInfo()
+                return
+            }
+            refreshModelInfo()
             onModelChanged?()
         } catch {
             refreshModelInfo()
@@ -154,7 +183,8 @@ public final class TranscriptChatViewModel {
         modelListTask = LLMModelAvailability.refreshPickerModelsTask(
             for: config,
             llmClient: llmClient,
-            configStore: configStore
+            configStore: configStore,
+            task: .analysis
         ) { [weak self] models in
             self?.availableModels = models
         }
