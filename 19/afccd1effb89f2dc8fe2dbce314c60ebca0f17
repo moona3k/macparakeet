@@ -1,0 +1,55 @@
+Sources/CLI/Commands/SpecCommand.swift
+  s_87598b246e7079::t_e83bfc80578585 270
+spec/04-ui-patterns.md
+  s_87598b246e7079::t_e83bfc80578585 145-148
+scripts/dev/run_app.sh
+  s_87598b246e7079::t_e83bfc80578585 153-165
+docs/research/2026-09-25-meeting-chat-workspace/verification.md
+  s_87598b246e7079::t_c85ddccde29440 116-131
+Sources/AskAgentHelper/README.md
+  s_87598b246e7079::t_3a3e382ff9d77a 9-11
+Sources/MacParakeet/Views/MainWindowView.swift
+  s_87598b246e7079::t_ec95fb61c04717 72,220-222,224-227,376-386
+Sources/MacParakeetCore/Services/Ask/AskAgentTypes.swift
+  s_87598b246e7079::t_4746e394c92367 36,40-41
+Sources/MacParakeetCore/Services/Ask/AskModelBridge.swift
+  s_87598b246e7079::t_1b066e3af211af 79,155,168-177
+Sources/MacParakeetCore/Services/Ask/AskSourceService.swift
+  s_87598b246e7079::t_fa08435a0fb9bb 30-33,65-71,91-107
+Sources/MacParakeetCore/Services/Ask/AskWorkspaceService.swift
+  s_87598b246e7079::t_ba17b657de23c0 320,420-422,424-425,430-431,433
+Sources/MacParakeetCore/Services/Ask/PiAskAgent.swift
+  s_87598b246e7079::t_402f331f2952df 38-42
+Sources/MacParakeetViewModels/AskWorkspaceViewModel.swift
+  s_87598b246e7079::t_d9fffa891bde7a 172-175,185-186,193-194,199-201,205,208,210,212,216-219,222,227,229,331-337,340-341,343-348
+Tests/MacParakeetTests/Ask/AskModelBridgeTests.swift
+  s_87598b246e7079::t_2db1528fcb1452 281-319
+Tests/MacParakeetTests/Ask/AskSourceServiceTests.swift
+  s_87598b246e7079::t_61c208bac82638 50-132
+Tests/MacParakeetTests/Ask/AskWorkspaceServiceTests.swift
+  s_87598b246e7079::t_bd9d946c564242 305-355,448-450,469
+Tests/MacParakeetTests/Ask/AskWorkspaceViewModelTests.swift
+  s_87598b246e7079::t_f9698f9294a916 290-291,377-378,382-438,448-449,548,600-663,732,757,777-780,833-835
+Tests/MacParakeetTests/Ask/PiAskAgentTests.swift
+  s_87598b246e7079::t_5635a963a91d0d 1,118-188
+Tests/MacParakeetTests/Services/LLM/InProcessLLMClientTests.swift
+  s_87598b246e7079::t_fc063b4d47c8da 89-98
+spec/contracts/ask-workspace.md
+  s_87598b246e7079::t_c25feb1722128d 40-45,50-54,70-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "19afccd1effb89f2dc8fe2dbce314c60ebca0f17",
+  "prompts": {},
+  "sessions": {
+    "s_87598b246e7079": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0de16-d121-7563-85aa-e9e0aa5a2459",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
