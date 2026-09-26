@@ -302,6 +302,57 @@ final class AskWorkspaceServiceTests: XCTestCase {
         XCTAssertTrue(result.messages.last?.failureReason?.contains("changed") == true)
     }
 
+    func testSummaryToolBoundsAggregateUnicodeAndEscapedJSONWithoutChangingReceipts() async throws {
+        try await assertSummaryBudget(content: String(repeating: "界", count: 4_000), expectedCount: 2)
+        try await assertSummaryBudget(content: String(repeating: "\"\n\\", count: 1_333), expectedCount: 3)
+    }
+
+    func testSingleOversizedSummaryDoesNotPreventAnswerUsingTranscriptEvidence() async throws {
+        // One grapheme cluster contains several scalars; a 4,000-character
+        // receipt can exceed the byte limit even without any JSON escaping.
+        try await assertSummaryBudget(content: String(repeating: "👨‍👩‍👧‍👦", count: 4_000), expectedCount: 0)
+    }
+
+    private func assertSummaryBudget(content: String, expectedCount: Int) async throws {
+        let fixture = try Fixture()
+        let source = try fixture.source("Planning", "Launch in June.")
+        let prompt = Prompt(name: "Bounded summary fixture", content: "Summarize", category: .result)
+        try PromptRepository(dbQueue: fixture.database.dbQueue).save(prompt)
+        let repository = PromptResultRepository(dbQueue: fixture.database.dbQueue)
+        let summaries = try (0..<10).map { index in
+            let summary = PromptResult(
+                transcriptionId: source.id, promptId: prompt.id, promptName: "Summary", promptContent: "Summarize",
+                content: content, sourceCorrectionRevision: 0,
+                sourceTranscriptHash: PromptResultFreshness.sourceTranscriptHash(for: source),
+                createdAt: Date(timeIntervalSince1970: 1_700_000_000 - Double(index)))
+            try repository.save(summary)
+            return summary
+        }
+        let agent = ScriptedAskAgent { _, tool, event in
+            let output = try await tool("get_summary", "{\"sourceID\":\"\(source.id.uuidString)\"}")
+            XCTAssertLessThanOrEqual(output.utf8.count, 32_000)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let returned = try decoder.decode([AskSummary].self, from: Data(output.utf8))
+            XCTAssertEqual(returned.map(\.id), Array(summaries.prefix(expectedCount)).map(\.id))
+            XCTAssertTrue(returned.allSatisfy { $0.content == content })
+            // An omitted overview was never model context and must not become
+            // a receipt that invalidates an otherwise valid cited answer.
+            var omitted = summaries[expectedCount]
+            omitted.content = "Changed after the tool call."
+            try repository.save(omitted)
+            _ = try await tool("search", #"{"query":"June"}"#)
+            await event(.text("June [E1]."))
+            return "June [E1]."
+        }
+        let service = fixture.service(agent)
+        let chat = try await service.create(sourceIDs: [source.id])
+        let result = try await service.send(
+            id: chat.id, question: "When?", expectedRevision: 0,
+            approvedProviderID: nil, onEvent: { _ in })
+        XCTAssertEqual(result.messages.last?.status, .complete)
+    }
+
     func testCancelledQuestionIsNotReplayedWithTheNextQuestion() async throws {
         let fixture = try Fixture()
         let source = try fixture.source("Planning", "Launch in June.")
@@ -394,7 +445,9 @@ final class AskWorkspaceServiceTests: XCTestCase {
     }
 
     func testBudgetAndInvalidActionFailuresKeepPartialTextAndSanitizeReason() async throws {
-        for error in [AskAgentError.budgetExceeded("private provider payload"), .invalidModelAction] {
+        for error in [
+            AskAgentError.budgetExceeded("private provider payload"), .invalidModelAction, .unverifiedLocalCompletion,
+        ] {
             let fixture = try Fixture()
             let source = try fixture.source("Planning", "Launch in June.")
             let service = fixture.service(
@@ -413,6 +466,7 @@ final class AskWorkspaceServiceTests: XCTestCase {
             switch error {
             case .budgetExceeded: XCTAssertTrue(reason.contains("narrower question"))
             case .invalidModelAction: XCTAssertTrue(reason.contains("valid Ask action"))
+            case .unverifiedLocalCompletion: XCTAssertTrue(reason.contains("did not confirm that generation finished"))
             default: XCTFail("Unexpected test error")
             }
         }

@@ -287,7 +287,8 @@ final class AskWorkspaceViewModelTests: XCTestCase {
         external.draft = "CLI draft"
         external.revision += 1
         await service.replaceConversation(external)
-        await navigation.value
+        let created = await navigation.value
+        XCTAssertFalse(created)
 
         XCTAssertEqual(model.conversation?.id, first.id)
         XCTAssertEqual(model.draft, "My later edit")
@@ -373,8 +374,66 @@ final class AskWorkspaceViewModelTests: XCTestCase {
         let creating = Task { await model.createConversation() }
         await service.waitUntilRequested("create")
         await model.openConversation(existing.id)
-        await creating.value
+        let created = await creating.value
+        XCTAssertFalse(created)
         XCTAssertEqual(model.conversation?.id, existing.id)
+    }
+
+    func testLibraryHandoffReportsDraftConflictWithoutReplacingConversation() async {
+        let original = AskConversation(title: "Existing", draft: "Saved question")
+        let service = AskWorkspaceMock(conversations: [original])
+        let model = AskWorkspaceViewModel(service: service)
+        await model.openConversation(original.id)
+        model.updateDraft("My unsaved question")
+        var external = original
+        external.revision += 1
+        external.draft = "CLI question"
+        await service.replaceConversation(external)
+
+        let accepted = await model.startFromLibrary(sourceIDs: [UUID()])
+
+        XCTAssertFalse(accepted)
+        XCTAssertEqual(model.conversation?.id, original.id)
+        XCTAssertEqual(model.draft, "My unsaved question")
+        XCTAssertNotNil(model.errorMessage)
+        let saved = try? await service.conversations()
+        XCTAssertEqual(saved?.count, 1)
+    }
+
+    func testLibraryHandoffReportsCreationFailureWithoutReplacingConversation() async {
+        let original = AskConversation(title: "Existing")
+        let service = AskWorkspaceMock(conversations: [original])
+        let model = AskWorkspaceViewModel(service: service)
+        await model.openConversation(original.id)
+        await service.failNextCreate()
+
+        let accepted = await model.startFromLibrary(sourceIDs: [UUID()])
+
+        XCTAssertFalse(accepted)
+        XCTAssertEqual(model.conversation?.id, original.id)
+        XCTAssertNotNil(model.errorMessage)
+    }
+
+    func testLibraryHandoffRejectsEmptySelection() async {
+        let model = AskWorkspaceViewModel(service: AskWorkspaceMock())
+        let accepted = await model.startFromLibrary(sourceIDs: [])
+        XCTAssertFalse(accepted)
+        XCTAssertNil(model.conversation)
+    }
+
+    func testLibraryHandoffQueuesDeduplicatedSelectionUntilConfiguration() async {
+        let source = UUID()
+        let model = AskWorkspaceViewModel()
+        let accepted = await model.startFromLibrary(sourceIDs: [source, source])
+        XCTAssertTrue(accepted)
+        XCTAssertNil(model.conversation)
+
+        let service = AskWorkspaceMock()
+        model.configure(service: service)
+        await service.waitUntilRequested("create")
+        // Let the configure-triggered load finish adopting the queued request.
+        while model.conversation == nil { await Task.yield() }
+        XCTAssertEqual(model.conversation?.activeSection?.sourceIDs, [source])
     }
 
     func testLibraryHandoffSurvivesAskViewLoadDuringCreation() async {
@@ -386,7 +445,8 @@ final class AskWorkspaceViewModelTests: XCTestCase {
         let handoff = Task { await model.startFromLibrary(sourceIDs: [source]) }
         await service.waitUntilRequested("create")
         await model.load()
-        await handoff.value
+        let accepted = await handoff.value
+        XCTAssertTrue(accepted)
         XCTAssertEqual(model.conversation?.activeSection?.sourceIDs, [source])
         XCTAssertEqual(model.conversations.count, 1)
     }
@@ -485,7 +545,7 @@ final class AskWorkspaceViewModelTests: XCTestCase {
         await service.replaceConversation(external)
 
         await model.load()
-        await saving.value
+        _ = await saving.value
 
         XCTAssertEqual(model.conversation?.revision, external.revision)
         XCTAssertEqual(model.conversation?.activeSection?.sourceIDs, [source])
@@ -535,6 +595,70 @@ final class AskWorkspaceViewModelTests: XCTestCase {
         XCTAssertNil(model.recoveredDraft)
         let saved = try? await service.conversation(id: model.conversation!.id)
         XCTAssertEqual(saved?.draft, "My unsent question")
+    }
+
+    func testDeletingConflictedConversationAllowsOpeningAndCreatingConversations() async {
+        for hasNextConversation in [false, true] {
+            let original = AskConversation(title: "Draft", draft: "Earlier")
+            let next = AskConversation(title: "Next")
+            let service = AskWorkspaceMock(conversations: hasNextConversation ? [original, next] : [original])
+            let model = AskWorkspaceViewModel(service: service)
+            await model.openConversation(original.id)
+            model.updateDraft("My local draft")
+            var external = original
+            external.draft = "CLI draft"
+            external.revision += 1
+            await service.replaceConversation(external)
+            await model.load()
+            XCTAssertNotNil(model.savedDraftAtConflict)
+
+            await model.deleteConversation()
+
+            XCTAssertNil(model.savedDraftAtConflict)
+            XCTAssertNil(model.errorMessage)
+            XCTAssertEqual(model.conversation?.id, hasNextConversation ? next.id : nil)
+            let created = await model.createConversation()
+            XCTAssertTrue(created)
+            XCTAssertNotNil(model.conversation)
+            XCTAssertNotEqual(model.conversation?.id, original.id)
+        }
+    }
+
+    func testDeletingConversationDiscardsPendingEvidenceResult() async {
+        let original = AskConversation(title: "Draft")
+        let service = AskWorkspaceMock(conversations: [original])
+        let model = AskWorkspaceViewModel(service: service)
+        await model.openConversation(original.id)
+        await service.delay("evidence", nanoseconds: 200_000_000)
+        let evidence = Task {
+            await model.openEvidence(AskEvidenceReference(sourceID: UUID(), sourceRevision: "r1", segmentIndex: 0))
+        }
+        await service.waitUntilRequested("evidence")
+
+        await model.deleteConversation()
+        await evidence.value
+
+        XCTAssertNil(model.conversation)
+        XCTAssertNil(model.evidence)
+        XCTAssertFalse(model.isEvidenceLoading)
+    }
+
+    func testDeletingAnotherConversationPreservesRecoveredDraft() async {
+        let original = AskConversation(title: "Removed externally", draft: "Recover this question")
+        let next = AskConversation(title: "Delete locally")
+        let service = AskWorkspaceMock(conversations: [original, next])
+        let model = AskWorkspaceViewModel(service: service)
+        await model.openConversation(original.id)
+        try? await service.delete(id: original.id)
+        await model.load()
+        XCTAssertEqual(model.recoveredDraft, "Recover this question")
+        await model.openConversation(next.id)
+
+        await model.deleteConversation()
+
+        XCTAssertEqual(model.recoveredDraft, "Recover this question")
+        await model.createConversation()
+        XCTAssertEqual(model.draft, "Recover this question")
     }
 
     func testExternalDraftConflictNeedsExplicitChoice() async {
@@ -605,6 +729,7 @@ private actor AskWorkspaceMock: AskWorkspaceServing {
     private var operationDelays: [String: UInt64] = [:]
     private var requestedOperations: Set<String> = []
     private var shouldFailSend = false
+    private var shouldFailCreate = false
 
     init(conversations: [AskConversation] = []) {
         values = Dictionary(uniqueKeysWithValues: conversations.map { ($0.id, $0) })
@@ -629,6 +754,7 @@ private actor AskWorkspaceMock: AskWorkspaceServing {
     func delay(_ operation: String, nanoseconds: UInt64) { operationDelays[operation] = nanoseconds }
     func replaceConversation(_ value: AskConversation) { values[value.id] = value }
     func failNextSend() { shouldFailSend = true }
+    func failNextCreate() { shouldFailCreate = true }
     func waitUntilRequested(_ operation: String) async {
         while !requestedOperations.contains(operation) { await Task.yield() }
     }
@@ -648,6 +774,10 @@ private actor AskWorkspaceMock: AskWorkspaceServing {
     }
     func create(sourceIDs: [UUID]) async throws -> AskConversation {
         await pause("create")
+        if shouldFailCreate {
+            shouldFailCreate = false
+            throw MockError.missing
+        }
         let value = AskConversation(sections: [AskContextSection(sourceIDs: sourceIDs)])
         values[value.id] = value
         return value
@@ -700,8 +830,9 @@ private actor AskWorkspaceMock: AskWorkspaceServing {
         return AskProviderDisclosure(
             id: "local", name: "Local", model: "Test", endpoint: "On this Mac", requiresRemoteConsent: false)
     }
-    func evidence(_ reference: AskEvidenceReference) throws -> AskEvidence {
-        AskEvidence(status: .unavailable, source: nil, passage: nil)
+    func evidence(_ reference: AskEvidenceReference) async throws -> AskEvidence {
+        await pause("evidence")
+        return AskEvidence(status: .unavailable, source: nil, passage: nil)
     }
     func send(
         id: UUID, question: String, expectedRevision: Int, approvedProviderID: String?,

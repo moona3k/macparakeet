@@ -37,12 +37,21 @@ This gate applies only to the new workspace, not existing transcript/live chat.
   Library source leaves its historical conversation intact; its evidence then
   resolves as unavailable.
 
+The in-process local model adapter currently does not report trustworthy
+end-of-sequence versus token-limit completion metadata. Ask rejects its actions
+and final responses without an explicit successful stop reason, retaining a
+safe failure reason instead of accepting a possibly truncated answer. This
+restriction does not change existing chat or HTTP provider behavior.
+
 ## Source scope and evidence
 
 - The picker lists completed Library transcriptions using title/file-name text,
   source type, date bounds, and existing labels. Label filters match any
-  selected label. Picker search is metadata search; transcript search happens
-  only inside a run's selected source snapshot.
+  selected label. Picker title search treats `%`, `_`, and `!` literally.
+  Availability checks usable stored text, segments, or word timestamps without
+  returning transcript bodies; legacy whole-text edits use only edited text.
+  Picker search is metadata search; transcript search happens only inside a
+  run's selected source snapshot.
 - Before a run, the service snapshots every selected source's current canonical
   passage list and revision. Reads and searches are restricted to those UUIDs
   and reject missing, unavailable, out-of-scope, or changed sources.
@@ -58,8 +67,12 @@ This gate applies only to the new workspace, not existing transcript/live chat.
   indices. The only agent tools are `list_sources`, `search`, `read`, and
   `get_summary`.
 - `get_summary` returns only fresh, linked result-category summaries for the
-  current transcript revision. A summary can orient research; transcript
-  passages are the evidence for factual claims. The service revalidates every
+  current transcript revision. Results are a newest-first prefix of whole
+  summary receipts that fits the 32,000-byte serialized tool limit and remaining
+  128,000-byte run allowance. An oversized first summary yields an empty list;
+  the run can continue using transcript tools. Receipt content is not further
+  truncated to fit. A summary can orient research; transcript passages are the
+  evidence for factual claims. The service revalidates every
   summary receipt used by a run in the final database transaction before
   accepting its answer.
 - A citation resolves to source UUID, source revision, and zero-based canonical

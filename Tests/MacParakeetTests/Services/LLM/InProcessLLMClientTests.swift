@@ -86,9 +86,16 @@ final class InProcessLLMClientTests: XCTestCase {
         let messages = [ChatMessage(role: .user, content: evidence)]
         let context = LLMExecutionContext(providerConfig: .inProcessLocal(model: "ask-test"))
 
-        let action = try await AskModelBridge.decide(messages: messages, client: client, context: context)
-        XCTAssertEqual(action.kind, "final")
-        try await AskModelBridge.streamFinal(messages: messages, client: client, context: context) { _ in }
+        // The current runtime preserves the full request but cannot certify
+        // EOS versus token-limit exhaustion. Ask must reject both responses.
+        do {
+            _ = try await AskModelBridge.decide(messages: messages, client: client, context: context)
+            XCTFail("Local action without completion evidence was accepted")
+        } catch AskAgentError.unverifiedLocalCompletion {}
+        do {
+            try await AskModelBridge.streamFinal(messages: messages, client: client, context: context) { _ in }
+            XCTFail("Local final answer without completion evidence was accepted")
+        } catch AskAgentError.unverifiedLocalCompletion {}
 
         let requests = await runtime.requestContents()
         XCTAssertEqual(requests.count, 2)

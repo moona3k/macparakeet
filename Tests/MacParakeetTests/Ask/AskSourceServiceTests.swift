@@ -47,6 +47,89 @@ final class AskSourceServiceTests: XCTestCase {
         XCTAssertEqual(rows.first?.title, "Weekly sync")
     }
 
+    func testPickerAvailabilityMatchesUsableCanonicalSourceKindsAndLegacyEditPrecedence() throws {
+        let words = [WordTimestamp(word: "Decision", startMs: 0, endMs: 200, confidence: 1)]
+        let segment = TranscriptSegmentRecord(
+            startMs: 0, endMs: 200, speakerId: nil, speakerLabel: "Unknown Speaker", text: "Decision",
+            wordRange: TranscriptSegmentWordRange(startIndex: 0, endIndexExclusive: 1))
+        var blankSegment = segment
+        blankSegment.text = " \t\n"
+        let cases: [(Transcription, Bool)] = [
+            (Transcription(fileName: "Missing", status: .completed), false),
+            (Transcription(fileName: "Empty", rawTranscript: "", cleanTranscript: "", status: .completed), false),
+            (Transcription(fileName: "Whitespace", rawTranscript: " \t\n\u{00A0}\u{2009}", status: .completed), false),
+            (
+                Transcription(
+                    fileName: "Raw fallback", rawTranscript: "Decision", cleanTranscript: " ", status: .completed), true
+            ),
+            (Transcription(fileName: "Clean", cleanTranscript: "Decision", status: .completed), true),
+            (Transcription(fileName: "Words only", wordTimestamps: words, status: .completed), true),
+            (Transcription(fileName: "Segments only", transcriptSegments: [segment], status: .completed), true),
+            (
+                Transcription(fileName: "Empty arrays", wordTimestamps: [], transcriptSegments: [], status: .completed),
+                false
+            ),
+            (Transcription(fileName: "Blank segments", transcriptSegments: [blankSegment], status: .completed), false),
+            (
+                Transcription(
+                    fileName: "Edited empty", rawTranscript: "Old", cleanTranscript: " \n",
+                    wordTimestamps: words, transcriptSegments: [segment], status: .completed,
+                    isTranscriptEdited: true), false
+            ),
+            (
+                Transcription(
+                    fileName: "Edited available", cleanTranscript: "Corrected", status: .completed,
+                    isTranscriptEdited: true), true
+            ),
+        ]
+        for (source, _) in cases { try transcriptions.save(source) }
+        let picker = Dictionary(uniqueKeysWithValues: try service.listSources().map { ($0.id, $0.isAvailable) })
+        for (source, expected) in cases {
+            XCTAssertEqual(picker[source.id], expected, source.fileName)
+            let snapshot = try XCTUnwrap(service.snapshot(sourceIDs: [source.id]).first)
+            XCTAssertEqual(snapshot.status == .available, expected, source.fileName)
+        }
+    }
+
+    func testMalformedLegacyTimingJSONDoesNotBreakMetadataPicker() throws {
+        let source = Transcription(fileName: "Malformed legacy row", status: .completed)
+        try transcriptions.save(source)
+        try manager.dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE transcriptions SET transcriptSegments = ?, wordTimestamps = ? WHERE id = ?",
+                arguments: ["{invalid", "[\"not an object\"]", source.id])
+        }
+        let rows = try service.listSources()
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.first?.id, source.id)
+        XCTAssertEqual(rows.first?.isAvailable, false)
+    }
+
+    func testPickerSearchTreatsWildcardsAndEscapeCharacterLiterallyInEveryTitleField() throws {
+        for field in 0..<3 {
+            for (index, literal) in ["%", "_", "!", "!_%"].enumerated() {
+                let prefix = "Title-\(field)-\(index)-"
+                var matching = Transcription(fileName: "Recording", rawTranscript: "Text", status: .completed)
+                var other = Transcription(fileName: "Recording", rawTranscript: "Text", status: .completed)
+                switch field {
+                case 0:
+                    matching.fileName = prefix + literal
+                    other.fileName = prefix + "other"
+                case 1:
+                    matching.titleOverride = prefix + literal
+                    other.titleOverride = prefix + "other"
+                default:
+                    matching.derivedTitle = prefix + literal
+                    other.derivedTitle = prefix + "other"
+                }
+                try transcriptions.save(matching)
+                try transcriptions.save(other)
+                let rows = try service.listSources(filter: AskSourceFilter(searchText: prefix + literal))
+                XCTAssertEqual(rows.map(\.id), [matching.id], "field \(field), literal \(literal)")
+            }
+        }
+    }
+
     func testScopeBoundSearchReadAndDeletedEvidenceStatus() throws {
         let first = Transcription(
             fileName: "First", rawTranscript: "Launch date moved to June.",

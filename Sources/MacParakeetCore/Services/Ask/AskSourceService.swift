@@ -27,6 +27,10 @@ public final class AskSourceService: AskSourceServiceProtocol, @unchecked Sendab
     private let dbQueue: DatabaseQueue
     private static let maxSources = 32
     private static let maxPassages = 25
+    // Match the whitespace-only inputs rejected by KnowledgeSegmenter.usableText
+    // without returning transcript bodies in the bounded picker metadata page.
+    private static let whitespaceSQL =
+        "char(9,10,11,12,13,32,133,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288)"
 
     public init(dbQueue: DatabaseQueue) { self.dbQueue = dbQueue }
 
@@ -58,8 +62,13 @@ public final class AskSourceService: AskSourceServiceProtocol, @unchecked Sendab
             }
             let search = filter.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
             if !search.isEmpty {
-                clauses.append("(t.fileName LIKE ? OR t.titleOverride LIKE ? OR t.derivedTitle LIKE ?)")
-                let pattern = "%\(search)%"
+                clauses.append(
+                    "(t.fileName LIKE ? ESCAPE '!' OR t.titleOverride LIKE ? ESCAPE '!' OR t.derivedTitle LIKE ? ESCAPE '!')"
+                )
+                let escaped = search.replacingOccurrences(of: "!", with: "!!")
+                    .replacingOccurrences(of: "%", with: "!%")
+                    .replacingOccurrences(of: "_", with: "!_")
+                let pattern = "%\(escaped)%"
                 args.append(contentsOf: [pattern, pattern, pattern])
             }
             if !filter.labelIDs.isEmpty {
@@ -79,8 +88,23 @@ public final class AskSourceService: AskSourceServiceProtocol, @unchecked Sendab
                            WHERE s.transcriptionId = t.id AND s.headId IS NOT NULL
                        ) THEN NULL ELSE t.derivedSnippet END AS preview,
                        t.createdAt, t.sourceType, t.durationMs,
-                       t.cleanTranscript IS NOT NULL OR t.rawTranscript IS NOT NULL
-                           OR t.transcriptSegments IS NOT NULL AS hasText
+                       CASE WHEN t.isTranscriptEdited THEN
+                           trim(coalesce(t.cleanTranscript, ''), char(9,10,11,12,13,32)) <> ''
+                       ELSE
+                           trim(coalesce(t.cleanTranscript, ''), \(Self.whitespaceSQL)) <> ''
+                           OR trim(coalesce(t.rawTranscript, ''), \(Self.whitespaceSQL)) <> ''
+                           OR EXISTS (
+                               SELECT 1 FROM json_each(CASE WHEN json_valid(t.transcriptSegments)
+                                   THEN t.transcriptSegments ELSE '[]' END) s
+                               WHERE trim(coalesce(json_extract(CASE WHEN s.type = 'object'
+                                   THEN s.value ELSE '{}' END, '$.text'), ''), \(Self.whitespaceSQL)) <> ''
+                           ) OR EXISTS (
+                               SELECT 1 FROM json_each(CASE WHEN json_valid(t.wordTimestamps)
+                                   THEN t.wordTimestamps ELSE '[]' END) w
+                               WHERE trim(coalesce(json_extract(CASE WHEN w.type = 'object'
+                                   THEN w.value ELSE '{}' END, '$.word'), ''), \(Self.whitespaceSQL)) <> ''
+                           )
+                       END AS hasText
                 FROM transcriptions t
                 WHERE \(clauses.joined(separator: " AND "))
                 ORDER BY t.createdAt DESC, t.id ASC

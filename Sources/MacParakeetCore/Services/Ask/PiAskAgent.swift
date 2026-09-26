@@ -35,6 +35,11 @@ public struct PiAskAgent: AskAgentRunning {
         process.currentDirectoryURL = helperURL.deletingLastPathComponent()
         process.environment = ["PATH": "/usr/bin:/bin", "HOME": "/var/empty", "LANG": "C", "TZ": "UTC"]
         let input = Pipe()
+        // A helper can exit between any two frames. Suppress SIGPIPE on this
+        // descriptor so failed writes throw instead of terminating the app.
+        guard Darwin.fcntl(input.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1) != -1 else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
         let output = Pipe()
         process.standardInput = input
         process.standardOutput = output

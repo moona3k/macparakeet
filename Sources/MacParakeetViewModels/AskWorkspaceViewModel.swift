@@ -169,9 +169,10 @@ public final class AskWorkspaceViewModel {
         }
     }
 
-    public func createConversation(sourceIDs: [UUID] = []) async {
-        guard let service else { return }
-        guard !blockWhileDraftConflicted() else { return }
+    @discardableResult
+    public func createConversation(sourceIDs: [UUID] = []) async -> Bool {
+        guard let service else { return false }
+        guard !blockWhileDraftConflicted() else { return false }
         isLoading = false
         loadGeneration += 1
         let generation = loadGeneration
@@ -181,45 +182,51 @@ public final class AskWorkspaceViewModel {
         showingRename = false
         showingDeleteConfirmation = false
         await stopAndSettle()
-        guard loadGeneration == generation else { return }
-        guard await flushDraft(), loadGeneration == generation else { return }
+        guard loadGeneration == generation else { return false }
+        guard await flushDraft(), loadGeneration == generation else { return false }
         errorMessage = nil
         do {
             let created = try await service.create(sourceIDs: sourceIDs)
             // Keep the created conversation reachable if saving a later edit
             // prevents us from leaving the current conversation.
             updateList(created)
-            guard loadGeneration == generation else { return }
-            guard await flushDraft(), loadGeneration == generation else { return }
+            guard loadGeneration == generation else { return false }
+            guard await flushDraft(), loadGeneration == generation else { return false }
             adopt(created)
             if let recoveredDraft {
                 draft = recoveredDraft
                 self.recoveredDraft = nil
-                await flushDraft()
-                guard loadGeneration == generation, conversation?.id == created.id else { return }
+                guard await flushDraft(), loadGeneration == generation,
+                    conversation?.id == created.id
+                else { return false }
             }
             evidence = nil
             let list = try await service.conversations()
-            guard loadGeneration == generation, conversation?.id == created.id else { return }
+            guard loadGeneration == generation, conversation?.id == created.id else { return false }
             conversations = list
             await refreshActiveSources(for: created)
+            return loadGeneration == generation && conversation?.id == created.id
         } catch {
-            guard loadGeneration == generation else { return }
+            guard loadGeneration == generation else { return false }
             errorMessage = error.localizedDescription
+            return false
         }
     }
 
-    public func startFromLibrary(sourceIDs: [UUID]) async {
+    /// A queued request is accepted before configuration; Ask's initial load
+    /// completes it and presents any later creation error in the workspace.
+    @discardableResult
+    public func startFromLibrary(sourceIDs: [UUID]) async -> Bool {
         var seen: Set<UUID> = []
         let ids = sourceIDs.filter { seen.insert($0).inserted }
-        guard !ids.isEmpty else { return }
+        guard !ids.isEmpty else { return false }
         isCreatingFromLibrary = true
         defer { isCreatingFromLibrary = false }
         if service == nil {
             pendingLibrarySourceIDs = ids
-            return
+            return true
         }
-        await createConversation(sourceIDs: ids)
+        return await createConversation(sourceIDs: ids)
     }
 
     public func updateDraft(_ value: String) {
@@ -321,10 +328,24 @@ public final class AskWorkspaceViewModel {
             conversations.removeAll { $0.id == current.id }
             showingDeleteConfirmation = false
             guard conversation?.id == current.id else { return }
+            loadGeneration += 1
+            let generation = loadGeneration
+            draftTask?.cancel()
+            draftTask = nil
+            draftGeneration += 1
+            draftReloadGeneration = nil
+            isLoading = false
             conversation = nil
             draft = ""
+            savedDraftAtConflict = nil
+            errorMessage = nil
             activeSourceSnapshots = []
-            evidence = nil
+            cancelSourceSelection()
+            closeEvidence()
+            // An already-started autosave must settle before the next
+            // conversation's navigation can share its draft-save task.
+            _ = await draftSaveTask?.value
+            guard loadGeneration == generation, conversation == nil else { return }
             if let next = conversations.first { await openConversation(next.id) }
         } catch {
             errorMessage = error.localizedDescription

@@ -142,9 +142,10 @@ Selecting a citation opens the evidence inspector on the right in a wide window
 or as a sheet at narrower widths. It shows the current source title/date and
 revision-checked passage, including a timecode when one is available; the
 **Open in Library** action returns to that recording. Untimed legacy edits and
-text-only sources use a text passage label. Changed, removed, out-of-scope, or
-invalid references show an unavailable-state explanation instead of substituting
-new transcript text for old evidence.
+text-only sources use a text passage label. Changed, missing, or invalid evidence
+shows an unavailable-state explanation instead of substituting new transcript
+text for old evidence. Inspection is independent of the current source set:
+removing a source from a conversation does not hide its valid historical citations.
 
 Content transitions between tabs use `DesignSystem.Animation.contentSwap` (0.2s easeInOut).
 

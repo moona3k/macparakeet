@@ -69,6 +69,7 @@ struct MainWindowView: View {
     @Bindable var state: MainWindowState
     @State private var showGlobalCancelConfirmation = false
     @State private var showingPromptLibrary = false
+    @State private var askHandoffError: String?
 
     let transcriptionViewModel: TranscriptionViewModel
     let historyViewModel: DictationHistoryViewModel
@@ -216,9 +217,14 @@ struct MainWindowView: View {
                                     guard AppFeatures.isAskWorkspaceAvailable() else { return }
                                     let destinationBeforeHandoff = state.selectedItem
                                     Task {
-                                        await askWorkspaceViewModel.startFromLibrary(sourceIDs: ids)
-                                        if state.selectedItem == destinationBeforeHandoff {
+                                        let accepted = await askWorkspaceViewModel.startFromLibrary(sourceIDs: ids)
+                                        guard state.selectedItem == destinationBeforeHandoff else { return }
+                                        if accepted {
                                             state.navigateToAsk()
+                                        } else {
+                                            askHandoffError =
+                                                askWorkspaceViewModel.errorMessage
+                                                ?? "The selected recordings could not be opened in Ask."
                                         }
                                     }
                                 },
@@ -366,6 +372,17 @@ struct MainWindowView: View {
                 ShareTranscriptSheet(draft: draft, management: sharing)
                     .onDisappear { Task { await sharing.refresh() } }
             }
+        }
+        .alert(
+            "Could not open Ask",
+            isPresented: Binding(
+                get: { askHandoffError != nil },
+                set: { if !$0 { askHandoffError = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { askHandoffError = nil }
+        } message: {
+            Text(askHandoffError ?? "")
         }
         .alert("Cancel All Transcriptions?", isPresented: $showGlobalCancelConfirmation) {
             Button("Cancel All", role: .destructive) {

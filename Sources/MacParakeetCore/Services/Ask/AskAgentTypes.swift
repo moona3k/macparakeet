@@ -33,9 +33,12 @@ public enum AskAgentError: Error, LocalizedError {
     case budgetExceeded(String)
     case failed(String)
     case invalidModelAction
+    case unverifiedLocalCompletion
 
     public var errorDescription: String? {
         switch self {
+        case .unverifiedLocalCompletion:
+            "The local model did not confirm that generation finished. This answer is incomplete. Choose another provider for Ask."
         case .invalidModelAction:
             "The selected model could not choose a valid Ask action. Try another model or ask again."
         case .unavailable(let message), .protocolViolation(let message),

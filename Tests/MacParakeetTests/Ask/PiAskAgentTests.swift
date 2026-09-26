@@ -1,3 +1,4 @@
+import Darwin
 import XCTest
 @testable import MacParakeetCore
 
@@ -111,6 +112,77 @@ final class PiAskAgentTests: XCTestCase {
             XCTFail("Budget failure was accepted")
         } catch AskAgentError.budgetExceeded(let message) {
             XCTAssertFalse(message.contains("private payload"))
+        }
+    }
+
+    func testClosedHelperInputCannotTerminateHostWithSIGPIPE() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let logURL = directory.appendingPathComponent("child.log")
+        FileManager.default.createFile(atPath: logURL.path, contents: nil)
+        let log = try FileHandle(forWritingTo: logURL)
+        defer { try? log.close() }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        process.arguments = [
+            "xctest", "-XCTest", "MacParakeetTests.PiAskAgentTests/testClosedHelperInputChild",
+            Bundle(for: Self.self).bundleURL.path,
+        ]
+        process.environment = ProcessInfo.processInfo.environment.merging([
+            "MACPARAKEET_ASK_SIGPIPE_CHILD": directory.path
+        ]) { _, new in new }
+        process.standardOutput = log
+        process.standardError = log
+        try process.run()
+        defer {
+            if process.isRunning { Darwin.kill(process.processIdentifier, SIGKILL) }
+            process.waitUntilExit()
+        }
+        let deadline = Date().addingTimeInterval(20)
+        while process.isRunning && Date() < deadline {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        guard !process.isRunning else {
+            XCTFail("SIGPIPE child did not finish within 20 seconds")
+            return
+        }
+        process.waitUntilExit()
+        let diagnostics = try String(contentsOf: logURL, encoding: .utf8)
+        XCTAssertEqual(process.terminationReason, .exit, diagnostics)
+        XCTAssertEqual(process.terminationStatus, 0, diagnostics)
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: directory.appendingPathComponent("survived").path), diagnostics)
+    }
+
+    func testClosedHelperInputChild() async throws {
+        guard let path = ProcessInfo.processInfo.environment["MACPARAKEET_ASK_SIGPIPE_CHILD"] else { return }
+        // Only this isolated xctest child changes process-wide signal handling.
+        // The host application must rely on the per-descriptor protection.
+        Darwin.signal(SIGPIPE, SIG_DFL)
+        let directory = URL(fileURLWithPath: path)
+        let script = directory.appendingPathComponent("closed-input.sh")
+        let content = """
+            #!/bin/sh
+            read input
+            exec 0<&-
+            printf '%s\\n' '{"v":1,"kind":"tool","runID":"00000000-0000-0000-0000-000000000001","scopeID":"00000000-0000-0000-0000-000000000002","requestID":"00000000-0000-0000-0000-000000000001:tool","toolName":"list_sources","argumentsJSON":"{}"}'
+            exec /bin/sleep 10
+            """
+        try content.write(to: script, atomically: true, encoding: .utf8)
+        let agent = PiAskAgent(nodeURL: URL(fileURLWithPath: "/bin/sh"), helperURL: script)
+        let recorder = PiTestRecorder()
+        do {
+            _ = try await agent.run(
+                request: request, client: RoutingLLMClient(), context: context,
+                tool: { name, _ in
+                    await recorder.tool(name); return "{}"
+                }, onEvent: { _ in })
+            XCTFail("Closed helper input was accepted")
+        } catch {
+            let calls = await recorder.toolNames
+            XCTAssertEqual(calls, ["list_sources"])
+            try Data("survived".utf8).write(to: directory.appendingPathComponent("survived"))
         }
     }
 

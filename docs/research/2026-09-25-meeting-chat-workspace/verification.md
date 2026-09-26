@@ -113,6 +113,22 @@ recovery, with CLI SHA-256
 
 ## Automated evidence
 
+The default-off candidate's hosted review found eleven issues. Follow-up fixes
+align picker availability with usable text/timing data, make title searches
+literal, bound summary output by serialized bytes, and preserve complete
+summary receipts. Failed Library handoffs stay in Library with an error;
+deleting a conflicted conversation clears its stale UI state. Helper pipe writes
+now suppress `SIGPIPE` per descriptor. Ask rejects in-process responses without
+completion evidence; the shared runtime and existing chat are unchanged.
+The dev launcher builds the helper only for explicit Debug opt-in, and the
+runtime-limit, exit-status, and historical-evidence documentation is corrected.
+
+The combined focused rerun passed 174 tests (one unrelated skip), including an
+isolated child-process regression that closes helper stdin with default signal
+handling. Four dev-launch configurations also verified the helper build gate
+with Node/npm absent from PATH. Full hosted CI must validate the committed
+review-fix revision before merge.
+
 - The real pinned Pi helper passes 10 JavaScript behavior tests. Swift tests
   exercise the actual helper and official bundled Node runtime with a scripted
   model transport, including tool continuation and text before terminal output.

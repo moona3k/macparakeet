@@ -278,6 +278,45 @@ final class AskModelBridgeTests: XCTestCase {
         ) { _ in }
     }
 
+    func testInProcessActionRequiresCompletionEvidenceWithoutRetrying() async throws {
+        let local = LLMExecutionContext(providerConfig: .inProcessLocal())
+        let client = ScriptedAskLLMClient(
+            decision: #"{"kind":"final","toolName":"","query":"","sourceID":"","start":0,"limit":0}"#)
+        do {
+            _ = try await AskModelBridge.decide(messages: messages, client: client, context: local)
+            XCTFail("Action without local completion evidence was accepted")
+        } catch AskAgentError.unverifiedLocalCompletion {}
+        let requests = await client.recordedDecisionRequests()
+        XCTAssertEqual(requests.count, 1)
+    }
+
+    func testInProcessFinalRequiresCompletionEvidence() async throws {
+        let local = LLMExecutionContext(providerConfig: .inProcessLocal())
+        for reason in [nil, "", " \n"] as [String?] {
+            let client = ScriptedAskLLMClient(decision: "", finalChunks: ["Partial [E1]."], stopReason: reason)
+            do {
+                try await AskModelBridge.streamFinal(messages: messages, client: client, context: local) { _ in }
+                XCTFail("Final answer without local completion evidence was accepted")
+            } catch AskAgentError.unverifiedLocalCompletion {}
+        }
+    }
+
+    func testInProcessExplicitSuccessRemainsSupportedAndTokenLimitRejected() async throws {
+        let local = LLMExecutionContext(providerConfig: .inProcessLocal())
+        let client = ScriptedAskLLMClient(decision: "", finalChunks: ["Answer [E1]."], stopReason: "stop")
+        try await AskModelBridge.streamFinal(messages: messages, client: client, context: local) { _ in }
+        let truncated = ScriptedAskLLMClient(decision: "", finalChunks: ["Partial [E1]."], stopReason: "max_tokens")
+        do {
+            try await AskModelBridge.streamFinal(messages: messages, client: truncated, context: local) { _ in }
+            XCTFail("Explicit local token limit was accepted")
+        } catch AskAgentError.budgetExceeded {}
+    }
+
+    func testHTTPFinalWithoutStopReasonPreservesExistingBehavior() async throws {
+        let client = ScriptedAskLLMClient(decision: "", finalChunks: ["HTTP answer [E1]."])
+        try await AskModelBridge.streamFinal(messages: messages, client: client, context: context) { _ in }
+    }
+
     func testNonSuccessTerminalFails() async throws {
         let client = ScriptedAskLLMClient(decision: "", finalChunks: ["Filtered"], stopReason: "content_filter")
         do {

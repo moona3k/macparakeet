@@ -76,6 +76,7 @@ enum AskModelBridge {
                     temperature: 0, maxTokens: 400, responseFormat: format, allowsLocalChunking: false)
             )
             try Task.checkCancellation()
+            try requireLocalCompletionReason(response.finishReason, context: context)
             if let reason = response.finishReason?.lowercased(),
                 !completedStopReasons.contains(reason)
             {
@@ -151,6 +152,7 @@ enum AskModelBridge {
             case .completed(let terminal):
                 guard !sawTerminal else { throw AskAgentError.protocolViolation("Duplicate model terminal event") }
                 sawTerminal = true
+                try requireLocalCompletionReason(terminal.stopReason, context: context)
                 if let reason = terminal.stopReason?.lowercased(),
                     !completedStopReasons.contains(reason)
                 {
@@ -160,6 +162,16 @@ enum AskModelBridge {
         }
         guard sawTerminal, characterCount > 0 else {
             throw AskAgentError.protocolViolation("Model answer ended without a complete response")
+        }
+    }
+
+    private static func requireLocalCompletionReason(_ reason: String?, context: LLMExecutionContext) throws {
+        // In-process MLX currently exposes text chunks without EOS/token-limit
+        // evidence. Stream exhaustion and chunk counts cannot prove completion.
+        if context.providerConfig.id == .inProcessLocal,
+            reason?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false
+        {
+            throw AskAgentError.unverifiedLocalCompletion
         }
     }
 

@@ -317,7 +317,7 @@ public actor AskWorkspaceService: AskWorkspaceServing {
             switch error {
             case .budgetExceeded:
                 return "The investigation reached its limit. Ask a narrower question or select fewer recordings."
-            case .invalidModelAction:
+            case .invalidModelAction, .unverifiedLocalCompletion:
                 return error.localizedDescription
             default: break
             }
@@ -417,13 +417,20 @@ private actor AskRunEvidence {
         case "get_summary":
             guard let source = args.sourceID, revisions[source] != nil else { throw AskWorkspaceError.invalidTool }
             let summaries = try service.summaries(sourceID: source, sourceRevisions: revisions)
+            var selected: [AskSummary] = []
+            var encoded = try json(selected)
+            let remainingBytes = min(32_000, 128_000 - returnedBytes)
             for summary in summaries {
+                let candidate = try json(selected + [summary])
+                guard candidate.utf8.count <= remainingBytes else { break }
                 if let previous = summariesByID[summary.id], previous != summary {
                     throw AskWorkspaceError.sourcesChanged
                 }
                 summariesByID[summary.id] = summary
+                selected.append(summary)
+                encoded = candidate
             }
-            output = try json(summaries)
+            output = encoded
         default: throw AskWorkspaceError.invalidTool
         }
         guard output.utf8.count <= 32_000, returnedBytes + output.utf8.count <= 128_000 else {

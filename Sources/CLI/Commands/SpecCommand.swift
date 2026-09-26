@@ -267,7 +267,7 @@ private extension CLISpecCommand {
                 .flag("--stream", summary: "Emit activity/text/final conversation events as NDJSON."),
             ] + llmInlineOptions,
             output:
-                "Updated AskConversation; terminal message status complete, failed, cancelled, or incomplete. Failed answers exit 1."
+                "Updated AskConversation; terminal message status complete, failed, cancelled, or incomplete. Any non-complete answer exits 1."
         ),
         CLISpecCommand(
             ["ask", "evidence"],
