@@ -9,7 +9,7 @@ Runs a local release-demo smoke against a MacParakeet CLI binary:
   1. CLI version probe
   2. non-mutating health --json
   3. synthesized tiny WAV transcription into an isolated SQLite database
-  4. markdown export from the persisted transcription
+  4. fresh-process history read and markdown export content verification
 
 Options:
   --cli PATH           CLI binary to test. Defaults to /Applications/MacParakeet.app/Contents/MacOS/macparakeet-cli,
@@ -39,6 +39,7 @@ configure_output_paths() {
   fixture_wav="$output_dir/fixture.wav"
   smoke_db="$output_dir/smoke.sqlite"
   health_json="$output_dir/health.json"
+  history_json="$output_dir/history.json"
   transcribe_json="$output_dir/transcribe.json"
   export_md="$output_dir/export.md"
 }
@@ -70,7 +71,9 @@ write_summary() {
     printf '%s\n' '- `health.json` / `health.stderr` - health readiness probe'
     printf '%s\n' '- `fixture.wav` - generated local audio fixture'
     printf '%s\n' '- `transcribe.json` / `transcribe.stderr` - transcription result'
+    printf '%s\n' '- `history.json` / `history.stderr` - fresh-process persistence proof'
     printf '%s\n' '- `export.md` / `export.stderr` - markdown export proof'
+    printf '%s\n' '- `validation.json` - content and persistence assertions'
   } >"$summary"
 }
 
@@ -248,7 +251,7 @@ run_capture "say-fixture" "$output_dir/say.stdout" "$output_dir/say.stderr" /usr
 run_capture "convert-fixture" "$output_dir/afconvert.stdout" "$output_dir/afconvert.stderr" /usr/bin/afconvert -f WAVE -d LEI16@16000 "$fixture_aiff" "$fixture_wav"
 require_file "$fixture_wav"
 
-run_capture "transcribe-json" "$transcribe_json" "$output_dir/transcribe.stderr" env MACPARAKEET_TELEMETRY=0 "${CLI_CMD[@]}" transcribe "$fixture_wav" --format json --database "$smoke_db" --speaker-detection off
+run_capture "transcribe-json" "$transcribe_json" "$output_dir/transcribe.stderr" env MACPARAKEET_TELEMETRY=0 "${CLI_CMD[@]}" transcribe "$fixture_wav" --format json --database "$smoke_db" --speaker-detection off --engine parakeet --parakeet-model v3 --mode raw
 validate_json "$transcribe_json"
 
 transcription_id="$(/usr/bin/plutil -extract id raw -o - "$transcribe_json")"
@@ -274,8 +277,11 @@ if [[ -z "${raw_transcript}${clean_transcript}" ]]; then
   exit 1
 fi
 
+run_capture "history-readback" "$history_json" "$output_dir/history.stderr" env MACPARAKEET_TELEMETRY=0 "${CLI_CMD[@]}" history transcriptions --json --limit 2 --database "$smoke_db"
+validate_json "$history_json"
 run_capture "export-markdown" "$output_dir/export.stdout" "$output_dir/export.stderr" env MACPARAKEET_TELEMETRY=0 "${CLI_CMD[@]}" export "$transcription_id" --format markdown --output "$export_md" --database "$smoke_db"
 require_file "$export_md"
+run_capture "verify-content" "$output_dir/validation.json" "$output_dir/validation.stderr" python3 "$repo_root/scripts/dev/verify_release_demo.py" "$output_dir"
 
 write_summary "pass" "$transcription_id" "$transcript_preview"
 

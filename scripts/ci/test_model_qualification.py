@@ -1,0 +1,252 @@
+import importlib.util
+import json
+import os
+import signal
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import time
+import unittest
+
+DEV = Path(__file__).resolve().parents[1] / "dev"
+
+
+def load(name):
+    spec = importlib.util.spec_from_file_location(name, DEV / f"{name}.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+verify = load("verify_release_demo").verify
+qualification = load("model_qualification")
+
+
+class ReleaseDemoEvidenceTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.text = "This short local audio proves transcription and export."
+        self.row = {"id": "fixture-id", "status": "completed", "rawTranscript": self.text,
+                    "engine": "parakeet", "engineVariant": "v3"}
+        self.write("transcribe.json", self.row)
+        self.write("history.json", [self.row])
+        (self.root / "export.md").write_text(f"# Fixture\n\n**[0:00]** {self.text}\n")
+
+    def write(self, name, value):
+        (self.root / name).write_text(json.dumps(value))
+
+    def test_fresh_read_and_timestamped_export_pass(self):
+        self.assertEqual(verify(self.root)["result"], "pass")
+
+    def test_missing_or_duplicate_persisted_row_fails(self):
+        for rows in ([], [self.row, self.row]):
+            with self.subTest(rows=len(rows)):
+                self.write("history.json", rows)
+                with self.assertRaisesRegex(ValueError, "exactly one"):
+                    verify(self.root)
+
+    def test_different_id_status_or_text_fails(self):
+        for field, value in (("id", "wrong"), ("status", "failed"), ("rawTranscript", "wrong")):
+            with self.subTest(field=field):
+                self.write("history.json", [{**self.row, field: value}])
+                with self.assertRaises(ValueError):
+                    verify(self.root)
+
+    def test_unrelated_nonempty_speech_fails(self):
+        row = {**self.row, "rawTranscript": "A completely unrelated result."}
+        self.write("transcribe.json", row)
+        self.write("history.json", [row])
+        (self.root / "export.md").write_text(row["rawTranscript"])
+        with self.assertRaisesRegex(ValueError, "fixture content mismatch"):
+            verify(self.root)
+
+    def test_wrong_engine_or_variant_fails_even_with_correct_text(self):
+        for field, value in (("engine", "whisper"), ("engineVariant", "v2")):
+            with self.subTest(field=field):
+                row = {**self.row, field: value}
+                self.write("transcribe.json", row)
+                self.write("history.json", [row])
+                with self.assertRaisesRegex(ValueError, "selected Parakeet v3"):
+                    verify(self.root)
+
+    def test_nonempty_export_missing_transcript_fails(self):
+        (self.root / "export.md").write_text("# Fixture\nSome unrelated body.")
+        with self.assertRaisesRegex(ValueError, "does not contain"):
+            verify(self.root)
+
+    def test_accepts_one_missing_content_word(self):
+        row = {**self.row, "rawTranscript": self.text.replace("short ", "")}
+        self.write("transcribe.json", row)
+        self.write("history.json", [row])
+        (self.root / "export.md").write_text(row["rawTranscript"])
+        self.assertEqual(len(verify(self.root)["matchedWords"]), 4)
+
+    def test_export_tolerates_punctuation_adjacent_whitespace_either_direction(self):
+        attached = self.text
+        separated = self.text[:-1] + " ."
+        for transcript_text, export_text in ((attached, separated), (separated, attached)):
+            with self.subTest(transcript=transcript_text):
+                row = {**self.row, "rawTranscript": transcript_text}
+                self.write("transcribe.json", row)
+                self.write("history.json", [row])
+                (self.root / "export.md").write_text(f"**[0:00]** {export_text}")
+                self.assertEqual(verify(self.root)["result"], "pass")
+
+    def test_export_missing_a_word_fails(self):
+        (self.root / "export.md").write_text(f"**[0:00]** {self.text.replace('short ', '')}")
+        with self.assertRaisesRegex(ValueError, "does not contain"):
+            verify(self.root)
+
+    def test_export_reordered_words_fails(self):
+        words = self.text.rstrip(".").split()
+        reordered = " ".join([words[1], words[0]] + words[2:]) + "."
+        (self.root / "export.md").write_text(f"**[0:00]** {reordered}")
+        with self.assertRaisesRegex(ValueError, "does not contain"):
+            verify(self.root)
+
+
+class QualificationBoundaryTests(unittest.TestCase):
+    def test_changed_missing_and_extra_model_bytes_fail_pinning(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            models = state / "FluidAudio" / "Models"
+            models.mkdir(parents=True)
+            asset = models / "model.bin"
+            asset.write_bytes(b"accepted model")
+            manifest = state / "pin.json"
+            manifest.write_text(json.dumps({"model": "parakeet-v3", "files": qualification.model_files(state)}))
+            qualification.verify_manifest(state, manifest)
+            asset.write_bytes(b"different model")
+            with self.assertRaisesRegex(ValueError, "differs"):
+                qualification.verify_manifest(state, manifest)
+            asset.unlink()
+            with self.assertRaisesRegex(ValueError, "empty"):
+                qualification.verify_manifest(state, manifest)
+            asset.write_bytes(b"accepted model")
+            (models / "unexpected.bin").write_bytes(b"new")
+            with self.assertRaisesRegex(ValueError, "differs"):
+                qualification.verify_manifest(state, manifest)
+
+    def test_symlinked_model_cache_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            external = root / "elsewhere"
+            (external / "Models").mkdir(parents=True)
+            (external / "Models" / "asset").write_text("model")
+            state = root / "state"
+            state.mkdir()
+            (state / "FluidAudio").symlink_to(external, target_is_directory=True)
+            with self.assertRaises(ValueError):
+                qualification.model_files(state)
+
+    def test_command_failure_and_timeout_are_not_passes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for script, timeout, error in (("raise SystemExit(7)", 5, ValueError),
+                                            ("import time; time.sleep(30)", 0.1, subprocess.TimeoutExpired)):
+                with self.subTest(script=script), self.assertRaises(error):
+                    qualification.run_bounded([sys.executable, "-c", script], os.environ.copy(),
+                                              root / "stdout", root / "stderr", timeout)
+
+    def assert_descendant_terminated(self, pid):
+        deadline = time.monotonic() + 5
+        while True:
+            result = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)],
+                                    capture_output=True, text=True, timeout=2)
+            self.assertIn(result.returncode, (0, 1), result.stderr)
+            state = result.stdout.strip()
+            # An orphan may remain a zombie until the system reaps it.
+            if not state or state.startswith("Z"):
+                return
+            if time.monotonic() >= deadline:
+                self.fail(f"descendant {pid} survived its parent's exit (state {state})")
+            time.sleep(0.02)
+
+    def check_descendant_cleanup(self, exit_code):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pid_file = root / "child.pid"
+            ready_file = root / "child.ready"
+            child_code = "import os, time; os.write(1, b'R'); time.sleep(60)"
+            parent_code = (
+                "import pathlib, subprocess, sys; "
+                f"child = subprocess.Popen([sys.executable, '-c', {child_code!r}], "
+                "stdout=subprocess.PIPE); "
+                f"pathlib.Path({str(pid_file)!r}).write_text(str(child.pid)); "
+                "assert child.stdout.read(1) == b'R'; "
+                f"pathlib.Path({str(ready_file)!r}).write_text('ready'); "
+                f"sys.exit({exit_code})"
+            )
+            try:
+                command = [sys.executable, "-c", parent_code]
+                if exit_code:
+                    with self.assertRaises(ValueError):
+                        qualification.run_bounded(command, os.environ.copy(),
+                                                  root / "stdout", root / "stderr", 10)
+                else:
+                    qualification.run_bounded(command, os.environ.copy(),
+                                              root / "stdout", root / "stderr", 10)
+                self.assertTrue(ready_file.exists(), "parent exited before child was ready")
+                self.assert_descendant_terminated(int(pid_file.read_text()))
+            finally:
+                # Also contain fixtures when the runner or an assertion fails.
+                if pid_file.exists():
+                    pid = int(pid_file.read_text())
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    self.assert_descendant_terminated(pid)
+
+    def test_run_bounded_kills_descendants_left_by_a_successful_parent(self):
+        self.check_descendant_cleanup(0)
+
+    def test_run_bounded_kills_descendants_left_by_a_failed_parent(self):
+        self.check_descendant_cleanup(3)
+
+    def test_asset_mutated_after_a_successful_run_fails_even_if_manifest_is_rewritten(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            models = state / "FluidAudio" / "Models"
+            models.mkdir(parents=True)
+            asset = models / "model.bin"
+            asset.write_bytes(b"accepted model")
+            manifest = state / "pin.json"
+            manifest.write_text(json.dumps({"model": "parakeet-v3", "files": qualification.model_files(state)}))
+            pin = qualification.verify_manifest(state, manifest)
+            # A "successful" journey mutates a model asset and launders the manifest to match.
+            asset.write_bytes(b"mutated model")
+            manifest.write_text(json.dumps({"model": "parakeet-v3", "files": qualification.model_files(state)}))
+            with self.assertRaisesRegex(ValueError, "changed"):
+                qualification.check_model_cache_unchanged(state, pin)
+
+    def test_unmutated_asset_after_the_run_matches_the_accepted_pin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            models = state / "FluidAudio" / "Models"
+            models.mkdir(parents=True)
+            (models / "model.bin").write_bytes(b"accepted model")
+            manifest = state / "pin.json"
+            manifest.write_text(json.dumps({"model": "parakeet-v3", "files": qualification.model_files(state)}))
+            pin = qualification.verify_manifest(state, manifest)
+            qualification.check_model_cache_unchanged(state, pin)
+
+    @unittest.skipUnless(sys.platform == "darwin" and qualification.SANDBOX.exists(), "macOS sandbox required")
+    def test_offline_profile_denies_a_real_socket(self):
+        # Execute the consumer, not a textual assertion about the sandbox profile.
+        probe = "import socket; socket.socket().bind(('127.0.0.1', 0))"
+        control = subprocess.run([str(qualification.SANDBOX), "-p", "(version 1)(allow default)",
+                                  sys.executable, "-c", probe], capture_output=True)
+        self.assertEqual(control.returncode, 0, control.stderr)
+        blocked = subprocess.run([str(qualification.SANDBOX), "-p", qualification.NETWORK_PROFILE,
+                                  sys.executable, "-c", probe], capture_output=True)
+        self.assertNotEqual(blocked.returncode, 0)
+        self.assertIn(b"PermissionError", blocked.stderr)
+        self.assertIn(b"Operation not permitted", blocked.stderr)
+
+
+if __name__ == "__main__":
+    unittest.main()
