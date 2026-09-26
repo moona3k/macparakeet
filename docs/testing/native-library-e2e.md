@@ -38,8 +38,9 @@ It sends termination only to the exact owned executable path/PID. It never
 kills a stable app, clears preferences, touches the clipboard, or deletes data.
 Exports remain in this disposable account's Downloads. Each run retains its
 fresh temporary state, logs, export copy, fixture ID, and pass/failure result JSON.
-The result records the checkout commit; record OS/Xcode versions with release
-qualification evidence. Failure is nonzero, with bounded commands and AX waits;
+A passing result records the checkout commit; a failing result records the
+error instead. Record OS/Xcode versions with release qualification evidence.
+Failure is nonzero, with bounded commands and AX waits;
 missing onboarding/accessibility prerequisites are failures, never passes.
 
 ## Verification boundary
