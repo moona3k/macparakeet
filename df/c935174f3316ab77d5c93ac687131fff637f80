@@ -1,0 +1,27 @@
+scripts/ci/test_xcode_cache.py
+  s_c299e83108feed::t_badb6ad9ad6e0a 1-134
+scripts/ci/xcode-cache-key.sh
+  s_c299e83108feed::t_badb6ad9ad6e0a 1-21
+.github/workflows/ci.yml
+  s_c299e83108feed::t_3508568a8d62b5 17-21,243-258,277-278,335-391,396,404-405,410-414
+docs/research/2026-09-26-ci-optimization.md
+  s_c299e83108feed::t_19b108273d7fd8 25-32,59-72
+scripts/ci/qualify-xcode-cache.py
+  s_c299e83108feed::t_15d647843898ca 1-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "dfc935174f3316ab77d5c93ac687131fff637f80",
+  "prompts": {},
+  "sessions": {
+    "s_c299e83108feed": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dc15-ddf7-71f2-a669-23235022dc65",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
