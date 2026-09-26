@@ -1016,7 +1016,7 @@ private struct RecentMeetingsToolbarLayout: Layout {
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let arrangement = arrange(subviews: subviews, availableWidth: proposal.width)
-        let width = proposal.width ?? arrangement.contentWidth
+        let width = proposal.width.flatMap { $0.isFinite ? $0 : nil } ?? arrangement.contentWidth
         return CGSize(width: width, height: arrangement.height)
     }
 
