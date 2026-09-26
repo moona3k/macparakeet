@@ -2,7 +2,7 @@
 
 Audit date: 25 September 2026, Pacific time. Product source snapshot: `59e7adf085277ea82ee9bb5f15a7b8cb315ebd91`. CI evidence: [PR #1161](https://github.com/moona3k/macparakeet/pull/1161), initially `8a8a597b`, subsequently repaired at its final head `8ce7f43e`, merged into `main` at `82c1eaad`. Neither CI commit changes `Sources/`, `Tests/`, `Package.swift`, or `Package.resolved`.
 
-This is an evidence-backed audit and proposed sequence. It makes **no test deletions or product changes**. The discovery covers the tracked test tree, with deeper owner/history reviews of the candidates below; it is not a claim that every test declaration has been individually reviewed.
+This document records the initial audit and [subsequent implementation evidence](#implementation-evidence-following-the-audit). The candidate ledger describes the source snapshot above; linked follow-up PRs contain the code changes. The discovery covers the tracked test tree, with deeper owner/history reviews of the candidates below; it is not a claim that every test declaration has been individually reviewed.
 
 ## Recommendation
 
@@ -183,4 +183,25 @@ Two implementation constraints emerged from the deeper document review. First, `
 
 This audit ran the two release-policy fixture scripts and the isolated historical ATS replay. It did not run a local full Swift suite, new native UI/model checks, or Swift mutation tests. Hosted CI provides unchanged-suite execution evidence; it does not prove hypothetical deletion/replacement patches. Each proposed batch still needs its listed focused checks, an independent review, and one final full gate under repository policy.
 
-Actual LOC changed by this audit: **zero production/tooling/test/support lines**; documentation only. Most deletion candidates unlock only test LOC, not production simplification. Keep the next code PR centered on one owner/contract rather than combining every small finding. The error-description consolidation is the smallest confidence-improving batch; cancellation delivery deserves its own focused boundary review. AEC routing should remain separate because its research purpose and measured runtime need different acceptance evidence.
+The initial audit changed **zero production/tooling/test/support lines**; it was documentation only. Most deletion candidates unlock only test LOC, not production simplification. Keep the next code PR centered on one owner/contract rather than combining every small finding. The error-description consolidation is the smallest confidence-improving batch; cancellation delivery deserves its own focused boundary review. AEC routing should remain separate because its research purpose and measured runtime need different acceptance evidence.
+
+## Implementation evidence following the audit
+
+The candidate descriptions above record the audited source snapshot. Follow-up implementation is tracked separately so proposed deletions are not confused with verified changes. The PR links carry current review, CI, and merge state; the local results below alone are not a merged or hosted-CI verdict.
+
+| Contract | Follow-up | Local evidence |
+| --- | --- | --- |
+| Speech error descriptions and mock self-tests (A/C) | [#1162](https://github.com/moona3k/macparakeet/pull/1162) completes all nine literal descriptions and removes weaker duplicates/simple fake self-tests | 35 focused tests passed; wrong production `engineBusy` copy failed the intended assertion, then restored source passed |
+| Distribution policy | [#1163](https://github.com/moona3k/macparakeet/pull/1163) routes both existing release-policy fixtures into CI | Both fixtures and actionlint passed; historical extra-domain fault replay is documented above |
+| CLI persistence and artifacts | [#1164](https://github.com/moona3k/macparakeet/pull/1164) exercises real separate-process meeting show, notes update/read, and Markdown export with owned artifacts | Journey passed with the CI executable override; corrupted production export failed content equality, then restored code passed |
+| Database fixture seam (I) | [#1165](https://github.com/moona3k/macparakeet/pull/1165) removes the production insertion wrapper while retaining schema-skew health proof | All 44 focused health/model tests passed |
+| Library query/style boundary (G) | [#1166](https://github.com/moona3k/macparakeet/pull/1166) covers all twelve combinations with real view-model/GRDB results; also removes the duplicate availability assertion in E | 67 focused tests passed; broadened production podcast query failed IDs/count while style stayed unchanged, then restored query passed |
+| Chunking report and tail (H) | [#1167](https://github.com/moona3k/macparakeet/pull/1167) replaces mirrored expectations and positive-clock checks with independent windows and tail identity | Seven focused tests passed; dropping the true partial ingest failed four intended assertions, then restored source passed |
+
+The stronger chunking fixture uncovered a concrete weakness in the old setup: 192,000 samples divides evenly by the old 1,500-sample batch. The replacement uses 192,496 samples and checks all 129 ingests plus the 64,496-sample tail. Simulator report assertions establish boundaries/counts; a separate chunker assertion verifies exact retained sample identity without adding a production export.
+
+Cancellation implementation was locally verified at `f103d317e7e910a52d7220fd882dba3e489fa75f`: 168 focused tests passed, followed by 63 checks after strengthening coordinator-task settlement and 20 final focused checks after formatting cleanup. Held STT/formatter cases failed against the original service. Real temporary files verify cleanup with Save audio off, and preserved cancelled transcripts are asserted. The coordinator test joins a read-only snapshot of its owned processing task before checking the connected clipboard; service idle alone was insufficient. Independent correctness and maintainability reviewers found no remaining issue at that head.
+
+That implementation also sharpens the cancellation recommendation: the existing completed-row write is the commit boundary. Before it, cancellation discards by default or retains only a cancelled transcript when preservation and history are enabled. After it, cancellation can suppress delivery but does not revoke committed history, statistics, or terminal success. Existing telemetry regressions remain; provisional rows and compensating rollback were rejected as unnecessary changes to established behavior.
+
+The optional search-composition and single registration deletions remain unselected; neither offers meaningful demonstrated runtime savings. The two AEC characterization cases, privacy architecture guards, and useful deterministic race hooks remain in place. Native UI, complete cross-process recovery, and provisioned real-model/audio qualification are still separate roadmap work, not proof supplied by these deterministic tests. Hosted runner queue delay must also be measured separately from occupied build/test time; a burst of follow-up PRs can wait even when their execution paths are shorter.
