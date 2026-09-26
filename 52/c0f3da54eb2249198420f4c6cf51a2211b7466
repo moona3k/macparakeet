@@ -1,0 +1,30 @@
+docs/testing/native-library-e2e.md
+  s_cac8ea75717892::t_0fc7a28947796f 10-12,40
+  s_cac8ea75717892::t_07ea5445786d54 7-8
+scripts/testing/native-library-e2e.py
+  s_cac8ea75717892::t_9739903e3c1b92 113-114,147,153-162
+  s_cac8ea75717892::t_0fc7a28947796f 7,27,38-50,64-65,74,116-117,123,125-127,138,145,149-151
+  s_cac8ea75717892::t_e01879bc1d920d 124,168
+  s_cac8ea75717892::t_07ea5445786d54 148
+scripts/ci/test_native_library_runner.py
+  s_cac8ea75717892::t_e01879bc1d920d 1-49
+scripts/testing/native-library-ax.swift
+  s_cac8ea75717892::t_0fc7a28947796f 66-76
+  s_cac8ea75717892::t_9739903e3c1b92 38-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "52c0f3da54eb2249198420f4c6cf51a2211b7466",
+  "prompts": {},
+  "sessions": {
+    "s_cac8ea75717892": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0db21-43eb-73f3-b873-a8a718ab6d72",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
