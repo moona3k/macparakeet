@@ -42,7 +42,12 @@ final class ModelLifecycleCommandTests: XCTestCase {
         let dbURL = temporaryDatabaseURL()
         defer { try? FileManager.default.removeItem(at: dbURL) }
         let db = try DatabaseManager(path: dbURL.path)
-        try db.recordAppliedMigrationIdentifierForTesting("v99.0-future-app-migration")
+        try db.dbQueue.write { database in
+            try database.execute(
+                sql: "INSERT INTO grdb_migrations (identifier) VALUES (?)",
+                arguments: ["v99.0-future-app-migration"]
+            )
+        }
 
         let report = probeHealthDatabase(at: dbURL.path)
 
