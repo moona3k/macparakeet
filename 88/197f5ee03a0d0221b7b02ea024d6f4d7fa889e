@@ -1,0 +1,20 @@
+.github/workflows/ci.yml
+  s_76420393535e76::t_cb3cbe3c5d6d33 386-387
+  s_76420393535e76::t_f630dcca528a20 414-416
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "88197f5ee03a0d0221b7b02ea024d6f4d7fa889e",
+  "prompts": {},
+  "sessions": {
+    "s_76420393535e76": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5904b7b8-80ac-4e5a-a69a-982cbf912315",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
