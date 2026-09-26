@@ -58,7 +58,11 @@ final class AskModelBridgeTests: XCTestCase {
         let client = ScriptedAskLLMClient(
             decision: "", finalChunks: ["Supported answer."], stopReason: "stop",
             checkOptions: { options in
-                XCTAssertNoThrow(try options.validateInferenceSettings(for: config))
+                do {
+                    try options.validateInferenceSettings(for: config)
+                } catch {
+                    XCTFail("Apple Intelligence rejected the final-answer options: \(error)")
+                }
                 XCTAssertEqual(
                     options.maxTokens,
                     LLMService.maximumOutputTokensLeavingInputRoom(in: LLMService.appleIntelligenceContextBudget)
