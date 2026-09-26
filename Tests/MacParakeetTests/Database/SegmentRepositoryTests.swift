@@ -73,7 +73,7 @@ final class SegmentRepositoryTests: XCTestCase {
     }
 
     func testWordTimestampMaterializationHandlesBothWhitespaceTokenStyles() {
-        XCTAssertEqual(KnowledgeSegmenter.currentVersion, 5)
+        XCTAssertEqual(KnowledgeSegmenter.currentVersion, 6)
         let wordStyle = ["That's", "incredible.", "I", "will", "be", "honest"]
         let tokenizerStyle = ["That's", " incredible", ".", " I", " will", " be", "honest"]
 
@@ -259,6 +259,64 @@ final class SegmentRepositoryTests: XCTestCase {
             try SegmentRepository.deriveResolvedSegments(for: edited, in: db)
         }
         XCTAssertEqual(derived.map(\.text), ["Freshly edited text"])
+    }
+
+    func testRebuildOutdatedReindexesLegacyEditedTimedRowsAfterSegmenterVersionBump() throws {
+        var edited = completedTranscription(
+            source: .file,
+            text: "Original words",
+            words: [
+                WordTimestamp(word: "Original", startMs: 0, endMs: 100, confidence: 1),
+                WordTimestamp(word: "words", startMs: 120, endMs: 220, confidence: 1),
+            ],
+            transcriptSegments: [segmentRecord(text: "Original words", startMs: 0, speaker: "S1")]
+        )
+        edited.isTranscriptEdited = true
+        edited.cleanTranscript = "Freshly edited text"
+        try transcriptions.save(edited)
+
+        // Simulate a row indexed by the pre-fix segmenter, which (incorrectly)
+        // preferred the durable timed words over the edit, and stamped it with
+        // that older version number.
+        try manager.dbQueue.write { db in
+            var stale = Segment(
+                transcriptionId: edited.id,
+                seq: 0,
+                startMs: 0,
+                endMs: 220,
+                speaker: "S1",
+                text: "Original words",
+                segmenterVersion: 5
+            )
+            try stale.insert(db)
+        }
+
+        let result = try segments.rebuildOutdated()
+        XCTAssertEqual(result.transcriptionsIndexed, 1)
+
+        let rebuilt = try segments.fetch(transcriptionId: edited.id)
+        XCTAssertEqual(rebuilt.map(\.text), ["Freshly edited text"])
+        XCTAssertEqual(rebuilt.map(\.startMs), [nil])
+        XCTAssertEqual(rebuilt.map(\.segmenterVersion), [KnowledgeSegmenter.currentVersion])
+
+        XCTAssertEqual(
+            try searchIDs(SegmentSearchQuery(query: "Freshly")),
+            [edited.id]
+        )
+        XCTAssertTrue(try segments.search(SegmentSearchQuery(query: "Original")).isEmpty)
+
+        // The source row's canonical timing is untouched by reindexing, so a
+        // revert (clearing the edit) still derives the original durable segments.
+        var reverted = edited
+        reverted.isTranscriptEdited = false
+        reverted.cleanTranscript = nil
+        let restored = KnowledgeSegmenter.deriveSegments(for: reverted)
+        XCTAssertEqual(restored.map(\.text), ["Original words"])
+        XCTAssertEqual(restored.map(\.startMs), [0])
+
+        // Every row is now current, so a second rebuild is a no-op.
+        let second = try segments.rebuildOutdated()
+        XCTAssertEqual(second.transcriptionsIndexed, 0)
     }
 
     func testBackfillTwiceConvergesToIdenticalDerivedRows() throws {

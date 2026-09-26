@@ -2,7 +2,7 @@ import Foundation
 
 /// Frozen versioned rules for deriving the rebuildable transcript search layer.
 public enum KnowledgeSegmenter {
-    public static let currentVersion = 5
+    public static let currentVersion = 6
 
     private static let targetMinimumScalars = 200
     private static let targetMaximumScalars = 500
