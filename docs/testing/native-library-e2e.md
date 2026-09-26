@@ -3,14 +3,19 @@
 `scripts/testing/native-library-e2e.py` drives the real Dev app with macOS
 Accessibility. It seeds a synthetic completed meeting through production GRDB
 migrations and `MeetingArtifactStore` in a test-only XCTest, opens that exact
-Library item, edits its notes through the native editor, waits for the visible
-Saved confirmation, requests ordinary AppKit quit so pending artifact writes
-flush, relaunches the same bundle
-with the same state directory, checks the notes, and exports Markdown through
-the UI. The transcript export must contain the synthetic transcript; the
-separate durable meeting notes and meeting Markdown artifacts must contain the
-edited notes. The UI transcript exporter intentionally does not export notes.
-No model, microphone, network transcription, or public seed API is involved.
+Library item, edits its notes through the native editor, waits (with a bounded
+read-only check of the owned SQLite database) for the edited notes to persist
+durably rather than for the transient visible Saved indicator, requests
+ordinary AppKit quit so pending artifact writes flush, relaunches the same
+bundle with the same state directory, checks the notes, and exports Markdown
+through the UI. The transcript export must contain the synthetic transcript;
+the separate durable meeting notes and meeting Markdown artifacts must contain
+the edited notes. The UI transcript exporter intentionally does not export
+notes. No public seed API is involved and the journey itself never exercises
+transcription or the microphone, but ordinary AppDelegate startup can still
+warm or download model assets and prompt for microphone access on its own; the
+disposable account must have microphone permission denied, and this runner
+does not execute inside a network sandbox.
 
 ## Prerequisites
 
@@ -23,7 +28,11 @@ this runner must never run in an account containing valuable app state or keys.
 Install Xcode and dependencies, use an owned checkout, and allow at least 25 GiB
 free disk. Build once with `scripts/dev/run_app.sh`, complete onboarding manually
 in this disposable account, disable optional telemetry/cloud integrations, and
-quit the app. Grant Accessibility to the terminal used to run qualification.
+quit the app. Grant Accessibility to the terminal used to run qualification, and
+deny microphone permission for the app in this account: ordinary AppDelegate
+startup can prompt for or touch the microphone even though the journey itself
+never records or transcribes. This account and runner are not network-sandboxed;
+only telemetry is explicitly disabled.
 Do not run another MacParakeet instance or another UI driver during the journey.
 The runner rejects existing app processes before it seeds or builds anything.
 

@@ -7,6 +7,7 @@ from pathlib import Path
 import pwd
 import shutil
 import signal
+import sqlite3
 import subprocess
 import tempfile
 import time
@@ -35,17 +36,72 @@ def preflight(attested):
         raise RuntimeError("Requires at least 25 GiB free for the owned build")
 
 
+def group_alive(group_id):
+    try:
+        os.killpg(group_id, 0)
+    except (ProcessLookupError, PermissionError):
+        return False
+    return True
+
+
 def run_owned(command, *, cwd, env, log, timeout):
     process = subprocess.Popen(command, cwd=cwd, env=env, stdout=log,
                                stderr=subprocess.STDOUT, start_new_session=True)
+    error = None
+    status = None
     try:
         status = process.wait(timeout=timeout)
-    except (subprocess.TimeoutExpired, KeyboardInterrupt):
+    except (subprocess.TimeoutExpired, KeyboardInterrupt) as caught:
+        error = caught
+    try:
         os.killpg(process.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        pass
+    if status is None:
         process.wait()
-        raise
+    deadline = time.monotonic() + 10
+    while group_alive(process.pid) and time.monotonic() < deadline:
+        time.sleep(0.1)
+    if error is not None:
+        raise error
     if status:
         raise subprocess.CalledProcessError(status, command)
+
+
+def notes_persisted(database, expected):
+    if not database.exists():
+        return False
+    connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
+    try:
+        row = connection.execute("SELECT userNotes FROM transcriptions").fetchone()
+    finally:
+        connection.close()
+    return row is not None and row[0] == expected
+
+
+def wait_for_notes(database, expected, timeout=30):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if notes_persisted(database, expected):
+            return
+        time.sleep(0.1)
+    raise RuntimeError("Saved notes were not persisted to the owned database")
+
+
+def owned_matches(binary):
+    return [pid for pid, uid, command in processes()
+            if uid == os.getuid() and command == str(binary)]
+
+
+def stop(pid, binary):
+    if (pid, os.getuid(), str(binary)) not in processes():
+        return
+    os.kill(pid, signal.SIGTERM)
+    deadline = time.monotonic() + 30
+    while any(p == pid for p, _, _ in processes()):
+        if time.monotonic() > deadline:
+            raise RuntimeError("Owned app did not exit; refusing relaunch")
+        time.sleep(0.1)
 
 
 def main():
@@ -76,24 +132,13 @@ def main():
     def launched_pid():
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline:
-            matches = [pid for pid, uid, command in processes()
-                       if uid == os.getuid() and command == str(binary)]
+            matches = owned_matches(binary)
             if len(matches) == 1:
                 return matches[0]
             if len(matches) > 1:
                 raise RuntimeError("Multiple app instances; ownership is ambiguous")
             time.sleep(0.1)
         raise RuntimeError("Owned app did not launch")
-
-    def stop(pid):
-        if (pid, os.getuid(), str(binary)) not in processes():
-            raise RuntimeError("Owned PID identity changed; refusing to signal")
-        os.kill(pid, signal.SIGTERM)
-        deadline = time.monotonic() + 30
-        while any(p == pid for p, _, _ in processes()):
-            if time.monotonic() > deadline:
-                raise RuntimeError("Owned app did not exit; refusing relaunch")
-            time.sleep(0.1)
 
     def ax(action, identifier, *values):
         run([str(root / "ax"), str(owned_pid), action, identifier, *values], timeout=45)
@@ -109,10 +154,9 @@ def main():
         ax("press", "meeting-notes-tab")
         ax("assert", "meeting-notes-editor", "Original synthetic notes")
         ax("set", "meeting-notes-editor", NOTES)
-        ax("wait", "meeting-notes-saved")
+        wait_for_notes(root / "state/macparakeet.db", NOTES)
         # Ordinary AppKit quit flushes derived note artifacts; SIGTERM bypasses it.
         ax("quit", "application")
-        owned_pid = None
         run(["open", "-n", str(bundle), "--env", "MACPARAKEET_DEBUG_APP_STATE_DIR=" + str(root / "state"),
              "--env", "MACPARAKEET_TELEMETRY=0"])
         owned_pid = launched_pid()
@@ -151,8 +195,8 @@ def main():
         raise
     finally:
         try:
-            if owned_pid is not None:
-                stop(owned_pid)
+            for pid in owned_matches(binary):
+                stop(pid, binary)
         except BaseException as error:
             (root / "result.json").write_text(json.dumps({"result": "failed", "cleanupError": str(error)}, indent=2))
             raise

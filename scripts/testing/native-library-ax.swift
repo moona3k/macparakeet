@@ -52,7 +52,6 @@ repeat {
 } while Date() < deadline && !application.isTerminated
 guard let element = target else { fail("Timed out finding \(args[3]); dismiss onboarding and open Library before qualification") }
 switch args[2] {
-case "wait": break
 case "press":
     guard AXUIElementPerformAction(element, kAXPressAction as CFString) == .success else {
         fail("No AXPress action on \(args[3])")
