@@ -1,0 +1,19 @@
+spec/09-testing.md
+  s_1ad0d88e0b5849::t_6742d9dfb4ef74 225
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "174a681ab232526039f104d1e4743b78d1d6e953",
+  "prompts": {},
+  "sessions": {
+    "s_1ad0d88e0b5849": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ebb093d4-0f28-46e5-90a4-800e5c80e73f",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
