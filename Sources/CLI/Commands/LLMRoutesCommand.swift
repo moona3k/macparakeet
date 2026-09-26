@@ -132,7 +132,9 @@ func setLLMRoute(
     }
     // Building the configuration does not execute the client. Suppress the inline
     // HTTP warning because it includes the raw URL, which may contain credentials.
-    let config = try options.buildConfig(environment: environment, emitWarnings: false)
+    // A saved route without --model should match the app's own current default,
+    // not the historical one-off inline-CLI compatibility default.
+    let config = try options.buildConfig(environment: environment, emitWarnings: false, persistedRouteDefault: true)
     try store.saveTaskOverride(config, for: group)
 }
 
@@ -147,8 +149,8 @@ func listLLMRoutes(store: any LLMConfigStoreProtocol) throws -> [LLMRouteDescrip
 }
 
 private func describeLLMRoute(_ task: String, store: any LLMConfigStoreProtocol) throws -> LLMRouteDescription {
-    let override = try LLMTaskGroup(rawValue: task).flatMap { try store.loadTaskOverride($0) }
-    let config = try override ?? store.loadConfig()
+    let override = try LLMTaskGroup(rawValue: task).flatMap { try store.loadTaskOverrideMetadata($0) }
+    let config = try override ?? store.loadConfigMetadata()
     return LLMRouteDescription(
         task: task,
         inherited: task != "default" && override == nil,

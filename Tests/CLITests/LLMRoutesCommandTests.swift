@@ -6,12 +6,17 @@ import XCTest
 
 final class LLMRoutesCommandTests: XCTestCase {
     private func fixture() -> (LLMConfigStore, LocalCLIConfigStore) {
-        let name = "LLMRoutesCommandTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
-        addTeardownBlock { defaults.removePersistentDomain(forName: name) }
+        let defaults = sharedDefaults()
         return (
             LLMConfigStore(defaults: defaults, keychain: RouteMemoryKeys()), LocalCLIConfigStore(defaults: defaults)
         )
+    }
+
+    private func sharedDefaults() -> UserDefaults {
+        let name = "LLMRoutesCommandTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        addTeardownBlock { defaults.removePersistentDomain(forName: name) }
+        return defaults
     }
 
     func testCommandsAreRegistered() throws {
@@ -119,6 +124,57 @@ final class LLMRoutesCommandTests: XCTestCase {
         XCTAssertNil(cliStore.load())
     }
 
+    func testSetWithoutModelUsesAppDefaultNotInlineCompatibilityDefault() throws {
+        let (store, cliStore) = fixture()
+        let openAIOptions = try LLMInlineOptions.parse(["--provider", "openai", "--api-key", "k"])
+        try setLLMRoute("analysis", options: openAIOptions, store: store, cliStore: cliStore, environment: [:])
+        XCTAssertEqual(try store.loadTaskOverride(.analysis)?.modelName, LLMProviderID.openai.defaultModelName)
+        XCTAssertNotEqual(try store.loadTaskOverride(.analysis)?.modelName, "gpt-4.1")
+
+        let geminiOptions = try LLMInlineOptions.parse(["--provider", "gemini", "--api-key", "k"])
+        try setLLMRoute("cleanup", options: geminiOptions, store: store, cliStore: cliStore, environment: [:])
+        XCTAssertEqual(try store.loadTaskOverride(.cleanup)?.modelName, LLMProviderID.gemini.defaultModelName)
+        XCTAssertNotEqual(try store.loadTaskOverride(.cleanup)?.modelName, "gemini-2.5-flash")
+    }
+
+    func testSetWithExplicitModelStillHonorsIt() throws {
+        let (store, cliStore) = fixture()
+        let options = try LLMInlineOptions.parse(["--provider", "openai", "--api-key", "k", "--model", "gpt-4.1"])
+        try setLLMRoute("analysis", options: options, store: store, cliStore: cliStore, environment: [:])
+        XCTAssertEqual(try store.loadTaskOverride(.analysis)?.modelName, "gpt-4.1")
+    }
+
+    func testListDoesNotAccessKeychain() throws {
+        let seedDefaults = sharedDefaults()
+        let seedStore = LLMConfigStore(defaults: seedDefaults, keychain: RouteMemoryKeys())
+        try seedStore.saveConfig(.openai(apiKey: "secret", model: "default-model"))
+        try seedStore.saveTaskOverride(.gemini(apiKey: "secret2", model: "analysis-model"), for: .analysis)
+
+        let throwingKeys = ThrowingKeys()
+        let store = LLMConfigStore(defaults: seedDefaults, keychain: throwingKeys)
+        let routes = try listLLMRoutes(store: store)
+
+        XCTAssertEqual(throwingKeys.callCount, 0)
+        XCTAssertEqual(routes.first { $0.task == "analysis" }?.model, "analysis-model")
+        XCTAssertEqual(routes.first { $0.task == "default" }?.model, "default-model")
+    }
+
+    func testResetSucceedsAndDescribesResultEvenWhenKeychainIsUnavailable() throws {
+        let seedDefaults = sharedDefaults()
+        let seedStore = LLMConfigStore(defaults: seedDefaults, keychain: RouteMemoryKeys())
+        try seedStore.saveConfig(.openai(apiKey: "secret", model: "default-model"))
+        try seedStore.saveTaskOverride(.gemini(apiKey: "secret2", model: "analysis-model"), for: .analysis)
+
+        let throwingKeys = ThrowingKeys()
+        let store = LLMConfigStore(defaults: seedDefaults, keychain: throwingKeys)
+        try resetLLMRoute("analysis", store: store)
+        let route = try XCTUnwrap(try listLLMRoutes(store: store).first { $0.task == "analysis" })
+
+        XCTAssertEqual(throwingKeys.callCount, 0)
+        XCTAssertTrue(route.inherited)
+        XCTAssertEqual(route.model, "default-model")
+    }
+
     func testCLIReusesSharedTemplateAndRejectsReplacement() throws {
         let (store, cliStore) = fixture()
         try cliStore.save(LocalCLIConfig(commandTemplate: "existing-cli -p"))
@@ -139,4 +195,24 @@ private final class RouteMemoryKeys: KeyValueStore, @unchecked Sendable {
     func getString(_ key: String) throws -> String? { lock.withLock { values[key] } }
     func setString(_ value: String, forKey key: String) throws { lock.withLock { values[key] = value } }
     func delete(_ key: String) throws { _ = lock.withLock { values.removeValue(forKey: key) } }
+}
+
+/// Fails any access so route-description tests can prove they never touch Keychain.
+private final class ThrowingKeys: KeyValueStore, @unchecked Sendable {
+    private enum Failure: Error { case unexpectedKeychainAccess }
+    private let lock = NSLock()
+    private var count = 0
+    var callCount: Int { lock.withLock { count } }
+    func getString(_ key: String) throws -> String? {
+        lock.withLock { count += 1 }
+        throw Failure.unexpectedKeychainAccess
+    }
+    func setString(_ value: String, forKey key: String) throws {
+        lock.withLock { count += 1 }
+        throw Failure.unexpectedKeychainAccess
+    }
+    func delete(_ key: String) throws {
+        lock.withLock { count += 1 }
+        throw Failure.unexpectedKeychainAccess
+    }
 }
