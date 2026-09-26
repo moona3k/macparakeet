@@ -440,3 +440,16 @@ These flows must be tested manually after any overlay or hotkey changes. Automat
 3. Follow existing patterns in the same category
 4. Run the focused suite while iterating; follow the one-full-suite final gate above.
 5. Describe the behavior covered and any skipped hardware/model boundaries; use generated results rather than manually maintained test counts.
+
+### Distribution policy fixtures
+
+The distribution CI job runs `scripts/dist/test_verify_app_privacy_surface.sh`
+and `scripts/dist/test_verify_release_version.sh` alongside the meeting echo
+packaging fixtures. They invoke the production release verifiers against valid
+and deliberately invalid bundles: extra ATS domains/attributes, malformed
+privacy metadata, and missing, malformed, or development version strings.
+
+These fixtures test release policy rejection paths. Their synthetic bundle
+metadata and fake signing output do not qualify a signed app, notarization, or
+macOS networking behavior. Run either script directly with `bash` for a focused
+check; CI retains each script's output in the distribution evidence artifact.
