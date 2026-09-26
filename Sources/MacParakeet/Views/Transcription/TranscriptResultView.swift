@@ -1100,6 +1100,7 @@ struct TranscriptResultView: View {
                 Label("Export", systemImage: "arrow.down.doc")
             }
             .parakeetAction(.secondary)
+            .accessibilityIdentifier("transcript-export-options")
             .popover(isPresented: $showingExportOptions, arrowEdge: .top) {
                 exportOptionsPopover
             }
@@ -2889,6 +2890,7 @@ struct TranscriptResultView: View {
                 .frame(minHeight: 0, maxHeight: .infinity)
                 .padding(.vertical, DesignSystem.Spacing.sm)
                 .accessibilityLabel("Meeting notes")
+                .accessibilityIdentifier("meeting-notes-editor")
                 .accessibilityHint(
                     SavedMeetingNotesEditorPresentation.accessibilityHint(
                         meetingID: savedMeetingNotesViewModel.meetingID,
@@ -2956,6 +2958,7 @@ struct TranscriptResultView: View {
                     .foregroundStyle(DesignSystem.Colors.successGreen.opacity(0.7))
                     .help("Saved")
                     .accessibilityLabel("Saved")
+                    .accessibilityIdentifier("meeting-notes-saved")
                     .frame(width: 16, alignment: .leading)
             case .saved:
                 Color.clear
@@ -3115,6 +3118,7 @@ struct TranscriptResultView: View {
         // come before .contextMenu so the combined element keeps its menu.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(tabLabel(tab))
+        .accessibilityIdentifier(tab == .notes ? "meeting-notes-tab" : "transcript-tab-\(tabLabel(tab))")
         .accessibilityValue(tabAccessibilityValue(tab, isStreaming: isStreamingTab))
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { selectTab(tab) }
@@ -5852,6 +5856,7 @@ struct TranscriptResultView: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("transcript-export-format-\(format.rawValue)")
                     }
                 }
             }
@@ -5894,6 +5899,7 @@ struct TranscriptResultView: View {
                 }
                 .parakeetAction(.primaryProminent)
                 .keyboardShortcut(.defaultAction)
+                .accessibilityIdentifier("transcript-export-confirm")
             }
         }
         .padding(DesignSystem.Spacing.md)
