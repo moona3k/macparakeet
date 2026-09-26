@@ -51,6 +51,9 @@ struct MeetingClassificationBadges: View {
 
 struct MeetingClassificationFilterBar: View {
     @Bindable var libraryViewModel: TranscriptionLibraryViewModel
+    /// Library gives the bar the full row. The Meetings toolbar turns this off
+    /// so the bar hugs its buttons and the search field can take the leftover width.
+    var fillsAvailableWidth = true
     @State private var showingLabelFilters = false
     @State private var showingLabelManager = false
 
@@ -68,7 +71,9 @@ struct MeetingClassificationFilterBar: View {
                 .help("Clear label filters")
             }
 
-            Spacer(minLength: 0)
+            if fillsAvailableWidth {
+                Spacer(minLength: 0)
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Transcription label filters")
