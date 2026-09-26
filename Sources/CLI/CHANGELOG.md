@@ -125,6 +125,11 @@ stable MacParakeet.app release or standalone CLI channel.
   Keychain. `routes set` without `--model` picks the provider's current app
   default (matching GUI Settings), not the historical one-off inline-CLI
   compatibility default that other inline LLM commands still use for scripts.
+  `set`/`reset` coordinate with the GUI and other CLI processes on a shared
+  lease: a concurrent mutation fails fast (exit `1`, "AI settings are being
+  updated") instead of racing, and a publication I/O failure reports an
+  unconfirmed save rather than a silent no-op. See
+  `spec/contracts/cli-json-v1.md` for the full contract.
 - `spec --json` documents the new commands and their mutation/precondition
   boundaries. Existing commands, JSON fields and exit codes remain supported.
 - History JSON may now include `"status": "error"` for a dictation whose
