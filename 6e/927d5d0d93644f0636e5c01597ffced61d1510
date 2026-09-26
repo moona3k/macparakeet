@@ -1,0 +1,25 @@
+docs/research/2026-09-25-ci-cost-and-test-strategy.md
+  s_c299e83108feed::t_7a3d0fcd9263dd 3-33
+docs/research/2026-09-25-test-value-audit.md
+  s_c299e83108feed::t_d318f218e04fb4 166,182,190,201-202,205,209-228
+docs/testing/README.md
+  s_c299e83108feed::t_ff78316a447bfc 1-34
+docs/testing/meeting-process-recovery.md
+  s_c299e83108feed::t_46356e130c038d 9-10,12-17,70,81-82,86-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6e927d5d0d93644f0636e5c01597ffced61d1510",
+  "prompts": {},
+  "sessions": {
+    "s_c299e83108feed": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dc15-ddf7-71f2-a669-23235022dc65",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
