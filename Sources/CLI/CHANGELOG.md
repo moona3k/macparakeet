@@ -92,11 +92,13 @@ ArgumentParser's plain-text stderr path with exit code `2`. Downstream
 agents that branch on `errorType` should also handle the parse-error case
 by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
-## [4.7.0] — 2026-09-25 (development source; not a stable app release)
+## [Unreleased]
 
-This CLI source version adds Ask automation on this development branch. It does
-not qualify or change the stable MacParakeet.app release or standalone CLI
-channel.
+## [4.7.0] — 2026-09-26 (development source; not a stable app release)
+
+This CLI source version adds saved-result editing, batch text revisions, shared
+AI routes and experimental Ask automation. It does not qualify or change the
+stable MacParakeet.app release or standalone CLI channel.
 
 ### Added
 
@@ -108,12 +110,6 @@ channel.
   Ask is experimental and disabled by default: developer builds require
   `--enable-ask-workspace` on each command. Release builds reject Ask even with
   that flag, before opening the database or constructing a model provider.
-
-## [Unreleased]
-
-## [4.7.0] — 2026-09-26
-
-### Added
 
 - `meetings results edit <meeting> <result-uuid>` edits saved AI content in
   place with a required exact-content precondition, preserving result identity
