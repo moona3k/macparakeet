@@ -281,6 +281,20 @@ factual transcript pane. The tab always shows an editable plaintext
 existing 7,500-word soft-cap warning. The separate 8,000-word cap bounds notes
 sent to prompt assembly; it does not truncate stored notes.
 
+The Notes pane is an open writing surface, without nested cards or an editor
+border. A compact “Your notes” heading and Copy action sit above a flexible,
+full-height editor using the 15 pt reading-body size and 5 pt line spacing.
+The pane reuses the detail view’s outer inset with an additional 8 pt horizontal
+writing margin. It has no fixed minimum editor height, so shorter windows can
+keep the word count and save/retry controls visible. Copy remains in place but
+is disabled when the draft is blank or belongs to another meeting. An enabled,
+empty editor shows a non-interactive writing prompt. VoiceOver describes
+automatic saving only while the editor is enabled. A deleted meeting hears that
+its notes were not saved, and a mismatched meeting hears that notes cannot be
+edited right now. The Copied confirmation clears when the draft changes, the
+displayed meeting changes, or the pane disappears. Save status, word count, and
+warnings stay below the editor.
+
 Changes auto-save to SQLite after a 500 ms idle debounce. The status is hidden
 on entry, including for empty notes. Editing shows a small spinner; a successful
 save briefly shows a muted green check before the status disappears. These

@@ -552,8 +552,7 @@ struct TranscriptResultView: View {
     @State private var copiedResetTask: Task<Void, Never>?
     @State private var resultCopiedResetTask: Task<Void, Never>?
     @State private var resultButtonCopiedResetTask: Task<Void, Never>?
-    @State private var notesCopied = false
-    @State private var notesCopiedResetTask: Task<Void, Never>?
+    @State private var meetingNotesCopyFeedback = SavedMeetingNotesCopyFeedback()
     @State private var savedMeetingNotesViewModel = SavedMeetingNotesViewModel()
     @State private var savedMeetingNotesSaveStatus = SavedMeetingNotesSaveStatusPresentation()
     @State private var dismissTask: Task<Void, Never>?
@@ -2828,58 +2827,75 @@ struct TranscriptResultView: View {
     private var meetingNotesSection: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             HStack(spacing: DesignSystem.Spacing.xs) {
-                Label("Your notes", systemImage: "note.text")
-                    .font(DesignSystem.Typography.caption.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                Text("Your notes")
+                    .font(DesignSystem.Typography.sectionTitle)
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
 
                 Spacer()
 
-                if let notes = normalizedMeetingNotesDraft {
-                    Button {
+                Button {
+                    if let notes = normalizedMeetingNotesDraft {
                         TranscriptResultActions.copyText(notes)
-                        notesCopied = true
-                        notesCopiedResetTask?.cancel()
-                        notesCopiedResetTask = Task {
-                            try? await Task.sleep(for: .seconds(1))
-                            if !Task.isCancelled {
-                                notesCopied = false
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: DesignSystem.Spacing.xs) {
-                            Image(systemName: notesCopied ? "checkmark" : "doc.on.doc")
-                            Text(notesCopied ? "Copied" : "Copy")
-                        }
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(notesCopied ? DesignSystem.Colors.successGreen : .primary)
+                        meetingNotesCopyFeedback.noteCopied()
                     }
-                    .parakeetAction(.secondary)
-                    .controlSize(.small)
-                    .accessibilityLabel(notesCopied ? "Notes copied" : "Copy your notes")
+                } label: {
+                    HStack(spacing: DesignSystem.Spacing.xs) {
+                        Image(systemName: meetingNotesCopyFeedback.isCopied ? "checkmark" : "doc.on.doc")
+                        Text(meetingNotesCopyFeedback.isCopied ? "Copied" : "Copy")
+                    }
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(
+                        normalizedMeetingNotesDraft == nil
+                            ? DesignSystem.Colors.textSecondary
+                            : (meetingNotesCopyFeedback.isCopied ? DesignSystem.Colors.successGreen : .primary)
+                    )
                 }
+                .parakeetAction(.secondary)
+                .controlSize(.small)
+                .disabled(normalizedMeetingNotesDraft == nil)
+                .accessibilityLabel(meetingNotesCopyFeedback.isCopied ? "Notes copied" : "Copy your notes")
             }
+            // Align with the native text container’s 5 pt line-fragment inset.
+            .padding(.horizontal, 5)
 
             TextEditor(text: savedMeetingNotesViewModel.textBinding(for: activeTranscription.id))
                 .disabled(
-                    savedMeetingNotesViewModel.meetingID != activeTranscription.id
-                        || savedMeetingNotesViewModel.saveState == .deleted
+                    !SavedMeetingNotesEditorPresentation.isEditorEnabled(
+                        meetingID: savedMeetingNotesViewModel.meetingID,
+                        displayedMeetingID: activeTranscription.id,
+                        saveState: savedMeetingNotesViewModel.saveState
+                    )
                 )
-                .font(DesignSystem.Typography.body)
+                .font(DesignSystem.Typography.bodyLarge)
+                .lineSpacing(5)
                 .foregroundStyle(DesignSystem.Colors.textPrimary)
                 .scrollContentBackground(.hidden)
                 .focused($meetingNotesEditorFocused)
-                .frame(minHeight: 280, maxHeight: .infinity)
-                .padding(DesignSystem.Spacing.sm)
-                .background(
-                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                        .fill(DesignSystem.Colors.surface)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                        .strokeBorder(DesignSystem.Colors.border.opacity(0.7), lineWidth: 1)
-                )
+                .overlay(alignment: .topLeading) {
+                    if SavedMeetingNotesEditorPresentation.showsWritingPrompt(
+                        meetingID: savedMeetingNotesViewModel.meetingID,
+                        displayedMeetingID: activeTranscription.id,
+                        saveState: savedMeetingNotesViewModel.saveState,
+                        draft: savedMeetingNotesViewModel.text
+                    ) {
+                        Text(SavedMeetingNotesEditorPresentation.writingPrompt)
+                            .font(DesignSystem.Typography.bodyLarge)
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                            .padding(.horizontal, 5)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .frame(minHeight: 0, maxHeight: .infinity)
+                .padding(.vertical, DesignSystem.Spacing.sm)
                 .accessibilityLabel("Meeting notes")
-                .accessibilityHint("Add private context, decisions, or reminders for this meeting. Changes save automatically.")
+                .accessibilityHint(
+                    SavedMeetingNotesEditorPresentation.accessibilityHint(
+                        meetingID: savedMeetingNotesViewModel.meetingID,
+                        displayedMeetingID: activeTranscription.id,
+                        saveState: savedMeetingNotesViewModel.saveState
+                    )
+                )
 
             HStack(spacing: DesignSystem.Spacing.sm) {
                 if savedMeetingNotesViewModel.wordCount >= MeetingNotesViewModel.softCapWarningWordCount {
@@ -2899,8 +2915,8 @@ struct TranscriptResultView: View {
                     "\(savedMeetingNotesViewModel.wordCount.formatted()) "
                         + (savedMeetingNotesViewModel.wordCount == 1 ? "word" : "words")
                 )
-                    .font(DesignSystem.Typography.caption.monospacedDigit())
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                .font(DesignSystem.Typography.caption.monospacedDigit())
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
             }
 
             if let warning = viewModel.meetingNotesArtifactWarning {
@@ -2919,12 +2935,8 @@ struct TranscriptResultView: View {
                 }
             }
         }
-        .padding(DesignSystem.Spacing.md)
+        .padding(.horizontal, DesignSystem.Spacing.sm)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                .fill(DesignSystem.Colors.surfaceElevated.opacity(0.25))
-        )
     }
 
     @ViewBuilder
@@ -2935,9 +2947,9 @@ struct TranscriptResultView: View {
         } else {
             switch savedMeetingNotesViewModel.saveState {
             case .deleted:
-                Label("Meeting deleted — notes were not saved", systemImage: "trash")
+                Label(SavedMeetingNotesEditorPresentation.deletedStatus, systemImage: "trash")
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    .help("Meeting deleted — notes were not saved")
+                    .help(SavedMeetingNotesEditorPresentation.deletedStatus)
             case .saved where savedMeetingNotesSaveStatus.showsSaveConfirmation:
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 12, weight: .medium))
@@ -2998,15 +3010,23 @@ struct TranscriptResultView: View {
 
     private var meetingNotesPane: some View {
         meetingNotesSection
-            .padding(DesignSystem.Spacing.lg)
             .onAppear(perform: beginMeetingNotesSaveStatusPresentation)
+            .onChange(of: activeTranscription.id) {
+                meetingNotesCopyFeedback.reset()
+            }
+            .onChange(of: savedMeetingNotesViewModel.text) {
+                meetingNotesCopyFeedback.reset()
+            }
             .onChange(of: savedMeetingNotesViewModel.meetingID) {
                 beginMeetingNotesSaveStatusPresentation()
             }
             .onChange(of: savedMeetingNotesViewModel.saveState) { previousState, saveState in
                 observeMeetingNotesSaveState(from: previousState, to: saveState)
             }
-            .onDisappear(perform: resetMeetingNotesSaveStatusPresentation)
+            .onDisappear {
+                resetMeetingNotesSaveStatusPresentation()
+                meetingNotesCopyFeedback.reset()
+            }
     }
 
     // MARK: - Tab Bar
@@ -5436,10 +5456,11 @@ struct TranscriptResultView: View {
     }
 
     private var normalizedMeetingNotesDraft: String? {
-        guard savedMeetingNotesViewModel.meetingID == activeTranscription.id else { return nil }
-        let notes = savedMeetingNotesViewModel.text
-        guard !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        return notes
+        SavedMeetingNotesEditorPresentation.copyPayload(
+            meetingID: savedMeetingNotesViewModel.meetingID,
+            displayedMeetingID: activeTranscription.id,
+            draft: savedMeetingNotesViewModel.text
+        )
     }
 
     private func requestMeetingNotesNavigation(_ action: MeetingNotesNavigationAction) {
