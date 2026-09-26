@@ -1,0 +1,24 @@
+scripts/dist/build_app_bundle.sh
+  s_3e82c43f58e5dc::t_3c580d824f63a9 154-157
+  s_3e82c43f58e5dc::t_c0da2923303b0c 132-139
+  s_3e82c43f58e5dc::t_b168a8775a90de 178-179
+.github/workflows/ci.yml
+  s_3e82c43f58e5dc::t_47f22e5da29f65 40
+  s_3e82c43f58e5dc::t_818e3dff7f5c4d 162
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8ce7f43e6670e4f21d546f2bc46eed5e7cea11aa",
+  "prompts": {},
+  "sessions": {
+    "s_3e82c43f58e5dc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6b40998c-c1ff-4322-9b0b-a6f07f0abb4e",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
