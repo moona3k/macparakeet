@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorLoadCaptionTests.swift
+  s_86f15c24841218::t_3f7c99b70f8866 677
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a202bbb008681cfd1a81cf2fa85c56e52eaf5382",
+  "prompts": {},
+  "sessions": {
+    "s_86f15c24841218": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9ed40aa6-f828-44c1-83a2-0b1aa30363fa",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
