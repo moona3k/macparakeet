@@ -71,6 +71,8 @@ The analogous `STTClientTests.testSTTErrorDescriptions` (`Tests/MacParakeetTests
 
 **Action.** Remove only the unused mock/setup and two vacuous assertions; rename the first test to its actual no-save contract. Retain cancellation, capture, persistence, error, and race assertions. If no-paste-on-cancel needs additional proof, add a deterministic coordinator test: hold STT completion, cancel, release the old result, and assert the connected clipboard remains untouched. Do not claim that removing the disconnected mock creates that missing proof.
 
+The document challenge found a second required assertion: cancellation during processing can cancel the coordinator task and suppress paste while a non-cooperative STT completion still reaches service persistence. This is source evidence, not a runtime reproduction. The new test must settle the service after releasing STT and inspect History as well as the clipboard. Follow the existing policy in `spec/02-features.md:396–397,2255`: default cancellation discards; explicitly preserved discarded takes require History and are `cancelled`, never `completed`. Preserve newer-session ownership while repairing any reproduced gap. A negative timed wait alone cannot prove completion or non-delivery.
+
 No production code is deleted. Cleanup risk is low; the new race test needs careful session ownership and deterministic waits. **Focused verification:** `swift test --filter 'CancelFlowTests|DictationFlowCoordinatorTests'` plus the relevant service cancellation race suite for any behavioral change.
 
 ### C. MockSTTClient self-tests — small maintenance cleanup
@@ -123,6 +125,12 @@ But `MeetingVADChunkingSimulator` is called by the real `meeting-vad-sim` CLI (`
 
 Retain the file; replace mirrored expectations with hand-calculated chunk boundaries/sample counts and final-tail identity when next touching this tool. Drop timing positivity only as part of that coherent improvement. The observed process time is about 0.15 seconds; this is test quality work. **Focused verification:** `swift test --filter 'MeetingVADChunkingSimulatorTests|FixedMeetingLiveAudioChunkerTests|MeetingVADSimCommandTests'`.
 
+### I. Test-only database insertion wrapper — remove the seam, retain the CLI contract
+
+`DatabaseManager.recordAppliedMigrationIdentifierForTesting` (`Sources/MacParakeetCore/Database/DatabaseManager.swift:72`) is a DEBUG-only one-row SQL insertion wrapper. Its sole repository caller is `ModelLifecycleCommandTests.swift:45`, which inserts a future migration marker and verifies that the CLI health probe reports schema skew instead of decoding an incompatible database as healthy. Commit `0179db4df` introduced that important stale-CLI protection.
+
+The same test file already writes the migration ledger through `db.dbQueue.write` for another fixture. Inline this fixture-owned insertion there, remove the production test-only wrapper, and keep the existing schema-skew assertions. Preserve `unknownAppliedMigrationIdentifiers` and `registeredMigrationIdentifiers`: the real health command uses them. This is a small, low-risk production simplification with an unchanged owner-boundary test. **Focused verification:** `swift test --filter ModelLifecycleCommandTests`.
+
 ## Valuable tests that a mechanical cleanup would wrongly remove
 
 ### Release policy fixtures need more routing, not less proof
@@ -151,6 +159,7 @@ Retain it pending a behavioral preference-event test through the existing produc
 - `MerkabaPillIconViewTests` holds distinct Core Animation reentry states described by regression commit `ec531795e`. A screenshot would not reliably replace those deterministic lifecycle checks.
 - `BrandGlyphImageTests` loads actual packaged PDFs and checks platform rendering properties. This is resource wiring, not a copied inventory.
 - The new CLI process smoke and its three driver tests have distinct jobs: product persistence across processes versus deliberately forced invalid JSON, wrong exit, and timeout handling. Keep both.
+- Internal split-export hooks and dictation cancellation/replacement gates make real mid-write, source-mutation, and stale-session races deterministic. Their non-test callers leave the hooks unset, but that does not make them disposable. `MeetingSplitAudioExporterTests.swift:507–660` and `DictationServiceTests.swift:219–459` exercise production paths under held ordering; commits `ce3c7ad52`, `b07815b17`, and `7b3b64af2` record the regressions. Do not replace these with sleeps or generic GUI tests. STT vocabulary and microphone/HAL test adapters also lack demonstrated equivalent replacements.
 
 ## Integration roadmap after the CI change
 
@@ -159,12 +168,14 @@ The earlier [CI cost/test strategy report](2026-09-25-ci-cost-and-test-strategy.
 | Boundary | Primary proof to add or strengthen | Keep elsewhere |
 |---|---|---|
 | Dictation coordinator → delivery | Cancel with STT completion held; release stale result; assert connected clipboard untouched | Service cleanup/session ordering and database no-save checks |
-| CLI → persistence → export | Seed a synthetic meeting through real migrations, use separate CLI processes to read/update notes/export, compare durable content | Parser/error-envelope and repository edge cases |
+| CLI → persistence → export | Seed a synthetic meeting through real migrations with an owned artifact folder, use separate CLI processes to read/update notes/export, compare durable content and materialized artifacts | Parser/error-envelope and repository edge cases |
 | Native Library → durable save | Edit, save, relaunch, export through the real Dev app with owned state and stable Accessibility identifiers | Deterministic view-model save/navigation races |
 | Capture writer → recovery after process exit | Reuse child-process interruption fixture, recover once in a fresh process, inspect playable artifacts and idempotency | Low-level writer/manifest invariants and recovery repository cases |
 | Real model/audio route → user output | Provisioned Apple Silicon qualification with pinned assets and explicit permission/device state | Default deterministic CI with controlled collaborators |
 
 These boundaries justify integration tests because they catch wiring and lifecycle failures. They do not make every unit test inferior. Precise cancellation, timeout, malformed-data, and signal-handler conditions are often stronger and cheaper to force below a GUI. Use UI/model tests for the risks only those environments expose.
+
+Two implementation constraints emerged from the deeper document review. First, `--database` does not isolate paths stored inside a meeting row. `meetings notes set` refreshes artifacts best-effort using those paths; seed every artifact/audio locator under the owned temporary root and assert materialized notes/manifest destinations and contents. A passing JSON response alone can conceal a failed artifact refresh. Second, the existing SIGKILL writer fixture proves retained raw audio playability but creates no complete recovery lock/database/artifact session. Cross-process recovery needs that production-format state before interruption, then fresh-process recovery and idempotency assertions; it cannot be obtained merely by renaming the existing writer test.
 
 ## Verification and next implementation boundary
 
