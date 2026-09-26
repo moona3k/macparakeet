@@ -149,7 +149,7 @@ Keep these tests and add them to a distribution-fixture follow-up. The expected 
 
 `SpeakerVoiceprintTelemetryTests.swift` scans identity-related files, checks filename sentinels, forbids direct telemetry calls, and inspects the settings preference call. It is coupled to names and call spelling, can be upset by harmless refactors, and does not prove absence of all possible data disclosure.
 
-Its history matters: `16816670e` replaced a fixed file list that failed open and a prefix parser that could miss later call arguments. Consent tests in `SettingsViewModelTests.swift:3614` prove real settings/defaults behavior but do not assert the emitted preference event's exact properties. Deleting the scanner now would remove existing privacy protection without demonstrated replacement.
+Its history matters: `16816670e` replaced a fixed file list that failed open and a prefix parser that could miss later call arguments. Consent tests in `SettingsViewModelTests.swift:3610` prove real settings/defaults behavior but do not assert the emitted preference event's exact properties. Deleting the scanner now would remove existing privacy protection without demonstrated replacement.
 
 Retain it pending a behavioral preference-event test through the existing production `Telemetry.configure` interface and real settings view model. No new production test hook is needed. Only after replacement could the bespoke call parser and its own test be removed. Separately assess whether the broad source-level architectural guard remains useful. Do not describe this scan as comprehensive privacy proof.
 
