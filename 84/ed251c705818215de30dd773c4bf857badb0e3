@@ -1,0 +1,25 @@
+Sources/MacParakeetCore/Services/Ask/AskModelBridge.swift
+  s_87598b246e7079::t_ca95d912aab48a 22-23,25,71-73,87-91,96-101,110-113,120-122,125-129,132-166,233,235,240
+Tests/MacParakeetTests/Ask/AskModelBridgeTests.swift
+  s_87598b246e7079::t_d4ba3e77c07ee6 56-124,149,168,221-222
+docs/research/2026-09-25-meeting-chat-workspace/verification.md
+  s_87598b246e7079::t_4fb7b31d66c02e 81-124,241-244
+spec/contracts/ask-workspace.md
+  s_87598b246e7079::t_9b4f2a1c035fb4 127-143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "84ed251c705818215de30dd773c4bf857badb0e3",
+  "prompts": {},
+  "sessions": {
+    "s_87598b246e7079": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0de16-d121-7563-85aa-e9e0aa5a2459",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
