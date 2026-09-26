@@ -1,0 +1,35 @@
+scripts/dev/verify_release_demo.py
+  s_cac8ea75717892::t_07ea5445786d54 18-19,23-27
+  s_cac8ea75717892::t_b08e64727af847 44
+  s_cac8ea75717892::t_502746e48bf890 1-17,20-22,28-43,45-56
+docs/testing/model-qualification.md
+  s_cac8ea75717892::t_369ee880b9a8da 1-9,12-97,101-104
+  s_cac8ea75717892::t_07ea5445786d54 10-11
+  s_cac8ea75717892::t_a9ed2fbcc9b8e2 98-100
+scripts/ci/test_model_qualification.py
+  s_cac8ea75717892::t_369ee880b9a8da 133-134,139
+  s_cac8ea75717892::t_07ea5445786d54 30-31,63-71
+  s_cac8ea75717892::t_e01879bc1d920d 1-29,32-62,72-132,135-138,140-144
+scripts/dev/model_qualification.py
+  s_cac8ea75717892::t_b08e64727af847 1-29,31-44,46-97,101-148
+  s_cac8ea75717892::t_07ea5445786d54 45,98-100
+  s_cac8ea75717892::t_07ad2c7704d855 30
+scripts/dev/release_demo_smoke.sh
+  s_cac8ea75717892::t_502746e48bf890 12,42,74,76,254,280-281,284
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4bfa176bb3d89df6f53410d9e8580a2612f4f28c",
+  "prompts": {},
+  "sessions": {
+    "s_cac8ea75717892": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0db21-43eb-73f3-b873-a8a718ab6d72",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
