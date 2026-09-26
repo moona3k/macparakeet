@@ -77,6 +77,18 @@ jobs:
         timeout-minutes: 2
         run: python3 -m unittest discover -s scripts/ci -p 'test_*.py'
 
+      # Consumer contract check for the SwiftPM toolchain itself, not this
+      # project's cache: an owned temp package proves archive/restore keeps
+      # working, a changed or deleted dependency source is reconciled, and a
+      # manifest change is honored. This does not measure this repo's actual
+      # cold/warm cache timings or source-invalidation behavior.
+      - name: SwiftPM Build Reuse Contract
+        timeout-minutes: 3
+        run: |
+          mkdir -p ci-logs
+          set -o pipefail
+          bash scripts/ci/test-swiftpm-build-reuse.sh 2>&1 | tee ci-logs/swiftpm-build-reuse.log
+
       - name: Swift Format Lint (informational)
         continue-on-error: true
         timeout-minutes: 3
@@ -166,7 +178,7 @@ jobs:
 
       - name: Meeting Process Recovery
         if: ${{ !cancelled() && steps.test_build.outcome == 'success' }}
-        timeout-minutes: 3
+        timeout-minutes: 4
         env:
           MACPARAKEET_CRASH_RECOVERY_TESTS: "1"
           MACPARAKEET_TELEMETRY: "0"
@@ -276,6 +288,12 @@ jobs:
           FFMPEG_PATH: /usr/bin/true
           VERSION: 0.0.0
           BUILD_NUMBER: ci
+          # Keep Xcode DerivedData and native echo-suppression build/source
+          # outputs out of the cached .build tree: this trial caches SwiftPM
+          # build state only.
+          XCODE_DERIVED_DATA: ${{ runner.temp }}/macparakeet-xcode-dist
+          MACPARAKEET_MEETING_ECHO_ASSETS_DIR: ${{ runner.temp }}/macparakeet-meeting-echo-assets
+          LOCALVQE_SOURCE_DIR: ${{ runner.temp }}/macparakeet-localvqe-src
         run: |
           mkdir -p ci-logs
           set -o pipefail

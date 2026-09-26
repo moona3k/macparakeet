@@ -23,14 +23,23 @@ restore prefixes never cross the identity boundary. No source timestamp
 rewriting is used. Each build always executes after cache restore, so changed
 or removed source inputs must be reconciled before any `--skip-build` test.
 Tests always run, including on exact cache hits. Xcode DerivedData is not
-cached in this trial.
+cached in this trial: Release Bundle Smoke redirects
+`XCODE_DERIVED_DATA`, `MACPARAKEET_MEETING_ECHO_ASSETS_DIR`, and
+`LOCALVQE_SOURCE_DIR` to `runner.temp` so Xcode packaging output and the
+native echo-suppression build/source tree — both of which default under
+`.build` — stay out of the cached SwiftPM tree.
 
 The [GitHub cache contract](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching)
 scopes PR caches to their merge ref. Successful main runs seed caches available
 to later PRs; cache misses remain ordinary full builds. Cache transfer time,
 size, cold/warm timings, and source invalidation need hosted verification before
 this trial can be accepted. Toolchain/manifest/workflow invalidation is covered
-by executable helper tests using isolated inputs.
+by executable helper tests using isolated inputs. The hosted "SwiftPM Build
+Reuse Contract" step additionally builds, archives, and restores an owned
+temp package to prove the installed SwiftPM itself keeps honoring a changed
+or deleted dependency source and a changed manifest after a restored `.build`.
+This is a consumer contract check on the toolchain, not a read of this
+repo's actual cache hit/miss behavior or its cold/warm timings.
 
 ## Integration quality
 
