@@ -1,0 +1,44 @@
+docs/research/2026-09-26-ask-retrieval.md
+  s_87598b246e7079::t_6a84cc7bf1a14d 1-164
+  s_87598b246e7079::t_7a15179adc9db0 165-250
+Sources/AskAgentHelper/src/main.js
+  s_87598b246e7079::t_a614e8585e3671 21,27-28
+Sources/CLI/CHANGELOG.md
+  s_87598b246e7079::t_f42a734191b22e 13-20
+Sources/MacParakeetCore/Services/Ask/AskModelBridge.swift
+  s_87598b246e7079::t_7d65aff73a67dd 25,29-31,34-35,147,151,243-244,246
+Sources/MacParakeetCore/Services/Ask/AskSourceService.swift
+  s_87598b246e7079::t_c687b2d14a1d31 5,11-16,36-38,151-153,165,178-183,187-188,190-192,194-200,202-203,205-250,253-275,277-282,430-431,454,459,461,463,480-483,490-529
+Sources/MacParakeetCore/Services/Ask/AskWorkspaceService.swift
+  s_87598b246e7079::t_db7bb8e556b94a 325,339-341,400-401,404-408,412,414-418,420-421,424-443,503-525,527
+Tests/MacParakeetTests/Ask/AskModelBridgeTests.swift
+  s_87598b246e7079::t_a3d172796b9d48 29-44,94
+Tests/MacParakeetTests/Ask/AskRetrievalBenchmarkTests.swift
+  s_87598b246e7079::t_15ac5f7bcb06e7 1-46
+Tests/MacParakeetTests/Ask/AskSourceServiceTests.swift
+  s_87598b246e7079::t_bd137423bf79c8 313-497
+Tests/MacParakeetTests/Ask/AskWorkspaceServiceTests.swift
+  s_87598b246e7079::t_0909e295cbe714 52-174
+scripts/dev/ask_workspace_qualification.py
+  s_87598b246e7079::t_706ec291957313 80,114
+spec/adr/034-meeting-ask-workspace.md
+  s_87598b246e7079::t_a58d1219594d6d 32-34
+spec/contracts/ask-workspace.md
+  s_87598b246e7079::t_35b37b4d20db45 62-98,159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "48dcb9d4c2f80e440c3167cfa02fd5c02380ea66",
+  "prompts": {},
+  "sessions": {
+    "s_87598b246e7079": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0de16-d121-7563-85aa-e9e0aa5a2459",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
