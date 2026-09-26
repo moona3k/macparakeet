@@ -49,17 +49,29 @@ def verify_manifest(state, manifest):
     return pin
 
 
+def check_model_cache_unchanged(state, pin):
+    """Compare current model hashes to the pin accepted before CLI work ran.
+
+    Uses the already-loaded ``pin["files"]``, not a manifest re-read from disk,
+    so a run that also rewrote the manifest file cannot launder a mutated cache.
+    """
+    if model_files(state) != pin["files"]:
+        raise ValueError("Model cache changed during qualification; rejecting the run")
+
+
 def run_bounded(command, env, stdout_path, stderr_path, timeout):
-    """Reap the entire owned command group before returning from a timeout."""
+    """Terminate and reap the owned command group before returning, on every outcome."""
     with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
         process = subprocess.Popen(command, env=env, stdout=stdout, stderr=stderr,
                                    start_new_session=True)
         try:
             status = process.wait(timeout=timeout)
-        except (subprocess.TimeoutExpired, KeyboardInterrupt):
-            os.killpg(process.pid, signal.SIGKILL)
+        finally:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
             process.wait()
-            raise
     if status:
         raise ValueError(f"Command exited {status}; see {stderr_path}")
 
@@ -106,6 +118,7 @@ def qualify(args):
         # Recheck the accepted assertions independently of the shell's exit status.
         from verify_release_demo import verify
         evidence["validation"] = verify(output)
+        check_model_cache_unchanged(state, pin)
         evidence["result"] = "pass"
     except (ValueError, OSError, subprocess.TimeoutExpired, KeyboardInterrupt) as error:
         evidence["error"] = str(error)

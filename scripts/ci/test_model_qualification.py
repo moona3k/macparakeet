@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 DEV = Path(__file__).resolve().parents[1] / "dev"
@@ -82,6 +83,29 @@ class ReleaseDemoEvidenceTests(unittest.TestCase):
         (self.root / "export.md").write_text(row["rawTranscript"])
         self.assertEqual(len(verify(self.root)["matchedWords"]), 4)
 
+    def test_export_tolerates_punctuation_adjacent_whitespace_either_direction(self):
+        attached = self.text
+        separated = self.text[:-1] + " ."
+        for transcript_text, export_text in ((attached, separated), (separated, attached)):
+            with self.subTest(transcript=transcript_text):
+                row = {**self.row, "rawTranscript": transcript_text}
+                self.write("transcribe.json", row)
+                self.write("history.json", [row])
+                (self.root / "export.md").write_text(f"**[0:00]** {export_text}")
+                self.assertEqual(verify(self.root)["result"], "pass")
+
+    def test_export_missing_a_word_fails(self):
+        (self.root / "export.md").write_text(f"**[0:00]** {self.text.replace('short ', '')}")
+        with self.assertRaisesRegex(ValueError, "does not contain"):
+            verify(self.root)
+
+    def test_export_reordered_words_fails(self):
+        words = self.text.rstrip(".").split()
+        reordered = " ".join([words[1], words[0]] + words[2:]) + "."
+        (self.root / "export.md").write_text(f"**[0:00]** {reordered}")
+        with self.assertRaisesRegex(ValueError, "does not contain"):
+            verify(self.root)
+
 
 class QualificationBoundaryTests(unittest.TestCase):
     def test_changed_missing_and_extra_model_bytes_fail_pinning(self):
@@ -125,6 +149,58 @@ class QualificationBoundaryTests(unittest.TestCase):
                 with self.subTest(script=script), self.assertRaises(error):
                     qualification.run_bounded([sys.executable, "-c", script], os.environ.copy(),
                                               root / "stdout", root / "stderr", timeout)
+
+    def test_run_bounded_kills_descendants_left_by_a_successful_parent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            marker = root / "descendant-wrote"
+            child_code = f"import time; time.sleep(0.3); open({str(marker)!r}, 'w').write('x')"
+            parent_code = f"import subprocess, sys; subprocess.Popen([sys.executable, '-c', {child_code!r}])"
+            qualification.run_bounded([sys.executable, "-c", parent_code], os.environ.copy(),
+                                      root / "stdout", root / "stderr", 5)
+            time.sleep(0.5)
+            self.assertFalse(marker.exists(), "descendant survived a successful parent's exit")
+
+    def test_run_bounded_kills_descendants_left_by_a_failed_parent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            marker = root / "descendant-wrote"
+            child_code = f"import time; time.sleep(0.3); open({str(marker)!r}, 'w').write('x')"
+            parent_code = (
+                f"import subprocess, sys; subprocess.Popen([sys.executable, '-c', {child_code!r}]); sys.exit(3)"
+            )
+            with self.assertRaises(ValueError):
+                qualification.run_bounded([sys.executable, "-c", parent_code], os.environ.copy(),
+                                          root / "stdout", root / "stderr", 5)
+            time.sleep(0.5)
+            self.assertFalse(marker.exists(), "descendant survived a failed parent's exit")
+
+    def test_asset_mutated_after_a_successful_run_fails_even_if_manifest_is_rewritten(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            models = state / "FluidAudio" / "Models"
+            models.mkdir(parents=True)
+            asset = models / "model.bin"
+            asset.write_bytes(b"accepted model")
+            manifest = state / "pin.json"
+            manifest.write_text(json.dumps({"model": "parakeet-v3", "files": qualification.model_files(state)}))
+            pin = qualification.verify_manifest(state, manifest)
+            # A "successful" journey mutates a model asset and launders the manifest to match.
+            asset.write_bytes(b"mutated model")
+            manifest.write_text(json.dumps({"model": "parakeet-v3", "files": qualification.model_files(state)}))
+            with self.assertRaisesRegex(ValueError, "changed"):
+                qualification.check_model_cache_unchanged(state, pin)
+
+    def test_unmutated_asset_after_the_run_matches_the_accepted_pin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            models = state / "FluidAudio" / "Models"
+            models.mkdir(parents=True)
+            (models / "model.bin").write_bytes(b"accepted model")
+            manifest = state / "pin.json"
+            manifest.write_text(json.dumps({"model": "parakeet-v3", "files": qualification.model_files(state)}))
+            pin = qualification.verify_manifest(state, manifest)
+            qualification.check_model_cache_unchanged(state, pin)
 
     @unittest.skipUnless(sys.platform == "darwin" and qualification.SANDBOX.exists(), "macOS sandbox required")
     def test_offline_profile_denies_a_real_socket(self):

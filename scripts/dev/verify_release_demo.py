@@ -12,6 +12,18 @@ def normalized(text):
     return " ".join(unicodedata.normalize("NFKC", text).split())
 
 
+def lexical_tokens(text):
+    """Word runs and individual punctuation marks, ignoring whitespace entirely."""
+    return re.findall(r"\w+|[^\w\s]", unicodedata.normalize("NFKC", text))
+
+
+def contains_ordered_tokens(haystack, needle):
+    if not needle:
+        return True
+    span = len(needle)
+    return any(haystack[start:start + span] == needle for start in range(len(haystack) - span + 1))
+
+
 def verify(directory):
     produced = json.loads((directory / "transcribe.json").read_text())
     rows = json.loads((directory / "history.json").read_text())
@@ -42,7 +54,9 @@ def verify(directory):
         raise ValueError(f"fixture content mismatch: found {sorted(found)}, need four of {sorted(expected)}")
     markdown = (directory / "export.md").read_text()
     markdown = re.sub(r"(?m)^\*\*\[\d+(?::\d+)+(?:\.\d+)?\]\*\*\s*", "", markdown)
-    if normalized(text) not in normalized(markdown):
+    # Word timings can rejoin punctuation with different adjacent whitespace than the
+    # saved transcript; compare ordered lexical/punctuation tokens instead of raw substrings.
+    if not contains_ordered_tokens(lexical_tokens(markdown), lexical_tokens(text)):
         raise ValueError("Markdown export does not contain the persisted transcript")
     return {"result": "pass", "id": produced["id"], "matchedWords": sorted(found),
             "freshProcessRead": True, "exportContainsTranscript": True}
