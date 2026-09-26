@@ -1,0 +1,25 @@
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift
+  s_c299e83108feed::t_eccfa496e7e04e 272-273,429-431,451,973,990-991,1002-1004,1013,1262,2039-2043,2046-2047,2049-2057,2061-2069,2071-2085,2090-2092,2240,2260-2264,2281-2282
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_c299e83108feed::t_b21610ec55312f 931-986,5099-5123,5139-5148
+docs/plans/2026-09-26-preservation-and-import-responsiveness.md
+  s_c299e83108feed::t_3e9275729cf605 1-45
+spec/contracts/meeting-recovery-retention.md
+  s_c299e83108feed::t_d0f5884c8a3af0 221-237
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "91782940dca5f3352455542611437c88d6feae3b",
+  "prompts": {},
+  "sessions": {
+    "s_c299e83108feed": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dc15-ddf7-71f2-a669-23235022dc65",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
