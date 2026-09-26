@@ -1,0 +1,27 @@
+.github/workflows/ci.yml
+  s_cac8ea75717892::t_b1a4248cf32187 123-132
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingRecoveryService.swift
+  s_cac8ea75717892::t_98d5b5ba023759 652-654,662
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift
+  s_cac8ea75717892::t_bcd1a578e884b3 538-593,759,775-776,782-784
+docs/testing/meeting-process-recovery.md
+  s_cac8ea75717892::t_9461599383ce3d 5-10,53-56,75-77
+spec/contracts/meeting-recovery-retention.md
+  s_cac8ea75717892::t_6e0142469b9bef 171-172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ab86f9dc513a8f2505827e6ec56b0c86623204f2",
+  "prompts": {},
+  "sessions": {
+    "s_cac8ea75717892": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0db21-43eb-73f3-b873-a8a718ab6d72",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

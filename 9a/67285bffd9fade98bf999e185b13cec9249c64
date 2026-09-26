@@ -1,0 +1,21 @@
+docs/release-demo-smoke.md
+  s_f7d910b9ac8fa3::t_d379f9cc8d0ce1 46,48-49,55-59,62-65
+  s_f7d910b9ac8fa3::t_e5891c2d63f3fd 6-13
+  s_f7d910b9ac8fa3::t_1820f80b54b6cd 83-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9a67285bffd9fade98bf999e185b13cec9249c64",
+  "prompts": {},
+  "sessions": {
+    "s_f7d910b9ac8fa3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f1cdd61-60a9-4dc6-aeb1-b60e58ae0f2e",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+docs/testing/native-library-e2e.md
+  s_ac1cfd890e6fc6::t_991e7e05ef8f77 6-18
+  s_ac1cfd890e6fc6::t_0ad627df355c62 31-35
+scripts/ci/test_native_library_runner.py
+  s_ac1cfd890e6fc6::t_50d02276171a28 111-113,118,121,123,125,128-134,136-140,142-152,154-180
+  s_ac1cfd890e6fc6::t_23f6932d0cab46 4
+  s_ac1cfd890e6fc6::t_43296054804493 50-110,119,127,135,141,153,181
+  s_ac1cfd890e6fc6::t_83218b425c3b2a 5,9
+  s_ac1cfd890e6fc6::t_162915d87e34eb 114-117,120,122,124,126
+scripts/testing/native-library-e2e.py
+  s_ac1cfd890e6fc6::t_a80279445115bd 91-106
+  s_ac1cfd890e6fc6::t_e17f70071985ad 71-90
+  s_ac1cfd890e6fc6::t_d55d0b8f391b36 135
+  s_ac1cfd890e6fc6::t_2c9af60d1f2ebb 157
+  s_ac1cfd890e6fc6::t_caef12a60776d5 198-199
+  s_ac1cfd890e6fc6::t_0c92e67d8977aa 39-41,43-46,50-51,54-56,59-60,62-66
+  s_ac1cfd890e6fc6::t_e089df28c706e2 42,58
+  s_ac1cfd890e6fc6::t_18fa41687940a6 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ce36cfc384073507aa13c9e3765572c2c4122749",
+  "prompts": {},
+  "sessions": {
+    "s_ac1cfd890e6fc6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f0bd110e-2876-4b33-b8da-0043bf5f9690",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

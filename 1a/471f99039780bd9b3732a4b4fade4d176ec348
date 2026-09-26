@@ -1,0 +1,19 @@
+docs/testing/native-library-e2e.md
+  s_06f175cf9d0d1f::t_5eb4edb0318989 41-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1a471f99039780bd9b3732a4b4fade4d176ec348",
+  "prompts": {},
+  "sessions": {
+    "s_06f175cf9d0d1f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e0e9f855-cfaa-454a-9f3d-6bfe52aed914",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
