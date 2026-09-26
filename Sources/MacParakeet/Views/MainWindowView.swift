@@ -38,7 +38,9 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     /// universal archive; Meetings is the workflow space for live/upcoming
     /// and saved meeting work.
     static var primaryItems: [SidebarItem] {
-        var items: [SidebarItem] = [.transcribe, .library, .ask, .dictations]
+        var items: [SidebarItem] = [.transcribe, .library]
+        if AppFeatures.isAskWorkspaceAvailable() { items.append(.ask) }
+        items.append(.dictations)
         if AppFeatures.meetingRecordingEnabled {
             items.append(.meetings)
         }
@@ -211,6 +213,7 @@ struct MainWindowView: View {
                                     showingPromptLibrary = true
                                 },
                                 onAskSelected: { ids in
+                                    guard AppFeatures.isAskWorkspaceAvailable() else { return }
                                     let destinationBeforeHandoff = state.selectedItem
                                     Task {
                                         await askWorkspaceViewModel.startFromLibrary(sourceIDs: ids)
@@ -227,11 +230,13 @@ struct MainWindowView: View {
                             }
                         }
                     case .ask:
-                        AskWorkspaceView(
-                            model: askWorkspaceViewModel,
-                            onOpenAISettings: { state.navigateToSettings(tab: .ai) },
-                            onOpenSource: onOpenAskSource
-                        )
+                        if AppFeatures.isAskWorkspaceAvailable() {
+                            AskWorkspaceView(
+                                model: askWorkspaceViewModel,
+                                onOpenAISettings: { state.navigateToSettings(tab: .ai) },
+                                onOpenSource: onOpenAskSource
+                            )
+                        }
                     case .dictations:
                         DictationHistoryView(viewModel: historyViewModel)
                     case .sharedPages:
@@ -259,7 +264,8 @@ struct MainWindowView: View {
                                     Task {
                                         if await transformsViewModel.save(prompt) {
                                             state.isCreatingTransform = false
-                                            NotificationCenter.default.post(name: .transformsBindingsChanged, object: nil)
+                                            NotificationCenter.default.post(
+                                                name: .transformsBindingsChanged, object: nil)
                                         }
                                     }
                                 },
@@ -277,24 +283,27 @@ struct MainWindowView: View {
                                     Task {
                                         if await transformsViewModel.save(prompt) {
                                             state.editingTransform = nil
-                                            NotificationCenter.default.post(name: .transformsBindingsChanged, object: nil)
+                                            NotificationCenter.default.post(
+                                                name: .transformsBindingsChanged, object: nil)
                                         }
                                     }
                                 },
                                 onCancel: { state.editingTransform = nil },
-                                onReset: transform.isBuiltIn ? {
-                                    Task {
-                                        if await transformsViewModel.resetBuiltIn(
-                                            transform,
-                                            reservedHotkeys: transformReservedHotkeys
-                                        ) {
-                                            state.editingTransform = nil
-                                            NotificationCenter.default.post(name: .transformsBindingsChanged, object: nil)
-                                        } else {
-                                            state.editingTransform = nil
+                                onReset: transform.isBuiltIn
+                                    ? {
+                                        Task {
+                                            if await transformsViewModel.resetBuiltIn(
+                                                transform,
+                                                reservedHotkeys: transformReservedHotkeys
+                                            ) {
+                                                state.editingTransform = nil
+                                                NotificationCenter.default.post(
+                                                    name: .transformsBindingsChanged, object: nil)
+                                            } else {
+                                                state.editingTransform = nil
+                                            }
                                         }
-                                    }
-                                } : nil
+                                    } : nil
                             )
                         }
                     case .vocabulary:
@@ -351,7 +360,8 @@ struct MainWindowView: View {
         ) {
             PromptLibraryView(viewModel: promptsViewModel)
         }
-        .sheet(item: Binding(get: { shareManagementViewModel?.draft }, set: { shareManagementViewModel?.draft = $0 })) { draft in
+        .sheet(item: Binding(get: { shareManagementViewModel?.draft }, set: { shareManagementViewModel?.draft = $0 })) {
+            draft in
             if let sharing = shareManagementViewModel {
                 ShareTranscriptSheet(draft: draft, management: sharing)
                     .onDisappear { Task { await sharing.refresh() } }
@@ -410,8 +420,10 @@ struct MainWindowView: View {
                 name: "clipboard-only dictation",
                 trigger: settingsViewModel.dictationClipboardHotkeyTrigger
             ),
-            TransformShortcutReservedHotkey(name: "file transcription", trigger: settingsViewModel.fileTranscriptionHotkeyTrigger),
-            TransformShortcutReservedHotkey(name: "video URL transcription", trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger),
+            TransformShortcutReservedHotkey(
+                name: "file transcription", trigger: settingsViewModel.fileTranscriptionHotkeyTrigger),
+            TransformShortcutReservedHotkey(
+                name: "video URL transcription", trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger),
             TransformShortcutReservedHotkey(
                 name: "AI polish this dictation",
                 trigger: settingsViewModel.dictationAIPolishHotkeyTrigger,
@@ -419,7 +431,9 @@ struct MainWindowView: View {
             ),
         ]
         if AppFeatures.meetingRecordingEnabled {
-            reserved.append(TransformShortcutReservedHotkey(name: "meeting recording", trigger: settingsViewModel.meetingHotkeyTrigger))
+            reserved.append(
+                TransformShortcutReservedHotkey(
+                    name: "meeting recording", trigger: settingsViewModel.meetingHotkeyTrigger))
         }
         return reserved.filter { !$0.trigger.isDisabled }
     }
@@ -452,12 +466,14 @@ struct MainWindowView: View {
                 }
 
                 HStack(spacing: 6) {
-                    Text(transcriptionViewModel.isBatchActive
-                        ? transcriptionViewModel.batchStatusHeadline
-                        : transcriptionViewModel.progressHeadline)
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    Text(
+                        transcriptionViewModel.isBatchActive
+                            ? transcriptionViewModel.batchStatusHeadline
+                            : transcriptionViewModel.progressHeadline
+                    )
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
 
                     Text("\u{00B7}")
                         .foregroundStyle(.tertiary)

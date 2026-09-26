@@ -46,6 +46,39 @@ class AskWorkspaceQualificationTests(unittest.TestCase):
         self.assertNotIn("private-test-value", (self.output / "redacted.json").read_text())
         self.assertEqual(harness.db, self.output.resolve() / "synthetic.sqlite")
 
+    def test_runtime_qualification_explicitly_opts_into_developer_feature(self):
+        harness = qualification.Qualification(self.args())
+        self.assertIn("--enable-ask-workspace", harness.command("list"))
+        self.assertNotIn("--enable-ask-workspace", harness.command("list", enable=False))
+
+    def test_disabled_qualification_checks_both_modes_and_no_provider_calls(self):
+        harness = qualification.Qualification(self.args())
+        fixture = self.provider()
+        rejection = {"errorType": "validation", "error": "Ask workspace is disabled."}
+        with patch.object(harness, "invoke", return_value=rejection) as invoke:
+            harness.disabled(fixture)
+        self.assertEqual([call.kwargs["enable"] for call in invoke.call_args_list], [False, False, True, True])
+        self.assertFalse(harness.db.exists())
+        self.assertFalse(fixture.requests)
+
+    def test_disabled_qualification_detects_database_creation(self):
+        harness = qualification.Qualification(self.args())
+        fixture = self.provider()
+        harness.db.touch()
+        rejection = {"errorType": "validation", "error": "Ask workspace is disabled."}
+        with patch.object(harness, "invoke", return_value=rejection):
+            with self.assertRaisesRegex(AssertionError, "created database"):
+                harness.disabled(fixture)
+
+    def test_disabled_qualification_detects_provider_access(self):
+        harness = qualification.Qualification(self.args())
+        fixture = self.provider()
+        fixture.requests.append({"unexpected": True})
+        rejection = {"errorType": "validation", "error": "Ask workspace is disabled."}
+        with patch.object(harness, "invoke", return_value=rejection):
+            with self.assertRaisesRegex(AssertionError, "contacted provider"):
+                harness.disabled(fixture)
+
     def test_synthetic_seed_uses_grdb_uuid_blob_keys(self):
         harness = qualification.Qualification(self.args())
         with closing(sqlite3.connect(harness.db)) as db, db:

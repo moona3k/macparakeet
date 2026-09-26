@@ -1320,6 +1320,10 @@ explicit consent for the configured endpoint and has no fallback. See the
 [Ask workspace contract](contracts/ask-workspace.md) for persistence, limits,
 provider consent, CLI and failure-state details.
 
+The workspace is default-off under `AppFeatures.askWorkspaceEnabled`. Debug
+app/CLI builds require `--enable-ask-workspace`; Release builds ignore that
+opt-in. Model and native qualification are required before enabling it.
+
 ---
 
 ### F11: Video & Podcast URL Transcription

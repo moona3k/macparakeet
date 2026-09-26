@@ -149,6 +149,14 @@ private extension CLISpecCommand {
         summary: "Use a specific MacParakeet SQLite database instead of the app default."
     )
 
+    static let askAvailabilitySummary =
+        " Experimental Ask is disabled by default. Debug builds require --enable-ask-workspace; Release builds reject Ask even with that flag, before database or provider access."
+
+    static let askDeveloperFlag = CLISpecParameter.flag(
+        "--enable-ask-workspace",
+        summary: "Opt in to experimental Ask in a Debug build. Release builds always reject Ask."
+    )
+
     static let llmInlineOptions: [CLISpecParameter] = [
         CLISpecParameter.option(
             "--provider", valueName: "ID", required: true,
@@ -168,39 +176,51 @@ private extension CLISpecCommand {
 
     static let catalog: [CLISpecCommand] = [
         CLISpecCommand(
-            ["ask", "list"], summary: "List independent saved Ask conversations.", jsonMode: "default",
-            options: [databaseOption],
+            ["ask", "list"], summary: "List independent saved Ask conversations." + askAvailabilitySummary,
+            jsonMode: "default",
+            options: [databaseOption, askDeveloperFlag],
             output: "Array of AskConversation objects, including revision, sections, messages and draft."
         ),
         CLISpecCommand(
-            ["ask", "new"], summary: "Create a conversation with up to 32 explicitly selected recordings.",
+            ["ask", "new"],
+            summary: "Create a conversation with up to 32 explicitly selected recordings." + askAvailabilitySummary,
             readOnly: false, jsonMode: "default",
-            options: [databaseOption, .option("--source", valueName: "UUID...", summary: "Full recording UUIDs.")],
+            options: [
+                databaseOption, askDeveloperFlag,
+                .option("--source", valueName: "UUID...", summary: "Full recording UUIDs."),
+            ],
             output: "AskConversation object."
         ),
         CLISpecCommand(
-            ["ask", "show"], summary: "Read a saved conversation.", jsonMode: "default",
-            arguments: [.argument("id", summary: "Full conversation UUID.")], options: [databaseOption],
+            ["ask", "show"], summary: "Read a saved conversation." + askAvailabilitySummary, jsonMode: "default",
+            arguments: [.argument("id", summary: "Full conversation UUID.")],
+            options: [databaseOption, askDeveloperFlag],
             output: "AskConversation object."
         ),
         CLISpecCommand(
-            ["ask", "rename"], summary: "Rename a conversation with optimistic concurrency.", readOnly: false,
+            ["ask", "rename"], summary: "Rename a conversation with optimistic concurrency." + askAvailabilitySummary,
+            readOnly: false,
             jsonMode: "default",
             arguments: [.argument("id", summary: "Full UUID."), .argument("title", summary: "New title.")],
             options: [
-                databaseOption, .option("--revision", valueName: "N", required: true, summary: "Expected revision."),
+                databaseOption, askDeveloperFlag,
+                .option("--revision", valueName: "N", required: true, summary: "Expected revision."),
             ],
             output: "Updated AskConversation object."
         ),
         CLISpecCommand(
-            ["ask", "delete"], summary: "Delete an Ask conversation while preserving recordings.", readOnly: false,
-            jsonMode: "default", arguments: [.argument("id", summary: "Full UUID.")], options: [databaseOption],
+            ["ask", "delete"],
+            summary: "Delete an Ask conversation while preserving recordings." + askAvailabilitySummary,
+            readOnly: false,
+            jsonMode: "default", arguments: [.argument("id", summary: "Full UUID.")],
+            options: [databaseOption, askDeveloperFlag],
             output: "Object containing deleted UUID."
         ),
         CLISpecCommand(
-            ["ask", "sources"], summary: "Search/filter recording metadata or list labels.", jsonMode: "default",
+            ["ask", "sources"], summary: "Search/filter recording metadata or list labels." + askAvailabilitySummary,
+            jsonMode: "default",
             options: [
-                databaseOption, .option("--search", valueName: "TEXT", summary: "Title search."),
+                databaseOption, askDeveloperFlag, .option("--search", valueName: "TEXT", summary: "Title search."),
                 .option("--type", valueName: "KIND", summary: "meeting, file, youtube, podcast."),
                 .option("--since", valueName: "DATE", summary: "Inclusive start date."),
                 .option("--until", valueName: "DATE", summary: "Inclusive end date."),
@@ -211,30 +231,37 @@ private extension CLISpecCommand {
             ], output: "Array of AskSourceDescriptor or MeetingLabel objects."
         ),
         CLISpecCommand(
-            ["ask", "select"], summary: "Replace the selected sources; starts a fresh context section.",
+            ["ask", "select"],
+            summary: "Replace the selected sources; starts a fresh context section." + askAvailabilitySummary,
             readOnly: false,
             jsonMode: "default", arguments: [.argument("id", summary: "Full conversation UUID.")],
             options: [
-                databaseOption, .option("--revision", valueName: "N", required: true, summary: "Expected revision."),
+                databaseOption, askDeveloperFlag,
+                .option("--revision", valueName: "N", required: true, summary: "Expected revision."),
                 .option("--source", valueName: "UUID...", summary: "Full recording UUIDs; omission clears selection."),
             ],
             output: "Updated AskConversation object."
         ),
         CLISpecCommand(
-            ["ask", "draft"], summary: "Persist an unsent question.", readOnly: false, jsonMode: "default",
+            ["ask", "draft"], summary: "Persist an unsent question." + askAvailabilitySummary, readOnly: false,
+            jsonMode: "default",
             arguments: [.argument("id", summary: "Full UUID."), .argument("text", summary: "Draft text.")],
             options: [
-                databaseOption, .option("--revision", valueName: "N", required: true, summary: "Expected revision."),
+                databaseOption, askDeveloperFlag,
+                .option("--revision", valueName: "N", required: true, summary: "Expected revision."),
             ],
             output: "Updated AskConversation object."
         ),
         CLISpecCommand(
             ["ask", "send"],
-            summary: "Investigate selected recordings through Pi and an explicit direct model provider. The cli provider is unsupported.",
+            summary:
+                "Investigate selected recordings through Pi and an explicit direct model provider. The cli provider is unsupported."
+                + askAvailabilitySummary,
             readOnly: false, jsonMode: "default; --stream for NDJSON",
             arguments: [.argument("id", summary: "Full UUID.")],
             options: [
-                databaseOption, .option("--revision", valueName: "N", required: true, summary: "Expected revision."),
+                databaseOption, askDeveloperFlag,
+                .option("--revision", valueName: "N", required: true, summary: "Expected revision."),
                 .option("--question", valueName: "TEXT", required: true, summary: "Question to investigate."),
                 .flag("--allow-remote", summary: "Permit sending selected context to this remote provider."),
                 .flag("--stream", summary: "Emit activity/text/final conversation events as NDJSON."),
@@ -243,11 +270,12 @@ private extension CLISpecCommand {
                 "Updated AskConversation; terminal message status complete, failed, cancelled, or incomplete. Failed answers exit 1."
         ),
         CLISpecCommand(
-            ["ask", "evidence"], summary: "Resolve a citation against the current transcript revision.",
+            ["ask", "evidence"],
+            summary: "Resolve a citation against the current transcript revision." + askAvailabilitySummary,
             jsonMode: "default",
             arguments: [.argument("source", summary: "Full recording UUID.")],
             options: [
-                databaseOption,
+                databaseOption, askDeveloperFlag,
                 .option("--source-revision", valueName: "HASH", required: true, summary: "Revision from citation."),
                 .option("--segment", valueName: "N", required: true, summary: "Zero-based passage index."),
             ],

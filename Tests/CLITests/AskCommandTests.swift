@@ -5,6 +5,9 @@ import MacParakeetCore
 
 final class AskCommandTests: XCTestCase {
     func testAskConversationLifecycleAndExplicitRevisionsThroughCLI() async throws {
+        try XCTSkipUnless(
+            AppFeatures.isAskWorkspaceAvailable(arguments: [AppFeatures.askWorkspaceDeveloperLaunchArgument]),
+            "Ask workspace requires a developer build.")
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -46,8 +49,50 @@ final class AskCommandTests: XCTestCase {
             ]))
     }
 
+    func testEveryAskCommandRejectsBeforeOpeningDatabaseWithoutDeveloperOptIn() async throws {
+        try await assertDisabledCommands(extraArguments: [])
+    }
+
+    func testReleaseBuildRejectsDeveloperOptInBeforeOpeningDatabase() async throws {
+        #if DEBUG
+        throw XCTSkip("Release-only containment check.")
+        #else
+        try await assertDisabledCommands(extraArguments: ["--enable-ask-workspace"])
+        #endif
+    }
+
+    private func assertDisabledCommands(extraArguments: [String]) async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let path = directory.appendingPathComponent("must-not-exist.sqlite").path
+        let id = UUID().uuidString
+        let commands = [
+            ["list"], ["new"], ["show", id], ["rename", id, "Title", "--revision", "0"],
+            ["delete", id], ["sources"], ["select", id, "--revision", "0"],
+            ["draft", id, "Question", "--revision", "0"],
+            ["send", id, "--question", "When?", "--revision", "0", "--provider", "ollama"],
+            ["evidence", id, "--source-revision", "revision", "--segment", "0"],
+        ]
+        for arguments in commands {
+            var command = try XCTUnwrap(
+                try CLI.parseAsRoot(["ask"] + arguments + extraArguments + ["--database", path])
+                    as? any AsyncParsableCommand)
+            var thrownError: Error?
+            let output = try await captureStandardOutput {
+                do { try await command.run() } catch { thrownError = error }
+            }
+            let error = try XCTUnwrap(thrownError, "Command should reject: \(arguments)")
+            XCTAssertEqual(CLI.normalizedExitCode(for: error), cliValidationMisuseExitCode)
+            let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+            XCTAssertEqual(object["errorType"] as? String, "validation")
+            XCTAssertTrue((object["error"] as? String)?.contains("Ask workspace is disabled") == true)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
+        }
+    }
+
     private func run(_ arguments: [String]) async throws -> String {
-        var command = try XCTUnwrap(try CLI.parseAsRoot(["ask"] + arguments) as? any AsyncParsableCommand)
+        var command = try XCTUnwrap(
+            try CLI.parseAsRoot(["ask"] + arguments + ["--enable-ask-workspace"]) as? any AsyncParsableCommand)
         return try await captureStandardOutput { try await command.run() }
     }
 }

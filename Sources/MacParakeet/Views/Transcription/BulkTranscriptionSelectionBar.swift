@@ -1,4 +1,5 @@
 import SwiftUI
+import MacParakeetCore
 
 struct BulkTranscriptionSelectionBar: View {
     let selectedCount: Int
@@ -25,7 +26,8 @@ struct BulkTranscriptionSelectionBar: View {
         if isMeetingContext {
             return "Remove Audio Only..."
         }
-        return "Remove Audio for \(selectedMeetingAudioCount) \(selectedMeetingAudioCount == 1 ? "Meeting" : "Meetings")..."
+        return
+            "Remove Audio for \(selectedMeetingAudioCount) \(selectedMeetingAudioCount == 1 ? "Meeting" : "Meetings")..."
     }
 
     private var deleteItemsTitle: String {
@@ -199,7 +201,7 @@ struct BulkTranscriptionSelectionBar: View {
 
     @ViewBuilder
     private var askAction: some View {
-        if let onAskSelected {
+        if AppFeatures.isAskWorkspaceAvailable(), let onAskSelected {
             SelectionBarActionButton(
                 title: "Ask selected",
                 systemImage: "text.bubble",

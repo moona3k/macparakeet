@@ -65,18 +65,34 @@ final class MainWindowStateTests: XCTestCase {
         XCTAssertEqual(state.selectedItem, .meetings)
     }
 
-    func testNavigateToAskSelectsWorkspace() {
-        let state = MainWindowState()
+    func testNavigateToAskSelectsWorkspaceWhenEnabled() {
+        let state = MainWindowState(askWorkspaceAvailable: true)
         state.navigateToAsk()
         XCTAssertEqual(state.selectedItem, .ask)
     }
 
-    func testPrimarySidebarOrderRespectsMeetingFeatureFlag() {
-        var expected: [SidebarItem] = [.transcribe, .library, .ask, .dictations]
+    func testDisabledAskNavigationFallsBackToLibrary() {
+        let state = MainWindowState(askWorkspaceAvailable: false)
+        state.navigateToAsk()
+        XCTAssertEqual(state.selectedItem, .library)
+
+        state.navigate(to: .ask)
+        XCTAssertEqual(state.selectedItem, .library)
+
+        state.selectedItem = .ask
+        XCTAssertEqual(state.selectedItem, .library)
+    }
+
+    func testPrimarySidebarOrderRespectsFeatureFlags() {
+        var expected: [SidebarItem] = [.transcribe, .library]
+        if AppFeatures.isAskWorkspaceAvailable() { expected.append(.ask) }
+        expected.append(.dictations)
         if AppFeatures.meetingRecordingEnabled {
             expected.append(.meetings)
         }
+        if AppFeatures.isShareLinksAvailable() { expected.append(.sharedPages) }
         XCTAssertEqual(SidebarItem.primaryItems, expected)
+        XCTAssertEqual(SidebarItem.primaryItems.contains(.ask), AppFeatures.isAskWorkspaceAvailable())
     }
 
     func testPromptsAreManagedInContextRatherThanFromTheSidebar() {

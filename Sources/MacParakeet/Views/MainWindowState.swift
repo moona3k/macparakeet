@@ -5,11 +5,24 @@ import MacParakeetViewModels
 @MainActor
 @Observable
 final class MainWindowState {
-    var selectedItem: SidebarItem = .transcribe
+    private let askWorkspaceAvailable: Bool
+
+    var selectedItem: SidebarItem = .transcribe {
+        didSet {
+            if selectedItem == .ask, !askWorkspaceAvailable {
+                selectedItem = .library
+            }
+        }
+    }
+
     var requestedSettingsTab: SettingsTab?
     var requestedSettingsAnchor: String?
     var requestedSettingsTabRevision = 0
     var showingProgressDetail = false
+
+    init(askWorkspaceAvailable: Bool = AppFeatures.isAskWorkspaceAvailable()) {
+        self.askWorkspaceAvailable = askWorkspaceAvailable
+    }
 
     func navigateToSettings(tab: SettingsTab? = nil, anchor: String? = nil) {
         requestedSettingsTab = tab

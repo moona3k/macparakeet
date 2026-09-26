@@ -5,7 +5,10 @@ Example:
   python3 scripts/dev/ask_workspace_qualification.py --cli /path/to/macparakeet-cli \
     --output-dir /tmp/ask-qualification-new
 
-The default scripted loopback provider tests integration, not model intelligence.
+The default mode explicitly opts in with --enable-ask-workspace and requires a
+Debug CLI. The scripted loopback provider tests integration, not model intelligence.
+Use --expect-disabled with a Release CLI to prove the workspace stays unavailable,
+even with the developer flag, without opening its database or calling a provider.
 Add --endpoint http://127.0.0.1:1234/v1 --model MODEL --provider lmstudio to
 also run the evidence workflows against a real model. Remote endpoints require
 --allow-remote; credentials are accepted only through --api-key-env NAME.
@@ -218,13 +221,14 @@ class Qualification:
             text = text.replace(secret, "[REDACTED]")
         (self.output / name).write_text(text + "\n")
 
-    def command(self, *args):
-        return [str(self.args.cli.resolve()), "ask", *map(str, args), "--database", str(self.db)]
+    def command(self, *args, enable=True):
+        opt_in = ["--enable-ask-workspace"] if enable else []
+        return [str(self.args.cli.resolve()), "ask", *map(str, args), *opt_in, "--database", str(self.db)]
 
-    def invoke(self, label, *args, success=True):
+    def invoke(self, label, *args, success=True, enable=True):
         self.sequence += 1
         prefix = f"{self.sequence:02d}-{label}"
-        with subprocess.Popen(self.command(*args), env=self.env, stdout=subprocess.PIPE,
+        with subprocess.Popen(self.command(*args, enable=enable), env=self.env, stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE, text=True, start_new_session=True) as process:
             try:
                 stdout, stderr = process.communicate(timeout=self.args.timeout)
@@ -264,6 +268,18 @@ class Qualification:
             raise
         else:
             self.report["checks"].append({"name": name, "status": "passed", "seconds": round(time.monotonic()-start, 2)})
+
+    def disabled(self, fixture):
+        for enable in (False, True):
+            for arguments in (("list",), ("send", A, "--revision", "0", "--question", QUESTION,
+                                          *self.provider_flags(fixture))):
+                label = f"disabled-{arguments[0]}-opt-in-{enable}"
+                result = self.invoke(label, *arguments, success=False, enable=enable)
+                require(isinstance(result, dict) and result.get("errorType") == "validation"
+                        and "Ask workspace is disabled" in result.get("error", ""),
+                        f"{label}: expected explicit feature-gate rejection")
+                require(not list(self.output.glob("synthetic.sqlite*")), f"{label}: disabled command created database files")
+                require(not fixture.requests, f"{label}: disabled command contacted provider")
 
     def seed(self):
         self.invoke("initialize", "list")
@@ -412,20 +428,26 @@ class Qualification:
         thread = threading.Thread(target=fixture.serve_forever, daemon=True)
         thread.start()
         try:
-            self.check("isolated synthetic database", self.seed)
-            if not self.args.real_only:
-                self.check("scripted tools, streaming, persistence, follow-up, scope and stale citations", lambda: self.workflows(fixture))
-                self.check("provider consent rejects before mutation or network", lambda: self.consent(fixture))
-                self.check("provider failure persists failed answer", lambda: self.failure(fixture, "failure"))
-                self.check("uncited answer remains incomplete", lambda: self.failure(fixture, "uncited"))
-                self.check("malformed action repair is bounded", lambda: self.repair(fixture))
-                self.check("concurrent lease exclusion and process-interruption recovery", lambda: self.interruption(fixture))
-            if self.args.endpoint:
-                self.report["real_model"] = {"provider": self.args.provider, "model": self.args.model, "endpoint_host": urllib.parse.urlsplit(self.args.endpoint).hostname,
-                                             "qualification": "Small synthetic regression only; does not establish broad reasoning quality or native responsiveness."}
-                self.check("real-model evidence workflows", self.workflows)
-            else:
+            if self.args.expect_disabled:
+                self.report["mode"] = "release-gate"
+                self.check("Ask rejects default and developer opt-in before database or provider access",
+                           lambda: self.disabled(fixture))
                 self.report["real_model"] = {"status": "not_run"}
+            else:
+                self.check("isolated synthetic database", self.seed)
+                if not self.args.real_only:
+                    self.check("scripted tools, streaming, persistence, follow-up, scope and stale citations", lambda: self.workflows(fixture))
+                    self.check("provider consent rejects before mutation or network", lambda: self.consent(fixture))
+                    self.check("provider failure persists failed answer", lambda: self.failure(fixture, "failure"))
+                    self.check("uncited answer remains incomplete", lambda: self.failure(fixture, "uncited"))
+                    self.check("malformed action repair is bounded", lambda: self.repair(fixture))
+                    self.check("concurrent lease exclusion and process-interruption recovery", lambda: self.interruption(fixture))
+                if self.args.endpoint:
+                    self.report["real_model"] = {"provider": self.args.provider, "model": self.args.model, "endpoint_host": urllib.parse.urlsplit(self.args.endpoint).hostname,
+                                                 "qualification": "Small synthetic regression only; does not establish broad reasoning quality or native responsiveness."}
+                    self.check("real-model evidence workflows", self.workflows)
+                else:
+                    self.report["real_model"] = {"status": "not_run"}
             self.report["status"] = "passed"
         except (Exception, KeyboardInterrupt) as error:
             self.report["status"] = "failed"
@@ -448,6 +470,7 @@ def main():
     parser.add_argument("--timeout", type=int, default=210, help="Maximum seconds per CLI invocation (default: 210)")
     parser.add_argument("--endpoint", help="Explicit OpenAI-compatible real-model endpoint including /v1")
     parser.add_argument("--model")
+    parser.add_argument("--expect-disabled", action="store_true", help="Verify Release CLI rejects Ask with and without developer opt-in; no database is created")
     parser.add_argument("--real-only", action="store_true", help="Run only real-model evidence workflows, after separate scripted qualification")
     parser.add_argument("--provider", choices=("lmstudio", "openaiCompatible"), default="lmstudio")
     parser.add_argument("--allow-remote", action="store_true", help="Explicitly allow sending synthetic context to configured remote provider")
@@ -459,6 +482,8 @@ def main():
         parser.error("--timeout must be 10...600 seconds")
     if bool(args.endpoint) != bool(args.model):
         parser.error("--endpoint and --model must be specified together")
+    if args.expect_disabled and (args.endpoint or args.real_only or args.api_key_env or args.allow_remote):
+        parser.error("--expect-disabled cannot be combined with real-model options")
     if args.real_only and not args.endpoint:
         parser.error("--real-only requires --endpoint and --model")
     if args.api_key_env and not args.endpoint:

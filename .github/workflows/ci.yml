@@ -244,6 +244,13 @@ jobs:
           set -o pipefail
           swift build -c release 2>&1 | tee ci-logs/swift-build-release.log
 
+      - name: Ask Release Gate
+        timeout-minutes: 2
+        run: |
+          python3 scripts/dev/ask_workspace_qualification.py \
+            --cli .build/release/macparakeet-cli \
+            --output-dir ci-logs/ask-disabled --expect-disabled
+
       - name: Release Bundle Smoke
         timeout-minutes: 25
         env:

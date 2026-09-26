@@ -186,7 +186,7 @@ struct TranscriptionLibraryView: View {
                 Button("Cancel", role: .cancel) {
                     pendingDelete = nil
                 }
-                if let onReviewAskConversations {
+                if AppFeatures.isAskWorkspaceAvailable(), let onReviewAskConversations {
                     Button("Review Ask conversations") {
                         pendingDelete = nil
                         onReviewAskConversations()
@@ -257,8 +257,10 @@ struct TranscriptionLibraryView: View {
                 Button("Cancel", role: .cancel) {
                     viewModel.cancelPendingBulkOperation()
                 }
-                if viewModel.pendingBulkOperation?.isDeleteAudioOnly == false,
-                   let onReviewAskConversations {
+                if AppFeatures.isAskWorkspaceAvailable(),
+                    viewModel.pendingBulkOperation?.isDeleteAudioOnly == false,
+                    let onReviewAskConversations
+                {
                     Button("Review Ask conversations") {
                         viewModel.cancelPendingBulkOperation()
                         onReviewAskConversations()
@@ -1119,7 +1121,9 @@ struct TranscriptionLibraryView: View {
     }
 
     private var askHistoryDeletionNote: String {
-        " Saved Ask answers may still contain quotations or conclusions from deleted recordings. Review and delete those conversations separately in Ask if needed."
+        guard AppFeatures.isAskWorkspaceAvailable() else { return "" }
+        return
+            " Saved Ask answers may still contain quotations or conclusions from deleted recordings. Review and delete those conversations separately in Ask if needed."
     }
 
     private func handleSelectionKeyPress(_ press: KeyPress) -> KeyPress.Result {

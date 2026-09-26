@@ -22,7 +22,9 @@ is corrected in `2b74a9e73`. Later review commits must retain these boundaries.
    despite successful model transport. Both tested local models remain
    unqualified for Ask.
 
-These issues block a merge-ready/runtime-qualified verdict even if CI passes.
+These issues block enabling/releasing Ask. As of the 2026-09-26 default-off
+decision, dormant integration on main is allowed after flag-off behavior and
+CI pass; it does not establish runtime qualification.
 No stable release, notarized distribution, or update publication was performed.
 
 ## CLI hardening follow-up (2026-09-26)
@@ -52,12 +54,13 @@ python3 scripts/dev/ask_workspace_qualification.py \
   --model qwen/qwen3-4b-2507
 ```
 
-Final focused validation passed 121 Swift tests (including the actual helper with
+Before the feature gate, focused validation passed 121 Swift tests (including the actual helper with
 bundled Node), 14 helper tests, and 8 Python harness tests. Changed Swift lint,
 workflow YAML parsing, subsystem README references, and diff checks passed.
 The final scripted runner passed all seven groups against CLI SHA-256
 `7d8dbafea4aa73419f2ac751d61544cc9410ccda2644deb60b13e1d7565693b8`.
-CI now runs the runner against a standalone package built from the Release CLI
+CI runs the opted-in runner against a standalone package built from the Debug CLI
+and separately verifies that the Release CLI refuses both normal and developer-opt-in access
 and retains its synthetic reports in the uploaded CI logs.
 
 Output directories must be new or empty. They retain a JSON report, CLI binary
@@ -86,6 +89,27 @@ is made.
 Process interruption is not a test of the native Stop control. Initial fixture
 failures were corrected: GRDB UUID keys use BLOB storage and UUID-keyed JSON
 maps may reorder pairs without changing their values.
+
+## Default-off integration checks (2026-09-26)
+
+The flag change keeps Ask off in normal launches and all Release builds.
+Debug app/CLI evaluation requires `--enable-ask-workspace`. Normal app startup
+constructs no Ask service; all CLI commands reject before database or provider
+access. Sidebar, Library actions, and direct navigation are gated. Existing
+transcript and live meeting chat remain separate.
+
+The focused post-gate run passed 201 tests (one unrelated skip), including
+workspace behavior, CLI gating, navigation, and existing chat coverage. The
+subsequent 38-test contract/navigation rerun passed (one unrelated skip); all
+12 Python harness tests passed.
+Compiling the actual `AppFeatures.swift` in both modes proved Debug requires
+opt-in and Release ignores it. An actual default-off CLI invocation returned
+validation exit 2 and created no database. CI separately checks the complete
+Release executable with and without opt-in, and tests the opted-in Debug
+package through the full scripted qualification runner. The post-gate packaged
+Debug run also passed all seven groups locally, including natural lease-expiry
+recovery, with CLI SHA-256
+`723f133f0c71d93c2db49b94f18e7955a36c1b2dceafd91e3931e10654c83d8c`.
 
 ## Automated evidence
 
@@ -167,6 +191,6 @@ This used the debug CLI build and scripted provider, not a notarized release.
   passing model action is necessary but not sufficient: the answer must retrieve
   the late reversal, cite both sources, survive follow-ups, and exclude removed
   context. This architecture work is deferred; current real-model failures
-  continue to block merge readiness.
+  continue to block enabling the feature.
 - Complete the PR gate and hosted CI, recording their exact result separately.
 - Qualify signed distribution/upgrade behavior before any release work.

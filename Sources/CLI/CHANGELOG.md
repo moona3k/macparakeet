@@ -105,6 +105,9 @@ channel.
   conversation revisions; `send` requires an explicit inline provider and
   `--revision`, requires `--allow-remote` for accepted remote endpoints, and
   can emit NDJSON activity/text plus the final conversation with `--stream`.
+  Ask is experimental and disabled by default: developer builds require
+  `--enable-ask-workspace` on each command. Release builds reject Ask even with
+  that flag, before opening the database or constructing a model provider.
 
 ## [Unreleased]
 

@@ -5,7 +5,7 @@ import MacParakeetCore
 struct AskCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "ask",
-        abstract: "Curate recordings and investigate them in saved conversations. Outputs JSON.",
+        abstract: "Experimental Ask workspace (developer builds only). Outputs JSON.",
         subcommands: [
             AskListCommand.self, AskNewCommand.self, AskShowCommand.self, AskRenameCommand.self,
             AskDeleteCommand.self, AskSourcesCommand.self, AskSelectCommand.self,
@@ -16,9 +16,21 @@ struct AskCommand: ParsableCommand {
 
 private struct AskDatabaseOptions: ParsableArguments {
     @Option(help: "Path to SQLite database (defaults to the app database).") var database: String?
+    @Flag(help: "Enable experimental Ask in a developer build; unavailable in release builds.")
+    var enableAskWorkspace = false
+
+    func requireAvailable() throws {
+        let arguments = enableAskWorkspace ? [AppFeatures.askWorkspaceDeveloperLaunchArgument] : []
+        guard AppFeatures.isAskWorkspaceAvailable(arguments: arguments) else {
+            throw ValidationError(
+                "Ask workspace is disabled. Developer builds require --enable-ask-workspace; release builds cannot enable it."
+            )
+        }
+    }
 
     func service() throws -> AskWorkspaceService {
-        AskWorkspaceService(
+        try requireAvailable()
+        return AskWorkspaceService(
             databaseManager: try makeDatabaseManager(database: database), client: LLMClient(),
             contextResolver: StaticLLMExecutionContextResolver(context: nil)
         )
@@ -183,6 +195,7 @@ private struct AskSendCommand: AsyncParsableCommand {
     func run() async throws {
         var incomplete = false
         try await emitJSONOrRethrow(json: true) {
+            try database.requireAvailable()
             let execution = try llm.buildExecutionContext()
             let service = AskWorkspaceService(
                 databaseManager: try makeDatabaseManager(database: database.database), client: execution.client,

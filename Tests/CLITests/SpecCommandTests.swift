@@ -3,6 +3,29 @@ import XCTest
 
 final class SpecCommandTests: XCTestCase {
 
+    func testEveryAskCommandDocumentsDeveloperOptInAndReleaseContainment() throws {
+        let commands = try XCTUnwrap(specPayload()["commands"] as? [[String: Any]])
+        let askCommands = commands.filter { ($0["path"] as? [String])?.first == "ask" }
+        XCTAssertEqual(
+            Set(askCommands.compactMap { ($0["path"] as? [String])?.last }),
+            ["list", "new", "show", "rename", "delete", "sources", "select", "draft", "send", "evidence"])
+        for command in askCommands {
+            let summary = try XCTUnwrap(command["summary"] as? String)
+            XCTAssertTrue(summary.contains("disabled by default"))
+            XCTAssertTrue(summary.contains("Debug builds require --enable-ask-workspace"))
+            XCTAssertTrue(summary.contains("Release builds reject Ask even with that flag"))
+            let options = try XCTUnwrap(command["options"] as? [[String: Any]])
+            let flag = try XCTUnwrap(options.first { ($0["name"] as? String) == "--enable-ask-workspace" })
+            XCTAssertNil(flag["valueName"])
+            XCTAssertTrue((flag["summary"] as? String)?.contains("Release builds always reject Ask") == true)
+            XCTAssertTrue(options.contains { ($0["name"] as? String) == "--database" })
+        }
+        for command in commands where (command["path"] as? [String])?.first != "ask" {
+            let options = try XCTUnwrap(command["options"] as? [[String: Any]])
+            XCTAssertFalse(options.contains { ($0["name"] as? String) == "--enable-ask-workspace" })
+        }
+    }
+
     func testSpecDescribesSplitCommandsAndMutationBoundaries() throws {
         let commands = try XCTUnwrap(specPayload()["commands"] as? [[String: Any]])
         for verb in ["preview", "create", "status", "resume", "discard"] {

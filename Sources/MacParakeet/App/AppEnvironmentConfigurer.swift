@@ -140,7 +140,9 @@ final class AppEnvironmentConfigurer {
             meetingClassificationService: env.meetingClassificationService,
             speakerAttributionReader: env.speakerAttributionReader
         )
-        askWorkspaceViewModel.configure(service: env.askWorkspaceService)
+        if let askWorkspaceService = env.askWorkspaceService {
+            askWorkspaceViewModel.configure(service: askWorkspaceService)
+        }
         meetingsWorkspaceViewModel.configure(
             transcriptionRepo: env.transcriptionRepo,
             quickPromptRepo: env.quickPromptRepo,

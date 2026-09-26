@@ -1,9 +1,19 @@
 # Ask Workspace Contract
 
-Status: **Accepted; implemented in development; qualification pending**. This
+Status: **Accepted; default-off in development; enablement qualification pending**. This
 contract defines the shared native and CLI behavior for saved, source-scoped
 Ask conversations. [ADR-034](../adr/034-meeting-ask-workspace.md) records the
 architecture decision.
+
+## Availability
+
+`AppFeatures.askWorkspaceEnabled` is false. The native sidebar, Library actions,
+and direct navigation are gated; the disabled app does not construct/configure
+its Ask service. Every CLI Ask operation rejects before database access or model
+work unless enabled. Debug builds accept explicit `--enable-ask-workspace`;
+release builds ignore that opt-in. Stored preferences do not enable the feature.
+The additive migration and existing saved conversations remain intact.
+This gate applies only to the new workspace, not existing transcript/live chat.
 
 ## Ownership and persistence
 

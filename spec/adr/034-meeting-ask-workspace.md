@@ -50,6 +50,21 @@ also exceed the required authority.
    approval in both GUI and CLI. No provider fallback occurs. Expose the same
    shared service through additive `macparakeet-cli ask` commands.
 
+## Default-off integration (2026-09-26)
+
+The implementation may land on `main` with `AppFeatures.askWorkspaceEnabled`
+set to `false`. Both native entry points and CLI operations are disabled by
+this gate. Debug builds require explicit `--enable-ask-workspace` opt-in;
+release builds ignore that argument. The disabled native app does not construct
+or configure the Ask service, and CLI rejection precedes database access or
+model/helper execution. The schema migration remains additive and saved Ask
+data is retained.
+
+Model reliability, native interaction, and the earlier freeze report block
+**enabling or releasing** Ask. They do not by themselves block integrating
+verified dormant code. Existing single-transcript and live meeting chat remain
+available. Enabling the flag requires separate qualification and review.
+
 ## Consequences
 
 - An explicit source set gives bounded scope and inspectable coverage. Lexical
