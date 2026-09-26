@@ -37,6 +37,7 @@ jobs:
         timeout-minutes: 2
         run: |
           mkdir -p ci-logs
+          set -o pipefail
           {
             git rev-parse HEAD
             sw_vers
@@ -158,6 +159,7 @@ jobs:
         timeout-minutes: 2
         run: |
           mkdir -p ci-logs
+          set -o pipefail
           {
             git rev-parse HEAD
             sw_vers
