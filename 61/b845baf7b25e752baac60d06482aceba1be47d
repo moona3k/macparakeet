@@ -1,0 +1,31 @@
+Sources/MacParakeetCore/Services/Ask/AskWorkspaceService.swift
+  s_eaf0f4f333ae86::t_75398990b1a602 434
+spec/contracts/ask-workspace.md
+  s_eaf0f4f333ae86::t_a44ff786482641 57-72
+  s_eaf0f4f333ae86::t_80c19159ca104f 73
+  s_eaf0f4f333ae86::t_70354d76bff3db 74-76
+Sources/MacParakeet/Views/Ask/AskWorkspaceView.swift
+  s_eaf0f4f333ae86::t_d4d49d289403a3 341-350
+Tests/MacParakeetTests/Ask/AskWorkspaceServiceTests.swift
+  s_eaf0f4f333ae86::t_88aa2cc486ceb7 178-222
+scripts/dist/homebrew-tap-scaffold/HOWTO.md
+  s_eaf0f4f333ae86::t_47e3dfa402bcda 72,75,78
+Sources/MacParakeet/Views/Ask/AskEvidenceView.swift
+  s_eaf0f4f333ae86::t_b7e277991caa14 86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "61b845baf7b25e752baac60d06482aceba1be47d",
+  "prompts": {},
+  "sessions": {
+    "s_eaf0f4f333ae86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "382c70fb-43c4-42e4-83b5-46b3e63035c1",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
