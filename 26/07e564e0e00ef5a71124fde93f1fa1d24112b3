@@ -1,0 +1,25 @@
+docs/research/2026-09-25-test-value-audit.md
+  s_85371083e1b687::t_61ef8c7842e8f7 102
+  s_85371083e1b687::t_2c454f0b543cce 3
+  s_85371083e1b687::t_6f23d69a629529 68
+  s_85371083e1b687::t_88f417e488de7f 116
+  s_85371083e1b687::t_9e6d5345d80ef4 46-47
+  s_85371083e1b687::t_f39bce4fcf93a8 132
+  s_85371083e1b687::t_0fdedcbd57dd94 152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2607e564e0e00ef5a71124fde93f1fa1d24112b3",
+  "prompts": {},
+  "sessions": {
+    "s_85371083e1b687": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "558f28ea-999b-4660-a4c5-1a211778ce7f",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
