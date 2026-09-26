@@ -691,11 +691,15 @@ macparakeet-cli llm routes reset analysis --json
 
 List reports default, cleanup, analysis and transform routes with effective
 provider/model and inheritance. It omits credentials and exposes only endpoint
-origins. Set changes one cleanup/analysis override; reset restores inheritance
+origins without reading Keychain. Mutation descriptions also avoid credential
+reads. Set changes one cleanup/analysis override; reset restores inheritance
 without deleting keys. Configure Default AI in GUI Settings first; a saved
 task override alone does not enable AI in the app. `configured` describes the
 stored route, not app or provider readiness. Default configuration remains
 managed in GUI Settings.
+When `--model` is omitted, a saved route uses the provider's current GUI default.
+Explicit model names and custom-provider requirements still apply. One-off inline
+LLM commands retain their historical model defaults for script compatibility.
 No LLM request is made by these commands. Explicit key flags take precedence
 over saved provider keys, then provider environment variables; keys are shared
 per provider, so explicitly replacing a key also affects other routes using it.
@@ -705,6 +709,12 @@ not isolated by `--database` or a state-directory override. Relaunch or refresh
 a running GUI if it still displays cached settings. Close AI Settings before
 changing routes from the CLI, then reopen it: saving an already-open Settings
 draft writes its cached configuration, including routes and provider keys.
+The GUI model picker rejects a stale selection if a concurrent CLI change has
+replaced or reset the displayed route. Route metadata updates are coordinated
+across processes; credentials remain separate, shared per-provider Keychain values.
+Competing changes fail busy before mutation, including while another operation
+awaits Keychain authorization. An unconfirmed-save error means publication could
+not be confirmed after mutation; inspect the current routes before retrying.
 
 ### Other meeting commands
 

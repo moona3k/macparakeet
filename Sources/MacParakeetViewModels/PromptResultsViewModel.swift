@@ -301,10 +301,16 @@ public final class PromptResultsViewModel {
 
     public func refreshModelInfo() {
         modelListTask?.cancel()
+        let loadedRoute: LLMModelSelectionRoute?
+        do {
+            loadedRoute = try configStore?.loadRouteMetadata(for: .analysis)
+        } catch {
+            // A brief competing writer must not permanently disable the picker.
+            // The conditional write still revalidates this retained snapshot.
+            return
+        }
         displayedModelRoute = nil
-        guard let configStore,
-            let route = try? LLMModelSelectionRoute.load(from: configStore, for: .analysis)
-        else {
+        guard let configStore, let route = loadedRoute else {
             currentModelName = ""
             currentProviderID = nil
             availableModels = []
@@ -326,19 +332,24 @@ public final class PromptResultsViewModel {
 
         currentModelName = config.modelName
         availableModels = LLMModelAvailability.pickerModels(for: config, discoveredModels: [])
-        refreshAvailableModels(for: config)
+        // Discovery needs credentials, but picker identity and writes never do.
+        let discoveryConfig = try? configStore.loadConfig(for: .analysis)
+        if let discoveryConfig,
+            LLMModelSelectionRoute(config: discoveryConfig, isOverride: route.isOverride) == route
+        {
+            refreshAvailableModels(for: discoveryConfig)
+        }
     }
 
     public func selectModel(_ modelName: String) {
         guard let configStore, canSelectModel else { return }
         do {
             guard let displayedModelRoute,
-                try LLMModelSelectionRoute.load(from: configStore, for: .analysis) == displayedModelRoute
+                try configStore.updateModelName(modelName, for: .analysis, expected: displayedModelRoute)
             else {
                 refreshModelInfo()
                 return
             }
-            try configStore.updateModelName(modelName, for: .analysis)
             refreshModelInfo()
             onModelChanged?()
         } catch {

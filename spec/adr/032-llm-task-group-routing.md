@@ -125,6 +125,27 @@ An implicit GUI model snapshot must never overlay a default-provider model
 onto a different analysis provider. Explicit per-prompt overrides still win.
 If configuration or inheritance changes while a picker is open, its next
 selection refreshes the displayed route without writing the stale choice.
+The comparison and model write form one conditional store operation, including
+the displayed provider, endpoint, model and inheritance identity. All route
+metadata writers cooperate on a nonblocking cross-process lease shared by the stable
+app, development app and CLI. Metadata is refreshed after acquiring the lock
+and published before releasing it; checking only in the view model is insufficient.
+Model writes do not read or rewrite provider credentials.
+
+Credential-changing mutations acquire the same lease before touching Keychain
+and hold it through metadata publication. A competing operation fails busy
+before changing either store, including while Keychain authorization is pending.
+There is no blocking lock wait. This ordering prevents an abandoned route save
+or deletion from damaging the credentials of a retained route.
+
+Execution chooses the effective route from one coherent metadata snapshot, then
+loads only that provider's credentials outside the lock. This prevents a
+concurrent Settings save from combining the old inheritance decision with the
+new default. This coordination does not provide a shared durable transaction
+across preferences and Keychain. A publication failure after mutation is reported
+as an unconfirmed save that may have changed state; it is not a zero-write
+rejection and does not trigger blind credential rollback. Settings still saves its full draft; close and reopen
+AI Settings around CLI route changes to avoid overwriting them with a cached draft.
 
 `llm routes list` exposes the effective default, cleanup, analysis and transform
 routes without credentials. `llm routes set cleanup|analysis` stores a full
@@ -132,6 +153,9 @@ override, and `llm routes reset cleanup|analysis` restores inheritance without
 deleting provider credentials. These commands share the GUI's preference suite
 and per-provider Keychain entries. Local CLI routes reuse the existing shared
 command template; this interface does not introduce a per-route command store.
+Listing and mutation descriptions read metadata without accessing Keychain.
+An omitted saved-route model uses the provider's current app default; existing
+one-off inline CLI model defaults retain their compatibility behavior.
 
 ### 4. Enablement stays independent of routing
 

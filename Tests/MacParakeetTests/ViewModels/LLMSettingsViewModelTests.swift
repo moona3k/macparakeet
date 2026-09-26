@@ -7,11 +7,14 @@ final class LLMSettingsViewModelTests: XCTestCase {
     var viewModel: LLMSettingsViewModel!
     var mockConfigStore: MockLLMConfigStore!
     var mockClient: MockLLMClient!
+    var routeLockURL: URL!
     var defaults: UserDefaults!
     var defaultsSuiteName: String!
 
     override func setUp() {
         defaultsSuiteName = "test.llmsettings.\(UUID().uuidString)"
+        routeLockURL = FileManager.default.temporaryDirectory.appendingPathComponent(defaultsSuiteName)
+            .appendingPathComponent("routes.lock")
         defaults = UserDefaults(suiteName: defaultsSuiteName)!
         defaults.removePersistentDomain(forName: defaultsSuiteName)
         viewModel = LLMSettingsViewModel(defaults: defaults)
@@ -20,6 +23,7 @@ final class LLMSettingsViewModelTests: XCTestCase {
     }
 
     override func tearDown() {
+        try? FileManager.default.removeItem(at: routeLockURL.deletingLastPathComponent())
         defaults.removePersistentDomain(forName: defaultsSuiteName)
         defaults = nil
         defaultsSuiteName = nil
@@ -1197,7 +1201,8 @@ final class LLMSettingsViewModelTests: XCTestCase {
     // MARK: - Configuration Changed Callback
 
     func testSaveCallbackObservesCommittedNormalizedConfiguration() throws {
-        let store = LLMConfigStore(defaults: defaults, keychain: InMemoryKeyValueStore())
+        let store = LLMConfigStore(
+            preferencesDomain: defaultsSuiteName, lockURL: routeLockURL, keychain: InMemoryKeyValueStore())
         viewModel.configure(
             configStore: store,
             llmClient: mockClient,
@@ -1222,7 +1227,8 @@ final class LLMSettingsViewModelTests: XCTestCase {
     }
 
     func testSavingNoneCallbackObservesCommittedClearAndFinalSaveState() throws {
-        let store = LLMConfigStore(defaults: defaults, keychain: InMemoryKeyValueStore())
+        let store = LLMConfigStore(
+            preferencesDomain: defaultsSuiteName, lockURL: routeLockURL, keychain: InMemoryKeyValueStore())
         try store.saveConfig(.openai(apiKey: "working-key"))
         viewModel.configure(
             configStore: store,
@@ -1248,7 +1254,7 @@ final class LLMSettingsViewModelTests: XCTestCase {
 
     func testFailedSavePreservesWorkingProviderAndDoesNotNotifyConsumers() throws {
         let credentials = InMemoryKeyValueStore()
-        let store = LLMConfigStore(defaults: defaults, keychain: credentials)
+        let store = LLMConfigStore(preferencesDomain: defaultsSuiteName, lockURL: routeLockURL, keychain: credentials)
         try store.saveConfig(.openai(apiKey: "working-key", model: "working-model"))
         viewModel.configure(
             configStore: store,
@@ -1273,7 +1279,7 @@ final class LLMSettingsViewModelTests: XCTestCase {
 
     func testFailedClearAndSavingNonePreserveConfigurationAndPreferences() throws {
         let credentials = InMemoryKeyValueStore()
-        let store = LLMConfigStore(defaults: defaults, keychain: credentials)
+        let store = LLMConfigStore(preferencesDomain: defaultsSuiteName, lockURL: routeLockURL, keychain: credentials)
         try store.saveConfig(.openai(apiKey: "working-key"))
         viewModel.configure(
             configStore: store,
@@ -1307,7 +1313,8 @@ final class LLMSettingsViewModelTests: XCTestCase {
     }
 
     func testClearRemovesUnreadableProviderMetadata() throws {
-        let store = LLMConfigStore(defaults: defaults, keychain: InMemoryKeyValueStore())
+        let store = LLMConfigStore(
+            preferencesDomain: defaultsSuiteName, lockURL: routeLockURL, keychain: InMemoryKeyValueStore())
         let cliStore = LocalCLIConfigStore(defaults: defaults)
         let rememberedCLI = LocalCLIConfig(commandTemplate: "echo remembered", timeoutSeconds: 90)
         try cliStore.save(rememberedCLI)
@@ -1335,7 +1342,8 @@ final class LLMSettingsViewModelTests: XCTestCase {
     }
 
     func testFailedCLIEncodingPreservesWorkingProviderAndCLISettings() throws {
-        let store = LLMConfigStore(defaults: defaults, keychain: InMemoryKeyValueStore())
+        let store = LLMConfigStore(
+            preferencesDomain: defaultsSuiteName, lockURL: routeLockURL, keychain: InMemoryKeyValueStore())
         let cliStore = LocalCLIConfigStore(defaults: defaults)
         let originalCLI = LocalCLIConfig(commandTemplate: "echo working", timeoutSeconds: 30)
         try cliStore.save(originalCLI)
@@ -1357,7 +1365,8 @@ final class LLMSettingsViewModelTests: XCTestCase {
     }
 
     func testCLISaveCallbackObservesCommittedCommandAndTimeout() throws {
-        let store = LLMConfigStore(defaults: defaults, keychain: InMemoryKeyValueStore())
+        let store = LLMConfigStore(
+            preferencesDomain: defaultsSuiteName, lockURL: routeLockURL, keychain: InMemoryKeyValueStore())
         let cliStore = LocalCLIConfigStore(defaults: defaults)
         try cliStore.save(LocalCLIConfig(commandTemplate: "echo old", timeoutSeconds: 30))
         try store.saveConfig(.localCLI())

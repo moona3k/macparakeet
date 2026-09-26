@@ -239,9 +239,13 @@ still apply.
   `configured`; configured entries also include `provider`, `model`, `isLocal`
   and a redacted `endpoint` origin. Credentials, URL userinfo, path, query and
   fragment are never emitted. `llm routes set|reset <cleanup|analysis> --json`
-  returns `{ok:true,route:{...}}` with the same entry shape. Set accepts the
+  returns `{ok:true,route:{...}}` with the same entry shape. Listing and route
+  descriptions do not read Keychain. Set accepts the
   inline provider options but saves a task override instead of making an LLM
-  request; reset removes only that override. Explicit credential flags win,
+  request; when `--model` is omitted it uses the provider's current GUI default.
+  Explicit models and custom-provider model requirements remain unchanged;
+  one-off inline commands keep their historical compatibility defaults.
+  Reset removes only that override. Explicit credential flags win,
   then saved provider credentials, then provider environment variables. Keys
   remain shared per provider, so an explicitly supplied replacement key applies
   to every route using that provider. Local CLI reuses the configured shared
@@ -250,6 +254,13 @@ still apply.
   route configuration, not app readiness: the app still requires Default AI to
   be configured in Settings. An already-open AI Settings draft can overwrite CLI
   changes when saved; close it before CLI mutations and reopen afterward.
+  GUI model selection conditionally updates the route it displayed and refreshes
+  instead of applying a stale choice to a concurrently changed route. Route
+  metadata writers coordinate across app and CLI processes; this does not make
+  credential changes and preference writes a single transaction.
+  A busy rejection occurs before credential or route changes. A publication
+  failure after mutation reports an unconfirmed save; read the current routes
+  before deciding whether to retry, because the attempted change may have applied.
 - `meetings show --json` and `meetings transcript --format json` expose
   `transcriptSegments` when the meeting row has durable segments. Each segment
   contains `id`, `startMs`, `endMs`, `speakerId`, `speakerLabel`, `text`, and

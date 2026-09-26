@@ -63,6 +63,16 @@ and does not report AI setup as ready until the system model can generate.
 Saving the default and both task routes prepares credentials and encoded
 settings before publishing the routes; a failed credential write leaves the
 previous routes active.
+Route metadata is refreshed and read or written under a shared nonblocking
+cross-process lease. Mutations acquire it before changing credentials and keep
+it through metadata publication; competing operations fail busy without changes,
+including while Keychain authorization is pending. Effective-route resolution uses one metadata snapshot before loading the
+selected provider's credentials outside that lock. Model pickers compare their
+displayed route and inheritance identity as part of the same store operation
+that changes the model, so a simultaneous CLI route change cannot redirect a
+stale selection. Keychain and preferences do not share a durable transaction:
+a publication failure after mutation reports an unconfirmed save that may have
+changed state. This does not replace Settings' full-draft save behavior.
 
 ### Provider Protocol
 
