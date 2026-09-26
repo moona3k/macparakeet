@@ -806,6 +806,29 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertNil(try lockStore.read(folderURL: fixture.folderURL))
     }
 
+    func testCompletedRecoveryWithRecordingStateLockDoesNotRestoreStaleLockNotes() async throws {
+        let fixture = try makeRecoverableSession(
+            lockState: .recording,
+            notes: "Stale lock notes"
+        )
+        let existing = Transcription(
+            fileName: fixture.lock.displayName,
+            filePath: fixture.folderURL.appendingPathComponent("meeting-playback.m4a").path,
+            status: .completed,
+            sourceType: .meeting
+        )
+        try transcriptionRepo.save(existing)
+
+        let recovered = try await recoveryService.recover(fixture.lock)
+
+        XCTAssertTrue(recovered.recoveredFromCrash)
+        XCTAssertNil(recovered.userNotes)
+        XCTAssertNil(try transcriptionRepo.fetch(id: existing.id)?.userNotes)
+        XCTAssertNil(try lockStore.read(folderURL: fixture.folderURL))
+        let markdown = try String(contentsOf: fixture.folderURL.appendingPathComponent("meeting.md"), encoding: .utf8)
+        XCTAssertFalse(markdown.contains("Stale lock notes"))
+    }
+
     func testRecoverSettlesCompletedLegacyPlaybackRow() async throws {
         let sessionID = UUID()
         let folderURL = tempRoot.appendingPathComponent(sessionID.uuidString, isDirectory: true)
@@ -1894,6 +1917,7 @@ private final class RecoveryMockTranscriptionService: TranscriptionServiceProtoc
             meetingArtifactFolderPath: recording.folderURL.path,
             status: .completed,
             sourceType: .meeting,
+            userNotes: recording.userNotes,
             meetingCaptureReport: recording.captureReport,
             titleOverride: recording.titleOverride,
             audioRetentionStartedAt: recording.audioRetentionStartedAt

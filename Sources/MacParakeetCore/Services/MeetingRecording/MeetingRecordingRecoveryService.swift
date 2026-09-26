@@ -234,7 +234,6 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         let mixedURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.playback)
 
         if let existing = try existingCompletedTranscription(in: folderURL) {
-            await writeNotesSidecar(for: lock, folderURL: folderURL)
             let completed = try await completeExistingTranscription(
                 existing,
                 folderURL: folderURL,
@@ -671,14 +670,6 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
     ) async throws -> Transcription {
         var recovered = transcription
         recovered.recoveredFromCrash = true
-        // Carry forward any notes the user typed during the meeting (ADR-020 §9).
-        // Lock file's `notes` is `nil` for pre-v0.8 recordings or recordings
-        // where the user typed nothing. We only overwrite when the lock file
-        // actually has notes — never clobber notes a recovered transcription
-        // somehow already carries.
-        if let lockNotes = lock.notes, recovered.userNotes == nil {
-            recovered.userNotes = lockNotes
-        }
         recovered.updatedAt = Date()
         try transcriptionRepo.save(recovered)
         try await refreshArtifacts(for: recovered)

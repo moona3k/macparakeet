@@ -168,8 +168,14 @@ retains effective speaker corrections/classification, and refresh reads existing
 prompt results rather than replacing them with an empty list. A refresh failure
 leaves the completed row and lock available for recovery. A retry refreshes the
 existing completed row and settles its lock without another audio mix or STT run.
-Completed-row notes are canonical, including explicit nil or empty clears; older
-notes in a retained lock must not repopulate the row or its notes artifact.
+An existing row's notes are canonical, including explicit nil or empty clears;
+older notes in a retained lock or a recovered `MeetingRecordingOutput` must not
+repopulate the row or its notes artifact. This holds for every path that updates
+an existing row: `TranscriptionService.finalizeMeetingTranscription` on a
+queued/processing/error row, and recovery's completed-row paths (both the direct
+`awaitingTranscription` refresh and `completeRecovery` for a completed row found
+under a non-`awaitingTranscription` lock). Only a genuinely new row (a fresh
+stub with no prior DB state) takes its initial notes from the lock/recording.
 A stale descriptor for an already settled session is refused with `missingLock`;
 rediscovery is empty and does not recreate rows or audio.
 
