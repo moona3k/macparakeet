@@ -67,8 +67,8 @@ architecture decision.
   that passage directly, independent of which conversation (if any) originally
   cited it — the caller already has direct, unscoped Library access to every
   source, so there is no conversation-membership check to perform. It reports
-  the passage as stale (revision changed), unavailable, or invalid (unknown
-  source or out-of-range index) when applicable; it has no notion of a
+  the passage as stale (revision changed), unavailable (missing source or
+  transcript), or invalid (negative or out-of-range index); it has no notion of a
   citing conversation's source set, so it never reports out-of-scope. If no
   valid passage citation resolves during a run, an answer cannot be marked
   complete. The evidence panel can open the Library source and show a

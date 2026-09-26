@@ -200,11 +200,11 @@ final class AskWorkspaceServiceTests: XCTestCase {
 
     func testMalformedNumericCitationMarkerStillFails() async throws {
         let fixture = try Fixture()
-        for malformed in ["[e1]", "[E 1]", "[E+1]", "[E-1]"] {
+        for malformed in ["[e1]", "[E 1]", "[E+1]", "[E-1]", "[E1x]", "[E1 ]"] {
             let source = try fixture.source("Planning", "Launch in June.")
             let agent = ScriptedAskAgent { _, tool, event in
                 _ = try await tool("search", #"{"query":"June"}"#)
-                let text = "Launch in June \(malformed)."
+                let text = "Launch in June [E1] \(malformed)."
                 await event(.text(text))
                 return text
             }

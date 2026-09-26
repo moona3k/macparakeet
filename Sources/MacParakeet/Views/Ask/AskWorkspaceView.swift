@@ -343,7 +343,7 @@ struct AskWorkspaceView: View {
                     errorText(error)
                     Spacer()
                     Button("Reload") { Task { await model.load() } }
-                        .buttonStyle(.link)
+                        .parakeetAction(.secondary)
                         .font(.caption)
                         .disabled(model.isSending || model.isLoading)
                 }

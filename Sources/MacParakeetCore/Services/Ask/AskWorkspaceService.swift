@@ -431,7 +431,7 @@ private actor AskRunEvidence {
         }
         let regex = try NSRegularExpression(pattern: #"\[E(\d+)\]"#)
         let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
-        let candidateRegex = try NSRegularExpression(pattern: #"\[[eE]\s*[+-]?\d+\]"#)
+        let candidateRegex = try NSRegularExpression(pattern: #"\[[eE]\s*[+-]?\d[^\]]*\]"#)
         let candidates = candidateRegex.matches(in: text, range: NSRange(text.startIndex..., in: text))
         guard candidates.map(\.range) == matches.map(\.range) else { throw AskWorkspaceError.invalidCitation }
         var cited: [AskEvidenceReference] = []
