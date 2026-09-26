@@ -77,7 +77,7 @@ def tool_evidence(messages):
         if not content.startswith(("Tool search result: ", "Tool read result: ")):
             continue
         data = json.loads(content.split(" result: ", 1)[1])
-        values.extend(data.get("matches", []) if isinstance(data, dict) else data)
+        values.extend(data.get("matches", data.get("passages", [])) if isinstance(data, dict) else data)
     return values
 
 
@@ -111,7 +111,7 @@ class ScriptedProvider(http.server.ThreadingHTTPServer):
         if self.mode == "repair_kind" and decisions == 1:
             return model_action("unexpected")
         results = [m["content"] for m in messages if m.get("content", "").startswith("Tool ")]
-        steps = [("list_sources", {}), ("search", {"query": "launch", "limit": 12})]
+        steps = [("list_sources", {}), ("search", {"query": "launch date change", "limit": 12})]
         steps += [("read", {"sourceID": source, "start": 0, "limit": 12}) for source in self.sources]
         if len(results) < len(steps):
             name, arguments = steps[len(results)]

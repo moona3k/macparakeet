@@ -29,7 +29,9 @@ also exceed the required authority.
    passage index) and optional display metadata, not duplicate quoted text. An
    answer without a valid evidence citation cannot be marked complete.
    Interleave multi-source search round-robin, with optional per-source
-   filtering and bounded pagination signals. Revalidate all source revisions
+   filtering and explicit continuation offsets. Ranked lexical retrieval uses a
+   disposable, selected-scope index over revision-checked canonical passages;
+   it does not inherit freshness from the Library derived index. Revalidate all source revisions
    and summary receipts used in the run inside the terminal conversation write
    transaction.
 4. Use the pinned Pi agent-core 0.87.1 loop in a short-lived private Node helper.

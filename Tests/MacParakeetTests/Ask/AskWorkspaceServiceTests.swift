@@ -49,6 +49,129 @@ final class AskWorkspaceServiceTests: XCTestCase {
         XCTAssertEqual(next.messages.last?.citations.first?.sourceID, second.id)
     }
 
+    func testReadPaginationWalksCanonicalPassagesAndSearchReportsMatchMode() async throws {
+        let fixture = try Fixture()
+        let source = try fixture.source(
+            "Long meeting", String(repeating: "Launch discussion. ", count: 300) + "Final decision: October 24.")
+        let agent = ScriptedAskAgent { _, tool, _ in
+            struct Evidence: Decodable { let citation: String; let passage: AskPassage }
+            struct Page: Decodable {
+                let passages: [Evidence]
+                let sourceID: UUID
+                let start: Int
+                let returnedCount: Int
+                let totalPassages: Int
+                let hasMore: Bool
+                let nextStart: Int?
+            }
+            struct Search: Decodable {
+                let matches: [Evidence]
+                let query: String
+                let matchMode: String
+                let hasMore: Bool
+            }
+            let search = try JSONDecoder().decode(
+                Search.self, from: Data(try await tool("search", #"{"query":"launch date","limit":1}"#).utf8))
+            XCTAssertEqual(search.matchMode, "unicode61_bm25")
+            XCTAssertEqual(search.query, "launch date")
+            XCTAssertEqual(search.matches.count, 1)
+            XCTAssertTrue(search.hasMore)
+            var start = 0
+            var indices: [Int] = []
+            var finalCitation = ""
+            while true {
+                let raw = try await tool("read", "{\"sourceID\":\"\(source.id)\",\"start\":\(start),\"limit\":5}")
+                let page = try JSONDecoder().decode(Page.self, from: Data(raw.utf8))
+                XCTAssertEqual(page.sourceID, source.id)
+                XCTAssertEqual(page.start, start)
+                XCTAssertEqual(page.returnedCount, page.passages.count)
+                XCTAssertLessThanOrEqual(page.returnedCount, 5)
+                indices += page.passages.map { $0.passage.reference.segmentIndex }
+                if let final = page.passages.first(where: { $0.passage.text.contains("October 24") }) {
+                    finalCitation = final.citation
+                }
+                guard let next = page.nextStart else {
+                    XCTAssertFalse(page.hasMore)
+                    XCTAssertEqual(indices, Array(0..<page.totalPassages))
+                    break
+                }
+                XCTAssertTrue(page.hasMore)
+                XCTAssertEqual(next, start + page.returnedCount)
+                guard next > start, next < page.totalPassages else {
+                    XCTFail("Pagination did not advance within the recording"); break
+                }
+                start = next
+            }
+            XCTAssertFalse(finalCitation.isEmpty)
+            return "October 24 \(finalCitation)."
+        }
+        let service = fixture.service(agent)
+        let chat = try await service.create(sourceIDs: [source.id])
+        let answer = try await service.send(
+            id: chat.id, question: "What was finally decided?", expectedRevision: chat.revision,
+            approvedProviderID: nil, onEvent: { _ in })
+        XCTAssertEqual(answer.messages.last?.status, .complete)
+        XCTAssertEqual(answer.messages.last?.citations.count, 1)
+    }
+
+    func testByteLimitedPagesAdvanceOnlyReturnedPassagesAndKeepMarkersContiguous() async throws {
+        let fixture = try Fixture()
+        let source = Transcription(
+            fileName: "Large labels",
+            transcriptSegments: (0..<10).map { index in
+                TranscriptSegmentRecord(
+                    startMs: index * 1_000, endMs: (index + 1) * 1_000,
+                    speakerId: "speaker-1", speakerLabel: String(repeating: "Speaker", count: 800),
+                    text: "Launch decision \(index).",
+                    wordRange: TranscriptSegmentWordRange(startIndex: index, endIndexExclusive: index + 1))
+            }, status: .completed, sourceType: .meeting)
+        try fixture.transcriptions.save(source)
+        let agent = ScriptedAskAgent { _, tool, _ in
+            struct Item: Decodable { let citation: String; let passage: AskPassage }
+            struct Page: Decodable {
+                let passages: [Item]?
+                let matches: [Item]?
+                var items: [Item] { passages ?? matches ?? [] }
+                let returnedCount: Int
+                let hasMore: Bool
+                let nextStart: Int?
+            }
+            for name in ["read", "search"] {
+                var start = 0
+                var all: [Item] = []
+                while start < 10 {
+                    var arguments: [String: Any] = ["sourceID": source.id.uuidString, "start": start, "limit": 12]
+                    if name == "search" { arguments["query"] = "launch date" }
+                    let raw = try await tool(
+                        name, String(decoding: JSONSerialization.data(withJSONObject: arguments), as: UTF8.self))
+                    XCTAssertLessThanOrEqual(raw.utf8.count, 32_000)
+                    let page = try JSONDecoder().decode(Page.self, from: Data(raw.utf8))
+                    XCTAssertGreaterThan(page.returnedCount, 0)
+                    XCTAssertLessThan(page.returnedCount, 10)
+                    all += page.items
+                    if let next = page.nextStart {
+                        XCTAssertTrue(page.hasMore)
+                        XCTAssertEqual(next, start + page.returnedCount)
+                        start = next
+                    } else {
+                        XCTAssertFalse(page.hasMore)
+                        break
+                    }
+                }
+                XCTAssertEqual(all.map { $0.passage.reference.segmentIndex }, Array(0..<10))
+                XCTAssertEqual(all.map(\.citation), (1...10).map { "[E\($0)]" })
+            }
+            return "Launch decision 9 [E10]."
+        }
+        let service = fixture.service(agent)
+        let chat = try await service.create(sourceIDs: [source.id])
+        let answer = try await service.send(
+            id: chat.id, question: "What was decided?", expectedRevision: chat.revision,
+            approvedProviderID: nil, onEvent: { _ in })
+        XCTAssertEqual(answer.messages.last?.status, .complete)
+        XCTAssertEqual(answer.messages.last?.citations.first?.segmentIndex, 9)
+    }
+
     func testRemoteProviderRequiresExplicitMatchingApprovalBeforeAnyRun() async throws {
         let fixture = try Fixture()
         let source = try fixture.source("Planning", "Launch in June.")

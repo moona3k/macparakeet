@@ -26,6 +26,22 @@ final class AskModelBridgeTests: XCTestCase {
         XCTAssertEqual(action.arguments?["sourceID"] as? String, "A")
     }
 
+    func testSearchContinuationOffsetIsValidatedAndForwarded() async throws {
+        for start in [12, -1, 1_000_001] {
+            let client = ScriptedAskLLMClient(
+                decision:
+                    "{\"kind\":\"tool\",\"toolName\":\"search\",\"query\":\"launch\",\"sourceID\":\"\",\"start\":\(start),\"limit\":5}"
+            )
+            do {
+                let action = try await AskModelBridge.decide(messages: messages, client: client, context: context)
+                XCTAssertEqual(start, 12)
+                XCTAssertEqual(action.arguments?["start"] as? Int, 12)
+            } catch {
+                XCTAssertNotEqual(start, 12)
+            }
+        }
+    }
+
     func testTypedToolArgumentsRemoveUnusedDefaults() async throws {
         let cases: [(String, String, Set<String>)] = [
             (
@@ -75,7 +91,7 @@ final class AskModelBridgeTests: XCTestCase {
 
     func testUnusedEnvelopeFieldsDoNotBecomeToolArguments() async throws {
         for (name, keys) in [
-            ("list_sources", Set<String>()), ("search", ["query", "sourceID", "limit"]),
+            ("list_sources", Set<String>()), ("search", ["query", "sourceID", "start", "limit"]),
             ("get_summary", ["sourceID"]),
         ] {
             let decision = """

@@ -10,6 +10,14 @@ appcast at <https://macparakeet.com/appcast.xml>.
 The format is based on [Keep a Changelog](https://keepachangelog.com), and the
 CLI adheres to [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+- Developer-enabled Ask now retrieves passages with ranked any-term search and
+  exposes continuation metadata to its internal search/read tools. Search no
+  longer requires every query word in a passage. Public `ask` command JSON
+  envelopes and citation identities are unchanged. Ask remains disabled in
+  Release builds; this does not qualify model answer quality.
+
 ## Compatibility policy
 
 The CLI surface is a public contract. We follow semver:

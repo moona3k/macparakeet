@@ -2,12 +2,18 @@ import CryptoKit
 import Foundation
 import GRDB
 
-public enum AskSourceError: Error, Equatable {
+public enum AskSourceError: Error, Equatable, LocalizedError {
     case outOfScope
     case unavailable
     case stale
     case invalidReference
     case invalidQuery
+    case retrievalLimitExceeded
+
+    public var errorDescription: String? {
+        guard self == .retrievalLimitExceeded else { return nil }
+        return "These recordings exceed the retrieval limit. Select fewer or smaller recordings."
+    }
 }
 
 public protocol AskSourceServiceProtocol: Sendable {
@@ -27,6 +33,9 @@ public final class AskSourceService: AskSourceServiceProtocol, @unchecked Sendab
     private let dbQueue: DatabaseQueue
     private static let maxSources = 32
     private static let maxPassages = 25
+    private static let maxInputBytes = 64 * 1_024 * 1_024
+    private static let maxCanonicalBytes = 32 * 1_024 * 1_024
+    private static let maxCanonicalPassages = 50_000
     // Match the whitespace-only inputs rejected by KnowledgeSegmenter.usableText
     // without returning transcript bodies in the bounded picker metadata page.
     private static let whitespaceSQL =
@@ -139,6 +148,9 @@ public final class AskSourceService: AskSourceServiceProtocol, @unchecked Sendab
     public func snapshot(sourceIDs: [UUID]) throws -> [AskSourceSnapshot] {
         guard sourceIDs.count <= Self.maxSources else { throw AskSourceError.invalidQuery }
         return try dbQueue.read { db in
+            try Self.checkInputSize(sourceIDs: sourceIDs, db: db)
+            var passageCount = 0
+            var passageBytes = 0
             var seen = Set<UUID>()
             return try sourceIDs.compactMap { id in
                 guard seen.insert(id).inserted else { return nil }
@@ -150,6 +162,7 @@ public final class AskSourceService: AskSourceServiceProtocol, @unchecked Sendab
                         status: .unavailable
                     )
                 }
+                try Self.checkCanonicalSize(loaded.segments, count: &passageCount, bytes: &passageBytes)
                 return AskSourceSnapshot(
                     descriptor: try Self.descriptor(
                         for: loaded.transcription, isAvailable: !loaded.segments.isEmpty, db: db
@@ -162,39 +175,111 @@ public final class AskSourceService: AskSourceServiceProtocol, @unchecked Sendab
         }
     }
 
-    /// Lexical matching over the current corrected passages, with no derived
-    /// index trust or expansion beyond the supplied source IDs.
+    public func search(query: String, sourceRevisions: [UUID: String], limit: Int = 20) throws -> [AskPassage] {
+        try search(query: query, sourceRevisions: sourceRevisions, limit: limit, start: 0)
+    }
+
+    /// Rank token matches over a fresh, scoped snapshot. The disposable in-memory
+    /// index cannot retain deleted/corrected text or search an unselected source.
     public func search(
         query: String,
         sourceRevisions: [UUID: String],
-        limit: Int = 20
+        limit: Int,
+        start: Int
     ) throws -> [AskPassage] {
-        let words = query.split(whereSeparator: \.isWhitespace).map { String($0).lowercased() }
-        guard !words.isEmpty, query.count <= 500, sourceRevisions.count <= Self.maxSources else {
-            throw AskSourceError.invalidQuery
-        }
+        guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            query.count <= 500, sourceRevisions.count <= Self.maxSources, (0...1_000_000).contains(start)
+        else { throw AskSourceError.invalidQuery }
         guard limit > 0 else { return [] }
-        return try dbQueue.read { db in
-            var result: [AskPassage] = []
-            let maximum = min(limit, Self.maxPassages)
-            let orderedIDs = sourceRevisions.keys.sorted { $0.uuidString < $1.uuidString }
-            let matches = try orderedIDs.map { id -> [AskPassage] in
+        let orderedIDs = sourceRevisions.keys.sorted { $0.uuidString < $1.uuidString }
+        let sources = try dbQueue.read { db in
+            try Self.checkInputSize(sourceIDs: orderedIDs, db: db)
+            var passageCount = 0
+            var passageBytes = 0
+            return try orderedIDs.map { id in
+                try Task.checkCancellation()
                 let loaded = try Self.checkedLoad(id: id, revisions: sourceRevisions, db: db)
-                return loaded.segments.lazy.filter { segment in
-                    let lower = segment.text.lowercased()
-                    return words.allSatisfy { lower.contains($0) }
-                }.prefix(maximum).map { Self.passage($0, revision: loaded.revision) }
+                try Self.checkCanonicalSize(loaded.segments, count: &passageCount, bytes: &passageBytes)
+                return loaded.segments.map { Self.passage($0, revision: loaded.revision) }
             }
-            // Distribute the bounded result across recordings; one long
-            // recording must not consume every hit in a comparison query.
-            for index in 0..<maximum {
-                for sourceMatches in matches where sourceMatches.indices.contains(index) {
-                    result.append(sourceMatches[index])
-                    if result.count == maximum { return result }
+        }
+        try Task.checkCancellation()
+        let maximum = min(limit, Self.maxPassages)
+        let candidateLimit = min(start + maximum, sources.map(\.count).max() ?? 0)
+        let index = try DatabaseQueue()
+        let ranked = try index.write { db -> [[AskPassage]] in
+            // Use the same Unicode tokenizer for the query and documents. Quotes,
+            // operators and punctuation in user input never become MATCH syntax.
+            let tokenizer = try db.makeTokenizer(.unicode61())
+            var seen = Set<String>()
+            let tokens = try tokenizer.tokenize(query: query).map(\.token).filter { seen.insert($0).inserted }
+            guard !tokens.isEmpty else { return sources.map { _ in [] } }
+            // Unicode61 does not segment unspaced Han/Kana/Thai text. Preserve
+            // discovery inside those runs rather than silently losing matches.
+            if SegmentRepository.requiresSubstringFallback(query) {
+                let substringTerms = Set(
+                    query.split { $0.isWhitespace || $0.isPunctuation || $0.isSymbol }
+                        .map(String.init).filter(SegmentRepository.requiresSubstringFallback).map(Self.substringKey))
+                let wordTerms = tokens.filter { !SegmentRepository.requiresSubstringFallback($0) }
+                return try sources.map { passages in
+                    try passages.enumerated().compactMap { offset, passage -> (Int, Int, AskPassage)? in
+                        if offset.isMultiple(of: 256) { try Task.checkCancellation() }
+                        let text = Self.substringKey(passage.text)
+                        let words =
+                            wordTerms.isEmpty
+                            ? Set<String>() : Set(try tokenizer.tokenize(document: passage.text).map(\.token))
+                        let count =
+                            substringTerms.filter { text.contains($0) }.count
+                            + wordTerms.filter { words.contains($0) }.count
+                        return count > 0 ? (count, offset, passage) : nil
+                    }.sorted { $0.0 == $1.0 ? $0.1 < $1.1 : $0.0 > $1.0 }
+                        .prefix(candidateLimit).map { $0.2 }
                 }
             }
-            return result
+            let pattern = tokens.map { "\"" + $0.replacingOccurrences(of: "\"", with: "\"\"") + "\"" }
+                .joined(separator: " OR ")
+            try db.execute(
+                sql: "CREATE VIRTUAL TABLE passages USING fts5(text, source UNINDEXED, tokenize='unicode61')")
+            let insert = try db.makeStatement(sql: "INSERT INTO passages(rowid, text, source) VALUES (?, ?, ?)")
+            var allPassages: [AskPassage] = []
+            for (source, passages) in sources.enumerated() {
+                try Task.checkCancellation()
+                for passage in passages {
+                    if allPassages.count.isMultiple(of: 256) { try Task.checkCancellation() }
+                    try insert.execute(arguments: [allPassages.count, passage.text, source])
+                    allPassages.append(passage)
+                }
+            }
+            return try sources.indices.map { source -> [AskPassage] in
+                try Task.checkCancellation()
+                let rows = try Int.fetchAll(
+                    db,
+                    sql: """
+                        SELECT rowid FROM passages WHERE passages MATCH ? AND source = ?
+                        ORDER BY rank, rowid LIMIT ?
+                        """,
+                    arguments: [pattern, source, candidateLimit])
+                return rows.map { allPassages[$0] }
+            }
         }
+        // Rank within each source, then retain comparison coverage across
+        // recordings. A relevance score is not a chronology or truth score.
+        var result: [AskPassage] = []
+        var position = 0
+        for offset in 0..<candidateLimit {
+            for matches in ranked where matches.indices.contains(offset) {
+                defer { position += 1 }
+                guard position >= start else { continue }
+                result.append(matches[offset])
+                if result.count == maximum { return result }
+            }
+        }
+        return result
+    }
+
+    private static func substringKey(_ value: String) -> String {
+        value.precomposedStringWithCanonicalMapping.folding(
+            options: [.caseInsensitive, .widthInsensitive], locale: Locale(identifier: "en_US_POSIX"))
     }
 
     public func passages(
@@ -342,6 +427,8 @@ public final class AskSourceService: AskSourceServiceProtocol, @unchecked Sendab
     }
 
     private static func load(id: UUID, db: Database) throws -> Loaded? {
+        try Task.checkCancellation()
+        try checkInputSize(sourceIDs: [id], db: db)
         guard let transcription = try Transcription.fetchOne(db, key: id),
             transcription.status == .completed
         else { return nil }
@@ -364,14 +451,16 @@ public final class AskSourceService: AskSourceServiceProtocol, @unchecked Sendab
         } else {
             segments = try SegmentRepository.deriveResolvedSegments(for: transcription, in: db)
         }
-        let bounded = boundedSegments(segments)
+        let bounded = try boundedSegments(segments)
         let revision = try revision(for: bounded)
         return Loaded(transcription: transcription, segments: bounded, revision: revision)
     }
 
-    private static func boundedSegments(_ segments: [Segment]) -> [Segment] {
+    private static func boundedSegments(_ segments: [Segment]) throws -> [Segment] {
         var bounded: [Segment] = []
+        var bytes = 0
         for segment in segments {
+            try Task.checkCancellation()
             let chunks: [String]
             if segment.text.unicodeScalars.count > 500 {
                 chunks = KnowledgeSegmenter.pseudoSegment(segment.text)
@@ -388,10 +477,54 @@ public final class AskSourceService: AskSourceServiceProtocol, @unchecked Sendab
                     part.startMs = nil
                     part.endMs = nil
                 }
+                bytes += part.text.utf8.count + (part.speaker?.utf8.count ?? 0)
+                guard bounded.count < maxCanonicalPassages, bytes <= maxCanonicalBytes else {
+                    throw AskSourceError.retrievalLimitExceeded
+                }
                 bounded.append(part)
             }
         }
         return bounded
+    }
+
+    /// Inspect stored byte lengths before decoding transcript/timing payloads.
+    /// Correction history is conservatively included, including inactive branches.
+    private static func checkInputSize(sourceIDs: [UUID], db: Database) throws {
+        var bytes = 0
+        for id in Set(sourceIDs) {
+            try Task.checkCancellation()
+            bytes +=
+                try Int.fetchOne(
+                    db,
+                    sql: """
+                        SELECT coalesce(length(CAST(rawTranscript AS BLOB)), 0)
+                             + coalesce(length(CAST(cleanTranscript AS BLOB)), 0)
+                             + coalesce(length(CAST(wordTimestamps AS BLOB)), 0)
+                             + coalesce(length(CAST(transcriptSegments AS BLOB)), 0)
+                             + coalesce(length(CAST(diarizationSegments AS BLOB)), 0)
+                             + coalesce(length(CAST(speakers AS BLOB)), 0)
+                        FROM transcriptions WHERE id = ?
+                        """, arguments: [id]) ?? 0
+            bytes +=
+                try Int.fetchOne(
+                    db,
+                    sql: """
+                        SELECT coalesce(sum(length(CAST(payload AS BLOB))), 0)
+                        FROM speaker_corrections WHERE transcriptionId = ?
+                        """, arguments: [id]) ?? 0
+            guard bytes <= maxInputBytes else { throw AskSourceError.retrievalLimitExceeded }
+        }
+    }
+
+    private static func checkCanonicalSize(_ segments: [Segment], count: inout Int, bytes: inout Int) throws {
+        for segment in segments {
+            if count.isMultiple(of: 256) { try Task.checkCancellation() }
+            count += 1
+            bytes += segment.text.utf8.count + (segment.speaker?.utf8.count ?? 0)
+            guard count <= maxCanonicalPassages, bytes <= maxCanonicalBytes else {
+                throw AskSourceError.retrievalLimitExceeded
+            }
+        }
     }
 
     private struct RevisionSegment: Encodable {
