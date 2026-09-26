@@ -1,0 +1,31 @@
+Sources/MacParakeet/Views/Transcription/TranscribeView.swift
+  s_c299e83108feed::t_72cb6f03ceae3e 415,478-483
+Sources/MacParakeetCore/Audio/AudioFileEnumerator.swift
+  s_c299e83108feed::t_8a099e031c79ef 31-32,55,66,84
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_c299e83108feed::t_609194782ae72a 209,211-214,347-351,390-396,399,474,538-539,546-575,580-590,766,831,1009,1195-1203
+Tests/MacParakeetTests/Audio/AudioFileEnumeratorTests.swift
+  s_c299e83108feed::t_23c32237ff3e4e 5-20
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelBatchTests.swift
+  s_c299e83108feed::t_1f3bf0ecea3cba 67-110,124,146,174,200,226,256,281,310,333,349,363,367-369,374,400,421,452,460,464-465,509-513,537-554
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_c299e83108feed::t_44895aa84c6faf 316-317,456-457,460-461,464-465,467-468,561,570
+spec/contracts/file-transcription-audio-tracks.md
+  s_c299e83108feed::t_9179c24299d57b 81-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ea4b27969445d6ceba58e06ddab2cdbb884db0c1",
+  "prompts": {},
+  "sessions": {
+    "s_c299e83108feed": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dc15-ddf7-71f2-a669-23235022dc65",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
