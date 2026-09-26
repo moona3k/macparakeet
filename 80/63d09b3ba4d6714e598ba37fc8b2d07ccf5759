@@ -1,0 +1,25 @@
+Sources/MacParakeetCore/Services/Ask/AskSourceService.swift
+  s_87598b246e7079::t_52bdef4be99c3f 237,256,287-293
+Tests/MacParakeetTests/Ask/AskSourceServiceTests.swift
+  s_87598b246e7079::t_80f21a9a9a0a0e 464-490
+docs/research/2026-09-26-ask-retrieval.md
+  s_87598b246e7079::t_8fd21c32280270 197-198,202-207
+spec/contracts/ask-workspace.md
+  s_87598b246e7079::t_bcf70aa3ed16f2 67-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8063d09b3ba4d6714e598ba37fc8b2d07ccf5759",
+  "prompts": {},
+  "sessions": {
+    "s_87598b246e7079": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0de16-d121-7563-85aa-e9e0aa5a2459",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
