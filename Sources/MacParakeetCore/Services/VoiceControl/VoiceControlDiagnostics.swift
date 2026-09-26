@@ -48,17 +48,23 @@ public struct VoiceControlDecisionTrace: Codable, Sendable, Equatable {
     /// Controls dropped to stay under the request ceiling. Non-zero explains an
     /// `insufficient_evidence` or `none` that a fuller page would not have given.
     public let truncatedTargets: Int
+    /// Billed input tokens Jev reported for this decision (all requests), when it reported them.
+    public let inputTokens: Int?
+    /// HTTP attempts beyond the first, after a rate limit or overload.
+    public let retries: Int
     public init(
         at: Date = Date(), model: String, kind: String, situation: String?, heads: [String: Head],
-        requestBytes: Int, latencyMilliseconds: Int, resolution: String, truncatedTargets: Int = 0
+        requestBytes: Int, latencyMilliseconds: Int, resolution: String, truncatedTargets: Int = 0,
+        inputTokens: Int? = nil, retries: Int = 0
     ) {
         self.at = at; self.model = model; self.kind = kind; self.situation = situation
         self.heads = heads; self.requestBytes = requestBytes
         self.latencyMilliseconds = latencyMilliseconds; self.resolution = resolution
-        self.truncatedTargets = truncatedTargets
+        self.truncatedTargets = truncatedTargets; self.inputTokens = inputTokens; self.retries = retries
     }
     private enum CodingKeys: String, CodingKey {
         case at, model, kind, situation, heads, requestBytes, latencyMilliseconds, resolution, truncatedTargets
+        case inputTokens, retries
     }
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -71,6 +77,8 @@ public struct VoiceControlDecisionTrace: Codable, Sendable, Equatable {
         latencyMilliseconds = try container.decode(Int.self, forKey: .latencyMilliseconds)
         resolution = try container.decode(String.self, forKey: .resolution)
         truncatedTargets = try container.decodeIfPresent(Int.self, forKey: .truncatedTargets) ?? 0
+        inputTokens = try container.decodeIfPresent(Int.self, forKey: .inputTokens)
+        retries = try container.decodeIfPresent(Int.self, forKey: .retries) ?? 0
     }
 }
 
@@ -329,11 +337,15 @@ public enum VoiceControlConsequencePolicy {
         let shortLabel = words.count <= 5
         // Reviewed local evidence always wins over model-proposed ordinary risk.
         if shortLabel,
-            !words.isDisjoint(with: ["pay", "purchase", "checkout", "buy", "payment", "subscribe", "order", "booking"])
+            !words.isDisjoint(with: [
+                "pay", "purchase", "checkout", "buy", "payment", "subscribe", "order", "booking", "donate",
+            ])
         {
             return .payment
         }
-        if shortLabel, !words.isDisjoint(with: ["delete", "erase", "trash", "destroy"]) { return .destructive }
+        if shortLabel, !words.isDisjoint(with: ["delete", "erase", "trash", "destroy", "discard", "uninstall"]) {
+            return .destructive
+        }
         if shortLabel, !words.isDisjoint(with: ["send", "publish", "post", "transfer", "invite", "share"]) {
             return .externalCommitment
         }

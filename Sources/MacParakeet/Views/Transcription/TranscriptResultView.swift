@@ -552,8 +552,7 @@ struct TranscriptResultView: View {
     @State private var copiedResetTask: Task<Void, Never>?
     @State private var resultCopiedResetTask: Task<Void, Never>?
     @State private var resultButtonCopiedResetTask: Task<Void, Never>?
-    @State private var notesCopied = false
-    @State private var notesCopiedResetTask: Task<Void, Never>?
+    @State private var meetingNotesCopyFeedback = SavedMeetingNotesCopyFeedback()
     @State private var savedMeetingNotesViewModel = SavedMeetingNotesViewModel()
     @State private var savedMeetingNotesSaveStatus = SavedMeetingNotesSaveStatusPresentation()
     @State private var dismissTask: Task<Void, Never>?
@@ -561,7 +560,7 @@ struct TranscriptResultView: View {
     @State private var titleDraft = ""
     @State private var editingTranscript = false
     @State private var editingReadingTranscript = false
-    @State private var readingDrafts: [TranscriptReadingDraft] = []
+    @State private var readingEditSession: TranscriptReadingEditSession?
     @State private var savingReadingTranscript = false
     @State private var readingSaveID: UUID?
     @State private var transcriptDraft = ""
@@ -866,7 +865,7 @@ struct TranscriptResultView: View {
         titleDraft = ""
         editingTranscript = false
         editingReadingTranscript = false
-        readingDrafts = []
+        readingEditSession = nil
         savingReadingTranscript = false
         readingSaveID = nil
         transcriptDraft = ""
@@ -1101,6 +1100,7 @@ struct TranscriptResultView: View {
                 Label("Export", systemImage: "arrow.down.doc")
             }
             .parakeetAction(.secondary)
+            .accessibilityIdentifier("transcript-export-options")
             .popover(isPresented: $showingExportOptions, arrowEdge: .top) {
                 exportOptionsPopover
             }
@@ -2515,7 +2515,7 @@ struct TranscriptResultView: View {
                     Label(savingReadingTranscript ? "Saving…" : "Done", systemImage: "checkmark")
                 }
                 .parakeetAction(.primaryProminent)
-                .disabled(savingReadingTranscript || TranscriptReadingEdit.command(for: readingDrafts) == nil)
+                .disabled(savingReadingTranscript || readingEditSession?.hasChanges != true)
             } else if editingTranscript {
                 if hasEditedTranscript {
                     Button {
@@ -2691,8 +2691,10 @@ struct TranscriptResultView: View {
     @ViewBuilder
     private var transcriptDocumentBody: some View {
         if editingReadingTranscript {
-            TranscriptReadingEditor(drafts: $readingDrafts, font: scaledTranscriptFont)
-                .disabled(savingReadingTranscript)
+            if let readingEditSession {
+                TranscriptReadingEditor(session: readingEditSession, font: scaledTranscriptFont)
+                    .disabled(savingReadingTranscript)
+            }
         } else if editingTranscript {
             transcriptEditor
         } else if transcriptDisplayMode == .timed,
@@ -2826,58 +2828,76 @@ struct TranscriptResultView: View {
     private var meetingNotesSection: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             HStack(spacing: DesignSystem.Spacing.xs) {
-                Label("Your notes", systemImage: "note.text")
-                    .font(DesignSystem.Typography.caption.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                Text("Your notes")
+                    .font(DesignSystem.Typography.sectionTitle)
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
 
                 Spacer()
 
-                if let notes = normalizedMeetingNotesDraft {
-                    Button {
+                Button {
+                    if let notes = normalizedMeetingNotesDraft {
                         TranscriptResultActions.copyText(notes)
-                        notesCopied = true
-                        notesCopiedResetTask?.cancel()
-                        notesCopiedResetTask = Task {
-                            try? await Task.sleep(for: .seconds(1))
-                            if !Task.isCancelled {
-                                notesCopied = false
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: DesignSystem.Spacing.xs) {
-                            Image(systemName: notesCopied ? "checkmark" : "doc.on.doc")
-                            Text(notesCopied ? "Copied" : "Copy")
-                        }
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(notesCopied ? DesignSystem.Colors.successGreen : .primary)
+                        meetingNotesCopyFeedback.noteCopied()
                     }
-                    .parakeetAction(.secondary)
-                    .controlSize(.small)
-                    .accessibilityLabel(notesCopied ? "Notes copied" : "Copy your notes")
+                } label: {
+                    HStack(spacing: DesignSystem.Spacing.xs) {
+                        Image(systemName: meetingNotesCopyFeedback.isCopied ? "checkmark" : "doc.on.doc")
+                        Text(meetingNotesCopyFeedback.isCopied ? "Copied" : "Copy")
+                    }
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(
+                        normalizedMeetingNotesDraft == nil
+                            ? DesignSystem.Colors.textSecondary
+                            : (meetingNotesCopyFeedback.isCopied ? DesignSystem.Colors.successGreen : .primary)
+                    )
                 }
+                .parakeetAction(.secondary)
+                .controlSize(.small)
+                .disabled(normalizedMeetingNotesDraft == nil)
+                .accessibilityLabel(meetingNotesCopyFeedback.isCopied ? "Notes copied" : "Copy your notes")
             }
+            // Align with the native text container’s 5 pt line-fragment inset.
+            .padding(.horizontal, 5)
 
             TextEditor(text: savedMeetingNotesViewModel.textBinding(for: activeTranscription.id))
                 .disabled(
-                    savedMeetingNotesViewModel.meetingID != activeTranscription.id
-                        || savedMeetingNotesViewModel.saveState == .deleted
+                    !SavedMeetingNotesEditorPresentation.isEditorEnabled(
+                        meetingID: savedMeetingNotesViewModel.meetingID,
+                        displayedMeetingID: activeTranscription.id,
+                        saveState: savedMeetingNotesViewModel.saveState
+                    )
                 )
-                .font(DesignSystem.Typography.body)
+                .font(DesignSystem.Typography.bodyLarge)
+                .lineSpacing(5)
                 .foregroundStyle(DesignSystem.Colors.textPrimary)
                 .scrollContentBackground(.hidden)
                 .focused($meetingNotesEditorFocused)
-                .frame(minHeight: 280, maxHeight: .infinity)
-                .padding(DesignSystem.Spacing.sm)
-                .background(
-                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                        .fill(DesignSystem.Colors.surface)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                        .strokeBorder(DesignSystem.Colors.border.opacity(0.7), lineWidth: 1)
-                )
+                .overlay(alignment: .topLeading) {
+                    if SavedMeetingNotesEditorPresentation.showsWritingPrompt(
+                        meetingID: savedMeetingNotesViewModel.meetingID,
+                        displayedMeetingID: activeTranscription.id,
+                        saveState: savedMeetingNotesViewModel.saveState,
+                        draft: savedMeetingNotesViewModel.text
+                    ) {
+                        Text(SavedMeetingNotesEditorPresentation.writingPrompt)
+                            .font(DesignSystem.Typography.bodyLarge)
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                            .padding(.horizontal, 5)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .frame(minHeight: 0, maxHeight: .infinity)
+                .padding(.vertical, DesignSystem.Spacing.sm)
                 .accessibilityLabel("Meeting notes")
-                .accessibilityHint("Add private context, decisions, or reminders for this meeting. Changes save automatically.")
+                .accessibilityIdentifier("meeting-notes-editor")
+                .accessibilityHint(
+                    SavedMeetingNotesEditorPresentation.accessibilityHint(
+                        meetingID: savedMeetingNotesViewModel.meetingID,
+                        displayedMeetingID: activeTranscription.id,
+                        saveState: savedMeetingNotesViewModel.saveState
+                    )
+                )
 
             HStack(spacing: DesignSystem.Spacing.sm) {
                 if savedMeetingNotesViewModel.wordCount >= MeetingNotesViewModel.softCapWarningWordCount {
@@ -2897,8 +2917,8 @@ struct TranscriptResultView: View {
                     "\(savedMeetingNotesViewModel.wordCount.formatted()) "
                         + (savedMeetingNotesViewModel.wordCount == 1 ? "word" : "words")
                 )
-                    .font(DesignSystem.Typography.caption.monospacedDigit())
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                .font(DesignSystem.Typography.caption.monospacedDigit())
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
             }
 
             if let warning = viewModel.meetingNotesArtifactWarning {
@@ -2917,12 +2937,8 @@ struct TranscriptResultView: View {
                 }
             }
         }
-        .padding(DesignSystem.Spacing.md)
+        .padding(.horizontal, DesignSystem.Spacing.sm)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                .fill(DesignSystem.Colors.surfaceElevated.opacity(0.25))
-        )
     }
 
     @ViewBuilder
@@ -2933,15 +2949,16 @@ struct TranscriptResultView: View {
         } else {
             switch savedMeetingNotesViewModel.saveState {
             case .deleted:
-                Label("Meeting deleted — notes were not saved", systemImage: "trash")
+                Label(SavedMeetingNotesEditorPresentation.deletedStatus, systemImage: "trash")
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    .help("Meeting deleted — notes were not saved")
+                    .help(SavedMeetingNotesEditorPresentation.deletedStatus)
             case .saved where savedMeetingNotesSaveStatus.showsSaveConfirmation:
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(DesignSystem.Colors.successGreen.opacity(0.7))
                     .help("Saved")
                     .accessibilityLabel("Saved")
+                    .accessibilityIdentifier("meeting-notes-saved")
                     .frame(width: 16, alignment: .leading)
             case .saved:
                 Color.clear
@@ -2996,15 +3013,23 @@ struct TranscriptResultView: View {
 
     private var meetingNotesPane: some View {
         meetingNotesSection
-            .padding(DesignSystem.Spacing.lg)
             .onAppear(perform: beginMeetingNotesSaveStatusPresentation)
+            .onChange(of: activeTranscription.id) {
+                meetingNotesCopyFeedback.reset()
+            }
+            .onChange(of: savedMeetingNotesViewModel.text) {
+                meetingNotesCopyFeedback.reset()
+            }
             .onChange(of: savedMeetingNotesViewModel.meetingID) {
                 beginMeetingNotesSaveStatusPresentation()
             }
             .onChange(of: savedMeetingNotesViewModel.saveState) { previousState, saveState in
                 observeMeetingNotesSaveState(from: previousState, to: saveState)
             }
-            .onDisappear(perform: resetMeetingNotesSaveStatusPresentation)
+            .onDisappear {
+                resetMeetingNotesSaveStatusPresentation()
+                meetingNotesCopyFeedback.reset()
+            }
     }
 
     // MARK: - Tab Bar
@@ -3093,6 +3118,7 @@ struct TranscriptResultView: View {
         // come before .contextMenu so the combined element keeps its menu.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(tabLabel(tab))
+        .accessibilityIdentifier(tab == .notes ? "meeting-notes-tab" : "transcript-tab-\(tabLabel(tab))")
         .accessibilityValue(tabAccessibilityValue(tab, isStreaming: isStreamingTab))
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { selectTab(tab) }
@@ -3234,175 +3260,178 @@ struct TranscriptResultView: View {
 
     private func promptResultContentPane(promptResultID: UUID) -> some View {
         let promptResult = promptResultsViewModel.promptResults.first(where: { $0.id == promptResultID })
-        return ScrollView {
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-                if let promptResult {
-                    let summaryNeedsUpdate = PromptResultFreshness.summaryNeedsUpdate(
-                        sourceCorrectionRevision: promptResult.sourceCorrectionRevision,
-                        currentCorrectionRevision: currentCorrectionRevision,
-                        sourceTranscriptHash: promptResult.sourceTranscriptHash,
-                        currentTranscriptHash: currentSourceTranscriptHash
-                    )
-                    if summaryNeedsUpdate {
-                        Text(promptResult.sourceTranscriptHash == nil
+        return VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            if let promptResult {
+                let summaryNeedsUpdate = PromptResultFreshness.summaryNeedsUpdate(
+                    sourceCorrectionRevision: promptResult.sourceCorrectionRevision,
+                    currentCorrectionRevision: currentCorrectionRevision,
+                    sourceTranscriptHash: promptResult.sourceTranscriptHash,
+                    currentTranscriptHash: currentSourceTranscriptHash
+                )
+                if summaryNeedsUpdate {
+                    Text(
+                        promptResult.sourceTranscriptHash == nil
                             ? "This summary's source transcript is unknown. Update it to check against the current transcript."
-                            : "The transcript changed after this summary.")
-                            .font(DesignSystem.Typography.caption)
+                            : "The transcript changed after this summary."
+                    )
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                }
+                FlowLayout(spacing: DesignSystem.Spacing.sm) {
+                    if promptResult.isContentUserEdited && !promptResultsViewModel.isEditingPromptResult(promptResult.id) {
+                        Text("Edited")
+                            .font(DesignSystem.Typography.caption.weight(.medium))
                             .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    }
-                    HStack {
-                        if promptResult.isContentUserEdited && !promptResultsViewModel.isEditingPromptResult(promptResult.id) {
-                            Text("Edited")
-                                .font(DesignSystem.Typography.caption.weight(.medium))
-                                .foregroundStyle(DesignSystem.Colors.textSecondary)
-                        }
-
-                        Spacer()
-
-                        if promptResultsViewModel.isEditingPromptResult(promptResult.id) {
-                            Button("Cancel") {
-                                promptResultsViewModel.cancelEditingPromptResult()
-                            }
-                            .parakeetAction(.secondary)
-                            .controlSize(.small)
-
-                            Button("Save") {
-                                _ = promptResultsViewModel.saveEditingPromptResult()
-                            }
-                            .parakeetAction(.primary)
-                            .controlSize(.small)
-                            .disabled(!promptResultsViewModel.canSaveEditingPromptResult)
-                        } else {
-                            Button {
-                                startPromptContextAction { context in
-                                    if let generationID = promptResultsViewModel.regeneratePromptResult(
-                                        promptResult,
-                                        transcript: context,
-                                        sourceCorrectionRevision: currentCorrectionRevision,
-                                        sourceTranscriptHash: currentSourceTranscriptHash
-                                    ) {
-                                        viewModel.selectedTab = .generation(id: generationID)
-                                    }
-                                }
-                            } label: {
-                                HStack(spacing: DesignSystem.Spacing.xs) {
-                                    Image(systemName: "arrow.clockwise")
-                                    Text(summaryNeedsUpdate ? "Update summary" : "Regenerate")
-                                }
-                                .font(DesignSystem.Typography.caption)
-                            }
-                            .parakeetAction(summaryNeedsUpdate ? .primary : .secondary)
-                            .controlSize(.small)
-                            .disabled(
-                                promptNotesActionGate.isRunning || richContextLoader.preparingPromptContext
-                                    || !promptResultsViewModel.canGeneratePromptResult
-                                    || !promptResultsViewModel.canEditPromptResult(promptResult)
-                                    || transcriptText.isEmpty
-                            )
-
-                            let isCopied = copiedButtonResultID == promptResultID
-                            Button {
-                                TranscriptResultActions.copyText(promptResult.content)
-                                copiedButtonResultID = promptResultID
-                                resultButtonCopiedResetTask?.cancel()
-                                resultButtonCopiedResetTask = Task {
-                                    try? await Task.sleep(for: .seconds(1))
-                                    copiedButtonResultID = nil
-                                }
-                            } label: {
-                                HStack(spacing: DesignSystem.Spacing.xs) {
-                                    Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
-                                    Text(isCopied ? "Copied" : "Copy")
-                                }
-                                .font(DesignSystem.Typography.caption)
-                                .foregroundStyle(isCopied ? DesignSystem.Colors.successGreen : .primary)
-                            }
-                            .parakeetAction(.secondary)
-                            .controlSize(.small)
-
-                            if let sharing = shareManagement, AppFeatures.isShareLinksAvailable() {
-                                Button { prepareShare(using: sharing, selectedSummaryID: promptResult.id) } label: {
-                                    Label("Share result…", systemImage: "square.and.arrow.up")
-                                }
-                                .parakeetAction(.secondary)
-                                .controlSize(.small)
-                                .disabled(preparingShare || sharing.isBusy || !sharing.isConfigured)
-                            }
-
-                            Menu {
-                                Button("Markdown (.md)") {
-                                    exportGenerationToDownloads(promptResult: promptResult, format: .md)
-                                }
-                                Button("Plain Text (.txt)") {
-                                    exportGenerationToDownloads(promptResult: promptResult, format: .txt)
-                                }
-                            } label: {
-                                HStack(spacing: DesignSystem.Spacing.xs) {
-                                    Image(systemName: "arrow.down.doc")
-                                    Text("Export")
-                                }
-                                .font(DesignSystem.Typography.caption)
-                            }
-                            .menuStyle(.borderedButton)
-                            .tint(DesignSystem.Colors.tintNeutral)
-                            .controlSize(.small)
-
-                            Button(role: .destructive) {
-                                promptResultsViewModel.pendingDeletePromptResult = promptResult
-                            } label: {
-                                HStack(spacing: DesignSystem.Spacing.xs) {
-                                    Image(systemName: "trash")
-                                    Text("Delete")
-                                }
-                                .font(DesignSystem.Typography.caption)
-                            }
-                            .parakeetAction(.destructive)
-                            .controlSize(.small)
-
-                            Button {
-                                promptResultsViewModel.beginEditingPromptResult(promptResult)
-                                if promptResultsViewModel.isEditingPromptResult(promptResult.id) {
-                                    Task { @MainActor in promptResultEditorFocused = true }
-                                }
-                            } label: {
-                                HStack(spacing: DesignSystem.Spacing.xs) {
-                                    Image(systemName: "pencil")
-                                    Text("Edit")
-                                }
-                                .font(DesignSystem.Typography.caption)
-                            }
-                            .parakeetAction(.secondary)
-                            .controlSize(.small)
-                            .disabled(!promptResultsViewModel.canEditPromptResult(promptResult))
-                        }
                     }
 
                     if promptResultsViewModel.isEditingPromptResult(promptResult.id) {
-                        TextEditor(text: $promptResultsViewModel.editingDraft)
-                            .focused($promptResultEditorFocused)
-                            .font(DesignSystem.Typography.body)
-                            .foregroundStyle(DesignSystem.Colors.textPrimary)
-                            .scrollContentBackground(.hidden)
-                            .frame(minHeight: 280, maxHeight: .infinity)
-                            .padding(DesignSystem.Spacing.sm)
-                            .background(
-                                RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                                    .fill(DesignSystem.Colors.surface)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                                    .strokeBorder(DesignSystem.Colors.border.opacity(0.7), lineWidth: 1)
-                            )
-                            .accessibilityLabel("Edit \(promptResult.promptName)")
+                        Button("Cancel") {
+                            promptResultsViewModel.cancelEditingPromptResult()
+                        }
+                        .parakeetAction(.secondary)
+                        .controlSize(.small)
+
+                        Button("Save") {
+                            _ = promptResultsViewModel.saveEditingPromptResult()
+                        }
+                        .parakeetAction(.primary)
+                        .controlSize(.small)
+                        .disabled(!promptResultsViewModel.canSaveEditingPromptResult)
                     } else {
+                        Button {
+                            startPromptContextAction { context in
+                                if let generationID = promptResultsViewModel.regeneratePromptResult(
+                                    promptResult,
+                                    transcript: context,
+                                    sourceCorrectionRevision: currentCorrectionRevision,
+                                    sourceTranscriptHash: currentSourceTranscriptHash
+                                ) {
+                                    viewModel.selectedTab = .generation(id: generationID)
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: DesignSystem.Spacing.xs) {
+                                Image(systemName: "arrow.clockwise")
+                                Text(summaryNeedsUpdate ? "Update summary" : "Regenerate")
+                            }
+                            .font(DesignSystem.Typography.caption)
+                        }
+                        .parakeetAction(summaryNeedsUpdate ? .primary : .secondary)
+                        .controlSize(.small)
+                        .disabled(
+                            promptNotesActionGate.isRunning || richContextLoader.preparingPromptContext
+                                || !promptResultsViewModel.canGeneratePromptResult
+                                || !promptResultsViewModel.canEditPromptResult(promptResult)
+                                || transcriptText.isEmpty
+                        )
+
+                        let isCopied = copiedButtonResultID == promptResultID
+                        Button {
+                            TranscriptResultActions.copyText(promptResult.content)
+                            copiedButtonResultID = promptResultID
+                            resultButtonCopiedResetTask?.cancel()
+                            resultButtonCopiedResetTask = Task {
+                                try? await Task.sleep(for: .seconds(1))
+                                copiedButtonResultID = nil
+                            }
+                        } label: {
+                            HStack(spacing: DesignSystem.Spacing.xs) {
+                                Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
+                                Text(isCopied ? "Copied" : "Copy")
+                            }
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(isCopied ? DesignSystem.Colors.successGreen : .primary)
+                        }
+                        .parakeetAction(.secondary)
+                        .controlSize(.small)
+
+                        if let sharing = shareManagement, AppFeatures.isShareLinksAvailable() {
+                            Button {
+                                prepareShare(using: sharing, selectedSummaryID: promptResult.id)
+                            } label: {
+                                Label("Share result…", systemImage: "square.and.arrow.up")
+                            }
+                            .parakeetAction(.secondary)
+                            .controlSize(.small)
+                            .disabled(preparingShare || sharing.isBusy || !sharing.isConfigured)
+                        }
+
+                        Menu {
+                            Button("Markdown (.md)") {
+                                exportGenerationToDownloads(promptResult: promptResult, format: .md)
+                            }
+                            Button("Plain Text (.txt)") {
+                                exportGenerationToDownloads(promptResult: promptResult, format: .txt)
+                            }
+                        } label: {
+                            HStack(spacing: DesignSystem.Spacing.xs) {
+                                Image(systemName: "arrow.down.doc")
+                                Text("Export")
+                            }
+                            .font(DesignSystem.Typography.caption)
+                        }
+                        .menuStyle(.borderedButton)
+                        .tint(DesignSystem.Colors.tintNeutral)
+                        .controlSize(.small)
+
+                        Button(role: .destructive) {
+                            promptResultsViewModel.pendingDeletePromptResult = promptResult
+                        } label: {
+                            HStack(spacing: DesignSystem.Spacing.xs) {
+                                Image(systemName: "trash")
+                                Text("Delete")
+                            }
+                            .font(DesignSystem.Typography.caption)
+                        }
+                        .parakeetAction(.destructive)
+                        .controlSize(.small)
+
+                        Button {
+                            promptResultsViewModel.beginEditingPromptResult(promptResult)
+                            if promptResultsViewModel.isEditingPromptResult(promptResult.id) {
+                                Task { @MainActor in promptResultEditorFocused = true }
+                            }
+                        } label: {
+                            HStack(spacing: DesignSystem.Spacing.xs) {
+                                Image(systemName: "pencil")
+                                Text("Edit")
+                            }
+                            .font(DesignSystem.Typography.caption)
+                        }
+                        .parakeetAction(.secondary)
+                        .controlSize(.small)
+                        .disabled(!promptResultsViewModel.canEditPromptResult(promptResult))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+
+                if promptResultsViewModel.isEditingPromptResult(promptResult.id) {
+                    TextEditor(text: $promptResultsViewModel.editingDraft)
+                        .focused($promptResultEditorFocused)
+                        .font(DesignSystem.Typography.body)
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+                        .scrollContentBackground(.hidden)
+                        .frame(minHeight: 120, maxHeight: .infinity)
+                        .padding(DesignSystem.Spacing.sm)
+                        .background(
+                            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                                .fill(DesignSystem.Colors.surface)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                                .strokeBorder(DesignSystem.Colors.border.opacity(0.7), lineWidth: 1)
+                        )
+                        .accessibilityLabel("Edit \(promptResult.promptName)")
+                } else {
+                    ScrollView {
                         MarkdownContentView(promptResult.content, font: DesignSystem.Typography.bodyLarge)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(DesignSystem.Spacing.lg)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(DesignSystem.Spacing.lg)
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
                 .fill(DesignSystem.Colors.surface)
@@ -5431,10 +5460,11 @@ struct TranscriptResultView: View {
     }
 
     private var normalizedMeetingNotesDraft: String? {
-        guard savedMeetingNotesViewModel.meetingID == activeTranscription.id else { return nil }
-        let notes = savedMeetingNotesViewModel.text
-        guard !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        return notes
+        SavedMeetingNotesEditorPresentation.copyPayload(
+            meetingID: savedMeetingNotesViewModel.meetingID,
+            displayedMeetingID: activeTranscription.id,
+            draft: savedMeetingNotesViewModel.text
+        )
     }
 
     private func requestMeetingNotesNavigation(_ action: MeetingNotesNavigationAction) {
@@ -5532,20 +5562,21 @@ struct TranscriptResultView: View {
 
     private func beginReadingEdit() {
         guard let segments = viewModel.speakerAttribution?.editableSegments, !segments.isEmpty else { return }
-        readingDrafts = segments.map { segment in
+        let drafts = segments.map { segment in
             TranscriptReadingDraft(
                 target: correctionTarget(for: segment),
                 originalText: segment.text,
                 text: segment.text
             )
         }
+        readingEditSession = TranscriptReadingEditSession(drafts: drafts)
         transcriptEditError = nil
         editingReadingTranscript = true
     }
 
     private func cancelReadingEdit() {
         guard !savingReadingTranscript else { return }
-        readingDrafts = []
+        readingEditSession = nil
         editingReadingTranscript = false
         transcriptEditError = nil
     }
@@ -5556,7 +5587,7 @@ struct TranscriptResultView: View {
             transcriptEditError = "Transcript changed. Reopen it to save your edits."
             return
         }
-        guard let command = TranscriptReadingEdit.command(for: readingDrafts) else {
+        guard let command = readingEditSession?.command() else {
             cancelReadingEdit()
             return
         }
@@ -5578,7 +5609,7 @@ struct TranscriptResultView: View {
             savingReadingTranscript = false
             guard viewModel.currentTranscription?.id == savingTranscriptionID else { return }
             if succeeded {
-                readingDrafts = []
+                readingEditSession = nil
                 editingReadingTranscript = false
             } else {
                 transcriptEditError = "Couldn't save. Your edits are still here."
@@ -5825,6 +5856,7 @@ struct TranscriptResultView: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("transcript-export-format-\(format.rawValue)")
                     }
                 }
             }
@@ -5867,6 +5899,7 @@ struct TranscriptResultView: View {
                 }
                 .parakeetAction(.primaryProminent)
                 .keyboardShortcut(.defaultAction)
+                .accessibilityIdentifier("transcript-export-confirm")
             }
         }
         .padding(DesignSystem.Spacing.md)

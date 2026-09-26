@@ -3,8 +3,14 @@
 This smoke path proves a released MacParakeet CLI can run a local demo without
 writing demo transcription history to the user's app database. It checks CLI
 availability, records health readiness, synthesizes a tiny local audio fixture,
-transcribes it into an isolated SQLite database, and exports the saved
-transcription to Markdown.
+transcribes it into an isolated SQLite database with Parakeet v3 and raw
+processing pinned explicitly, reads the saved row back in a fresh CLI process,
+exports it to Markdown, and verifies engine attribution, persisted content, and
+export content across those artifacts.
+
+For the bounded, offline, disposable-account wrapper that pins a qualified
+model before running this smoke, see
+[`docs/testing/model-qualification.md`](testing/model-qualification.md).
 
 Run it against the installed app-bundled CLI:
 
@@ -37,16 +43,26 @@ A passing run also produces:
 - `health.json` plus `health.stderr`
 - `fixture.wav`, generated locally via `say` and `afconvert`
 - `transcribe.json` plus `transcribe.stderr`
+- `history.json` plus `history.stderr`, a fresh-process persistence proof
 - `export.md` plus `export.stdout`/`export.stderr`
+- `validation.json`, the content and persistence assertions from
+  `scripts/dev/verify_release_demo.py`
 
 Pass/fail criteria:
 
 - `health --json` exits successfully and emits valid JSON
 - the fixture WAV is non-empty
-- `transcribe --format json --database <isolated-db>` exits successfully, emits
-  valid JSON, returns `status = completed`, and contains transcript text
+- `transcribe --format json --database <isolated-db> --engine parakeet
+  --parakeet-model v3 --mode raw` exits successfully, emits valid JSON, returns
+  `status = completed`, and contains transcript text
+- a separate `history transcriptions --json --database <isolated-db>` process
+  reads back the same ID, `completed` status, and transcript text
 - `export <transcription-id> --format markdown --database <isolated-db>` exits
   successfully and writes a non-empty Markdown file
+- `verify_release_demo.py` confirms both the transcribe and history rows
+  report the Parakeet v3 engine, agree on ID/status/transcript text, contain at
+  least four of five distinctive fixture words, and that the exported Markdown
+  contains the persisted transcript
 
 Notes:
 
@@ -64,6 +80,8 @@ Notes:
   transcription may prepare models and use shared caches. This smoke isolates
   transcript rows, not all app state or network activity. See the
   [integration isolation rules](../integrations/README.md#safe-automation-and-isolation).
-- Health, transcription, and export invocations set `MACPARAKEET_TELEMETRY=0`.
-  Passing this smoke does not verify GUI capture, hardware routes, permissions,
-  signing, notarization, or the Sparkle update path.
+- Health, transcription, history, and export invocations set
+  `MACPARAKEET_TELEMETRY=0`. Passing this smoke does not verify GUI capture,
+  hardware routes, permissions, signing, notarization, or the Sparkle update
+  path, and it does not by itself prove offline/no-download or dedicated-account
+  isolation -- see the qualification wrapper above for those boundaries.

@@ -14,6 +14,7 @@ This is a DEBUG experiment (`--enable-voice-control`). Live Google Flights resul
 4. [Everyday use](everyday-use-cases.md) — the catalog of moments that should feel magic
 5. [Evidence](evidence.md) — what is proven, what is not
 6. [Later](later.md) — overlays, TTS, remaining holes
+7. [Deep review, 2026-09-25](../2026-09-25-voice-control-jev-deep-review.md) — routing bugs found and fixed, Jev usage audit, design direction
 
 ## Reference material
 

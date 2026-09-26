@@ -484,7 +484,9 @@ final class AppEnvironment {
         meetingRecordingRecoveryService = MeetingRecordingRecoveryService(
             lockFileStore: meetingRecordingLockFileStore,
             transcriptionService: transcriptionService,
-            transcriptionRepo: transcriptionRepo
+            transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: meetingArtifactStore,
+            promptResultRepo: promptResultRepo
         )
 
         let savedAudioCompletionService = SavedAudioAutoPromptCompletionService(

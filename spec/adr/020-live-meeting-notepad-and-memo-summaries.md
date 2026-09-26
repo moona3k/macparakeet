@@ -333,10 +333,11 @@ The Notes surface contains exactly what the user typed. Ask responses live in th
 
 The corollary: there is no "insert this Ask response into Notes" affordance. If the user wants Ask output in Notes, they retype it (which is friction by design — it forces the user to commit to what's worth keeping).
 
-**Code-level enforcement.** `Transcription.userNotes` is set on the row by exactly two call sites:
+**Code-level enforcement.** `Transcription.userNotes` is seeded from `MeetingRecordingOutput.userNotes` at exactly one call site, for a genuinely new row:
 
-1. `TranscriptionService.transcribeMeeting(...)` — called at finalize, reads `MeetingRecordingOutput.userNotes` which the recording service captured from the in-memory notes state at stop time
-2. `MeetingRecordingRecoveryService.completeRecovery(...)` — called at launch when a recoverable session has `notes` in its lock file; copies directly onto the row without involving any live VM
+1. `TranscriptionService.makeMeetingTranscriptionStub(...)` (used by `transcribeMeeting(...)`/`prepareMeetingTranscription(...)`) — called when a row is first created, reads `MeetingRecordingOutput.userNotes`, which the recording service captured from the in-memory notes state at stop time, or which crash recovery seeded from the recoverable session's lock file `notes`
+
+An already-known row's `userNotes` is canonical, including an explicit clear to nil/empty: `TranscriptionService.finalizeMeetingTranscription(...)` and `MeetingRecordingRecoveryService.completeRecovery(...)` both update an existing row without involving any live VM, and neither copies stale lock/recording notes back onto it.
 
 `MeetingNotesViewModel.notesText` is a single property bound exclusively to the `TextEditor` in `LiveNotesPaneView` via `$notesText`. The view model exposes no public mutator that writes to `notesText` from anywhere else. A future engineer who wants to insert AI-generated content into notes would have to either bypass `MeetingNotesViewModel` (caught in code review) or add a programmatic setter to it (which the type guards against by keeping the property `private(set)` for external readers). Either change is a visible signal that the invariant is being touched.
 

@@ -98,3 +98,6 @@ spike/
 
 # Local third-party reference checkouts
 /references/
+
+# Local CI evidence (uploaded by GitHub Actions).
+/ci-logs/

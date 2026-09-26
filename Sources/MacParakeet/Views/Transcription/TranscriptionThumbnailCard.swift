@@ -65,6 +65,7 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
             .animation(DesignSystem.Animation.hoverTransition, value: isSelected)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("library-item-\(transcription.id.uuidString)")
         .overlay(alignment: .topLeading) {
             if showsSelectionControls {
                 selectionBadge

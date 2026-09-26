@@ -111,6 +111,7 @@ timing instead of ignoring it.
 - `GlobalShortcutManagerTests`: Meeting hotkey registration, conflict detection
 - `TranscriptionServiceTests`: Meeting transcription path (sourceType = .meeting)
 - `DatabaseManagerTests`: sourceType migration, meeting transcription CRUD
+- `MeetingRecordingCrashRecoveryTests`: opt-in real writer/SIGKILL/fresh-process recovery and artifact settlement; see [the process recovery guide](../docs/testing/meeting-process-recovery.md) for commands and qualification limits.
 
 ### STT Scheduler Tests (ADR-016)
 
@@ -131,7 +132,7 @@ timing instead of ignoring it.
 
 ### CLI Tests
 
-**What:** Command parsing and prompt construction behavior for CLI surfaces.
+**What:** Command parsing, prompt construction, and real-process meeting persistence for CLI surfaces.
 
 **How:** XCTest against the `CLI` module (`CLITests` target), plus manual/automation smoke runs for full binary execution.
 
@@ -141,6 +142,9 @@ timing instead of ignoring it.
 - transcript-file loader behavior (missing file, bounded context assembly)
 - `transforms` saved-prompt CRUD/run JSON envelopes and local history commands
 - `vocab` process/words/snippets command parsing and JSON output
+- `MeetingCLIProcessTests`: seed a completed meeting through production GRDB APIs in a disposable root, then launch separate CLI processes for show, notes set/get, Markdown export, and a missing-ID error. Check persisted notes, manifest paths, and actual Markdown/notes/transcript artifacts. This is synthetic persistence coverage, not audio or model qualification.
+
+The process test uses `MACPARAKEET_CLI_TEST_EXECUTABLE` when provided; otherwise it uses `macparakeet-cli` beside the XCTest bundle in the SwiftPM build directory. A missing executable fails the test. Build the debug CLI first when running XCTest directly. The CI behavior lane passes an absolute debug executable path after its build step. Each child has a 30-second timeout, telemetry disabled, explicit temporary database/state paths, and file-backed output. The test never runs preference, model, capture, or playback commands.
 
 **Tip:** For runtime smoke runs, use a throwaway database path (e.g. `--database /tmp/macparakeet-cli-test.db`) to avoid polluting the real app database. `scripts/dev/run_app.sh` uses an isolated Dev state root by default; set `MACPARAKEET_DEBUG_APP_STATE_DIR` to an absolute throwaway directory when a unique app-level smoke state is required. The override scopes the database, meeting artifacts, AppPaths-managed helper caches, the FluidAudio speech/speaker model cache, and logs away from real user state — including destructive `models delete`/`models clear` runs.
 
@@ -202,8 +206,9 @@ the same feature-branch update:
 
 The existing `docs/**` and `plans/**` exclusions still apply to push and PR
 path filtering. GitHub does not apply path filters to tag pushes. PR updates
-cancel superseded runs for that PR; the `swift-test` check name and all build,
-bundle, concurrency, language-mode, and test gates are retained. See GitHub's
+cancel superseded runs for that PR. The `swift-test` check is an aggregate
+verdict: both the behavior and distribution jobs must succeed. Failed, skipped,
+or cancelled jobs cannot produce a green aggregate. See GitHub's
 [branch and tag filter semantics](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore).
 
 For a branch that needs hosted validation before a PR exists, select it under
@@ -213,24 +218,67 @@ Actions → CI → Run workflow, or use:
 gh workflow run ci.yml --ref <branch>
 ```
 
-### Timing baseline and optimization priorities
+### Execution and evidence
 
-On 2026-09-08, six sampled successful jobs took approximately 40–52 minutes.
-For PR #984, the [PR job](https://github.com/moona3k/macparakeet/actions/runs/34195968512)
-took 40m 55s, and its redundant
-[branch-push job](https://github.com/moona3k/macparakeet/actions/runs/34195965402)
-took 46m 53s: nearly 88 runner-minutes combined. The PR job spent 9m 30s on
-the release build, 13m on the app bundle, 5m 15s on concurrency compilation,
-4m 17s on Swift 6 compilation, and 8m 9s on test compilation and execution.
-These are historical measurements, not performance guarantees.
+Two macOS jobs run independently so behavioral regressions no longer wait for
+Release packaging:
 
-Removing the feature-branch push run saves duplicate runner work; it does not
-halve the duration of the remaining job. Measure subsequent runs before
-changing the pipeline further. Independent build jobs and compiled-output
-reuse are follow-up candidates, but must preserve the Xcode bundle/resource
-check and the separate Swift 6 compatibility gate. The current cache stores
-dependencies, not compiled outputs. Compare both elapsed time and total
-runner-minutes before adding parallel jobs or more caching.
+| Job | Validation |
+|---|---|
+| Tests and Swift 6 | README/telemetry guards, CI helper tests, informational formatting, one debug test build with concurrency warnings, full parallel test execution, real CLI persistence smoke, opt-in meeting process recovery journey, separate Swift 6 compatibility build |
+| Release and Bundle | Distribution policy fixtures (packaging, privacy surface, release version), full SwiftPM Release build, Xcode app bundle and Markdown resources, bundled CLI help/spec contract |
+| `swift-test` | Requires both jobs to succeed; preserves the existing overall check name |
+
+`swift build --build-tests -Xswiftc -warn-concurrency` compiles the normal
+application/dependency graph and test targets. `swift test --skip-build
+--parallel -Xswiftc -warn-concurrency` then runs those exact products. Separate
+Actions steps expose compile and execution cost without a second debug build
+with different flags. Concurrency warnings remain diagnostics, not a zero-warning
+gate. The separate Swift 6 build omits WhisperKit and the Markdown dependency
+graph and does not compile test targets; retain this distinction when reporting
+coverage.
+
+Each macOS job uploads its nonhidden `ci-logs/` directory even on failure, as
+`swift-test-evidence` or `swift-distribution-evidence`, retained for seven days.
+Missing files are an artifact failure rather than a silent success. Evidence
+includes the tested SHA, OS/architecture/CPU/memory, Xcode/Swift versions, and
+build logs. Distribution also preserves Xcode output/build timing summaries.
+
+The test job emits xUnit XML and a step summary with reported case/failure/error
+counts and the ten slowest case durations. SwiftPM's XCTest XML does not reliably
+represent skipped cases, so the summary discloses missing skip counts instead
+of calling every XML case a pass. Swift Testing's log summary is reported
+separately. Case durations include runner overhead and overlap under parallel
+execution; their sum is not test-step wall time. Missing or malformed expected
+XML fails the evidence step. The test command's exit status remains authoritative.
+
+The CLI persistence smoke invokes the built executable in separate processes
+against a fresh temporary database, exercising prompt/collection creation,
+readback, rename, collection deletion with prompt preservation, and a missing-ID
+JSON error. It disables telemetry, selects an owned AppPaths root, and does not
+change preferences or invoke models/providers. This proves executable/persistence
+composition, not audio, GUI, or model behavior. Run it explicitly with:
+
+```bash
+python3 scripts/ci/cli-persistence-smoke.py "$PWD/.build/debug/macparakeet-cli"
+```
+
+### Timing baseline and follow-up decisions
+
+The [September 25 audit](../docs/research/2026-09-25-ci-cost-and-test-strategy.md)
+measured 24 successful jobs from a 70-run sample: 52.7 minutes median, with four
+pre-test build stages consuming 77.5% of aggregate job time. In three inspected
+logs, XCTest execution occupied about 7–8 minutes. These are measurements of the
+previous sequential workflow, not a speedup claim for this revision.
+
+The first change keeps the complete test suite, full Release product build,
+Xcode resource probe, and Swift 6 compatibility check. It changes scheduling,
+combines debug compilation, repairs artifacts, and adds inexpensive executable
+coverage. Dependency caches still contain sources/downloads rather than compiled
+products. Compare both end-to-end latency and summed runner-minutes in new hosted
+runs before adding compiled caches, narrowing Release products, changing worker
+counts, moving DSP measurements, or splitting more jobs. Include queue time and
+cancelled runs when interpreting developer wait time.
 
 ## AI Agent Testing Loop
 
@@ -304,10 +352,10 @@ func testCapitalizationStage() {
 
 ### Fixture Data
 
-Audio and transcript fixtures live in `Tests/Fixtures/`:
-- Sample transcripts (VTT, SRT, TXT)
-- Sample audio files (short WAV clips for STT tests)
-- Example LLM outputs (for refinement mode tests)
+Tests construct synthetic audio/transcript fixtures near the owning suite or
+in its test helpers. Real-model and hardware suites accept explicitly provided
+fixtures/assets and remain opt-in. Use test-owned temporary directories for
+media and persistence; do not assume a shared `Tests/Fixtures/` directory exists.
 
 ## Test File Organization
 
@@ -394,5 +442,18 @@ These flows must be tested manually after any overlay or hotkey changes. Automat
 1. Identify the category (unit, database, integration, CLI)
 2. Find the appropriate test file or create one following naming convention: `{Feature}Tests.swift`
 3. Follow existing patterns in the same category
-4. Run `swift test` to verify
-5. Update test count in CLAUDE.md and README.md if applicable
+4. Run the focused suite while iterating; follow the one-full-suite final gate above.
+5. Describe the behavior covered and any skipped hardware/model boundaries; use generated results rather than manually maintained test counts.
+
+### Distribution policy fixtures
+
+The distribution CI job runs `scripts/dist/test_verify_app_privacy_surface.sh`
+and `scripts/dist/test_verify_release_version.sh` alongside the meeting echo
+packaging fixtures. They invoke the production release verifiers against valid
+and deliberately invalid bundles: extra ATS domains/attributes, malformed
+privacy metadata, and missing, malformed, or development version strings.
+
+These fixtures test release policy rejection paths. Their synthetic bundle
+metadata and fake signing output do not qualify a signed app, notarization, or
+macOS networking behavior. Run either script directly with `bash` for a focused
+check; CI retains each script's output in the distribution evidence artifact.

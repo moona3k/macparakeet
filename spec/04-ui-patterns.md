@@ -85,6 +85,18 @@ under Library's Meetings filter. Reason: Library remains the universal archive,
 while Meetings is the workflow surface for upcoming calendar context, the active
 recording state, recent meetings, recovery states, and intelligence readiness.
 
+The Meetings overview uses the available content width with 20pt side insets
+and 16pt section spacing. At 960pt content width it places a flexible meeting
+list beside a 300pt utility rail; narrower windows stack the sections. The
+recording tile uses compact insets and a content-driven minimum height so status
+messages can grow. Search, label filters, and Select Many share one toolbar. The
+search field absorbs leftover width when that row fits; when it does not, the
+search field moves above the filters and those controls stay in place. Bulk
+actions retain their own contextual bar. Calendar Off is explained once in the
+inline controls, including what connecting Calendar enables before access is
+granted. Loading, permission, error, and upcoming-event states remain visible
+when applicable.
+
 Upcoming calendar rows stay list-like: no persistent Skip button. A context
 menu offers **Don't auto-record this meeting**, and **Don't auto-record this
 repeating meeting** only when `event.isRecurring` is true (`externalId` alone
@@ -315,6 +327,20 @@ factual transcript pane. The tab always shows an editable plaintext
 `TextEditor`, including when notes are empty, with Copy, word count, and the
 existing 7,500-word soft-cap warning. The separate 8,000-word cap bounds notes
 sent to prompt assembly; it does not truncate stored notes.
+
+The Notes pane is an open writing surface, without nested cards or an editor
+border. A compact “Your notes” heading and Copy action sit above a flexible,
+full-height editor using the 15 pt reading-body size and 5 pt line spacing.
+The pane reuses the detail view’s outer inset with an additional 8 pt horizontal
+writing margin. It has no fixed minimum editor height, so shorter windows can
+keep the word count and save/retry controls visible. Copy remains in place but
+is disabled when the draft is blank or belongs to another meeting. An enabled,
+empty editor shows a non-interactive writing prompt. VoiceOver describes
+automatic saving only while the editor is enabled. A deleted meeting hears that
+its notes were not saved, and a mismatched meeting hears that notes cannot be
+edited right now. The Copied confirmation clears when the draft changes, the
+displayed meeting changes, or the pane disappears. Save status, word count, and
+warnings stay below the editor.
 
 Changes auto-save to SQLite after a 500 ms idle debounce. The status is hidden
 on entry, including for empty notes. Editing shows a small spinner; a successful
@@ -1564,6 +1590,16 @@ subscribes afresh and receives the latest content; only the newest pending
 snapshot is retained while parsing. Closing or hiding a pane cancels its
 consumer, and a cancelled parse cannot publish over a replacement renderer.
 Returning to the pane must continue rendering new snapshots.
+
+Saved-result panes keep their actions above the scrolling content; actions wrap
+when the detail pane is narrow. In edit mode, the native text editor owns
+scrolling and expands with the available pane height. Do not place that editor
+inside another vertical scroll view.
+
+Saved Chat retains every streamed token but coalesces message-list publication
+at a 33 ms cadence. Successful completion publishes the entire response before
+clearing streaming state. Stop and failure discard partial responses; navigation
+keeps the existing detached-conversation persistence rules.
 
 Generated Markdown remains read-only and selectable. Task boxes communicate
 their checked state but are not controls. Headings and table cells preserve the

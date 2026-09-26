@@ -891,6 +891,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var formatTranscriptStopReason: String?
     var formatTranscriptLatencyMs = 0
     var streamTokens: [String] = ["Hello", " world"]
+    var chatStreamOverride: AsyncThrowingStream<String, Error>?
     var streamTokenBatches: [[String]] = []
     var streamDelayNs: UInt64 = 0
     var streamEffectiveSettings: PromptInferenceSettings?
@@ -899,6 +900,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var summarizeCallCount = 0
     var chatCallCount = 0
     var formatTranscriptCallCount = 0
+    var formatTranscriptHook: (@Sendable () async -> Void)?
     var lastChatQuestion: String?
     var lastSummaryTranscript: String?
     var lastChatTranscript: String?
@@ -1007,6 +1009,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         defaultPromptUsed: Bool
     ) async throws -> LLMFormatterResult {
         formatTranscriptCallCount += 1
+        await formatTranscriptHook?()
         lastFormattedTranscript = transcript
         lastFormatterPromptTemplate = promptTemplate
         lastFormatterSource = source
@@ -1132,6 +1135,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         lastChatHistory = history
         lastChatUserNotes = userNotes
         lastChatSource = source
+        if let chatStreamOverride { return chatStreamOverride }
         let tokens = streamTokens
         let error = errorToThrow
         let delay = streamDelayNs

@@ -100,6 +100,7 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
         if VoiceControlLocalTools.alreadyVerifiedNamedPress(command: command, history: history) {
             return .directCompleted("Done. The requested change was verified.")
         }
+        if VoiceControlLocalTools.alreadyPressedByName(command: command, history: history) { return .finished }
         if let destination = VoiceControlWebDestination.matchingGoal(lower),
             snapshot.targets.contains(where: { $0.id == destination.id }),
             !VoiceControlWebDestination.pageMatches(snapshot, destination: destination),
@@ -261,17 +262,18 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
     /// Web tasks should start in a browser, not the terminal or IDE that issued the command.
     static func browserForWebGoal(_ lower: String, snapshot: VoiceControlSnapshot) -> VoiceControlTarget? {
         guard !isBrowserName(snapshot.applicationName) else { return nil }
-        let hints = [
-            "flight", "flights", "youtube", "gmail", "search the web", "google search", "google for",
-            "in chrome", "in safari", "in firefox", "in brave", "in edge", "google maps",
-            "wikipedia", "directions to",
-        ]
-        guard hints.contains(where: { lower.contains($0) }) else { return nil }
+        // The same anchored matching as the web routes: a mail about a flight,
+        // or a reply saying the login fails in Chrome, is not a reason to leave
+        // the mail app.
+        guard VoiceControlWebDestination.matchingGoal(lower) != nil || VoiceControlWebDestination.namesBrowser(lower)
+        else { return nil }
         let browsers = snapshot.targets.filter {
             $0.operations.contains(.activateApp) && isBrowserName($0.label)
         }
-        if lower.contains("safari") { return browsers.first { $0.label.lowercased().contains("safari") } }
-        if lower.contains("firefox") { return browsers.first { $0.label.lowercased().contains("firefox") } }
+        // The browser named in the current request, not in a request a correction replaced.
+        let request = VoiceControlGoalText.currentRequest(lower)?.lowercased() ?? lower
+        if request.contains("safari") { return browsers.first { $0.label.lowercased().contains("safari") } }
+        if request.contains("firefox") { return browsers.first { $0.label.lowercased().contains("firefox") } }
         if let chrome = browsers.first(where: { $0.label.lowercased().contains("chrome") }) { return chrome }
         return browsers.count == 1 ? browsers[0] : nil
     }

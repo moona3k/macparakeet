@@ -106,6 +106,23 @@ Jev request serialization omits the dedicated `selectedText` property; visible
 field values can still contain the same text under the general context consent.
 The writing toggle controls the separate writing-provider call, not whether any
 visible text appears in a Jev context snapshot.
+Executed history reaches Jev as operation, control label, entered value and
+receipt outcome; target ids from older observations, model ids and scores do
+not. Candidate field values are exact spans of the user's own words only (the
+original goal and later corrections or clarifications, newest first).
+Utterance tails come before shorter spans: tails that start right after a
+value cue such as `write`, `saying`, `with`, `to` or a word ending in `:`
+within the first 24 words come first, latest cue first, then other tails
+while their budget lasts. At most 250 spans and 24 KB are offered, of which
+tails leave 50 slots and 4 KB for shorter spans. Because
+all tails of a long message cost far more than the budget, only the cue tails
+are guaranteed for long dictation. Amended-goal scaffolding and manually
+entered field values are never offered as values. A `429`, `503` or `529`
+response, or a dropped connection, retries at most twice with 150/300 ms
+backoff (a `Retry-After` of at most 2 s wins; a longer one fails the decision
+without retry); consent is rechecked before each
+retry, Stop cancels the wait, and every other error fails the decision without
+retry. A decision request has no effect, so a retry cannot duplicate one.
 
 ## Speech lifecycle and commitment
 
@@ -286,7 +303,33 @@ single-occurrence replacement, activating a uniquely named running app,
 opening an allowlisted web destination, filling an already-open search box
 on YouTube/Maps/Wikipedia/Google Search, pressing unique Gmail Compose, and
 the Google Flights form plan (trip type, origin, destination, date, unique
-autocomplete, overlay Escape, Search). Competing overlay suggestions become
+autocomplete, overlay Escape, Search). The form plan reads the person's original
+goal only, and only while every amendment is a clarification; an answer such
+as `2` is never merged into a form field. A correction, a hand-edited field or
+an uncertain effect makes the plan step aside so Jev, which reads those
+amendments, takes the turn. Only the current request of an amended goal routes
+(the newest correction with leading fillers such as `actually` removed, else
+the original goal). A correction that names no site abandons the earlier one,
+except a short fragment of at most three words that is neither a command nor
+about a message (`actually Paris`), which changes a detail and keeps the
+original request's site. A clarification is an answer, not a request.
+Matching is at word boundaries. Explicit navigation (`open YouTube`, `go to
+Gmail`, a goal that starts with the site's name) always routes. A site
+mentioned in passing (`… on YouTube`, `… in Wikipedia`), an intent phrase
+(`search the web`, `directions to`, `flights from` / `flights to`) or a flight
+search verb (`find` / `search` / `book` … `flights`) routes unless the sentence
+is about a message (`reply`, `forward`, `send`, `text`, `email`, `itinerary` …)
+and does not lead with a search verb (`find`, `search`, `play`, `directions`,
+`get` …); mail words never veto Gmail itself. The same rule, plus an exemption
+for a leading opening verb (`open the flight confirmation in Chrome`),
+decides whether `… in Chrome` switches browsers. A calendar day is a pressable
+control whose label reads as a date before `departure date`; a field button
+that leads with its name (`Departure date: September 20`) is not one. A
+command that starts with `click` / `press` / `tap` / `select` / `choose` stays
+with the current page regardless of any site or intent phrase it mentions.
+Site search boxes are filled only after a query verb (`play`, `look up`,
+`search … for`). A one-shot named press whose effect
+verified or moved the interface finishes without another decision. Competing overlay suggestions become
 enabled events for one Jev Choice; Return is not enabled while a suggestion
 or date picker is open. Jev is never offered `role=url`
 destinations. When no local route or enabled event applies, the open-ended
@@ -303,7 +346,7 @@ many were dropped; the turn does not fail. Consequence confidence never blocks
 or prompts; local policy decides pay/delete/send. Calendar days are matched by
 a deterministic spoken-date parser, not token overlap. Literal mode treats utterances as text; isolated
 `command mode` / `stop typing` exits and `command stop` pauses. Isolated utterances `typing mode`, `start typing`, `activate type`, `type mode`, `literal mode`, and `dictation mode` enter. `type literally command mode`
-enters those words. While a pay, delete, or send confirmation is pending, only isolated `yes` / `confirm` / `confirm this action` authorize; `ok` and `okay` do not. Isolated `no` / `cancel` / `cancel task` decline. Consecutive typed insertions join with a space when appending at the caret. Ambiguous visible names become a numbered local pick (`1` / `two` / `the second one`); `the other one` is not option 1. A unique visible name on a plain window is itself a press (`Save` or `the Save button`); `press return` sends a key, while `click Return` presses a control. A focused field that already holds the requested type payload is left unchanged. Numbered picks rematch by id and label after the next observation. A confirmation whose snapshot is stale does not dispatch a rebound control; the person repeats the request. Prefix handling must preserve the payload rather than
+enters those words. While a pay, delete, or send confirmation is pending, only isolated `yes` / `confirm` / `confirm this action` authorize; `ok` and `okay` do not. Isolated `no` / `cancel` / `cancel task` decline. Consecutive typed insertions join with a space when appending at the caret. Ambiguous visible names become a numbered local pick (`1` / `two` / `the second one`); `the other one` is not option 1. A unique visible name on a plain window is itself a press (`Save` or `the Save button`); `press return` sends a key, while `click Return` presses a control. A spoken `press return` never asks for confirmation, even in a composer where Return sends: saying it already carries that intent (owner decision, 2026-09-25). A focused field that already holds the requested type payload is left unchanged. Numbered picks rematch by id and label after the next observation. A confirmation whose snapshot is stale does not dispatch a rebound control; the person repeats the request. Prefix handling must preserve the payload rather than
 shortening or stripping arbitrary fillers. Selected-text rewriting uses the
 explicitly enabled writing provider and previews the generated action for
 confirmation.

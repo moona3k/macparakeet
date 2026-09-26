@@ -69,17 +69,6 @@ public final class DatabaseManager: Sendable {
         }
     }
 
-    #if DEBUG
-    func recordAppliedMigrationIdentifierForTesting(_ identifier: String) throws {
-        try dbQueue.write { db in
-            try db.execute(
-                sql: "INSERT INTO grdb_migrations (identifier) VALUES (?)",
-                arguments: [identifier]
-            )
-        }
-    }
-    #endif
-
     private static func makeConfiguration() -> Configuration {
         var config = Configuration()
         config.foreignKeysEnabled = true

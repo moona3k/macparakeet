@@ -107,6 +107,7 @@ struct MeetingRowCard<MenuContent: View>: View {
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("library-item-\(transcription.id.uuidString)")
         .accessibilityValue(showsSelectionControls ? (isSelected ? "Selected" : "Not selected") : "")
         .accessibilityHint(showsSelectionControls ? "Toggles selection" : hoverTooltip)
     }

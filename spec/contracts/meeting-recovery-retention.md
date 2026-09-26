@@ -160,6 +160,28 @@ pre-claim lock, so repeated fail/retry cycles cannot restore an abandoned lease
 or wedge the next retry. A relinquished token is not a live owner and remains
 visible to recovery discovery even while its former process PID is alive.
 
+## Recovery Artifact Settlement
+
+Recovery saves its final `recoveredFromCrash` and notes metadata, then refreshes
+meeting artifacts before deleting `recording.lock`. The configured artifact store
+retains effective speaker corrections/classification, and refresh reads existing
+prompt results rather than replacing them with an empty list. A refresh failure
+leaves the completed row and lock available for recovery. A retry refreshes the
+existing completed row and settles its lock without another audio mix or STT run.
+An existing row's notes are canonical, including explicit nil or empty clears;
+older notes in a retained lock or a recovered `MeetingRecordingOutput` must not
+repopulate the row or its notes artifact. This holds for the finalize and
+recovery paths covered by this contract: `TranscriptionService.finalizeMeetingTranscription`
+on a queued/processing/error row, and recovery's completed-row paths (both the direct
+`awaitingTranscription` refresh and `completeRecovery` for a completed row found
+under a non-`awaitingTranscription` lock). Only a genuinely new row (a fresh
+stub with no prior DB state) takes its initial notes from the lock/recording.
+`TranscriptionService.retranscribeArchivedMeeting` (explicit user-triggered
+re-run) is outside this contract's recovery/finalize scope and still falls
+back to `recording.userNotes` when the row's notes are nil.
+A stale descriptor for an already settled session is refused with `missingLock`;
+rediscovery is empty and does not recreate rows or audio.
+
 ## Source Writer Finalization Ownership
 
 The release-readiness candidate gives source-writer finalization one aggregate

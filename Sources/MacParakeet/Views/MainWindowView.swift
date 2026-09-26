@@ -106,6 +106,8 @@ struct MainWindowView: View {
                         ForEach(SidebarItem.primaryItems) { item in
                             SidebarItemLabel(item: item)
                                 .tag(item)
+                                .accessibilityIdentifier("sidebar-\(item.rawValue)")
+                                .accessibilityAction { state.selectedItem = item }
                         }
                     }
 

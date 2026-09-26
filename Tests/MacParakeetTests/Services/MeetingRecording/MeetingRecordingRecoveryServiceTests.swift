@@ -7,6 +7,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
     private var tempRoot: URL!
     private var lockStore: RecoveryRecordingLockFileStore!
     private var transcriptionRepo: RecordingTranscriptionRepository!
+    private var promptResultRepo: MockPromptResultRepository!
     private var transcriptionService: RecoveryMockTranscriptionService!
     private var audioConverter: RecoveryMockAudioConverter!
     private var recoveryService: MeetingRecordingRecoveryService!
@@ -534,6 +535,106 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertEqual(metadata.captureReport, recording.captureReport)
     }
 
+    func testArtifactRetryPreservesExplicitlyClearedNotesInRealDatabase() async throws {
+        for clearedNotes: String? in [nil, ""] {
+            let fixture = try makeRecoverableSession(
+                systemAudio: .corrupt, lockState: .awaitingTranscription, notes: "Old lock notes")
+            let db = try DatabaseManager()
+            let repository = TranscriptionRepository(dbQueue: db.dbQueue)
+            let results = PromptResultRepository(dbQueue: db.dbQueue)
+            let stt = MockSTTClient()
+            await stt.configure(result: STTResult(text: "Recovered speech."))
+            let service = TranscriptionService(
+                audioProcessor: MockAudioProcessor(), sttTranscriber: stt, transcriptionRepo: repository,
+                promptResultRepo: results, shouldDiarize: { false }, shouldDiarizeMeetings: { false },
+                meetingAutomationHookRunner: nil
+            )
+            let recovery = MeetingRecordingRecoveryService(
+                meetingsRoot: tempRoot, lockFileStore: lockStore,
+                transcriptionService: service, transcriptionRepo: repository,
+                meetingArtifactStore: MeetingArtifactStore(), promptResultRepo: results,
+                micConditionerFactory: { PassthroughMicConditioner() }
+            )
+            let manifestURL = fixture.folderURL.appendingPathComponent("manifest.json")
+            try FileManager.default.createDirectory(at: manifestURL, withIntermediateDirectories: false)
+            do {
+                _ = try await recovery.recover(fixture.lock)
+                XCTFail("Expected artifact I/O failure after completed transcript persistence")
+            } catch {
+                XCTAssertNotNil(error as? CocoaError)
+            }
+            let saved = try XCTUnwrap(repository.fetchAll().first)
+            XCTAssertEqual(saved.userNotes, "Old lock notes")
+            XCTAssertEqual(saved.status, .completed)
+            let initialCalls = await stt.transcribeCallCount
+            XCTAssertEqual(initialCalls, 1)
+            XCTAssertNotNil(try lockStore.read(folderURL: fixture.folderURL))
+            XCTAssertTrue(try repository.updateUserNotes(id: saved.id, userNotes: clearedNotes))
+            try FileManager.default.removeItem(at: manifestURL)
+            await stt.configure(error: STTError.transcriptionFailed("Retry must not transcribe again"))
+
+            let recovered = try await recovery.recover(fixture.lock)
+
+            XCTAssertEqual(recovered.id, saved.id)
+            XCTAssertEqual(recovered.userNotes, clearedNotes)
+            XCTAssertEqual(try repository.fetch(id: saved.id)?.userNotes, clearedNotes)
+            let finalCalls = await stt.transcribeCallCount
+            XCTAssertEqual(finalCalls, 1)
+            XCTAssertEqual(try repository.fetchAll().count, 1)
+            let notesURL = MeetingNotesFile.fileURL(for: fixture.folderURL)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: notesURL.path))
+            let markdown = try String(
+                contentsOf: fixture.folderURL.appendingPathComponent("meeting.md"), encoding: .utf8)
+            XCTAssertFalse(markdown.contains("Old lock notes"))
+            XCTAssertFalse(markdown.contains("## Notes"))
+            XCTAssertNil(try lockStore.read(folderURL: fixture.folderURL))
+        }
+    }
+
+    func testArtifactRefreshFailureRetainsLockAndRetryPreservesPromptResultsWithoutSTT() async throws {
+        let fixture = try makeRecoverableSession(lockState: .awaitingTranscription, notes: "Recovered notes")
+        let manifestURL = fixture.folderURL.appendingPathComponent("manifest.json")
+        try FileManager.default.createDirectory(at: manifestURL, withIntermediateDirectories: false)
+
+        do {
+            _ = try await recoveryService.recover(fixture.lock)
+            XCTFail("A failed artifact refresh must not settle the recovery lock")
+        } catch {
+            XCTAssertNotNil(error as? CocoaError)
+        }
+        let saved = try XCTUnwrap(try meetingRows(in: fixture.folderURL).first)
+        XCTAssertEqual(saved.status, .completed)
+        XCTAssertTrue(saved.recoveredFromCrash)
+        XCTAssertNotNil(try lockStore.read(folderURL: fixture.folderURL))
+        XCTAssertEqual(transcriptionService.recordings.count, 1)
+        let pending = try await recoveryService.discoverPendingRecoveries()
+        XCTAssertEqual(pending.count, 1)
+        let result = PromptResult(
+            transcriptionId: saved.id, promptName: "Preserved summary",
+            promptContent: "Summarize", content: "Do not erase this saved result."
+        )
+        try promptResultRepo.save(result)
+        try FileManager.default.removeItem(at: manifestURL)
+        transcriptionService.errorToThrow = RecoveryTestError.mixFailed
+        audioConverter.errorToThrow = RecoveryTestError.mixFailed
+
+        let recovered = try await recoveryService.recover(try XCTUnwrap(pending.first))
+
+        XCTAssertEqual(recovered.id, saved.id)
+        XCTAssertEqual(transcriptionService.recordings.count, 1)
+        XCTAssertEqual(try meetingRows(in: fixture.folderURL).count, 1)
+        XCTAssertNil(try lockStore.read(folderURL: fixture.folderURL))
+        let manifest = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)) as? [String: Any])
+        XCTAssertEqual((manifest["meeting"] as? [String: Any])?["recoveredFromCrash"] as? Bool, true)
+        let markdown = try String(contentsOf: fixture.folderURL.appendingPathComponent("meeting.md"), encoding: .utf8)
+        XCTAssertTrue(markdown.contains("Recovered notes"))
+        XCTAssertTrue(markdown.contains(result.promptName))
+        let resultsData = try Data(contentsOf: fixture.folderURL.appendingPathComponent("prompt-results.json"))
+        let results = try XCTUnwrap(JSONSerialization.jsonObject(with: resultsData) as? [[String: Any]])
+        XCTAssertEqual(results.first?["content"] as? String, result.content)
+    }
+
     func testRecoverRetryReusesSavedTranscriptWhenLockDeletePreviouslyFailed() async throws {
         let fixture = try makeRecoverableSession()
         lockStore.deleteErrorsRemaining = 1
@@ -655,7 +756,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
                 atPath: fixture.folderURL.appendingPathComponent("meeting-playback.m4a").path))
     }
 
-    func testRecoverCleansAwaitingTranscriptionLockWhenTranscriptAlreadyExists() async throws {
+    func testCompletedRecoveryKeepsCanonicalNilNotesInsteadOfRestoringLockNotes() async throws {
         let fixture = try makeRecoverableSession(
             lockState: .awaitingTranscription,
             notes: "existing transcript note"
@@ -671,13 +772,61 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         let recovered = try await recoveryService.recover(fixture.lock)
 
         XCTAssertFalse(recovered.recoveredFromCrash)
+        XCTAssertNil(recovered.userNotes)
+        XCTAssertNil(try transcriptionRepo.fetch(id: existing.id)?.userNotes)
         XCTAssertNil(try lockStore.read(folderURL: fixture.folderURL))
         XCTAssertTrue(audioConverter.mixes.isEmpty)
         XCTAssertTrue(transcriptionService.recordings.isEmpty)
 
         let notesURL = MeetingNotesFile.fileURL(for: fixture.folderURL)
-        let notesContent = try String(contentsOf: notesURL, encoding: .utf8)
-        XCTAssertEqual(notesContent, "# Recovered Team Sync\n\nexisting transcript note\n")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: notesURL.path))
+        let markdown = try String(contentsOf: fixture.folderURL.appendingPathComponent("meeting.md"), encoding: .utf8)
+        XCTAssertFalse(markdown.contains("existing transcript note"))
+    }
+
+    func testCompletedRecoveryRefreshPreservesCanonicalNotesOverStaleLock() async throws {
+        let fixture = try makeRecoverableSession(lockState: .awaitingTranscription, notes: "Old lock notes")
+        let existing = Transcription(
+            fileName: fixture.lock.displayName,
+            filePath: fixture.folderURL.appendingPathComponent("meeting-playback.m4a").path,
+            status: .completed,
+            sourceType: .meeting,
+            userNotes: "Newer saved notes"
+        )
+        try transcriptionRepo.save(existing)
+
+        let recovered = try await recoveryService.recover(fixture.lock)
+
+        XCTAssertEqual(recovered.userNotes, "Newer saved notes")
+        XCTAssertFalse(recovered.recoveredFromCrash)
+        XCTAssertTrue(transcriptionService.recordings.isEmpty)
+        let notes = try String(contentsOf: MeetingNotesFile.fileURL(for: fixture.folderURL), encoding: .utf8)
+        XCTAssertTrue(notes.contains("Newer saved notes"))
+        XCTAssertFalse(notes.contains("Old lock notes"))
+        XCTAssertNil(try lockStore.read(folderURL: fixture.folderURL))
+    }
+
+    func testCompletedRecoveryWithRecordingStateLockDoesNotRestoreStaleLockNotes() async throws {
+        let fixture = try makeRecoverableSession(
+            lockState: .recording,
+            notes: "Stale lock notes"
+        )
+        let existing = Transcription(
+            fileName: fixture.lock.displayName,
+            filePath: fixture.folderURL.appendingPathComponent("meeting-playback.m4a").path,
+            status: .completed,
+            sourceType: .meeting
+        )
+        try transcriptionRepo.save(existing)
+
+        let recovered = try await recoveryService.recover(fixture.lock)
+
+        XCTAssertTrue(recovered.recoveredFromCrash)
+        XCTAssertNil(recovered.userNotes)
+        XCTAssertNil(try transcriptionRepo.fetch(id: existing.id)?.userNotes)
+        XCTAssertNil(try lockStore.read(folderURL: fixture.folderURL))
+        let markdown = try String(contentsOf: fixture.folderURL.appendingPathComponent("meeting.md"), encoding: .utf8)
+        XCTAssertFalse(markdown.contains("Stale lock notes"))
     }
 
     func testRecoverSettlesCompletedLegacyPlaybackRow() async throws {
@@ -803,6 +952,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             lockFileStore: liveLockStore,
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: MeetingArtifactStore(),
+            promptResultRepo: promptResultRepo,
             audioConverter: audioConverter
         )
 
@@ -882,6 +1033,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             lockFileStore: lockStore,
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: MeetingArtifactStore(),
+            promptResultRepo: promptResultRepo,
             audioConverter: audioConverter,
             fileManager: fileManager
         )
@@ -917,6 +1070,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             lockFileStore: lockStore,
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: MeetingArtifactStore(),
+            promptResultRepo: promptResultRepo,
             audioConverter: audioConverter,
             fileManager: fileManager
         )
@@ -955,6 +1110,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             lockFileStore: liveLockStore,
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: MeetingArtifactStore(),
+            promptResultRepo: promptResultRepo,
             audioConverter: audioConverter,
             fileManager: fileManager
         )
@@ -997,6 +1154,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             lockFileStore: liveLockStore,
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: MeetingArtifactStore(),
+            promptResultRepo: promptResultRepo,
             audioConverter: audioConverter,
             fileManager: fileManager
         )
@@ -1063,6 +1222,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             lockFileStore: lockStore,
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: MeetingArtifactStore(),
+            promptResultRepo: promptResultRepo,
             audioConverter: audioConverter,
             micConditionerFactory: { @Sendable in conditionerProbe.make() }
         )
@@ -1093,6 +1254,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             lockFileStore: lockStore,
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: MeetingArtifactStore(),
+            promptResultRepo: promptResultRepo,
             audioConverter: audioConverter,
             micConditionerFactory: { @Sendable in conditionerProbe.make() }
         )
@@ -1124,6 +1287,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             lockFileStore: lockStore,
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: MeetingArtifactStore(),
+            promptResultRepo: promptResultRepo,
             audioConverter: audioConverter,
             micConditionerFactory: { @Sendable in conditionerProbe.make() },
             recordingDurationProvider: { _, _ in threshold + 1 }
@@ -1190,6 +1355,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
         lockStore = RecoveryRecordingLockFileStore(processChecker: RecoveryProcessChecker(alivePIDs: []))
         transcriptionRepo = RecordingTranscriptionRepository()
+        promptResultRepo = MockPromptResultRepository()
         transcriptionService = RecoveryMockTranscriptionService()
         transcriptionService.transcriptionRepo = transcriptionRepo
         audioConverter = RecoveryMockAudioConverter()
@@ -1198,6 +1364,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             lockFileStore: lockStore,
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: MeetingArtifactStore(),
+            promptResultRepo: promptResultRepo,
             audioConverter: audioConverter
         )
     }
@@ -1749,6 +1917,7 @@ private final class RecoveryMockTranscriptionService: TranscriptionServiceProtoc
             meetingArtifactFolderPath: recording.folderURL.path,
             status: .completed,
             sourceType: .meeting,
+            userNotes: recording.userNotes,
             meetingCaptureReport: recording.captureReport,
             titleOverride: recording.titleOverride,
             audioRetentionStartedAt: recording.audioRetentionStartedAt
