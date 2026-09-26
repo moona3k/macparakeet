@@ -1,0 +1,25 @@
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_7bd3c6addfe84f::t_4e8383d996b5d7 3978-3979,4012
+  s_7bd3c6addfe84f::t_a0707164615990 2032-2053
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift
+  s_7bd3c6addfe84f::t_97d1d158a4b9bf 809-831
+  s_7bd3c6addfe84f::t_75e4e9a2ea7cd6 1920
+spec/contracts/meeting-recovery-retention.md
+  s_7bd3c6addfe84f::t_f749a2ef00f998 171-178
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f6a73235961b2da8df6c7ac0a22fdd4dfa3125e8",
+  "prompts": {},
+  "sessions": {
+    "s_7bd3c6addfe84f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "009cc628-d9d3-4d6c-852a-568ec862d0db",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
