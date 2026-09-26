@@ -616,13 +616,9 @@ final class MeetingSplitAudioExporterTests: XCTestCase {
     /// forwarded into its detached task, not leave it decoding unattended
     /// after the caller has already observed `CancellationError`.
     ///
-    /// Uses `ProbePauseGate` rather than a plain notify-and-return signal:
-    /// the detached probe thread is held at chunk 2 until the test has
-    /// already cancelled the outer `Task`, so there is no scheduling window
-    /// between "hook observed" and "cancel() called" for the probe to race
-    /// ahead in under load. That closes the gap that let the probe decode
-    /// far more than 2 chunks (23, then 41) before cancellation landed on
-    /// hosted CI, which a looser `< 20` threshold could not fully close.
+    /// Hold the probe at chunk 2 until cancellation reaches its detached task.
+    /// The detached operation can start before its forwarding handler is registered,
+    /// so requesting cancellation of the outer task alone is not a release signal.
     func testCancellationDuringSourceProbeStopsPromptlyWithoutFinishingTheDecode() async throws {
         let folder = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -653,7 +649,6 @@ final class MeetingSplitAudioExporterTests: XCTestCase {
         }
         await gate.waitUntilPaused()
         task.cancel()
-        gate.release()
         do {
             _ = try await task.value
             XCTFail("expected CancellationError")
@@ -935,19 +930,13 @@ private final class ChunkSignal: @unchecked Sendable {
     }
 }
 
-/// Deterministic cancellation-timing seam for a probe/decode loop: unlike
-/// `ChunkSignal`, which only notifies and lets the hooked loop keep running,
-/// this blocks the calling (detached) thread at exactly `target` until the
-/// test explicitly `release()`s it. That removes the scheduling window
-/// between "test observed the target chunk" and "test cancelled the task" in
-/// which the loop could otherwise race ahead and decode extra chunks before
-/// cancellation lands.
+/// Holds the decoder at a known chunk until cancellation has propagated to it.
+/// The hook only observes cancellation; the production loop must still throw.
 private final class ProbePauseGate: @unchecked Sendable {
     private let lock = NSLock()
     private var continuation: CheckedContinuation<Void, Never>?
     private var paused = false
     private let target: Int
-    private let releaseSemaphore = DispatchSemaphore(value: 0)
 
     init(target: Int) {
         self.target = target
@@ -963,8 +952,12 @@ private final class ProbePauseGate: @unchecked Sendable {
         paused = true
         lock.unlock()
         continuationToResume?.resume()
-        // Bounded: a test bug here must fail loudly, never hang the suite.
-        _ = releaseSemaphore.wait(timeout: .now() + 10)
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(10))
+        while !Task.isCancelled && clock.now < deadline {
+            Thread.sleep(forTimeInterval: 0.001)
+        }
+        XCTAssertTrue(Task.isCancelled, "cancellation did not reach the paused source probe within 10 seconds")
     }
 
     func waitUntilPaused() async {
@@ -978,9 +971,5 @@ private final class ProbePauseGate: @unchecked Sendable {
                 lock.unlock()
             }
         }
-    }
-
-    func release() {
-        releaseSemaphore.signal()
     }
 }
