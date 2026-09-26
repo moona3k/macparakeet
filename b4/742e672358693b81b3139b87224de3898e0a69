@@ -1,0 +1,21 @@
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift
+  s_ffa59963ae3ead::t_91bc2574a15932 548
+.github/workflows/ci.yml
+  s_ffa59963ae3ead::t_8cf6ae9c3ba91f 36-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b4742e672358693b81b3139b87224de3898e0a69",
+  "prompts": {},
+  "sessions": {
+    "s_ffa59963ae3ead": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "305775c6-748a-4f91-8489-bde979762615",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
