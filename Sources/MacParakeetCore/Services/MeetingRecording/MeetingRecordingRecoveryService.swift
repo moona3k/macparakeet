@@ -649,21 +649,9 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         lock: MeetingRecordingLockFile
     ) async throws -> Transcription {
         if lock.state == .awaitingTranscription {
-            var completed = transcription
-            // Older completion paths could leave notes only in the retained lock.
-            // Preserve them in the canonical row before artifact refresh, which
-            // correctly removes notes.md when the row has no notes.
-            if completed.userNotes == nil, let notes = lock.notes {
-                guard try transcriptionRepo.updateUserNotes(id: completed.id, userNotes: notes),
-                    let updated = try transcriptionRepo.fetch(id: completed.id)
-                else {
-                    throw MeetingRecordingSettlementError.missingTranscription(
-                        transcriptionID: completed.id, sessionID: lock.sessionId
-                    )
-                }
-                completed = updated
-            }
-            try await refreshArtifacts(for: completed)
+            // A completed row is canonical, including explicit nil/empty notes.
+            // A retained lock can contain older notes and must not restore them.
+            try await refreshArtifacts(for: transcription)
             try await settlement.settleCompletedTranscription(
                 folderURL: folderURL,
                 transcriptionID: transcription.id,
@@ -671,7 +659,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             )
             logger.info(
                 "meeting_recovery_cleaned_completed_session session=\(lock.sessionId.uuidString, privacy: .public)")
-            return completed
+            return transcription
         }
         return try await completeRecovery(transcription, folderURL: folderURL, lock: lock)
     }

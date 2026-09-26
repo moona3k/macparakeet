@@ -120,6 +120,16 @@ jobs:
           set -o pipefail
           python3 scripts/ci/cli-persistence-smoke.py "$PWD/.build/debug/macparakeet-cli" 2>&1 | tee ci-logs/cli-persistence-smoke.log
 
+      - name: Meeting Process Recovery
+        if: ${{ !cancelled() && steps.test_build.outcome == 'success' }}
+        timeout-minutes: 3
+        env:
+          MACPARAKEET_CRASH_RECOVERY_TESTS: "1"
+          MACPARAKEET_TELEMETRY: "0"
+        run: |
+          set -o pipefail
+          swift test --skip-build -Xswiftc -warn-concurrency --filter MeetingRecordingCrashRecoveryTests/testKilledRecordingRecoversInFreshProcessAndRemainsIdempotent 2>&1 | tee ci-logs/meeting-process-recovery.log
+
       - name: Swift 6 Language Mode
         if: ${{ !cancelled() && steps.test_build.outcome == 'success' }}
         timeout-minutes: 15

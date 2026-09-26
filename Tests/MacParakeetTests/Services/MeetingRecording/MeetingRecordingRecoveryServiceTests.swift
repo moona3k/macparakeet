@@ -535,6 +535,62 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertEqual(metadata.captureReport, recording.captureReport)
     }
 
+    func testArtifactRetryPreservesExplicitlyClearedNotesInRealDatabase() async throws {
+        for clearedNotes: String? in [nil, ""] {
+            let fixture = try makeRecoverableSession(
+                systemAudio: .corrupt, lockState: .awaitingTranscription, notes: "Old lock notes")
+            let db = try DatabaseManager()
+            let repository = TranscriptionRepository(dbQueue: db.dbQueue)
+            let results = PromptResultRepository(dbQueue: db.dbQueue)
+            let stt = MockSTTClient()
+            await stt.configure(result: STTResult(text: "Recovered speech."))
+            let service = TranscriptionService(
+                audioProcessor: AudioProcessor(), sttTranscriber: stt, transcriptionRepo: repository,
+                promptResultRepo: results, shouldDiarize: { false }, shouldDiarizeMeetings: { false },
+                meetingAutomationHookRunner: nil
+            )
+            let recovery = MeetingRecordingRecoveryService(
+                meetingsRoot: tempRoot, lockFileStore: lockStore,
+                transcriptionService: service, transcriptionRepo: repository,
+                meetingArtifactStore: MeetingArtifactStore(), promptResultRepo: results,
+                micConditionerFactory: { PassthroughMicConditioner() }
+            )
+            let manifestURL = fixture.folderURL.appendingPathComponent("manifest.json")
+            try FileManager.default.createDirectory(at: manifestURL, withIntermediateDirectories: false)
+            do {
+                _ = try await recovery.recover(fixture.lock)
+                XCTFail("Expected artifact I/O failure after completed transcript persistence")
+            } catch {
+                XCTAssertNotNil(error as? CocoaError)
+            }
+            let saved = try XCTUnwrap(repository.fetchAll().first)
+            XCTAssertEqual(saved.userNotes, "Old lock notes")
+            XCTAssertEqual(saved.status, .completed)
+            let initialCalls = await stt.transcribeCallCount
+            XCTAssertEqual(initialCalls, 1)
+            XCTAssertNotNil(try lockStore.read(folderURL: fixture.folderURL))
+            XCTAssertTrue(try repository.updateUserNotes(id: saved.id, userNotes: clearedNotes))
+            try FileManager.default.removeItem(at: manifestURL)
+            await stt.configure(error: STTError.transcriptionFailed("Retry must not transcribe again"))
+
+            let recovered = try await recovery.recover(fixture.lock)
+
+            XCTAssertEqual(recovered.id, saved.id)
+            XCTAssertEqual(recovered.userNotes, clearedNotes)
+            XCTAssertEqual(try repository.fetch(id: saved.id)?.userNotes, clearedNotes)
+            let finalCalls = await stt.transcribeCallCount
+            XCTAssertEqual(finalCalls, 1)
+            XCTAssertEqual(try repository.fetchAll().count, 1)
+            let notesURL = MeetingNotesFile.fileURL(for: fixture.folderURL)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: notesURL.path))
+            let markdown = try String(
+                contentsOf: fixture.folderURL.appendingPathComponent("meeting.md"), encoding: .utf8)
+            XCTAssertFalse(markdown.contains("Old lock notes"))
+            XCTAssertFalse(markdown.contains("## Notes"))
+            XCTAssertNil(try lockStore.read(folderURL: fixture.folderURL))
+        }
+    }
+
     func testArtifactRefreshFailureRetainsLockAndRetryPreservesPromptResultsWithoutSTT() async throws {
         let fixture = try makeRecoverableSession(lockState: .awaitingTranscription, notes: "Recovered notes")
         let manifestURL = fixture.folderURL.appendingPathComponent("manifest.json")
@@ -700,7 +756,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
                 atPath: fixture.folderURL.appendingPathComponent("meeting-playback.m4a").path))
     }
 
-    func testRecoverCleansAwaitingTranscriptionLockWhenTranscriptAlreadyExists() async throws {
+    func testCompletedRecoveryKeepsCanonicalNilNotesInsteadOfRestoringLockNotes() async throws {
         let fixture = try makeRecoverableSession(
             lockState: .awaitingTranscription,
             notes: "existing transcript note"
@@ -716,15 +772,16 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         let recovered = try await recoveryService.recover(fixture.lock)
 
         XCTAssertFalse(recovered.recoveredFromCrash)
-        XCTAssertEqual(recovered.userNotes, "existing transcript note")
-        XCTAssertEqual(try transcriptionRepo.fetch(id: existing.id)?.userNotes, "existing transcript note")
+        XCTAssertNil(recovered.userNotes)
+        XCTAssertNil(try transcriptionRepo.fetch(id: existing.id)?.userNotes)
         XCTAssertNil(try lockStore.read(folderURL: fixture.folderURL))
         XCTAssertTrue(audioConverter.mixes.isEmpty)
         XCTAssertTrue(transcriptionService.recordings.isEmpty)
 
         let notesURL = MeetingNotesFile.fileURL(for: fixture.folderURL)
-        let notesContent = try String(contentsOf: notesURL, encoding: .utf8)
-        XCTAssertEqual(notesContent, "# Recovered Team Sync\n\nexisting transcript note\n")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: notesURL.path))
+        let markdown = try String(contentsOf: fixture.folderURL.appendingPathComponent("meeting.md"), encoding: .utf8)
+        XCTAssertFalse(markdown.contains("existing transcript note"))
     }
 
     func testCompletedRecoveryRefreshPreservesCanonicalNotesOverStaleLock() async throws {

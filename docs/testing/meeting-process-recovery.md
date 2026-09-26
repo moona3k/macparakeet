@@ -2,8 +2,12 @@
 
 `MeetingRecordingCrashRecoveryTests.testKilledRecordingRecoversInFreshProcessAndRemainsIdempotent`
 exercises the local writer-to-recovery boundary without speech models or capture devices.
-It is opt-in because it launches XCTest subprocesses, runs AVFoundation codecs, and
-intentionally kills its own active writer.
+It is opt-in for ordinary local tests because it launches XCTest subprocesses,
+runs AVFoundation codecs, and intentionally kills its own active writer. The CI
+behavior lane runs this exact test separately with the opt-in flag, the existing
+build's concurrency flags, a three-minute step timeout, and output retained in
+`ci-logs/meeting-process-recovery.log`. Hosted portability remains unverified until
+that step passes on the hosted macOS runner.
 
 Run from the worktree that owns the code, on an Apple Silicon Mac with Xcode selected:
 
@@ -46,7 +50,10 @@ The parent verifies the artifacts and row again.
 obstructs the manifest output path to force real file I/O failure. It verifies the
 completed row and recovery lock survive, then removes the obstruction and retries.
 The retry must retain saved prompt results, refresh recovered-state metadata, and
-settle the lock without another mix or STT call.
+settle the lock without another mix or STT call. A separate real-GRDB regression
+uses production transcription/recovery with stub STT, forces the same artifact
+failure, clears notes to nil or empty text, and verifies retry respects those
+canonical clears without repeating STT.
 
 Every child receives an explicit temporary state root and telemetry-off environment;
 the recovery child also configures no-op telemetry. Preference changes, model
@@ -65,8 +72,9 @@ writer check; deterministic recovery service tests still own fault permutations.
 
 On the development Apple Silicon Mac running macOS 26.6.2, three post-fix
 process journeys passed in 7.174, 7.077, and 7.578 seconds (excluding build time).
-The focused artifact/recovery group passed 67 tests; the additional canonical-notes
-precedence test was run separately. These are local results, not hosted CI or
+The initial focused artifact/recovery group passed 67 tests. After review, all
+48 recovery service tests passed, including the real-GRDB explicit-clear retry
+regression; the 20 artifact-store cases passed in the earlier focused group. These are local results, not hosted CI or
 physical capture qualification. Before the fix, the new journey observed
 `manifest.meeting.recoveredFromCrash == false` while the database row was `true`;
 the parity assertion failed. Recovery now refreshes after saving that metadata.
