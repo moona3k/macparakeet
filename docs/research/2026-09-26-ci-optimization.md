@@ -22,12 +22,14 @@ workflow, and cache-key policy. A commit suffix permits new immutable entries;
 restore prefixes never cross the identity boundary. No source timestamp
 rewriting is used. Each build always executes after cache restore, so changed
 or removed source inputs must be reconciled before any `--skip-build` test.
-Tests always run, including on exact cache hits. Xcode DerivedData is not
-cached in this trial: Release Bundle Smoke redirects
-`XCODE_DERIVED_DATA`, `MACPARAKEET_MEETING_ECHO_ASSETS_DIR`, and
-`LOCALVQE_SOURCE_DIR` to `runner.temp` so Xcode packaging output and the
-native echo-suppression build/source tree — both of which default under
-`.build` — stay out of the cached SwiftPM tree.
+Tests always run, including on exact cache hits. SwiftPM and Xcode DerivedData
+use separate caches. The Xcode identity additionally includes the packaging
+script and resolved checkout, DerivedData and developer-directory paths.
+Native echo-suppression build/source outputs remain outside both caches.
+The opt-in `qualify_build_cache` workflow restores the exact entries published
+by its distribution job, changes an actual app string and JSON resource, and
+requires the rebuilt package to contain both changes. It restores the sources
+and never saves that mutated build state. No GUI is launched.
 
 The [GitHub cache contract](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching)
 scopes PR caches to their merge ref. Successful main runs seed caches available
@@ -54,8 +56,20 @@ qualification retain the prerequisites in [the qualification guides](../testing/
 
 ## Results
 
-Pending hosted cold/warm and source-change verification. Do not cite this trial
-as a measured improvement until those results are recorded here.
+The SwiftPM-only trial at `c72489c2` passed both
+[attempts of run 36251805803](https://github.com/moona3k/macparakeet/actions/runs/36251805803).
+Cold: 46m11s elapsed and 70m03s occupied macOS time. Warm: 26m11s elapsed and
+46m16s occupied macOS time, with exact cache hits in both lanes. The combined
+cache entries occupied about 4.99 GB and warm restoration took 1m58s total.
+Warm elapsed improved only 3.32% against the earlier baseline, below the
+preselected 5% threshold. This is inconclusive, not a demonstrated win.
+The cold distribution runner compiled the same number of tasks much more
+slowly; its cause is unknown. These observations are not controlled benchmarks.
+
+The follow-up trial adds the separate DerivedData cache because warm packaging
+still took 16m07s. Its cold/warm timings and actual package invalidation proof
+are pending. Main advanced independently through #1160 between candidates;
+comparisons must retain their commit identities.
 
 ## Deliberately deferred
 
