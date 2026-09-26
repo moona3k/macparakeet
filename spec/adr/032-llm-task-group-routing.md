@@ -119,6 +119,20 @@ stored-config commands remains an invocation overlay, not a saved
 task-group policy. Inline CLI commands that pass a full provider
 context stay independent configs.
 
+Transcript chat and result model pickers read the resolved analysis route and
+update that override when present, or the default when analysis inherits.
+An implicit GUI model snapshot must never overlay a default-provider model
+onto a different analysis provider. Explicit per-prompt overrides still win.
+If configuration or inheritance changes while a picker is open, its next
+selection refreshes the displayed route without writing the stale choice.
+
+`llm routes list` exposes the effective default, cleanup, analysis and transform
+routes without credentials. `llm routes set cleanup|analysis` stores a full
+override, and `llm routes reset cleanup|analysis` restores inheritance without
+deleting provider credentials. These commands share the GUI's preference suite
+and per-provider Keychain entries. Local CLI routes reuse the existing shared
+command template; this interface does not introduce a per-route command store.
+
 ### 4. Enablement stays independent of routing
 
 "Use for dictation" and "Use for transcripts" remain on/off gates. They

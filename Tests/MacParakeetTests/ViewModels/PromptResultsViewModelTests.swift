@@ -50,6 +50,153 @@ final class PromptResultsViewModelTests: XCTestCase {
         return text
     }
 
+    func testStaleAnalysisPickerDoesNotRetargetResetOrChangedRoute() {
+        let original = LLMProviderConfig.openai(apiKey: "test", model: "original-model")
+        let cleanup = LLMProviderConfig.ollama(model: "cleanup-model")
+        let changedEndpoint = LLMProviderConfig(
+            id: original.id, baseURL: URL(string: "https://other.example/v1")!,
+            apiKey: original.apiKey, modelName: original.modelName, isLocal: original.isLocal
+        )
+        // Reset to the identical default must still invalidate an override picker.
+        for replacement in [nil, LLMProviderConfig.ollama(model: "changed-model"), changedEndpoint,
+                            .openai(apiKey: "test", model: "changed-model")] as [LLMProviderConfig?] {
+            let store = MockLLMConfigStore()
+            store.config = original
+            store.taskOverrides[.analysis] = original
+            store.taskOverrides[.cleanup] = cleanup
+            viewModel.configure(llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo, configStore: store)
+            var callbackCount = 0
+            viewModel.onModelChanged = { callbackCount += 1 }
+            store.taskOverrides[.analysis] = replacement
+
+            viewModel.selectModel("stale-selection")
+
+            XCTAssertEqual(store.config, original)
+            XCTAssertEqual(store.taskOverrides[.analysis], replacement)
+            XCTAssertEqual(store.taskOverrides[.cleanup], cleanup)
+            XCTAssertEqual(viewModel.currentProviderID, (replacement ?? original).id)
+            XCTAssertEqual(viewModel.currentModelName, (replacement ?? original).modelName)
+            XCTAssertEqual(callbackCount, 0)
+        }
+    }
+
+    func testStaleInheritedPickerDoesNotRetargetNewOverride() {
+        let store = MockLLMConfigStore()
+        let original = LLMProviderConfig.openai(apiKey: "test", model: "original-model")
+        store.config = original
+        viewModel.configure(llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo, configStore: store)
+        store.taskOverrides[.analysis] = original
+        viewModel.selectModel("stale-selection")
+        XCTAssertEqual(store.config, original)
+        XCTAssertEqual(store.taskOverrides[.analysis], original)
+        // Once refreshed, the same picker can update the displayed override.
+        viewModel.selectModel("fresh-selection")
+        XCTAssertEqual(store.config, original)
+        XCTAssertEqual(store.taskOverrides[.analysis]?.modelName, "fresh-selection")
+    }
+
+    func testAnalysisModelPickerKeepsInheritedRouteInherited() {
+        let store = MockLLMConfigStore()
+        store.config = .openai(apiKey: "test", model: "default-model")
+        viewModel.configure(llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo, configStore: store)
+        viewModel.selectModel("new-default-model")
+        XCTAssertEqual(store.config?.modelName, "new-default-model")
+        XCTAssertNil(store.taskOverrides[.analysis])
+    }
+
+    func testAnalysisRouteModelReachesRealServiceAndPromptOverrideWins() async throws {
+        for override in [nil, "claude-explicit-prompt-model"] as [String?] {
+            let store = MockLLMConfigStore()
+            store.config = .openai(apiKey: "test", model: "default-model")
+            store.taskOverrides[.analysis] = .anthropic(apiKey: "test", model: "claude-analysis-model")
+            let client = MockLLMClient()
+            let prompt = Prompt(name: "Summary", content: "Summarize.", modelOverride: override)
+            promptRepo.prompts = [prompt]
+            promptResultRepo.saveCalls = []
+            viewModel.configure(
+                llmService: LLMService(client: client, configStore: store),
+                promptRepo: promptRepo,
+                promptResultRepo: promptResultRepo,
+                configStore: store
+            )
+            let generationID = try XCTUnwrap(
+                viewModel.generatePromptResult(transcript: "Transcript", transcriptionId: UUID())
+            )
+            XCTAssertEqual(viewModel.currentProviderID, .anthropic)
+            XCTAssertEqual(
+                viewModel.pendingGeneration(id: generationID)?.modelSnapshot, override ?? "claude-analysis-model")
+            try await waitUntil { self.promptResultRepo.saveCalls.count == 1 }
+            XCTAssertEqual(client.capturedContext?.providerConfig.id, .anthropic)
+            XCTAssertEqual(client.capturedContext?.providerConfig.modelName, override ?? "claude-analysis-model")
+        }
+    }
+
+    func testRealServiceUsesSameProviderAnalysisModelAndAppleSystemModel() async throws {
+        for analysisRoute in [LLMProviderConfig.openai(apiKey: "test", model: "analysis-model"), .appleIntelligence()] {
+            let store = MockLLMConfigStore()
+            store.config = .openai(apiKey: "test", model: "default-model")
+            store.taskOverrides[.analysis] = analysisRoute
+            let client = MockLLMClient()
+            promptRepo.prompts = [Prompt(name: "Summary", content: "Summarize.")]
+            promptResultRepo.saveCalls = []
+            viewModel.configure(
+                llmService: LLMService(client: client, configStore: store),
+                promptRepo: promptRepo, promptResultRepo: promptResultRepo, configStore: store
+            )
+            let id = try XCTUnwrap(viewModel.generatePromptResult(transcript: "Transcript", transcriptionId: UUID()))
+            XCTAssertEqual(viewModel.pendingGeneration(id: id)?.modelSnapshot, analysisRoute.modelName)
+            try await waitUntil { self.promptResultRepo.saveCalls.count == 1 }
+            XCTAssertEqual(client.capturedContext?.providerConfig, analysisRoute)
+            if analysisRoute.id == .appleIntelligence {
+                XCTAssertFalse(viewModel.canSelectModel)
+            }
+        }
+    }
+
+    func testEnqueueUsesAnalysisRouteChangedSinceLastPickerRefresh() throws {
+        let store = MockLLMConfigStore()
+        store.config = .openai(apiKey: "test", model: "default-model")
+        viewModel.configure(
+            llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo, configStore: store)
+        store.taskOverrides[.analysis] = .ollama(model: "new-analysis-model")
+        let id = try XCTUnwrap(viewModel.generatePromptResult(transcript: "Transcript", transcriptionId: UUID()))
+        XCTAssertEqual(viewModel.pendingGeneration(id: id)?.modelSnapshot, "new-analysis-model")
+        viewModel.cancelGeneration(id: id)
+    }
+
+    func testModelSelectionUpdatesAnalysisOverrideWithoutChangingDefault() {
+        let store = MockLLMConfigStore()
+        store.config = .openai(apiKey: "test", model: "default-model")
+        store.taskOverrides[.analysis] = .anthropic(apiKey: "test", model: "analysis-model")
+        viewModel.configure(
+            llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo, configStore: store)
+        viewModel.selectModel("new-analysis-model")
+        XCTAssertEqual(store.config?.modelName, "default-model")
+        XCTAssertEqual(store.taskOverrides[.analysis]?.modelName, "new-analysis-model")
+        XCTAssertEqual(viewModel.currentModelName, "new-analysis-model")
+    }
+
+    func testBeginningAnotherEditPreservesDirtyDraftUntilExplicitCancel() {
+        let transcriptionID = UUID()
+        let first = PromptResult(
+            transcriptionId: transcriptionID, promptName: "A", promptContent: "A", content: "Original A")
+        let second = PromptResult(
+            transcriptionId: transcriptionID, promptName: "B", promptContent: "B", content: "Original B")
+        viewModel.promptResults = [first, second]
+        viewModel.beginEditingPromptResult(first)
+        viewModel.editingDraft = "Unsaved A"
+        viewModel.beginEditingPromptResult(first)
+        XCTAssertEqual(viewModel.editingDraft, "Unsaved A")
+        viewModel.beginEditingPromptResult(second)
+        XCTAssertEqual(viewModel.editingPromptResultID, first.id)
+        XCTAssertEqual(viewModel.editingDraft, "Unsaved A")
+        XCTAssertNotNil(viewModel.errorMessage)
+        viewModel.cancelEditingPromptResult()
+        viewModel.beginEditingPromptResult(second)
+        XCTAssertEqual(viewModel.editingPromptResultID, second.id)
+        XCTAssertEqual(viewModel.editingDraft, "Original B")
+    }
+
     func testGenerationCapabilityIsFalseBeforeAIConfigured() {
         XCTAssertFalse(viewModel.hasPromptResultGenerationCapability)
         XCTAssertFalse(viewModel.canGeneratePromptResult)
@@ -636,6 +783,65 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertEqual(promptResultRepo.saveCalls.first?.content, tokens.joined())
     }
 
+    func testRegenerationReusesModelOnlyForMatchingProviderReceipt() async throws {
+        let cases: [(String?, LLMProviderConfig, String)] = [
+            ("openai", .anthropic(apiKey: "test", model: "claude-current"), "claude-current"),
+            ("openai", .openai(apiKey: "test", model: "current-model"), "historical-model"),
+            (nil, .openai(apiKey: "test", model: "current-model"), "current-model"),
+            ("openai", .appleIntelligence(), "apple-intelligence"),
+            ("appleIntelligence", .appleIntelligence(), "apple-intelligence"),
+        ]
+        for (savedProvider, route, expectedModel) in cases {
+            let store = MockLLMConfigStore()
+            store.config = .ollama(model: "unrelated-default")
+            store.taskOverrides[.analysis] = route
+            let client = MockLLMClient()
+            client.responseModel = expectedModel
+            let existing = PromptResult(
+                transcriptionId: UUID(), promptId: UUID(), promptVersionId: UUID(),
+                promptName: "Saved prompt", promptContent: "Historical prompt instructions.",
+                extraInstructions: "Historical extra instructions.", content: "Original result",
+                inferenceSettingsSnapshot: PromptInferenceSettings(
+                    temperature: savedProvider == "appleIntelligence" ? 0.5 : 1.5, maxTokens: 600),
+                providerSnapshot: savedProvider, modelSnapshot: "historical-model"
+            )
+            promptResultRepo.promptResults = [existing]
+            promptResultRepo.replaceCalls = []
+            viewModel.configure(
+                llmService: LLMService(client: client, configStore: store),
+                promptRepo: promptRepo, promptResultRepo: promptResultRepo, configStore: store
+            )
+            viewModel.loadPromptResults(transcriptionId: existing.transcriptionId)
+            let id = try XCTUnwrap(viewModel.regeneratePromptResult(existing, transcript: "Transcript"))
+            let pending = try XCTUnwrap(viewModel.pendingGeneration(id: id))
+            XCTAssertEqual(pending.modelSnapshot, expectedModel)
+            let sameProvider = savedProvider == route.id.rawValue
+            XCTAssertEqual(pending.inferenceSettings, sameProvider ? existing.inferenceSettingsSnapshot : nil)
+            XCTAssertEqual(pending.promptContent, existing.promptContent)
+            XCTAssertEqual(pending.promptVersionId, existing.promptVersionId)
+            XCTAssertEqual(promptResultRepo.promptResults.first?.content, "Original result")
+            XCTAssertEqual(promptResultRepo.promptResults.first?.providerSnapshot, savedProvider)
+            XCTAssertEqual(promptResultRepo.promptResults.first?.modelSnapshot, "historical-model")
+
+            try await waitUntil { self.promptResultRepo.replaceCalls.count == 1 }
+
+            XCTAssertEqual(client.capturedContext?.providerConfig.id, route.id)
+            XCTAssertEqual(client.capturedContext?.providerConfig.modelName, expectedModel)
+            let replacement = try XCTUnwrap(promptResultRepo.replaceCalls.first?.promptResult)
+            XCTAssertEqual(replacement.providerSnapshot, route.id.rawValue)
+            XCTAssertEqual(replacement.modelSnapshot, expectedModel)
+            let expectedSettings = try PromptInferenceCapabilityResolver.resolve(
+                config: try XCTUnwrap(client.capturedContext?.providerConfig),
+                requested: sameProvider ? existing.inferenceSettingsSnapshot : nil
+            ).effectiveSettings
+            XCTAssertEqual(replacement.inferenceSettingsSnapshot, expectedSettings)
+            XCTAssertEqual(replacement.promptContent, existing.promptContent)
+            XCTAssertEqual(replacement.promptVersionId, existing.promptVersionId)
+            XCTAssertEqual(replacement.extraInstructions, existing.extraInstructions)
+            XCTAssertEqual(store.config?.modelName, "unrelated-default")
+        }
+    }
+
     func testRegenerateReusesPersistedEffectiveSettingsAsRequestedSnapshot() async throws {
         let promptID = UUID()
         let versionID = UUID()
@@ -652,10 +858,13 @@ final class PromptResultsViewModelTests: XCTestCase {
             modelSnapshot: "historical-model"
         )
         llm.streamEmitsTerminal = false
+        let configStore = MockLLMConfigStore()
+        configStore.config = .openai(apiKey: "test", model: "current-model")
         viewModel.configure(
             llmService: llm,
             promptRepo: promptRepo,
-            promptResultRepo: promptResultRepo
+            promptResultRepo: promptResultRepo,
+            configStore: configStore
         )
 
         let generationID = try XCTUnwrap(
@@ -1063,10 +1272,13 @@ final class PromptResultsViewModelTests: XCTestCase {
         )
         promptResultRepo.promptResults = [existing]
 
+        let configStore = MockLLMConfigStore()
+        configStore.config = .openai(apiKey: "test", model: "current-model")
         viewModel.configure(
             llmService: llm,
             promptRepo: promptRepo,
-            promptResultRepo: promptResultRepo
+            promptResultRepo: promptResultRepo,
+            configStore: configStore
         )
         viewModel.loadPromptResults(transcriptionId: transcriptionID)
         llm.streamTokenBatches = [[], ["Recovered"]]

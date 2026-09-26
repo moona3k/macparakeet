@@ -3899,7 +3899,7 @@ struct TranscriptResultView: View {
                                     currentModel: chatVM.currentModelName,
                                     displayName: chatVM.modelDisplayName,
                                     availableModels: chatVM.availableModels,
-                                    disabled: chatVM.isStreaming,
+                                    disabled: !chatVM.canSelectModel,
                                     onSelect: { chatVM.selectModel($0) }
                                 )
                             }

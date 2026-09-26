@@ -368,7 +368,8 @@ The generation popover contains:
 
 - prompt chips for visible summary prompts
 - a manage button that opens the prompt-library sheet
-- model selector
+- model selector for the resolved analysis route; changes update its override
+  when present, or Default AI when analysis inherits
 - extra instructions field
 - queue status text when generations are pending
 - generate button
@@ -401,6 +402,9 @@ When a generation completes:
 - generate appends a new completed summary tab every time
 - regenerate replaces only the specific summary the user chose, and only after the new result is durably saved
 - regeneration compares the original result's content and edit timestamp inside the replacement transaction; if either changed while generation ran, the user edit remains saved and replacement fails visibly
+- editing another saved result cannot replace a dirty draft; return to the
+  original result and Save or Cancel first. Re-entering the same edit retains
+  its draft. Switching result tabs alone does not discard it.
 - copy is available from both the pane and tab context menu
 - delete requires confirmation
 

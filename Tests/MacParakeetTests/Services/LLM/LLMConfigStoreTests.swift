@@ -20,6 +20,30 @@ final class LLMConfigStoreTests: XCTestCase {
 
     // MARK: - Tests
 
+    func testTaskModelUpdatePreservesDefaultCleanupAndCredentials() throws {
+        let defaultConfig = LLMProviderConfig.openai(apiKey: "default-key", model: "default-model")
+        let cleanup = LLMProviderConfig.ollama(model: "cleanup-model")
+        try store.saveConfig(defaultConfig)
+        try store.saveTaskOverride(cleanup, for: .cleanup)
+        try store.saveTaskOverride(.anthropic(apiKey: "analysis-key", model: "claude-old"), for: .analysis)
+
+        try store.updateModelName("claude-new", for: .analysis)
+
+        XCTAssertEqual(try store.loadConfig(), defaultConfig)
+        XCTAssertEqual(try store.loadTaskOverride(.cleanup), cleanup)
+        XCTAssertEqual(try store.loadConfig(for: .analysis)?.modelName, "claude-new")
+        XCTAssertEqual(try store.loadConfig(for: .analysis)?.apiKey, "analysis-key")
+        XCTAssertEqual(try store.loadConfig(for: .analysis)?.id, .anthropic)
+    }
+
+    func testInheritedTaskModelUpdateDoesNotCreateOverride() throws {
+        try store.saveConfig(.openai(apiKey: "default-key", model: "old"))
+        try store.updateModelName("new", for: .analysis)
+        XCTAssertNil(try store.loadTaskOverride(.analysis))
+        XCTAssertEqual(try store.loadConfig()?.modelName, "new")
+        XCTAssertEqual(try store.loadConfig(for: .analysis), try store.loadConfig())
+    }
+
     func testSaveAndLoadRoundTrip() throws {
         let config = LLMProviderConfig.openai(apiKey: "sk-test-key", model: "gpt-4o")
         try store.saveConfig(config)

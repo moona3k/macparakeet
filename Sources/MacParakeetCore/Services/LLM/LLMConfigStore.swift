@@ -21,6 +21,30 @@ public protocol LLMConfigStoreProtocol: Sendable {
 }
 
 extension LLMConfigStoreProtocol {
+    /// Resolve the same inherited task route used by LLM execution.
+    public func loadConfig(for task: LLMTaskGroup) throws -> LLMProviderConfig? {
+        if task.allowsOverride, let override = try loadTaskOverride(task) {
+            return override
+        }
+        return try loadConfig()
+    }
+
+    /// Change the selected route without creating an override for an inherited task.
+    public func updateModelName(_ modelName: String, for task: LLMTaskGroup) throws {
+        guard task.allowsOverride, let existing = try loadTaskOverride(task) else {
+            try updateModelName(modelName)
+            return
+        }
+        let updated = LLMProviderConfig(
+            id: existing.id,
+            baseURL: existing.baseURL,
+            apiKey: existing.apiKey,
+            modelName: modelName,
+            isLocal: existing.isLocal
+        )
+        try saveTaskOverride(updated, for: task)
+    }
+
     public func loadTaskOverride(_ task: LLMTaskGroup) throws -> LLMProviderConfig? { nil }
     public func saveTaskOverride(_ config: LLMProviderConfig?, for task: LLMTaskGroup) throws {}
     public func saveConfiguration(

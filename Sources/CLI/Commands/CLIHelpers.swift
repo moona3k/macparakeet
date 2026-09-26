@@ -487,6 +487,7 @@ enum CLIErrorType {
         }
         if error is MeetingClassificationRepositoryError { return validation }
         if error is MeetingCorrectionCLIError { return validation }
+        if error is MeetingResultEditCLIError { return conflict }
         if let correction = error as? SpeakerCorrectionServiceError {
             switch correction {
             case .conflict:

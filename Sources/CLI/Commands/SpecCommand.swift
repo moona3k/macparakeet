@@ -908,6 +908,29 @@ private extension CLISpecCommand {
             output: "LLMResult envelope when --json is used."
         ),
         CLISpecCommand(
+            ["llm", "routes", "list"],
+            summary:
+                "Inspect effective AI routes and inheritance without exposing credentials or contacting a provider.",
+            output:
+                "Object with ok and routes; each route includes task, inherited, configured and optional provider, model, isLocal and endpoint origin."
+        ),
+        CLISpecCommand(
+            ["llm", "routes", "set"],
+            summary: "Save one cleanup or analysis override using shared app preferences and provider credentials.",
+            readOnly: false,
+            arguments: [.argument("task", summary: "cleanup or analysis.")],
+            options: llmInlineOptions,
+            output:
+                "Object with ok and the effective route. Makes no LLM request; local CLI reuses the existing shared template."
+        ),
+        CLISpecCommand(
+            ["llm", "routes", "reset"],
+            summary: "Remove a task override and restore Default AI inheritance without deleting credentials.",
+            readOnly: false,
+            arguments: [.argument("task", summary: "cleanup or analysis.")],
+            output: "Object with ok and the effective route."
+        ),
+        CLISpecCommand(
             ["llm", "test-connection"],
             summary: "Test connectivity to an LLM provider.",
             readOnly: false,
@@ -1357,7 +1380,10 @@ private extension CLISpecCommand {
             summary: "Rename a meeting type.",
             readOnly: false,
             arguments: [.argument("type", summary: "Type UUID, prefix, or exact name.")],
-            options: [CLISpecParameter.option("--name", valueName: "NAME", required: true, summary: "New name."), databaseOption],
+            options: [
+                CLISpecParameter.option("--name", valueName: "NAME", required: true, summary: "New name."),
+                databaseOption,
+            ],
             output: "MeetingType object."
         ),
         CLISpecCommand(
@@ -1371,7 +1397,9 @@ private extension CLISpecCommand {
         CLISpecCommand(
             ["meetings", "labels", "list"],
             summary: "List meeting labels.",
-            options: [CLISpecParameter.flag("--include-archived", summary: "Include archived labels."), databaseOption],
+            options: [
+                CLISpecParameter.flag("--include-archived", summary: "Include archived labels."), databaseOption,
+            ],
             output: "Array of MeetingLabel objects."
         ),
         CLISpecCommand(
@@ -1390,7 +1418,10 @@ private extension CLISpecCommand {
             summary: "Rename a meeting label.",
             readOnly: false,
             arguments: [.argument("label", summary: "Label UUID, prefix, or exact name.")],
-            options: [CLISpecParameter.option("--name", valueName: "NAME", required: true, summary: "New name."), databaseOption],
+            options: [
+                CLISpecParameter.option("--name", valueName: "NAME", required: true, summary: "New name."),
+                databaseOption,
+            ],
             output: "MeetingLabel object."
         ),
         CLISpecCommand(
@@ -1453,6 +1484,25 @@ private extension CLISpecCommand {
                 databaseOption,
             ],
             output: "MeetingTranscriptRecord object with transcriptSegments for --format json."
+        ),
+        CLISpecCommand(
+            ["meetings", "corrections", "revise-text"],
+            summary: "Apply an atomic batch of passage replacements and omissions as one Undo step.",
+            readOnly: false,
+            arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
+            options: [
+                CLISpecParameter.option(
+                    "--expected-revision", valueName: "N", required: true,
+                    summary: "Correction revision from the last transcript read."),
+                CLISpecParameter.option(
+                    "--file", valueName: "PATH",
+                    summary: "UTF-8 JSON array of segment UUIDs with text or omit:true; exclusive with --stdin."),
+                CLISpecParameter.flag("--stdin", summary: "Read the revision JSON array from stdin."),
+                CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output:
+                "Updated MeetingTranscriptRecord. Stale revisions return conflict without a write; original audio and recognition are preserved."
         ),
         CLISpecCommand(
             ["meetings", "corrections", "edit-line"],
@@ -1674,6 +1724,32 @@ private extension CLISpecCommand {
                 databaseOption,
             ],
             output: "MeetingPromptResultRecord object."
+        ),
+        CLISpecCommand(
+            ["meetings", "results", "edit"],
+            summary: "Edit saved result content in place with an exact-content precondition, preserving provenance.",
+            readOnly: false,
+            arguments: [
+                .argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title."),
+                .argument("result", summary: "Full saved-result UUID belonging to that meeting."),
+            ],
+            options: [
+                CLISpecParameter.option(
+                    "--expected-content", valueName: "TEXT",
+                    summary: "Exact previously read content; exclusive with --expected-content-file."),
+                CLISpecParameter.option(
+                    "--expected-content-file", valueName: "PATH", summary: "UTF-8 file with the exact previous content."
+                ),
+                CLISpecParameter.option(
+                    "--content", valueName: "TEXT",
+                    summary: "Replacement Markdown; exactly one of --content, --file or --stdin is required."),
+                CLISpecParameter.option("--file", valueName: "PATH", summary: "UTF-8 replacement content file."),
+                CLISpecParameter.flag("--stdin", summary: "Read replacement content from stdin."),
+                CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output:
+                "MeetingPromptResultRecord with contentEditedAt. Stale content returns conflict without overwriting the result."
         ),
         CLISpecCommand(
             ["meetings", "artifact"],

@@ -1,6 +1,19 @@
 import Foundation
 import MacParakeetCore
 
+/// A picker edits the route it displayed, including whether it inherited Default AI.
+struct LLMModelSelectionRoute: Equatable {
+    let config: LLMProviderConfig
+    let isOverride: Bool
+
+    static func load(from store: LLMConfigStoreProtocol, for task: LLMTaskGroup) throws -> Self? {
+        if task.allowsOverride, let config = try store.loadTaskOverride(task) {
+            return Self(config: config, isOverride: true)
+        }
+        return try store.loadConfig().map { Self(config: $0, isOverride: false) }
+    }
+}
+
 enum LLMModelAvailability {
     static func pickerModels(for config: LLMProviderConfig, discoveredModels: [String]) -> [String] {
         let discovered = normalize(discoveredModels)
@@ -12,6 +25,7 @@ enum LLMModelAvailability {
         for config: LLMProviderConfig,
         llmClient: LLMClientProtocol?,
         configStore: LLMConfigStoreProtocol?,
+        task: LLMTaskGroup? = nil,
         apply: @escaping @MainActor @Sendable ([String]) -> Void
     ) -> Task<Void, Never>? {
         guard let llmClient, let configStore, config.id.supportsModelListing else { return nil }
@@ -23,7 +37,7 @@ enum LLMModelAvailability {
                 guard !Task.isCancelled else { return }
                 let models = pickerModels(for: config, discoveredModels: discoveredModels)
                 await MainActor.run {
-                    guard shouldApplyModelListResult(for: config, configStore: configStore) else { return }
+                    guard shouldApplyModelListResult(for: config, configStore: configStore, task: task) else { return }
                     apply(models)
                 }
             } catch {
@@ -47,9 +61,15 @@ enum LLMModelAvailability {
 
     private static func shouldApplyModelListResult(
         for config: LLMProviderConfig,
-        configStore: LLMConfigStoreProtocol
+        configStore: LLMConfigStoreProtocol,
+        task: LLMTaskGroup?
     ) -> Bool {
-        guard let storedConfig = try? configStore.loadConfig() else { return false }
+        let storedConfig: LLMProviderConfig?
+        if let task {
+            storedConfig = try? configStore.loadConfig(for: task)
+        } else {
+            storedConfig = try? configStore.loadConfig()
+        }
         return storedConfig == config
     }
 

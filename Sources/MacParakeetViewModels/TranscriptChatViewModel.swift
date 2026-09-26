@@ -77,6 +77,7 @@ public final class TranscriptChatViewModel {
     private var chatHistory: [ChatMessage] = []
     private var streamingTask: Task<Void, Never>?
     private var modelListTask: Task<Void, Never>?
+    private var displayedModelRoute: LLMModelSelectionRoute?
     private var streamingAssistantID: UUID?
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "TranscriptChatViewModel")
 
@@ -116,12 +117,17 @@ public final class TranscriptChatViewModel {
 
     public func refreshModelInfo() {
         modelListTask?.cancel()
-        guard let configStore, let config = try? configStore.loadConfig() else {
+        displayedModelRoute = nil
+        guard let configStore,
+            let route = try? LLMModelSelectionRoute.load(from: configStore, for: .analysis)
+        else {
             currentModelName = ""
             currentProviderID = nil
             availableModels = []
             return
         }
+        displayedModelRoute = route
+        let config = route.config
         currentProviderID = config.id
         if config.id == .localCLI {
             let displayName =
@@ -139,11 +145,23 @@ public final class TranscriptChatViewModel {
         refreshAvailableModels(for: config)
     }
 
+    public var canSelectModel: Bool {
+        configStore != nil && currentProviderID != nil
+            && currentProviderID != .localCLI && currentProviderID != .appleIntelligence
+            && !isStreaming
+    }
+
     public func selectModel(_ modelName: String) {
-        guard let configStore, currentProviderID != .localCLI else { return }
+        guard let configStore, canSelectModel else { return }
         do {
-            try configStore.updateModelName(modelName)
-            currentModelName = modelName
+            guard let displayedModelRoute,
+                try LLMModelSelectionRoute.load(from: configStore, for: .analysis) == displayedModelRoute
+            else {
+                refreshModelInfo()
+                return
+            }
+            try configStore.updateModelName(modelName, for: .analysis)
+            refreshModelInfo()
             onModelChanged?()
         } catch {
             refreshModelInfo()
@@ -154,7 +172,8 @@ public final class TranscriptChatViewModel {
         modelListTask = LLMModelAvailability.refreshPickerModelsTask(
             for: config,
             llmClient: llmClient,
-            configStore: configStore
+            configStore: configStore,
+            task: .analysis
         ) { [weak self] models in
             self?.availableModels = models
         }
