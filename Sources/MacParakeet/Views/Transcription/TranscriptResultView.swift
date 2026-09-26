@@ -1731,7 +1731,8 @@ struct TranscriptResultView: View {
                 Text(errorMessage)
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(DesignSystem.Colors.errorRed)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(3)
+                    .help(errorMessage)
                     .padding(.horizontal, DesignSystem.Spacing.md)
                     .padding(.bottom, DesignSystem.Spacing.sm)
             }
