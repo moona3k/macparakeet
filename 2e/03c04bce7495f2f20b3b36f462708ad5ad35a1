@@ -1,0 +1,21 @@
+docs/research/2026-09-25-test-value-audit.md
+  s_cac8ea75717892::t_b9365040b71fd7 74-75,171,178
+  s_cac8ea75717892::t_270258dee41ef0 128-133,162
+  s_cac8ea75717892::t_b671f81aca9e6e 179
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2e03c04bce7495f2f20b3b36f462708ad5ad35a1",
+  "prompts": {},
+  "sessions": {
+    "s_cac8ea75717892": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0db21-43eb-73f3-b873-a8a718ab6d72",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
