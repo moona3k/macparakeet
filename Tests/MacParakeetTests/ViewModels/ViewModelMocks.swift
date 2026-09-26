@@ -900,6 +900,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var summarizeCallCount = 0
     var chatCallCount = 0
     var formatTranscriptCallCount = 0
+    var formatTranscriptHook: (@Sendable () async -> Void)?
     var lastChatQuestion: String?
     var lastSummaryTranscript: String?
     var lastChatTranscript: String?
@@ -1008,6 +1009,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         defaultPromptUsed: Bool
     ) async throws -> LLMFormatterResult {
         formatTranscriptCallCount += 1
+        await formatTranscriptHook?()
         lastFormattedTranscript = transcript
         lastFormatterPromptTemplate = promptTemplate
         lastFormatterSource = source

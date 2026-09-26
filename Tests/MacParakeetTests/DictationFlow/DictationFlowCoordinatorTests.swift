@@ -207,6 +207,48 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         XCTAssertTrue(clipboard.pastedTexts.isEmpty)
     }
 
+    func testProcessingCancellationNeverDeliversAfterOwnedTaskSettles() async throws {
+        for preserve in [false, true] {
+            for cancelAfterCommit in [false, true] {
+                let harness = try await makeRecordingHarness(preserveDiscarded: preserve)
+                await harness.stt.configure(result: STTResult(text: "cancelled dictation"))
+                let suspended = expectation(description: "Processing suspended")
+                let release = ProcessingCancellationGate()
+                if cancelAfterCommit {
+                    await harness.service.setSuccessDisplayWaiterForTesting {
+                        suspended.fulfill()
+                        await release.wait()
+                    }
+                } else {
+                    await harness.stt.setTranscribeHook {
+                        suspended.fulfill()
+                        await release.wait()
+                    }
+                }
+                var delivered: [String] = []
+                harness.coordinator.onDictationDelivered = { delivered.append($0) }
+                harness.coordinator.startDictation(mode: .persistent)
+                let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+                XCTAssertTrue(started)
+                harness.coordinator.stopDictation()
+                await fulfillment(of: [suspended], timeout: 2)
+                let processingTask = try XCTUnwrap(harness.coordinator.processingTaskForTesting)
+                harness.coordinator.cancelDictation()
+                await release.open()
+                await processingTask.value
+                let clipboard = await harness.clipboard.snapshot()
+                XCTAssertEqual(clipboard.pasteCallCount, 0)
+                XCTAssertTrue(clipboard.pastedTexts.isEmpty)
+                XCTAssertNil(clipboard.lastCopiedText)
+                XCTAssertTrue(delivered.isEmpty)
+                XCTAssertEqual(harness.coordinator.flowStateForTesting, .idle)
+                let rows = try harness.repo.fetchAll()
+                XCTAssertEqual(rows.count, cancelAfterCommit || preserve ? 1 : 0)
+                XCTAssertTrue(rows.allSatisfy { $0.status == (cancelAfterCommit ? .completed : .cancelled) })
+            }
+        }
+    }
+
     func testDismissingPracticeWhileTranscribingPreventsPasteAndDelivery() async throws {
         let harness = try await makeRecordingHarness()
         harness.coordinator.isPracticeTarget = { true }
@@ -960,17 +1002,21 @@ final class DictationFlowCoordinatorTests: XCTestCase {
 
     private func makeRecordingHarness(
         mutationArbiter: GUIMutationArbiter? = nil,
-        captureSoundsEnabled: Bool = false
+        captureSoundsEnabled: Bool = false,
+        preserveDiscarded: Bool = false
     ) async throws -> RecordingHarness {
         let dbManager = try DatabaseManager()
         let audio = MockAudioProcessor()
         let stt = MockSTTClient()
         let clipboard = MockClipboardService()
+        await audio.configure(
+            captureResult: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
         let repo = DictationRepository(dbQueue: dbManager.dbQueue)
         let service = DictationService(
             audioProcessor: audio,
             sttTranscriber: stt,
-            dictationRepo: repo
+            dictationRepo: repo,
+            shouldPreserveDiscardedDictations: { preserveDiscarded }
         )
 
         let settingsDefaults = makeTestDefaults(prefix: "recording-settings")
@@ -1008,6 +1054,7 @@ final class DictationFlowCoordinatorTests: XCTestCase {
 
         return RecordingHarness(
             coordinator: coordinator,
+            service: service,
             audio: audio,
             stt: stt,
             clipboard: clipboard,
@@ -1073,6 +1120,7 @@ final class DictationFlowCoordinatorTests: XCTestCase {
 
     private struct RecordingHarness {
         let coordinator: DictationFlowCoordinator
+        let service: DictationService
         let audio: MockAudioProcessor
         let stt: MockSTTClient
         let clipboard: MockClipboardService

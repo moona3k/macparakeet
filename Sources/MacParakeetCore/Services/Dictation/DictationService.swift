@@ -1824,6 +1824,16 @@ public actor DictationService: DictationServiceProtocol {
         )
     }
 
+    private func processingCompletionStatus(
+        _ requested: Dictation.DictationStatus
+    ) throws -> Dictation.DictationStatus {
+        guard requested == .completed, Task.isCancelled else { return requested }
+        guard shouldPreserveDiscardedDictations?() ?? false,
+            shouldSaveDictationHistory?() ?? true
+        else { throw CancellationError() }
+        return .cancelled
+    }
+
     private func processCapturedAudio(
         audioURL: URL,
         capturedDurationMs: Int?,
@@ -1849,6 +1859,7 @@ public actor DictationService: DictationServiceProtocol {
         do {
             result = try await sttTranscriber.transcribe(audioPath: audioURL.path, job: .dictation)
         } catch {
+            if status == .completed { try Task.checkCancellation() }
             // A normal stop keeps its recording in History when STT fails, so
             // the take can be retried instead of lost (#1131).
             if status == .completed,
@@ -1863,6 +1874,7 @@ public actor DictationService: DictationServiceProtocol {
             }
             throw error
         }
+        _ = try processingCompletionStatus(status)
         logger.debug("dictation_transcription_complete chars=\(result.text.count, privacy: .public)")
         let transcriptWordCount =
             result.words.isEmpty
@@ -1906,8 +1918,9 @@ public actor DictationService: DictationServiceProtocol {
         let baseText = cleanTranscript ?? result.text
         let saveHistory = shouldSaveDictationHistory?() ?? true
         let dictationID = UUID()
-        let formatterOutcome: FormatterOutcome
-        if status == .cancelled {
+        var completionStatus = try processingCompletionStatus(status)
+        var formatterOutcome: FormatterOutcome
+        if completionStatus == .cancelled {
             // Recovery only: don't send discarded speech to a cloud formatter.
             formatterOutcome = .skipped
         } else {
@@ -1917,16 +1930,27 @@ public actor DictationService: DictationServiceProtocol {
                 logger: logger
             )
             let promptResolver = aiFormatterPromptResolver
-            formatterOutcome = try await transcriptFormatter.format(
-                baseText,
-                runSource: saveHistory ? LLMRunSource(dictationId: dictationID) : nil,
-                lane: .dictation,
-                resolvePrompt: {
-                    let resolution = await promptResolver.resolvePrompt(for: formatterContext)
-                    return (resolution.promptTemplate, resolution)
-                }
-            )
+            do {
+                formatterOutcome = try await transcriptFormatter.format(
+                    baseText,
+                    runSource: saveHistory ? LLMRunSource(dictationId: dictationID) : nil,
+                    lane: .dictation,
+                    resolvePrompt: {
+                        let resolution = await promptResolver.resolvePrompt(for: formatterContext)
+                        return (resolution.promptTemplate, resolution)
+                    }
+                )
+            } catch {
+                guard Task.isCancelled, status == .completed else { throw error }
+                formatterOutcome = .skipped
+            }
         }
+        // STT and formatter implementations may return after task cancellation.
+        // Resolve retention before the synchronous persistence commit, not only
+        // in the coordinator's later delivery guard.
+        completionStatus = try processingCompletionStatus(status)
+        if completionStatus == .cancelled { formatterOutcome = .skipped }
+
         let formattedTranscript = formatterOutcome.text.map {
             guard insertionStyle == .inline else { return $0 }
             let normalizedFormatterText = $0.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1945,7 +1969,7 @@ public actor DictationService: DictationServiceProtocol {
             rawTranscript: result.text,
             cleanTranscript: formattedTranscript ?? cleanTranscript,
             processingMode: mode,
-            status: status,
+            status: completionStatus,
             hidden: !saveHistory,
             wordCount: wc,
             engine: result.engine.rawValue,
@@ -1978,7 +2002,7 @@ public actor DictationService: DictationServiceProtocol {
 
         if saveHistory {
             try dictationRepo.save(dictation)
-            if status != .cancelled {
+            if completionStatus != .cancelled {
                 await llmRunRecorder.record(formatterOutcome.run)
             }
         } else {
@@ -1987,11 +2011,15 @@ public actor DictationService: DictationServiceProtocol {
             privateCopy.cleanTranscript = nil
             try dictationRepo.save(privateCopy)
         }
-        if status == .completed {
+        if status == .completed, completionStatus == .cancelled {
+            NotificationCenter.default.post(name: .macParakeetDictationHistoryDidChange, object: nil)
+            throw CancellationError()
+        }
+        if completionStatus == .completed {
             markFirstDictationCompleted?()
         }
 
-        if status == .completed, !expandedSnippetIDs.isEmpty {
+        if completionStatus == .completed, !expandedSnippetIDs.isEmpty {
             try? snippetRepo?.incrementUseCount(ids: refinement.expandedSnippetIDs)
         }
 
