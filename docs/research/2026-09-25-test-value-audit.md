@@ -1,6 +1,6 @@
 # Test value audit: contracts, false confidence, and stronger boundaries
 
-Audit date: 25 September 2026, Pacific time. Product source snapshot: `59e7adf085277ea82ee9bb5f15a7b8cb315ebd91`. CI evidence: [PR #1161](https://github.com/moona3k/macparakeet/pull/1161), initially `8a8a597b`, subsequently repaired at `8ce7f43e`. Neither CI commit changes `Sources/`, `Tests/`, `Package.swift`, or `Package.resolved`.
+Audit date: 25 September 2026, Pacific time. Product source snapshot: `59e7adf085277ea82ee9bb5f15a7b8cb315ebd91`. CI evidence: [PR #1161](https://github.com/moona3k/macparakeet/pull/1161), initially `8a8a597b`, subsequently repaired at its final head `8ce7f43e`, merged into `main` at `82c1eaad`. Neither CI commit changes `Sources/`, `Tests/`, `Package.swift`, or `Package.resolved`.
 
 This is an evidence-backed audit and proposed sequence. It makes **no test deletions or product changes**. The discovery covers the tracked test tree, with deeper owner/history reviews of the candidates below; it is not a claim that every test declaration has been individually reviewed.
 
@@ -43,6 +43,8 @@ The [before run](https://github.com/moona3k/macparakeet/actions/runs/36205356185
 
 The observed reductions are 49% elapsed time and 18% occupied runner time **for this pair only**. They are not billing figures or a controlled estimate of savings attributable solely to the workflow: Release and Xcode build durations also varied between runners. The [earlier CI audit](2026-09-25-ci-cost-and-test-strategy.md) remains the 24-successful-run baseline and separates measured evidence from scheduling estimates.
 
+PR #1161 has since merged. Its final head, [`8ce7f43e`](https://github.com/moona3k/macparakeet/actions/runs/36209359562), ran to completion and succeeded: workflow creation to final job completion was 24m 47s, with the `Tests and Swift 6` job occupying 21m 48s (8m 00s test build, 7m 45s `Swift Test` execution) and `Release and Bundle` occupying 24m 35s, for 46m 23s summed macOS runner time plus 3s Linux. Both artifacts downloaded from this run: 7,567 XCTest entries with 0 failures/errors (skip count still not reported by this XML) and 30 Swift Testing passes, the same inventory as above. This is a second single data point on the repaired head, not a repeated-trial average, and should not be read as a controlled benchmark alongside the first pair.
+
 The new real CLI smoke passed in approximately one second. It creates and reads prompts/collections in separate executable processes, renames a collection, deletes it while preserving its prompt, and checks the missing-ID JSON error. This adds parser/process/SQLite composition proof that in-process command tests do not supply. It does not exercise speech recognition, GUI/TCC, or a signed release.
 
 Per-case xUnit times measure a test process lifetime, including startup and setup/teardown under concurrent load. They are useful profiling leads, not method-only CPU measurements; summing parallel cases does not yield elapsed savings. Two NLMS cases each report about 21.72 seconds, while some simple cases also have long process durations. No deletion recommendation below relies on those numbers alone.
@@ -63,7 +65,7 @@ The analogous `STTClientTests.testSTTErrorDescriptions` (`Tests/MacParakeetTests
 
 ### B. Disconnected clipboard assertions — remove the false claim
 
-**Exact tests.** `CancelFlowTests.testCancelDoesNotPasteOrSave` and `testSTTErrorDuringStop`, in `Tests/MacParakeetTests/Integration/CancelFlowTests.swift:26` and `:98`, assert `mockClipboard.pasteCallCount == 0`. The mock is created at lines 9/16 but is never supplied to `DictationService`. The initializer at lines 19–23 receives audio, STT, and the repository only.
+**Exact tests.** `CancelFlowTests.testCancelDoesNotPasteOrSave` and `testSTTErrorDuringStop`, in `Tests/MacParakeetTests/Integration/CancelFlowTests.swift:27` and `:99`, assert `mockClipboard.pasteCallCount == 0`. The mock is created at lines 9/16 but is never supplied to `DictationService`. The initializer at lines 19–23 receives audio, STT, and the repository only.
 
 **Failure and owner.** Those two clipboard assertions cannot detect a product paste. The same tests' database-empty and STT-error assertions are real and must stay. Actual paste ownership lives in `Sources/MacParakeet/App/DictationFlowCoordinator.swift:814`; service cancellation remains in `Sources/MacParakeetCore/Services/Dictation/DictationService.swift:803`.
 
@@ -97,7 +99,7 @@ This is a separate AEC-owned batch, not part of error-copy cleanup. Risk is medi
 
 ### E. Search composition and duplicate availability assertions — lower priority
 
-`DictationFlowTests.testDictationSearchAfterSave` (`Integration/DictationFlowTests.swift:97`) starts/stops the real service with fake capture/STT, waits 600 ms, inserts a second row directly, and queries the repository. It never drives the history view model. It catches real save/search composition failures, but `testFullDictationFlow`, `DictationRepositoryTests.testSearchFindsMatchingDictations` and its siblings, and history-view-model search tests already cover the constituent owners. Production search is a SQL `LIKE` query (`DictationRepository.swift:253`), not an FTS index despite an old test heading. No dedicated regression provenance beyond the original suite was found.
+`DictationFlowTests.testDictationSearchAfterSave` (`Integration/DictationFlowTests.swift:98`) starts/stops the real service with fake capture/STT, waits 600 ms, inserts a second row directly, and queries the repository. It never drives the history view model. It catches real save/search composition failures, but `testFullDictationFlow`, `DictationRepositoryTests.testSearchFindsMatchingDictations` and its siblings, and history-view-model search tests already cover the constituent owners. Production search is a SQL `LIKE` query (`DictationRepository.swift:253`), not an FTS index despite an old test heading. No dedicated regression provenance beyond the original suite was found.
 
 Removal is reasonable but optional: it removes test LOC and a fixed wait, not production complexity. A stronger replacement, if needed, would exercise the actual view model with mixed rows in a real temporary repository. **Focused verification:** `swift test --filter 'DictationFlowTests|DictationRepositoryTests|DictationHistoryViewModelTests'`. Do not report 600 ms as wall-time savings in a parallel run.
 
@@ -111,7 +113,7 @@ The public `spec` API and its catalog tests must remain. Commit `142a7f9bbb` int
 
 ### G. Library query/style claim — repair, do not delete
 
-`LibrarySourceLabelStyleTests.testMappingMatchesEveryQueryNarrowing` (`Tests/MacParakeetTests/ViewModels/LibrarySourceLabelStyleTests.swift:63`) enumerates twelve scope/filter/style pairs but calls only `sourceLabelStyle`. It never exercises `TranscriptionLibraryViewModel.makeQuery`, so a query broadening can leave the purported query-drift guard green.
+`LibrarySourceLabelStyleTests.testMappingMatchesEveryQueryNarrowing` (`Tests/MacParakeetTests/ViewModels/LibrarySourceLabelStyleTests.swift:67`) enumerates twelve scope/filter/style pairs but calls only `sourceLabelStyle`. It never exercises `TranscriptionLibraryViewModel.makeQuery`, so a query broadening can leave the purported query-drift guard green.
 
 The test still detects style mapping changes and new filter cases. Its contract is meaningful source attribution, and `6c9f0966c` added the table to replace an earlier tautology. Real query tests exist in `TranscriptionLibraryViewModelTests`, but no demonstrated test pairs the actual mixed-source results and style across these combinations. The production style helper has real callers; it is not a test-only seam.
 
@@ -127,7 +129,7 @@ Retain the file; replace mirrored expectations with hand-calculated chunk bounda
 
 ### I. Test-only database insertion wrapper — remove the seam, retain the CLI contract
 
-`DatabaseManager.recordAppliedMigrationIdentifierForTesting` (`Sources/MacParakeetCore/Database/DatabaseManager.swift:72`) is a DEBUG-only one-row SQL insertion wrapper. Its sole repository caller is `ModelLifecycleCommandTests.swift:45`, which inserts a future migration marker and verifies that the CLI health probe reports schema skew instead of decoding an incompatible database as healthy. Commit `0179db4df` introduced that important stale-CLI protection.
+`DatabaseManager.recordAppliedMigrationIdentifierForTesting` (`Sources/MacParakeetCore/Database/DatabaseManager.swift:73`) is a DEBUG-only one-row SQL insertion wrapper. Its sole repository caller is `ModelLifecycleCommandTests.swift:45`, which inserts a future migration marker and verifies that the CLI health probe reports schema skew instead of decoding an incompatible database as healthy. Commit `0179db4df` introduced that important stale-CLI protection.
 
 The same test file already writes the migration ledger through `db.dbQueue.write` for another fixture. Inline this fixture-owned insertion there, remove the production test-only wrapper, and keep the existing schema-skew assertions. Preserve `unknownAppliedMigrationIdentifiers` and `registeredMigrationIdentifiers`: the real health command uses them. This is a small, low-risk production simplification with an unchanged owner-boundary test. **Focused verification:** `swift test --filter ModelLifecycleCommandTests`.
 
@@ -147,7 +149,7 @@ Keep these tests and add them to a distribution-fixture follow-up. The expected 
 
 `SpeakerVoiceprintTelemetryTests.swift` scans identity-related files, checks filename sentinels, forbids direct telemetry calls, and inspects the settings preference call. It is coupled to names and call spelling, can be upset by harmless refactors, and does not prove absence of all possible data disclosure.
 
-Its history matters: `16816670e` replaced a fixed file list that failed open and a prefix parser that could miss later call arguments. Consent tests in `SettingsViewModelTests.swift:3610` prove real settings/defaults behavior but do not assert the emitted preference event's exact properties. Deleting the scanner now would remove existing privacy protection without demonstrated replacement.
+Its history matters: `16816670e` replaced a fixed file list that failed open and a prefix parser that could miss later call arguments. Consent tests in `SettingsViewModelTests.swift:3614` prove real settings/defaults behavior but do not assert the emitted preference event's exact properties. Deleting the scanner now would remove existing privacy protection without demonstrated replacement.
 
 Retain it pending a behavioral preference-event test through the existing production `Telemetry.configure` interface and real settings view model. No new production test hook is needed. Only after replacement could the bespoke call parser and its own test be removed. Separately assess whether the broad source-level architectural guard remains useful. Do not describe this scan as comprehensive privacy proof.
 
