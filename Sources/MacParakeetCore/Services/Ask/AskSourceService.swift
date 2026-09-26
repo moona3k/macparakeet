@@ -214,13 +214,20 @@ public final class AskSourceService: AskSourceServiceProtocol, @unchecked Sendab
             var seen = Set<String>()
             let tokens = try tokenizer.tokenize(query: query).map(\.token).filter { seen.insert($0).inserted }
             guard !tokens.isEmpty else { return sources.map { _ in [] } }
-            // Unicode61 does not segment unspaced Han/Kana/Thai text. Preserve
-            // discovery inside those runs rather than silently losing matches.
+            // Unicode61 does not segment unspaced Han/Kana/Thai text, and it
+            // glues an adjacent Latin word onto the same token (`発売launch`
+            // stays one token). Split the query into script runs first so
+            // each side still yields its own independent search term.
             if SegmentRepository.requiresSubstringFallback(query) {
-                let substringTerms = Set(
-                    query.split { $0.isWhitespace || $0.isPunctuation || $0.isSymbol }
-                        .map(String.init).filter(SegmentRepository.requiresSubstringFallback).map(Self.substringKey))
-                let wordTerms = tokens.filter { !SegmentRepository.requiresSubstringFallback($0) }
+                let runs = Self.fallbackScriptRuns(in: query)
+                let substringTerms = Set(runs.filter(\.isFallbackScript).map { Self.substringKey($0.text) })
+                var seenWordTerms = Set<String>()
+                var wordTerms: [String] = []
+                for run in runs where !run.isFallbackScript {
+                    let runTokens = try tokenizer.tokenize(query: run.text).map(\.token)
+                        .filter { seenWordTerms.insert($0).inserted }
+                    wordTerms.append(contentsOf: runTokens)
+                }
                 return try sources.map { passages in
                     try passages.enumerated().compactMap { offset, passage -> (Int, Int, AskPassage)? in
                         if offset.isMultiple(of: 256) { try Task.checkCancellation() }
@@ -275,6 +282,34 @@ public final class AskSourceService: AskSourceServiceProtocol, @unchecked Sendab
             }
         }
         return result
+    }
+
+    /// Splits a query into runs that alternate between fallback-script text
+    /// (Han/Kana/Thai) and ordinary text, breaking at whitespace, punctuation,
+    /// symbols, and wherever the fallback classification changes. Iterating by
+    /// `Character` rather than unicode scalar keeps a Thai base character and
+    /// its combining marks in the same grapheme cluster, and therefore the
+    /// same run.
+    private static func fallbackScriptRuns(in query: String) -> [(isFallbackScript: Bool, text: String)] {
+        var runs: [(isFallbackScript: Bool, text: String)] = []
+        var current = ""
+        var currentIsFallback = false
+        for character in query {
+            if character.isWhitespace || character.isPunctuation || character.isSymbol {
+                if !current.isEmpty { runs.append((currentIsFallback, current)) }
+                current = ""
+                continue
+            }
+            let isFallback = SegmentRepository.requiresSubstringFallback(String(character))
+            if !current.isEmpty, isFallback != currentIsFallback {
+                runs.append((currentIsFallback, current))
+                current = ""
+            }
+            currentIsFallback = isFallback
+            current.append(character)
+        }
+        if !current.isEmpty { runs.append((currentIsFallback, current)) }
+        return runs
     }
 
     private static func substringKey(_ value: String) -> String {
