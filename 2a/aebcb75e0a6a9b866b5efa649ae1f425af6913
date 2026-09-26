@@ -1,0 +1,50 @@
+Tests/MacParakeetTests/Ask/AskWorkspaceViewModelTests.swift
+  s_4578606cebd7c7::t_5dca341ef1c95e 71-149
+  s_4578606cebd7c7::t_fdd525bf3395cd 150-205
+Sources/MacParakeetCore/Models/LLMTypes.swift
+  s_4578606cebd7c7::t_80ce1f94fa632c 146-148,158-159,171,189
+Sources/AskAgentHelper/README.md
+  s_4578606cebd7c7::t_1e5f67ddf6ba32 7-8
+Sources/MacParakeetViewModels/AskWorkspaceViewModel.swift
+  s_4578606cebd7c7::t_dbe16647e81daf 149,184,244-246,250-253,261,265,267,269,271,280,431,458,540
+  s_4578606cebd7c7::t_d37ca73ecd62db 154,158-162,188-190,192
+Sources/AskAgentHelper/test/helper.test.js
+  s_4578606cebd7c7::t_9c2b26a808e149 10-12,172
+Sources/MacParakeetCore/Services/Ask/AskWorkspaceService.swift
+  s_4578606cebd7c7::t_80ce1f94fa632c 448-450
+Sources/MacParakeetCore/Services/Ask/AskModelBridge.swift
+  s_4578606cebd7c7::t_80ce1f94fa632c 45-46,81-84,87
+spec/contracts/ask-workspace.md
+  s_4578606cebd7c7::t_fbf8f9a5a8be73 116-121
+  s_4578606cebd7c7::t_1e5f67ddf6ba32 103-106
+Tests/MacParakeetTests/Ask/AskModelBridgeTests.swift
+  s_4578606cebd7c7::t_e2f41e7aa6d345 56-72,105,109-110,116,140-141
+scripts/dist/homebrew-tap-scaffold/macparakeet-cli.rb
+  s_4578606cebd7c7::t_9c2b26a808e149 43-44
+Tests/MacParakeetTests/Ask/AskWorkspaceServiceTests.swift
+  s_4578606cebd7c7::t_073d46fe286b53 15-16,25-26
+.github/workflows/ci.yml
+  s_4578606cebd7c7::t_9c2b26a808e149 173-174
+Tests/MacParakeetTests/Services/LLM/InProcessLLMClientTests.swift
+  s_4578606cebd7c7::t_e2f41e7aa6d345 72-106
+scripts/dist/homebrew-tap-scaffold/HOWTO.md
+  s_4578606cebd7c7::t_f83edb58ae0575 35-36,39,50,55,57-58,61-66,72-76,105-108
+Sources/MacParakeetCore/Services/LLM/InProcessLLMClient.swift
+  s_4578606cebd7c7::t_80ce1f94fa632c 233
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2aaebcb75e0a6a9b866b5efa649ae1f425af6913",
+  "prompts": {},
+  "sessions": {
+    "s_4578606cebd7c7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0db20-e057-7c41-83c9-2fd3e13c3dba",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
