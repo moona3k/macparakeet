@@ -1,0 +1,29 @@
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_c299e83108feed::t_5978a6d93584eb 567,5622-5626,5658-5660,5676-5680
+Sources/MacParakeetCore/Database/TranscriptionRepository.swift
+  s_c299e83108feed::t_7f98cfacc5938c 12-47,50-51,92-100,274-311
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_c299e83108feed::t_78a577b595c9a6 1943,1945-1946,1948-1950,1952-1953,1958-1969,1971-1976,1980-1983,1985,1988,1990
+Tests/MacParakeetTests/ViewModels/TranscriptEditPersistenceTests.swift
+  s_c299e83108feed::t_74b22e30d3ef7d 1-97
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  s_c299e83108feed::t_54abde7bf4beb9 177-195
+spec/contracts/whole-transcript-edits.md
+  s_c299e83108feed::t_059833ffe6348e 1-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "02ca9653d7ac5989614dbf9097e2fb61ffa65be0",
+  "prompts": {},
+  "sessions": {
+    "s_c299e83108feed": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dc15-ddf7-71f2-a669-23235022dc65",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
