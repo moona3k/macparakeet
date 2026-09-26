@@ -1,0 +1,47 @@
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_d283e6c6d8094f::t_cb77d6cb27b74a 1098-1101
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_cac8ea75717892::t_04196d242596a8 1827-1836,1862,1877,1921-1923,1933-1946,1948-1953,1972,2005,2014-2018,2022
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_cac8ea75717892::t_c3eb3776d28747 210-251,1005-1006,1012-1013,1018-1019,1057,1123
+Tests/MacParakeetTests/Integration/CancelFlowTests.swift
+  s_d283e6c6d8094f::t_0e7f7c485e440f 1,25-26,45-171,461-488
+Tests/MacParakeetTests/TestSupport/ProcessingCancellationGate.swift
+  s_cac8ea75717892::t_8e25266263c875 1-16
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  s_42f63bf0f20e7d::t_d00eb384af3959 903,1012
+spec/02-features.md
+  s_cac8ea75717892::t_d4b2a3b8e5ca14 396
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0242654e67acd4911b0340474f1fe539c75021a9",
+  "prompts": {},
+  "sessions": {
+    "s_42f63bf0f20e7d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "685addb0-1796-4214-a644-a88befacdb19",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_cac8ea75717892": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0db21-43eb-73f3-b873-a8a718ab6d72",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_d283e6c6d8094f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5275a423-1b92-48da-b6e2-c14d78eb51cc",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
