@@ -60,6 +60,8 @@ qualification retain the prerequisites in [the qualification guides](../testing/
 `3dde9219c20cf4c1fb5eefdcae492ef11c0d508c`. The fixed acceptance rule required
 at least 5% elapsed improvement without more than 10% occupied-runner regression,
 all correctness gates, an identical-head warm rerun, and actual consumer invalidation.
+The decision tool used a 5% comparison threshold for both timing metrics; this
+was separate from the 10% maximum occupied-runner regression guard.
 
 | Observation | Head / attempt | Elapsed | Occupied macOS |
 | --- | --- | --- | --- |
