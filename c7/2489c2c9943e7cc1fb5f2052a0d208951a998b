@@ -1,0 +1,25 @@
+.github/workflows/ci.yml
+  s_e94594451405dc::t_e48c9fcd8f0fbb 255-260
+  s_e94594451405dc::t_de1ad79c8dac39 80-91
+  s_e94594451405dc::t_13a76339ba3fc7 152
+scripts/ci/test-swiftpm-build-reuse.sh
+  s_e94594451405dc::t_dd18074b3f9b04 1-44
+docs/research/2026-09-26-ci-optimization.md
+  s_e94594451405dc::t_ef77bd96eb9bc7 26-30,37-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c72489c2c9943e7cc1fb5f2052a0d208951a998b",
+  "prompts": {},
+  "sessions": {
+    "s_e94594451405dc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a6882c42-97c4-4aee-b5b2-0e6c8e5e2877",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
