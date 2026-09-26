@@ -2089,6 +2089,17 @@ private extension TelemetryEventSpec {
 }
 
 private final class NoOpLLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
+    func loadConfig(for task: LLMTaskGroup) throws -> LLMProviderConfig? { nil }
+    func loadConfigMetadata() throws -> LLMProviderConfig? { nil }
+    func loadTaskOverrideMetadata(_ task: LLMTaskGroup) throws -> LLMProviderConfig? { nil }
+    func loadRouteMetadata(for task: LLMTaskGroup) throws -> LLMModelSelectionRoute? { nil }
+    func updateModelName(_ name: String, for task: LLMTaskGroup, expected: LLMModelSelectionRoute) throws -> Bool {
+        false
+    }
+    func saveTaskOverride(_ config: LLMProviderConfig?, for task: LLMTaskGroup) throws -> LLMModelSelectionRoute? {
+        nil
+    }
+
     func loadConfig() throws -> LLMProviderConfig? { nil }
     func saveConfig(_ config: LLMProviderConfig) throws {}
     func deleteConfig() throws {}

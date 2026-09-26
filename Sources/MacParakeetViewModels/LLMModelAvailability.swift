@@ -1,19 +1,6 @@
 import Foundation
 import MacParakeetCore
 
-/// A picker edits the route it displayed, including whether it inherited Default AI.
-struct LLMModelSelectionRoute: Equatable {
-    let config: LLMProviderConfig
-    let isOverride: Bool
-
-    static func load(from store: LLMConfigStoreProtocol, for task: LLMTaskGroup) throws -> Self? {
-        if task.allowsOverride, let config = try store.loadTaskOverride(task) {
-            return Self(config: config, isOverride: true)
-        }
-        return try store.loadConfig().map { Self(config: $0, isOverride: false) }
-    }
-}
-
 enum LLMModelAvailability {
     static func pickerModels(for config: LLMProviderConfig, discoveredModels: [String]) -> [String] {
         let discovered = normalize(discoveredModels)

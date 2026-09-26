@@ -246,11 +246,19 @@ final class MockLLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
         )
     }
 
+    var afterNextTaskOverrideRead: (() -> Void)?
+    var metadataReadError: Error?
+
     func loadTaskOverride(_ task: LLMTaskGroup) throws -> LLMProviderConfig? {
-        taskOverrides[task]
+        let captured = taskOverrides[task]
+        let hook = afterNextTaskOverrideRead
+        afterNextTaskOverrideRead = nil
+        hook?()
+        return captured
     }
 
-    func saveTaskOverride(_ config: LLMProviderConfig?, for task: LLMTaskGroup) throws {
+    @discardableResult
+    func saveTaskOverride(_ config: LLMProviderConfig?, for task: LLMTaskGroup) throws -> LLMModelSelectionRoute? {
         if let config {
             taskOverrides[task] = config
             if let key = config.apiKey {
@@ -259,6 +267,41 @@ final class MockLLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
         } else {
             taskOverrides.removeValue(forKey: task)
         }
+        return try loadRouteMetadata(for: task)
+    }
+
+    func loadConfigMetadata() throws -> LLMProviderConfig? {
+        config.map { LLMModelSelectionRoute(config: $0, isOverride: false).config }
+    }
+
+    func loadTaskOverrideMetadata(_ task: LLMTaskGroup) throws -> LLMProviderConfig? {
+        taskOverrides[task].map { LLMModelSelectionRoute(config: $0, isOverride: true).config }
+    }
+
+    func loadRouteMetadata(for task: LLMTaskGroup) throws -> LLMModelSelectionRoute? {
+        if let metadataReadError { throw metadataReadError }
+        if task.allowsOverride, let override = taskOverrides[task] {
+            return LLMModelSelectionRoute(config: override, isOverride: true)
+        }
+        return config.map { LLMModelSelectionRoute(config: $0, isOverride: false) }
+    }
+
+    func loadConfig(for task: LLMTaskGroup) throws -> LLMProviderConfig? {
+        task.allowsOverride ? (taskOverrides[task] ?? config) : config
+    }
+
+    func updateModelName(_ name: String, for task: LLMTaskGroup, expected: LLMModelSelectionRoute) throws -> Bool {
+        // Simulate a competing writer immediately before entering the atomic comparison.
+        let hook = afterNextTaskOverrideRead
+        afterNextTaskOverrideRead = nil
+        hook?()
+        guard try loadRouteMetadata(for: task) == expected else { return false }
+        let existing = expected.isOverride ? taskOverrides[task]! : config!
+        let updated = LLMProviderConfig(
+            id: existing.id, baseURL: existing.baseURL, apiKey: existing.apiKey,
+            modelName: name, isLocal: existing.isLocal)
+        if expected.isOverride { taskOverrides[task] = updated } else { config = updated }
+        return true
     }
 }
 

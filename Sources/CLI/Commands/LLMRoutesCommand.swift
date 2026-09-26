@@ -26,7 +26,7 @@ struct LLMRoutesListCommand: ParsableCommand {
 
     func run() throws {
         try emitJSONOrRethrow(json: json) {
-            let routes = try listLLMRoutes(store: LLMConfigStore(defaults: macParakeetAppDefaults()))
+            let routes = try listLLMRoutes(store: LLMConfigStore())
             if json {
                 try printJSON(LLMRoutesListResult(ok: true, routes: routes))
             } else {
@@ -45,9 +45,10 @@ struct LLMRoutesSetCommand: ParsableCommand {
     func run() throws {
         try emitJSONOrRethrow(json: json) {
             let defaults = macParakeetAppDefaults()
-            let store = LLMConfigStore(defaults: defaults)
-            try setLLMRoute(task, options: llm, store: store, cliStore: LocalCLIConfigStore(defaults: defaults))
-            let route = try describeLLMRoute(task, store: store)
+            let store = LLMConfigStore()
+            let snapshot = try setLLMRoute(
+                task, options: llm, store: store, cliStore: LocalCLIConfigStore(defaults: defaults))
+            let route = describeLLMRoute(task, snapshot: snapshot)
             if json { try printJSON(LLMRouteMutationResult(ok: true, route: route)) } else { printLLMRoute(route) }
         }
     }
@@ -61,9 +62,9 @@ struct LLMRoutesResetCommand: ParsableCommand {
 
     func run() throws {
         try emitJSONOrRethrow(json: json) {
-            let store = LLMConfigStore(defaults: macParakeetAppDefaults())
-            try resetLLMRoute(task, store: store)
-            let route = try describeLLMRoute(task, store: store)
+            let store = LLMConfigStore()
+            let snapshot = try resetLLMRoute(task, store: store)
+            let route = describeLLMRoute(task, snapshot: snapshot)
             if json { try printJSON(LLMRouteMutationResult(ok: true, route: route)) } else { printLLMRoute(route) }
         }
     }
@@ -96,13 +97,14 @@ private func overridableLLMTask(_ task: String) throws -> LLMTaskGroup {
     return group
 }
 
+@discardableResult
 func setLLMRoute(
     _ task: String,
     options: LLMInlineOptions,
     store: any LLMConfigStoreProtocol,
     cliStore: LocalCLIConfigStore,
     environment: [String: String] = ProcessInfo.processInfo.environment
-) throws {
+) throws -> LLMModelSelectionRoute? {
     let group = try overridableLLMTask(task)
     var options = options
     let provider = try options.providerID()
@@ -135,10 +137,11 @@ func setLLMRoute(
     // A saved route without --model should match the app's own current default,
     // not the historical one-off inline-CLI compatibility default.
     let config = try options.buildConfig(environment: environment, emitWarnings: false, persistedRouteDefault: true)
-    try store.saveTaskOverride(config, for: group)
+    return try store.saveTaskOverride(config, for: group)
 }
 
-func resetLLMRoute(_ task: String, store: any LLMConfigStoreProtocol) throws {
+@discardableResult
+func resetLLMRoute(_ task: String, store: any LLMConfigStoreProtocol) throws -> LLMModelSelectionRoute? {
     try store.saveTaskOverride(nil, for: overridableLLMTask(task))
 }
 
@@ -149,11 +152,20 @@ func listLLMRoutes(store: any LLMConfigStoreProtocol) throws -> [LLMRouteDescrip
 }
 
 private func describeLLMRoute(_ task: String, store: any LLMConfigStoreProtocol) throws -> LLMRouteDescription {
-    let override = try LLMTaskGroup(rawValue: task).flatMap { try store.loadTaskOverrideMetadata($0) }
-    let config = try override ?? store.loadConfigMetadata()
+    let snapshot: LLMModelSelectionRoute?
+    if let group = LLMTaskGroup(rawValue: task) {
+        snapshot = try store.loadRouteMetadata(for: group)
+    } else {
+        snapshot = try store.loadConfigMetadata().map { LLMModelSelectionRoute(config: $0, isOverride: false) }
+    }
+    return describeLLMRoute(task, snapshot: snapshot)
+}
+
+func describeLLMRoute(_ task: String, snapshot: LLMModelSelectionRoute?) -> LLMRouteDescription {
+    let config = snapshot?.config
     return LLMRouteDescription(
         task: task,
-        inherited: task != "default" && override == nil,
+        inherited: task != "default" && snapshot?.isOverride != true,
         configured: config != nil,
         provider: config?.id.rawValue,
         model: config?.modelName,

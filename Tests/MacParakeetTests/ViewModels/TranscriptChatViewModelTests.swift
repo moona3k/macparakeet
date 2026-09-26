@@ -630,6 +630,72 @@ final class TranscriptChatViewModelTests: XCTestCase {
         XCTAssertFalse(vm.canSendMessage)
     }
 
+    func testUnconfirmedModelPublicationDoesNotReportPickerSuccess() throws {
+        let domain = "picker-publication.\(UUID().uuidString)"
+        let lockURL = FileManager.default.temporaryDirectory.appendingPathComponent(domain).appendingPathComponent(
+            "routes.lock")
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: domain))
+        defer {
+            defaults.removePersistentDomain(forName: domain)
+            try? FileManager.default.removeItem(at: lockURL.deletingLastPathComponent())
+        }
+        let keys = InMemoryKeyValueStore()
+        let seed = LLMConfigStore(preferencesDomain: domain, lockURL: lockURL, keychain: keys)
+        try seed.saveConfig(.ollama(model: "old"))
+        // Configure reads metadata and a hydrated discovery config (calls 1,2).
+        // Selection refreshes at 3 and its publication fails at 4.
+        let fault = LLMRouteSynchronizationFault(failingCalls: [4])
+        let store = LLMConfigStore(
+            preferencesDomain: domain, lockURL: lockURL, keychain: keys,
+            synchronizePreferences: { fault.synchronize($0) })
+        viewModel.configure(
+            llmService: mockService, transcriptText: "Transcript", transcriptionRepo: mockRepo,
+            configStore: store, conversationRepo: mockConversationRepo)
+        var callbacks = 0
+        viewModel.onModelChanged = { callbacks += 1 }
+        viewModel.selectModel("unconfirmed")
+        XCTAssertEqual(callbacks, 0)
+    }
+
+    func testBusyMetadataRefreshRetainsPickerAndDoesNotReportSuccess() {
+        let store = MockLLMConfigStore()
+        store.config = .openai(apiKey: "key", model: "original")
+        viewModel.configure(
+            llmService: mockService, transcriptText: "Transcript", transcriptionRepo: mockRepo,
+            configStore: store, conversationRepo: mockConversationRepo)
+        var callbacks = 0
+        viewModel.onModelChanged = { callbacks += 1 }
+        store.metadataReadError = NSError(domain: "busy", code: 1)
+        viewModel.selectModel("rejected")
+        XCTAssertTrue(viewModel.canSelectModel)
+        XCTAssertEqual(viewModel.currentModelName, "original")
+        XCTAssertEqual(callbacks, 0)
+        store.metadataReadError = nil
+        viewModel.selectModel("accepted")
+        XCTAssertEqual(viewModel.currentModelName, "accepted")
+        XCTAssertEqual(callbacks, 1)
+    }
+
+    func testResetBetweenPickerCheckAndWriteCannotRetargetDefault() {
+        let store = MockLLMConfigStore()
+        let original = LLMProviderConfig.openai(apiKey: "test", model: "original")
+        store.config = original
+        store.taskOverrides[.analysis] = original
+        viewModel.configure(
+            llmService: mockService, transcriptText: "Transcript", transcriptionRepo: mockRepo,
+            configStore: store, conversationRepo: mockConversationRepo)
+        var callbacks = 0
+        viewModel.onModelChanged = { callbacks += 1 }
+        store.afterNextTaskOverrideRead = { store.taskOverrides.removeValue(forKey: .analysis) }
+
+        viewModel.selectModel("stale-selection")
+
+        XCTAssertEqual(store.config, original)
+        XCTAssertNil(store.taskOverrides[.analysis])
+        XCTAssertEqual(callbacks, 0)
+        XCTAssertEqual(viewModel.currentModelName, original.modelName)
+    }
+
     func testStaleAnalysisPickerDoesNotRetargetResetOrChangedRoute() {
         let original = LLMProviderConfig.openai(apiKey: "test", model: "original-model")
         let cleanup = LLMProviderConfig.ollama(model: "cleanup-model")
@@ -678,7 +744,7 @@ final class TranscriptChatViewModelTests: XCTestCase {
     func testAnalysisModelPickerUsesAndUpdatesAnalysisRoute() async throws {
         let store = MockLLMConfigStore()
         store.config = .openai(apiKey: "test", model: "default-model")
-        store.taskOverrides[.analysis] = .ollama(model: "analysis-model")
+        store.taskOverrides[.analysis] = .openai(apiKey: "analysis-key", model: "analysis-model")
         let client = MockLLMClient()
         client.modelsList = ["discovered-analysis-model"]
         viewModel.configure(
@@ -688,10 +754,11 @@ final class TranscriptChatViewModelTests: XCTestCase {
         try await waitForModelDiscovery {
             self.viewModel.availableModels.contains("discovered-analysis-model")
         }
-        XCTAssertEqual(viewModel.currentProviderID, .ollama)
+        XCTAssertEqual(viewModel.currentProviderID, .openai)
         XCTAssertEqual(viewModel.currentModelName, "analysis-model")
         XCTAssertEqual(viewModel.availableModels, ["analysis-model", "discovered-analysis-model"])
-        XCTAssertEqual(client.capturedContext?.providerConfig.id, .ollama)
+        XCTAssertEqual(client.capturedContext?.providerConfig.id, .openai)
+        XCTAssertEqual(client.capturedContext?.providerConfig.apiKey, "analysis-key")
         viewModel.selectModel("new-analysis-model")
         XCTAssertEqual(store.config?.modelName, "default-model")
         XCTAssertEqual(store.taskOverrides[.analysis]?.modelName, "new-analysis-model")

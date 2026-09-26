@@ -1,22 +1,27 @@
 import ArgumentParser
 import Foundation
+import Darwin
 import XCTest
 @testable import CLI
 @testable import MacParakeetCore
 
 final class LLMRoutesCommandTests: XCTestCase {
     private func fixture() -> (LLMConfigStore, LocalCLIConfigStore) {
-        let defaults = sharedDefaults()
+        let (defaults, domain, lockURL) = sharedDefaults()
         return (
-            LLMConfigStore(defaults: defaults, keychain: RouteMemoryKeys()), LocalCLIConfigStore(defaults: defaults)
+            LLMConfigStore(preferencesDomain: domain, lockURL: lockURL, keychain: RouteMemoryKeys()),
+            LocalCLIConfigStore(defaults: defaults)
         )
     }
 
-    private func sharedDefaults() -> UserDefaults {
+    private func sharedDefaults() -> (UserDefaults, String, URL) {
         let name = "LLMRoutesCommandTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!
         addTeardownBlock { defaults.removePersistentDomain(forName: name) }
-        return defaults
+        let lockURL = FileManager.default.temporaryDirectory.appendingPathComponent(name).appendingPathComponent(
+            "routes.lock")
+        addTeardownBlock { try? FileManager.default.removeItem(at: lockURL.deletingLastPathComponent()) }
+        return (defaults, name, lockURL)
     }
 
     func testCommandsAreRegistered() throws {
@@ -145,13 +150,13 @@ final class LLMRoutesCommandTests: XCTestCase {
     }
 
     func testListDoesNotAccessKeychain() throws {
-        let seedDefaults = sharedDefaults()
-        let seedStore = LLMConfigStore(defaults: seedDefaults, keychain: RouteMemoryKeys())
+        let (_, domain, lockURL) = sharedDefaults()
+        let seedStore = LLMConfigStore(preferencesDomain: domain, lockURL: lockURL, keychain: RouteMemoryKeys())
         try seedStore.saveConfig(.openai(apiKey: "secret", model: "default-model"))
         try seedStore.saveTaskOverride(.gemini(apiKey: "secret2", model: "analysis-model"), for: .analysis)
 
         let throwingKeys = ThrowingKeys()
-        let store = LLMConfigStore(defaults: seedDefaults, keychain: throwingKeys)
+        let store = LLMConfigStore(preferencesDomain: domain, lockURL: lockURL, keychain: throwingKeys)
         let routes = try listLLMRoutes(store: store)
 
         XCTAssertEqual(throwingKeys.callCount, 0)
@@ -160,19 +165,38 @@ final class LLMRoutesCommandTests: XCTestCase {
     }
 
     func testResetSucceedsAndDescribesResultEvenWhenKeychainIsUnavailable() throws {
-        let seedDefaults = sharedDefaults()
-        let seedStore = LLMConfigStore(defaults: seedDefaults, keychain: RouteMemoryKeys())
+        let (_, domain, lockURL) = sharedDefaults()
+        let seedStore = LLMConfigStore(preferencesDomain: domain, lockURL: lockURL, keychain: RouteMemoryKeys())
         try seedStore.saveConfig(.openai(apiKey: "secret", model: "default-model"))
         try seedStore.saveTaskOverride(.gemini(apiKey: "secret2", model: "analysis-model"), for: .analysis)
 
         let throwingKeys = ThrowingKeys()
-        let store = LLMConfigStore(defaults: seedDefaults, keychain: throwingKeys)
-        try resetLLMRoute("analysis", store: store)
-        let route = try XCTUnwrap(try listLLMRoutes(store: store).first { $0.task == "analysis" })
+        let store = LLMConfigStore(preferencesDomain: domain, lockURL: lockURL, keychain: throwingKeys)
+        let snapshot = try resetLLMRoute("analysis", store: store)
+        let route = describeLLMRoute("analysis", snapshot: snapshot)
 
         XCTAssertEqual(throwingKeys.callCount, 0)
         XCTAssertTrue(route.inherited)
         XCTAssertEqual(route.model, "default-model")
+    }
+
+    func testMutationReceiptDoesNotRereadChangedOrLockedMetadata() throws {
+        let (_, domain, lockURL) = sharedDefaults()
+        let keys = ThrowingKeys()
+        let store = LLMConfigStore(preferencesDomain: domain, lockURL: lockURL, keychain: keys)
+        // A nil-credential task override needs no credential operation.
+        let snapshot = try store.saveTaskOverride(.ollama(model: "saved"), for: .analysis)
+        try store.saveTaskOverride(.ollama(model: "later"), for: .analysis)
+        // Even an inaccessible metadata file cannot affect the captured receipt.
+        let fd = open(lockURL.path, O_RDWR | O_CLOEXEC | O_NOFOLLOW)
+        XCTAssertGreaterThanOrEqual(fd, 0)
+        guard fd >= 0 else { return }
+        defer { close(fd) }
+        XCTAssertEqual(flock(fd, LOCK_EX | LOCK_NB), 0)
+        let receipt = describeLLMRoute("analysis", snapshot: snapshot)
+        XCTAssertEqual(receipt.model, "saved")
+        XCTAssertFalse(receipt.inherited)
+        XCTAssertEqual(keys.callCount, 0)
     }
 
     func testCLIReusesSharedTemplateAndRejectsReplacement() throws {

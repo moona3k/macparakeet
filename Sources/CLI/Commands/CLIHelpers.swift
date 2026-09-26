@@ -25,14 +25,15 @@ func currentMeetingAIOutputLanguagePolicy(
     MeetingAIOutputLanguagePolicy.current(defaults: defaults)
 }
 
-/// LLM stores that read the same preference suite the GUI uses. Bare
-/// `LLMService()` would bind both stores to `.standard`, which misses
-/// GUI-saved provider metadata on the standalone Homebrew CLI.
+/// Pair the shared-domain provider store with a LocalCLIConfigStore opened on
+/// the GUI's preferences suite. Its bare initializer uses .standard, which is
+/// a different domain in the standalone CLI. Tests inject both stores explicitly.
 func makeSharedLLMContextResolver(
-    defaults: UserDefaults = macParakeetAppDefaults()
+    defaults: UserDefaults = macParakeetAppDefaults(),
+    configStore: any LLMConfigStoreProtocol = LLMConfigStore()
 ) -> StoredLLMExecutionContextResolver {
     StoredLLMExecutionContextResolver(
-        configStore: LLMConfigStore(defaults: defaults),
+        configStore: configStore,
         cliConfigStore: LocalCLIConfigStore(defaults: defaults)
     )
 }

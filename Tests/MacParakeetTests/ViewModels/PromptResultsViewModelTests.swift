@@ -50,6 +50,45 @@ final class PromptResultsViewModelTests: XCTestCase {
         return text
     }
 
+    func testPickerRejectsCompetingResetAndRetainsStateDuringBusyRefresh() {
+        let store = MockLLMConfigStore()
+        let original = LLMProviderConfig.openai(apiKey: "key", model: "original")
+        store.config = original
+        store.taskOverrides[.analysis] = original
+        viewModel.configure(
+            llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo, configStore: store)
+        var callbacks = 0
+        viewModel.onModelChanged = { callbacks += 1 }
+        store.afterNextTaskOverrideRead = { store.taskOverrides.removeValue(forKey: .analysis) }
+        viewModel.selectModel("stale")
+        XCTAssertEqual(store.config, original)
+        XCTAssertNil(store.taskOverrides[.analysis])
+        XCTAssertEqual(callbacks, 0)
+        store.metadataReadError = NSError(domain: "busy", code: 1)
+        viewModel.selectModel("busy")
+        XCTAssertTrue(viewModel.canSelectModel)
+        XCTAssertEqual(viewModel.currentModelName, "original")
+        XCTAssertEqual(callbacks, 0)
+        store.metadataReadError = nil
+        viewModel.selectModel("fresh")
+        XCTAssertEqual(store.config?.modelName, "fresh")
+        XCTAssertEqual(callbacks, 1)
+    }
+
+    func testCredentialFreePickerSnapshotStillAuthenticatesModelDiscovery() async throws {
+        let store = MockLLMConfigStore()
+        store.config = .openai(apiKey: "default-key", model: "default")
+        store.taskOverrides[.analysis] = .openai(apiKey: "analysis-key", model: "analysis")
+        let client = MockLLMClient()
+        client.modelsList = ["discovered"]
+        viewModel.configure(
+            llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo,
+            configStore: store, llmClient: client)
+        try await waitUntil { client.listModelsCompletedCount > 0 }
+        XCTAssertEqual(client.capturedContext?.providerConfig.apiKey, "analysis-key")
+        XCTAssertNil(try store.loadRouteMetadata(for: .analysis)?.config.apiKey)
+    }
+
     func testStaleAnalysisPickerDoesNotRetargetResetOrChangedRoute() {
         let original = LLMProviderConfig.openai(apiKey: "test", model: "original-model")
         let cleanup = LLMProviderConfig.ollama(model: "cleanup-model")
