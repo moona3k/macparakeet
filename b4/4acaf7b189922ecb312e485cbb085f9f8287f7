@@ -1,0 +1,19 @@
+Sources/MacParakeet/Views/Meetings/MeetingsView.swift
+  s_4578606cebd7c7::t_d0d61c331a6569 1019
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b44acaf7b189922ecb312e485cbb085f9f8287f7",
+  "prompts": {},
+  "sessions": {
+    "s_4578606cebd7c7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0db20-e057-7c41-83c9-2fd3e13c3dba",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
