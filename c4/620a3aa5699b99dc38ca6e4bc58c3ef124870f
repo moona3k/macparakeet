@@ -1,0 +1,27 @@
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingCrashRecoveryTests.swift
+  s_c299e83108feed::t_33d49378dc78c8 40,43,45-46,64
+.github/workflows/ci.yml
+  s_c299e83108feed::t_88ca99899eb559 88-97,101-103,105,146,208-217,221-222,224
+docs/research/2026-09-26-ci-optimization.md
+  s_c299e83108feed::t_89297b9bf22333 1-57
+scripts/ci/swift-cache-key.sh
+  s_c299e83108feed::t_7766d8100e7afb 1-14
+scripts/ci/test_swift_cache_key.py
+  s_c299e83108feed::t_c9e3b790cc8424 1-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c4620a3aa5699b99dc38ca6e4bc58c3ef124870f",
+  "prompts": {},
+  "sessions": {
+    "s_c299e83108feed": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dc15-ddf7-71f2-a669-23235022dc65",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
