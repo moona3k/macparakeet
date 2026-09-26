@@ -928,6 +928,62 @@ final class MeetingRecordingServiceTests: XCTestCase {
         }
     }
 
+    func testSourceInspectionFailuresPreserveBothSourcesAndReleaseSessionForRestart() async throws {
+        for failure in SourceInspectionFailure.allCases {
+            let capture = MockMeetingAudioCaptureService()
+            let lockStore = RecordingLockFileStore()
+            let stt = LeasingMeetingSTTClient(selection: .init(engine: .parakeet, language: "EN"))
+            let service = MeetingRecordingService(
+                audioCaptureService: capture,
+                audioConverter: MockMeetingAudioFileConverter(),
+                sttTranscriber: stt,
+                lockFileStore: lockStore,
+                fileManager: SourceInspectionFileManager(failure: failure),
+                micConditionerFactory: { PassthroughMicConditioner() },
+                sourceAudioFrameCount: { url in
+                    if url.lastPathComponent == "system-raw.m4a" {
+                        if failure == .audioOpen { throw CocoaError(.fileReadCorruptFile) }
+                        if failure == .emptyWithFrames { return 0 }
+                    }
+                    return try AVAudioFile(forReading: url).length
+                }
+            )
+            try await service.startRecording()
+            let folder = try XCTUnwrap(lockStore.writes.first?.folderURL)
+            defer { try? FileManager.default.removeItem(at: folder) }
+            // Persist a real marker as well as tracking any deletion request.
+            try MeetingRecordingLockFileStore().write(
+                try XCTUnwrap(lockStore.writes.first?.file), folderURL: folder
+            )
+            let buffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.25))
+            let time = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100))
+            await capture.yield(.microphoneBuffer(buffer, time))
+            await capture.yield(.systemBuffer(buffer, time))
+            do {
+                _ = try await service.stopRecording()
+                XCTFail("Expected recoverable inspection failure: \(failure)")
+            } catch let error as MeetingAudioError {
+                guard case .storageFailed = error else {
+                    return XCTFail("Unexpected error: \(error)")
+                }
+            }
+            for name in ["microphone-raw.m4a", "system-raw.m4a", "recording.lock"] {
+                XCTAssertTrue(FileManager.default.fileExists(atPath: folder.appendingPathComponent(name).path))
+            }
+            XCTAssertTrue(lockStore.deletes.isEmpty)
+            let leases = await stt.activeLeaseCount
+            let recording = await service.isRecording
+            let sessionID = await service.activeSessionID
+            XCTAssertEqual(leases, 0)
+            XCTAssertFalse(recording)
+            XCTAssertNil(sessionID)
+            try await service.startRecording()
+            let nextLeases = await stt.activeLeaseCount
+            XCTAssertEqual(nextLeases, 1)
+            await service.cancelRecording()
+        }
+    }
+
     func testWriterFinalizationFailurePreservesRecoveryArtifactsAndResetsService() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let lockStore = RecordingLockFileStore()
@@ -5040,6 +5096,31 @@ private final class RecordingLockFileStore: MeetingRecordingLockFileStoring, @un
     }
 }
 
+private enum SourceInspectionFailure: CaseIterable, Sendable {
+    case attributes, missingSize, audioOpen, missingWithFrames, emptyWithFrames
+}
+
+private final class SourceInspectionFileManager: FileManager {
+    let failure: SourceInspectionFailure
+
+    init(failure: SourceInspectionFailure) {
+        self.failure = failure
+        super.init()
+    }
+
+    override func attributesOfItem(atPath path: String) throws -> [FileAttributeKey: Any] {
+        if URL(fileURLWithPath: path).lastPathComponent == "system-raw.m4a" {
+            switch failure {
+            case .attributes: throw CocoaError(.fileReadNoPermission)
+            case .missingSize: return [:]
+            case .missingWithFrames: throw CocoaError(.fileReadNoSuchFile)
+            case .audioOpen, .emptyWithFrames: break
+            }
+        }
+        return try super.attributesOfItem(atPath: path)
+    }
+}
+
 /// Treat even an existence probe as a read of a writer-owned source. Returning
 /// false keeps a regressed consumer from opening that path after the deadline.
 private final class PendingSourceReadGuard: FileManager {
@@ -5053,6 +5134,16 @@ private final class PendingSourceReadGuard: FileManager {
 
     func forbidReads(at url: URL) {
         lock.withLock { pendingPath = url.path }
+    }
+
+    override func attributesOfItem(atPath path: String) throws -> [FileAttributeKey: Any] {
+        let forbidden = lock.withLock {
+            guard path == pendingPath else { return false }
+            reads.append(path)
+            return true
+        }
+        if forbidden { throw CocoaError(.fileReadNoPermission) }
+        return try super.attributesOfItem(atPath: path)
     }
 
     override func fileExists(atPath path: String) -> Bool {

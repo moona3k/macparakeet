@@ -269,6 +269,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private let writerFinalizationReportTransform:
         @Sendable (MeetingAudioStorageWriter.FinalizationReport) -> MeetingAudioStorageWriter.FinalizationReport
 
+    private let sourceAudioFrameCount: @Sendable (URL) throws -> AVAudioFramePosition
+
     private var currentSession: Session?
     /// Buffer-discard flag for pause/resume. Reset in `cleanupState`.
     private var paused = false
@@ -424,6 +426,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 eventName: eventName
             )
         },
+        sourceAudioFrameCount: @escaping @Sendable (URL) throws -> AVAudioFramePosition = {
+            try AVAudioFile(forReading: $0).length
+        },
         writerFinalizationReportTransform:
             @escaping @Sendable (
                 MeetingAudioStorageWriter.FinalizationReport
@@ -443,6 +448,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         self.wallClockNow = wallClockNow
         self.audioHostTimeNow = audioHostTimeNow
         self.cleanedMicrophoneReadinessScheduler = cleanedMicrophoneReadinessScheduler
+        self.sourceAudioFrameCount = sourceAudioFrameCount
         self.writerFinalizationReportTransform = writerFinalizationReportTransform
         self.liveChunkTranscriber = LiveChunkTranscriber(sttTranscriber: sttTranscriber)
         self.speechEngineSessionManager = sttTranscriber as? any SpeechEngineSessionManaging
@@ -964,6 +970,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                     session: session,
                     durationSeconds: captureElapsedDurationSeconds,
                     writerMetrics: writerMetrics,
+                    pendingSources: writerFinalization.timedOutSources,
                     captureFailed: true,
                     captureReport: nil
                 )
@@ -980,7 +987,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         do {
             inputURLs = try existingSourceURLs(
                 for: session,
-                excluding: writerFinalization.timedOutSources
+                excluding: writerFinalization.timedOutSources,
+                writerMetrics: writerMetrics
             )
             appendStopStage("source_urls", startedAt: sourceURLsStartedAt)
         } catch {
@@ -991,6 +999,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 outcome: "failure",
                 detail: "error_type=\(AudioCaptureDiagnostics.errorType(error))"
             )
+            await liveChunkTranscriber.finishSession()
+            await releaseSpeechEngineLease()
+            cleanupState()
             throw error
         }
         guard !inputURLs.isEmpty else {
@@ -999,6 +1010,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                     session: session,
                     durationSeconds: captureElapsedDurationSeconds,
                     writerMetrics: writerMetrics,
+                    pendingSources: writerFinalization.timedOutSources,
                     captureFailed: captureFailed,
                     captureReport: nil
                 )
@@ -1247,6 +1259,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 session: session,
                 durationSeconds: captureElapsedDurationSeconds,
                 writerMetrics: writerMetrics,
+                pendingSources: writerFinalization.timedOutSources,
                 captureFailed: captureFailed,
                 captureReport: captureReport
             )
@@ -2023,31 +2036,60 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         return false
     }
 
+    private enum SourceAudioInspection {
+        case usable
+        case empty
+    }
+
     private func existingSourceURLs(
         for session: Session,
-        excluding pendingSources: Set<AudioSource>
+        excluding pendingSources: Set<AudioSource>,
+        writerMetrics: [AudioSource: MeetingAudioStorageWriter.SourceWriteMetrics?]
     ) throws -> [URL] {
-        // Preserve deterministic channel mapping for dual-source sessions:
-        // input[0] = microphone (L), input[1] = system (R).
-        let candidates = [session.microphoneAudioURL, session.systemAudioURL]
-        return try candidates.filter { url in
-            guard !pendingSources.contains(source(for: url)) else { return false }
-            guard fileManager.fileExists(atPath: url.path) else { return false }
-            let size = try fileManager.attributesOfItem(atPath: url.path)[.size] as? NSNumber
-            guard (size?.intValue ?? 0) > 0 else { return false }
-            return hasDecodableAudioFrames(at: url)
+        // Keep microphone (L), system (R) ordering. An inspection error from
+        // either source preserves the whole session, even with a usable sibling.
+        try [session.microphoneAudioURL, session.systemAudioURL].filter { url in
+            let source = source(for: url)
+            guard !pendingSources.contains(source) else { return false }
+            return try inspectSourceAudio(
+                at: url,
+                writtenFrames: (writerMetrics[source] ?? nil)?.writtenFrameCount
+            ) == .usable
         }
     }
 
-    private func hasDecodableAudioFrames(at url: URL) -> Bool {
+    private func inspectSourceAudio(at url: URL, writtenFrames: Int64?) throws -> SourceAudioInspection {
+        func provenEmpty() throws -> SourceAudioInspection {
+            guard writtenFrames == 0 else {
+                throw MeetingAudioError.storageFailed(
+                    "Recorded audio could not be verified. The recording was kept for recovery."
+                )
+            }
+            return .empty
+        }
         do {
-            let file = try AVAudioFile(forReading: url)
-            return file.length > 0
+            let attributes: [FileAttributeKey: Any]
+            do {
+                attributes = try fileManager.attributesOfItem(atPath: url.path)
+            } catch let error as NSError where error.domain == NSCocoaErrorDomain
+                && (error.code == NSFileNoSuchFileError || error.code == NSFileReadNoSuchFileError)
+            {
+                return try provenEmpty()
+            }
+            guard let size = attributes[.size] as? NSNumber else {
+                throw MeetingAudioError.storageFailed("Recorded audio size could not be verified.")
+            }
+            if size.int64Value == 0 { return try provenEmpty() }
+            let frames = try sourceAudioFrameCount(url)
+            if frames > 0 { return .usable }
+            return try provenEmpty()
         } catch {
             logger.error(
                 "meeting_recorded_source_audio_inspect_failed error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
-            return false
+            throw MeetingAudioError.storageFailed(
+                "Recorded audio could not be verified. The recording was kept for recovery."
+            )
         }
     }
 
@@ -2195,6 +2237,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         session: Session,
         durationSeconds: TimeInterval,
         writerMetrics: [AudioSource: MeetingAudioStorageWriter.SourceWriteMetrics?],
+        pendingSources: Set<AudioSource>,
         captureFailed: Bool,
         captureReport: MeetingCaptureReport?
     ) -> String {
@@ -2214,6 +2257,11 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         func statusLabel(for source: AudioSource) -> String {
             captureReport?.source(for: source)?.status.rawValue ?? "unknown"
         }
+        func sourceSizeLabel(for source: AudioSource, at url: URL) -> String {
+            // Diagnostics must honor the same writer ownership as playback.
+            guard !pendingSources.contains(source) else { return "pending" }
+            return String(fileSize(at: url))
+        }
         func levelLabel(_ level: Float) -> String {
             String(format: "%.3f", level)
         }
@@ -2230,8 +2278,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             "effective_mic_mode=\(captureHealthMetrics.effectiveMicMode?.rawValue ?? "unknown")",
             "mic_first_buffer=\(captureHealthMetrics.microphoneFirstBufferSeen)",
             "system_first_buffer=\(captureHealthMetrics.systemFirstBufferSeen)",
-            "mic_bytes=\(fileSize(at: session.microphoneAudioURL))",
-            "system_bytes=\(fileSize(at: session.systemAudioURL))",
+            "mic_bytes=\(sourceSizeLabel(for: .microphone, at: session.microphoneAudioURL))",
+            "system_bytes=\(sourceSizeLabel(for: .system, at: session.systemAudioURL))",
             "mixed_bytes=\(fileSize(at: session.mixedAudioURL))",
             "mic_frames=\(microphoneMetrics?.writtenFrameCount ?? 0)",
             "system_frames=\(systemMetrics?.writtenFrameCount ?? 0)",

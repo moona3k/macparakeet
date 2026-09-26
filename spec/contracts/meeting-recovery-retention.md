@@ -218,6 +218,23 @@ and playback fallback remain partial. Decodable repaired files alone do not
 prove healthy capture; see the
 [capture-report contract](meeting-artifacts-v1.md#stable-json-fields).
 
+## Stop Source Inspection
+
+After writer finalization, Stop inspects every settled source in microphone,
+then system order. Usable decoded frames, including silence, remain valid audio.
+Only an absent, zero-byte, or decoded zero-frame source with confirmed zero
+written frames is empty. Missing size attributes, audio-open failures, and any
+absence or emptiness contradicting writer evidence fail Stop recoverably.
+An uncertain source preserves the entire folder and `recording.lock`, including
+its healthy sibling; it is never silently omitted from successful output.
+
+Inspection failure finishes the live session, releases its speech-engine lease,
+and clears recording state before returning a storage error, allowing another
+recording to start. The retained marker does not guarantee immediate same-process
+recovery. Pending writers remain excluded from inspection and retain their
+existing ownership protection; genuinely empty sessions are deleted only when
+no writer finalization remains pending.
+
 ## Retention Rule
 
 Scheduled retention selects completed meetings by
