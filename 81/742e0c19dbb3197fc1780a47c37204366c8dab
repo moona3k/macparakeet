@@ -1,0 +1,19 @@
+docs/audits/2026-09-26-release-0.8.x-review.md
+  s_d9d4b7d7a74eef::t_e40f68be7bedfa 1-150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "81742e0c19dbb3197fc1780a47c37204366c8dab",
+  "prompts": {},
+  "sessions": {
+    "s_d9d4b7d7a74eef": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0de46-6a9a-76a2-9a49-b0aba9f9ea74",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
