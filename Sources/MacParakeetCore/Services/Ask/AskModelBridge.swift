@@ -22,15 +22,17 @@ enum AskModelBridge {
         Prefer an empty string for unused string fields and 0 for unused integer fields.
         Only the selected tool's fields become arguments; other typed envelope fields are ignored.
         Do not use null or encode arguments as a JSON string.
-        Tool arguments: list_sources uses no arguments; search requires a nonblank query of at most 500 characters and optionally sourceID and limit 1...12;
+        Tool arguments: list_sources uses no arguments; search requires a nonblank query of at most 500 characters and optionally sourceID, start 0...1000000 (result offset), and limit 1...12;
         read requires sourceID, start >=0, and limit 1...12; get_summary requires sourceID.
         For final, toolName, query, and sourceID are empty strings; start and limit are 0.
         Search and read evidence before making claims.
-        Search matches passages containing ALL query words; it is not semantic search.
-        Start with one distinctive topic word across all selected sources (set sourceID to an empty string).
-        If no matches, try fewer words or a different word before concluding evidence is absent.
+        Search ranks passages matching ANY query term; it is lexical, not semantic search.
+        Start with distinctive topic keywords across all selected sources (set sourceID to an empty string).
+        If no matches, try alternate vocabulary before concluding evidence is absent.
         For changes over time, inspect relevant hits from earlier and later recordings.
         Reading start 0 only covers the opening passages, not the entire recording.
+        Search and read return nextStart when more results remain. Use nextStart to continue.
+        For search, keep query and sourceID unchanged when continuing; start is a result offset, not a passage index.
         One tool call per turn. Do not include markdown or any other text.
 
         Examples (each is one complete response):
@@ -142,10 +144,11 @@ enum AskModelBridge {
             requirements = "list_sources takes no arguments."
         case "search":
             args["query"] = query
+            if start != 0 { args["start"] = start }
             if !sourceID.isEmpty { args["sourceID"] = sourceID }
             if limit != 0 { args["limit"] = limit }
             requirements =
-                "search needs a nonblank query of at most 500 characters, optional nonblank sourceID, and limit 1...12 (or 0 for the default)."
+                "search needs a nonblank query of at most 500 characters, optional nonblank sourceID, start 0...1000000, and limit 1...12 (or 0 for the default)."
         case "read":
             args = ["sourceID": sourceID, "start": start, "limit": limit]
             requirements =
@@ -237,8 +240,10 @@ enum AskModelBridge {
         switch toolName {
         case "list_sources": return args.isEmpty
         case "search":
-            return Set(args.keys).isSubset(of: ["query", "sourceID", "limit"]) && string("query", maxLength: 500)
+            return Set(args.keys).isSubset(of: ["query", "sourceID", "start", "limit"])
+                && string("query", maxLength: 500)
                 && (args["sourceID"] == nil || string("sourceID"))
+                && (args["start"] == nil || int("start", min: 0, max: 1_000_000))
                 && (args["limit"] == nil || int("limit", min: 1, max: 12))
         case "read":
             return Set(args.keys) == Set(["sourceID", "start", "limit"])

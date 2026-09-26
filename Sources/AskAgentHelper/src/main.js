@@ -18,14 +18,14 @@ const object = (v) => v && typeof v === 'object' && !Array.isArray(v);
 
 const schemas = {
   list_sources: Type.Object({}, { additionalProperties: false }),
-  search: Type.Object({ query: Type.String({ minLength: 1 }), sourceID: Type.Optional(Type.String({ minLength: 1 })), limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 12 })) }, { additionalProperties: false }),
+  search: Type.Object({ start: Type.Optional(Type.Integer({ minimum: 0, maximum: 1000000 })), query: Type.String({ minLength: 1 }), sourceID: Type.Optional(Type.String({ minLength: 1 })), limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 12 })) }, { additionalProperties: false }),
   read: Type.Object({ sourceID: Type.String({ minLength: 1 }), start: Type.Integer({ minimum: 0 }), limit: Type.Integer({ minimum: 1, maximum: 12 }) }, { additionalProperties: false }),
   get_summary: Type.Object({ sourceID: Type.String({ minLength: 1 }) }, { additionalProperties: false }),
 };
 const descriptions = {
   list_sources: 'List metadata for the selected sources.',
-  search: 'Search only the selected source transcripts for a phrase.',
-  read: 'Read a bounded passage from one selected source.',
+  search: 'Search selected transcripts for any query term, ranked by lexical relevance within each source. Use nextStart with the same query and sourceID to continue; start is a result offset. Try alternate wording for missing evidence.',
+  read: 'Read a page from one selected source. Use returned nextStart to continue when hasMore is true.',
   get_summary: 'Get a current summary for one selected source, if available.',
 };
 

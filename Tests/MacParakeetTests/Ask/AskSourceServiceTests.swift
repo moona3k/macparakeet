@@ -310,4 +310,241 @@ final class AskSourceServiceTests: XCTestCase {
             snapshot.revision
         )
     }
+    func testRankedSearchFindsLateReversalWithPartialQueryMatchAcrossSelectedSources() throws {
+        let earlier = Transcription(
+            fileName: "Earlier",
+            rawTranscript: "On September 1, the team approved the launch for October 10. Ada owns the release.",
+            status: .completed, sourceType: .meeting)
+        let later = Transcription(
+            fileName: "Later",
+            rawTranscript:
+                "On September 8, the team discussed the launch. The previous October 10 date was provisional. "
+                + String(repeating: "The team reviewed documentation, packaging, and support readiness. ", count: 160)
+                + "Final decision: the launch moved to October 24; Bea now owns the release.",
+            status: .completed, sourceType: .meeting)
+        let excluded = Transcription(
+            fileName: "Excluded", rawTranscript: "Launch date change: December 20. Cora owns the release.",
+            status: .completed, sourceType: .meeting)
+        for source in [earlier, later, excluded] { try transcriptions.save(source) }
+        let receipts = try service.snapshot(sourceIDs: [earlier.id, later.id])
+        let revisions = Dictionary(uniqueKeysWithValues: receipts.map { ($0.descriptor.id, $0.revision) })
+        // These were the actual unsuccessful queries used by local models.
+        for query in ["launch date", "launch date change", "LAUNCH, date?", "release owner"] {
+            let hits = try service.search(query: query, sourceRevisions: revisions, limit: 8)
+            XCTAssertTrue(
+                hits.contains { $0.text.contains("October 10") && $0.reference.sourceID == earlier.id }, query)
+            let final = try XCTUnwrap(hits.first { $0.text.contains("October 24") && $0.text.contains("Bea") }, query)
+            XCTAssertGreaterThan(final.reference.segmentIndex, 10)
+            XCTAssertEqual(try service.read(reference: final.reference, sourceRevisions: revisions), final)
+            XCTAssertFalse(hits.contains { $0.reference.sourceID == excluded.id })
+        }
+        let narrowed = try service.search(
+            query: "launch date", sourceRevisions: [earlier.id: revisions[earlier.id]!], limit: 8)
+        XCTAssertEqual(Set(narrowed.map(\.reference.sourceID)), [earlier.id])
+    }
+
+    func testSearchRanksRelevantLatePassageAheadOfEarlyPartialMatches() throws {
+        let text =
+            String(repeating: "Budget discussion covered general costs and routine administration. ", count: 160)
+            + "Approved budget: 4800 for the telescope."
+        let source = Transcription(fileName: "Budget", rawTranscript: text, status: .completed, sourceType: .meeting)
+        try transcriptions.save(source)
+        let receipt = try XCTUnwrap(service.snapshot(sourceIDs: [source.id]).first)
+        let hits = try service.search(
+            query: "telescope budget", sourceRevisions: [source.id: receipt.revision], limit: 1)
+        XCTAssertEqual(hits.count, 1)
+        XCTAssertTrue(hits[0].text.contains("4800"))
+        XCTAssertGreaterThan(hits[0].reference.segmentIndex, 10)
+    }
+
+    func testSearchNormalizesTokensWithoutSubstringFalsePositivesOrQuerySyntax() throws {
+        let source = Transcription(
+            fileName: "Unicode", rawTranscript: "CAFÉ launch: approved. Update the packaging. 출시 확정.",
+            status: .completed, sourceType: .meeting)
+        try transcriptions.save(source)
+        let receipt = try XCTUnwrap(service.snapshot(sourceIDs: [source.id]).first)
+        let scope = [source.id: receipt.revision]
+        for query in ["cafe", "CAFÉ!", "출시", "\"launch\"", "launch launch"] {
+            XCTAssertFalse(try service.search(query: query, sourceRevisions: scope, limit: 8).isEmpty, query)
+        }
+        for query in ["date", "unrelated", "text:*", "OR NOT NEAR"] {
+            XCTAssertTrue(try service.search(query: query, sourceRevisions: scope, limit: 8).isEmpty, query)
+        }
+        XCTAssertTrue(try service.search(query: "?!*", sourceRevisions: scope, limit: 8).isEmpty)
+    }
+
+    func testSearchRechecksRevisionsAfterAnEarlierSearch() throws {
+        var source = Transcription(
+            fileName: "Changes", rawTranscript: "Launch June.", status: .completed, sourceType: .meeting)
+        try transcriptions.save(source)
+        let old = try XCTUnwrap(service.snapshot(sourceIDs: [source.id]).first)
+        XCTAssertFalse(try service.search(query: "June", sourceRevisions: [source.id: old.revision], limit: 8).isEmpty)
+        source.rawTranscript = "Launch July."
+        try transcriptions.save(source)
+        XCTAssertThrowsError(try service.search(query: "June", sourceRevisions: [source.id: old.revision], limit: 8)) {
+            XCTAssertEqual($0 as? AskSourceError, .stale)
+        }
+        let current = try XCTUnwrap(service.snapshot(sourceIDs: [source.id]).first)
+        XCTAssertTrue(
+            try service.search(query: "June", sourceRevisions: [source.id: current.revision], limit: 8).isEmpty)
+        XCTAssertFalse(
+            try service.search(query: "July", sourceRevisions: [source.id: current.revision], limit: 8).isEmpty)
+    }
+
+    func testSearchPreservesDiscoveryInsideUnspacedScripts() throws {
+        let source = Transcription(
+            fileName: "Languages", rawTranscript: "我們確認發布日期。発売日を変更しました。วันเปิดตัวได้รับการยืนยันแล้ว",
+            status: .completed, sourceType: .meeting)
+        try transcriptions.save(source)
+        let receipt = try XCTUnwrap(service.snapshot(sourceIDs: [source.id]).first)
+        for query in ["發布", "発売日", "เปิดตัว", "ยืนยัน", "發布 missing"] {
+            XCTAssertFalse(
+                try service.search(query: query, sourceRevisions: [source.id: receipt.revision], limit: 8).isEmpty,
+                query)
+        }
+    }
+
+    func testSearchContinuationPreservesRankedInterleavingWithoutDuplicates() throws {
+        let first = Transcription(
+            fileName: "First", rawTranscript: String(repeating: "Launch planning covers packaging. ", count: 80),
+            status: .completed, sourceType: .meeting)
+        let second = Transcription(
+            fileName: "Second", rawTranscript: String(repeating: "Launch date pending. ", count: 50),
+            status: .completed, sourceType: .meeting)
+        for source in [first, second] { try transcriptions.save(source) }
+        let receipts = try service.snapshot(sourceIDs: [first.id, second.id])
+        let scope = Dictionary(uniqueKeysWithValues: receipts.map { ($0.descriptor.id, $0.revision) })
+        let whole = try service.search(query: "launch date", sourceRevisions: scope, limit: 25)
+        XCTAssertGreaterThan(whole.count, 6)
+        var paged: [AskPassage] = []
+        for start in stride(from: 0, to: whole.count, by: 3) {
+            paged += try service.search(query: "launch date", sourceRevisions: scope, limit: 3, start: start)
+        }
+        XCTAssertEqual(paged, whole)
+        XCTAssertTrue(
+            try service.search(query: "launch date", sourceRevisions: scope, limit: 3, start: whole.count).isEmpty)
+        XCTAssertThrowsError(try service.search(query: "launch", sourceRevisions: scope, limit: 3, start: -1))
+    }
+
+    func testMixedScriptSearchDoesNotTurnLatinWordsIntoSubstrings() throws {
+        let source = Transcription(
+            fileName: "Unrelated", rawTranscript: "Update the package. 無關內容。", status: .completed, sourceType: .meeting)
+        try transcriptions.save(source)
+        let receipt = try XCTUnwrap(service.snapshot(sourceIDs: [source.id]).first)
+        XCTAssertTrue(
+            try service.search(query: "date 發布", sourceRevisions: [source.id: receipt.revision], limit: 8).isEmpty)
+    }
+
+    func testUnspacedMixedScriptQueryFindsEitherSideOfTheRunInBothOrders() throws {
+        let han = Transcription(
+            fileName: "Han", rawTranscript: "発売の準備が整いました。", status: .completed, sourceType: .meeting)
+        let kana = Transcription(
+            fileName: "Kana", rawTranscript: "オープンの予定です。", status: .completed, sourceType: .meeting)
+        let thai = Transcription(
+            fileName: "Thai", rawTranscript: "ยืนยันแล้ว", status: .completed, sourceType: .meeting)
+        let latin = Transcription(
+            fileName: "Latin", rawTranscript: "The launch is scheduled.", status: .completed, sourceType: .meeting)
+        let unrelated = Transcription(
+            fileName: "Unrelated", rawTranscript: "Unrelated content only.", status: .completed, sourceType: .meeting)
+        for source in [han, kana, thai, latin, unrelated] { try transcriptions.save(source) }
+        let receipts = try service.snapshot(sourceIDs: [han.id, kana.id, thai.id, latin.id, unrelated.id])
+        let scope = Dictionary(uniqueKeysWithValues: receipts.map { ($0.descriptor.id, $0.revision) })
+
+        for (scriptTerm, scriptSource) in [("発売", han), ("オープン", kana), ("ยืนยัน", thai)] {
+            for query in ["\(scriptTerm)launch", "launch\(scriptTerm)"] {
+                let hits = try service.search(query: query, sourceRevisions: scope, limit: 8)
+                let hitSourceIDs = Set(hits.map(\.reference.sourceID))
+                XCTAssertTrue(hitSourceIDs.contains(scriptSource.id), query)
+                XCTAssertTrue(hitSourceIDs.contains(latin.id), query)
+                XCTAssertFalse(hitSourceIDs.contains(unrelated.id), query)
+            }
+        }
+    }
+
+    func testUnspacedMixedScriptQueryPreservesLatinWordBoundary() throws {
+        let source = Transcription(
+            fileName: "Boundary", rawTranscript: "Update the schedule. 無關內容。", status: .completed,
+            sourceType: .meeting)
+        try transcriptions.save(source)
+        let receipt = try XCTUnwrap(service.snapshot(sourceIDs: [source.id]).first)
+        for query in ["発売date", "date発売"] {
+            XCTAssertTrue(
+                try service.search(query: query, sourceRevisions: [source.id: receipt.revision], limit: 8).isEmpty,
+                query)
+        }
+    }
+
+    func testUnspacedSingleScriptQueryStillMatchesAsASubstring() throws {
+        let source = Transcription(
+            fileName: "Languages", rawTranscript: "我們確認發布日期。発売日を変更しました。วันเปิดตัวได้รับการยืนยันแล้ว",
+            status: .completed, sourceType: .meeting)
+        try transcriptions.save(source)
+        let receipt = try XCTUnwrap(service.snapshot(sourceIDs: [source.id]).first)
+        for query in ["發布", "発売日", "ยืนยัน"] {
+            XCTAssertFalse(
+                try service.search(query: query, sourceRevisions: [source.id: receipt.revision], limit: 8).isEmpty,
+                query)
+        }
+    }
+
+    func testOversizedStoredTranscriptIsRejectedBeforeDecoding() throws {
+        let source = Transcription(
+            fileName: "Oversized", rawTranscript: "Launch June.", status: .completed, sourceType: .meeting)
+        try transcriptions.save(source)
+        try manager.dbQueue.write { db in
+            // Invalid text payload deliberately proves the size gate precedes decoding.
+            try db.execute(
+                sql: "UPDATE transcriptions SET rawTranscript = zeroblob(?) WHERE id = ?",
+                arguments: [64 * 1_024 * 1_024 + 1, source.id])
+        }
+        XCTAssertThrowsError(try service.snapshot(sourceIDs: [source.id])) {
+            XCTAssertEqual($0 as? AskSourceError, .retrievalLimitExceeded)
+        }
+    }
+
+    func testCancelledSearchDoesNotReturnEvidence() async throws {
+        let source = Transcription(
+            fileName: "Cancelled", rawTranscript: "Launch June.", status: .completed, sourceType: .meeting)
+        try transcriptions.save(source)
+        let receipt = try XCTUnwrap(service.snapshot(sourceIDs: [source.id]).first)
+        let service = try XCTUnwrap(service)
+        let task = Task.detached {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try service.search(query: "launch", sourceRevisions: [source.id: receipt.revision], limit: 8)
+        }
+        do {
+            _ = try await task.value
+            XCTFail("Cancelled retrieval returned evidence")
+        } catch is CancellationError {}
+    }
+
+    func testSearchPagesReachAll32SourcesAndMoreThan25Matches() throws {
+        var ids: [UUID] = []
+        for index in 0..<32 {
+            let source = Transcription(
+                fileName: "Source \(index)",
+                rawTranscript: String(repeating: "Launch plan. ", count: index < 3 ? 45 : 1),
+                status: .completed, sourceType: .meeting)
+            try transcriptions.save(source)
+            ids.append(source.id)
+        }
+        let receipts = try service.snapshot(sourceIDs: ids)
+        let scope = Dictionary(uniqueKeysWithValues: receipts.map { ($0.descriptor.id, $0.revision) })
+        let expectedCount = receipts.reduce(0) { $0 + $1.passageCount }
+        var baseline: [AskPassage] = []
+        for size in [5, 12, 25] {
+            var found: [AskPassage] = []
+            while true {
+                let page = try service.search(query: "launch", sourceRevisions: scope, limit: size, start: found.count)
+                if page.isEmpty { break }
+                found += page
+                guard found.count <= expectedCount else { XCTFail("Duplicate continuation"); break }
+            }
+            XCTAssertEqual(found.count, expectedCount)
+            XCTAssertEqual(Set(found.map(\.reference)).count, expectedCount)
+            XCTAssertEqual(Set(found.prefix(32).map(\.reference.sourceID)), Set(ids))
+            if baseline.isEmpty { baseline = found } else { XCTAssertEqual(found, baseline) }
+        }
+    }
+
 }

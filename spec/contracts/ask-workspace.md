@@ -59,13 +59,43 @@ restriction does not change existing chat or HTTP provider behavior.
   corrections. Legacy whole-transcript edits use untimed text chunks because
   their old word timings no longer align. Long passages are split into bounded
   chunks; split chunks do not claim the original passage's timing.
-- Search is lexical: every whitespace-delimited query word must occur in a
-  passage. It is bounded retrieval, not semantic ranking or an exhaustive
-  completeness proof. Multi-source results are interleaved round-robin across
-  selected sources; an optional `sourceID` narrows retrieval. Search responses
-  expose a bounded result limit and `hasMore`. `read` walks canonical passage
-  indices. The only agent tools are `list_sources`, `search`, `read`, and
-  `get_summary`.
+- Search uses literal Unicode query terms with OR matching and SQLite FTS5 BM25
+  ranking within each selected source. Case, punctuation and Latin diacritics
+  are normalized by `unicode61`; user text never becomes FTS query syntax.
+  Nonblank queries with no searchable terms return an empty page.
+  Han/Kana/Thai query terms use normalized substring matching inside unspaced
+  text, while other terms retain token boundaries. For these mixed/script
+  queries, candidates rank by matched-term count, then canonical passage index.
+  Other BM25 ties also use canonical passage order. Neither ranking implies
+  chronology, finality, semantic similarity, or a claim's truth.
+- The retrieval index is disposable, in memory, and built only from the current
+  revision-checked canonical passages. It never trusts stale derived Library
+  search rows, persists transcript copies, or invokes another model/service.
+  Results are interleaved round-robin across selected sources after ranking;
+  optional `sourceID` narrows retrieval. No stemming or synonym expansion is
+  promised. Search is bounded discovery, not a completeness proof.
+- `search` accepts optional `start` (default 0, maximum 1,000,000), an offset in
+  the interleaved ranked results. Its response includes `matches`, `query`,
+  `matchMode` (`unicode61_bm25` or `mixed_lexical`), `searchedSourceIDs`, `start`, `returnedCount`, `hasMore`, and
+  `nextStart` when more matches remain. Continuation must retain the same query
+  and source filter; a search offset is not a canonical passage index.
+  `hasMore=false` means no more matches for this query, not no missing evidence.
+- `read` accepts a canonical passage `start`. It returns an object with
+  `passages` (citation/passage pairs), `sourceID`, `start`, `returnedCount`,
+  `totalPassages`, `hasMore`, and `nextStart` when another page exists. No page
+  returns partial passages. Pages shrink to the longest whole-passage prefix
+  fitting the 32,000-byte result and remaining 128,000-byte run budgets;
+  continuation advances only by returned passages. If no passage fits, the
+  tool fails explicitly without allocating evidence markers.
+  The only agent tools remain `list_sources`, `search`, `read`, and `get_summary`.
+- Admission checks stored transcript/timing/speaker and correction payload sizes
+  before decoding: at most 64 MiB across selected recordings (including inactive
+  correction history). Canonical evidence is capped at 50,000 passages and
+  32 MiB of text plus speaker labels, both per source and across a snapshot or
+  search. Exceeding a limit fails explicitly; no opening-only corpus is indexed.
+  These are engineering bounds, not latency or total process-memory guarantees.
+  Snapshot derivation still uses the existing canonical segmenter; the bounds
+  do not promise preemptible decoding or constant-time hashing.
 - `get_summary` returns only fresh, linked result-category summaries for the
   current transcript revision. Results are a newest-first prefix of whole
   summary receipts that fits the 32,000-byte serialized tool limit and remaining
@@ -126,7 +156,7 @@ restriction does not change existing chat or HTTP provider behavior.
 - Model actions use a strict JSON schema with enumerated action/tool names and
   required typed `query`, `sourceID`, `start`, and `limit` fields. The six-field
   envelope is projected onto the selected tool: `list_sources` takes no fields,
-  `search` takes `query` plus optional `sourceID` and `limit`, `read` takes
+  `search` takes `query` plus optional `sourceID`, `start`, and `limit`, `read` takes
   `sourceID`, `start`, and `limit`, and `get_summary` takes `sourceID`. Unused
   fields must retain their declared types but their values are ignored; empty
   strings and zeros are preferred. For `search`, empty `sourceID` and zero
