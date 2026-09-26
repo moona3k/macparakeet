@@ -175,6 +175,51 @@ final class AskWorkspaceServiceTests: XCTestCase {
         XCTAssertTrue(result.messages.last?.citations.isEmpty == true)
     }
 
+    func testCitedAnswerWithBracketedProseAndMarkdownLinkSucceeds() async throws {
+        let fixture = try Fixture()
+        let source = try fixture.source("Planning", "Launch in June.")
+        let agent = ScriptedAskAgent { _, tool, event in
+            _ = try await tool("search", #"{"query":"June"}"#)
+            let text =
+                "Launch slipped to June [E1] (see [early estimate, unconfirmed])."
+                + " Details: [explore the results](https://example.com)."
+            await event(.text(text))
+            return text
+        }
+        let service = fixture.service(agent)
+        let chat = try await service.create(sourceIDs: [source.id])
+        let result = try await service.send(
+            id: chat.id, question: "When?", expectedRevision: 0,
+            approvedProviderID: nil, onEvent: { _ in }
+        )
+        XCTAssertEqual(result.messages.last?.status, .complete)
+        XCTAssertEqual(result.messages.last?.citations.count, 1)
+        XCTAssertTrue(result.messages.last?.content.contains("[early estimate, unconfirmed]") == true)
+        XCTAssertTrue(result.messages.last?.content.contains("[explore the results]") == true)
+    }
+
+    func testMalformedNumericCitationMarkerStillFails() async throws {
+        let fixture = try Fixture()
+        for malformed in ["[e1]", "[E 1]", "[E+1]", "[E-1]"] {
+            let source = try fixture.source("Planning", "Launch in June.")
+            let agent = ScriptedAskAgent { _, tool, event in
+                _ = try await tool("search", #"{"query":"June"}"#)
+                let text = "Launch in June \(malformed)."
+                await event(.text(text))
+                return text
+            }
+            let service = fixture.service(agent)
+            let chat = try await service.create(sourceIDs: [source.id])
+            let result = try await service.send(
+                id: chat.id, question: "When?", expectedRevision: 0,
+                approvedProviderID: nil, onEvent: { _ in }
+            )
+            XCTAssertEqual(result.messages.last?.status, .failed, "Expected failure for marker \(malformed)")
+            XCTAssertTrue(
+                result.messages.last?.citations.isEmpty == true, "Expected no citations for marker \(malformed)")
+        }
+    }
+
     func testUncitedResponseIsExplicitlyUnverified() async throws {
         let fixture = try Fixture()
         let source = try fixture.source("Planning", "Launch in June.")

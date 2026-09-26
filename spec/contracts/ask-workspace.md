@@ -54,13 +54,26 @@ architecture decision.
   accepting its answer.
 - A citation resolves to source UUID, source revision, and zero-based canonical
   passage index, with optional source title and recorded date snapshots for
-  historical display. It stores no copied quotation. On inspection, Ask
-  re-reads the passage if the source revision still matches; otherwise it
-  reports stale, unavailable, out-of-scope, or invalid evidence. If no valid
-  passage citation resolves, an answer cannot be marked complete. The evidence
-  panel can open the Library source and show a timecode when available; users
-  can use the Library's existing playback controls. Ask does not seek audio
-  programmatically.
+  historical display. It stores no copied quotation. During a run, scope is
+  enforced at the tool boundary: `search` and `read` reject a `sourceID`
+  outside the run's frozen selected-source snapshot before any evidence
+  marker for it can be created, so every marker the model can cite already
+  names an in-scope source; final-answer citations are then revalidated for
+  freshness and availability against that same snapshot. Standalone evidence
+  inspection (`AskWorkspaceService.evidence(_:)`, and the CLI's
+  `ask evidence` command) is a deliberately different, narrower operation: an
+  explicit local-user Library read, not a re-check of some conversation's
+  scope. Given any known source UUID, revision, and passage index, it re-reads
+  that passage directly, independent of which conversation (if any) originally
+  cited it — the caller already has direct, unscoped Library access to every
+  source, so there is no conversation-membership check to perform. It reports
+  the passage as stale (revision changed), unavailable, or invalid (unknown
+  source or out-of-range index) when applicable; it has no notion of a
+  citing conversation's source set, so it never reports out-of-scope. If no
+  valid passage citation resolves during a run, an answer cannot be marked
+  complete. The evidence panel can open the Library source and show a
+  timecode when available; users can use the Library's existing playback
+  controls. Ask does not seek audio programmatically.
 - Final completion revalidates every selected source revision inside the same
   SQLite write transaction that saves the completed answer. If a transcript
   changes during generation, the answer cannot be committed as current.

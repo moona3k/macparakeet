@@ -338,7 +338,16 @@ struct AskWorkspaceView: View {
 
     private var composer: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if let error = model.errorMessage { errorText(error) }
+            if let error = model.errorMessage {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    errorText(error)
+                    Spacer()
+                    Button("Reload") { Task { await model.load() } }
+                        .buttonStyle(.link)
+                        .font(.caption)
+                        .disabled(model.isSending || model.isLoading)
+                }
+            }
             if model.recoveredDraft != nil {
                 Text(
                     "An unsent question from a removed conversation will be restored when you start a new conversation."

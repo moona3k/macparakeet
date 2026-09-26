@@ -69,12 +69,13 @@ Use the same Developer ID identity already set up for the `.app`. The
 exact identity is in `scripts/dist/sign_notarize.sh`.
 
 ```bash
-codesign --sign "Developer ID Application: <YOUR NAME> (<TEAMID>)" \
+codesign --force --sign "Developer ID Application: <YOUR NAME> (<TEAMID>)" \
          --options runtime \
          --timestamp \
+         --entitlements scripts/dist/NodeRuntime.entitlements \
          "dist/macparakeet-cli-${VERSION}-darwin-arm64/libexec/macparakeet-cli/node"
 
-codesign --sign "Developer ID Application: <YOUR NAME> (<TEAMID>)" \
+codesign --force --sign "Developer ID Application: <YOUR NAME> (<TEAMID>)" \
          --options runtime \
          --timestamp \
          "dist/macparakeet-cli-${VERSION}-darwin-arm64/macparakeet-cli"

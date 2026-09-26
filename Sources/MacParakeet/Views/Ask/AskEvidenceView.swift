@@ -83,7 +83,7 @@ struct AskEvidenceView: View {
 
     private func statusMessage(_ status: AskEvidenceStatus) -> String {
         switch status {
-        case .available: return "This passage is unavailable."
+        case .available: return "This passage could not be loaded."
         case .unavailable: return "The recording or transcript is no longer available."
         case .stale:
             return "The source changed since this answer. This passage cannot be verified against the original version."
