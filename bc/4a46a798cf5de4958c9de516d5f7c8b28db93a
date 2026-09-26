@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/Ask/AskModelBridgeTests.swift
+  s_4578606cebd7c7::t_0cdaad6bf078ae 61-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bc4a46a798cf5de4958c9de516d5f7c8b28db93a",
+  "prompts": {},
+  "sessions": {
+    "s_4578606cebd7c7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0db20-e057-7c41-83c9-2fd3e13c3dba",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
