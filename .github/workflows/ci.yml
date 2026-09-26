@@ -438,7 +438,7 @@ jobs:
           BEHAVIOR_RESULT: ${{ needs.behavior.result }}
           DISTRIBUTION_RESULT: ${{ needs.distribution.result }}
           QUALIFICATION_REQUESTED: ${{ github.event_name == 'workflow_dispatch' && inputs.qualify_build_cache }}
-          QUALIFICATION_RESULT: ${{ needs.cache-qualification.result }}
+          QUALIFICATION_RESULT: ${{ needs['cache-qualification'].result }}
         run: |
           printf 'Tests and Swift 6: %s\nRelease and Bundle: %s\n' "$BEHAVIOR_RESULT" "$DISTRIBUTION_RESULT"
           test "$BEHAVIOR_RESULT" = success
