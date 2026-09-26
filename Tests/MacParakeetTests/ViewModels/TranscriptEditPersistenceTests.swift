@@ -35,6 +35,44 @@ final class TranscriptEditPersistenceTests: XCTestCase {
         }
     }
 
+    func testReEditingLegacyTimedTranscriptIndexesNewTextAndRevertRestoresCanonicalSegments() throws {
+        let manager = try DatabaseManager()
+        let repo = TranscriptionRepository(dbQueue: manager.dbQueue)
+        let segments = SegmentRepository(dbQueue: manager.dbQueue)
+        let words = [
+            WordTimestamp(word: "Original", startMs: 0, endMs: 100, confidence: 1),
+            WordTimestamp(word: "words", startMs: 120, endMs: 220, confidence: 1),
+        ]
+        // A legacy row that still carries word timestamps but was already
+        // whole-text edited by an older app version.
+        let legacy = Transcription(
+            fileName: "Legacy",
+            rawTranscript: "Original words",
+            cleanTranscript: "Previously edited text",
+            wordTimestamps: words,
+            status: .completed,
+            isTranscriptEdited: true
+        )
+        try repo.save(legacy)
+        try segments.replaceSegments(for: legacy)
+        XCTAssertEqual(try segments.fetch(transcriptionId: legacy.id).map(\.text), ["Previously edited text"])
+
+        let editSnapshot = try repo.transcriptEditSnapshot(for: legacy)
+        _ = try repo.updateTranscriptText("Freshly edited text", expected: editSnapshot)
+
+        XCTAssertEqual(try segments.fetch(transcriptionId: legacy.id).map(\.text), ["Freshly edited text"])
+        XCTAssertTrue(
+            try segments.search(SegmentSearchQuery(query: "Freshly")).contains { $0.transcriptionId == legacy.id })
+        XCTAssertTrue(try segments.search(SegmentSearchQuery(query: "Original")).isEmpty)
+
+        let current = try XCTUnwrap(repo.fetch(id: legacy.id))
+        let revertSnapshot = try repo.transcriptEditSnapshot(for: current)
+        let reverted = try repo.updateTranscriptText(legacy.rawTranscript, expected: revertSnapshot)
+
+        XCTAssertFalse(reverted.isTranscriptEdited)
+        XCTAssertEqual(try segments.fetch(transcriptionId: legacy.id).map(\.text), ["Original words"])
+    }
+
     func testOriginalDraftConflictsEvenAfterViewModelRefreshAndDeletionNeverResurrects() throws {
         let repo = TranscriptionRepository(dbQueue: try DatabaseManager().dbQueue)
         let vm = TranscriptionViewModel()

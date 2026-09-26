@@ -12,7 +12,11 @@ conflict and must be preserved. A deleted row must never be recreated.
 The repository updates only edit intent on the current row, keeps its raw text,
 and commits derived segments/FTS and card invalidation atomically. Failure rolls
 back the transaction. updatedAt does not regress and is not a conflict token.
+An edited row's derived segments and search index always reflect the edited
+text, even when the row still carries word timestamps or resolved speaker
+corrections; a revert restores segments derived from that canonical timing.
 The returned persisted row is published to the UI. Conflicts retain the draft
 and ask the user to reopen; edits are not silently retried over newer content.
 
-Coverage: TranscriptEditPersistenceTests and TranscriptionViewModelTests.
+Coverage: TranscriptEditPersistenceTests, TranscriptionViewModelTests, and
+SegmentRepositoryTests (KnowledgeSegmenter edit-supersedes-timing cases).

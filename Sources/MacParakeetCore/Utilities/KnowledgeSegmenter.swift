@@ -106,38 +106,42 @@ public enum KnowledgeSegmenter {
     public static func deriveSegments(for transcription: Transcription) -> [Segment] {
         guard transcription.status == .completed else { return [] }
 
-        let storedSegments = (transcription.transcriptSegments ?? []).compactMap {
-            source -> TranscriptSegmentRecord? in
-            guard let text = usableText(source.text) else { return nil }
-            var normalized = source
-            normalized.text = text
-            return normalized
-        }
-        let durableSegments: [TranscriptSegmentRecord]
-        if !storedSegments.isEmpty {
-            durableSegments = storedSegments
-        } else if let words = transcription.wordTimestamps,
-            words.contains(where: { usableText($0.word) != nil })
-        {
-            durableSegments = materializeFileTranscriptSegments(
-                words: words,
-                speakers: transcription.speakers
-            )
-        } else {
-            durableSegments = []
-        }
-
-        if !durableSegments.isEmpty {
-            return durableSegments.enumerated().map { seq, source in
-                Segment(
-                    transcriptionId: transcription.id,
-                    seq: seq,
-                    startMs: source.startMs,
-                    endMs: source.endMs,
-                    speaker: source.speakerId == nil ? nil : normalizedSpeaker(source.speakerLabel),
-                    text: source.text,
-                    segmenterVersion: currentVersion
+        // A whole-text edit supersedes durable timing/segments: the edited text
+        // is what the user sees, and it is no longer aligned to those words.
+        if !transcription.isTranscriptEdited {
+            let storedSegments = (transcription.transcriptSegments ?? []).compactMap {
+                source -> TranscriptSegmentRecord? in
+                guard let text = usableText(source.text) else { return nil }
+                var normalized = source
+                normalized.text = text
+                return normalized
+            }
+            let durableSegments: [TranscriptSegmentRecord]
+            if !storedSegments.isEmpty {
+                durableSegments = storedSegments
+            } else if let words = transcription.wordTimestamps,
+                words.contains(where: { usableText($0.word) != nil })
+            {
+                durableSegments = materializeFileTranscriptSegments(
+                    words: words,
+                    speakers: transcription.speakers
                 )
+            } else {
+                durableSegments = []
+            }
+
+            if !durableSegments.isEmpty {
+                return durableSegments.enumerated().map { seq, source in
+                    Segment(
+                        transcriptionId: transcription.id,
+                        seq: seq,
+                        startMs: source.startMs,
+                        endMs: source.endMs,
+                        speaker: source.speakerId == nil ? nil : normalizedSpeaker(source.speakerLabel),
+                        text: source.text,
+                        segmenterVersion: currentVersion
+                    )
+                }
             }
         }
 
@@ -166,6 +170,11 @@ public enum KnowledgeSegmenter {
         effectiveAttribution: EffectiveSpeakerAttribution
     ) -> [Segment] {
         guard transcription.status == .completed else { return [] }
+        // A whole-text edit supersedes speaker-corrected timing, matching the
+        // untimed override in `Transcription.transcriptTextAlignment`.
+        guard !transcription.isTranscriptEdited else {
+            return deriveSegments(for: transcription)
+        }
         if effectiveAttribution.hasTextCorrections {
             let labels = Dictionary(
                 effectiveAttribution.speakers.map { ($0.id, normalizedSpeaker($0.label)) },
