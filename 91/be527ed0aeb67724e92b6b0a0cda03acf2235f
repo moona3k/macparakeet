@@ -1,0 +1,63 @@
+docs/research/2026-09-25-meeting-chat-workspace/verification.md
+  s_87598b246e7079::t_1b0092064fc5a5 25-27,57,62-63,93-113,194
+.github/workflows/ci.yml
+  s_87598b246e7079::t_9749b8136043d7 247-253
+Sources/CLI/CHANGELOG.md
+  s_87598b246e7079::t_84f646cb6bfb21 108-110
+Sources/CLI/Commands/AskCommand.swift
+  s_87598b246e7079::t_a0fb285387a53b 8,19-29,32-33,198
+Sources/CLI/Commands/SpecCommand.swift
+  s_87598b246e7079::t_c434b08f9d7679 152-159,179-181,185-186,188-191,195-197,201-202,206-207,212-216,220-221,223,234-235,239-240,246-247,250-251,257-259,263-264,273-274,278
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_87598b246e7079::t_0e742e22a13181 80,88-89,382-389,391-393
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_87598b246e7079::t_33062b6d339211 143-145
+Sources/MacParakeet/Views/MainWindowState.swift
+  s_87598b246e7079::t_bdbf2266939a64 8-17,23-26
+Sources/MacParakeet/Views/MainWindowView.swift
+  s_87598b246e7079::t_14fcecb1f84f64 41-43,216,233-239,267-268,286-287,292-304,306,363-364,423-426,434-436,469-476
+Sources/MacParakeet/Views/Transcription/BulkTranscriptionSelectionBar.swift
+  s_87598b246e7079::t_ca7661a08cf02c 2,29-30,204
+Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift
+  s_87598b246e7079::t_684571fcbc7e15 189,260-263,1124-1126
+Sources/MacParakeetCore/AppFeatures.swift
+  s_87598b246e7079::t_3818a7231abda5 7-19
+Tests/CLITests/AskCommandTests.swift
+  s_87598b246e7079::t_e1d19de9c9803e 8-10,52-92,94-95
+Tests/CLITests/SpecCommandTests.swift
+  s_87598b246e7079::t_25026bb7f27a20 6-28
+Tests/MacParakeetTests/App/MainWindowStateTests.swift
+  s_87598b246e7079::t_60c1797a7215a3 68-69,74-89,93,95
+Tests/MacParakeetTests/Ask/AskFeatureGateTests.swift
+  s_87598b246e7079::t_0fbf5da506c7c5 1-19
+integrations/README.md
+  s_87598b246e7079::t_9f21e881ffdeb1 482-484,492-495,497-498,501
+scripts/dev/ask_workspace_qualification.py
+  s_87598b246e7079::t_fddca17ad21889 8-11,224-226,228,231,272-283,431-434,436-450,473,485-486
+scripts/dev/tests/test_ask_workspace_qualification.py
+  s_87598b246e7079::t_08c0d8069de7c3 49-81
+spec/02-features.md
+  s_87598b246e7079::t_77e0f6ccc32da1 1323-1326
+spec/README.md
+  s_87598b246e7079::t_f54146cad23b92 29,32-33,99
+spec/adr/034-meeting-ask-workspace.md
+  s_87598b246e7079::t_1b82b509cce013 53-67
+spec/contracts/ask-workspace.md
+  s_87598b246e7079::t_a4fd9b8bb29ea1 3,8-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "91be527ed0aeb67724e92b6b0a0cda03acf2235f",
+  "prompts": {},
+  "sessions": {
+    "s_87598b246e7079": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0de16-d121-7563-85aa-e9e0aa5a2459",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
