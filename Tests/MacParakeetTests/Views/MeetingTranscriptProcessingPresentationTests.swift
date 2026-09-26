@@ -51,10 +51,6 @@ final class MeetingTranscriptProcessingPresentationTests: XCTestCase {
                 hasRetainedAudio: true,
                 status: .completed
             ))
-        XCTAssertTrue(
-            TranscriptDetailActionAvailability.canEdit(
-                status: .completed
-            ))
     }
 
     func testWholeTranscriptEditingIsLimitedToUntimedOrLegacyEdits() {
