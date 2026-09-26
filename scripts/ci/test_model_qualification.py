@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import os
+import signal
 from pathlib import Path
 import subprocess
 import sys
@@ -150,30 +151,61 @@ class QualificationBoundaryTests(unittest.TestCase):
                     qualification.run_bounded([sys.executable, "-c", script], os.environ.copy(),
                                               root / "stdout", root / "stderr", timeout)
 
-    def test_run_bounded_kills_descendants_left_by_a_successful_parent(self):
+    def assert_descendant_terminated(self, pid):
+        deadline = time.monotonic() + 5
+        while True:
+            result = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)],
+                                    capture_output=True, text=True, timeout=2)
+            self.assertIn(result.returncode, (0, 1), result.stderr)
+            state = result.stdout.strip()
+            # An orphan may remain a zombie until the system reaps it.
+            if not state or state.startswith("Z"):
+                return
+            if time.monotonic() >= deadline:
+                self.fail(f"descendant {pid} survived its parent's exit (state {state})")
+            time.sleep(0.02)
+
+    def check_descendant_cleanup(self, exit_code):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            marker = root / "descendant-wrote"
-            child_code = f"import time; time.sleep(0.3); open({str(marker)!r}, 'w').write('x')"
-            parent_code = f"import subprocess, sys; subprocess.Popen([sys.executable, '-c', {child_code!r}])"
-            qualification.run_bounded([sys.executable, "-c", parent_code], os.environ.copy(),
-                                      root / "stdout", root / "stderr", 5)
-            time.sleep(0.5)
-            self.assertFalse(marker.exists(), "descendant survived a successful parent's exit")
+            pid_file = root / "child.pid"
+            ready_file = root / "child.ready"
+            child_code = "import os, time; os.write(1, b'R'); time.sleep(60)"
+            parent_code = (
+                "import pathlib, subprocess, sys; "
+                f"child = subprocess.Popen([sys.executable, '-c', {child_code!r}], "
+                "stdout=subprocess.PIPE); "
+                f"pathlib.Path({str(pid_file)!r}).write_text(str(child.pid)); "
+                "assert child.stdout.read(1) == b'R'; "
+                f"pathlib.Path({str(ready_file)!r}).write_text('ready'); "
+                f"sys.exit({exit_code})"
+            )
+            try:
+                command = [sys.executable, "-c", parent_code]
+                if exit_code:
+                    with self.assertRaises(ValueError):
+                        qualification.run_bounded(command, os.environ.copy(),
+                                                  root / "stdout", root / "stderr", 10)
+                else:
+                    qualification.run_bounded(command, os.environ.copy(),
+                                              root / "stdout", root / "stderr", 10)
+                self.assertTrue(ready_file.exists(), "parent exited before child was ready")
+                self.assert_descendant_terminated(int(pid_file.read_text()))
+            finally:
+                # Also contain fixtures when the runner or an assertion fails.
+                if pid_file.exists():
+                    pid = int(pid_file.read_text())
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    self.assert_descendant_terminated(pid)
+
+    def test_run_bounded_kills_descendants_left_by_a_successful_parent(self):
+        self.check_descendant_cleanup(0)
 
     def test_run_bounded_kills_descendants_left_by_a_failed_parent(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            marker = root / "descendant-wrote"
-            child_code = f"import time; time.sleep(0.3); open({str(marker)!r}, 'w').write('x')"
-            parent_code = (
-                f"import subprocess, sys; subprocess.Popen([sys.executable, '-c', {child_code!r}]); sys.exit(3)"
-            )
-            with self.assertRaises(ValueError):
-                qualification.run_bounded([sys.executable, "-c", parent_code], os.environ.copy(),
-                                          root / "stdout", root / "stderr", 5)
-            time.sleep(0.5)
-            self.assertFalse(marker.exists(), "descendant survived a failed parent's exit")
+        self.check_descendant_cleanup(3)
 
     def test_asset_mutated_after_a_successful_run_fails_even_if_manifest_is_rewritten(self):
         with tempfile.TemporaryDirectory() as directory:
