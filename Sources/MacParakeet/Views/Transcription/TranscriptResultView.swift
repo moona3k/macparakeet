@@ -564,6 +564,7 @@ struct TranscriptResultView: View {
     @State private var savingReadingTranscript = false
     @State private var readingSaveID: UUID?
     @State private var transcriptDraft = ""
+    @State private var transcriptEditSnapshot: TranscriptEditSnapshot?
     @State private var transcriptEditError: String?
     @State private var transcriptDisplayMode: TranscriptDisplayMode = .text
     @State private var transcriptDisplayModeBeforeEdit: TranscriptDisplayMode?
@@ -5618,6 +5619,11 @@ struct TranscriptResultView: View {
     }
 
     private func beginTranscriptEdit() {
+        guard let snapshot = viewModel.makeTranscriptEditSnapshot() else {
+            transcriptEditError = viewModel.transcriptEditFailure ?? "Could not open transcript editor."
+            return
+        }
+        transcriptEditSnapshot = snapshot
         transcriptDraft = transcriptText
         transcriptEditError = nil
         transcriptDisplayModeBeforeEdit = transcriptDisplayMode
@@ -5649,8 +5655,9 @@ struct TranscriptResultView: View {
             return
         }
 
-        guard viewModel.updateCurrentTranscriptText(to: transcriptDraft) else {
-            transcriptEditError = "Could not save transcript edits."
+        guard let snapshot = transcriptEditSnapshot,
+            viewModel.updateCurrentTranscriptText(to: transcriptDraft, expected: snapshot) else {
+            transcriptEditError = viewModel.transcriptEditFailure ?? "Could not save transcript edits."
             SoundManager.shared.play(.errorSoft)
             return
         }
@@ -5666,7 +5673,11 @@ struct TranscriptResultView: View {
     }
 
     private func revertTranscriptEdit() {
-        guard viewModel.revertCurrentTranscriptToOriginal() else { return }
+        guard let snapshot = transcriptEditSnapshot,
+            viewModel.revertCurrentTranscriptToOriginal(expected: snapshot) else {
+            transcriptEditError = viewModel.transcriptEditFailure ?? "Could not revert transcript edits."
+            return
+        }
         chatViewModel.loadTranscript(transcriptText, transcriptionId: viewModel.currentTranscription?.id)
         scheduleRichAIContextLoad()
         transcriptDraft = ""

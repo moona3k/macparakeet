@@ -1940,66 +1940,54 @@ public final class TranscriptionViewModel {
         }
     }
 
-    @discardableResult
-    public func updateCurrentTranscriptText(to newText: String) -> Bool {
-        guard var transcription = currentTranscription else { return false }
-        guard !transcription.hasWordTimestamps || transcription.isTranscriptEdited else {
-            setError(message: "Edit timed transcripts one line at a time.")
-            return false
-        }
-        guard let repo = transcriptionRepo else {
-            reportMissingConfiguration("transcriptionRepo", action: "updateCurrentTranscriptText")
-            return false
-        }
-        let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
+    public private(set) var transcriptEditFailure: String?
 
-        let currentText = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
-        guard trimmed != currentText else { return false }
-
-        transcription.cleanTranscript = trimmed == transcription.rawTranscript ? nil : trimmed
-        transcription.isTranscriptEdited = transcription.cleanTranscript != nil
-        transcription.updatedAt = Date()
-
+    public func makeTranscriptEditSnapshot() -> TranscriptEditSnapshot? {
+        guard let current = currentTranscription, let repo = transcriptionRepo else { return nil }
         do {
-            try repo.save(transcription)
-            currentTranscription = transcription
-            if let index = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
-                transcriptions[index] = transcription
-            }
-            return true
+            let snapshot = try repo.transcriptEditSnapshot(for: current)
+            transcriptEditFailure = nil
+            return snapshot
         } catch {
-            logger.error(
-                "Failed to persist transcript edit error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
-            )
-            return false
+            transcriptEditFailure = error.localizedDescription
+            return nil
         }
     }
 
     @discardableResult
-    public func revertCurrentTranscriptToOriginal() -> Bool {
-        guard var transcription = currentTranscription,
-            transcription.cleanTranscript != nil
+    public func updateCurrentTranscriptText(to newText: String, expected: TranscriptEditSnapshot? = nil) -> Bool {
+        let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let snapshot = expected ?? makeTranscriptEditSnapshot() else { return false }
+        let currentText = snapshot.transcription.cleanTranscript ?? snapshot.transcription.rawTranscript ?? ""
+        guard trimmed != currentText else { return false }
+        return persistTranscriptText(trimmed, expected: snapshot)
+    }
+
+    @discardableResult
+    public func revertCurrentTranscriptToOriginal(expected: TranscriptEditSnapshot? = nil) -> Bool {
+        guard let snapshot = expected ?? makeTranscriptEditSnapshot(),
+            snapshot.transcription.cleanTranscript != nil
         else { return false }
-        guard let repo = transcriptionRepo else {
-            reportMissingConfiguration("transcriptionRepo", action: "revertCurrentTranscriptToOriginal")
+        return persistTranscriptText(nil, expected: snapshot)
+    }
+
+    private func persistTranscriptText(_ text: String?, expected: TranscriptEditSnapshot) -> Bool {
+        guard let repo = transcriptionRepo, currentTranscription?.id == expected.transcription.id else {
+            transcriptEditFailure = TranscriptEditError.changed.localizedDescription
             return false
         }
-
-        transcription.cleanTranscript = nil
-        transcription.isTranscriptEdited = false
-        transcription.updatedAt = Date()
-
         do {
-            try repo.save(transcription)
-            currentTranscription = transcription
-            if let index = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
-                transcriptions[index] = transcription
+            let persisted = try repo.updateTranscriptText(text, expected: expected)
+            currentTranscription = persisted
+            if let index = transcriptions.firstIndex(where: { $0.id == persisted.id }) {
+                transcriptions[index] = persisted
             }
+            transcriptEditFailure = nil
             return true
         } catch {
+            transcriptEditFailure = error.localizedDescription
             logger.error(
-                "Failed to persist transcript revert error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
+                "Failed to persist transcript edit error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
             )
             return false
         }

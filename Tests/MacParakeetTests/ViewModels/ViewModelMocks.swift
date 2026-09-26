@@ -174,6 +174,25 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
         return merged
     }
 
+    func transcriptEditSnapshot(for expected: Transcription) throws -> TranscriptEditSnapshot {
+        guard let current = try fetch(id: expected.id) else { throw TranscriptEditError.deleted }
+        guard TranscriptEditSnapshot(transcription: expected).matches(current), current.status != .processing else {
+            throw TranscriptEditError.changed
+        }
+        return TranscriptEditSnapshot(transcription: current)
+    }
+
+    func updateTranscriptText(_ text: String?, expected: TranscriptEditSnapshot) throws -> Transcription {
+        guard var current = try fetch(id: expected.transcription.id) else { throw TranscriptEditError.deleted }
+        guard expected.matches(current), current.status != .processing else { throw TranscriptEditError.changed }
+        guard !current.hasWordTimestamps || current.isTranscriptEdited else { throw TranscriptEditError.timed }
+        current.cleanTranscript = text == current.rawTranscript ? nil : text
+        current.isTranscriptEdited = current.cleanTranscript != nil
+        current.updatedAt = max(current.updatedAt, Date())
+        try save(current)
+        return current
+    }
+
     func save(_ transcription: Transcription) throws {
         if let saveError {
             throw saveError

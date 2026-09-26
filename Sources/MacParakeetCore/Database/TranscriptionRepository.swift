@@ -9,8 +9,46 @@ public enum TranscriptionCompletionError: Error, Equatable, LocalizedError {
     }
 }
 
+public enum TranscriptEditError: Error, LocalizedError {
+    case deleted, changed, timed, unsupported
+
+    public var errorDescription: String? {
+        switch self {
+        case .deleted: "This recording was deleted. Your draft has not been saved."
+        case .changed: "The transcript changed. Copy your draft, then reopen the recording before editing again."
+        case .timed: "Edit timed transcripts one line at a time."
+        case .unsupported: "Transcript editing is unavailable."
+        }
+    }
+}
+
+/// Immutable source identity captured when a whole-text draft is opened.
+/// Metadata and updatedAt deliberately do not participate in conflict detection.
+public struct TranscriptEditSnapshot: Sendable {
+    public let transcription: Transcription
+    public let correctionState: SpeakerCorrectionState?
+
+    public init(transcription: Transcription, correctionState: SpeakerCorrectionState? = nil) {
+        self.transcription = transcription
+        self.correctionState = correctionState
+    }
+
+    public func matches(_ current: Transcription) -> Bool {
+        let expected = transcription
+        return current.id == expected.id && current.status == expected.status
+            && current.rawTranscript == expected.rawTranscript
+            && current.cleanTranscript == expected.cleanTranscript
+            && current.isTranscriptEdited == expected.isTranscriptEdited
+            && current.wordTimestamps == expected.wordTimestamps
+            && current.transcriptSegments == expected.transcriptSegments
+            && current.diarizationSegments == expected.diarizationSegments
+    }
+}
+
 public protocol TranscriptionRepositoryProtocol: Sendable {
     func save(_ transcription: Transcription) throws
+    func transcriptEditSnapshot(for expected: Transcription) throws -> TranscriptEditSnapshot
+    func updateTranscriptText(_ text: String?, expected: TranscriptEditSnapshot) throws -> Transcription
     /// Persists a meeting transcription completed from a potentially stale
     /// pre-STT snapshot while retaining classification changed during the
     /// long-running transcription work.
@@ -51,6 +89,15 @@ public protocol TranscriptionRepositoryProtocol: Sendable {
 }
 
 extension TranscriptionRepositoryProtocol {
+    // Adapters must implement atomic edit semantics explicitly; never emulate
+    // them with a fetch followed by an upsert.
+    public func transcriptEditSnapshot(for expected: Transcription) throws -> TranscriptEditSnapshot {
+        throw TranscriptEditError.unsupported
+    }
+    public func updateTranscriptText(_ text: String?, expected: TranscriptEditSnapshot) throws -> Transcription {
+        throw TranscriptEditError.unsupported
+    }
+
     /// Non-SQL adapters with no sharing ledger need no preparation. The concrete
     /// GRDB repository always implements the transactional sharing invariant.
     public func prepareForDeletion(id: UUID) throws -> [String] { [] }
@@ -222,6 +269,44 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
     init(dbQueue: DatabaseQueue, notifyShareStopQueued: @escaping @Sendable () -> Void) {
         self.dbQueue = dbQueue
         self.notifyShareStopQueued = notifyShareStopQueued
+    }
+
+    public func transcriptEditSnapshot(for expected: Transcription) throws -> TranscriptEditSnapshot {
+        try dbQueue.read { db in
+            guard let current = try Transcription.fetchOne(db, key: expected.id) else {
+                throw TranscriptEditError.deleted
+            }
+            guard TranscriptEditSnapshot(transcription: expected).matches(current), current.status != .processing else {
+                throw TranscriptEditError.changed
+            }
+            return TranscriptEditSnapshot(
+                transcription: current,
+                correctionState: try SpeakerCorrectionRepository.fetchState(transcriptionId: current.id, in: db)
+            )
+        }
+    }
+
+    public func updateTranscriptText(_ text: String?, expected: TranscriptEditSnapshot) throws -> Transcription {
+        try dbQueue.write { db in
+            guard var current = try Transcription.fetchOne(db, key: expected.transcription.id) else {
+                throw TranscriptEditError.deleted
+            }
+            let state = try SpeakerCorrectionRepository.fetchState(transcriptionId: current.id, in: db)
+            guard expected.matches(current), state == expected.correctionState, current.status != .processing else {
+                throw TranscriptEditError.changed
+            }
+            guard !current.hasWordTimestamps || current.isTranscriptEdited else {
+                throw TranscriptEditError.timed
+            }
+            current.cleanTranscript = text == current.rawTranscript ? nil : text
+            current.isTranscriptEdited = current.cleanTranscript != nil
+            current.updatedAt = max(current.updatedAt, Date())
+            try current.update(db)
+            let segments = try SegmentRepository.deriveResolvedSegments(for: current, in: db)
+            try KnowledgeLayerMutationService.replaceSegmentsAndInvalidateCard(
+                segments, transcriptionId: current.id, in: db)
+            return current
+        }
     }
 
     public func save(_ transcription: Transcription) throws {
