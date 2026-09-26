@@ -111,6 +111,7 @@ timing instead of ignoring it.
 - `GlobalShortcutManagerTests`: Meeting hotkey registration, conflict detection
 - `TranscriptionServiceTests`: Meeting transcription path (sourceType = .meeting)
 - `DatabaseManagerTests`: sourceType migration, meeting transcription CRUD
+- `MeetingRecordingCrashRecoveryTests`: opt-in real writer/SIGKILL/fresh-process recovery and artifact settlement; see [the process recovery guide](../docs/testing/meeting-process-recovery.md) for commands and qualification limits.
 
 ### STT Scheduler Tests (ADR-016)
 

@@ -160,6 +160,17 @@ pre-claim lock, so repeated fail/retry cycles cannot restore an abandoned lease
 or wedge the next retry. A relinquished token is not a live owner and remains
 visible to recovery discovery even while its former process PID is alive.
 
+## Recovery Artifact Settlement
+
+Recovery saves its final `recoveredFromCrash` and notes metadata, then refreshes
+meeting artifacts before deleting `recording.lock`. The configured artifact store
+retains effective speaker corrections/classification, and refresh reads existing
+prompt results rather than replacing them with an empty list. A refresh failure
+leaves the completed row and lock available for recovery. A retry refreshes the
+existing completed row and settles its lock without another audio mix or STT run.
+A stale descriptor for an already settled session is refused with `missingLock`;
+rediscovery is empty and does not recreate rows or audio.
+
 ## Source Writer Finalization Ownership
 
 The release-readiness candidate gives source-writer finalization one aggregate

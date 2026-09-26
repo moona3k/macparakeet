@@ -47,6 +47,8 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
     private let lockFileStore: any MeetingRecordingLockFileStoring & MeetingFinalizationOwnershipClaiming
     private let transcriptionService: TranscriptionServiceProtocol
     private let transcriptionRepo: TranscriptionRepositoryProtocol
+    private let meetingArtifactStore: MeetingArtifactStoring
+    private let promptResultRepo: PromptResultRepositoryProtocol
     private let settlement: MeetingRecordingSettlement
     private let audioConverter: AudioFileConverting
     private let fileManager: FileManager
@@ -66,6 +68,8 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             MeetingRecordingLockFileStore(),
         transcriptionService: TranscriptionServiceProtocol,
         transcriptionRepo: TranscriptionRepositoryProtocol,
+        meetingArtifactStore: MeetingArtifactStoring,
+        promptResultRepo: PromptResultRepositoryProtocol,
         audioConverter: AudioFileConverting = AudioFileConverter(),
         fileManager: FileManager = .default,
         echoSuppressionConfiguration: MeetingEchoSuppressionConfiguration = .fromEnvironment()
@@ -75,6 +79,8 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             lockFileStore: lockFileStore,
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: meetingArtifactStore,
+            promptResultRepo: promptResultRepo,
             audioConverter: audioConverter,
             fileManager: fileManager,
             micConditionerFactory: {
@@ -91,6 +97,8 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             MeetingRecordingLockFileStore(),
         transcriptionService: TranscriptionServiceProtocol,
         transcriptionRepo: TranscriptionRepositoryProtocol,
+        meetingArtifactStore: MeetingArtifactStoring,
+        promptResultRepo: PromptResultRepositoryProtocol,
         settlement: MeetingRecordingSettlement? = nil,
         audioConverter: AudioFileConverting = AudioFileConverter(),
         fileManager: FileManager = .default,
@@ -104,6 +112,8 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         self.lockFileStore = lockFileStore
         self.transcriptionService = transcriptionService
         self.transcriptionRepo = transcriptionRepo
+        self.meetingArtifactStore = meetingArtifactStore
+        self.promptResultRepo = promptResultRepo
         self.settlement =
             settlement
             ?? MeetingRecordingSettlement(
@@ -639,6 +649,21 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         lock: MeetingRecordingLockFile
     ) async throws -> Transcription {
         if lock.state == .awaitingTranscription {
+            var completed = transcription
+            // Older completion paths could leave notes only in the retained lock.
+            // Preserve them in the canonical row before artifact refresh, which
+            // correctly removes notes.md when the row has no notes.
+            if completed.userNotes == nil, let notes = lock.notes {
+                guard try transcriptionRepo.updateUserNotes(id: completed.id, userNotes: notes),
+                    let updated = try transcriptionRepo.fetch(id: completed.id)
+                else {
+                    throw MeetingRecordingSettlementError.missingTranscription(
+                        transcriptionID: completed.id, sessionID: lock.sessionId
+                    )
+                }
+                completed = updated
+            }
+            try await refreshArtifacts(for: completed)
             try await settlement.settleCompletedTranscription(
                 folderURL: folderURL,
                 transcriptionID: transcription.id,
@@ -646,7 +671,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             )
             logger.info(
                 "meeting_recovery_cleaned_completed_session session=\(lock.sessionId.uuidString, privacy: .public)")
-            return transcription
+            return completed
         }
         return try await completeRecovery(transcription, folderURL: folderURL, lock: lock)
     }
@@ -668,6 +693,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         }
         recovered.updatedAt = Date()
         try transcriptionRepo.save(recovered)
+        try await refreshArtifacts(for: recovered)
         try await settlement.settleCompletedTranscription(
             folderURL: folderURL,
             transcriptionID: recovered.id,
@@ -675,6 +701,18 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         )
         logger.info("meeting_recovery_completed session=\(lock.sessionId.uuidString, privacy: .public)")
         return recovered
+    }
+
+    /// Refresh from the saved row before releasing the recovery lock. A failed
+    /// materialization leaves the completed row and lock available for a retry
+    /// without running STT again. Keep existing prompt results and the store's
+    /// configured speaker corrections/classification when rebuilding artifacts.
+    private func refreshArtifacts(for transcription: Transcription) async throws {
+        let promptResults = try promptResultRepo.fetchAll(transcriptionId: transcription.id)
+        try await meetingArtifactStore.materialize(
+            transcription: transcription,
+            promptResults: promptResults
+        )
     }
 
     private func repairIfNeeded(_ url: URL) async throws -> (url: URL, duration: TimeInterval, sampleRate: Double) {

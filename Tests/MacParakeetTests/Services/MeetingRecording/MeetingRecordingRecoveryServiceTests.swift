@@ -7,6 +7,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
     private var tempRoot: URL!
     private var lockStore: RecoveryRecordingLockFileStore!
     private var transcriptionRepo: RecordingTranscriptionRepository!
+    private var promptResultRepo: MockPromptResultRepository!
     private var transcriptionService: RecoveryMockTranscriptionService!
     private var audioConverter: RecoveryMockAudioConverter!
     private var recoveryService: MeetingRecordingRecoveryService!
@@ -534,6 +535,50 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertEqual(metadata.captureReport, recording.captureReport)
     }
 
+    func testArtifactRefreshFailureRetainsLockAndRetryPreservesPromptResultsWithoutSTT() async throws {
+        let fixture = try makeRecoverableSession(lockState: .awaitingTranscription, notes: "Recovered notes")
+        let manifestURL = fixture.folderURL.appendingPathComponent("manifest.json")
+        try FileManager.default.createDirectory(at: manifestURL, withIntermediateDirectories: false)
+
+        do {
+            _ = try await recoveryService.recover(fixture.lock)
+            XCTFail("A failed artifact refresh must not settle the recovery lock")
+        } catch {
+            XCTAssertNotNil(error as? CocoaError)
+        }
+        let saved = try XCTUnwrap(try meetingRows(in: fixture.folderURL).first)
+        XCTAssertEqual(saved.status, .completed)
+        XCTAssertTrue(saved.recoveredFromCrash)
+        XCTAssertNotNil(try lockStore.read(folderURL: fixture.folderURL))
+        XCTAssertEqual(transcriptionService.recordings.count, 1)
+        let pending = try await recoveryService.discoverPendingRecoveries()
+        XCTAssertEqual(pending.count, 1)
+        let result = PromptResult(
+            transcriptionId: saved.id, promptName: "Preserved summary",
+            promptContent: "Summarize", content: "Do not erase this saved result."
+        )
+        try promptResultRepo.save(result)
+        try FileManager.default.removeItem(at: manifestURL)
+        transcriptionService.errorToThrow = RecoveryTestError.mixFailed
+        audioConverter.errorToThrow = RecoveryTestError.mixFailed
+
+        let recovered = try await recoveryService.recover(try XCTUnwrap(pending.first))
+
+        XCTAssertEqual(recovered.id, saved.id)
+        XCTAssertEqual(transcriptionService.recordings.count, 1)
+        XCTAssertEqual(try meetingRows(in: fixture.folderURL).count, 1)
+        XCTAssertNil(try lockStore.read(folderURL: fixture.folderURL))
+        let manifest = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)) as? [String: Any])
+        XCTAssertEqual((manifest["meeting"] as? [String: Any])?["recoveredFromCrash"] as? Bool, true)
+        let markdown = try String(contentsOf: fixture.folderURL.appendingPathComponent("meeting.md"), encoding: .utf8)
+        XCTAssertTrue(markdown.contains("Recovered notes"))
+        XCTAssertTrue(markdown.contains(result.promptName))
+        let resultsData = try Data(contentsOf: fixture.folderURL.appendingPathComponent("prompt-results.json"))
+        let results = try XCTUnwrap(JSONSerialization.jsonObject(with: resultsData) as? [[String: Any]])
+        XCTAssertEqual(results.first?["content"] as? String, result.content)
+    }
+
     func testRecoverRetryReusesSavedTranscriptWhenLockDeletePreviouslyFailed() async throws {
         let fixture = try makeRecoverableSession()
         lockStore.deleteErrorsRemaining = 1
@@ -671,6 +716,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         let recovered = try await recoveryService.recover(fixture.lock)
 
         XCTAssertFalse(recovered.recoveredFromCrash)
+        XCTAssertEqual(recovered.userNotes, "existing transcript note")
+        XCTAssertEqual(try transcriptionRepo.fetch(id: existing.id)?.userNotes, "existing transcript note")
         XCTAssertNil(try lockStore.read(folderURL: fixture.folderURL))
         XCTAssertTrue(audioConverter.mixes.isEmpty)
         XCTAssertTrue(transcriptionService.recordings.isEmpty)
@@ -678,6 +725,28 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         let notesURL = MeetingNotesFile.fileURL(for: fixture.folderURL)
         let notesContent = try String(contentsOf: notesURL, encoding: .utf8)
         XCTAssertEqual(notesContent, "# Recovered Team Sync\n\nexisting transcript note\n")
+    }
+
+    func testCompletedRecoveryRefreshPreservesCanonicalNotesOverStaleLock() async throws {
+        let fixture = try makeRecoverableSession(lockState: .awaitingTranscription, notes: "Old lock notes")
+        let existing = Transcription(
+            fileName: fixture.lock.displayName,
+            filePath: fixture.folderURL.appendingPathComponent("meeting-playback.m4a").path,
+            status: .completed,
+            sourceType: .meeting,
+            userNotes: "Newer saved notes"
+        )
+        try transcriptionRepo.save(existing)
+
+        let recovered = try await recoveryService.recover(fixture.lock)
+
+        XCTAssertEqual(recovered.userNotes, "Newer saved notes")
+        XCTAssertFalse(recovered.recoveredFromCrash)
+        XCTAssertTrue(transcriptionService.recordings.isEmpty)
+        let notes = try String(contentsOf: MeetingNotesFile.fileURL(for: fixture.folderURL), encoding: .utf8)
+        XCTAssertTrue(notes.contains("Newer saved notes"))
+        XCTAssertFalse(notes.contains("Old lock notes"))
+        XCTAssertNil(try lockStore.read(folderURL: fixture.folderURL))
     }
 
     func testRecoverSettlesCompletedLegacyPlaybackRow() async throws {
@@ -803,6 +872,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             lockFileStore: liveLockStore,
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: MeetingArtifactStore(),
+            promptResultRepo: promptResultRepo,
             audioConverter: audioConverter
         )
 
@@ -882,6 +953,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             lockFileStore: lockStore,
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: MeetingArtifactStore(),
+            promptResultRepo: promptResultRepo,
             audioConverter: audioConverter,
             fileManager: fileManager
         )
@@ -917,6 +990,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             lockFileStore: lockStore,
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: MeetingArtifactStore(),
+            promptResultRepo: promptResultRepo,
             audioConverter: audioConverter,
             fileManager: fileManager
         )
@@ -955,6 +1030,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             lockFileStore: liveLockStore,
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: MeetingArtifactStore(),
+            promptResultRepo: promptResultRepo,
             audioConverter: audioConverter,
             fileManager: fileManager
         )
@@ -997,6 +1074,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             lockFileStore: liveLockStore,
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: MeetingArtifactStore(),
+            promptResultRepo: promptResultRepo,
             audioConverter: audioConverter,
             fileManager: fileManager
         )
@@ -1063,6 +1142,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             lockFileStore: lockStore,
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: MeetingArtifactStore(),
+            promptResultRepo: promptResultRepo,
             audioConverter: audioConverter,
             micConditionerFactory: { @Sendable in conditionerProbe.make() }
         )
@@ -1093,6 +1174,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             lockFileStore: lockStore,
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: MeetingArtifactStore(),
+            promptResultRepo: promptResultRepo,
             audioConverter: audioConverter,
             micConditionerFactory: { @Sendable in conditionerProbe.make() }
         )
@@ -1124,6 +1207,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             lockFileStore: lockStore,
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: MeetingArtifactStore(),
+            promptResultRepo: promptResultRepo,
             audioConverter: audioConverter,
             micConditionerFactory: { @Sendable in conditionerProbe.make() },
             recordingDurationProvider: { _, _ in threshold + 1 }
@@ -1190,6 +1275,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
         lockStore = RecoveryRecordingLockFileStore(processChecker: RecoveryProcessChecker(alivePIDs: []))
         transcriptionRepo = RecordingTranscriptionRepository()
+        promptResultRepo = MockPromptResultRepository()
         transcriptionService = RecoveryMockTranscriptionService()
         transcriptionService.transcriptionRepo = transcriptionRepo
         audioConverter = RecoveryMockAudioConverter()
@@ -1198,6 +1284,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             lockFileStore: lockStore,
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: MeetingArtifactStore(),
+            promptResultRepo: promptResultRepo,
             audioConverter: audioConverter
         )
     }
