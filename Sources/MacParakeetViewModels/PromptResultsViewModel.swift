@@ -159,6 +159,7 @@ public final class PromptResultsViewModel {
     private var currentTranscriptionID: UUID?
     private var streamingTask: Task<Void, Never>?
     private var modelListTask: Task<Void, Never>?
+    private var displayedModelRoute: LLMModelSelectionRoute?
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "PromptResultsViewModel")
 
     public var canGeneratePromptResult: Bool {
@@ -175,7 +176,9 @@ public final class PromptResultsViewModel {
 
     /// Model changes affect every queued generation, not just the visible meeting.
     public var canSelectModel: Bool {
-        configStore != nil && currentProviderID != .localCLI && !hasAnyActiveGenerations
+        configStore != nil && currentProviderID != nil
+            && currentProviderID != .localCLI && currentProviderID != .appleIntelligence
+            && !hasAnyActiveGenerations
     }
 
     /// Status shown by the current transcript's controls excludes other meetings.
@@ -298,12 +301,17 @@ public final class PromptResultsViewModel {
 
     public func refreshModelInfo() {
         modelListTask?.cancel()
-        guard let configStore, let config = try? configStore.loadConfig() else {
+        displayedModelRoute = nil
+        guard let configStore,
+            let route = try? LLMModelSelectionRoute.load(from: configStore, for: .analysis)
+        else {
             currentModelName = ""
             currentProviderID = nil
             availableModels = []
             return
         }
+        displayedModelRoute = route
+        let config = route.config
         currentProviderID = config.id
         if config.id == .localCLI {
             let displayName =
@@ -324,8 +332,14 @@ public final class PromptResultsViewModel {
     public func selectModel(_ modelName: String) {
         guard let configStore, canSelectModel else { return }
         do {
-            try configStore.updateModelName(modelName)
-            currentModelName = modelName
+            guard let displayedModelRoute,
+                try LLMModelSelectionRoute.load(from: configStore, for: .analysis) == displayedModelRoute
+            else {
+                refreshModelInfo()
+                return
+            }
+            try configStore.updateModelName(modelName, for: .analysis)
+            refreshModelInfo()
             onModelChanged?()
         } catch {
             refreshModelInfo()
@@ -336,7 +350,8 @@ public final class PromptResultsViewModel {
         modelListTask = LLMModelAvailability.refreshPickerModelsTask(
             for: config,
             llmClient: llmClient,
-            configStore: configStore
+            configStore: configStore,
+            task: .analysis
         ) { [weak self] models in
             self?.availableModels = models
         }
@@ -525,7 +540,12 @@ public final class PromptResultsViewModel {
     }
 
     public func beginEditingPromptResult(_ promptResult: PromptResult) {
-        guard canEditPromptResult(promptResult) else { return }
+        guard canEditPromptResult(promptResult), editingPromptResultID != promptResult.id else { return }
+        guard !hasUnsavedPromptResultEdits else {
+            let name = promptResults.first { $0.id == editingPromptResultID }?.promptName ?? "the current result"
+            errorMessage = "Return to \(name) and save or cancel its edits before editing another result."
+            return
+        }
         editingPromptResultID = promptResult.id
         editingDraft = promptResult.content
         errorMessage = nil
@@ -606,16 +626,19 @@ public final class PromptResultsViewModel {
             errorMessage = "This result is already regenerating."
             return nil
         }
+        let config = try? configStore?.loadConfig(for: .analysis)
+        let sameProvider = config.map { promptResult.providerSnapshot == $0.id.rawValue } ?? false
+        let reuseModel = sameProvider && config?.id != .localCLI && config?.id != .appleIntelligence
         let prompt = Prompt(
             id: promptResult.promptId ?? UUID(),
             name: promptResult.promptName,
             content: promptResult.promptContent,
             isBuiltIn: false,
             sortOrder: 0,
-            inferenceSettings: promptResult.inferenceSettingsSnapshot,
+            inferenceSettings: sameProvider ? promptResult.inferenceSettingsSnapshot : nil,
             includeMeetingNotes: promptResult.includeMeetingNotesSnapshot,
             activeVersionId: promptResult.promptVersionId,
-            modelOverride: promptResult.modelSnapshot
+            modelOverride: reuseModel ? promptResult.modelSnapshot : nil
         )
         // Regeneration re-snapshots from the *current* notes on the row — if
         // the user edited notes between summary generations they expect the
@@ -1056,8 +1079,8 @@ public final class PromptResultsViewModel {
         }
         // Local CLI selects its model in the command template rather than the
         // provider config. Its terminal receipt remains authoritative.
-        guard currentProviderID != .localCLI else { return nil }
-        let current = currentModelName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let config = try? configStore?.loadConfig(for: .analysis), config.id != .localCLI else { return nil }
+        let current = config.modelName.trimmingCharacters(in: .whitespacesAndNewlines)
         return current.isEmpty ? nil : current
     }
 

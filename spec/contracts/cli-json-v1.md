@@ -193,7 +193,7 @@ still apply.
   Optional usage totals are derived from two reported component counts only
   when the sum is representable; otherwise the total remains unknown while
   reported components are preserved.
-- `meetings results list|add --json` prompt-result objects include additive
+- `meetings results list|add|edit --json` prompt-result objects include additive
   optional `inferenceSettingsSnapshot` with the same settings shape. When
   present it is the effective receipt stored with the result; imported results
   created by `meetings results add` omit it.
@@ -202,7 +202,7 @@ still apply.
   that generation. `false` covers migrated and externally imported results.
   Nullable `userNotesSnapshot` contains the exact normalized, bounded notes
   value supplied to prompt assembly, not necessarily the full canonical note.
-- `meetings results list|add --json` prompt-result objects may include
+- `meetings results list|add|edit --json` prompt-result objects may include
   `sourceTranscriptHash`, a
   SHA-256 receipt of cue words when timed cues are available on an unedited
   transcript, otherwise trimmed automatic clean/raw text. The field is
@@ -222,6 +222,34 @@ still apply.
   Omission means no in-place edit is recorded. Generated, historical, and
   externally imported results can all omit it; absence does not establish who
   wrote the content.
+- `meetings results edit <meeting> <result-uuid>` changes the existing result's
+  content without changing its ID or generation provenance. Supply exactly one
+  `--content`, `--file` or `--stdin` input and exactly one `--expected-content`
+  or `--expected-content-file` precondition. The precondition is compared
+  exactly, including whitespace, in the conditional database write. Blank new
+  content is rejected. A stale content precondition returns `conflict`, exit
+  `1`, without overwriting the result. Success returns a
+  `MeetingPromptResultRecord` and sets `contentEditedAt`. Artifact refresh is
+  best-effort: a failure warns on stderr without rolling back the saved database
+  edit. The
+  command never deletes audio. Missing/wrong-meeting result IDs fail
+  instead of editing another recording's result.
+- `llm routes list --json` returns `{ok:true,routes:[...]}`. Each entry has
+  `task` (`default`, `cleanup`, `analysis`, `transform`), `inherited` and
+  `configured`; configured entries also include `provider`, `model`, `isLocal`
+  and a redacted `endpoint` origin. Credentials, URL userinfo, path, query and
+  fragment are never emitted. `llm routes set|reset <cleanup|analysis> --json`
+  returns `{ok:true,route:{...}}` with the same entry shape. Set accepts the
+  inline provider options but saves a task override instead of making an LLM
+  request; reset removes only that override. Explicit credential flags win,
+  then saved provider credentials, then provider environment variables. Keys
+  remain shared per provider, so an explicitly supplied replacement key applies
+  to every route using that provider. Local CLI reuses the configured shared
+  template and rejects a different `--command`. A running GUI may cache
+  configuration until refreshed or relaunched. `configured` describes saved
+  route configuration, not app readiness: the app still requires Default AI to
+  be configured in Settings. An already-open AI Settings draft can overwrite CLI
+  changes when saved; close it before CLI mutations and reopen afterward.
 - `meetings show --json` and `meetings transcript --format json` expose
   `transcriptSegments` when the meeting row has durable segments. Each segment
   contains `id`, `startMs`, `endMs`, `speakerId`, `speakerLabel`, `text`, and
@@ -260,7 +288,7 @@ still apply.
   whole-text edits. The same payload's `wordTimestamps` retain the
   automatic recognized text and timing as immutable evidence, so consumers
   must not substitute them for corrected-word timing.
-- `meetings corrections edit-line|merge-lines|rename|assign|merge-speakers|undo|redo|reset`
+- `meetings corrections edit-line|revise-text|merge-lines|rename|assign|merge-speakers|undo|redo|reset`
   mutates the
   same reversible correction journal as the app. Every command requires
   `--expected-revision` from the last transcript read; edit/merge/assign
@@ -275,6 +303,15 @@ still apply.
   `validation` for stale/unsupported segment targets and correction commands,
   and `input_empty` for blank replacement text. Conflict exits `1`; validation
   and empty-input misuse exit `2`.
+- `meetings corrections revise-text` takes `--file PATH` or `--stdin` JSON:
+  an array of `{"segment":"UUID","text":"replacement"}` or
+  `{"segment":"UUID","omit":true}` entries. It requires
+  `--expected-revision` and targets current effective segment IDs. Empty
+  batches, duplicate IDs, unknown fields, blank replacements and ambiguous
+  text/omit entries are rejected before a write. The batch is one atomic
+  correction and one Undo step, matching the GUI reading editor. Omission
+  removes a passage from the effective transcript, exports and AI context;
+  automatic text, timings and audio remain intact.
 - `history favorite|unfavorite --json` returns `ok`, `id`, and `isFavorite`.
 - `history rename --title --json` returns `ok`, `kind` (`meeting` or `file`),
   `id`, and `title` (the effective display title). An identical title still
@@ -444,6 +481,7 @@ version/changelog treatment.
 
 - `SpecCommandTests`
 - `LLMJSONOutputTests`
+- `LLMRoutesCommandTests`
 - `MeetingsCommandTests`
 - `MeetingVADSimCommandTests`
 - `TranscribeCommandTests`

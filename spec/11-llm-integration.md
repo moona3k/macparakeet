@@ -510,7 +510,15 @@ appended; if notes are empty, enabling the checkbox changes no prompt bytes.
 `PromptResult.userNotesSnapshot` stores the exact effective notes value used,
 while `includeMeetingNotesSnapshot` records the captured preference. Retry
 reuses the queued values; regenerate reuses the Boolean receipt with current
-committed notes. This path was implemented and locally verified on 2026-09-05.
+committed notes. Regeneration reuses the saved model only when its provider receipt
+matches the current analysis provider; after a provider change or when provider
+provenance is absent, it uses the current analysis model and provider inference
+defaults so historical provider-specific settings cannot invalidate the new route. Apple Intelligence and
+Local CLI always use their system or configured command model. The saved prompt and
+version remain regeneration inputs, with inference settings reused only for the
+same provider; the original result
+and receipt remain intact until successful replacement records the new execution.
+This path was implemented and locally verified on 2026-09-05.
 
 ### 2. Chat with Transcript
 

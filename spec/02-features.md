@@ -1513,17 +1513,17 @@ meeting-detail choices independently; the complete app-managed meeting artifacts
 are unaffected.
 
 **Technical notes:**
-- Uses FluidAudio's offline diarization pipeline (separate from ASR, see ADR-010)
-- Three-stage pipeline: pyannote community-1 (segmentation) + WeSpeaker v2 (embeddings) + VBx (clustering)
-- Current source pins FluidAudio 0.15.7 and uses `DiarizationService.highAccuracyConfig`. Older DER figures predate clustering fixes and are not a quality measurement of this build; see ADR-010.
-- ~130 MB additional model download (one-time, cached alongside ASR models)
+- Speaker detection runs locally after recording, separately from ASR (ADR-010).
+- Automatic detection uses Nemotron 3 `fast128`, with up to eight speakers per analyzed source. Explicit speaker-count constraints and experimental voice profiles retain Community-1 (pyannote segmentation, WeSpeaker v2 embeddings and VBx clustering).
+- Current source pins FluidAudio 0.17.4. The matched evaluation records improved speaker identity/counts alongside worse results on some distant-microphone recordings; it is not a universal accuracy improvement (ADR-010).
+- Setup prepares both the ~199 MB Nemotron model and ~130 MB Community-1 assets for offline use. Upgrading an old, unmarked Community-1 cache requires one connected setup to obtain the revision-pinned assets.
 - Runs after ASR completes and merges speaker segments with word-level timestamps by time overlap. Isolated one-word flips and unlabeled gaps inherit a speaker only when both neighboring runs agree (ADR-010 2026-09-15).
 - Diarization is non-fatal — if it fails, ASR result is still persisted without speaker data
 - Automatic IDs (`"S1"`, `"S2"`) belong to one transcript version. User corrections are stored separately and resolved into effective attribution for display, search, exports, artifacts and AI; IDs are not cross-file or retranscription identity.
-- Overlapping speech regions are trimmed (exclusive output) — words in overlap zones may lack speaker assignment
+- Nemotron retains overlapping speaker activity; the word merger still assigns at most one speaker per word. Community-1 retains exclusive output and can leave overlap-zone words unassigned.
 - No cross-file speaker identity (Speaker 1 in file A is not linked to Speaker 1 in file B)
 - Single-speaker files can resolve to one label, but still incur diarization work.
-- End-to-end time depends on the selected ASR engine, high-accuracy diarizer preset, audio and hardware. Historical ASR-plus-diarization estimates are not current-release timing guarantees.
+- End-to-end time depends on the selected ASR engine, diarization backend, audio and hardware. Historical ASR-plus-diarization estimates are not current-release timing guarantees.
 
 **Acceptance criteria:**
 - [x] Speakers automatically detected and separated in transcript

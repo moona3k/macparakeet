@@ -94,8 +94,22 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+## [4.7.0] — 2026-09-26
+
 ### Added
 
+- `meetings results edit <meeting> <result-uuid>` edits saved AI content in
+  place with a required exact-content precondition, preserving result identity
+  and generation receipts. It refreshes artifacts and records `contentEditedAt`;
+  stale writes fail with `conflict` instead of overwriting another edit.
+- `meetings corrections revise-text` applies a revision-checked JSON batch of
+  replacements and omissions as one reversible correction. Original audio and
+  recognition evidence are preserved.
+- `llm routes list|set|reset` inspects effective routes and configures or clears
+  cleanup/analysis overrides in the same stores as GUI Settings. Output omits
+  credentials and endpoint secrets; local CLI routes reuse the shared template.
+- `spec --json` documents the new commands and their mutation/precondition
+  boundaries. Existing commands, JSON fields and exit codes remain supported.
 - History JSON may now include `"status": "error"` for a dictation whose
   transcription failed after capture. The row keeps its recording
   (`audioPath`), has an empty `rawTranscript`, and carries the failure in

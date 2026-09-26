@@ -249,6 +249,13 @@ must report the promoted semver from `Sources/CLI/CHANGELOG.md`.
 
 ### Version bumping
 
+The next app candidate is **0.8.8**, continuing the 0.8.x release train.
+**0.9.0 is reserved for qualified, publicly enabled Jev Voice Control.**
+This deliberate milestone policy takes precedence over the generic guidance
+below. Voice Control remains release-gated; additive improvements to the
+existing capture and Library workflows do not by themselves change that
+milestone. The CLI has its own semver and must be versioned independently.
+
 The build script accepts `VERSION` and `BUILD_NUMBER` env vars:
 
 ```bash

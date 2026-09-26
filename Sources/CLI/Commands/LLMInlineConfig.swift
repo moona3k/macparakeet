@@ -104,7 +104,7 @@ struct LLMInlineOptions: ParsableArguments {
     @Flag(name: .long, help: "Mark provider as local (smaller context budget).")
     var local: Bool = false
 
-    private func providerID() throws -> LLMProviderID {
+    func providerID() throws -> LLMProviderID {
         // Accept simple aliases for provider names used in docs and terminals.
         let normalized: String
         switch provider.lowercased() {
