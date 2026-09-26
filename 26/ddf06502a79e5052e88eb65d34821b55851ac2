@@ -1,0 +1,19 @@
+spec/06-stt-engine.md
+  s_80e8140a93c678::t_a1656fc50a7e2d 58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "26ddf06502a79e5052e88eb65d34821b55851ac2",
+  "prompts": {},
+  "sessions": {
+    "s_80e8140a93c678": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1443b099-8855-433f-8006-e6c075c88563",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
