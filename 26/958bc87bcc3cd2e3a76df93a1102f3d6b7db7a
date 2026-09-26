@@ -1,0 +1,21 @@
+.github/workflows/ci.yml
+  s_cac8ea75717892::t_2512de215bd1bd 63,68-69
+spec/09-testing.md
+  s_cac8ea75717892::t_bc0930ae5461bc 399-411
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "26958bc87bcc3cd2e3a76df93a1102f3d6b7db7a",
+  "prompts": {},
+  "sessions": {
+    "s_cac8ea75717892": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0db21-43eb-73f3-b873-a8a718ab6d72",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
