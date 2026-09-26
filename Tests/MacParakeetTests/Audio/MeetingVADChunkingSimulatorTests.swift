@@ -1,66 +1,49 @@
 import XCTest
 @testable import MacParakeetCore
 
-/// Guards the `meeting-vad-sim` harness logic (batching loop + report assembly).
-/// Fixed mode only, so no FluidAudio model is required — CI-safe and
-/// deterministic. The VAD strategy itself is covered by
-/// `SpeechBoundaryMeetingLiveAudioChunkerTests`.
+/// Exercises the report returned to `meeting-vad-sim` using independently
+/// calculated fixed windows. Real VAD/model quality is a separate contract.
 final class MeetingVADChunkingSimulatorTests: XCTestCase {
-    private func tone(seconds: Double) -> [Float] {
-        let n = Int(seconds * 16_000)
-        return (0..<n).map { Float(sin(Double($0) * 0.05)) * 0.3 }
-    }
-
-    func testFixedModeReplayMatchesDirectChunker() async {
-        let samples = tone(seconds: 23)
-
-        // Drive the production fixed chunker directly in the same batch cadence
-        // the simulator uses, to assert the harness doesn't drop or reshape audio.
-        let direct = FixedMeetingLiveAudioChunker()
-        await direct.reset()
-        var expected: [AudioChunker.AudioChunk] = []
-        let batch = 1600
-        var off = 0
-        while off < samples.count {
-            let end = min(off + batch, samples.count)
-            expected += await direct.addSamples(Array(samples[off..<end]))
-            off = end
-        }
-        if let tail = await direct.flush() { expected.append(tail) }
-
+    func testFixedReplayReportsOverlappingWindowsAndFlushedTail() async {
         let report = await MeetingVADChunkingSimulator.simulate(
-            samples16k: samples, mode: .fixed, batchSamples: batch)
+            samples16k: [Float](repeating: 0.3, count: 368_000),
+            mode: .fixed,
+            batchSamples: 1_600
+        )
 
+        // 23 seconds at 16 kHz: five 5-second windows advancing by 4 seconds,
+        // then the remaining 20–23-second tail, including the final overlap.
         XCTAssertEqual(report.mode, "fixed")
         XCTAssertTrue(report.vadAvailable)
         XCTAssertEqual(report.audioDurationMs, 23_000)
-        XCTAssertEqual(report.chunks.count, expected.count, "harness must not drop or add chunks")
-        for (got, want) in zip(report.chunks, expected) {
-            XCTAssertEqual(got.startMs, want.startMs)
-            XCTAssertEqual(got.endMs, want.endMs)
-            XCTAssertEqual(got.sampleCount, want.samples.count)
-        }
-        XCTAssertGreaterThan(report.processingSeconds, 0)
-        XCTAssertGreaterThan(report.realtimeFactor, 0)
-        // Fixed strategy reports no VAD diagnostics.
+        XCTAssertEqual(report.ingestBatchCount, 230)
+        XCTAssertEqual(report.batchSamples, 1_600)
+        XCTAssertEqual(report.chunks.map(\.index), [0, 1, 2, 3, 4, 5])
+        XCTAssertEqual(report.chunks.map(\.startMs), [0, 4_000, 8_000, 12_000, 16_000, 20_000])
+        XCTAssertEqual(report.chunks.map(\.endMs), [5_000, 9_000, 13_000, 17_000, 21_000, 23_000])
+        XCTAssertEqual(report.chunks.map(\.durationMs), [5_000, 5_000, 5_000, 5_000, 5_000, 3_000])
+        XCTAssertEqual(report.chunks.map(\.sampleCount), [80_000, 80_000, 80_000, 80_000, 80_000, 48_000])
         XCTAssertEqual(report.forceEmits, 0)
         XCTAssertEqual(report.droppedSilenceWindows, 0)
         XCTAssertFalse(report.fellBackToFixed)
     }
 
-    func testUnevenBatchCoversAllAudio() async {
-        // A batch size that doesn't divide the input must still feed the trailing
-        // partial batch (no lost tail).
-        let samples = tone(seconds: 12)
+    func testPartialIngestBatchIsIncludedInFinalReport() async {
+        // 128 complete ingests plus 496 samples: unlike 192,000 samples,
+        // this input is genuinely uneven at the 1,500-sample ingest boundary.
         let report = await MeetingVADChunkingSimulator.simulate(
-            samples16k: samples, mode: .fixed, batchSamples: 1500)
-        XCTAssertEqual(report.audioDurationMs, 12_000)
-        // 12s of audio → at least the first 5s fixed chunk plus a flushed tail.
-        XCTAssertGreaterThanOrEqual(report.chunks.count, 2)
-        // Contiguity: fixed chunks advance by 4s (5s window, 1s overlap).
-        if report.chunks.count >= 2 {
-            XCTAssertEqual(report.chunks[0].startMs, 0)
-            XCTAssertEqual(report.chunks[1].startMs, 4_000)
-        }
+            samples16k: [Float](repeating: 0.3, count: 192_496),
+            mode: .fixed,
+            batchSamples: 1_500
+        )
+
+        XCTAssertEqual(report.audioDurationMs, 12_031)
+        XCTAssertEqual(report.ingestBatchCount, 129)
+        XCTAssertEqual(report.batchSamples, 1_500)
+        XCTAssertEqual(report.chunks.map(\.index), [0, 1, 2])
+        XCTAssertEqual(report.chunks.map(\.startMs), [0, 4_000, 8_000])
+        XCTAssertEqual(report.chunks.map(\.endMs), [5_000, 9_000, 12_031])
+        XCTAssertEqual(report.chunks.map(\.durationMs), [5_000, 5_000, 4_031])
+        XCTAssertEqual(report.chunks.map(\.sampleCount), [80_000, 80_000, 64_496])
     }
 }
