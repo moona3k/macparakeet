@@ -1,0 +1,19 @@
+scripts/ci/test_model_qualification.py
+  s_c299e83108feed::t_76ea68df471dda 4,154-168,171-173,175-181,183-208
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "864b7f504b11c69578118e19f56bdffd7df91f26",
+  "prompts": {},
+  "sessions": {
+    "s_c299e83108feed": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dc15-ddf7-71f2-a669-23235022dc65",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
