@@ -170,12 +170,13 @@ jobs:
             swift --version
           } 2>&1 | tee ci-logs/environment.log
 
-      - name: Meeting Echo Packaging Fixtures
+      - name: Distribution Policy Fixtures
         timeout-minutes: 5
         run: |
           set -euo pipefail
           mkdir -p ci-logs
-          for fixture in test_macho_min_version test_prepare_meeting_echo_assets test_verify_meeting_echo_assets; do
+          for fixture in test_macho_min_version test_prepare_meeting_echo_assets test_verify_meeting_echo_assets \
+            test_verify_app_privacy_surface test_verify_release_version; do
             bash "scripts/dist/${fixture}.sh" 2>&1 | tee "ci-logs/${fixture}.log"
           done
 
