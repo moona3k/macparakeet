@@ -1,3 +1,4 @@
+import GRDB
 import XCTest
 @testable import MacParakeetCore
 
@@ -6,14 +7,12 @@ final class CancelFlowTests: XCTestCase {
     var dictationService: DictationService!
     var mockAudio: MockAudioProcessor!
     var mockSTT: MockSTTClient!
-    var mockClipboard: MockClipboardService!
     var dictationRepo: DictationRepository!
 
     override func setUp() async throws {
         let dbManager = try DatabaseManager()
         mockAudio = MockAudioProcessor()
         mockSTT = MockSTTClient()
-        mockClipboard = MockClipboardService()
         dictationRepo = DictationRepository(dbQueue: dbManager.dbQueue)
 
         dictationService = DictationService(
@@ -23,8 +22,8 @@ final class CancelFlowTests: XCTestCase {
         )
     }
 
-    /// Cancel should not paste or save anything
-    func testCancelDoesNotPasteOrSave() async throws {
+    /// Cancelling during capture should not save a dictation.
+    func testCancelDuringCaptureDoesNotSave() async throws {
         let sttResult = STTResult(text: "This should not be pasted")
         await mockSTT.configure(result: sttResult)
 
@@ -38,13 +37,136 @@ final class CancelFlowTests: XCTestCase {
         // Cancel
         await dictationService.cancelRecording()
 
-        // Verify no paste happened
-        let pasteCount = await mockClipboard.pasteCallCount
-        XCTAssertEqual(pasteCount, 0, "Cancel should not paste anything")
-
         // Verify nothing saved to DB
         let all = try dictationRepo.fetchAll(limit: nil)
         XCTAssertTrue(all.isEmpty, "Cancel should not save to database")
+    }
+
+    func testCancelledProcessingNeverCompletesHistoryAndPreservesReplacement() async throws {
+        try await assertProcessingCancellation(at: .transcription)
+    }
+
+    func testCancellationDuringSuccessDisplayPreservesCommittedResult() async throws {
+        try await assertProcessingCancellation(at: .successDisplay)
+    }
+
+    func testCancellationDuringFormatterMetadataPreservesCommittedResult() async throws {
+        try await assertProcessingCancellation(at: .formatterRun)
+    }
+
+    func testCancelledFormattingNeverCompletesHistoryAndPreservesReplacement() async throws {
+        try await assertProcessingCancellation(at: .formatting)
+        try await assertProcessingCancellation(at: .formatterCancellation)
+    }
+
+    private enum CancellationStage: Sendable {
+        case transcription, formatting, formatterCancellation, successDisplay, formatterRun
+
+        var isCommitted: Bool { self == .successDisplay || self == .formatterRun }
+    }
+
+    private func assertProcessingCancellation(at stage: CancellationStage) async throws {
+        for preserve in [false, true] {
+            for saveHistory in [false, true] {
+                if stage == .formatterRun && !saveHistory { continue }
+                for replace in [false, true] {
+                    let db = try DatabaseManager()
+                    let repo = DictationRepository(dbQueue: db.dbQueue)
+                    let audio = MockAudioProcessor()
+                    let stt = MockSTTClient()
+                    let audioURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+                        UUID().uuidString + ".wav")
+                    try Data([0, 1, 2]).write(to: audioURL)
+                    defer { try? FileManager.default.removeItem(at: audioURL) }
+                    await audio.configure(captureResult: audioURL)
+                    let suspended = expectation(description: "Processing suspended at \(stage)")
+                    let release = ProcessingCancellationGate()
+                    let llm = MockLLMService()
+                    if stage == .formatting || stage == .formatterCancellation {
+                        llm.formatTranscriptHook = {
+                            suspended.fulfill()
+                            await release.wait()
+                        }
+                        if stage == .formatterCancellation { llm.errorToThrow = CancellationError() }
+                    }
+                    let runs = LLMRunRepository(dbQueue: db.dbQueue)
+                    let service = DictationService(
+                        audioProcessor: audio,
+                        sttTranscriber: stt,
+                        dictationRepo: repo,
+                        shouldSaveDictationHistory: { saveHistory },
+                        shouldPreserveDiscardedDictations: { preserve },
+                        llmService: llm,
+                        llmRunRepo: stage == .formatterRun
+                            ? SuspendedDictationRunRepository(
+                                base: runs, gate: release, entered: { suspended.fulfill() })
+                            : runs,
+                        shouldUseAIFormatter: { true }
+                    )
+                    await stt.configure(result: STTResult(text: "discarded take"))
+                    if stage == .transcription {
+                        await stt.setTranscribeHook {
+                            suspended.fulfill()
+                            await release.wait()
+                        }
+                    } else if stage == .successDisplay {
+                        await service.setSuccessDisplayWaiterForTesting {
+                            suspended.fulfill()
+                            await release.wait()
+                        }
+                    }
+                    try await service.startRecording(context: DictationTelemetryContext(), sessionID: 1)
+                    let stop = Task { try await service.stopRecording(sessionID: 1) }
+                    await fulfillment(of: [suspended], timeout: 2)
+                    stop.cancel()
+                    if replace {
+                        try await service.startRecording(context: DictationTelemetryContext(), sessionID: 2)
+                    }
+                    await release.open()
+                    do {
+                        let result = try await stop.value
+                        if !stage.isCommitted {
+                            XCTFail("Cancelled processing returned a deliverable result")
+                        } else {
+                            XCTAssertEqual(result.dictation.status, .completed)
+                        }
+                    } catch is CancellationError {
+                        XCTAssertFalse(stage.isCommitted, "A committed take keeps its terminal result")
+                    }
+                    // Awaiting the real service task proves persistence has settled.
+                    let context = "preserve=\(preserve), history=\(saveHistory), replacement=\(replace)"
+                    XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path), context)
+                    let rows = try await db.dbQueue.read { try Dictation.fetchAll($0) }
+                    let committed = stage.isCommitted
+                    XCTAssertEqual(rows.count, committed || (preserve && saveHistory) ? 1 : 0, context)
+                    XCTAssertTrue(rows.allSatisfy { $0.status == (committed ? .completed : .cancelled) }, context)
+                    XCTAssertEqual(try repo.fetchCompleted(limit: 10).count, committed && saveHistory ? 1 : 0, context)
+                    XCTAssertEqual(try repo.stats().totalCount, committed ? 1 : 0, context)
+                    XCTAssertEqual(try runs.count(), committed && saveHistory ? 1 : 0, context)
+                    if !committed && preserve && saveHistory {
+                        XCTAssertEqual(rows.first?.rawTranscript, "discarded take", context)
+                    }
+                    if stage == .transcription {
+                        XCTAssertEqual(llm.formatTranscriptCallCount, 0, "Cancelled STT must not start a formatter")
+                    }
+                    let state = await service.state
+                    if replace {
+                        guard case .recording = state else {
+                            XCTFail("Replacement capture was overwritten: \(state), \(context)")
+                            continue
+                        }
+                        await stt.setTranscribeHook {}
+                        await service.cancelRecording(reason: nil, sessionID: 2)
+                        await service.confirmCancel(sessionID: 2)
+                    } else {
+                        guard case .idle = state else {
+                            XCTFail("Cancelled processing did not settle: \(state), \(context)")
+                            continue
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// Verify cancel stops audio capture and transitions to cancelled state
@@ -113,10 +235,6 @@ final class CancelFlowTests: XCTestCase {
         } catch {
             XCTFail("Unexpected error type: \(error)")
         }
-
-        // Verify no paste happened
-        let pasteCount = await mockClipboard.pasteCallCount
-        XCTAssertEqual(pasteCount, 0)
     }
 
     /// Duration computation with word timestamps
@@ -339,4 +457,32 @@ final class CancelFlowTests: XCTestCase {
         let all = try dictationRepo.fetchAll(limit: nil)
         XCTAssertTrue(all.isEmpty, "Empty transcript should not be saved")
     }
+}
+
+/// Holds the real metadata write's return, not a mock of persistence or cancellation.
+private final class SuspendedDictationRunRepository: LLMRunRepositoryProtocol, Sendable {
+    let base: LLMRunRepository
+    let gate: ProcessingCancellationGate
+    let entered: @Sendable () -> Void
+
+    init(base: LLMRunRepository, gate: ProcessingCancellationGate, entered: @escaping @Sendable () -> Void) {
+        self.base = base
+        self.gate = gate
+        self.entered = entered
+    }
+
+    func save(_ run: LLMRun) async throws {
+        try await base.save(run)
+        entered()
+        await gate.wait()
+    }
+
+    func fetchRecent(limit: Int) throws -> [LLMRun] { try base.fetchRecent(limit: limit) }
+    func fetchForDictation(id: UUID) throws -> [LLMRun] { try base.fetchForDictation(id: id) }
+    func fetchForTranscription(id: UUID) throws -> [LLMRun] { try base.fetchForTranscription(id: id) }
+    func fetchForPromptResult(id: UUID) throws -> [LLMRun] { try base.fetchForPromptResult(id: id) }
+    func fetchForChatConversation(id: UUID) throws -> [LLMRun] { try base.fetchForChatConversation(id: id) }
+    func fetchForTransformHistory(id: UUID) throws -> [LLMRun] { try base.fetchForTransformHistory(id: id) }
+    func count() throws -> Int { try base.count() }
+    func deleteAll() throws { try base.deleteAll() }
 }

@@ -1095,6 +1095,10 @@ final class DictationFlowCoordinator {
 
     // MARK: - Private Helpers
 
+    // Snapshot before cancelling: cancellation clears actionTask, but tests
+    // must join the owned continuation before asserting that no delivery ran.
+    var processingTaskForTesting: Task<Void, Never>? { actionTask }
+
     var processingLoadCaptionForTesting: DictationOverlayViewModel.ProcessingLoadCaption? {
         overlayViewModel?.processingLoadCaption
     }
