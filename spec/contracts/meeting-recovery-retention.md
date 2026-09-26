@@ -170,12 +170,15 @@ leaves the completed row and lock available for recovery. A retry refreshes the
 existing completed row and settles its lock without another audio mix or STT run.
 An existing row's notes are canonical, including explicit nil or empty clears;
 older notes in a retained lock or a recovered `MeetingRecordingOutput` must not
-repopulate the row or its notes artifact. This holds for every path that updates
-an existing row: `TranscriptionService.finalizeMeetingTranscription` on a
-queued/processing/error row, and recovery's completed-row paths (both the direct
+repopulate the row or its notes artifact. This holds for the finalize and
+recovery paths covered by this contract: `TranscriptionService.finalizeMeetingTranscription`
+on a queued/processing/error row, and recovery's completed-row paths (both the direct
 `awaitingTranscription` refresh and `completeRecovery` for a completed row found
 under a non-`awaitingTranscription` lock). Only a genuinely new row (a fresh
 stub with no prior DB state) takes its initial notes from the lock/recording.
+`TranscriptionService.retranscribeArchivedMeeting` (explicit user-triggered
+re-run) is outside this contract's recovery/finalize scope and still falls
+back to `recording.userNotes` when the row's notes are nil.
 A stale descriptor for an already settled session is refused with `missingLock`;
 rediscovery is empty and does not recreate rows or audio.
 
