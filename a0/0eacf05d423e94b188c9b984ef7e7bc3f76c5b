@@ -1,5 +1,7 @@
 spec/09-testing.md
   s_cac8ea75717892::t_bc0930ae5461bc 443-455
+.github/workflows/ci.yml
+  s_e1d6127368bf19::t_127d401bc74dac 172,177-178
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -12,6 +14,14 @@ spec/09-testing.md
         "tool": "codex",
         "id": "01a0db21-43eb-73f3-b873-a8a718ab6d72",
         "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_e1d6127368bf19": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "07e21bb6-8f9e-4061-b1cd-43950cbc0fcb",
+        "model": "claude-sonnet-5"
       },
       "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
     }
