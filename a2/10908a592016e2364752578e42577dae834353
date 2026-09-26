@@ -1,0 +1,25 @@
+Sources/MacParakeetCore/Services/Ask/AskWorkspaceService.swift
+  s_4578606cebd7c7::t_8264f592080a8a 434
+Sources/MacParakeet/Views/Ask/AskWorkspaceView.swift
+  s_4578606cebd7c7::t_8264f592080a8a 346
+Tests/MacParakeetTests/Ask/AskWorkspaceServiceTests.swift
+  s_4578606cebd7c7::t_8264f592080a8a 203,207
+spec/contracts/ask-workspace.md
+  s_4578606cebd7c7::t_8264f592080a8a 70-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a210908a592016e2364752578e42577dae834353",
+  "prompts": {},
+  "sessions": {
+    "s_4578606cebd7c7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0db20-e057-7c41-83c9-2fd3e13c3dba",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
