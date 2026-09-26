@@ -85,16 +85,24 @@ jobs:
           set -o pipefail
           xcrun swift-format lint --recursive --configuration .swift-format Sources Tests 2>&1 | tee ci-logs/swift-format-lint.log
 
-      - name: Cache SwiftPM Dependencies
+      - name: SwiftPM Cache Identity
+        id: swift_cache
+        run: |
+          fingerprint=$(bash scripts/ci/swift-cache-key.sh)
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+
+      # Reuse build state only within one lane and matching toolchain, SDK,
+      # architecture, package graph and workflow. Always build after restore:
+      # SwiftPM must reconcile changed/deleted sources before --skip-build tests.
+      - name: Cache SwiftPM Build State
         uses: actions/cache@v5
         with:
           path: |
-            .build/checkouts
-            .build/repositories
-            ~/Library/Caches/org.swift.swiftpm
-          key: ${{ runner.os }}-spm-${{ hashFiles('Package.swift', 'Package.resolved') }}
+            .build
+            .build-swift6-no-whisper
+          key: swiftpm-v1-behavior-${{ steps.swift_cache.outputs.fingerprint }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-spm-
+            swiftpm-v1-behavior-${{ steps.swift_cache.outputs.fingerprint }}-
 
       # Compile the normal dependency graph and tests once with the same
       # concurrency diagnostics used during execution. Keep build and run
@@ -164,7 +172,7 @@ jobs:
           MACPARAKEET_TELEMETRY: "0"
         run: |
           set -o pipefail
-          swift test --skip-build -Xswiftc -warn-concurrency --filter MeetingRecordingCrashRecoveryTests/testKilledRecordingRecoversInFreshProcessAndRemainsIdempotent 2>&1 | tee ci-logs/meeting-process-recovery.log
+          swift test --skip-build -Xswiftc -warn-concurrency --filter 'MeetingRecordingCrashRecoveryTests/(testKillNineMidRecordingProducesPlayableFiles|testKilledRecordingRecoversInFreshProcessAndRemainsIdempotent)' 2>&1 | tee ci-logs/meeting-process-recovery.log
 
       - name: Swift 6 Language Mode
         if: ${{ !cancelled() && steps.test_build.outcome == 'success' }}
@@ -226,16 +234,23 @@ jobs:
             bash "scripts/dist/${fixture}.sh" 2>&1 | tee "ci-logs/${fixture}.log"
           done
 
-      - name: Cache SwiftPM Dependencies
+      - name: SwiftPM Cache Identity
+        id: swift_cache
+        run: |
+          fingerprint=$(bash scripts/ci/swift-cache-key.sh)
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+
+      # Reuse build state only within one lane and matching toolchain, SDK,
+      # architecture, package graph and workflow. Always build after restore:
+      # SwiftPM must reconcile changed/deleted sources before --skip-build tests.
+      - name: Cache SwiftPM Build State
         uses: actions/cache@v5
         with:
           path: |
-            .build/checkouts
-            .build/repositories
-            ~/Library/Caches/org.swift.swiftpm
-          key: ${{ runner.os }}-spm-${{ hashFiles('Package.swift', 'Package.resolved') }}
+            .build
+          key: swiftpm-v1-distribution-${{ steps.swift_cache.outputs.fingerprint }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-spm-
+            swiftpm-v1-distribution-${{ steps.swift_cache.outputs.fingerprint }}-
 
       - name: Swift Build (Release)
         timeout-minutes: 25

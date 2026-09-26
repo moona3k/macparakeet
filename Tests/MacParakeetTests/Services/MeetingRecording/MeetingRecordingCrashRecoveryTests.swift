@@ -37,10 +37,13 @@ final class MeetingRecordingCrashRecoveryTests: XCTestCase {
         ]) { _, new in new }
 
         try process.run()
+        defer { stopJourneyChild(process) }
         try await waitForFileToGrow(folderURL.appendingPathComponent("microphone-raw.m4a"))
         try await Task.sleep(for: .seconds(5))
-        kill(process.processIdentifier, SIGKILL)
+        XCTAssertEqual(kill(process.processIdentifier, SIGKILL), 0)
         process.waitUntilExit()
+        XCTAssertEqual(process.terminationReason, .uncaughtSignal)
+        XCTAssertEqual(process.terminationStatus, SIGKILL)
 
         let duration = try await audioDuration(folderURL.appendingPathComponent("microphone-raw.m4a"))
         XCTAssertGreaterThanOrEqual(duration, 4.0)
@@ -58,6 +61,7 @@ final class MeetingRecordingCrashRecoveryTests: XCTestCase {
             try writer.write(buffer, source: .microphone)
             try await Task.sleep(for: .seconds(1))
         }
+        XCTFail("Parent must SIGKILL the active writer before clean finalization")
         await finalize(writer)
     }
 
