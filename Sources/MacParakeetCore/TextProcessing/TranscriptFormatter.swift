@@ -32,7 +32,9 @@ struct TranscriptFormatter: Sendable {
         // length; past the cap slow providers can stall finalization until
         // timeout before falling back anyway (issue #493).
         if let maxInputChars = lane.maxInputChars, text.count > maxInputChars {
-            logger.info("transcription_ai_formatter_skipped reason=input_too_long chars=\(text.count, privacy: .public) cap=\(maxInputChars, privacy: .public)")
+            logger.info(
+                "transcription_ai_formatter_skipped reason=input_too_long chars=\(text.count, privacy: .public) cap=\(maxInputChars, privacy: .public)"
+            )
             return .skipped
         }
 
@@ -64,7 +66,8 @@ struct TranscriptFormatter: Sendable {
         // trims whitespace and folds legacy-v1 prompts back onto the current
         // default. Raw comparison would report those cases as custom prompts
         // even though the LLM sees the shipped default.
-        let defaultPromptUsed = AIFormatter.normalizedPromptTemplate(promptTemplate)
+        let defaultPromptUsed =
+            AIFormatter.normalizedPromptTemplate(promptTemplate)
             == AIFormatter.defaultPromptTemplate
         let startedAt = Date()
         do {
@@ -74,6 +77,9 @@ struct TranscriptFormatter: Sendable {
                 source: lane.telemetrySource,
                 defaultPromptUsed: defaultPromptUsed
             )
+            guard !result.inputTruncated else {
+                throw LLMError.formatterTruncated
+            }
             let trimmed = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
             let run = runSource.map {
                 LLMRun(formatterResult: result, source: $0, feature: lane.feature)
@@ -86,9 +92,13 @@ struct TranscriptFormatter: Sendable {
             let errorType = TelemetryErrorClassifier.classify(error)
             switch lane {
             case .dictation:
-                logger.warning("dictation_ai_formatter_failed fallback=standard_cleanup error_type=\(errorType, privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
+                logger.warning(
+                    "dictation_ai_formatter_failed fallback=standard_cleanup error_type=\(errorType, privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
+                )
             case .transcription:
-                logger.warning("transcription_ai_formatter_failed fallback=standard_cleanup error_type=\(errorType, privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
+                logger.warning(
+                    "transcription_ai_formatter_failed fallback=standard_cleanup error_type=\(errorType, privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
+                )
             }
             let message = "\(error.localizedDescription) Used standard cleanup."
             NotificationCenter.default.post(

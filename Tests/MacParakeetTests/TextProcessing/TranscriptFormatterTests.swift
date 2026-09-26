@@ -171,6 +171,49 @@ final class TranscriptFormatterTests: XCTestCase {
         XCTAssertNotNil(run.errorType)
     }
 
+    func testTruncatedDetailedResultFallsBackWithoutOutputOrProfileAttribution() async throws {
+        let mock = MockLLMService()
+        mock.formatTranscriptInputTruncated = true
+        mock.formatTranscriptResult = "Partial output"
+        let formatter = makeFormatter(llmService: mock)
+        let cleaned = "Beginning. " + String(repeating: "full text ", count: 100) + "Important ending."
+        let resolution = AIFormatterPromptResolution(
+            promptTemplate: "Rewrite for Slack.", matchKind: .exactApp,
+            profileID: UUID(), profileName: "Slack", profileOrigin: .custom
+        )
+        for lane in [TranscriptFormatter.Lane.dictation, .transcription] {
+            let outcome = try await format(
+                formatter, text: cleaned, lane: lane,
+                promptTemplate: resolution.promptTemplate, resolution: resolution
+            )
+            XCTAssertEqual(outcome.text ?? cleaned, cleaned)
+            XCTAssertNil(outcome.text)
+            XCTAssertNil(outcome.resolution)
+            let run = try XCTUnwrap(outcome.run)
+            XCTAssertEqual(run.status, .failed)
+            XCTAssertEqual(run.inputChars, cleaned.count)
+            XCTAssertEqual(run.outputChars, 0)
+            XCTAssertNotNil(run.errorType)
+        }
+    }
+
+    func testRealServiceBudgetFailurePreservesFallbackAndRecordsFailedAttempt() async throws {
+        let client = MockLLMClient()
+        let store = MockLLMConfigStore()
+        store.config = .appleIntelligence()
+        let service = LLMService(client: client, contextResolver: MockLLMExecutionContextResolver(configStore: store))
+        let formatter = makeFormatter(llmService: service)
+        let cleaned = String(repeating: "complete text ", count: 1_000) + "Important ending."
+        let outcome = try await format(formatter, text: cleaned)
+        XCTAssertEqual(client.chatCompletionCallCount, 0)
+        XCTAssertEqual(outcome.text ?? cleaned, cleaned)
+        XCTAssertNil(outcome.resolution)
+        let run = try XCTUnwrap(outcome.run)
+        XCTAssertEqual(run.status, .failed)
+        XCTAssertEqual(run.inputChars, cleaned.count)
+        XCTAssertEqual(run.outputChars, 0)
+    }
+
     func testCancellationErrorIsRethrown() async throws {
         let mockLLMService = MockLLMService()
         mockLLMService.errorToThrow = CancellationError()

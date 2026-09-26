@@ -1002,6 +1002,8 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         ).output
     }
 
+    var formatTranscriptInputTruncated = false
+
     func formatTranscriptDetailed(
         transcript: String,
         promptTemplate: String,
@@ -1027,7 +1029,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
             operationID: "mock-format-operation",
             inputChars: transcript.count,
             outputChars: formatTranscriptResult.count,
-            inputTruncated: false,
+            inputTruncated: formatTranscriptInputTruncated,
             defaultPromptUsed: defaultPromptUsed,
             messageCount: 2
         )

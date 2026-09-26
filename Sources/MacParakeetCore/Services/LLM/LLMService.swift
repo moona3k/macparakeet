@@ -900,23 +900,19 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         )
         let config = context.providerConfig
         let budget = contextBudget(for: config, roundTrip: true)
-        let promptOverhead =
-            Prompts.formatter.count
-            + AIFormatter.renderPrompt(template: promptTemplate, transcript: "").count
-        let transcriptBudget = max(0, budget - promptOverhead)
-        // Compare original transcript length against the transcript-specific
-        // budget. The request also includes formatter instructions and the
-        // rendered template, so the transcript cannot consume the whole model
-        // context by itself.
-        let inputTruncated = transcript.count > transcriptBudget
-        let truncated = Self.truncateMiddle(transcript, limit: transcriptBudget)
-        let renderedPrompt = AIFormatter.renderPrompt(template: promptTemplate, transcript: truncated)
+        // Formatting must preserve the entire transcript. Measure the rendered
+        // request, including repeated placeholders and no-placeholder separators.
+        let inputTruncated = false
+        let renderedPrompt = AIFormatter.renderPrompt(template: promptTemplate, transcript: transcript)
         let messages = [
             ChatMessage(role: .system, content: Prompts.formatter),
             ChatMessage(role: .user, content: renderedPrompt),
         ]
 
         do {
+            guard messages.reduce(0, { $0 + $1.content.count }) <= budget else {
+                throw LLMError.formatterTruncated
+            }
             let response: ChatCompletionResponse
             let output: String
             if config.id == .lmstudio {
@@ -931,14 +927,17 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                         )
                     )
                 )
-                if response.finishReason?.lowercased() == "length" {
-                    throw LLMError.formatterTruncated
-                }
                 let formatted = parseLMStudioFormattedTranscript(response) ?? response.content
                 output = AIFormatter.normalizedFormattedOutput(formatted)
             } else {
                 response = try await client.chatCompletion(messages: messages, context: context, options: .default)
                 output = AIFormatter.normalizedFormattedOutput(response.content)
+            }
+
+            if let reason = response.finishReason?.lowercased(),
+                reason == "length" || reason == "max_tokens"
+            {
+                throw LLMError.formatterTruncated
             }
 
             // An empty or whitespace-only response is a failure, not a

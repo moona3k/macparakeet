@@ -1055,23 +1055,74 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertEqual(operations.first?["feature"], TelemetryLLMFeature.formatter.rawValue)
     }
 
-    func testFormatTranscriptDetailedSubtractsPromptOverheadFromTranscriptBudget() async throws {
-        mockConfigStore.config = .ollama(model: "llama3.2")
-        let transcript = "SENTINEL_TRANSCRIPT"
-        let longPromptTemplate =
-            String(repeating: "instruction ", count: 9_000)
-            + AIFormatter.transcriptPlaceholder
-
-        let result = try await service.formatTranscriptDetailed(
-            transcript: transcript,
-            promptTemplate: longPromptTemplate,
-            source: .dictation,
-            defaultPromptUsed: false
+    func testFormatterRejectsRenderedRequestsOverBudgetWithoutCallingProvider() async throws {
+        mockConfigStore.config = .appleIntelligence()
+        // Obtain the real system overhead from one small request.
+        _ = try await service.formatTranscriptDetailed(
+            transcript: "x", promptTemplate: AIFormatter.transcriptPlaceholder,
+            source: .dictation, defaultPromptUsed: false
         )
+        let available = LLMService.appleIntelligenceRoundTripBudget - mockClient.capturedMessages[0].content.count
+        let cases = [
+            (String(repeating: "x", count: available + 1), AIFormatter.transcriptPlaceholder),
+            ("x", String(repeating: "p", count: available) + AIFormatter.transcriptPlaceholder),
+            (
+                String(repeating: "x", count: available / 2 + 1),
+                AIFormatter.transcriptPlaceholder + AIFormatter.transcriptPlaceholder
+            ),
+            ("x", String(repeating: "p", count: available - 1)),
+        ]
+        for (transcript, template) in cases {
+            mockClient.chatCompletionCallCount = 0
+            do {
+                _ = try await service.formatTranscriptDetailed(
+                    transcript: transcript, promptTemplate: template,
+                    source: .dictation, defaultPromptUsed: false
+                )
+                XCTFail("Expected oversized rendered request to fail")
+            } catch LLMError.formatterTruncated {
+                // Expected: no partial request is sent.
+            }
+            XCTAssertEqual(mockClient.chatCompletionCallCount, 0)
+        }
 
-        XCTAssertTrue(result.inputTruncated)
-        XCTAssertEqual(mockClient.capturedMessages.count, 2)
-        XCTAssertFalse(mockClient.capturedMessages[1].content.contains(transcript))
+        let exactTranscript = String(repeating: "x", count: available)
+        let result = try await service.formatTranscriptDetailed(
+            transcript: exactTranscript, promptTemplate: AIFormatter.transcriptPlaceholder,
+            source: .dictation, defaultPromptUsed: false
+        )
+        XCTAssertFalse(result.inputTruncated)
+        XCTAssertEqual(mockClient.chatCompletionCallCount, 1)
+        XCTAssertEqual(mockClient.capturedMessages[1].content, exactTranscript)
+        XCTAssertEqual(
+            mockClient.capturedMessages.reduce(0) { $0 + $1.content.count },
+            LLMService.appleIntelligenceRoundTripBudget)
+    }
+
+    func testFormatterRejectsTokenLimitTerminationAcrossRoutes() async throws {
+        let configs: [LLMProviderConfig] = [
+            .ollama(model: "llama3.2"),
+            LLMProviderConfig(
+                id: .lmstudio, baseURL: URL(string: "http://localhost:1234/v1")!,
+                apiKey: nil, modelName: "test", isLocal: true),
+        ]
+        for config in configs {
+            mockConfigStore.config = config
+            for reason in ["length", "max_tokens"] {
+                mockClient.responseFinishReason = reason
+                mockClient.responseContent = "Partial transcript"
+                do {
+                    _ = try await service.formatTranscriptDetailed(
+                        transcript: "Full transcript with an important ending.",
+                        promptTemplate: AIFormatter.defaultPromptTemplate,
+                        source: .dictation, defaultPromptUsed: true
+                    )
+                    XCTFail("Expected truncated output to fail for \(config.id) / \(reason)")
+                } catch LLMError.formatterTruncated {
+                    // Both routing branches must reject incomplete output.
+                }
+            }
+        }
     }
 
     // MARK: - Transform
@@ -1368,21 +1419,43 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertEqual(mockClient.chatCompletionCallCount, 0)
     }
 
-    func testAppleIntelligenceFormatterUsesRoundTripBudget() async throws {
+    func testAppleIntelligenceFormatterRejectsOversizedInput() async throws {
         mockConfigStore.config = .appleIntelligence()
-        mockClient.responseContent = "Clean."
+        let telemetry = LLMTelemetrySpy()
+        Telemetry.configure(telemetry)
+        do {
+            _ = try await service.formatTranscriptDetailed(
+                transcript: String(repeating: "word ", count: 2_000),
+                promptTemplate: AIFormatter.defaultPromptTemplate,
+                source: .transcription, defaultPromptUsed: true
+            )
+            XCTFail("Expected oversized formatter input to fail")
+        } catch LLMError.formatterTruncated {
+            XCTAssertEqual(mockClient.chatCompletionCallCount, 0)
+        }
+        let events = telemetry.snapshot()
+        XCTAssertTrue(
+            events.contains {
+                if case .llmFormatterFailed = $0 { return true }; return false
+            })
+        XCTAssertFalse(
+            events.contains {
+                if case .llmFormatterUsed = $0 { return true }; return false
+            })
+        XCTAssertFalse(llmOperationProps(in: events).contains { $0["outcome"] == "success" })
+    }
 
-        let text = String(repeating: "word ", count: 2_000)
-        _ = try await service.formatTranscriptDetailed(
-            transcript: text,
-            promptTemplate: AIFormatter.defaultPromptTemplate,
-            source: .transcription,
-            defaultPromptUsed: true
-        )
-
-        let totalMessageChars = mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }
-        XCTAssertLessThanOrEqual(totalMessageChars, LLMService.appleIntelligenceRoundTripBudget)
-        XCTAssertTrue(mockClient.capturedMessages.contains { $0.content.contains("[... content truncated ...]") })
+    func testFormatterCancellationPropagatesFromProvider() async throws {
+        mockClient.chatCompletionError = CancellationError()
+        do {
+            _ = try await service.formatTranscriptDetailed(
+                transcript: "Full text", promptTemplate: AIFormatter.defaultPromptTemplate,
+                source: .dictation, defaultPromptUsed: true
+            )
+            XCTFail("Expected cancellation")
+        } catch is CancellationError {
+            XCTAssertEqual(mockClient.chatCompletionCallCount, 1)
+        }
     }
 
     func testOllamaKnowledgeCardKeepsTheLocalBudget() async throws {

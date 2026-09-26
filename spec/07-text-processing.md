@@ -150,6 +150,22 @@ Stores trigger-to-expansion mappings.
 
 ---
 
+## Optional AI Formatting
+
+AI formatting runs after deterministic cleanup. The complete rendered system and
+user messages must fit the selected provider's existing round-trip character
+budget, including repeated transcript placeholders and appended transcript
+separators. Oversized requests fail before calling the provider; formatting never
+truncates or chunks the transcript. Responses ending in `length` or `max_tokens`,
+and detailed results marked as having truncated input, also fail formatting.
+
+These failures preserve the full deterministic cleanup result. A failed attempt
+is recorded without provider output or successful prompt-profile attribution.
+Existing transcription lane caps, cancellation, and lifecycle notifications remain
+unchanged.
+
+---
+
 ## CLI Commands
 
 ### Text Processing
