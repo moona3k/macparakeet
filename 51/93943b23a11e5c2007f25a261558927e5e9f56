@@ -1,0 +1,19 @@
+Tests/CLITests/ModelLifecycleCommandTests.swift
+  s_85371083e1b687::t_3a1a546e54f625 45-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5193943b23a11e5c2007f25a261558927e5e9f56",
+  "prompts": {},
+  "sessions": {
+    "s_85371083e1b687": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "558f28ea-999b-4660-a4c5-1a211778ce7f",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
