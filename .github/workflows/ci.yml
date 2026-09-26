@@ -14,6 +14,11 @@ on:
       - "docs/**"
       - "plans/**"
   workflow_dispatch:
+    inputs:
+      qualify_build_cache:
+        description: Rebuild changed app source and resources from restored caches
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -77,6 +82,18 @@ jobs:
         timeout-minutes: 2
         run: python3 -m unittest discover -s scripts/ci -p 'test_*.py'
 
+      # Consumer contract check for the SwiftPM toolchain itself, not this
+      # project's cache: an owned temp package proves archive/restore keeps
+      # working, a changed or deleted dependency source is reconciled, and a
+      # manifest change is honored. This does not measure this repo's actual
+      # cold/warm cache timings or source-invalidation behavior.
+      - name: SwiftPM Build Reuse Contract
+        timeout-minutes: 3
+        run: |
+          mkdir -p ci-logs
+          set -o pipefail
+          bash scripts/ci/test-swiftpm-build-reuse.sh 2>&1 | tee ci-logs/swiftpm-build-reuse.log
+
       - name: Swift Format Lint (informational)
         continue-on-error: true
         timeout-minutes: 3
@@ -85,16 +102,24 @@ jobs:
           set -o pipefail
           xcrun swift-format lint --recursive --configuration .swift-format Sources Tests 2>&1 | tee ci-logs/swift-format-lint.log
 
-      - name: Cache SwiftPM Dependencies
+      - name: SwiftPM Cache Identity
+        id: swift_cache
+        run: |
+          fingerprint=$(bash scripts/ci/swift-cache-key.sh)
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+
+      # Reuse build state only within one lane and matching toolchain, SDK,
+      # architecture, package graph and workflow. Always build after restore:
+      # SwiftPM must reconcile changed/deleted sources before --skip-build tests.
+      - name: Cache SwiftPM Build State
         uses: actions/cache@v5
         with:
           path: |
-            .build/checkouts
-            .build/repositories
-            ~/Library/Caches/org.swift.swiftpm
-          key: ${{ runner.os }}-spm-${{ hashFiles('Package.swift', 'Package.resolved') }}
+            .build
+            .build-swift6-no-whisper
+          key: swiftpm-v1-behavior-${{ steps.swift_cache.outputs.fingerprint }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-spm-
+            swiftpm-v1-behavior-${{ steps.swift_cache.outputs.fingerprint }}-
 
       # Compile the normal dependency graph and tests once with the same
       # concurrency diagnostics used during execution. Keep build and run
@@ -158,13 +183,13 @@ jobs:
 
       - name: Meeting Process Recovery
         if: ${{ !cancelled() && steps.test_build.outcome == 'success' }}
-        timeout-minutes: 3
+        timeout-minutes: 4
         env:
           MACPARAKEET_CRASH_RECOVERY_TESTS: "1"
           MACPARAKEET_TELEMETRY: "0"
         run: |
           set -o pipefail
-          swift test --skip-build -Xswiftc -warn-concurrency --filter MeetingRecordingCrashRecoveryTests/testKilledRecordingRecoversInFreshProcessAndRemainsIdempotent 2>&1 | tee ci-logs/meeting-process-recovery.log
+          swift test --skip-build -Xswiftc -warn-concurrency --filter 'MeetingRecordingCrashRecoveryTests/(testKillNineMidRecordingProducesPlayableFiles|testKilledRecordingRecoversInFreshProcessAndRemainsIdempotent)' 2>&1 | tee ci-logs/meeting-process-recovery.log
 
       - name: Swift 6 Language Mode
         if: ${{ !cancelled() && steps.test_build.outcome == 'success' }}
@@ -226,16 +251,39 @@ jobs:
             bash "scripts/dist/${fixture}.sh" 2>&1 | tee "ci-logs/${fixture}.log"
           done
 
-      - name: Cache SwiftPM Dependencies
+      - name: SwiftPM Cache Identity
+        id: swift_cache
+        run: |
+          fingerprint=$(bash scripts/ci/swift-cache-key.sh)
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+
+      # Reuse build state only within one lane and matching toolchain, SDK,
+      # architecture, package graph and workflow. Always build after restore:
+      # SwiftPM must reconcile changed/deleted sources before --skip-build tests.
+      - name: Cache SwiftPM Build State
         uses: actions/cache@v5
         with:
           path: |
-            .build/checkouts
-            .build/repositories
-            ~/Library/Caches/org.swift.swiftpm
-          key: ${{ runner.os }}-spm-${{ hashFiles('Package.swift', 'Package.resolved') }}
+            .build
+          key: swiftpm-v1-distribution-${{ steps.swift_cache.outputs.fingerprint }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-spm-
+            swiftpm-v1-distribution-${{ steps.swift_cache.outputs.fingerprint }}-
+
+      - name: Xcode Cache Identity
+        id: xcode_cache
+        env:
+          XCODE_DERIVED_DATA: ${{ runner.temp }}/macparakeet-xcode-dist
+        run: |
+          fingerprint=$(bash scripts/ci/xcode-cache-key.sh)
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Xcode Build State
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}/macparakeet-xcode-dist
+          key: xcode-v1-${{ steps.xcode_cache.outputs.fingerprint }}-${{ github.sha }}
+          restore-keys: |
+            xcode-v1-${{ steps.xcode_cache.outputs.fingerprint }}-
 
       - name: Swift Build (Release)
         timeout-minutes: 25
@@ -261,6 +309,12 @@ jobs:
           FFMPEG_PATH: /usr/bin/true
           VERSION: 0.0.0
           BUILD_NUMBER: ci
+          # Keep Xcode DerivedData and native echo-suppression build/source
+          # outputs out of SwiftPM's tree. DerivedData has a separate cache;
+          # native echo assets are rebuilt by the packaging script.
+          XCODE_DERIVED_DATA: ${{ runner.temp }}/macparakeet-xcode-dist
+          MACPARAKEET_MEETING_ECHO_ASSETS_DIR: ${{ runner.temp }}/macparakeet-meeting-echo-assets
+          LOCALVQE_SOURCE_DIR: ${{ runner.temp }}/macparakeet-localvqe-src
         run: |
           mkdir -p ci-logs
           set -o pipefail
@@ -314,11 +368,69 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  # Opt-in qualification restores the exact entries saved by distribution.
+  # It changes only this disposable checkout and never saves mutated build state.
+  cache-qualification:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.qualify_build_cache }}
+    needs: distribution
+    name: Build Cache Invalidation
+    runs-on: macos-14
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "16.1"
+      - name: Cache Identities
+        id: cache
+        env:
+          XCODE_DERIVED_DATA: ${{ runner.temp }}/macparakeet-xcode-dist
+        run: |
+          swift=$(bash scripts/ci/swift-cache-key.sh)
+          xcode=$(bash scripts/ci/xcode-cache-key.sh)
+          echo "swift=$swift" >> "$GITHUB_OUTPUT"
+          echo "xcode=$xcode" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@v5
+        with:
+          path: .build
+          key: swiftpm-v1-distribution-${{ steps.cache.outputs.swift }}-${{ github.sha }}
+          fail-on-cache-miss: true
+      - uses: actions/cache/restore@v5
+        with:
+          path: ${{ runner.temp }}/macparakeet-xcode-dist
+          key: xcode-v1-${{ steps.cache.outputs.xcode }}-${{ github.sha }}
+          fail-on-cache-miss: true
+      - name: Verify Changed App and Resource Reach Package
+        timeout-minutes: 35
+        env:
+          BUILD_SYSTEM: xcodebuild
+          SKIP_BUILD: "0"
+          BUNDLE_YTDLP: "0"
+          BUNDLE_NODE: "0"
+          FFMPEG_PATH: /usr/bin/true
+          VERSION: 0.0.0
+          BUILD_NUMBER: ci-cache-qualification
+          XCODE_BUILD_LOG: ci-logs/xcode-cache-invalidation.log
+          XCODE_DERIVED_DATA: ${{ runner.temp }}/macparakeet-xcode-dist
+          MACPARAKEET_MEETING_ECHO_ASSETS_DIR: ${{ runner.temp }}/macparakeet-meeting-echo-assets
+          LOCALVQE_SOURCE_DIR: ${{ runner.temp }}/macparakeet-localvqe-src
+        run: |
+          mkdir -p ci-logs
+          set -o pipefail
+          python3 scripts/ci/qualify-xcode-cache.py --qualify 2>&1 | tee ci-logs/cache-invalidation.log
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: cache-invalidation-evidence
+          path: ci-logs/
+          if-no-files-found: error
+          retention-days: 7
+
   # Preserve the existing check name as the complete CI verdict. An individual
   # lane passing must never conceal a failed, skipped, or cancelled dependency.
   swift-test:
     if: always()
-    needs: [behavior, distribution]
+    needs: [behavior, distribution, cache-qualification]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -326,7 +438,14 @@ jobs:
         env:
           BEHAVIOR_RESULT: ${{ needs.behavior.result }}
           DISTRIBUTION_RESULT: ${{ needs.distribution.result }}
+          QUALIFICATION_REQUESTED: ${{ github.event_name == 'workflow_dispatch' && inputs.qualify_build_cache }}
+          QUALIFICATION_RESULT: ${{ needs['cache-qualification'].result }}
         run: |
           printf 'Tests and Swift 6: %s\nRelease and Bundle: %s\n' "$BEHAVIOR_RESULT" "$DISTRIBUTION_RESULT"
           test "$BEHAVIOR_RESULT" = success
           test "$DISTRIBUTION_RESULT" = success
+          if [ "$QUALIFICATION_REQUESTED" = true ]; then
+            test "$QUALIFICATION_RESULT" = success
+          else
+            test "$QUALIFICATION_RESULT" = skipped
+          fi
