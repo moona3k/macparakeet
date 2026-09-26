@@ -674,6 +674,7 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
             settingsViewModel: settings,
             sttRuntime: stt,
             runtimePreferences: preferences,
+            permissionService: MockPermissionService(),
             captionTiming: timing ?? self.timing,
             activeSpeechEngine: { engine },
             overlayControllerFactory: { SpyDictationOverlayController(viewModel: $0) },
