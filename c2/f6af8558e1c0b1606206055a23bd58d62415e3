@@ -1,0 +1,33 @@
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_cac8ea75717892::t_9389d56ec51c94 478-480
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingRecoveryService.swift
+  s_cac8ea75717892::t_b09b31f2fa7b71 50-51,71-72,82-83,100-101,115-116,652-666,674,696,706-717
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingCrashRecoveryTests.swift
+  s_cac8ea75717892::t_3f8c6dc17aaad8 36,64-324,361-372,386,391-434
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift
+  s_cac8ea75717892::t_06c5af60d6f674 10,538-581,719-720,730-751,875-876,956-957,993-994,1033-1034,1077-1078,1145-1146,1177-1178,1210-1211,1278,1287-1288
+docs/testing/meeting-process-recovery.md
+  s_cac8ea75717892::t_fe08ba7dbe548b 1-72
+spec/09-testing.md
+  s_cac8ea75717892::t_736bb298909876 114
+spec/contracts/meeting-artifacts-v1.md
+  s_cac8ea75717892::t_10f6419941c44e 39-40
+spec/contracts/meeting-recovery-retention.md
+  s_cac8ea75717892::t_c59d09cabfc7cc 163-173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c2f6af8558e1c0b1606206055a23bd58d62415e3",
+  "prompts": {},
+  "sessions": {
+    "s_cac8ea75717892": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0db21-43eb-73f3-b873-a8a718ab6d72",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
