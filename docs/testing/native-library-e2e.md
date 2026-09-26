@@ -4,9 +4,12 @@
 Accessibility. It seeds a synthetic completed meeting through production GRDB
 migrations and `MeetingArtifactStore` in a test-only XCTest, opens that exact
 Library item, edits its notes through the native editor, waits for the visible
-Saved confirmation, terminates the owned process, relaunches the same bundle
+Saved confirmation, requests ordinary AppKit quit so pending artifact writes
+flush, relaunches the same bundle
 with the same state directory, checks the notes, and exports Markdown through
-the UI. The export must contain both the edited notes and synthetic transcript.
+the UI. The transcript export must contain the synthetic transcript; the
+separate durable meeting notes and meeting Markdown artifacts must contain the
+edited notes. The UI transcript exporter intentionally does not export notes.
 No model, microphone, network transcription, or public seed API is involved.
 
 ## Prerequisites
@@ -34,7 +37,7 @@ flag and signing behavior. Subsequent relaunch uses the identical built bundle.
 It sends termination only to the exact owned executable path/PID. It never
 kills a stable app, clears preferences, touches the clipboard, or deletes data.
 Exports remain in this disposable account's Downloads. Each run retains its
-fresh temporary state, logs, export copy, fixture ID, and successful result JSON.
+fresh temporary state, logs, export copy, fixture ID, and pass/failure result JSON.
 The result records the checkout commit; record OS/Xcode versions with release
 qualification evidence. Failure is nonzero, with bounded commands and AX waits;
 missing onboarding/accessibility prerequisites are failures, never passes.

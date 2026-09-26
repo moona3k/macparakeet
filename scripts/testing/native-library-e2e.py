@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Opt-in real-app qualification. Requires a dedicated disposable GUI account."""
 import argparse
-import getpass
 import json
 import os
 from pathlib import Path
+import pwd
 import shutil
 import signal
 import subprocess
@@ -24,7 +24,7 @@ def processes():
 
 
 def preflight(attested):
-    if not attested or getpass.getuser() != ACCOUNT or os.getuid() == 0:
+    if not attested or pwd.getpwuid(os.getuid()).pw_name != ACCOUNT or os.getuid() == 0:
         raise RuntimeError("Requires --disposable-account in the dedicated macparakeet-e2e logged-in account. State overrides do not isolate shared preferences or Keychain.")
     if Path("/dev/console").stat().st_uid != os.getuid():
         raise RuntimeError("The disposable account must own the active GUI console")
@@ -33,6 +33,19 @@ def preflight(attested):
         raise RuntimeError("Quit existing MacParakeet instances yourself before qualification")
     if shutil.disk_usage(REPO).free < 25 * 1024**3:
         raise RuntimeError("Requires at least 25 GiB free for the owned build")
+
+
+def run_owned(command, *, cwd, env, log, timeout):
+    process = subprocess.Popen(command, cwd=cwd, env=env, stdout=log,
+                               stderr=subprocess.STDOUT, start_new_session=True)
+    try:
+        status = process.wait(timeout=timeout)
+    except (subprocess.TimeoutExpired, KeyboardInterrupt):
+        os.killpg(process.pid, signal.SIGKILL)
+        process.wait()
+        raise
+    if status:
+        raise subprocess.CalledProcessError(status, command)
 
 
 def main():
@@ -48,7 +61,8 @@ def main():
     print(f"Evidence retained at {root}", flush=True)
     (root / "owned-native-journey").write_text(ACCOUNT + "\n")
     env = dict(os.environ, MACPARAKEET_NATIVE_E2E_ROOT=str(root),
-               MACPARAKEET_DEBUG_APP_STATE_DIR=str(root / "state"), MACPARAKEET_CONFIG="Debug")
+               MACPARAKEET_DEBUG_APP_STATE_DIR=str(root / "state"), MACPARAKEET_CONFIG="Debug",
+               MACPARAKEET_TELEMETRY="0")
     bundle = REPO / ".build/xcode-dev/Build/Products/Debug/MacParakeet-Dev.app"
     binary = bundle / "Contents/MacOS/MacParakeet"
     log = (root / "journey.log").open("w")
@@ -57,8 +71,7 @@ def main():
     def run(command, timeout=120):
         log.write(f"RUN {command!r}\n")
         log.flush()
-        subprocess.run(command, cwd=REPO, env=env, stdout=log, stderr=subprocess.STDOUT,
-                       check=True, timeout=timeout)
+        run_owned(command, cwd=REPO, env=env, log=log, timeout=timeout)
 
     def launched_pid():
         deadline = time.monotonic() + 30
@@ -97,14 +110,21 @@ def main():
         ax("assert", "meeting-notes-editor", "Original synthetic notes")
         ax("set", "meeting-notes-editor", NOTES)
         ax("wait", "meeting-notes-saved")
-        stop(owned_pid)
+        # Ordinary AppKit quit flushes derived note artifacts; SIGTERM bypasses it.
+        ax("quit", "application")
         owned_pid = None
-        run(["open", "-n", str(bundle), "--env", "MACPARAKEET_DEBUG_APP_STATE_DIR=" + str(root / "state")])
+        run(["open", "-n", str(bundle), "--env", "MACPARAKEET_DEBUG_APP_STATE_DIR=" + str(root / "state"),
+             "--env", "MACPARAKEET_TELEMETRY=0"])
         owned_pid = launched_pid()
         ax("press", "sidebar-Library")
         ax("press", "library-item-" + meeting_id)
         ax("press", "meeting-notes-tab")
         ax("assert", "meeting-notes-editor", NOTES)
+        artifact = root / "state/meetings/native-library-fixture"
+        if not (artifact / "notes.md").read_text().rstrip().endswith(NOTES):
+            raise RuntimeError("Durable meeting notes artifact differs from saved notes")
+        if NOTES not in (artifact / "meeting.md").read_text():
+            raise RuntimeError("Materialized meeting Markdown is missing saved notes")
         downloads = Path.home() / "Downloads"
         before = set(downloads.glob("*"))
         ax("press", "transcript-export-options")
@@ -115,26 +135,35 @@ def main():
         while time.monotonic() < deadline:
             for path in set(downloads.glob("*.md")) - before:
                 content = path.read_text()
-                if NOTES in content and TRANSCRIPT in content:
+                if TRANSCRIPT in content:
                     exported = path
                     break
             if exported:
                 break
             time.sleep(0.1)
         if exported is None:
-            raise RuntimeError("No new Markdown export containing persisted notes AND transcript")
+            raise RuntimeError("No new Markdown export containing the persisted transcript")
         shutil.copy2(exported, root / "export.md")
-        (root / "result.json").write_text(json.dumps({"result": "passed", "meeting_id": meeting_id,
-            "export": str(exported), "commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip()}, indent=2))
-        print(f"PASS native Library edit/save/relaunch/export; evidence: {root}")
+        result = {"result": "passed", "meeting_id": meeting_id,
+            "export": str(exported), "commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip()}
+    except BaseException as error:
+        (root / "result.json").write_text(json.dumps({"result": "failed", "error": str(error)}, indent=2))
+        raise
     finally:
-        if owned_pid is not None:
-            stop(owned_pid)
-        log.close()
+        try:
+            if owned_pid is not None:
+                stop(owned_pid)
+        except BaseException as error:
+            (root / "result.json").write_text(json.dumps({"result": "failed", "cleanupError": str(error)}, indent=2))
+            raise
+        finally:
+            log.close()
+    (root / "result.json").write_text(json.dumps(result, indent=2))
+    print(f"PASS native Library edit/save/relaunch/export; evidence: {root}")
 
 
 if __name__ == "__main__":
     try:
         main()
-    except (RuntimeError, subprocess.SubprocessError) as error:
+    except (RuntimeError, OSError, subprocess.SubprocessError) as error:
         raise SystemExit(f"Native Library qualification FAILED: {error}") from error

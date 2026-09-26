@@ -35,6 +35,15 @@ func textArea(_ element: AXUIElement, depth: Int = 0) -> AXUIElement? {
 }
 application.activate(options: [])
 let deadline = Date().addingTimeInterval(30)
+if args[2] == "quit" {
+    guard application.terminate() else { fail("App refused ordinary termination") }
+    while !application.isTerminated && Date() < deadline {
+        RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+    }
+    guard application.isTerminated else { fail("App did not finish ordinary quit and save flush") }
+    print("PASS ordinary quit")
+    exit(0)
+}
 var target: AXUIElement?
 repeat {
     target = find(app, args[3])
@@ -54,8 +63,17 @@ case "set":
         fail("Cannot set editor value")
     }
 case "assert":
-   guard args.count == 5, attribute(element, kAXValueAttribute) as? String == args[4] else {
-        fail("Persisted notes mismatch")
+    guard args.count == 5 else { fail("Expected editor value argument") }
+    var matches = false
+    repeat {
+        if let current = find(app, args[3]) {
+            matches = attribute(textArea(current) ?? current, kAXValueAttribute) as? String == args[4]
+        }
+        if matches { break }
+        RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+    } while Date() < deadline && !application.isTerminated
+    guard matches else {
+        fail("Timed out waiting for persisted notes")
     }
 default: fail("Unknown action")
 }
