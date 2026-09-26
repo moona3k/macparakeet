@@ -64,7 +64,9 @@ restriction does not change existing chat or HTTP provider behavior.
   are normalized by `unicode61`; user text never becomes FTS query syntax.
   Nonblank queries with no searchable terms return an empty page.
   Han/Kana/Thai query terms use normalized substring matching inside unspaced
-  text, while other terms retain token boundaries. For these mixed/script
+  text, while other terms retain token boundaries. Query and passage text use
+  the same boundaries between fallback-script and ordinary runs, including
+  adjacent runs without whitespace; citation text remains unchanged. For these mixed/script
   queries, candidates rank by matched-term count, then canonical passage index.
   Other BM25 ties also use canonical passage order. Neither ranking implies
   chronology, finality, semantic similarity, or a claim's truth.

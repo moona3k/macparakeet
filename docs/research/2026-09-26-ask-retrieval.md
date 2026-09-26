@@ -194,16 +194,17 @@ inside an individual decoder, sort, or SQLite statement is not promised.
 ### Measured retrieval cost
 
 On Apple M4 Pro, 48 GiB RAM, Debug SwiftPM build, in-memory synthetic recordings,
-32 selected sources, five fresh retrieval calls per query/tier:
+32 selected sources, five fresh retrieval calls per query/tier, re-measured after
+applying identical script boundaries to query and passage matching:
 
 | Canonical passages | Query | Observed wall time per call |
 | --- | --- | --- |
-| 10,000 | Sparse `telescope` | 0.103–0.109 s |
-| 10,000 | Common `launch` | 0.169–0.176 s |
-| 10,000 | Mixed `日期 launch` | 0.163–0.174 s |
-| 50,000 | Sparse `telescope` | 0.458–0.464 s |
-| 50,000 | Common `launch` | 0.815–0.820 s |
-| 50,000 | Mixed `日期 launch` | 0.747–0.758 s |
+| 10,000 | Sparse `telescope` | 0.144–0.148 s |
+| 10,000 | Common `launch` | 0.211–0.216 s |
+| 10,000 | Mixed `日期 launch` | 0.200–0.206 s |
+| 50,000 | Sparse `telescope` | 0.666–0.684 s |
+| 50,000 | Common `launch` | 1.023–1.039 s |
+| 50,000 | Mixed `日期 launch` | 0.949–0.958 s |
 
 These timings include canonical reads/derivation/revision hashing, fresh index
 construction (ordinary queries), ranking, and source interleaving. They exclude

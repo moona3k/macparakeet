@@ -461,6 +461,33 @@ final class AskSourceServiceTests: XCTestCase {
         }
     }
 
+    func testAdjacentPassageScriptsUseTheSameWordBoundariesAsQueries() throws {
+        for text in ["launch発売", "発売launch", "launchยืนยัน", "ยืนยันlaunch", "launchオープン", "オープンlaunch"] {
+            let source = Transcription(
+                fileName: "Adjacent", rawTranscript: text, status: .completed, sourceType: .meeting)
+            try transcriptions.save(source)
+            let receipt = try XCTUnwrap(service.snapshot(sourceIDs: [source.id]).first)
+            // The Han query term is absent, so only the independently bounded Latin term can match.
+            for query in ["launch發布", "發布launch", "launch"] {
+                let hits = try service.search(query: query, sourceRevisions: [source.id: receipt.revision], limit: 8)
+                XCTAssertEqual(hits.map(\.text), [text], "\(query): \(text)")
+            }
+        }
+    }
+
+    func testAdjacentPassageScriptsDoNotMakeLatinSubstringsMatch() throws {
+        let source = Transcription(
+            fileName: "Adjacent negative", rawTranscript: "update発売 発売update updateยืนยัน ยืนยันupdate",
+            status: .completed, sourceType: .meeting)
+        try transcriptions.save(source)
+        let receipt = try XCTUnwrap(service.snapshot(sourceIDs: [source.id]).first)
+        for query in ["date發布", "發布date", "date"] {
+            XCTAssertTrue(
+                try service.search(query: query, sourceRevisions: [source.id: receipt.revision], limit: 8).isEmpty,
+                query)
+        }
+    }
+
     func testUnspacedMixedScriptQueryPreservesLatinWordBoundary() throws {
         let source = Transcription(
             fileName: "Boundary", rawTranscript: "Update the schedule. 無關內容。", status: .completed,

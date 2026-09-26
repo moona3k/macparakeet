@@ -234,7 +234,7 @@ public final class AskSourceService: AskSourceServiceProtocol, @unchecked Sendab
                         let text = Self.substringKey(passage.text)
                         let words =
                             wordTerms.isEmpty
-                            ? Set<String>() : Set(try tokenizer.tokenize(document: passage.text).map(\.token))
+                            ? Set<String>() : Set(try tokenizer.tokenize(document: Self.searchableText(passage.text)).map(\.token))
                         let count =
                             substringTerms.filter { text.contains($0) }.count
                             + wordTerms.filter { words.contains($0) }.count
@@ -253,7 +253,7 @@ public final class AskSourceService: AskSourceServiceProtocol, @unchecked Sendab
                 try Task.checkCancellation()
                 for passage in passages {
                     if allPassages.count.isMultiple(of: 256) { try Task.checkCancellation() }
-                    try insert.execute(arguments: [allPassages.count, passage.text, source])
+                    try insert.execute(arguments: [allPassages.count, Self.searchableText(passage.text), source])
                     allPassages.append(passage)
                 }
             }
@@ -282,6 +282,13 @@ public final class AskSourceService: AskSourceServiceProtocol, @unchecked Sendab
             }
         }
         return result
+    }
+
+    /// Use identical script boundaries for indexed text and mixed-query word matches.
+    /// The original passage remains authoritative for display and citation identity.
+    private static func searchableText(_ text: String) -> String {
+        guard SegmentRepository.requiresSubstringFallback(text) else { return text }
+        return fallbackScriptRuns(in: text).map(\.text).joined(separator: " ")
     }
 
     /// Splits a query into runs that alternate between fallback-script text
