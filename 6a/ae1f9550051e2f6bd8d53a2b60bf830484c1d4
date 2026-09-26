@@ -1,0 +1,83 @@
+docs/distribution.md
+  s_d9d4b7d7a74eef::t_ce6f4f72db221c 252-258
+Sources/CLI/CHANGELOG.md
+  s_d9d4b7d7a74eef::t_30e5f3f0bf8f7b 97-98,101-112
+spec/06-stt-engine.md
+  s_d9d4b7d7a74eef::t_ce6f4f72db221c 58
+spec/02-features.md
+  s_d9d4b7d7a74eef::t_ce6f4f72db221c 1516-1519,1523,1526
+spec/README.md
+  s_d9d4b7d7a74eef::t_ce6f4f72db221c 87-91
+spec/adr/032-llm-task-group-routing.md
+  s_d9d4b7d7a74eef::t_a4298d8d95fb90 122-135
+Sources/CLI/Commands/SpecCommand.swift
+  s_d9d4b7d7a74eef::t_6fb6a95db05e19 796-818,1269-1272,1286-1288,1307-1310,1374-1392,1614-1623,1625,1628-1629,1632,1634-1635
+  s_d9d4b7d7a74eef::t_1a6a806916fac9 1624,1626-1627,1630-1631,1633,1636-1639
+Tests/CLITests/SpecCommandTests.swift
+  s_d9d4b7d7a74eef::t_1178a7ba33c9a0 5-22
+  s_d9d4b7d7a74eef::t_fbf4ef3f0502e0 23-25
+spec/12-processing-layer.md
+  s_d9d4b7d7a74eef::t_a4298d8d95fb90 371-372,405-407
+Sources/CLI/MacParakeetCLI.swift
+  s_d9d4b7d7a74eef::t_30e5f3f0bf8f7b 11
+docs/audits/2026-09-24-final-0.9.0-readiness.md
+  s_d9d4b7d7a74eef::t_ce6f4f72db221c 3-7
+integrations/README.md
+  s_d9d4b7d7a74eef::t_30e5f3f0bf8f7b 615-667
+  s_d9d4b7d7a74eef::t_f1ed472cf5d516 668-671
+spec/03-architecture.md
+  s_d9d4b7d7a74eef::t_ce6f4f72db221c 319
+spec/contracts/cli-json-v1.md
+  s_d9d4b7d7a74eef::t_a4298d8d95fb90 196,205,225-252,291,306-309
+  s_d9d4b7d7a74eef::t_66e7868b45109f 310-314,484
+Sources/CLI/Commands/CLIHelpers.swift
+  s_d9d4b7d7a74eef::t_81a06356f9e473 490
+Sources/CLI/Commands/LLMCommand.swift
+  s_d9d4b7d7a74eef::t_970991df33dc02 8
+Sources/CLI/Commands/LLMInlineConfig.swift
+  s_d9d4b7d7a74eef::t_9a56cb138efccf 107
+Sources/CLI/Commands/LLMRoutesCommand.swift
+  s_d9d4b7d7a74eef::t_bc31cf16234d42 1-179
+Sources/CLI/Commands/MeetingsCommand.swift
+  s_d9d4b7d7a74eef::t_f8924745917770 214,225-284,909,967-1040,1923-1982
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_d9d4b7d7a74eef::t_ce4bd52dff36eb 3902
+Sources/MacParakeetCore/Services/LLM/LLMConfigStore.swift
+  s_d9d4b7d7a74eef::t_bd2bdbbbe5d73f 24-47
+Sources/MacParakeetViewModels/LLMModelAvailability.swift
+  s_d9d4b7d7a74eef::t_3dd567bfde4bd4 4-16,28,40,64-65,67-72
+Sources/MacParakeetViewModels/PromptResultsViewModel.swift
+  s_d9d4b7d7a74eef::t_300e381cd623e6 162,179-181,304-307,313-314,335-342,353-354,543-548,629-631,638,641,1082-1083
+Sources/MacParakeetViewModels/TranscriptChatViewModel.swift
+  s_d9d4b7d7a74eef::t_39feed0c7ea797 80,120-123,129-130,148-153,155,157-164,175-176
+Tests/CLITests/LLMRoutesCommandTests.swift
+  s_d9d4b7d7a74eef::t_fcf491b7b3970c 1-142
+Tests/CLITests/MeetingsCommandTests.swift
+  s_d9d4b7d7a74eef::t_62a00e932d4e3a 8-256,566
+Tests/MacParakeetTests/Services/LLM/LLMConfigStoreTests.swift
+  s_d9d4b7d7a74eef::t_e0e492d163e06a 23-46
+Tests/MacParakeetTests/ViewModels/PromptResultsViewModelTests.swift
+  s_d9d4b7d7a74eef::t_8d17290b9a1a2c 53-199,786-844,861-862,866-867,1275-1276,1280-1281
+Tests/MacParakeetTests/ViewModels/TranscriptChatViewModelTests.swift
+  s_d9d4b7d7a74eef::t_6a2a3e27ef4917 633-760
+docs/audits/2026-09-26-release-0.8.x-review.md
+  s_d9d4b7d7a74eef::t_294498e1a1ca23 6,15-16,151-191
+spec/11-llm-integration.md
+  s_d9d4b7d7a74eef::t_835f2468663380 513-521
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6aae1f9550051e2f6bd8d53a2b60bf830484c1d4",
+  "prompts": {},
+  "sessions": {
+    "s_d9d4b7d7a74eef": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0de46-6a9a-76a2-9a49-b0aba9f9ea74",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
