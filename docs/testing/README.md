@@ -15,6 +15,13 @@ at `529e23ad` also passed, including explicit process-recovery execution.
 No actual native GUI, real-model inference, or physical microphone/device
 qualification has been demonstrated by the recorded checks.
 
+The later [CI follow-up #1175](https://github.com/moona3k/macparakeet/pull/1175)
+also runs the older raw-container crash test explicitly and requires real signal
+termination. Its [cache qualification](../research/2026-09-26-ci-optimization.md#correctness-evidence)
+proves changed app source/resources reach a rebuilt package after restoring build
+state; it does not launch the app or extend the physical/model qualification boundary.
+
+
 | Boundary | Entry point | Execution and limits |
 | --- | --- | --- |
 | CLI → database → export | [`MeetingCLIProcessTests`](../../Tests/CLITests/MeetingCLIProcessTests.swift), plus [`cli-persistence-smoke.py`](../../scripts/ci/cli-persistence-smoke.py) | Ordinary CI; real executable invocations and owned databases/artifacts, synthetic content, no speech model |
