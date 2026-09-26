@@ -1,0 +1,40 @@
+scripts/ci/test_summarize_tests.py
+  s_cac8ea75717892::t_f6e96e5987ab4f 50,56
+  s_cac8ea75717892::t_a73545db55ad9e 1-49,51-55,57-85
+scripts/ci/summarize-tests.py
+  s_cac8ea75717892::t_724d10d3a96b72 112,116
+  s_cac8ea75717892::t_9512ea5e29f03e 1-111,113-115,117-136
+scripts/ci/cli-persistence-smoke.py
+  s_cac8ea75717892::t_5981740d0fce16 1-111,113-131
+  s_cac8ea75717892::t_dc13e09db626d2 112
+scripts/ci/test_cli_persistence_smoke.py
+  s_cac8ea75717892::t_b90d14b00fbfa8 1-47
+.github/workflows/ci.yml
+  s_cac8ea75717892::t_847e8b37873f89 23-24,26,36,39-47,52,54,64,66,68-70,76,78,91-95,99,101-115,117-123,125-129,131,133,135-142,144-195,201,208,210,224-225,227,229,231-235,237-238,240-251,255-257,259-275
+.gitignore
+  s_cac8ea75717892::t_74814c6c8e1115 101-103
+AGENTS.md
+  s_cac8ea75717892::t_c857352179d612 67
+docs/research/2026-09-25-ci-cost-and-test-strategy.md
+  s_cac8ea75717892::t_8f05c18ab36361 1-212
+scripts/dist/build_app_bundle.sh
+  s_cac8ea75717892::t_ac2d020db83bce 27,70,147,149,171
+spec/09-testing.md
+  s_cac8ea75717892::t_9d96ebb55e61e9 205-207,217-277,351-354,441-442
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8a8a597bcd9730238f2c92318d492c0791b7f227",
+  "prompts": {},
+  "sessions": {
+    "s_cac8ea75717892": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0db21-43eb-73f3-b873-a8a718ab6d72",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
