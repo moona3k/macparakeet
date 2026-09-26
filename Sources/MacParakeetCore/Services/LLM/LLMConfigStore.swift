@@ -18,6 +18,10 @@ public protocol LLMConfigStoreProtocol: Sendable {
         cleanupOverride: LLMProviderConfig?,
         analysisOverride: LLMProviderConfig?
     ) throws
+    /// Persisted route metadata without touching Keychain. `apiKey` is always nil.
+    func loadConfigMetadata() throws -> LLMProviderConfig?
+    /// Persisted task-override metadata without touching Keychain. `apiKey` is always nil.
+    func loadTaskOverrideMetadata(_ task: LLMTaskGroup) throws -> LLMProviderConfig?
 }
 
 extension LLMConfigStoreProtocol {
@@ -27,6 +31,11 @@ extension LLMConfigStoreProtocol {
             return override
         }
         return try loadConfig()
+    }
+
+    public func loadConfigMetadata() throws -> LLMProviderConfig? { try loadConfig() }
+    public func loadTaskOverrideMetadata(_ task: LLMTaskGroup) throws -> LLMProviderConfig? {
+        try loadTaskOverride(task)
     }
 
     /// Change the selected route without creating an override for an inherited task.
@@ -93,8 +102,7 @@ public final class LLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
     }
 
     public func loadConfig() throws -> LLMProviderConfig? {
-        guard let data = defaults.data(forKey: Self.configKey) else { return nil }
-        let decoded = try JSONDecoder().decode(LLMProviderConfig.self, from: data)
+        guard let decoded = try loadConfigMetadata() else { return nil }
         let apiKey = try keychain.getString(Self.apiKeyKeychainKey(for: decoded.id))
         return LLMProviderConfig(
             id: decoded.id,
@@ -103,6 +111,11 @@ public final class LLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
             modelName: decoded.modelName,
             isLocal: decoded.isLocal
         )
+    }
+
+    public func loadConfigMetadata() throws -> LLMProviderConfig? {
+        guard let data = defaults.data(forKey: Self.configKey) else { return nil }
+        return try JSONDecoder().decode(LLMProviderConfig.self, from: data)
     }
 
     public func saveConfig(_ config: LLMProviderConfig) throws {
@@ -176,9 +189,7 @@ public final class LLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
     }
 
     public func loadTaskOverride(_ task: LLMTaskGroup) throws -> LLMProviderConfig? {
-        guard task.allowsOverride else { return nil }
-        guard let data = defaults.data(forKey: Self.taskOverrideKey(task)) else { return nil }
-        let decoded = try JSONDecoder().decode(LLMProviderConfig.self, from: data)
+        guard let decoded = try loadTaskOverrideMetadata(task) else { return nil }
         let apiKey = try keychain.getString(Self.apiKeyKeychainKey(for: decoded.id))
         return LLMProviderConfig(
             id: decoded.id,
@@ -187,6 +198,12 @@ public final class LLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
             modelName: decoded.modelName,
             isLocal: decoded.isLocal
         )
+    }
+
+    public func loadTaskOverrideMetadata(_ task: LLMTaskGroup) throws -> LLMProviderConfig? {
+        guard task.allowsOverride else { return nil }
+        guard let data = defaults.data(forKey: Self.taskOverrideKey(task)) else { return nil }
+        return try JSONDecoder().decode(LLMProviderConfig.self, from: data)
     }
 
     public func saveTaskOverride(_ config: LLMProviderConfig?, for task: LLMTaskGroup) throws {

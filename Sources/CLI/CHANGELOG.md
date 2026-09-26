@@ -108,6 +108,10 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 - `llm routes list|set|reset` inspects effective routes and configures or clears
   cleanup/analysis overrides in the same stores as GUI Settings. Output omits
   credentials and endpoint secrets; local CLI routes reuse the shared template.
+  Listing and mutation receipts read persisted route metadata only, never
+  Keychain. `routes set` without `--model` picks the provider's current app
+  default (matching GUI Settings), not the historical one-off inline-CLI
+  compatibility default that other inline LLM commands still use for scripts.
 - `spec --json` documents the new commands and their mutation/precondition
   boundaries. Existing commands, JSON fields and exit codes remain supported.
 - History JSON may now include `"status": "error"` for a dictation whose
