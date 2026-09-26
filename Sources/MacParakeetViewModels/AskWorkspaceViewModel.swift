@@ -47,6 +47,7 @@ public final class AskWorkspaceViewModel {
     private var runGeneration = 0
     private var sendTask: Task<Void, Never>?
     private var draftTask: Task<Void, Never>?
+    private var draftSaveTask: Task<Bool, Never>?
     private var pendingLibrarySourceIDs: [UUID]?
     private var isCreatingFromLibrary = false
     private var pendingRemoteSend: (id: UUID, revision: Int, question: String, providerID: String, navigation: Int)?
@@ -245,6 +246,18 @@ public final class AskWorkspaceViewModel {
     @discardableResult
     public func flushDraft() async -> Bool {
         draftTask?.cancel()
+        if let draftSaveTask { return await draftSaveTask.value }
+        // Canceling the debounce must not cancel an already-started save.
+        // Navigation and autosave share its revision update before proceeding.
+        let task = Task {
+            defer { draftSaveTask = nil }
+            return await savePendingDraft()
+        }
+        draftSaveTask = task
+        return await task.value
+    }
+
+    private func savePendingDraft() async -> Bool {
         guard !isSending, savedDraftAtConflict == nil,
             draftReloadGeneration != loadGeneration
         else { return false }
@@ -262,7 +275,7 @@ public final class AskWorkspaceViewModel {
             conversation = saved
             updateList(saved)
             if draft != intendedDraft, !isSending {
-                return await flushDraft()
+                return await savePendingDraft()
             }
             return true
         } catch {
@@ -274,6 +287,10 @@ public final class AskWorkspaceViewModel {
 
     public func renameConversation() async {
         guard let service, let current = conversation else { return }
+        guard !isSending else {
+            errorMessage = "Wait for the current answer to finish before renaming this conversation."
+            return
+        }
         let navigation = loadGeneration
         let name = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
@@ -440,9 +457,12 @@ public final class AskWorkspaceViewModel {
                 conversation?.id == latest.id,
                 conversation?.revision == latest.revision
             else { return }
-            adopt(changed)
+            // Source selection keeps the current composer. Typing may have
+            // continued while the revision-checked source update was pending.
+            conversation = changed
             updateList(changed)
             cancelSourceSelection()
+            await flushDraft()
             await refreshActiveSources(for: changed)
         } catch {
             sourcePickerError = error.localizedDescription

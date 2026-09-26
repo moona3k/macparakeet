@@ -1,6 +1,6 @@
 # Ask workspace verification and open qualification issues
 
-Status: **Implemented candidate; not runtime-qualified.** Recorded 2026-09-25.
+Status: **Implemented candidate; not runtime-qualified.** Updated 2026-09-26.
 The feature implementation is commit `991d1ed79`; the CLI catalog expectation
 is corrected in `2b74a9e73`. Later review commits must retain these boundaries.
 
@@ -18,11 +18,74 @@ is corrected in `2b74a9e73`. Later review commits must retain these boundaries.
    question failed after 31.56 seconds before activity/text, and a simpler
    question failed after 7.40 seconds after “Checking selected recordings.”
    Both stored a failed assistant message with no citations and a sanitized
-   error. Availability and basic JSON output work; the cause of the Ask
-   failures remains unresolved. No real-model answer-quality claim is made.
+   error. Later CLI probes below isolate malformed actions and inadequate retrieval,
+   despite successful model transport. Both tested local models remain
+   unqualified for Ask.
 
 These issues block a merge-ready/runtime-qualified verdict even if CI passes.
 No stable release, notarized distribution, or update publication was performed.
+
+## CLI hardening follow-up (2026-09-26)
+
+The user authorized a bounded CLI qualification and fixes. No native app,
+Accessibility automation, microphone, or existing user database was used in this
+follow-up. Native responsiveness remains a separate open gate.
+
+The shared service now preserves unsaved drafts on failed navigation/save,
+preflights a serialized UTF-8 initial-context budget before persistence, and
+leaves space for retrieved evidence. Agent requests disable local chunking.
+The decision bridge uses typed fields with constrained action names and makes
+at most one validated correction attempt for malformed action JSON. Cancellation, provider errors,
+and truncated responses are not retried by that correction path.
+
+The repeatable runner creates a fresh database with two synthetic recordings:
+
+```bash
+python3 scripts/dev/ask_workspace_qualification.py \
+  --cli /path/to/extracted/macparakeet-cli \
+  --output-dir /tmp/ask-scripted-new
+
+python3 scripts/dev/ask_workspace_qualification.py \
+  --cli /path/to/extracted/macparakeet-cli \
+  --output-dir /tmp/ask-model-new --real-only \
+  --provider lmstudio --endpoint http://127.0.0.1:1234/v1 \
+  --model qwen/qwen3-4b-2507
+```
+
+Final focused validation passed 121 Swift tests (including the actual helper with
+bundled Node), 14 helper tests, and 8 Python harness tests. Changed Swift lint,
+workflow YAML parsing, subsystem README references, and diff checks passed.
+The final scripted runner passed all seven groups against CLI SHA-256
+`7d8dbafea4aa73419f2ac751d61544cc9410ccda2644deb60b13e1d7565693b8`.
+CI now runs the runner against a standalone package built from the Release CLI
+and retains its synthetic reports in the uploaded CI logs.
+
+Output directories must be new or empty. They retain a JSON report, CLI binary
+SHA-256, raw synthetic CLI output, and an isolated SQLite database. Scripted
+runs also retain provider requests. Credentials, if required, are accepted
+through a named environment variable and redacted from retained output.
+
+A packaged Debug CLI with official Node 24.13.1 and the actual Pi helper passed
+all seven scripted groups: durable drafts/answers and follow-ups, a late
+reversal beyond the first read page, source exclusion, stale citations,
+consent rejection before mutation/network, provider failure, uncited-answer
+incompletion, bounded action repair, competing-writer rejection, and recovery
+after killing the CLI process and waiting for its real lease to expire.
+Real Qwen probes reproduced two separate failures: inadequate retrieval despite
+valid citations, and malformed action arguments. Model decisions no longer
+encode JSON inside a string; typed scalar fields avoid that failure surface.
+A nullable-schema experiment was rejected by this LM Studio backend with HTTP
+400. Optional plain properties were accepted but both Qwen and Gemma omitted
+required read arguments. The final schema requires six plain scalar fields,
+using empty strings and zeros for unused arguments. Qwen still chose an invalid
+read action twice and failed safely (15.79 seconds). Gemma also failed after
+an invalid read action and one correction attempt (11.80 seconds). Neither
+local model passed this regression; no successful real-model quality claim
+is made.
+
+Process interruption is not a test of the native Stop control. Initial fixture
+failures were corrected: GRDB UUID keys use BLOB storage and UUID-keyed JSON
+maps may reorder pairs without changing their values.
 
 ## Automated evidence
 
@@ -95,8 +158,15 @@ This used the debug CLI build and scripted provider, not a notarized release.
 ## Remaining verification
 
 - Diagnose the system-wide freeze in a coordinated, isolated native session.
-- Capture a failing synthetic model exchange safely and distinguish transport,
-  decision validation, and tool-continuation errors; then qualify the three
-  research jobs with a real capable model.
+- Qualify the three research jobs with a capable real model. Synthetic model
+  exchanges now distinguish transport success from invalid actions and poor
+  evidence coverage; neither tested local model passed the regression.
+- Compare a Pi-native provider/tool-call path against the same CLI fixtures
+  before expanding the custom decision bridge further. Keep Swift's persistence,
+  source scope, consent, and evidence validation at the product boundary. A
+  passing model action is necessary but not sufficient: the answer must retrieve
+  the late reversal, cite both sources, survive follow-ups, and exclude removed
+  context. This architecture work is deferred; current real-model failures
+  continue to block merge readiness.
 - Complete the PR gate and hosted CI, recording their exact result separately.
 - Qualify signed distribution/upgrade behavior before any release work.

@@ -32,12 +32,37 @@ public enum AskAgentError: Error, LocalizedError {
     case protocolViolation(String)
     case budgetExceeded(String)
     case failed(String)
+    case invalidModelAction
 
     public var errorDescription: String? {
         switch self {
+        case .invalidModelAction:
+            "The selected model could not choose a valid Ask action. Try another model or ask again."
         case .unavailable(let message), .protocolViolation(let message),
             .budgetExceeded(let message), .failed(let message):
             message
         }
+    }
+}
+
+/// Application transport ceilings, not a promise about a provider's model context window.
+/// Initial history leaves space for tool evidence without silently dropping earlier messages.
+enum AskAgentBudget {
+    static let initialBytes = 16_000
+    static let requestBytes = 56_000
+    static let initialMessageCount = 76
+
+    static func wireMessages(_ messages: [ChatMessage]) -> [[String: String]] {
+        messages.map { ["role": $0.role.rawValue, "content": $0.modelContent] }
+    }
+
+    static func serializedBytes(_ messages: [[String: String]]) throws -> Int {
+        try JSONSerialization.data(withJSONObject: messages, options: [.withoutEscapingSlashes]).count
+    }
+
+    static func validateInitial(_ messages: [ChatMessage]) throws {
+        guard messages.count <= initialMessageCount,
+            try serializedBytes(wireMessages(messages)) <= initialBytes
+        else { throw AskWorkspaceError.contextTooLarge }
     }
 }

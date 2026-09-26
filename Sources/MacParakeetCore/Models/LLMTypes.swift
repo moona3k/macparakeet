@@ -30,25 +30,30 @@ public struct ChatJSONSchemaProperty: Codable, Sendable, Equatable {
     public let type: String
     public let items: ChatJSONSchemaArrayItem?
     public let nullable: Bool
+    public let enumValues: [String]?
 
     public init(
         type: String,
         items: ChatJSONSchemaArrayItem? = nil,
-        nullable: Bool = false
+        nullable: Bool = false,
+        enumValues: [String]? = nil
     ) {
         self.type = type
         self.items = items
         self.nullable = nullable
+        self.enumValues = enumValues
     }
 
     private enum CodingKeys: String, CodingKey {
         case type
         case items
+        case enumValues = "enum"
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         items = try container.decodeIfPresent(ChatJSONSchemaArrayItem.self, forKey: .items)
+        enumValues = try container.decodeIfPresent([String].self, forKey: .enumValues)
 
         if let type = try? container.decode(String.self, forKey: .type) {
             self.type = type
@@ -79,6 +84,7 @@ public struct ChatJSONSchemaProperty: Codable, Sendable, Equatable {
             try container.encode(type, forKey: .type)
         }
         try container.encodeIfPresent(items, forKey: .items)
+        try container.encodeIfPresent(enumValues, forKey: .enumValues)
     }
 }
 

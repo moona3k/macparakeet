@@ -72,7 +72,7 @@ final class InProcessLLMClientTests: XCTestCase {
     func testAskDecisionAndFinalAnswerPreserveLongEvidenceWithoutMapReduce() async throws {
         let modelDirectory = temporaryModelDirectory()
         let runtime = FakeLocalLLMRuntime(eventPlans: [
-            [.text(#"{"kind":"final","toolName":"","argumentsJSON":"{}"}"#)],
+            [.text(#"{"query":"","sourceID":"","start":0,"limit":0,"kind":"final","toolName":""}"#)],
             [.text("The decision is supported [E1].")],
         ])
         let client = InProcessLLMClient(

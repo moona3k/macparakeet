@@ -6,10 +6,9 @@ import { Type, createAssistantMessageEventStream } from '@earendil-works/pi-ai';
 const VERSION = 1;
 const MAX_FRAME = 64 * 1024;
 const MAX_TURNS = 12;
-const MAX_INPUT_CHARS = 384_000;
-const MAX_REQUEST_CHARS = 32_000;
-const MAX_TOOL_CHARS = 32_768;
-const MAX_EVIDENCE_CHARS = 131_072;
+const MAX_INPUT_BYTES = 384_000;
+const MAX_TOOL_BYTES = 32_768;
+const MAX_EVIDENCE_BYTES = 131_072;
 const MAX_OUTPUT_CHARS = 80_000;
 const DEADLINE_MS = 180_000;
 const allowed = new Set(['list_sources', 'search', 'read', 'get_summary']);
@@ -30,8 +29,9 @@ const descriptions = {
   get_summary: 'Get a current summary for one selected source, if available.',
 };
 
-const state = { started: false, runID: null, scopeID: null, pending: new Map(), nextID: 0, abort: new AbortController(), outputChars: 0, inputChars: 0, evidenceChars: 0, turns: 0, finalText: '' };
-function fail(message) {
+const state = { started: false, runID: null, scopeID: null, pending: new Map(), nextID: 0, abort: new AbortController(), outputChars: 0, inputBytes: 0, evidenceBytes: 0, turns: 0, finalText: '' };
+function fail(message, code) {
+  if (code) state.failureCode = code;
   if (!state.abort.signal.aborted) state.abort.abort(new Error(message));
   throw new Error(message);
 }
@@ -69,7 +69,7 @@ function compactMessages(messages) {
   return messages.map((m) => {
     if (m.role === 'system' || m.role === 'user') return { role: m.role, content: typeof m.content === 'string' ? m.content : m.content.filter((c) => c.type === 'text').map((c) => c.text).join('\n') };
     if (m.role === 'toolResult') return { role: 'user', content: `Tool ${m.toolName} result: ${m.content.filter((c) => c.type === 'text').map((c) => c.text).join('\n')}` };
-    if (m.role === 'assistant') return { role: 'assistant', content: (typeof m.content === 'string' ? [{ type: 'text', text: m.content }] : m.content).map((c) => c.type === 'toolCall' ? `Called ${c.name}(${JSON.stringify(c.arguments)})` : c.type === 'text' ? c.text : '').filter(Boolean).join('\n') };
+    if (m.role === 'assistant') return { role: 'assistant', content: (typeof m.content === 'string' ? [{ type: 'text', text: m.content }] : m.content).map((c) => c.type === 'toolCall' ? JSON.stringify({ kind: 'tool', toolName: c.name, query: c.arguments.query ?? '', sourceID: c.arguments.sourceID ?? '', start: c.arguments.start ?? 0, limit: c.arguments.limit ?? 0 }) : c.type === 'text' ? c.text : '').filter(Boolean).join('\n') };
     throw new Error('Unexpected Pi message role');
   });
 }
@@ -88,12 +88,12 @@ function streamFn(_model, context) {
   const stream = createAssistantMessageEventStream();
   void (async () => {
     try {
-      if (++state.turns > MAX_TURNS) fail('Ask turn limit reached');
+      if (++state.turns > MAX_TURNS) fail('Ask turn limit reached', 'budgetExceeded');
       const messages = compactMessages(context.messages);
-      const inputChars = JSON.stringify(messages).length;
-      state.inputChars += inputChars;
-      if (inputChars > MAX_REQUEST_CHARS) fail('Ask per-request input limit reached');
-      if (state.inputChars > MAX_INPUT_CHARS) fail('Ask cumulative input limit reached');
+      const inputBytes = Buffer.byteLength(JSON.stringify(messages));
+      state.inputBytes += inputBytes;
+      if (inputBytes > state.budget.requestBytes || messages.length > 100) fail('Ask per-request input limit reached', 'budgetExceeded');
+      if (state.inputBytes > MAX_INPUT_BYTES) fail('Ask cumulative input limit reached', 'budgetExceeded');
       const response = await request('modelDecision', { messages });
       if (response.kind !== 'decision' || !object(response.action)) fail('Invalid model decision response');
       const action = response.action;
@@ -105,7 +105,7 @@ function streamFn(_model, context) {
         let body = '';
         const final = await request('modelFinal', { messages }, (chunk) => {
           state.outputChars += chunk.length;
-          if (state.outputChars > MAX_OUTPUT_CHARS) fail('Ask output limit reached');
+          if (state.outputChars > MAX_OUTPUT_CHARS) fail('Ask output limit reached', 'budgetExceeded');
           body += chunk;
           write('text', null, { text: chunk });
         });
@@ -120,20 +120,26 @@ function streamFn(_model, context) {
 async function run(start) {
   const messages = start.messages;
   if (!Array.isArray(messages) || !messages.length || messages.some((m) => !object(m) || !['system','user','assistant'].includes(m.role) || typeof m.content !== 'string')) fail('Invalid start messages');
+  const budget = start.budget;
+  if (!object(budget) || !Number.isInteger(budget.initialBytes) || !Number.isInteger(budget.requestBytes)
+      || budget.initialBytes <= 0 || budget.initialBytes >= budget.requestBytes || budget.requestBytes > MAX_FRAME - 4_096) fail('Invalid context budget');
+  state.budget = budget;
+  if (messages.length > 76 || Buffer.byteLength(JSON.stringify(messages)) > budget.initialBytes) fail('Ask initial context limit reached', 'budgetExceeded');
   const tools = Object.keys(schemas).map((name) => ({
     name, label: name, description: descriptions[name], parameters: schemas[name], executionMode: 'sequential',
     execute: async (_id, args, signal) => {
       if (signal?.aborted) throw signal.reason;
       const reply = await request('tool', { toolName: name, argumentsJSON: JSON.stringify(args) });
       if (reply.kind !== 'toolResult' || typeof reply.resultJSON !== 'string') throw new Error('Invalid tool result');
-      if (reply.resultJSON.length > MAX_TOOL_CHARS) throw new Error('Tool result exceeds limit');
-      state.evidenceChars += reply.resultJSON.length;
-      if (state.evidenceChars > MAX_EVIDENCE_CHARS) throw new Error('Ask evidence limit reached');
+      const resultBytes = Buffer.byteLength(reply.resultJSON);
+      if (resultBytes > MAX_TOOL_BYTES) fail('Tool result exceeds limit', 'budgetExceeded');
+      state.evidenceBytes += resultBytes;
+      if (state.evidenceBytes > MAX_EVIDENCE_BYTES) fail('Ask evidence limit reached', 'budgetExceeded');
       JSON.parse(reply.resultJSON);
       return { content: [{ type: 'text', text: reply.resultJSON }] };
     },
   }));
-  const prompt = [{ role: 'system', content: 'Investigate only selected sources using the declared tools. Search and read before asserting transcript facts. Cite actual passage handles returned by tools using [E1], [E2], etc. Summaries orient; transcripts substantiate. State limits and uncertainty. Never claim unexamined sources were checked.', timestamp: Date.now() }, ...messages.map((m) => m.role === 'assistant' ? piMessage([{ type: 'text', text: m.content }], 'stop') : { ...m, timestamp: Date.now() })];
+  const prompt = messages.map((m) => m.role === 'assistant' ? piMessage([{ type: 'text', text: m.content }], 'stop') : { ...m, timestamp: Date.now() });
   const model = { id: 'configured', name: 'Configured MacParakeet model', api: 'openai-completions', provider: 'macparakeet', baseUrl: 'local-bridge', reasoning: false, input: ['text'], cost, contextWindow: 65536, maxTokens: 4096 };
   const timeout = setTimeout(() => state.abort.abort(new Error('Ask deadline exceeded')), DEADLINE_MS);
   try {
@@ -159,10 +165,10 @@ lines.on('line', (line) => {
     if (!state.started) {
       if (!object(frame) || frame.v !== VERSION || frame.kind !== 'start' || typeof frame.runID !== 'string' || typeof frame.scopeID !== 'string' || typeof frame.requestID !== 'string') throw new Error('Invalid start frame');
       state.started = true; state.runID = frame.runID; state.scopeID = frame.scopeID;
-      void run(frame).catch((error) => { write('error', frame.requestID, { message: error instanceof Error ? error.message : String(error) }); process.exitCode = 1; lines.close(); });
+      void run(frame).catch((error) => { write('error', frame.requestID, { message: error instanceof Error ? error.message : String(error), code: state.failureCode }); process.exitCode = 1; lines.close(); });
     } else validateReply(frame);
   } catch (error) {
-    if (state.started) write('error', null, { message: error instanceof Error ? error.message : String(error) });
+    if (state.started) write('error', null, { message: error instanceof Error ? error.message : String(error), code: state.failureCode });
     process.exitCode = 1; lines.close();
   }
 });

@@ -32,7 +32,7 @@ async function launch(handler, messages = [{ role: 'user', content: 'How did the
       await handler(frame, send, child);
     }
   })();
-  send({ kind: 'start', requestID: startID, messages });
+  send({ kind: 'start', requestID: startID, messages, budget: { initialBytes: 16_000, requestBytes: 56_000 } });
   return { child, send, frames, exited, reading, stderr: () => stderr };
 }
 
@@ -176,4 +176,75 @@ test('bundle notice manifest names only bundled dependencies', () => {
   assert.equal(packages.get('@earendil-works/pi-agent-core')?.license, 'MIT');
   assert.equal(packages.has('@earendil-works/pi-coding-agent'), false);
   for (const entry of manifest.packages) assert.ok(entry.files.length > 0, entry.name);
+});
+
+
+test('two permitted summaries fit and tool actions replay the decision schema', async () => {
+  let decisions = 0;
+  const summaries = ['a'.repeat(16_000), 'b'.repeat(16_000)];
+  const run = await launch((frame, send) => {
+    if (frame.kind === 'modelDecision') {
+      decisions++;
+      if (decisions === 3) {
+        for (const text of summaries) assert.ok(frame.messages.some((m) => m.content.includes(text)));
+        const actions = frame.messages.filter((m) => m.role === 'assistant').map((m) => JSON.parse(m.content));
+        assert.deepEqual(actions, [0, 1].map((i) => ({ kind: 'tool', toolName: 'get_summary', query: '', sourceID: `source-${i}`, start: 0, limit: 0 })));
+      }
+      send({ kind: 'decision', requestID: frame.requestID, action: decisions <= 2
+        ? { kind: 'tool', toolName: 'get_summary', arguments: { sourceID: `source-${decisions - 1}` } }
+        : { kind: 'final' } });
+    } else if (frame.kind === 'tool') {
+      send({ kind: 'toolResult', requestID: frame.requestID, resultJSON: JSON.stringify({ summary: summaries[decisions - 1] }) });
+    } else if (frame.kind === 'modelFinal') {
+      send({ kind: 'modelChunk', requestID: frame.requestID, text: 'These summaries orient further transcript investigation.' });
+      send({ kind: 'modelDone', requestID: frame.requestID });
+    }
+  });
+  const result = await run.exited;
+  await run.reading;
+  assert.equal(result.code, 0, JSON.stringify(run.frames.at(-1)));
+  assert.equal(decisions, 3);
+  assert.equal(run.frames.at(-1).kind, 'done');
+});
+
+test('oversized UTF8 initial context fails before requesting a model', async () => {
+  const run = await launch((frame, _send, child) => { if (frame.kind === 'modelDecision') child.stdin.end(); }, [{ role: 'user', content: '界'.repeat(6_000) }]);
+  const result = await run.exited;
+  await run.reading;
+  assert.notEqual(result.code, 0);
+  assert.equal(run.frames.some((frame) => frame.kind === 'modelDecision'), false);
+  assert.equal(run.frames.findLast((frame) => frame.kind === 'error')?.code, 'budgetExceeded');
+});
+
+test('context exhaustion is categorized without a partial final answer', async () => {
+  const run = await launch((frame, send) => {
+    if (frame.kind === 'modelDecision') {
+      send({ kind: 'decision', requestID: frame.requestID, action: { kind: 'tool', toolName: 'get_summary', arguments: { sourceID: 'source' } } });
+    } else if (frame.kind === 'tool') {
+      send({ kind: 'toolResult', requestID: frame.requestID, resultJSON: JSON.stringify({ summary: 'x'.repeat(16_000) }) });
+    }
+  });
+  const result = await run.exited;
+  await run.reading;
+  assert.notEqual(result.code, 0);
+  assert.equal(run.frames.some((frame) => frame.kind === 'modelFinal'), false);
+  assert.equal(run.frames.findLast((frame) => frame.kind === 'error')?.code, 'budgetExceeded');
+});
+
+
+test('accumulated Unicode evidence uses UTF8 bytes rather than character count', async () => {
+  let decisions = 0;
+  const run = await launch((frame, send) => {
+    if (frame.kind === 'modelDecision') {
+      decisions++;
+      send({ kind: 'decision', requestID: frame.requestID, action: { kind: 'tool', toolName: 'get_summary', arguments: { sourceID: 'source' } } });
+    } else if (frame.kind === 'tool') {
+      send({ kind: 'toolResult', requestID: frame.requestID, resultJSON: JSON.stringify({ summary: '界'.repeat(9_000) }) });
+    }
+  }, [{ role: 'user', content: 'x'.repeat(4_000) }]);
+  const result = await run.exited;
+  await run.reading;
+  assert.notEqual(result.code, 0);
+  assert.equal(decisions, 2);
+  assert.equal(run.frames.findLast((frame) => frame.kind === 'error')?.code, 'budgetExceeded');
 });

@@ -27,6 +27,7 @@ public struct PiAskAgent: AskAgentRunning {
         tool: @escaping @Sendable (String, String) async throws -> String,
         onEvent: @escaping @Sendable (AskAgentEvent) async -> Void
     ) async throws -> String {
+        try AskAgentBudget.validateInitial(request.messages)
         let (nodeURL, helperURL) = try resolvePaths()
         let process = Process()
         process.executableURL = nodeURL
@@ -80,11 +81,12 @@ public struct PiAskAgent: AskAgentRunning {
         let runID = request.runID.uuidString
         let scopeID = request.scopeID.uuidString
         let startID = "\(runID):start"
-        let history = request.messages.map { ["role": $0.role.rawValue, "content": $0.modelContent] }
+        let history = AskAgentBudget.wireMessages(request.messages)
         try send(
             [
                 "v": 1, "kind": "start", "runID": runID, "scopeID": scopeID,
                 "requestID": startID, "messages": history,
+                "budget": ["initialBytes": AskAgentBudget.initialBytes, "requestBytes": AskAgentBudget.requestBytes],
             ], to: input.fileHandleForWriting)
         var activeRequestIDs = Set<String>()
         let finalBuffer = AskFinalTextBuffer()
@@ -109,6 +111,9 @@ public struct PiAskAgent: AskAgentRunning {
                     messageObjects.count <= 100
                 else {
                     throw AskAgentError.protocolViolation("Invalid Ask model request")
+                }
+                guard try AskAgentBudget.serializedBytes(messageObjects) <= AskAgentBudget.requestBytes else {
+                    throw AskAgentError.budgetExceeded("Ask per-request input limit reached")
                 }
                 let messages = try Self.decodeMessages(messageObjects)
                 do {
@@ -202,6 +207,9 @@ public struct PiAskAgent: AskAgentRunning {
                 }
                 return answer
             case "error":
+                if frame["code"] as? String == "budgetExceeded" {
+                    throw AskAgentError.budgetExceeded("Ask investigation limit reached")
+                }
                 throw AskAgentError.failed((frame["message"] as? String) ?? "Ask helper failed")
             default:
                 throw AskAgentError.protocolViolation("Unknown Ask helper frame")
@@ -231,7 +239,7 @@ public struct PiAskAgent: AskAgentRunning {
     }
 
     private func send(_ frame: [String: Any], to handle: FileHandle) throws {
-        let data = try JSONSerialization.data(withJSONObject: frame)
+        let data = try JSONSerialization.data(withJSONObject: frame, options: [.withoutEscapingSlashes])
         guard data.count <= Self.frameLimit else {
             throw AskAgentError.budgetExceeded("Ask IPC frame exceeds limit")
         }

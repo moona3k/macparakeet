@@ -333,6 +333,91 @@ final class AskWorkspaceServiceTests: XCTestCase {
         XCTAssertEqual(result.messages.count, 4)
     }
 
+    func testOversizedHistoryIsRejectedBeforePersistenceAndKeepsDraft() async throws {
+        let fixture = try Fixture()
+        let source = try fixture.source("Planning", "Launch in June.")
+        let snapshot = try XCTUnwrap(
+            AskSourceService(dbQueue: fixture.database.dbQueue).snapshot(sourceIDs: [source.id]).first)
+        let versions = [source.id: snapshot.revision]
+        let section = AskContextSection(sourceIDs: [source.id])
+        let repository = AskConversationRepository(dbQueue: fixture.database.dbQueue)
+        let chat = try repository.create(
+            AskConversation(
+                sections: [section],
+                messages: [
+                    AskMessage(sectionID: section.id, role: .user, content: "Earlier?", sourceRevisions: versions),
+                    AskMessage(
+                        sectionID: section.id, role: .assistant, content: String(repeating: "x", count: 33_000),
+                        sourceRevisions: versions),
+                ], draft: "Keep this question"))
+        let persistedBeforeSend = try XCTUnwrap(repository.fetch(id: chat.id))
+        let service = fixture.service(
+            ScriptedAskAgent { _, _, _ in
+                XCTFail("Oversized history must not run"); return ""
+            })
+        do {
+            _ = try await service.send(
+                id: chat.id, question: chat.draft, expectedRevision: chat.revision,
+                approvedProviderID: nil, onEvent: { _ in })
+            XCTFail("Expected preflight rejection")
+        } catch AskWorkspaceError.contextTooLarge {
+            XCTAssertTrue(AskWorkspaceError.contextTooLarge.localizedDescription.contains("new conversation"))
+        }
+        XCTAssertEqual(try repository.fetch(id: chat.id), persistedBeforeSend)
+        let token = UUID()
+        XCTAssertTrue(
+            try repository.acquireRun(
+                id: chat.id, expectedRevision: chat.revision, token: token,
+                leaseUntil: Date().addingTimeInterval(30)))
+        XCTAssertTrue(try repository.releaseRun(id: chat.id, token: token))
+    }
+
+    func testSerializedUTF8QuestionBudgetIncludesEscapingBeforePersistence() async throws {
+        for question in [String(repeating: "界", count: 6_000), String(repeating: "\u{0001}", count: 3_000)] {
+            let fixture = try Fixture()
+            let source = try fixture.source("Planning", "Launch in June.")
+            let service = fixture.service(
+                ScriptedAskAgent { _, _, _ in
+                    XCTFail("Oversized UTF8 or escaped JSON must not run"); return ""
+                })
+            let chat = try await service.create(sourceIDs: [source.id])
+            let persistedBeforeSend = try await service.conversation(id: chat.id)
+            do {
+                _ = try await service.send(
+                    id: chat.id, question: question, expectedRevision: chat.revision,
+                    approvedProviderID: nil, onEvent: { _ in })
+                XCTFail("Expected serialized-byte preflight rejection")
+            } catch AskWorkspaceError.contextTooLarge {}
+            let saved = try await service.conversation(id: chat.id)
+            XCTAssertEqual(saved, persistedBeforeSend)
+        }
+    }
+
+    func testBudgetAndInvalidActionFailuresKeepPartialTextAndSanitizeReason() async throws {
+        for error in [AskAgentError.budgetExceeded("private provider payload"), .invalidModelAction] {
+            let fixture = try Fixture()
+            let source = try fixture.source("Planning", "Launch in June.")
+            let service = fixture.service(
+                ScriptedAskAgent { _, _, event in
+                    await event(.text("Partial answer"))
+                    throw error
+                })
+            let chat = try await service.create(sourceIDs: [source.id])
+            let result = try await service.send(
+                id: chat.id, question: "What changed?", expectedRevision: chat.revision,
+                approvedProviderID: nil, onEvent: { _ in })
+            XCTAssertEqual(result.messages.last?.status, .failed)
+            XCTAssertEqual(result.messages.last?.content, "Partial answer")
+            let reason = try XCTUnwrap(result.messages.last?.failureReason)
+            XCTAssertFalse(reason.contains("private provider payload"))
+            switch error {
+            case .budgetExceeded: XCTAssertTrue(reason.contains("narrower question"))
+            case .invalidModelAction: XCTAssertTrue(reason.contains("valid Ask action"))
+            default: XCTFail("Unexpected test error")
+            }
+        }
+    }
+
     private struct Fixture {
         let database: DatabaseManager
         let transcriptions: TranscriptionRepository

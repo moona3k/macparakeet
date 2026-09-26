@@ -10,25 +10,53 @@ enum AskModelBridge {
         let arguments: [String: Any]?
     }
 
-    private static let decisionPrompt = """
+    private static let completedStopReasons: Set<String> = [
+        "stop", "end_turn", "stop_sequence", "eos", "complete", "completed",
+    ]
+
+    private static let decisionPrompt = #"""
         Choose exactly one next action for investigating the selected transcripts.
-        Return one JSON object with keys kind, toolName, argumentsJSON. For a tool call,
-        kind is "tool", toolName is list_sources, search, read, or get_summary,
-        and argumentsJSON is a JSON object encoded as a string. For the final answer,
-        kind is "final", toolName is empty, and argumentsJSON is "{}".
-        Tool arguments: list_sources {}; search {query:string, sourceID?:string, limit?:integer 1...12};
-        read {sourceID:string, start:integer >=0, limit:integer 1...12};
-        get_summary {sourceID:string}. Search and read evidence before making claims.
+        Return one JSON object with exactly six keys: kind, toolName, query, sourceID, start, limit.
+        kind is "tool" or "final". toolName is list_sources, search, read, get_summary, or empty for final.
+        query and sourceID must be strings; start and limit must be integers.
+        Use an empty string for every unused string argument and 0 for every unused integer argument.
+        Do not use null or encode arguments as a JSON string.
+        Tool arguments: list_sources uses no arguments; search requires query and optionally sourceID and limit 1...12;
+        read requires sourceID, start >=0, and limit 1...12; get_summary requires sourceID.
+        For final, toolName, query, and sourceID are empty strings; start and limit are 0.
+        Search and read evidence before making claims.
+        Search matches passages containing ALL query words; it is not semantic search.
+        Start with one distinctive topic word across all selected sources (set sourceID to an empty string).
+        If no matches, try fewer words or a different word before concluding evidence is absent.
+        For changes over time, inspect relevant hits from earlier and later recordings.
+        Reading start 0 only covers the opening passages, not the entire recording.
         One tool call per turn. Do not include markdown or any other text.
+
+        Examples (each is one complete response):
+        {"kind":"tool","toolName":"list_sources","query":"","sourceID":"","start":0,"limit":0}
+        {"kind":"tool","toolName":"search","query":"budget","sourceID":"","start":0,"limit":8}
+        {"kind":"tool","toolName":"read","query":"","sourceID":"SOURCE_ID","start":0,"limit":5}
+        {"kind":"tool","toolName":"get_summary","query":"","sourceID":"SOURCE_ID","start":0,"limit":0}
+        {"kind":"final","toolName":"","query":"","sourceID":"","start":0,"limit":0}
+        """#
+    private static let correctionPrompt = """
+        The previous action did not match the required format or allowed arguments.
+        Choose the next action again for the same question. Return exactly one complete
+        JSON object with all six keys following the examples above. Use empty strings and 0
+        for unused arguments. Use only the listed kind and toolName values.
         """
     private static let schema = ChatJSONSchema(
         type: "object",
         properties: [
-            "kind": ChatJSONSchemaProperty(type: "string"),
-            "toolName": ChatJSONSchemaProperty(type: "string"),
-            "argumentsJSON": ChatJSONSchemaProperty(type: "string"),
+            "kind": ChatJSONSchemaProperty(type: "string", enumValues: ["tool", "final"]),
+            "toolName": ChatJSONSchemaProperty(
+                type: "string", enumValues: ["", "list_sources", "search", "read", "get_summary"]),
+            "query": ChatJSONSchemaProperty(type: "string"),
+            "sourceID": ChatJSONSchemaProperty(type: "string"),
+            "start": ChatJSONSchemaProperty(type: "integer"),
+            "limit": ChatJSONSchemaProperty(type: "integer"),
         ],
-        required: ["kind", "toolName", "argumentsJSON"],
+        required: ["kind", "toolName", "query", "sourceID", "start", "limit"],
         additionalProperties: false
     )
 
@@ -39,33 +67,55 @@ enum AskModelBridge {
         let format: ChatResponseFormat? =
             client.structuredOutputCapability(context: context) == .nativeJSONSchema
             ? .jsonSchema(name: "ask_action", schema: schema) : nil
-        let response = try await client.chatCompletion(
-            messages: [ChatMessage(role: .system, content: decisionPrompt)] + messages,
-            context: context,
-            options: ChatCompletionOptions(
-                temperature: 0, maxTokens: 400, responseFormat: format, allowsLocalChunking: false)
-        )
-        try Task.checkCancellation()
-        guard response.content.utf8.count <= 8_192,
-            let data = response.content.data(using: .utf8),
-            let raw = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-            Set(raw.keys) == Set(["kind", "toolName", "argumentsJSON"]),
+        for attempt in 0..<2 {
+            let prompt = attempt == 0 ? decisionPrompt : decisionPrompt + "\n" + correctionPrompt
+            let response = try await client.chatCompletion(
+                messages: [ChatMessage(role: .system, content: prompt)] + messages,
+                context: context,
+                options: ChatCompletionOptions(
+                    temperature: 0, maxTokens: 400, responseFormat: format, allowsLocalChunking: false)
+            )
+            try Task.checkCancellation()
+            if let reason = response.finishReason?.lowercased(),
+                !completedStopReasons.contains(reason)
+            {
+                throw AskAgentError.budgetExceeded("Ask action ended before a complete model response")
+            }
+            if let action = parseAction(response.content) { return action }
+        }
+        throw AskAgentError.invalidModelAction
+    }
+
+    private static func parseAction(_ content: String) -> Action? {
+        guard content.utf8.count <= 8_192,
+            let data = content.data(using: .utf8),
+            let raw = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+            Set(raw.keys) == Set(["kind", "toolName", "query", "sourceID", "start", "limit"]),
             let kind = raw["kind"] as? String,
             let toolName = raw["toolName"] as? String,
-            let argumentsJSON = raw["argumentsJSON"] as? String,
-            argumentsJSON.utf8.count <= 4_096,
-            let argsData = argumentsJSON.data(using: .utf8),
-            let args = try JSONSerialization.jsonObject(with: argsData) as? [String: Any]
-        else { throw AskAgentError.protocolViolation("Model returned an invalid Ask action") }
+            let query = raw["query"] as? String,
+            let sourceID = raw["sourceID"] as? String
+        else { return nil }
+        func integer(_ key: String) -> Int? {
+            guard let number = raw[key] as? NSNumber,
+                CFGetTypeID(number) != CFBooleanGetTypeID()
+            else { return nil }
+            return Int(exactly: number.doubleValue)
+        }
+        guard let start = integer("start"), let limit = integer("limit") else { return nil }
+        var args: [String: Any] = [:]
+        if !query.isEmpty { args["query"] = query }
+        if !sourceID.isEmpty { args["sourceID"] = sourceID }
+        if toolName == "read" || start != 0 { args["start"] = start }
+        if limit != 0 { args["limit"] = limit }
+        guard let argsData = try? JSONSerialization.data(withJSONObject: args), argsData.count <= 4_096 else {
+            return nil
+        }
         if kind == "final" {
-            guard toolName.isEmpty, args.isEmpty else {
-                throw AskAgentError.protocolViolation("Invalid final action")
-            }
+            guard toolName.isEmpty, args.isEmpty else { return nil }
             return Action(kind: kind, toolName: nil, arguments: nil)
         }
-        guard kind == "tool", validate(toolName: toolName, args: args) else {
-            throw AskAgentError.protocolViolation("Model requested an invalid Ask tool")
-        }
+        guard kind == "tool", validate(toolName: toolName, args: args) else { return nil }
         return Action(kind: kind, toolName: toolName, arguments: args)
     }
 
@@ -102,7 +152,7 @@ enum AskModelBridge {
                 guard !sawTerminal else { throw AskAgentError.protocolViolation("Duplicate model terminal event") }
                 sawTerminal = true
                 if let reason = terminal.stopReason?.lowercased(),
-                    !["stop", "end_turn", "stop_sequence", "eos", "complete", "completed"].contains(reason)
+                    !completedStopReasons.contains(reason)
                 {
                     throw AskAgentError.budgetExceeded("Ask answer ended before a complete model response")
                 }

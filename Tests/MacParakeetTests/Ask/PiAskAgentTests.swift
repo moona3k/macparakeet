@@ -90,6 +90,30 @@ final class PiAskAgentTests: XCTestCase {
         XCTAssertTrue(early)
     }
 
+    func testHelperBudgetFailurePreservesItsSafeCategory() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let script = directory.appendingPathComponent("budget.sh")
+        let content = """
+            #!/bin/sh
+            read input
+            printf '%s\\n' '{"v":1,"kind":"error","runID":"00000000-0000-0000-0000-000000000001","scopeID":"00000000-0000-0000-0000-000000000002","requestID":"ignored","code":"budgetExceeded","message":"private payload"}'
+            """
+        try content.write(to: script, atomically: true, encoding: .utf8)
+        let agent = PiAskAgent(nodeURL: URL(fileURLWithPath: "/bin/sh"), helperURL: script)
+        do {
+            _ = try await agent.run(
+                request: request, client: RoutingLLMClient(), context: context,
+                tool: { _, _ in
+                    XCTFail("Tool should not execute"); return "{}"
+                }, onEvent: { _ in })
+            XCTFail("Budget failure was accepted")
+        } catch AskAgentError.budgetExceeded(let message) {
+            XCTAssertFalse(message.contains("private payload"))
+        }
+    }
+
     func testWrongRunIDFromHelperFailsClosed() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -130,12 +154,12 @@ private final class ScriptedPiLLMClient: LLMClientProtocol, @unchecked Sendable 
     private var nextIndex = 0
     private var reachedTerminal = false
     private let decisions = [
-        #"{"kind":"tool","toolName":"list_sources","argumentsJSON":"{}"}"#,
-        #"{"kind":"tool","toolName":"search","argumentsJSON":"{\"query\":\"launch\",\"limit\":3}"}"#,
-        #"{"kind":"tool","toolName":"read","argumentsJSON":"{\"sourceID\":\"A\",\"start\":0,\"limit\":5}"}"#,
-        #"{"kind":"tool","toolName":"read","argumentsJSON":"{\"sourceID\":\"B\",\"start\":0,\"limit\":5}"}"#,
-        #"{"kind":"tool","toolName":"read","argumentsJSON":"{\"sourceID\":\"C\",\"start\":0,\"limit\":5}"}"#,
-        #"{"kind":"final","toolName":"","argumentsJSON":"{}"}"#,
+        #"{"query":"","sourceID":"","start":0,"limit":0,"kind":"tool","toolName":"list_sources"}"#,
+        #"{"query":"launch","sourceID":"","start":0,"limit":3,"kind":"tool","toolName":"search"}"#,
+        #"{"query":"","sourceID":"A","start":0,"limit":5,"kind":"tool","toolName":"read"}"#,
+        #"{"query":"","sourceID":"B","start":0,"limit":5,"kind":"tool","toolName":"read"}"#,
+        #"{"query":"","sourceID":"C","start":0,"limit":5,"kind":"tool","toolName":"read"}"#,
+        #"{"query":"","sourceID":"","start":0,"limit":0,"kind":"final","toolName":""}"#,
     ]
 
     func chatCompletion(

@@ -87,6 +87,30 @@ architecture decision.
   failed/cancelled answers, stale answers, and citations are not replayed as
   evidence in a later run. Older conversation text is not treated as source
   evidence.
+- Swift defines the helper's context ceilings in serialized UTF-8 JSON bytes
+  (including role fields and JSON escaping): 16,000 bytes and 76 messages for
+  initial instructions/history/question, and 56,000 bytes per investigation
+  request. Swift checks the initial budget before acquiring a lease or saving
+  a question/placeholder, leaving 40,000 bytes for tool evidence and action
+  history. Oversized initial context leaves the conversation and draft unchanged
+  and asks the user to start a new conversation. The helper receives the same
+  ceilings in its start frame; it does not insert extra instructions. These are
+  application transport ceilings, not model context-window guarantees.
+- If evidence/history exceeds the per-request or cumulative investigation
+  budget, the run stops with a categorized, sanitized limit message suggesting
+  a narrower question or fewer recordings. Partial text stays failed; no history
+  or evidence is silently discarded, and no unchecked final answer is produced.
+- Model actions use a strict JSON schema with enumerated action/tool names and
+  required typed `query`, `sourceID`, `start`, and `limit` fields. Unused text
+  fields must be empty strings and unused numeric fields must be zero. Arguments
+  are not JSON encoded inside a string. The host still
+  validates each tool's allowed fields and ranges before executing it.
+  A malformed action receives at most one correction request, without replaying
+  the invalid response. Both attempts undergo the same argument validation;
+  repeated invalid actions fail with a sanitized model-compatibility message.
+  Cancellation, provider errors, and truncated responses are not retried by this
+  correction path. Decision and final requests disable local input chunking so
+  an agent turn cannot be split into unrelated model calls.
 - Before model work starts, Ask durably appends the user question and an
   assistant placeholder with `incomplete` status. The placeholder remains
   distinguishable if the process exits before terminal persistence. Completed,
@@ -110,6 +134,8 @@ architecture decision.
   configured client. This is not provider-native function calling. Providers
   with native JSON-schema response format use it for the decision object;
   otherwise Swift validates the JSON response before allowing a tool call.
+  Tool actions replay as the same typed decision
+  schema used for the next action, rather than a second prose call syntax.
   A valid final answer must cite at least one tool-returned evidence marker;
   uncited responses remain `incomplete` and are identified as unverified.
   Malformed, unknown, or fabricated evidence markers fail validation.
