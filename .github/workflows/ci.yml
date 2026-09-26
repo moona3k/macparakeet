@@ -20,12 +20,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  swift-test:
+  behavior:
+    name: Tests and Swift 6
     runs-on: macos-14
-    # Leave time for tests after the release, bundle, and concurrency builds.
-    # Voice-profile sources pushed a clean Release compile past the old 15/60
-    # minute step/job caps (pre-#1044 Release builds already took ~14.5 min).
-    timeout-minutes: 90
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -35,18 +33,26 @@ jobs:
         with:
           xcode-version: "16.1"
 
-      - name: Toolchain Versions
+      - name: Runner and Toolchain Evidence
         timeout-minutes: 2
         run: |
-          xcodebuild -version
-          swift --version
+          mkdir -p ci-logs
+          set -o pipefail
+          {
+            git rev-parse HEAD
+            sw_vers
+            uname -m
+            sysctl -n hw.ncpu hw.memsize
+            xcodebuild -version
+            swift --version
+          } 2>&1 | tee ci-logs/environment.log
 
       - name: Check Subsystem README References
         timeout-minutes: 1
         run: |
-          mkdir -p .ci-logs
+          mkdir -p ci-logs
           set -o pipefail
-          ./scripts/check-readme-references.sh 2>&1 | tee .ci-logs/check-readme-references.log
+          ./scripts/check-readme-references.sh 2>&1 | tee ci-logs/check-readme-references.log
 
       - name: Check Telemetry Allowlist
         timeout-minutes: 2
@@ -56,26 +62,121 @@ jobs:
           # this secret is unset the script SKIPS (exit 0) rather than failing.
           GH_TOKEN: ${{ secrets.WEBSITE_REPO_TOKEN }}
         run: |
-          mkdir -p .ci-logs
+          mkdir -p ci-logs
           set -o pipefail
-          ./scripts/ci/check-telemetry-allowlist.sh 2>&1 | tee .ci-logs/check-telemetry-allowlist.log
+          ./scripts/ci/check-telemetry-allowlist.sh 2>&1 | tee ci-logs/check-telemetry-allowlist.log
 
-      - name: Meeting Echo Packaging Fixtures
-        timeout-minutes: 5
-        run: |
-          set -euo pipefail
-          mkdir -p .ci-logs
-          for fixture in test_macho_min_version test_prepare_meeting_echo_assets test_verify_meeting_echo_assets; do
-            bash "scripts/dist/${fixture}.sh" 2>&1 | tee ".ci-logs/${fixture}.log"
-          done
+      - name: CI Helper Tests
+        timeout-minutes: 2
+        run: python3 -m unittest discover -s scripts/ci -p 'test_*.py'
 
       - name: Swift Format Lint (informational)
         continue-on-error: true
         timeout-minutes: 3
         run: |
-          mkdir -p .ci-logs
+          mkdir -p ci-logs
           set -o pipefail
-          xcrun swift-format lint --recursive --configuration .swift-format Sources Tests 2>&1 | tee .ci-logs/swift-format-lint.log
+          xcrun swift-format lint --recursive --configuration .swift-format Sources Tests 2>&1 | tee ci-logs/swift-format-lint.log
+
+      - name: Cache SwiftPM Dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            .build/checkouts
+            .build/repositories
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      # Compile the normal dependency graph and tests once with the same
+      # concurrency diagnostics used during execution. Keep build and run
+      # separate so their costs are visible in the Actions step timings.
+      - name: Swift Test Build (Concurrency Diagnostics)
+        id: test_build
+        timeout-minutes: 25
+        run: |
+          set -o pipefail
+          swift build --build-tests -Xswiftc -warn-concurrency 2>&1 | tee ci-logs/swift-test-build.log
+
+      - name: Swift Test
+        id: tests
+        timeout-minutes: 20
+        run: |
+          set -o pipefail
+          swift test --skip-build --parallel -Xswiftc -warn-concurrency --xunit-output ci-logs/swift-tests.xml 2>&1 | tee ci-logs/swift-test.log
+
+      - name: Test Summary
+        if: ${{ !cancelled() && steps.tests.outcome != 'skipped' && steps.tests.outcome != '' }}
+        run: |
+          set -o pipefail
+          python3 scripts/ci/summarize-tests.py ci-logs/swift-tests.xml ci-logs/swift-test.log | tee ci-logs/test-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: CLI Persistence Smoke
+        if: ${{ !cancelled() && steps.test_build.outcome == 'success' }}
+        timeout-minutes: 2
+        run: |
+          set -o pipefail
+          python3 scripts/ci/cli-persistence-smoke.py "$PWD/.build/debug/macparakeet-cli" 2>&1 | tee ci-logs/cli-persistence-smoke.log
+
+      - name: Swift 6 Language Mode
+        if: ${{ !cancelled() && steps.test_build.outcome == 'success' }}
+        timeout-minutes: 15
+        env:
+          # Argmax/WhisperKit v0.18.0 is required for real builds but is not
+          # Swift 6 language-mode clean yet. Keep this step focused on
+          # first-party MacParakeet sources while release/test builds compile
+          # the full WhisperKit dependency graph.
+          MACPARAKEET_SKIP_WHISPERKIT: "1"
+        run: |
+          mkdir -p ci-logs
+          set -o pipefail
+          swift build --build-path .build-swift6-no-whisper -Xswiftc -swift-version -Xswiftc 6 2>&1 | tee ci-logs/swift-6-language-mode.log
+
+      - name: Upload Test Evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: swift-test-evidence
+          path: ci-logs/
+          if-no-files-found: error
+          retention-days: 7
+
+  distribution:
+    name: Release and Bundle
+    runs-on: macos-14
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "16.1"
+
+      - name: Runner and Toolchain Evidence
+        timeout-minutes: 2
+        run: |
+          mkdir -p ci-logs
+          set -o pipefail
+          {
+            git rev-parse HEAD
+            sw_vers
+            uname -m
+            sysctl -n hw.ncpu hw.memsize
+            xcodebuild -version
+            swift --version
+          } 2>&1 | tee ci-logs/environment.log
+
+      - name: Meeting Echo Packaging Fixtures
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          mkdir -p ci-logs
+          for fixture in test_macho_min_version test_prepare_meeting_echo_assets test_verify_meeting_echo_assets; do
+            bash "scripts/dist/${fixture}.sh" 2>&1 | tee "ci-logs/${fixture}.log"
+          done
 
       - name: Cache SwiftPM Dependencies
         uses: actions/cache@v5
@@ -91,50 +192,24 @@ jobs:
       - name: Swift Build (Release)
         timeout-minutes: 25
         run: |
-          mkdir -p .ci-logs
+          mkdir -p ci-logs
           set -o pipefail
-          swift build -c release 2>&1 | tee .ci-logs/swift-build-release.log
-
-      - name: CLI Contract Smoke
-        timeout-minutes: 2
-        env:
-          MACPARAKEET_TELEMETRY: "0"
-        run: |
-          mkdir -p .ci-logs
-          set -o pipefail
-          .build/release/macparakeet-cli --help > .ci-logs/cli-help.txt
-          .build/release/macparakeet-cli spec --json > .ci-logs/cli-spec.json
-          python3 -m json.tool .ci-logs/cli-spec.json > /dev/null
-          python3 - <<'PY'
-          import json
-
-          with open(".ci-logs/cli-spec.json", encoding="utf-8") as f:
-              spec = json.load(f)
-
-          commands = {
-              tuple(command["path"]): command
-              for command in spec["commands"]
-          }
-          export = commands[("meetings", "export")]
-          if export["jsonMode"] != "--stdout --format json":
-              raise SystemExit(
-                  f"Unexpected meetings export jsonMode: {export['jsonMode']!r}"
-              )
-          PY
+          swift build -c release 2>&1 | tee ci-logs/swift-build-release.log
 
       - name: Release Bundle Smoke
         timeout-minutes: 25
         env:
           BUILD_SYSTEM: xcodebuild
+          XCODE_BUILD_LOG: ci-logs/xcode-release-build.log
           BUNDLE_YTDLP: "0"
           BUNDLE_NODE: "0"
           FFMPEG_PATH: /usr/bin/true
           VERSION: 0.0.0
           BUILD_NUMBER: ci
         run: |
-          mkdir -p .ci-logs
+          mkdir -p ci-logs
           set -o pipefail
-          ./scripts/dist/build_app_bundle.sh 2>&1 | tee .ci-logs/release-bundle-smoke.log
+          ./scripts/dist/build_app_bundle.sh 2>&1 | tee ci-logs/release-bundle-smoke.log
           swift - dist/MacParakeet.app/Contents/Resources/SwiftStreamingMarkdown_SwiftStreamingMarkdown.bundle <<'SWIFT'
           import AppKit
           guard let bundle = Bundle(path: CommandLine.arguments[1]),
@@ -148,38 +223,55 @@ jobs:
           print("Packaged Markdown assets resolve")
           SWIFT
 
-      - name: Swift Concurrency Safety
-        timeout-minutes: 15
-        run: |
-          mkdir -p .ci-logs
-          set -o pipefail
-          swift build -Xswiftc -warn-concurrency 2>&1 | tee .ci-logs/swift-concurrency-safety.log
-
-      - name: Swift 6 Language Mode
-        timeout-minutes: 15
+      - name: CLI Contract Smoke
+        timeout-minutes: 2
         env:
-          # Argmax/WhisperKit v0.18.0 is required for real builds but is not
-          # Swift 6 language-mode clean yet. Keep this step focused on
-          # first-party MacParakeet sources while release/test builds compile
-          # the full WhisperKit dependency graph.
-          MACPARAKEET_SKIP_WHISPERKIT: "1"
+          MACPARAKEET_TELEMETRY: "0"
         run: |
-          mkdir -p .ci-logs
+          mkdir -p ci-logs
           set -o pipefail
-          swift build --build-path .build-swift6-no-whisper -Xswiftc -swift-version -Xswiftc 6 2>&1 | tee .ci-logs/swift-6-language-mode.log
+          dist/MacParakeet.app/Contents/MacOS/macparakeet-cli --help > ci-logs/cli-help.txt
+          dist/MacParakeet.app/Contents/MacOS/macparakeet-cli spec --json > ci-logs/cli-spec.json
+          python3 -m json.tool ci-logs/cli-spec.json > /dev/null
+          python3 - <<'PY'
+          import json
 
-      - name: Swift Test
-        timeout-minutes: 25
-        run: |
-          mkdir -p .ci-logs
-          set -o pipefail
-          swift test --parallel 2>&1 | tee .ci-logs/swift-test.log
+          with open("ci-logs/cli-spec.json", encoding="utf-8") as f:
+              spec = json.load(f)
 
-      - name: Upload CI Logs
+          commands = {
+              tuple(command["path"]): command
+              for command in spec["commands"]
+          }
+          export = commands[("meetings", "export")]
+          if export["jsonMode"] != "--stdout --format json":
+              raise SystemExit(
+                  f"Unexpected meetings export jsonMode: {export['jsonMode']!r}"
+              )
+          PY
+
+      - name: Upload Distribution Evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: swift-ci-logs
-          path: .ci-logs/
-          if-no-files-found: ignore
+          name: swift-distribution-evidence
+          path: ci-logs/
+          if-no-files-found: error
           retention-days: 7
+
+  # Preserve the existing check name as the complete CI verdict. An individual
+  # lane passing must never conceal a failed, skipped, or cancelled dependency.
+  swift-test:
+    if: always()
+    needs: [behavior, distribution]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require Every CI Lane
+        env:
+          BEHAVIOR_RESULT: ${{ needs.behavior.result }}
+          DISTRIBUTION_RESULT: ${{ needs.distribution.result }}
+        run: |
+          printf 'Tests and Swift 6: %s\nRelease and Bundle: %s\n' "$BEHAVIOR_RESULT" "$DISTRIBUTION_RESULT"
+          test "$BEHAVIOR_RESULT" = success
+          test "$DISTRIBUTION_RESULT" = success

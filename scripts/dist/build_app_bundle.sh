@@ -24,6 +24,7 @@ set -euo pipefail
 #   SKIP_BUILD          (default: 0) reuse existing Release binary if 1
 #   BUILD_SYSTEM        (default: xcodebuild) app distribution requires xcodebuild
 #   XCODE_DERIVED_DATA  (default: .build/xcode-dist) derived data path for xcodebuild
+#   XCODE_BUILD_LOG     (default: /dev/null) append Xcode output and build timings here
 #   FFMPEG_PATH         (default: auto-download static build) source ffmpeg binary to bundle
 #   FFMPEG_VERSION      (default: release) 'release' or 'snapshot' from ffmpeg.martin-riedl.de
 #   ALLOW_NON_PORTABLE_FFMPEG (default: 0) allow bundling ffmpeg with non-system dylib deps
@@ -66,6 +67,7 @@ if [[ "$BUILD_SYSTEM" != "xcodebuild" ]]; then
 fi
 BUILD_SOURCE="${BUILD_SOURCE:-dist-${BUILD_SYSTEM}-release}"
 XCODE_DERIVED_DATA="${XCODE_DERIVED_DATA:-$ROOT_DIR/.build/xcode-dist}"
+XCODE_BUILD_LOG="${XCODE_BUILD_LOG:-/dev/null}"
 
 APP_DIR="$DIST_DIR/${APP_NAME}.app"
 CONTENTS_DIR="$APP_DIR/Contents"
@@ -127,6 +129,14 @@ prepare_xcode_git_submodule_support() {
   exit 1
 }
 
+run_xcodebuild() {
+  # Append stdout to XCODE_BUILD_LOG (quiet on the console, matching historical
+  # behavior when it defaults to /dev/null) while duplicating stderr to both
+  # the log and the console, so the configured log is complete and build
+  # failures stay visible in job output either way.
+  xcodebuild "$@" >>"$XCODE_BUILD_LOG" 2> >(tee -a "$XCODE_BUILD_LOG" >&2)
+}
+
 build_xcodebuild() {
   # Xcode compiles assets and generates resource accessors for a relocatable app bundle.
   if [[ "$SKIP_BUILD" == "1" ]]; then
@@ -141,10 +151,10 @@ build_xcodebuild() {
 
     if [[ "$SKIP_BUILD" != "1" ]]; then
       echo "[1/4] Building via xcodebuild (universal Release)…"
-      xcodebuild build -scheme MacParakeet -configuration Release -destination "platform=OS X,arch=arm64" \
-        -derivedDataPath "$dd_arm" -skipMacroValidation CODE_SIGNING_ALLOWED=NO >/dev/null
-      xcodebuild build -scheme MacParakeet -configuration Release -destination "platform=OS X,arch=x86_64" \
-        -derivedDataPath "$dd_x86" -skipMacroValidation CODE_SIGNING_ALLOWED=NO >/dev/null
+      run_xcodebuild build -scheme MacParakeet -configuration Release -destination "platform=OS X,arch=arm64" \
+        -derivedDataPath "$dd_arm" -skipMacroValidation -showBuildTimingSummary CODE_SIGNING_ALLOWED=NO
+      run_xcodebuild build -scheme MacParakeet -configuration Release -destination "platform=OS X,arch=x86_64" \
+        -derivedDataPath "$dd_x86" -skipMacroValidation -showBuildTimingSummary CODE_SIGNING_ALLOWED=NO
     fi
 
     local bin_arm="$dd_arm/Build/Products/Release/MacParakeet"
@@ -165,8 +175,8 @@ build_xcodebuild() {
     if [[ "$SKIP_BUILD" != "1" ]]; then
       echo "[1/4] Building via xcodebuild (Release)…"
       # Apple Silicon is the supported shipping target; lock to arm64 to avoid ambiguous destinations.
-      xcodebuild build -scheme MacParakeet -configuration Release -destination "platform=OS X,arch=arm64" \
-        -derivedDataPath "$dd" -skipMacroValidation CODE_SIGNING_ALLOWED=NO >/dev/null
+      run_xcodebuild build -scheme MacParakeet -configuration Release -destination "platform=OS X,arch=arm64" \
+        -derivedDataPath "$dd" -skipMacroValidation -showBuildTimingSummary CODE_SIGNING_ALLOWED=NO
     fi
 
     local product_dir="$dd/Build/Products/Release"

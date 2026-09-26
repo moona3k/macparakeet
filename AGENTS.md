@@ -64,7 +64,7 @@ tools directly. Do not use Orca computer-use in this repository.
 Iterate on focused tests ONLY (`swift test --filter <AreaTests>` for the
 areas the diff touches). Run the full `swift test` suite AT MOST ONCE per
 task, as the final gate before declaring code-change work complete — never
-per iteration. The suite is 4,300+ tests including CPU-heavy AEC/DSP
+per iteration. The suite contains thousands of tests, including CPU-heavy AEC/DSP
 simulations; full-suite-per-iteration turns a 10-minute review into an
 hour. Exception only when the user explicitly scopes verification
 differently.
