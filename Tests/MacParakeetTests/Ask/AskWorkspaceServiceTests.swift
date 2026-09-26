@@ -12,8 +12,8 @@ final class AskWorkspaceServiceTests: XCTestCase {
             XCTAssertFalse(sources.contains(second.id.uuidString))
             let evidence = try await tool("search", #"{"query":"June"}"#)
             XCTAssertTrue(evidence.contains("[E1]"))
-            await event(.text("The original date was June [E1]."))
-            return "The original date was June [E1]."
+            await event(.text("The original date was June [E1]. June was the plan [E1]."))
+            return "The original date was June [E1]. June was the plan [E1]."
         }
         let service = fixture.service(agent)
         let created = try await service.create(sourceIDs: [first.id])
@@ -22,7 +22,8 @@ final class AskWorkspaceServiceTests: XCTestCase {
             approvedProviderID: nil, onEvent: { _ in }
         )
         XCTAssertEqual(answered.messages.last?.status, .complete)
-        XCTAssertEqual(answered.messages.last?.content, "The original date was June [1].")
+        XCTAssertEqual(answered.messages.last?.content, "The original date was June [1]. June was the plan [1].")
+        XCTAssertEqual(answered.messages.last?.citations.count, 1)
         let reference = try XCTUnwrap(answered.messages.last?.citations.first)
         let resolved = try await service.evidence(reference)
         XCTAssertEqual(resolved.status, .available)

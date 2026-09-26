@@ -32,11 +32,11 @@ real release tarball and has a real `sha256`.
 
 ## Cutting a CLI release
 
-The examples below use the current release version; update it before each
-release:
+Set the version approved for the release (the example is the unreleased Ask
+CLI candidate, not a publication instruction):
 
 ```bash
-export VERSION=2.3.1
+export VERSION=4.7.0
 ```
 
 Before building, make sure the source repo is on the commit you intend to
@@ -47,22 +47,33 @@ release and the CLI version/docs are already updated:
 3. Refresh versioned examples in `README.md`, `integrations/`, and this
    scaffold if user-facing output changes.
 
-### 2. Build the standalone CLI binary
+### 2. Build the standalone CLI package
 
 In the macparakeet repo, from the commit you intend to tag:
 
 ```bash
-swift build -c release --product macparakeet-cli
+VERSION="$VERSION" scripts/dist/build_cli_archive.sh
 mkdir -p "dist/macparakeet-cli-${VERSION}-darwin-arm64"
-cp .build/release/macparakeet-cli "dist/macparakeet-cli-${VERSION}-darwin-arm64/"
+tar -xzf "dist/macparakeet-cli-${VERSION}-darwin-arm64.tar.gz" \
+    -C "dist/macparakeet-cli-${VERSION}-darwin-arm64"
 ```
 
-### 3. Sign + notarize the binary
+The package contains the executable and `libexec/macparakeet-cli/`, including
+the pinned Node runtime, Ask helper, and notices. Keep them together. The
+builder needs Node/npm; the installed CLI does not. Use a fresh staging
+directory for each candidate.
+
+### 3. Sign + notarize the executable and bundled runtime
 
 Use the same Developer ID identity already set up for the `.app`. The
 exact identity is in `scripts/dist/sign_notarize.sh`.
 
 ```bash
+codesign --sign "Developer ID Application: <YOUR NAME> (<TEAMID>)" \
+         --options runtime \
+         --timestamp \
+         "dist/macparakeet-cli-${VERSION}-darwin-arm64/libexec/macparakeet-cli/node"
+
 codesign --sign "Developer ID Application: <YOUR NAME> (<TEAMID>)" \
          --options runtime \
          --timestamp \
@@ -91,11 +102,10 @@ release pipeline uses `--no-progress --no-s3-acceleration` for the same reason.
 ### 4. Tar + checksum
 
 ```bash
-cd dist
-COPYFILE_DISABLE=1 tar -czf "macparakeet-cli-${VERSION}-darwin-arm64.tar.gz" \
-        "macparakeet-cli-${VERSION}-darwin-arm64"
-shasum -a 256 "macparakeet-cli-${VERSION}-darwin-arm64.tar.gz" \
-  | tee "macparakeet-cli-${VERSION}-darwin-arm64.tar.gz.sha256"
+COPYFILE_DISABLE=1 tar -czf "dist/macparakeet-cli-${VERSION}-darwin-arm64.tar.gz" \
+        -C "dist/macparakeet-cli-${VERSION}-darwin-arm64" macparakeet-cli libexec
+shasum -a 256 "dist/macparakeet-cli-${VERSION}-darwin-arm64.tar.gz" \
+  | tee "dist/macparakeet-cli-${VERSION}-darwin-arm64.tar.gz.sha256"
 # Copy the SHA256 hex into the formula's `sha256` field.
 ```
 

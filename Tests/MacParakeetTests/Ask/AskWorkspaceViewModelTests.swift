@@ -68,6 +68,141 @@ final class AskWorkspaceViewModelTests: XCTestCase {
         XCTAssertEqual(model.draft, "A question in progress")
     }
 
+    func testNavigationPreservesDraftWhenSaveConflictsWithoutReload() async {
+        for createNew in [false, true] {
+            let first = AskConversation(title: "First", draft: "Earlier")
+            let second = AskConversation(title: "Second")
+            let service = AskWorkspaceMock(conversations: [first, second])
+            let model = AskWorkspaceViewModel(service: service)
+            await model.openConversation(first.id)
+            model.updateDraft("My unsent question")
+
+            var external = first
+            external.draft = "CLI draft"
+            external.revision += 1
+            await service.replaceConversation(external)
+
+            if createNew {
+                await model.createConversation()
+            } else {
+                await model.openConversation(second.id)
+            }
+
+            XCTAssertEqual(model.conversation?.id, first.id)
+            XCTAssertEqual(model.draft, "My unsent question")
+            XCTAssertNotNil(model.errorMessage)
+            let saved = try? await service.conversation(id: first.id)
+            XCTAssertEqual(saved?.draft, "CLI draft")
+            let conversations = try? await service.conversations()
+            XCTAssertEqual(conversations?.count, 2)
+
+            await model.load()
+            XCTAssertEqual(model.savedDraftAtConflict, "CLI draft")
+            await model.keepMyDraft()
+            await model.openConversation(second.id)
+            XCTAssertEqual(model.conversation?.id, second.id)
+            let resolved = try? await service.conversation(id: first.id)
+            XCTAssertEqual(resolved?.draft, "My unsent question")
+        }
+    }
+
+    func testDraftFlushWaitsForEditsMadeDuringSave() async {
+        let first = AskConversation(title: "First")
+        let second = AskConversation(title: "Second")
+        let service = AskWorkspaceMock(conversations: [first, second])
+        let model = AskWorkspaceViewModel(service: service)
+        await model.openConversation(first.id)
+        model.updateDraft("First edit")
+        await service.delay("saveDraftReturn", nanoseconds: 200_000_000)
+        let navigation = Task { await model.openConversation(second.id) }
+        await service.waitUntilRequested("saveDraftReturn")
+        model.updateDraft("Latest edit")
+        await navigation.value
+
+        XCTAssertEqual(model.conversation?.id, second.id)
+        let saved = try? await service.conversation(id: first.id)
+        XCTAssertEqual(saved?.draft, "Latest edit")
+    }
+
+    func testSendPreservesLocalDraftWhenItsPreflightSaveConflicts() async {
+        let source = UUID()
+        let original = AskConversation(sections: [AskContextSection(sourceIDs: [source])])
+        let service = AskWorkspaceMock(conversations: [original])
+        let model = AskWorkspaceViewModel(service: service)
+        await model.openConversation(original.id)
+        model.updateDraft("My unsent question")
+        var external = original
+        external.draft = "CLI draft"
+        external.revision += 1
+        await service.replaceConversation(external)
+
+        await model.send()
+        await model.stopAndSettle()
+
+        XCTAssertEqual(model.draft, "My unsent question")
+        XCTAssertNotNil(model.errorMessage)
+        XCTAssertNil(model.pendingQuestion)
+        let saved = try? await service.conversation(id: original.id)
+        XCTAssertEqual(saved?.draft, "CLI draft")
+        XCTAssertTrue(saved?.messages.isEmpty == true)
+    }
+
+    func testDraftTypedWhileNavigationLoadsIsSavedBeforeAdoptingDestination() async {
+        for createNew in [false, true] {
+            let first = AskConversation(title: "First")
+            let second = AskConversation(title: "Second")
+            let service = AskWorkspaceMock(conversations: [first, second])
+            let model = AskWorkspaceViewModel(service: service)
+            await model.openConversation(first.id)
+            if createNew {
+                await service.delay("create", nanoseconds: 200_000_000)
+            } else {
+                await service.delayConversation(second.id, nanoseconds: 200_000_000)
+            }
+            let navigation = Task {
+                if createNew {
+                    await model.createConversation()
+                } else {
+                    await model.openConversation(second.id)
+                }
+            }
+            if createNew {
+                await service.waitUntilRequested("create")
+            } else {
+                await service.waitUntilRequested(second.id)
+            }
+            model.updateDraft("Typed while the destination loads")
+            await navigation.value
+
+            XCTAssertNotEqual(model.conversation?.id, first.id)
+            let saved = try? await service.conversation(id: first.id)
+            XCTAssertEqual(saved?.draft, "Typed while the destination loads")
+        }
+    }
+
+    func testCreatedConversationRemainsReachableWhenFinalDraftSaveConflicts() async {
+        let first = AskConversation(title: "First")
+        let service = AskWorkspaceMock(conversations: [first])
+        let model = AskWorkspaceViewModel(service: service)
+        await model.openConversation(first.id)
+        await service.delay("create", nanoseconds: 200_000_000)
+        let navigation = Task { await model.createConversation() }
+        await service.waitUntilRequested("create")
+        model.updateDraft("My later edit")
+        var external = first
+        external.draft = "CLI draft"
+        external.revision += 1
+        await service.replaceConversation(external)
+        await navigation.value
+
+        XCTAssertEqual(model.conversation?.id, first.id)
+        XCTAssertEqual(model.draft, "My later edit")
+        XCTAssertNotNil(model.errorMessage)
+        XCTAssertEqual(model.conversations.count, 2)
+        let saved = try? await service.conversation(id: first.id)
+        XCTAssertEqual(saved?.draft, "CLI draft")
+    }
+
     func testProviderLookupCannotSendAfterNavigation() async {
         let source = UUID()
         let first = AskConversation(title: "First", sections: [AskContextSection(sourceIDs: [source])])

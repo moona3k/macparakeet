@@ -170,6 +170,8 @@ jobs:
 
       - name: Ask Pi Helper
         timeout-minutes: 5
+        env:
+          MACPARAKEET_ASK_TEST_HELPER: ${{ github.workspace }}/.build/ask-runtime/AskAgentHelper/ask-helper.cjs
         run: |
           set -euo pipefail
           scripts/build_ask_helper.sh .build/ask-runtime/AskAgentHelper .build/ask-runtime/node

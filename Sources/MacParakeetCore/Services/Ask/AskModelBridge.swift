@@ -42,7 +42,8 @@ enum AskModelBridge {
         let response = try await client.chatCompletion(
             messages: [ChatMessage(role: .system, content: decisionPrompt)] + messages,
             context: context,
-            options: ChatCompletionOptions(temperature: 0, maxTokens: 400, responseFormat: format)
+            options: ChatCompletionOptions(
+                temperature: 0, maxTokens: 400, responseFormat: format, allowsLocalChunking: false)
         )
         try Task.checkCancellation()
         guard response.content.utf8.count <= 8_192,
@@ -77,9 +78,13 @@ enum AskModelBridge {
             content:
                 "Answer the question using only the selected transcript evidence in the conversation. Cite real passage handles from tool results as [E1], [E2], etc. State uncertainty and unexamined coverage. Do not invent timestamps or imply an unexamined source was checked."
         )
+        let maxTokens =
+            context.providerConfig.id == .appleIntelligence
+            ? min(4_096, LLMService.maximumOutputTokensLeavingInputRoom(in: LLMService.appleIntelligenceContextBudget))
+            : 4_096
         let stream = client.chatCompletionDetailedStream(
             messages: [prompt] + messages, context: context,
-            options: ChatCompletionOptions(temperature: 0.3, maxTokens: 4_096)
+            options: ChatCompletionOptions(temperature: 0.3, maxTokens: maxTokens, allowsLocalChunking: false)
         )
         var sawTerminal = false
         var characterCount = 0

@@ -69,6 +69,41 @@ final class InProcessLLMClientTests: XCTestCase {
         XCTAssertTrue(requestContents.last?.contains("Combine the chunk results") == true)
     }
 
+    func testAskDecisionAndFinalAnswerPreserveLongEvidenceWithoutMapReduce() async throws {
+        let modelDirectory = temporaryModelDirectory()
+        let runtime = FakeLocalLLMRuntime(eventPlans: [
+            [.text(#"{"kind":"final","toolName":"","argumentsJSON":"{}"}"#)],
+            [.text("The decision is supported [E1].")],
+        ])
+        let client = InProcessLLMClient(
+            runtime: runtime,
+            modelDirectoryResolver: { _ in modelDirectory },
+            chunkCharacterThreshold: 10,
+            chunkCharacterLimit: 60,
+            idleUnloadDelaySeconds: 60
+        )
+        let evidence = "[E1] " + String(repeating: "Original transcript evidence. ", count: 100)
+        let messages = [ChatMessage(role: .user, content: evidence)]
+        let context = LLMExecutionContext(providerConfig: .inProcessLocal(model: "ask-test"))
+
+        let action = try await AskModelBridge.decide(messages: messages, client: client, context: context)
+        XCTAssertEqual(action.kind, "final")
+        try await AskModelBridge.streamFinal(messages: messages, client: client, context: context) { _ in }
+
+        let requests = await runtime.requestContents()
+        XCTAssertEqual(requests.count, 2)
+        XCTAssertTrue(requests.allSatisfy { $0.contains(evidence) })
+        XCTAssertFalse(requests.contains { $0.contains("Process chunk") || $0.contains("Combine the chunk results") })
+    }
+
+    func testInferenceReceiptPreservesExplicitLocalChunkingPolicy() {
+        let options = ChatCompletionOptions(allowsLocalChunking: false).withInferenceReceipt(
+            usesPromptInferenceSettings: true, effectiveSettings: PromptInferenceSettings()
+        )
+        XCTAssertFalse(options.allowsLocalChunking)
+        XCTAssertTrue(ChatCompletionOptions.default.allowsLocalChunking)
+    }
+
     func testChunkingBypassesMapReduceWhenSplitProducesOneChunk() async throws {
         let modelDirectory = temporaryModelDirectory()
         let runtime = FakeLocalLLMRuntime(eventPlans: [

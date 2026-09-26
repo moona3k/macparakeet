@@ -146,16 +146,20 @@ public final class AskWorkspaceViewModel {
         showingDeleteConfirmation = false
         await stopAndSettle()
         guard loadGeneration == generation else { return }
-        await flushDraft()
-        guard loadGeneration == generation else { return }
+        guard await flushDraft(), loadGeneration == generation else { return }
         evidence = nil
         evidenceGeneration += 1
         errorMessage = nil
         do {
-            guard let loaded = try await service.conversation(id: id) else {
+            guard var loaded = try await service.conversation(id: id) else {
                 throw AskUIError.conversationUnavailable
             }
             guard loadGeneration == generation else { return }
+            // Typing may continue while the target is being fetched.
+            guard await flushDraft(), loadGeneration == generation else { return }
+            if let current = conversation, current.id == loaded.id, current.revision > loaded.revision {
+                loaded = current
+            }
             adopt(loaded)
             await refreshActiveSources(for: loaded)
         } catch {
@@ -177,12 +181,15 @@ public final class AskWorkspaceViewModel {
         showingDeleteConfirmation = false
         await stopAndSettle()
         guard loadGeneration == generation else { return }
-        await flushDraft()
-        guard loadGeneration == generation else { return }
+        guard await flushDraft(), loadGeneration == generation else { return }
         errorMessage = nil
         do {
             let created = try await service.create(sourceIDs: sourceIDs)
+            // Keep the created conversation reachable if saving a later edit
+            // prevents us from leaving the current conversation.
+            updateList(created)
             guard loadGeneration == generation else { return }
+            guard await flushDraft(), loadGeneration == generation else { return }
             adopt(created)
             if let recoveredDraft {
                 draft = recoveredDraft
@@ -234,12 +241,16 @@ public final class AskWorkspaceViewModel {
         }
     }
 
-    public func flushDraft() async {
+    /// Callers that replace the draft must stop when its save fails.
+    @discardableResult
+    public func flushDraft() async -> Bool {
         draftTask?.cancel()
         guard !isSending, savedDraftAtConflict == nil,
             draftReloadGeneration != loadGeneration
-        else { return }
-        guard let service, let current = conversation, current.draft != draft else { return }
+        else { return false }
+        guard let current = conversation else { return true }
+        guard current.draft != draft else { return true }
+        guard let service else { return false }
         let intendedDraft = draft
         do {
             let saved = try await service.saveDraft(
@@ -247,15 +258,17 @@ public final class AskWorkspaceViewModel {
             )
             guard conversation?.id == saved.id,
                 conversation?.revision == current.revision
-            else { return }
+            else { return false }
             conversation = saved
             updateList(saved)
             if draft != intendedDraft, !isSending {
-                Task { await flushDraft() }
+                return await flushDraft()
             }
+            return true
         } catch {
-            guard conversation?.id == current.id else { return }
+            guard conversation?.id == current.id else { return false }
             errorMessage = "Could not save draft: \(error.localizedDescription)"
+            return false
         }
     }
 
@@ -264,7 +277,7 @@ public final class AskWorkspaceViewModel {
         let navigation = loadGeneration
         let name = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
-        await flushDraft()
+        guard await flushDraft() else { return }
         guard let latest = conversation, latest.id == current.id,
             loadGeneration == navigation
         else { return }
@@ -415,7 +428,7 @@ public final class AskWorkspaceViewModel {
         guard loadGeneration == navigation, pickerGeneration == picker,
             conversation?.id == current.id
         else { return }
-        await flushDraft()
+        guard await flushDraft() else { return }
         guard let latest = conversation, latest.id == current.id,
             loadGeneration == navigation, pickerGeneration == picker
         else { return }
@@ -442,7 +455,7 @@ public final class AskWorkspaceViewModel {
         let question = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !question.isEmpty, !(current.activeSection?.sourceIDs.isEmpty ?? true) else { return }
         let navigation = loadGeneration
-        await flushDraft()
+        guard await flushDraft() else { return }
         guard loadGeneration == navigation, let ready = conversation,
             ready.id == current.id, !isSending,
             draft.trimmingCharacters(in: .whitespacesAndNewlines) == question
@@ -524,7 +537,7 @@ public final class AskWorkspaceViewModel {
         guard let service, let current = conversation, current.id == expectedID,
             loadGeneration == navigation, !isSending, !question.isEmpty
         else { return }
-        await flushDraft()
+        guard await flushDraft() else { return }
         guard let latest = conversation, latest.id == current.id,
             loadGeneration == navigation, !isSending,
             draft.trimmingCharacters(in: .whitespacesAndNewlines) == question

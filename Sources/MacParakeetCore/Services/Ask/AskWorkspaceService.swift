@@ -441,13 +441,13 @@ private actor AskRunEvidence {
                 index > 0, index <= references.count, let range = Range(match.range, in: text)
             else { throw AskWorkspaceError.invalidCitation }
             let reference = references[index - 1]
-            guard try service.validate(reference: reference, sourceRevisions: revisions) == .available else {
-                throw AskWorkspaceError.sourcesChanged
-            }
             let number: Int
             if let existing = cited.firstIndex(of: reference) {
                 number = existing + 1
             } else {
+                guard try service.validate(reference: reference, sourceRevisions: revisions) == .available else {
+                    throw AskWorkspaceError.sourcesChanged
+                }
                 cited.append(reference); number = cited.count
             }
             replacements.append((range, "[\(number)]"))

@@ -143,6 +143,9 @@ public struct ChatCompletionOptions: Sendable, Equatable {
     /// Opaque thread identity for provider request headers, never part of the JSON body.
     /// Nil identifies a one-shot operation; the HTTP adapter generates its request ID.
     public let conversationID: UUID?
+    /// Allow the in-process client to summarize long input with map/reduce.
+    /// Disable when a request requires the complete, unchanged conversation.
+    public let allowsLocalChunking: Bool
 
     public init(
         temperature: Double? = nil,
@@ -152,7 +155,8 @@ public struct ChatCompletionOptions: Sendable, Equatable {
         thinkingMode: PromptInferenceSettings.ThinkingMode = .providerDefault,
         reasoningEffort: PromptInferenceSettings.ReasoningEffort? = nil,
         responseFormat: ChatResponseFormat? = nil,
-        conversationID: UUID? = nil
+        conversationID: UUID? = nil,
+        allowsLocalChunking: Bool = true
     ) {
         self.temperature = temperature
         self.topP = topP
@@ -164,6 +168,7 @@ public struct ChatCompletionOptions: Sendable, Equatable {
         self.effectiveInferenceSettings = nil
         self.responseFormat = responseFormat
         self.conversationID = conversationID
+        self.allowsLocalChunking = allowsLocalChunking
     }
 
     private init(
@@ -181,6 +186,7 @@ public struct ChatCompletionOptions: Sendable, Equatable {
         self.effectiveInferenceSettings = effectiveInferenceSettings
         self.responseFormat = options.responseFormat
         self.conversationID = options.conversationID
+        self.allowsLocalChunking = options.allowsLocalChunking
     }
 
     public static let `default` = ChatCompletionOptions(temperature: 0.7, maxTokens: nil)

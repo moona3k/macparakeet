@@ -100,6 +100,10 @@ architecture decision.
   A valid final answer must cite at least one tool-returned evidence marker;
   uncited responses remain `incomplete` and are identified as unverified.
   Malformed, unknown, or fabricated evidence markers fail validation.
+- Ask decisions and final answers keep each bounded conversation request intact;
+  the in-process client's automatic map/reduce summarization is disabled for
+  these calls. Other model consumers retain their existing chunking policy.
+  Apple Intelligence final answers use its supported output-token ceiling.
 
 ## Native and CLI surface
 
@@ -108,6 +112,12 @@ curates up to 32 sources; autosaves a draft; shows provider disclosure and
 remote consent; streams activity and answer text; supports Stop; and opens
 revision-checked passage evidence. Source-picker selections persist while
 filters change and are applied as one new context section.
+
+Navigation, source changes, and sending wait for the current draft to save;
+a failed save leaves the local draft in place and blocks the action. Edits
+made while a destination loads are saved before switching conversations.
+If a conversation was already created when a later draft save fails, it
+remains reachable in the conversation list while the current draft stays open.
 
 `macparakeet-cli ask` exposes `list`, `new`, `show`, `rename`, `delete`,
 `sources`, `select`, `draft`, `send`, and `evidence`. These commands emit JSON

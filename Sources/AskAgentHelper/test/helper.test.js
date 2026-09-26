@@ -7,7 +7,9 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
-const helper = resolve(dirname(fileURLToPath(import.meta.url)), '../dist/ask-helper.cjs');
+const helper = process.env.MACPARAKEET_ASK_TEST_HELPER
+  ? resolve(process.env.MACPARAKEET_ASK_TEST_HELPER)
+  : resolve(dirname(fileURLToPath(import.meta.url)), '../dist/ask-helper.cjs');
 const runID = '00000000-0000-0000-0000-000000000001';
 const scopeID = '00000000-0000-0000-0000-000000000002';
 const startID = `${runID}:start`;
@@ -167,7 +169,7 @@ test('saved assistant history continues through the Pi transcript', async () => 
 });
 
 test('bundle notice manifest names only bundled dependencies', () => {
-  const manifest = JSON.parse(readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../dist/Legal/dependencies.json'), 'utf8'));
+  const manifest = JSON.parse(readFileSync(resolve(dirname(helper), 'Legal/dependencies.json'), 'utf8'));
   const packages = new Map(manifest.packages.map((entry) => [entry.name, entry]));
   assert.equal(packages.get('@earendil-works/pi-agent-core')?.version, '0.87.1');
   assert.equal(packages.get('@earendil-works/pi-ai')?.version, '0.87.1');

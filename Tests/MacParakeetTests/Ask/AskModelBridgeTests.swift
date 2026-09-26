@@ -53,6 +53,23 @@ final class AskModelBridgeTests: XCTestCase {
         XCTAssertEqual(result, "June became July.")
     }
 
+    func testAppleIntelligenceFinalAnswerUsesSupportedOutputBudget() async throws {
+        let config = LLMProviderConfig.appleIntelligence()
+        let client = ScriptedAskLLMClient(
+            decision: "", finalChunks: ["Supported answer."], stopReason: "stop",
+            checkOptions: { options in
+                XCTAssertNoThrow(try options.validateInferenceSettings(for: config))
+                XCTAssertEqual(
+                    options.maxTokens,
+                    LLMService.maximumOutputTokensLeavingInputRoom(in: LLMService.appleIntelligenceContextBudget)
+                )
+            }
+        )
+        try await AskModelBridge.streamFinal(
+            messages: messages, client: client, context: LLMExecutionContext(providerConfig: config)
+        ) { _ in }
+    }
+
     func testNonSuccessTerminalFails() async throws {
         let client = ScriptedAskLLMClient(decision: "", finalChunks: ["Filtered"], stopReason: "content_filter")
         do {
@@ -85,15 +102,18 @@ private final class ScriptedAskLLMClient: LLMClientProtocol, @unchecked Sendable
     let finalChunks: [String]
     let stopReason: String?
     let textAfterTerminal: String?
+    let checkOptions: (@Sendable (ChatCompletionOptions) -> Void)?
 
     init(
         decision: String, finalChunks: [String] = [], stopReason: String? = nil,
-        textAfterTerminal: String? = nil
+        textAfterTerminal: String? = nil,
+        checkOptions: (@Sendable (ChatCompletionOptions) -> Void)? = nil
     ) {
         self.decision = decision
         self.finalChunks = finalChunks
         self.stopReason = stopReason
         self.textAfterTerminal = textAfterTerminal
+        self.checkOptions = checkOptions
     }
 
     func chatCompletion(
@@ -117,7 +137,8 @@ private final class ScriptedAskLLMClient: LLMClientProtocol, @unchecked Sendable
         messages: [ChatMessage], context: LLMExecutionContext,
         options: ChatCompletionOptions
     ) -> AsyncThrowingStream<LLMStreamEvent, Error> {
-        AsyncThrowingStream { continuation in
+        checkOptions?(options)
+        return AsyncThrowingStream { continuation in
             for chunk in finalChunks { continuation.yield(.text(chunk)) }
             continuation.yield(
                 .completed(LLMStreamTerminal(provider: "scripted", model: "scripted", stopReason: stopReason)))
