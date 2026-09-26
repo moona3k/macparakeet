@@ -1,0 +1,60 @@
+Sources/CLI/Commands/LLMInlineConfig.swift
+  s_10b76404403449::t_08e7c26a63e6c9 162-168
+  s_10b76404403449::t_1956cdf1ea72fc 391-392,396-397
+  s_10b76404403449::t_7be4b8104d8096 217
+  s_10b76404403449::t_f9dce825d42602 139-140
+  s_10b76404403449::t_7a818000d3144d 185
+  s_10b76404403449::t_b6026cd7402a20 206
+Sources/MacParakeetCore/Services/LLM/LLMConfigStore.swift
+  s_10b76404403449::t_28d17b1dc50f26 21-24,36-38
+  s_10b76404403449::t_81159a96433f04 192,203-206
+  s_10b76404403449::t_b5179aa52454fb 105,116-118
+  s_c299e83108feed::t_877ede64f3020d 39-40,119-120,207-208
+Tests/CLITests/LLMConfigCommandTests.swift
+  s_10b76404403449::t_0746a97b87d5ed 166-198
+Sources/CLI/Commands/LLMRoutesCommand.swift
+  s_10b76404403449::t_ee61e4d86f07be 152-153
+  s_10b76404403449::t_5d36b4efb363d9 135-137
+Tests/CLITests/LLMRoutesCommandTests.swift
+  s_10b76404403449::t_3a9d58b3a87f8f 171
+  s_10b76404403449::t_01de63a224c4b4 20,199-218
+  s_10b76404403449::t_3cb85045e7bbaf 9,15-19
+  s_10b76404403449::t_0fbba11acbce8b 127-147,149-162,164-170,172-177
+  s_10b76404403449::t_a0fb513f4765c4 148
+  s_10b76404403449::t_d4906b404d6cfa 163
+  s_d9d4b7d7a74eef::t_01e6847cffdcae 21
+Sources/CLI/CHANGELOG.md
+  s_10b76404403449::t_179b5053546567 111-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5f301272a8e95ab111f78e171b30a243c6922c60",
+  "prompts": {},
+  "sessions": {
+    "s_10b76404403449": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cda90962-cf3d-4f4b-b4fe-5df6e413f7aa",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_c299e83108feed": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dc15-ddf7-71f2-a669-23235022dc65",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_d9d4b7d7a74eef": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0de46-6a9a-76a2-9a49-b0aba9f9ea74",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
