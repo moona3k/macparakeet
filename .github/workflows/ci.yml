@@ -376,10 +376,6 @@ jobs:
     name: Build Cache Invalidation
     runs-on: macos-14
     timeout-minutes: 40
-    env:
-      XCODE_DERIVED_DATA: ${{ runner.temp }}/macparakeet-xcode-dist
-      MACPARAKEET_MEETING_ECHO_ASSETS_DIR: ${{ runner.temp }}/macparakeet-meeting-echo-assets
-      LOCALVQE_SOURCE_DIR: ${{ runner.temp }}/macparakeet-localvqe-src
     steps:
       - uses: actions/checkout@v6
       - uses: maxim-lobanov/setup-xcode@v1
@@ -387,6 +383,8 @@ jobs:
           xcode-version: "16.1"
       - name: Cache Identities
         id: cache
+        env:
+          XCODE_DERIVED_DATA: ${{ runner.temp }}/macparakeet-xcode-dist
         run: |
           swift=$(bash scripts/ci/swift-cache-key.sh)
           xcode=$(bash scripts/ci/xcode-cache-key.sh)
@@ -413,6 +411,9 @@ jobs:
           VERSION: 0.0.0
           BUILD_NUMBER: ci-cache-qualification
           XCODE_BUILD_LOG: ci-logs/xcode-cache-invalidation.log
+          XCODE_DERIVED_DATA: ${{ runner.temp }}/macparakeet-xcode-dist
+          MACPARAKEET_MEETING_ECHO_ASSETS_DIR: ${{ runner.temp }}/macparakeet-meeting-echo-assets
+          LOCALVQE_SOURCE_DIR: ${{ runner.temp }}/macparakeet-localvqe-src
         run: |
           mkdir -p ci-logs
           set -o pipefail
