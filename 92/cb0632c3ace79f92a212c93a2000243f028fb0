@@ -1,0 +1,19 @@
+Sources/CLI/CHANGELOG.md
+  s_86882f52c77be0::t_a3c1c5dcc5e811 132-136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "92cb0632c3ace79f92a212c93a2000243f028fb0",
+  "prompts": {},
+  "sessions": {
+    "s_86882f52c77be0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "da9eeb31-b3d8-479f-a168-981e667a1e6d",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
