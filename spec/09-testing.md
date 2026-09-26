@@ -222,7 +222,7 @@ Release packaging:
 | Job | Validation |
 |---|---|
 | Tests and Swift 6 | README/telemetry guards, CI helper tests, informational formatting, one debug test build with concurrency warnings, full parallel test execution, real CLI persistence smoke, separate Swift 6 compatibility build |
-| Release and Bundle | Echo packaging fixtures, full SwiftPM Release build, Xcode app bundle and Markdown resources, bundled CLI help/spec contract |
+| Release and Bundle | Distribution policy fixtures (packaging, privacy surface, release version), full SwiftPM Release build, Xcode app bundle and Markdown resources, bundled CLI help/spec contract |
 | `swift-test` | Requires both jobs to succeed; preserves the existing overall check name |
 
 `swift build --build-tests -Xswiftc -warn-concurrency` compiles the normal
