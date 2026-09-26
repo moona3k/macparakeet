@@ -545,7 +545,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             let stt = MockSTTClient()
             await stt.configure(result: STTResult(text: "Recovered speech."))
             let service = TranscriptionService(
-                audioProcessor: AudioProcessor(), sttTranscriber: stt, transcriptionRepo: repository,
+                audioProcessor: MockAudioProcessor(), sttTranscriber: stt, transcriptionRepo: repository,
                 promptResultRepo: results, shouldDiarize: { false }, shouldDiarizeMeetings: { false },
                 meetingAutomationHookRunner: nil
             )
