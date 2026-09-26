@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/ViewModels/LibrarySourceLabelStyleTests.swift
+  s_cac8ea75717892::t_342c6e1379d55c 5,7-29,32-44,47-56,58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "20a56443fdfa90d2ce92e995198975a30370f2ab",
+  "prompts": {},
+  "sessions": {
+    "s_cac8ea75717892": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0db21-43eb-73f3-b873-a8a718ab6d72",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
