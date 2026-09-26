@@ -2,95 +2,59 @@ import XCTest
 @testable import MacParakeetCore
 @testable import MacParakeetViewModels
 
-/// A source label that repeats the active filter is noise. These pin the rule
-/// that decides when it is drawn, and — more importantly — pin it to the same
-/// `(scope, filter)` pairs the library query itself switches on, so the two
-/// cannot drift apart silently.
+@MainActor
 final class LibrarySourceLabelStyleTests: XCTestCase {
-
-    // MARK: - Mixed contexts keep the label
-
-    func testMixedContextsShowTheFullLabel() {
-        XCTAssertEqual(
-            TranscriptionLibraryScope.all.sourceLabelStyle(for: .all),
-            .visible,
-            "All admits every source, so the label is the only source attribution"
-        )
-        XCTAssertEqual(
-            TranscriptionLibraryScope.all.sourceLabelStyle(for: .favorites),
-            .visible,
-            "Favorites spans sources, so a starred meeting and a starred podcast must stay distinguishable"
-        )
-    }
-
-    // MARK: - Single-source filters drop it
-
-    func testFiltersPinnedToOneSourceHideTheLabel() {
-        for filter in [LibraryFilter.podcast, .local, .meeting] {
-            XCTAssertEqual(
-                TranscriptionLibraryScope.all.sourceLabelStyle(for: filter),
-                .hidden,
-                "\(filter.rawValue) admits exactly one source, so the label can only restate the filter"
-            )
+    /// A hidden label is safe only when the actual rows belong to the selected
+    /// source. Exercise query narrowing and displayed attribution together.
+    func testLoadedSourcesAndLabelStyleForEveryScopeAndFilter() async throws {
+        let database = try DatabaseManager()
+        let repository = TranscriptionRepository(dbQueue: database.dbQueue)
+        let local = Transcription(fileName: "local.wav", status: .completed, sourceType: .file)
+        let favoriteLocal = Transcription(
+            fileName: "favorite.wav", status: .completed, isFavorite: true, sourceType: .file)
+        let video = Transcription(
+            fileName: "video.mp4", status: .completed,
+            sourceURL: "https://youtube.com/watch?v=example", sourceType: .youtube)
+        let favoriteVideo = Transcription(
+            fileName: "favorite-video.mp4", status: .completed,
+            sourceURL: "https://vimeo.com/123456", isFavorite: true, sourceType: .youtube)
+        let podcast = Transcription(fileName: "podcast.mp3", status: .completed, sourceType: .podcast)
+        let favoritePodcast = Transcription(
+            fileName: "favorite-podcast.mp3", status: .completed, isFavorite: true, sourceType: .podcast)
+        let meeting = Transcription(fileName: "meeting.m4a", status: .completed, sourceType: .meeting)
+        let favoriteMeeting = Transcription(
+            fileName: "favorite-meeting.m4a", status: .completed, isFavorite: true, sourceType: .meeting)
+        let rows = [local, favoriteLocal, video, favoriteVideo, podcast, favoritePodcast, meeting, favoriteMeeting]
+        for row in rows {
+            try repository.save(row)
         }
-    }
 
-    func testMeetingsWorkspaceHidesTheLabelUnderEveryFilter() {
-        for filter in LibraryFilter.allCases {
-            XCTAssertEqual(
-                TranscriptionLibraryScope.meetings.sourceLabelStyle(for: filter),
-                .hidden,
-                "The Meetings workspace shows only meetings, so even Favorites is fully determined there"
-            )
-        }
-    }
-
-    // MARK: - The multi-platform filter keeps its label
-
-    /// Video looks like the obvious place to drop the word, and it is not.
-    /// Its platforms share one `play.rectangle.fill` glyph separated only by
-    /// tint, so the text is the only thing naming the platform.
-    func testVideoFilterUsesBrandMarks() {
-        XCTAssertEqual(
-            TranscriptionLibraryScope.all.sourceLabelStyle(for: .youtube),
-            .brandMarkOnly,
-            "Video has narrowed the family, so a platform named by its own logo need not repeat the word"
-        )
-    }
-
-    // MARK: - Drift guard
-
-    /// The style is only correct because it mirrors how `makeQuery(offset:)`
-    /// narrows each pair. Assert the mapping itself, so adding a filter or
-    /// re-pointing an existing one fails here rather than silently hiding a
-    /// label over a query that still admits several sources.
-    func testMappingMatchesEveryQueryNarrowing() {
-        let expected: [(TranscriptionLibraryScope, LibraryFilter, LibrarySourceLabelStyle)] = [
-            (.all, .all, .visible),
-            (.all, .favorites, .visible),
-            (.all, .youtube, .brandMarkOnly),
-            (.all, .podcast, .hidden),
-            (.all, .local, .hidden),
-            (.all, .meeting, .hidden),
-            (.meetings, .all, .hidden),
-            (.meetings, .favorites, .hidden),
-            (.meetings, .youtube, .hidden),
-            (.meetings, .podcast, .hidden),
-            (.meetings, .local, .hidden),
-            (.meetings, .meeting, .hidden),
+        let cases: [(TranscriptionLibraryScope, LibraryFilter, [UUID], LibrarySourceLabelStyle)] = [
+            (.all, .all, rows.map(\.id), .visible),
+            (.all, .favorites, [favoriteLocal.id, favoriteVideo.id, favoritePodcast.id, favoriteMeeting.id], .visible),
+            (.all, .youtube, [video.id, favoriteVideo.id], .brandMarkOnly),
+            (.all, .podcast, [podcast.id, favoritePodcast.id], .hidden),
+            (.all, .local, [local.id, favoriteLocal.id], .hidden),
+            (.all, .meeting, [meeting.id, favoriteMeeting.id], .hidden),
+            (.meetings, .all, [meeting.id, favoriteMeeting.id], .hidden),
+            (.meetings, .favorites, [favoriteMeeting.id], .hidden),
+            (.meetings, .youtube, [], .hidden),
+            (.meetings, .podcast, [], .hidden),
+            (.meetings, .local, [], .hidden),
+            (.meetings, .meeting, [meeting.id, favoriteMeeting.id], .hidden),
         ]
 
-        for (scope, filter, style) in expected {
-            XCTAssertEqual(
-                scope.sourceLabelStyle(for: filter),
-                style,
-                "(\(scope), \(filter.rawValue)) must stay in step with makeQuery's narrowing"
-            )
+        for (scope, filter, expectedIDs, style) in cases {
+            let viewModel = TranscriptionLibraryViewModel(scope: scope)
+            viewModel.configure(transcriptionRepo: repository)
+            viewModel.filter = filter
+            await viewModel.loadTranscriptions().value
+
+            let context = "scope=\(scope), filter=\(filter.rawValue)"
+            XCTAssertEqual(Set(viewModel.filteredTranscriptions.map(\.id)), Set(expectedIDs), context)
+            XCTAssertEqual(viewModel.filteredTranscriptions.count, expectedIDs.count, context)
+            XCTAssertEqual(viewModel.displayedSourceLabelStyle, style, context)
         }
-        XCTAssertEqual(
-            expected.count,
-            2 * LibraryFilter.allCases.count,
-            "Every scope and filter pair needs a decided source-label style"
-        )
+        XCTAssertEqual(cases.count, 2 * LibraryFilter.allCases.count, "Cover every scope and filter pair")
     }
 }
