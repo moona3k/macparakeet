@@ -124,13 +124,23 @@ restriction does not change existing chat or HTTP provider behavior.
   a narrower question or fewer recordings. Partial text stays failed; no history
   or evidence is silently discarded, and no unchecked final answer is produced.
 - Model actions use a strict JSON schema with enumerated action/tool names and
-  required typed `query`, `sourceID`, `start`, and `limit` fields. Unused text
-  fields must be empty strings and unused numeric fields must be zero. Arguments
-  are not JSON encoded inside a string. The host still
-  validates each tool's allowed fields and ranges before executing it.
-  A malformed action receives at most one correction request, without replaying
-  the invalid response. Both attempts undergo the same argument validation;
-  repeated invalid actions fail with a sanitized model-compatibility message.
+  required typed `query`, `sourceID`, `start`, and `limit` fields. The six-field
+  envelope is projected onto the selected tool: `list_sources` takes no fields,
+  `search` takes `query` plus optional `sourceID` and `limit`, `read` takes
+  `sourceID`, `start`, and `limit`, and `get_summary` takes `sourceID`. Unused
+  fields must retain their declared types but their values are ignored; empty
+  strings and zeros are preferred. For `search`, empty `sourceID` and zero
+  `limit` select the defaults. Final actions still require empty `toolName`,
+  `query`, and `sourceID`, and zero `start` and `limit`. Arguments are not JSON
+  encoded inside a string. The host validates the projected arguments and
+  ranges before execution, including the host's 500-character search-query limit;
+  source scope remains enforced at the tool boundary.
+  A malformed action receives at most one correction request with a constant,
+  application-authored reason identifying the invalid envelope, scalar types,
+  action/tool name, tool requirements, final fields, or argument size. Feedback
+  never replays the invalid response or includes its text. Both attempts undergo
+  the same argument validation; repeated invalid actions fail with a sanitized
+  model-compatibility message.
   Cancellation, provider errors, and truncated responses are not retried by this
   correction path. Decision and final requests disable local input chunking so
   an agent turn cannot be split into unrelated model calls.

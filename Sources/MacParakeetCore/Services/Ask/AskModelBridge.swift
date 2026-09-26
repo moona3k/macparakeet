@@ -19,9 +19,10 @@ enum AskModelBridge {
         Return one JSON object with exactly six keys: kind, toolName, query, sourceID, start, limit.
         kind is "tool" or "final". toolName is list_sources, search, read, get_summary, or empty for final.
         query and sourceID must be strings; start and limit must be integers.
-        Use an empty string for every unused string argument and 0 for every unused integer argument.
+        Prefer an empty string for unused string fields and 0 for unused integer fields.
+        Only the selected tool's fields become arguments; other typed envelope fields are ignored.
         Do not use null or encode arguments as a JSON string.
-        Tool arguments: list_sources uses no arguments; search requires query and optionally sourceID and limit 1...12;
+        Tool arguments: list_sources uses no arguments; search requires a nonblank query of at most 500 characters and optionally sourceID and limit 1...12;
         read requires sourceID, start >=0, and limit 1...12; get_summary requires sourceID.
         For final, toolName, query, and sourceID are empty strings; start and limit are 0.
         Search and read evidence before making claims.
@@ -67,8 +68,9 @@ enum AskModelBridge {
         let format: ChatResponseFormat? =
             client.structuredOutputCapability(context: context) == .nativeJSONSchema
             ? .jsonSchema(name: "ask_action", schema: schema) : nil
-        for attempt in 0..<2 {
-            let prompt = attempt == 0 ? decisionPrompt : decisionPrompt + "\n" + correctionPrompt
+        var correction: String?
+        for _ in 0..<2 {
+            let prompt = decisionPrompt + (correction.map { "\n" + correctionPrompt + "\n" + $0 } ?? "")
             let response = try await client.chatCompletion(
                 messages: [ChatMessage(role: .system, content: prompt)] + messages,
                 context: context,
@@ -82,12 +84,21 @@ enum AskModelBridge {
             {
                 throw AskAgentError.budgetExceeded("Ask action ended before a complete model response")
             }
-            if let action = parseAction(response.content) { return action }
+            do {
+                return try parseAction(response.content)
+            } catch let failure as ActionValidationFailure {
+                correction = failure.reason
+            }
         }
         throw AskAgentError.invalidModelAction
     }
 
-    private static func parseAction(_ content: String) -> Action? {
+    private struct ActionValidationFailure: Error {
+        // Only constant, application-authored messages may be used as retry feedback.
+        let reason: String
+    }
+
+    private static func parseAction(_ content: String) throws -> Action {
         guard content.utf8.count <= 8_192,
             let data = content.data(using: .utf8),
             let raw = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
@@ -96,27 +107,63 @@ enum AskModelBridge {
             let toolName = raw["toolName"] as? String,
             let query = raw["query"] as? String,
             let sourceID = raw["sourceID"] as? String
-        else { return nil }
+        else {
+            throw ActionValidationFailure(
+                reason: "Return exactly the six required fields; kind, toolName, query, and sourceID must be strings.")
+        }
         func integer(_ key: String) -> Int? {
             guard let number = raw[key] as? NSNumber,
                 CFGetTypeID(number) != CFBooleanGetTypeID()
             else { return nil }
             return Int(exactly: number.doubleValue)
         }
-        guard let start = integer("start"), let limit = integer("limit") else { return nil }
-        var args: [String: Any] = [:]
-        if !query.isEmpty { args["query"] = query }
-        if !sourceID.isEmpty { args["sourceID"] = sourceID }
-        if toolName == "read" || start != 0 { args["start"] = start }
-        if limit != 0 { args["limit"] = limit }
-        guard let argsData = try? JSONSerialization.data(withJSONObject: args), argsData.count <= 4_096 else {
-            return nil
+        guard let start = integer("start"), let limit = integer("limit") else {
+            throw ActionValidationFailure(
+                reason: "start and limit must be integers, not strings, booleans, fractions, or null.")
         }
         if kind == "final" {
-            guard toolName.isEmpty, args.isEmpty else { return nil }
+            guard toolName.isEmpty, query.isEmpty, sourceID.isEmpty, start == 0, limit == 0 else {
+                throw ActionValidationFailure(
+                    reason: "For final, toolName, query, and sourceID must be empty strings; start and limit must be 0."
+                )
+            }
             return Action(kind: kind, toolName: nil, arguments: nil)
         }
-        guard kind == "tool", validate(toolName: toolName, args: args) else { return nil }
+        guard kind == "tool" else {
+            throw ActionValidationFailure(reason: "kind must be tool or final, not a tool name.")
+        }
+        // The wire envelope is a superset of all tool schemas. Project it onto
+        // the selected tool before validating: an unused query on read is not
+        // a read argument, even when a model fills it with a topic word.
+        var args: [String: Any] = [:]
+        let requirements: String
+        switch toolName {
+        case "list_sources":
+            requirements = "list_sources takes no arguments."
+        case "search":
+            args["query"] = query
+            if !sourceID.isEmpty { args["sourceID"] = sourceID }
+            if limit != 0 { args["limit"] = limit }
+            requirements =
+                "search needs a nonblank query of at most 500 characters, optional nonblank sourceID, and limit 1...12 (or 0 for the default)."
+        case "read":
+            args = ["sourceID": sourceID, "start": start, "limit": limit]
+            requirements =
+                "read needs a nonblank sourceID from the selected recordings, start 0...1000000, and limit 1...12."
+        case "get_summary":
+            args["sourceID"] = sourceID
+            requirements = "get_summary needs a nonblank sourceID from the selected recordings."
+        default:
+            throw ActionValidationFailure(
+                reason: "toolName must be list_sources, search, read, or get_summary when kind is tool.")
+        }
+        guard validate(toolName: toolName, args: args) else {
+            throw ActionValidationFailure(reason: requirements + " sourceID must be at most 1024 characters.")
+        }
+        guard let argsData = try? JSONSerialization.data(withJSONObject: args), argsData.count <= 4_096 else {
+            throw ActionValidationFailure(
+                reason: "Tool arguments must fit within 4096 UTF-8 JSON bytes; shorten text arguments.")
+        }
         return Action(kind: kind, toolName: toolName, arguments: args)
     }
 
@@ -183,14 +230,14 @@ enum AskModelBridge {
             let value = number.intValue
             return Double(value) == number.doubleValue && value >= min && value <= max
         }
-        func string(_ name: String) -> Bool {
+        func string(_ name: String, maxLength: Int = 1_024) -> Bool {
             guard let value = args[name] as? String else { return false }
-            return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && value.count <= 1_024
+            return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && value.count <= maxLength
         }
         switch toolName {
         case "list_sources": return args.isEmpty
         case "search":
-            return Set(args.keys).isSubset(of: ["query", "sourceID", "limit"]) && string("query")
+            return Set(args.keys).isSubset(of: ["query", "sourceID", "limit"]) && string("query", maxLength: 500)
                 && (args["sourceID"] == nil || string("sourceID"))
                 && (args["limit"] == nil || int("limit", min: 1, max: 12))
         case "read":
