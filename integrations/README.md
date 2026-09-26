@@ -187,12 +187,13 @@ rather than treating it as a database fault.
   isolate preferences, Keychain, models, downloads, or the audio/artifact paths
   stored in copied rows. Never run destructive commands against a copied
   production database that still points to original user files.
-- For source-build smoke work, a **DEBUG** binary with
-  `MACPARAKEET_DEBUG_APP_STATE_DIR` set to an absolute test-owned directory
-  redirects app-support/artifact paths and speech/speaker model caches.
-  Release binaries ignore this override. It does **not** redirect the shared
-  UserDefaults suite or Keychain; avoid configuration writes, or use a
-  disposable macOS account when full user-state isolation is required.
+- For source-build smoke work, set `MACPARAKEET_DEBUG_APP_STATE_DIR` to an
+  absolute test-owned directory to redirect app-support/artifact paths and
+  speech/speaker model caches. `AppPaths` accepts this override in both Debug
+  and Release binaries. It does **not** redirect the shared UserDefaults suite
+  or Keychain, and paths already embedded in copied rows stay untouched; avoid
+  configuration writes, or use a disposable macOS account when full
+  user-state isolation is required.
 - `--no-history` avoids completed transcript retention, not all I/O. Transcribe
   can still initialize a database, use models/helpers, and emit telemetry.
   `MACPARAKEET_TELEMETRY=0` disables telemetry for one invocation without

@@ -653,7 +653,6 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
             transcription.sourceType = .meeting
             transcription.status = .processing
             transcription.errorMessage = nil
-            transcription.userNotes = transcription.userNotes ?? recording.userNotes
             transcription.meetingStartContext = transcription.meetingStartContext ?? recording.startContext
             transcription.meetingCaptureReport = recording.captureReport
                 ?? transcription.meetingCaptureReport

@@ -2029,6 +2029,28 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(fetched.id, stub.id)
     }
 
+    func testFinalizeMeetingPreservesExplicitlyClearedNotesOverStaleRecordingNotes() async throws {
+        let recording = try makeOneSourceMeetingRecording(
+            displayName: "Queued Meeting",
+            userNotes: "Stale recording notes"
+        )
+        defer { try? FileManager.default.removeItem(at: recording.folderURL) }
+        await mockSTT.configure(result: STTResult(text: "Retry finished"))
+
+        let stub = try await service.prepareMeetingTranscription(recording: recording)
+        XCTAssertEqual(stub.userNotes, "Stale recording notes")
+        XCTAssertTrue(try transcriptionRepo.updateUserNotes(id: stub.id, userNotes: nil))
+
+        let result = try await service.finalizeMeetingTranscription(
+            recording: recording,
+            updating: stub.id,
+            onProgress: nil
+        )
+
+        XCTAssertNil(result.userNotes)
+        XCTAssertNil(try transcriptionRepo.fetch(id: stub.id)?.userNotes)
+    }
+
     func testFinalizeMeetingScoresPersistedSystemSpeakersAfterCompletion() async throws {
         let recording = try makeDualSourceMeetingRecording(displayName: "Voiceprint ordering")
         defer { try? FileManager.default.removeItem(at: recording.folderURL) }
@@ -3953,7 +3975,8 @@ final class TranscriptionServiceTests: XCTestCase {
         durationSeconds: TimeInterval = 3,
         startedAt: Date? = nil,
         audioRetentionStartedAt: Date? = nil,
-        titleOverride: String? = nil
+        titleOverride: String? = nil,
+        userNotes: String? = nil
     ) throws -> MeetingRecordingOutput {
         let recordingFolder = URL(fileURLWithPath: AppPaths.tempDir)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -3986,6 +4009,7 @@ final class TranscriptionServiceTests: XCTestCase {
             ),
             captureReport: captureReport,
             startContext: startContext,
+            userNotes: userNotes,
             meetingTypeId: meetingTypeId,
             startedAt: startedAt,
             audioRetentionStartedAt: audioRetentionStartedAt,

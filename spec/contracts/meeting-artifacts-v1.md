@@ -36,6 +36,8 @@ starts no artifact refresh.
 - `MeetingRecordingService`: creates session folders and source audio.
 - `MeetingTranscriptFinalizer` / meeting finalization: completes the DB row and
   final transcript.
+- `MeetingRecordingRecoveryService`: refreshes artifacts from the final recovered
+  row before lock settlement; failed refresh remains retryable without rerunning STT.
 - `MeetingArtifactStore`: materializes `manifest.json`, `meeting.md`,
   `transcript.json`, `notes.md`, `prompt-results.json`, and
   `prompt-results/*.md`.
