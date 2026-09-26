@@ -412,7 +412,7 @@ struct TranscribeView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(viewModel.isBatchActive ? "Batch Transcription In Progress" : "Transcription In Progress")
+                        Text(viewModel.isDiscoveringFiles ? "Finding recordings" : (viewModel.isBatchActive ? "Batch Transcription In Progress" : "Transcription In Progress"))
                             .font(DesignSystem.Typography.sectionTitle)
                         if !viewModel.transcribingFileName.isEmpty {
                             Text(viewModel.transcribingFileName)
@@ -475,8 +475,12 @@ struct TranscribeView: View {
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.tertiary)
 
-                Button(viewModel.isBatchActive ? "Cancel All" : "Cancel Transcription", role: .destructive) {
-                    showCancelConfirmation = true
+                Button(viewModel.isDiscoveringFiles ? "Cancel" : (viewModel.isBatchActive ? "Cancel All" : "Cancel Transcription"), role: .destructive) {
+                    if viewModel.isDiscoveringFiles {
+                        viewModel.cancelTranscription()
+                    } else {
+                        showCancelConfirmation = true
+                    }
                 }
                 .parakeetAction(.destructive)
                 .padding(.top, DesignSystem.Spacing.sm)

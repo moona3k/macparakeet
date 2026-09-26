@@ -28,7 +28,8 @@ public enum AudioFileEnumerator {
     public static func expand(
         urls: [URL],
         maxFiles: Int = defaultMaxFiles,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        shouldCancel: () -> Bool = { false }
     ) -> Result {
         var collected: [URL] = []
         var seen: Set<String> = []
@@ -51,6 +52,7 @@ public enum AudioFileEnumerator {
         }
 
         for url in urls {
+            if shouldCancel() { return Result(files: [], droppedCount: 0) }
             guard !shouldStopFolderTraversal else { break }
             var isDir: ObjCBool = false
             guard fileManager.fileExists(atPath: url.path, isDirectory: &isDir) else { continue }
@@ -61,6 +63,7 @@ public enum AudioFileEnumerator {
                     options: [.skipsHiddenFiles, .skipsPackageDescendants]
                 )
                 while let child = enumerator?.nextObject() as? URL {
+                    if shouldCancel() { return Result(files: [], droppedCount: 0) }
                     let values = try? child.resourceValues(forKeys: [.isRegularFileKey])
                     if values?.isRegularFile == true {
                         consider(child, isKnownRegularFile: true, stopOnOverflow: true)
@@ -78,6 +81,7 @@ public enum AudioFileEnumerator {
         // Sort BEFORE applying the cap so the kept subset is the name-first
         // `maxFiles` from the collected window. Recursive folder scans stop as
         // soon as overflow is detected so a huge drop cannot monopolize the UI.
+        if shouldCancel() { return Result(files: [], droppedCount: 0) }
         collected.sort { lhs, rhs in
             let byName = lhs.lastPathComponent.localizedStandardCompare(rhs.lastPathComponent)
             if byName != .orderedSame { return byName == .orderedAscending }

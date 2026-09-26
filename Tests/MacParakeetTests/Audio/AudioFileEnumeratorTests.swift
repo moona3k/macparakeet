@@ -2,6 +2,22 @@ import XCTest
 @testable import MacParakeetCore
 
 final class AudioFileEnumeratorTests: XCTestCase {
+    func testCancellationDiscardsPartiallyDiscoveredFiles() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        for i in 0..<20 { try Data().write(to: directory.appendingPathComponent("\(i).mp3")) }
+        var checks = 0
+        let result = AudioFileEnumerator.expand(
+            urls: [directory],
+            shouldCancel: {
+                checks += 1
+                return checks > 5
+            })
+        XCTAssertTrue(result.files.isEmpty)
+        XCTAssertEqual(checks, 6)
+    }
+
     private var tempDir: URL!
 
     override func setUpWithError() throws {

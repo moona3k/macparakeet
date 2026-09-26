@@ -313,7 +313,8 @@ final class TranscriptionViewModelTests: XCTestCase {
         // only errorMessage) must NOT leave the stale URL diagnostic behind, or the
         // copy button would copy the previous link under an unrelated error.
         let accepted = viewModel.transcribeFiles(urls: [URL(fileURLWithPath: "/tmp/note.xyz")])
-        XCTAssertFalse(accepted, "Unsupported type is rejected")
+        XCTAssertTrue(accepted, "Discovery is admitted before checking supported types")
+        try await waitUntil { !self.viewModel.isDiscoveringFiles }
         XCTAssertNotNil(viewModel.errorMessage, "Unsupported-drop headline is shown")
         XCTAssertNil(viewModel.errorDetail, "Stale URL diagnostic must be cleared")
     }
@@ -452,37 +453,19 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.currentTranscription)
     }
 
-    func testStartingNewTranscriptionCancelsInFlightRequest() async throws {
-        let firstResult = Transcription(
-            fileName: "first.mp3",
-            rawTranscript: "First result",
-            status: .completed
-        )
-        let secondResult = Transcription(
-            fileName: "second.mp3",
-            rawTranscript: "Second result",
-            status: .completed
-        )
-
+    func testStartingNewTranscriptionDoesNotReplaceInFlightRequest() async throws {
+        let firstResult = Transcription(fileName: "first.mp3", rawTranscript: "First result", status: .completed)
         await mockService.configure(result: firstResult)
-        await mockService.configureDelay(milliseconds: 500)
         viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
-
+        // Both admissions happen in the same MainActor turn, before the first
+        // service task can finish; no timing assumption is needed.
         viewModel.transcribeFile(url: URL(fileURLWithPath: "/tmp/first.mp3"))
-        try await Task.sleep(for: .milliseconds(50))
-
-        await mockService.configure(result: secondResult)
-        await mockService.configureDelay(milliseconds: 0)
         viewModel.transcribeFile(url: URL(fileURLWithPath: "/tmp/second.mp3"))
-
-        try await Task.sleep(for: .milliseconds(200))
-
-        XCTAssertFalse(viewModel.isTranscribing)
-        XCTAssertEqual(viewModel.currentTranscription?.rawTranscript, "Second result")
-        XCTAssertNil(viewModel.errorMessage)
-
+        XCTAssertTrue(viewModel.isTranscribing)
+        try await waitUntil { !self.viewModel.isTranscribing }
         let callCount = await mockService.transcribeCallCount
-        XCTAssertEqual(callCount, 2)
+        XCTAssertEqual(callCount, 1)
+        XCTAssertEqual(viewModel.currentTranscription?.fileName, "first.mp3")
     }
 
     // MARK: - Transcribe URL
@@ -575,7 +558,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(lastURL, "https://vimeo.com/76979871")
     }
 
-    func testTranscribeAudioFirstAndUnknownPlaceholders() {
+    func testTranscribeAudioFirstAndUnknownPlaceholders() async throws {
         viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
 
         // Audio-first recognized host → "<Platform> audio".
@@ -584,6 +567,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.transcribingFileName, "SoundCloud audio")
         viewModel.cancelTranscription()
 
+        try await waitUntil { !self.viewModel.isTranscribing }
         // Unrecognized but downloadable URL → generic "Video".
         viewModel.urlInput = "https://example.com/talk.mp4"
         viewModel.transcribeURL()

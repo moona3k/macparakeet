@@ -64,6 +64,50 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
         }
     }
 
+    func testDiscoveryCancellationRejectsLateSuccessAndErrorAndCompetingEntrypoints() async throws {
+        for failOld in [false, true] {
+            let gate = DiscoveryGate()
+            let oldStarted = expectation(description: "old discovery started")
+            let newStarted = expectation(description: "new discovery started")
+            let oldURL = try touch("old.mp3")
+            let newURL = try touch("new.mp3")
+            let vm = TranscriptionViewModel(
+                defaults: defaults,
+                discoverFiles: { urls in
+                    try await gate.discover(urls, started: urls[0] == oldURL ? oldStarted : newStarted)
+                })
+            vm.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+            XCTAssertTrue(vm.transcribeFiles(urls: [oldURL]))
+            XCTAssertTrue(vm.isDiscoveringFiles)
+            let oldCompletion = try XCTUnwrap(vm.fileDiscoveryCompletion)
+            await fulfillment(of: [oldStarted], timeout: 2)
+            // MainActor remains available while filesystem work is suspended.
+            XCTAssertFalse(vm.transcribeFiles(urls: [newURL]))
+            vm.transcribeFile(url: newURL)
+            vm.urlInput = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+            vm.transcribeURL()
+            vm.retranscribe(Transcription(fileName: "new", filePath: newURL.path))
+            let before = await mockService.transcribedFileNames
+            XCTAssertFalse(before.contains("old.mp3"))
+            XCTAssertFalse(before.contains("new.mp3"))
+            vm.cancelTranscription()
+            XCTAssertFalse(vm.isDiscoveringFiles)
+            XCTAssertFalse(vm.isTranscribing)
+            XCTAssertTrue(vm.transcribeFiles(urls: [newURL]))
+            await fulfillment(of: [newStarted], timeout: 2)
+            await gate.release(oldURL, failing: failOld)
+            await oldCompletion.value
+            XCTAssertTrue(vm.isDiscoveringFiles)
+            XCTAssertNil(vm.errorMessage)
+            await gate.release(newURL, failing: false)
+            try await waitUntil { vm.currentTranscription?.fileName == "new.mp3" && !vm.isTranscribing }
+            let names = await mockService.transcribedFileNames
+            XCTAssertFalse(names.contains("old.mp3"))
+            // Keep the two success/error scenarios independent.
+            mockService = MockTranscriptionService()
+        }
+    }
+
     // MARK: - Single-file regression
 
     func testSingleAudioTrackContinuesWithoutShowingPicker() async throws {
@@ -77,6 +121,7 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
         let vm = makeViewModel(audioTrackService: trackService)
 
         XCTAssertTrue(vm.transcribeFiles(urls: [url]))
+        try await waitUntil { !vm.isDiscoveringFiles }
         try await waitUntil { vm.currentTranscription != nil && !vm.isTranscribing }
 
         XCTAssertNil(vm.pendingAudioTrackSelection)
@@ -98,6 +143,7 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
         let vm = makeViewModel(audioTrackService: trackService)
 
         XCTAssertTrue(vm.transcribeFiles(urls: [url]))
+        try await waitUntil { !vm.isDiscoveringFiles }
         try await waitUntil { vm.pendingAudioTrackSelection != nil }
 
         XCTAssertFalse(vm.isTranscribing)
@@ -125,6 +171,7 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
         let vm = makeViewModel(audioTrackService: trackService)
 
         XCTAssertTrue(vm.transcribeFiles(urls: [url]))
+        try await waitUntil { !vm.isDiscoveringFiles }
         try await waitUntil { vm.pendingAudioTrackSelection != nil }
 
         vm.cancelAudioTrackSelection()
@@ -150,6 +197,7 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
         vm.urlInput = "https://example.com/talk.mp4"
 
         XCTAssertTrue(vm.transcribeFiles(urls: [url]))
+        try await waitUntil { !vm.isDiscoveringFiles }
         XCTAssertTrue(vm.isInspectingAudioTracks)
 
         vm.transcribeURL()
@@ -175,6 +223,7 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
         let vm = makeViewModel(audioTrackService: trackService)
 
         XCTAssertTrue(vm.transcribeFiles(urls: urls))
+        try await waitUntil { !vm.isDiscoveringFiles }
         try await waitUntil { vm.pendingAudioTrackSelection != nil }
         XCTAssertEqual(vm.pendingAudioTrackSelection?.fileCount, 3)
 
@@ -204,6 +253,7 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
         let vm = makeViewModel(audioTrackService: trackService)
 
         XCTAssertTrue(vm.transcribeFiles(urls: urls))
+        try await waitUntil { !vm.isDiscoveringFiles }
         try await waitUntil { vm.pendingAudioTrackSelection != nil }
 
         vm.selectAudioTrack(ordinal: 1)
@@ -228,6 +278,7 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
         vm.onTranscriptionCompleted = { captured = $0 }
 
         XCTAssertTrue(vm.transcribeFiles(urls: urls))
+        try await waitUntil { !vm.isDiscoveringFiles }
         try await waitUntil { vm.pendingAudioTrackSelection != nil }
 
         vm.selectAudioTrack(ordinal: 2)
@@ -256,6 +307,7 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
         vm.onTranscriptionCompleted = { captured = $0 }
 
         XCTAssertTrue(vm.transcribeFiles(urls: urls))
+        try await waitUntil { !vm.isDiscoveringFiles }
         try await waitUntil { vm.pendingAudioTrackSelection != nil }
 
         vm.selectAudioTrack(ordinal: 1)
@@ -278,6 +330,7 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
         let vm = makeViewModel(audioTrackService: trackService)
 
         XCTAssertTrue(vm.transcribeFiles(urls: [url]))
+        try await waitUntil { !vm.isDiscoveringFiles }
         try await waitUntil { vm.errorMessage != nil }
 
         XCTAssertTrue(vm.errorMessage?.contains("No audio tracks") == true)
@@ -293,6 +346,7 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
 
         let url = try touch("only.mp3")
         let accepted = vm.transcribeFiles(urls: [url])
+        try await waitUntil { !vm.isDiscoveringFiles }
         XCTAssertTrue(accepted)
         XCTAssertFalse(vm.isBatchActive, "One file must never enter batch mode")
 
@@ -306,14 +360,18 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
     // MARK: - Batch happy path
 
     func testBatchProcessesAllFilesInNameOrderAndSignalsOnce() async throws {
+        await mockService.configureDelay(milliseconds: 50)
         let vm = makeViewModel()
         var signalCount = 0
         var captured: TranscriptionCompletionNotifier.Content?
-        vm.onTranscriptionCompleted = { signalCount += 1; captured = $0 }
+        vm.onTranscriptionCompleted = {
+            signalCount += 1; captured = $0
+        }
 
         // Provide out of order; enumerator sorts to a, b, c.
         let urls = [try touch("c.mp3"), try touch("a.mp3"), try touch("b.mp3")]
         let accepted = vm.transcribeFiles(urls: urls)
+        try await waitUntil { !vm.isDiscoveringFiles }
         XCTAssertTrue(accepted)
         XCTAssertTrue(vm.isBatchActive)
         XCTAssertEqual(vm.batchTotalCount, 3)
@@ -339,6 +397,7 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
 
         let urls = [try touch("a.mp3"), try touch("b.mp3"), try touch("c.mp3")]
         vm.transcribeFiles(urls: urls)
+        try await waitUntil { !vm.isDiscoveringFiles }
 
         try await waitUntil { !vm.isBatchActive }
 
@@ -359,6 +418,7 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
 
         let urls = [try touch("a.mp3"), try touch("b.mp3"), try touch("c.mp3"), try touch("d.mp3")]
         vm.transcribeFiles(urls: urls)
+        try await waitUntil { !vm.isDiscoveringFiles }
         XCTAssertTrue(vm.isBatchActive)
 
         // Cancel while the first file is still in flight.
@@ -389,6 +449,7 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
 
         let url = try touch("only.mp3")
         vm.transcribeFiles(urls: [url])
+        try await waitUntil { !vm.isDiscoveringFiles }
         try await waitUntil { !vm.isTranscribing }
 
         XCTAssertNil(captured, "No completion signal when the setting is off")
@@ -396,11 +457,12 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
 
     // MARK: - Unsupported drop
 
-    func testNoSupportedFilesIsRejected() async throws {
+    func testNoSupportedFilesReportsErrorAfterAdmission() async throws {
         let vm = makeViewModel()
         let txt = try touch("notes.txt")
         let accepted = vm.transcribeFiles(urls: [txt])
-        XCTAssertFalse(accepted)
+        try await waitUntil { !vm.isDiscoveringFiles }
+        XCTAssertTrue(accepted)
         XCTAssertFalse(vm.isBatchActive)
         XCTAssertFalse(vm.isTranscribing)
         XCTAssertNotNil(vm.errorMessage)
@@ -444,9 +506,11 @@ private actor MockAudioTrackSelectionService: AudioTrackSelectingTranscriptionSe
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription {
         ordinals.append(audioTrackOrdinal)
-        guard tracksByFileName[fileURL.lastPathComponent]?.contains(where: {
-            $0.ordinal == audioTrackOrdinal
-        }) == true else {
+        guard
+            tracksByFileName[fileURL.lastPathComponent]?.contains(where: {
+                $0.ordinal == audioTrackOrdinal
+            }) == true
+        else {
             throw AudioProcessorError.conversionFailed(
                 "Audio track \(audioTrackOrdinal + 1) is unavailable."
             )
@@ -469,4 +533,22 @@ private actor MockAudioTrackSelectionService: AudioTrackSelectingTranscriptionSe
     }
 
     func selectedOrdinals() -> [Int] { ordinals }
+}
+
+private actor DiscoveryGate {
+    private var continuations: [URL: CheckedContinuation<AudioFileEnumerator.Result, Error>] = [:]
+    func discover(_ urls: [URL], started: XCTestExpectation) async throws -> AudioFileEnumerator.Result {
+        try await withCheckedThrowingContinuation { continuation in
+            continuations[urls[0]] = continuation
+            started.fulfill()
+        }
+    }
+    func release(_ url: URL, failing: Bool) {
+        let continuation = continuations.removeValue(forKey: url)
+        if failing {
+            continuation?.resume(throwing: CocoaError(.fileReadUnknown))
+        } else {
+            continuation?.resume(returning: .init(files: [url], droppedCount: 0))
+        }
+    }
 }
