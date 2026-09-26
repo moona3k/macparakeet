@@ -104,6 +104,7 @@ jobs:
         timeout-minutes: 20
         run: |
           set -o pipefail
+          export MACPARAKEET_CLI_TEST_EXECUTABLE="$PWD/.build/debug/macparakeet-cli"
           swift test --skip-build --parallel -Xswiftc -warn-concurrency --xunit-output ci-logs/swift-tests.xml 2>&1 | tee ci-logs/swift-test.log
 
       - name: Test Summary
