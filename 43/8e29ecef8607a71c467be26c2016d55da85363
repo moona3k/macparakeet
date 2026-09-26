@@ -1,0 +1,21 @@
+spec/09-testing.md
+  s_7e892b15e8f54c::t_ed79e01b6156af 228
+spec/contracts/meeting-recovery-retention.md
+  s_7e892b15e8f54c::t_28ad689f69dbb3 173-175,179-181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "438e29ecef8607a71c467be26c2016d55da85363",
+  "prompts": {},
+  "sessions": {
+    "s_7e892b15e8f54c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c7083e32-7761-4358-94ba-aa03c684b3bb",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
