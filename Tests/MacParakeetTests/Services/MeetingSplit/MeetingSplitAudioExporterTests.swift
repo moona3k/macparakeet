@@ -615,12 +615,17 @@ final class MeetingSplitAudioExporterTests: XCTestCase {
     /// itself cancellable, not just the write loop: cancellation must be
     /// forwarded into its detached task, not leave it decoding unattended
     /// after the caller has already observed `CancellationError`.
+    ///
+    /// Uses `ProbePauseGate` rather than a plain notify-and-return signal:
+    /// the detached probe thread is held at chunk 2 until the test has
+    /// already cancelled the outer `Task`, so there is no scheduling window
+    /// between "hook observed" and "cancel() called" for the probe to race
+    /// ahead in under load. That closes the gap that let the probe decode
+    /// far more than 2 chunks (23, then 41) before cancellation landed on
+    /// hosted CI, which a looser `< 20` threshold could not fully close.
     func testCancellationDuringSourceProbeStopsPromptlyWithoutFinishingTheDecode() async throws {
         let folder = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: folder) }
-        // At 48kHz with the exporter's 32,768-frame chunk size, a 60s source
-        // takes ~88 probe chunks to fully decode; cancelling after 2 leaves
-        // enormous headroom to detect "kept running anyway" reliably.
         try writeToneM4A(
             to: folder.appendingPathComponent(MeetingArtifactAudioFileNames.playback),
             sampleRate: 48_000, durationMs: 60_000)
@@ -628,12 +633,12 @@ final class MeetingSplitAudioExporterTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: destination) }
         let childDestination = destination.appendingPathComponent("A")
 
-        let signal = ChunkSignal(target: 2)
+        let gate = ProbePauseGate(target: 2)
         let observedChunks = OSAllocatedUnfairLock(initialState: 0)
         let hooks = MeetingSplitAudioExporter.TestHooks(
             afterEachProbeChunk: { count in
                 observedChunks.withLock { $0 = count }
-                signal.hook(count)
+                gate.hook(count)
             })
         let exporter = MeetingSplitAudioExporter(testHooks: hooks)
 
@@ -646,8 +651,9 @@ final class MeetingSplitAudioExporterTests: XCTestCase {
                         childId: UUID(), range: .init(startMs: 0, endMs: 60_000), destinationFolderURL: childDestination)
                 ])
         }
-        await signal.wait()
+        await gate.waitUntilPaused()
         task.cancel()
+        gate.release()
         do {
             _ = try await task.value
             XCTFail("expected CancellationError")
@@ -655,10 +661,9 @@ final class MeetingSplitAudioExporterTests: XCTestCase {
             // expected
         }
 
-        let finalObservedChunkCount = observedChunks.withLock { $0 }
-        XCTAssertLessThan(
-            finalObservedChunkCount, 20,
-            "the source probe must stop promptly on cancellation, not run to completion (~88 chunks) unattended")
+        XCTAssertEqual(
+            observedChunks.withLock { $0 }, 2,
+            "the source probe must stop at the exact chunk it was paused on, never resuming the decode after cancellation")
         XCTAssertFalse(FileManager.default.fileExists(atPath: childDestination.path))
     }
 
@@ -927,5 +932,55 @@ private final class ChunkSignal: @unchecked Sendable {
                 lock.unlock()
             }
         }
+    }
+}
+
+/// Deterministic cancellation-timing seam for a probe/decode loop: unlike
+/// `ChunkSignal`, which only notifies and lets the hooked loop keep running,
+/// this blocks the calling (detached) thread at exactly `target` until the
+/// test explicitly `release()`s it. That removes the scheduling window
+/// between "test observed the target chunk" and "test cancelled the task" in
+/// which the loop could otherwise race ahead and decode extra chunks before
+/// cancellation lands.
+private final class ProbePauseGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var paused = false
+    private let target: Int
+    private let releaseSemaphore = DispatchSemaphore(value: 0)
+
+    init(target: Int) {
+        self.target = target
+    }
+
+    /// Called synchronously on the probe's own thread after each chunk.
+    /// Blocks that thread in place once `target` is reached.
+    func hook(_ count: Int) {
+        guard count == target else { return }
+        lock.lock()
+        let continuationToResume = continuation
+        continuation = nil
+        paused = true
+        lock.unlock()
+        continuationToResume?.resume()
+        // Bounded: a test bug here must fail loudly, never hang the suite.
+        _ = releaseSemaphore.wait(timeout: .now() + 10)
+    }
+
+    func waitUntilPaused() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            if paused {
+                lock.unlock()
+                continuation.resume()
+            } else {
+                self.continuation = continuation
+                lock.unlock()
+            }
+        }
+    }
+
+    func release() {
+        releaseSemaphore.signal()
     }
 }
