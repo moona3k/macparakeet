@@ -240,3 +240,11 @@ The timing census can be reconstructed from the repository's `actions/workflows/
 No per-case timing artifact was available from these runs, so there is no defensible claim that AEC, SQLite, sleeps, or subprocess startup individually dominate test runtime. No cache, scheduling, worker-count, or product-selection optimization was benchmarked. No mutation tests or physical/UI flows were executed during this research. Test-value conclusions come from source inspection and existing regression history; savings estimates are explicitly labeled.
 
 The investigation used three delegated GPT-6 Sol research passes for CI data extraction, source/test-value inspection, and integration feasibility, with primary-agent synthesis and cross-checks. No Jev steps were used: the work was deterministic data extraction plus open-ended technical reasoning, not a new semantic routing/classification implementation. Existing unrelated checkout edits were preserved.
+
+## Follow-up measurement
+
+The [completed build-reuse follow-up](2026-09-26-ci-optimization.md) records
+cold/warm results, actual restored-package invalidation, cache footprint and
+retention limits. The retained configuration cleared its elapsed-time threshold;
+runner-cost savings remain unproven. Its measurements preserve the original
+baseline and distinguish later source-base changes.
