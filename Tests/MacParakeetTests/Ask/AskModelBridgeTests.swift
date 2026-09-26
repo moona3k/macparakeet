@@ -53,6 +53,75 @@ final class AskModelBridgeTests: XCTestCase {
         }
     }
 
+    // Captured from the synthetic LM Studio qualification runs: both models
+    // supplied every read argument but also populated the envelope's query.
+    func testCapturedQwenAndGemmaReadActionsProjectOnlyReadArguments() async throws {
+        for query in ["October 10", "_", "launch date release"] {
+            let decision = """
+                {"kind":"tool","toolName":"read","query":"\(query)",
+                 "sourceID":"10000000-0000-4000-8000-000000000002","start":0,"limit":5}
+                """
+            let client = ScriptedAskLLMClient(decision: decision)
+            let action = try await AskModelBridge.decide(messages: messages, client: client, context: context)
+            XCTAssertEqual(action.toolName, "read")
+            XCTAssertEqual(Set(try XCTUnwrap(action.arguments).keys), ["sourceID", "start", "limit"])
+            XCTAssertEqual(action.arguments?["start"] as? Int, 0)
+            XCTAssertEqual(action.arguments?["limit"] as? Int, 5)
+            XCTAssertEqual(action.arguments?["sourceID"] as? String, "10000000-0000-4000-8000-000000000002")
+            let requests = await client.recordedDecisionRequests()
+            XCTAssertEqual(requests.count, 1)
+        }
+    }
+
+    func testUnusedEnvelopeFieldsDoNotBecomeToolArguments() async throws {
+        for (name, keys) in [
+            ("list_sources", Set<String>()), ("search", ["query", "sourceID", "limit"]),
+            ("get_summary", ["sourceID"]),
+        ] {
+            let decision = """
+                {"kind":"tool","toolName":"\(name)","query":"topic","sourceID":"A","start":7,"limit":5}
+                """
+            let action = try await AskModelBridge.decide(
+                messages: messages, client: ScriptedAskLLMClient(decision: decision), context: context)
+            XCTAssertEqual(Set(try XCTUnwrap(action.arguments).keys), keys)
+        }
+    }
+
+    func testReadRetryExplainsRequiredArgumentsWithoutEchoingInvalidResponse() async throws {
+        let client = ScriptedAskLLMClient(decisions: [
+            #"{"kind":"tool","toolName":"read","query":"PRIVATE_SENTINEL","sourceID":"","start":0,"limit":0}"#,
+            #"{"kind":"tool","toolName":"read","query":"","sourceID":"A","start":0,"limit":5}"#,
+        ])
+        _ = try await AskModelBridge.decide(messages: messages, client: client, context: context)
+        let requests = await client.recordedDecisionRequests()
+        XCTAssertEqual(requests.count, 2)
+        XCTAssertTrue(requests[1].messages[0].content.contains("read needs a nonblank sourceID"))
+        XCTAssertFalse(requests[1].messages[0].content.contains("PRIVATE_SENTINEL"))
+    }
+
+    func testSearchQueryAccepts500CharactersAndRejects501BeforeToolExecution() async throws {
+        for count in [500, 501] {
+            let query = String(repeating: "a", count: count)
+            let client = ScriptedAskLLMClient(
+                decision: """
+                    {"kind":"tool","toolName":"search","query":"\(query)","sourceID":"","start":0,"limit":0}
+                    """)
+            do {
+                let action = try await AskModelBridge.decide(messages: messages, client: client, context: context)
+                XCTAssertEqual(count, 500, "Accepted search query beyond the host's limit")
+                XCTAssertEqual(action.arguments?["query"] as? String, query)
+                let requests = await client.recordedDecisionRequests()
+                XCTAssertEqual(requests.count, 1)
+            } catch AskAgentError.invalidModelAction {
+                XCTAssertEqual(count, 501)
+                let requests = await client.recordedDecisionRequests()
+                XCTAssertEqual(requests.count, 2)
+                XCTAssertTrue(requests[1].messages[0].content.contains("query of at most 500 characters"))
+                XCTAssertFalse(requests[1].messages[0].content.contains(query))
+            }
+        }
+    }
+
     func testFinalActionRequiresNoToolArguments() async throws {
         let client = ScriptedAskLLMClient(
             decision: #"{"kind":"final","toolName":"","query":"","sourceID":"","start":0,"limit":0}"#)
@@ -77,6 +146,7 @@ final class AskModelBridgeTests: XCTestCase {
         XCTAssertEqual(requests.count, 2)
         XCTAssertTrue(requests[1].messages[0].content.contains("previous action did not match"))
         XCTAssertFalse(requests[1].messages[0].content.contains(#""kind":"search""#))
+        XCTAssertTrue(requests[1].messages[0].content.contains("kind must be tool or final"))
     }
 
     func testWrongArgumentTypeIsCorrectedWithPromptOnlyProvider() async throws {
@@ -95,6 +165,7 @@ final class AskModelBridgeTests: XCTestCase {
         XCTAssertEqual(requests.count, 2)
         XCTAssertNil(requests[0].options.responseFormat)
         XCTAssertNil(requests[1].options.responseFormat)
+        XCTAssertTrue(requests[1].messages[0].content.contains("query, and sourceID must be strings"))
     }
 
     func testNativeSchemaRequiresSixPlainTypedFields() async throws {
@@ -141,15 +212,14 @@ final class AskModelBridgeTests: XCTestCase {
             #"{"kind":"tool","toolName":"search","query":true,"sourceID":"","start":0,"limit":0}"#,
             #"{"kind":"tool","toolName":"search","query":"","sourceID":"","start":0,"limit":0}"#,
             #"{"kind":"tool","toolName":"search","query":"launch","sourceID":12,"start":0,"limit":0}"#,
-            #"{"kind":"tool","toolName":"search","query":"launch","sourceID":"","start":1,"limit":0}"#,
             #"{"kind":"tool","toolName":"read","query":"","sourceID":"A","start":false,"limit":5}"#,
             #"{"kind":"tool","toolName":"read","query":"","sourceID":"A","start":0.5,"limit":5}"#,
             #"{"kind":"tool","toolName":"read","query":"","sourceID":"A","start":"0","limit":5}"#,
             #"{"kind":"tool","toolName":"read","query":"","sourceID":"A","start":0,"limit":0}"#,
             #"{"kind":"tool","toolName":"read","query":"","sourceID":"A","start":0,"limit":true}"#,
-            #"{"kind":"tool","toolName":"get_summary","query":"launch","sourceID":"A","start":0,"limit":0}"#,
-            #"{"kind":"tool","toolName":"list_sources","query":"launch","sourceID":"","start":0,"limit":0}"#,
             #"{"kind":"final","toolName":"","query":"","sourceID":"A","start":0,"limit":0}"#,
+            #"{"kind":"final","toolName":"","query":"topic","sourceID":"","start":0,"limit":0}"#,
+            #"{"kind":"final","toolName":"","query":"","sourceID":"","start":1,"limit":0}"#,
             #"{"toolName":"list_sources","query":"","sourceID":"","start":0,"limit":0}"#,
             #"{"kind":"tool","toolName":"list_sources","query":"","sourceID":"","start":0,"limit":0,"argumentsJSON":"{}"}"#,
         ]
@@ -174,7 +244,6 @@ final class AskModelBridgeTests: XCTestCase {
             #"{"kind":"tool","toolName":"list_sources","query":"","sourceID":"","start":0.1,"limit":0}"#,
             #"{"kind":"final","toolName":"","query":"","sourceID":"","start":0,"limit":0.1}"#,
             #"{"kind":"final","toolName":"","query":"","sourceID":"","start":0,"limit":1}"#,
-            #"{"kind":"tool","toolName":"list_sources","query":"","sourceID":"","start":-1,"limit":0}"#,
         ]
         for decision in invalid {
             let client = ScriptedAskLLMClient(decision: decision)

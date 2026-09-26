@@ -78,13 +78,50 @@ Real Qwen probes reproduced two separate failures: inadequate retrieval despite
 valid citations, and malformed action arguments. Model decisions no longer
 encode JSON inside a string; typed scalar fields avoid that failure surface.
 A nullable-schema experiment was rejected by this LM Studio backend with HTTP
-400. Optional plain properties were accepted but both Qwen and Gemma omitted
-required read arguments. The final schema requires six plain scalar fields,
-using empty strings and zeros for unused arguments. Qwen still chose an invalid
-read action twice and failed safely (15.79 seconds). Gemma also failed after
-an invalid read action and one correction attempt (11.80 seconds). Neither
-local model passed this regression; no successful real-model quality claim
-is made.
+400. In the earlier optional-property experiment, Qwen omitted required read
+arguments. The later schema required six plain scalar fields. In those final
+six-field runs, both models supplied the required `sourceID`, `start`, and
+`limit` for `read`, but also filled the unused `query`: Qwen used `October 10`;
+Gemma used `_` and then `launch date release`. The bridge incorrectly forwarded
+that unused field to strict read-argument validation. Both attempts were
+rejected: Qwen failed safely after 15.79 seconds and Gemma after 11.80 seconds.
+Those failures establish an envelope-to-tool projection mismatch, not missing
+read arguments. Neither model passed the regression.
+
+The narrow contract follow-up projects the six-field envelope onto the selected
+tool before validation. It retains required field types, tool argument ranges,
+source-scope enforcement, strict final actions, and one bounded correction
+attempt. Correction feedback now gives constant application-authored validation
+reasons without echoing model output. Search validation and feedback also match
+the host's 500-character query limit. Captured Qwen/Gemma read actions are
+regression fixtures. The focused bridge/service/source/Pi/feature-gate/CLI run
+passed 66 tests with one expected Release-only skip in Debug, including the
+actual Pi helper with a scripted model transport. All 26 bridge tests passed;
+changed-file Swift lint and `git diff --check` passed. This is focused contract
+verification, separate from the final branch CI gate.
+
+With that projection, isolated synthetic CLI trials using binary SHA-256
+`d4b215bc8c1474a0c24deb7ab4df8ce6b2af0aa2401b544acc79f2d63400b952`
+accepted the read actions but still failed the quality regression. Qwen repeated
+reads from `start: 0` until the run limit (44.62 seconds). Gemma completed an
+answer but missed the late October 24 reversal and current owner Bea (23.36
+seconds). These results distinguish action acceptance from adequate evidence
+coverage; no successful real-model quality claim is made. A separate Qwen
+provider-native tool-call probe produced a valid single action, which does not
+establish end-to-end retrieval, follow-up, or source-exclusion quality.
+
+A temporary loopback diagnostic then used Pi's native OpenAI-compatible adapter
+and native tool-role history with the same synthetic CLI source tools. Both
+models completed four model turns with valid tool calls and a persisted,
+resolvable citation, but neither found the late decision or cited both sources.
+Qwen treated the September 8 meeting date as the new launch date; Gemma said
+the latest date and owner were absent from retrieved passages. Both searched
+multi-word phrases that excluded the late passage under ALL-word matching.
+These were one-run diagnostics at temperature 0 with a 1,200-token native output
+limit, not a shipped provider integration or controlled quality benchmark.
+They show native tool calling works through Pi for these configurations, while
+retrieval and answer quality still need work. Changing the envelope or provider
+path alone is not a demonstrated quality fix; larger-model necessity is unproven.
 
 Process interruption is not a test of the native Stop control. Initial fixture
 failures were corrected: GRDB UUID keys use BLOB storage and UUID-keyed JSON
@@ -201,8 +238,10 @@ This used the debug CLI build and scripted provider, not a notarized release.
 - Qualify the three research jobs with a capable real model. Synthetic model
   exchanges now distinguish transport success from invalid actions and poor
   evidence coverage; neither tested local model passed the regression.
-- Compare a Pi-native provider/tool-call path against the same CLI fixtures
-  before expanding the custom decision bridge further. Keep Swift's persistence,
+- Extend the bounded Pi-native diagnostic across varied retrieval fixtures
+  before choosing a production provider migration. Evaluate explicit read-page
+  metadata and clearer lexical-search results; current reads return a bare
+  passage array without a next-page indicator. Keep Swift's persistence,
   source scope, consent, and evidence validation at the product boundary. A
   passing model action is necessary but not sufficient: the answer must retrieve
   the late reversal, cite both sources, survive follow-ups, and exclude removed
