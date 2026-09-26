@@ -1,0 +1,62 @@
+spec/contracts/cli-json-v1.md
+  s_d9d4b7d7a74eef::t_728e7a10ce6505 261-263
+  s_d9d4b7d7a74eef::t_b368c71255c0da 242-243,245-248,257-260
+spec/11-llm-integration.md
+  s_d9d4b7d7a74eef::t_728e7a10ce6505 66-69,73-75
+  s_d9d4b7d7a74eef::t_b368c71255c0da 70-72
+docs/audits/2026-09-26-release-0.8.x-review.md
+  s_d9d4b7d7a74eef::t_876f10f54dd433 221-249
+  s_d9d4b7d7a74eef::t_00f6b58cd29b9a 250-270
+  s_d9d4b7d7a74eef::t_eb091e9d30d83e 271-274
+spec/adr/032-llm-task-group-routing.md
+  s_d9d4b7d7a74eef::t_b368c71255c0da 128-129,131-133,141-143,148,156-158
+  s_d9d4b7d7a74eef::t_728e7a10ce6505 130,135-140,144-147
+  s_d9d4b7d7a74eef::t_ace3747a7e4a24 134
+integrations/README.md
+  s_d9d4b7d7a74eef::t_728e7a10ce6505 715-717
+  s_d9d4b7d7a74eef::t_b368c71255c0da 694-695,700-702,712-714
+Sources/CLI/Commands/CLIHelpers.swift
+  s_d9d4b7d7a74eef::t_c914937892fa14 28-30,32-33,36
+Sources/CLI/Commands/LLMRoutesCommand.swift
+  s_d9d4b7d7a74eef::t_4fbb8286d3b843 29,48-51,65-67,100,107,140,143-144,155-165,168
+Sources/MacParakeetCore/Services/LLM/LLMConfigStore.swift
+  s_d9d4b7d7a74eef::t_89695ba6691d81 1-2,5-17,21,29-30,32-34,40,43-44,49-50,65-68,70-71,74-83,88-93,95-103,106-109,112-123,125-155,158-159,162-178,180-181,184-190,192-199,204-211,213-214,219-227,232-233,239-241,245-247,251,253-254,257-262,264-273,276-288,293,296-297,299-307,309,312-313
+Sources/MacParakeetCore/Services/LLM/LLMExecutionContext.swift
+  s_d9d4b7d7a74eef::t_0ca15286411f64 63
+Sources/MacParakeetViewModels/PromptResultsViewModel.swift
+  s_d9d4b7d7a74eef::t_9565c68304480d 304-311,313,335-341,348
+Sources/MacParakeetViewModels/TranscriptChatViewModel.swift
+  s_d9d4b7d7a74eef::t_67acf0d03efdf3 120-127,129,151-157,170
+Tests/CLITests/CLIHelpersTests.swift
+  s_d9d4b7d7a74eef::t_89cae64eaa4652 392-396,402-403
+Tests/CLITests/LLMRoutesCommandTests.swift
+  s_d9d4b7d7a74eef::t_3a07c083d8d056 3,10,12-13,17,21-24,153-154,159,168-169,174-176,182-200
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_d9d4b7d7a74eef::t_73e97c7b972ccf 2092-2102
+Tests/MacParakeetTests/Services/LLM/LLMConfigStoreTests.swift
+  s_d9d4b7d7a74eef::t_1135c6e064e69c 1-2,9,16-17,19,23,27-334,530,603,653-690
+Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
+  s_d9d4b7d7a74eef::t_ba8a0453079a03 249-251,253-257,260-261,270-304
+Tests/MacParakeetTests/ViewModels/LLMSettingsViewModelTests.swift
+  s_d9d4b7d7a74eef::t_78fe89268a1a53 10,16-17,26,1204-1205,1230-1231,1257,1282,1316-1317,1345-1346,1368-1369
+Tests/MacParakeetTests/ViewModels/PromptResultsViewModelTests.swift
+  s_d9d4b7d7a74eef::t_23faa0921aab96 53-91
+Tests/MacParakeetTests/ViewModels/TranscriptChatViewModelTests.swift
+  s_d9d4b7d7a74eef::t_57ae395ae35a12 633-698,747,757,760-761
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "32284f33701264e046cae18d58478b7c648d19d7",
+  "prompts": {},
+  "sessions": {
+    "s_d9d4b7d7a74eef": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0de46-6a9a-76a2-9a49-b0aba9f9ea74",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
