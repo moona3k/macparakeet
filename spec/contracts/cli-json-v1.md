@@ -247,6 +247,9 @@ still apply.
   descriptions do not read Keychain. Set accepts the
   inline provider options but saves a task override instead of making an LLM
   request; when `--model` is omitted it uses the provider's current GUI default.
+  Apple Intelligence can serve only `cleanup`; setting an `analysis` override
+  with `--provider appleIntelligence` fails validation before credentials or
+  route metadata are changed.
   Explicit models and custom-provider model requirements remain unchanged;
   one-off inline commands keep their historical compatibility defaults.
   Reset removes only that override. Explicit credential flags win,
