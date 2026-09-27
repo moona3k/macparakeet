@@ -1738,6 +1738,23 @@ struct TranscriptResultView: View {
                     .padding(.bottom, DesignSystem.Spacing.sm)
             }
 
+            if promptResultsViewModel.isEditingRemovedPromptResult {
+                HStack {
+                    Button("Copy Draft") {
+                        TranscriptResultActions.copyText(promptResultsViewModel.editingDraft)
+                        showCopiedFeedback()
+                    }
+                    .parakeetAction(.secondary)
+
+                    Button("Discard Draft") {
+                        promptResultsViewModel.cancelEditingPromptResult()
+                    }
+                    .parakeetAction(.secondary)
+                }
+                .padding(.horizontal, DesignSystem.Spacing.md)
+                .padding(.bottom, DesignSystem.Spacing.sm)
+            }
+
             // Expanded details section
             if headerExpanded {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {

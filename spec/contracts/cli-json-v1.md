@@ -234,6 +234,10 @@ still apply.
   edit. The
   command never deletes audio. Missing/wrong-meeting result IDs fail
   instead of editing another recording's result.
+  The GUI follows the same exact-content precondition, captured when its editor
+  opens. Reloading that recording cannot replace the editor's original baseline
+  with a newer CLI edit; a conflicting save keeps the draft without overwriting
+  the current result.
 - `llm routes list --json` returns `{ok:true,routes:[...]}`. Each entry has
   `task` (`default`, `cleanup`, `analysis`, `transform`), `inherited` and
   `configured`; configured entries also include `provider`, `model`, `isLocal`

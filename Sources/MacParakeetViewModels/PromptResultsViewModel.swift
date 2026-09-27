@@ -138,6 +138,8 @@ public final class PromptResultsViewModel {
     /// In-place editor for a saved result. Nil means the pane is read-only.
     public var editingPromptResultID: UUID?
     public var editingDraft: String = ""
+    // A same-recording reload may replace promptResults while this draft is open.
+    private var editingOriginalContent: String?
 
     private var llmService: LLMServiceProtocol?
     private var cardGenerator: CardGenerating?
@@ -465,7 +467,10 @@ public final class PromptResultsViewModel {
         do {
             promptResults = try promptResultRepo?.fetchAll(transcriptionId: transcriptionId) ?? []
             onPromptResultsChanged?(transcriptionId, !promptResults.isEmpty)
-            errorMessage = nil
+            errorMessage =
+                isEditingRemovedPromptResult
+                ? "This result was removed. Copy or discard your draft before editing another result."
+                : nil
         } catch {
             promptResults = []
             onPromptResultsChanged?(transcriptionId, false)
@@ -531,14 +536,19 @@ public final class PromptResultsViewModel {
     }
 
     public var hasUnsavedPromptResultEdits: Bool {
-        guard let id = editingPromptResultID,
-            let original = promptResults.first(where: { $0.id == id })
+        guard editingPromptResultID != nil,
+            let original = editingOriginalContent
         else { return false }
-        return editingDraft != original.content
+        return editingDraft != original
     }
 
     public var canSaveEditingPromptResult: Bool {
         hasUnsavedPromptResultEdits && editingDraft.contains(where: { !$0.isWhitespace })
+    }
+
+    public var isEditingRemovedPromptResult: Bool {
+        guard let id = editingPromptResultID else { return false }
+        return !promptResults.contains(where: { $0.id == id })
     }
 
     public func canEditPromptResult(_ promptResult: PromptResult) -> Bool {
@@ -554,16 +564,21 @@ public final class PromptResultsViewModel {
         guard canEditPromptResult(promptResult), editingPromptResultID != promptResult.id else { return }
         guard !hasUnsavedPromptResultEdits else {
             let name = promptResults.first { $0.id == editingPromptResultID }?.promptName ?? "the current result"
-            errorMessage = "Return to \(name) and save or cancel its edits before editing another result."
+            errorMessage =
+                isEditingRemovedPromptResult
+                ? "This result was removed. Copy or discard your draft before editing another result."
+                : "Return to \(name) and save or cancel its edits before editing another result."
             return
         }
         editingPromptResultID = promptResult.id
+        editingOriginalContent = promptResult.content
         editingDraft = promptResult.content
         errorMessage = nil
     }
 
     public func cancelEditingPromptResult() {
         editingPromptResultID = nil
+        editingOriginalContent = nil
         editingDraft = ""
         errorMessage = nil
     }
@@ -572,8 +587,12 @@ public final class PromptResultsViewModel {
     public func saveEditingPromptResult(now: Date = Date()) -> Bool {
         guard let promptResultRepo,
             let id = editingPromptResultID,
-            let index = promptResults.firstIndex(where: { $0.id == id })
+            let original = editingOriginalContent
         else { return false }
+        guard let index = promptResults.firstIndex(where: { $0.id == id }) else {
+            errorMessage = "Result changed or was removed. Your draft has not been saved."
+            return false
+        }
         guard editingDraft.contains(where: { !$0.isWhitespace }) else {
             errorMessage = "Result cannot be empty."
             return false
@@ -582,7 +601,7 @@ public final class PromptResultsViewModel {
             guard
                 let updated = try promptResultRepo.updateContent(
                     id: id,
-                    expectedContent: promptResults[index].content,
+                    expectedContent: original,
                     content: editingDraft,
                     editedAt: now
                 )

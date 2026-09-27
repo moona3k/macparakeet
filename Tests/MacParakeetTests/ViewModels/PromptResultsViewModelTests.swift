@@ -313,6 +313,78 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertTrue(promptResultRepo.updateContentCalls.isEmpty)
     }
 
+    func testReloadingSameRecordingDoesNotRebaseAnOpenResultEdit() {
+        let existing = PromptResult(
+            transcriptionId: UUID(), promptName: "Summary", promptContent: "Summarize.", content: "Original")
+        promptResultRepo.promptResults = [existing]
+        viewModel.configure(llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo)
+        viewModel.loadPromptResults(transcriptionId: existing.transcriptionId)
+        viewModel.beginEditingPromptResult(existing)
+        viewModel.editingDraft = "GUI draft"
+
+        // A CLI edit followed by returning to Library reloads the same recording.
+        var external = existing
+        external.content = "CLI edit"
+        promptResultRepo.promptResults = [external]
+        viewModel.loadPromptResults(transcriptionId: existing.transcriptionId)
+
+        XCTAssertFalse(viewModel.saveEditingPromptResult())
+        XCTAssertEqual(promptResultRepo.promptResults.first?.content, "CLI edit")
+        XCTAssertEqual(viewModel.editingDraft, "GUI draft")
+        XCTAssertTrue(viewModel.hasUnsavedPromptResultEdits)
+        XCTAssertNotNil(viewModel.errorMessage)
+    }
+
+    func testReloadingUnchangedResultPreservesItsEditAndAllowsSave() {
+        let existing = PromptResult(
+            transcriptionId: UUID(), promptName: "Summary", promptContent: "Summarize.", content: "Original")
+        promptResultRepo.promptResults = [existing]
+        viewModel.configure(llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo)
+        viewModel.loadPromptResults(transcriptionId: existing.transcriptionId)
+        viewModel.beginEditingPromptResult(existing)
+        viewModel.editingDraft = "GUI draft"
+        viewModel.loadPromptResults(transcriptionId: existing.transcriptionId)
+
+        XCTAssertTrue(viewModel.saveEditingPromptResult())
+        XCTAssertEqual(promptResultRepo.promptResults.first?.content, "GUI draft")
+        XCTAssertFalse(viewModel.hasUnsavedPromptResultEdits)
+    }
+
+    func testReloadingDeletedResultKeepsDirtyDraftAndBlocksAnotherEdit() {
+        let existing = PromptResult(
+            transcriptionId: UUID(), promptName: "Summary", promptContent: "Summarize.", content: "Original")
+        let other = PromptResult(
+            transcriptionId: existing.transcriptionId, promptName: "Actions", promptContent: "List.", content: "Other")
+        promptResultRepo.promptResults = [existing, other]
+        viewModel.configure(llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo)
+        viewModel.loadPromptResults(transcriptionId: existing.transcriptionId)
+        viewModel.beginEditingPromptResult(existing)
+        viewModel.editingDraft = "GUI draft"
+        promptResultRepo.promptResults = [other]
+        viewModel.loadPromptResults(transcriptionId: existing.transcriptionId)
+
+        XCTAssertTrue(viewModel.hasUnsavedPromptResultEdits)
+        XCTAssertTrue(viewModel.isEditingRemovedPromptResult)
+        XCTAssertNotNil(viewModel.errorMessage)
+        XCTAssertFalse(viewModel.saveEditingPromptResult())
+        XCTAssertNotNil(viewModel.errorMessage)
+        viewModel.beginEditingPromptResult(other)
+        XCTAssertEqual(viewModel.editingPromptResultID, existing.id)
+        XCTAssertEqual(viewModel.editingDraft, "GUI draft")
+        XCTAssertEqual(
+            viewModel.errorMessage,
+            "This result was removed. Copy or discard your draft before editing another result.")
+        XCTAssertEqual(promptResultRepo.promptResults.map(\.id), [other.id])
+
+        // The warning's Discard Draft action retires the missing result's editor.
+        viewModel.cancelEditingPromptResult()
+        XCTAssertFalse(viewModel.isEditingRemovedPromptResult)
+        XCTAssertNil(viewModel.errorMessage)
+        viewModel.beginEditingPromptResult(other)
+        XCTAssertEqual(viewModel.editingPromptResultID, other.id)
+        XCTAssertEqual(viewModel.editingDraft, "Other")
+    }
+
     func testCancelEditingPromptResultDiscardsDraft() {
         let existing = PromptResult(
             transcriptionId: UUID(),

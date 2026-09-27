@@ -68,7 +68,7 @@ This spec defines MacParakeet's current processing layer: the Prompt Library, mu
 
 ### Current Scope
 
-The processing layer currently consists of a reusable Prompt Library, immutable prompt-result records, and Transform prompt rows.
+The processing layer currently consists of a reusable Prompt Library, saved prompt results with immutable generation receipts, and Transform prompt rows.
 
 ```
 ┌────────────────────────────────────────────────────────────┐
@@ -405,6 +405,11 @@ When a generation completes:
 - editing another saved result cannot replace a dirty draft; return to the
   original result and Save or Cancel first. Re-entering the same edit retains
   its draft. Switching result tabs alone does not discard it.
+- reloading the same recording preserves the draft's original content precondition;
+  an external edit or deletion must not silently become its new save baseline.
+  A stale save retains the draft and reports a conflict.
+- if an external deletion removes the edited result's tab, the result header
+  offers Copy Draft and Discard Draft so the retained draft remains recoverable.
 - copy is available from both the pane and tab context menu
 - delete requires confirmation
 
