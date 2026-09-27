@@ -1,0 +1,29 @@
+docs/research/2026-09-27-issue-912-system-audio-root-cause.md
+  s_b258f0f6c3443f::t_f6fe6890dbbc92 1-65,68-72,76-102,106-151,153-189,195-201,208-235,264-269,274-283
+  s_b258f0f6c3443f::t_54117986b41244 66-67,73-75,103-105,190-194,202-207,236-263,271
+  s_b258f0f6c3443f::t_ad27ebaf73163c 152
+  s_b258f0f6c3443f::t_d750b0e44e0467 270,272-273
+docs/local-audio-diagnostics-query.md
+  s_b258f0f6c3443f::t_54117986b41244 97-106
+scripts/dev/tests/test_analyze_audio_signal.py
+  s_b258f0f6c3443f::t_462f72984ab108 1-70,74-82,86-87,97-100
+  s_b258f0f6c3443f::t_ad27ebaf73163c 71-73,83-85,88-96
+scripts/dev/analyze_audio_signal.py
+  s_b258f0f6c3443f::t_462f72984ab108 1-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "74be56a0ea564db976873eea6cf31caaee02c4d5",
+  "prompts": {},
+  "sessions": {
+    "s_b258f0f6c3443f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e4b2-4a19-7343-b240-a7cc6b2770fa",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
