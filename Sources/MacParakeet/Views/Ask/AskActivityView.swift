@@ -66,7 +66,7 @@ struct AskActivityView: View {
                         .accessibilityElement(children: .combine)
                     }
                     if activities.count >= 32 {
-                        Text("Showing the first 32 steps.")
+                        Text("Activity history keeps up to 32 steps.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

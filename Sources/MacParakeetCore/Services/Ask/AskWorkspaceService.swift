@@ -378,14 +378,14 @@ private actor AskRunEvidence {
         do {
             try Task.checkCancellation()
             let output = try executeTool(name: name, arguments: arguments)
-            try Task.checkCancellation()
             if let index {
                 completeActivity(at: index, output: output)
                 await onEvent(.step(activities[index]))
             }
+            try Task.checkCancellation()
             return output
         } catch {
-            if let index {
+            if let index, activities[index].status == .running {
                 activities[index].status = Task.isCancelled || error is CancellationError ? .cancelled : .failed
                 await onEvent(.step(activities[index]))
             }

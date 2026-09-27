@@ -670,6 +670,33 @@ final class AskWorkspaceServiceTests: XCTestCase {
         XCTAssertEqual(terminal.status, .cancelled)
     }
 
+    func testToolCancelledAfterCompletionKeepsAcceptedActivityComplete() async throws {
+        let fixture = try Fixture()
+        let source = try fixture.source("Planning", "Launch in June.")
+        let recorder = AskActivityRecorder()
+        let service = fixture.service(
+            ScriptedAskAgent { _, tool, _ in
+                _ = try await tool("read", "{\"sourceID\":\"\(source.id)\"}")
+                XCTFail("Cancellation after completion must still stop the run")
+                return ""
+            })
+        let chat = try await service.create(sourceIDs: [source.id])
+        let result = try await service.send(
+            id: chat.id, question: "When?", expectedRevision: 0, approvedProviderID: nil,
+            onEvent: { event in
+                await recorder.append(event)
+                if case .step(let step) = event, step.status == .complete {
+                    withUnsafeCurrentTask { $0?.cancel() }
+                }
+            })
+        XCTAssertEqual(result.messages.last?.status, .cancelled)
+        let activity = try XCTUnwrap(result.messages.last?.activities?.first)
+        XCTAssertEqual(activity.status, .complete)
+        XCTAssertEqual(activity.resultCount, 1)
+        let saved = try await service.conversation(id: chat.id)
+        XCTAssertEqual(saved?.messages.last?.activities, result.messages.last?.activities)
+    }
+
     func testFailedToolDoesNotDiscloseUnselectedSourceOrRawErrors() async throws {
         let fixture = try Fixture()
         let source = try fixture.source("Planning", "Launch in June.")
