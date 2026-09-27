@@ -34,6 +34,13 @@
   Library view models request `.summary`.
 - Hand-offs that need timing data load the full row by ID first: opening a
   recording (Library and Meetings) and Library bulk export.
+- Library and Meetings share an open-request boundary. A newer open,
+  transcript selection, or sidebar navigation invalidates pending opens,
+  including leaving a tab and returning before its fetch finishes.
+- Bulk export counts selected rows deleted before loading as failures;
+  cancellation stops the loader before it reads another recording.
+- An unreadable thumbnail cache file falls back to remote artwork when
+  available, replacing the damaged cached image.
 - Remove the invisible, clipped hover shadow from the thumbnail card.
 
 ## Invariants
@@ -49,7 +56,9 @@
 ## Verification
 
 - Focused tests: decoder, repository summary payload (fields, search,
-  corrected text), library view model full-row hand-offs.
+  corrected text), library view model full-row hand-offs, suspended opens
+  superseded by navigation/meeting completion, cancelled export loading,
+  deleted-selection export accounting, and corrupt thumbnail recovery.
 - Full `swift test` once as the final gate; Swift 6 language-mode build.
 - Manual: scroll and hover the Video grid, switch filters, open a recording,
   bulk-export a selection.

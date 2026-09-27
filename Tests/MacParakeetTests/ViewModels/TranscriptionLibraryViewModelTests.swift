@@ -134,6 +134,36 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertTrue(exported.allSatisfy { $0.wordTimestamps?.count == 2 })
     }
 
+    func testCancellingExportLoadStopsBeforeFetchingTheNextRecording() async throws {
+        let first = timedTranscription(fileName: "first.m4a")
+        let second = timedTranscription(fileName: "second.m4a")
+        let gate = StaleFetchGate()
+        let mockRepo = MockTranscriptionRepository()
+        mockRepo.fetchHandler = { id in
+            if gate.nextCallNumber() == 1 {
+                gate.blockFirstFetchUntilAllowed()
+            }
+            return id == first.id ? first : second
+        }
+        let viewModel = try XCTUnwrap(vm)
+        viewModel.configure(transcriptionRepo: mockRepo)
+        let loadTask = Task { try await viewModel.loadForExport([first, second]) }
+        defer { gate.allowFirstFetchToFinish() }
+        let firstFetchStarted = await Task.detached { gate.waitForFirstFetchStarted() }.value
+        XCTAssertTrue(firstFetchStarted)
+
+        loadTask.cancel()
+        gate.allowFirstFetchToFinish()
+
+        do {
+            _ = try await loadTask.value
+            XCTFail("Expected cancellation to stop loading selected recordings")
+        } catch is CancellationError {
+            // The in-progress synchronous read can finish; the next must not start.
+        }
+        XCTAssertEqual(gate.numberOfCalls, 1)
+    }
+
     private func timedTranscription(fileName: String) -> Transcription {
         Transcription(
             fileName: fileName,
@@ -1667,6 +1697,12 @@ private final class StaleFetchGate: @unchecked Sendable {
     private var callCount = 0
     private let firstFetchStarted = DispatchSemaphore(value: 0)
     private let allowFirstFetch = DispatchSemaphore(value: 0)
+
+    var numberOfCalls: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return callCount
+    }
 
     func nextCallNumber() -> Int {
         lock.lock()

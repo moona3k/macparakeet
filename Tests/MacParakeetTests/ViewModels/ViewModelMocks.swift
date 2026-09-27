@@ -151,6 +151,7 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
     var fetchAllCalls: [Int?] = []
     var fetchAllError: Error?
     var fetchError: Error?
+    var fetchHandler: (@Sendable (UUID) throws -> Transcription?)?
     var fetchAllHandler: (@Sendable (Int?) throws -> [Transcription])?
     var fetchMeetingsWithStatusHandler: (@Sendable (Transcription.TranscriptionStatus) throws -> [Transcription])?
     var updateTitleOverrideError: Error?
@@ -205,6 +206,7 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
     }
 
     func fetch(id: UUID) throws -> Transcription? {
+        if let fetchHandler { return try fetchHandler(id) }
         if let fetchError { throw fetchError }
         if failNextUserNotesReadBack, let userNotesReadBackError {
             failNextUserNotesReadBack = false

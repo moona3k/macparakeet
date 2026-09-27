@@ -1,4 +1,5 @@
 import XCTest
+import MacParakeetViewModels
 @testable import MacParakeet
 @testable import MacParakeetCore
 
@@ -200,6 +201,40 @@ final class TranscriptResultActionsTests: XCTestCase {
         )
 
         XCTAssertFalse(result.isCompleteSuccess)
+    }
+
+    func testBulkExportReportsASelectedRecordingDeletedAfterLibraryLoad() async throws {
+        let database = try DatabaseManager()
+        let repository = TranscriptionRepository(dbQueue: database.dbQueue)
+        let kept = Transcription(fileName: "kept.m4a", rawTranscript: "Keep this transcript", status: .completed)
+        let deleted = Transcription(fileName: "deleted.m4a", rawTranscript: "Deleted transcript", status: .completed)
+        try repository.save(kept)
+        try repository.save(deleted)
+        let library = TranscriptionLibraryViewModel()
+        library.configure(transcriptionRepo: repository)
+        await library.loadTranscriptions().value
+        let selection = library.transcriptions
+        XCTAssertEqual(selection.count, 2)
+        XCTAssertTrue(try repository.delete(id: deleted.id))
+
+        let targets = try await library.loadForExport(selection)
+        let result = try await TranscriptResultActions.exportTranscriptsToDirectory(
+            transcriptions: targets,
+            format: .txt,
+            options: TranscriptExportOptions(
+                includeTimestamps: false,
+                includeSpeakerLabels: false,
+                includeMetadata: false
+            ),
+            directory: tempDir
+        ).includingUnavailable(selection.count - targets.count)
+
+        XCTAssertEqual(result.requestedCount, 2)
+        XCTAssertEqual(result.exportedCount, 1)
+        XCTAssertEqual(result.failedCount, 1)
+        XCTAssertFalse(result.isCompleteSuccess)
+        let exported = try XCTUnwrap(result.exportedURLs.first)
+        XCTAssertEqual(try String(contentsOf: exported, encoding: .utf8), "Keep this transcript")
     }
 
     func testBulkExportCountsRecordingsDeletedBeforeExportAsFailures() {

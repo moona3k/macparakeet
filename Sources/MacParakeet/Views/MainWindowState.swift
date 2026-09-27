@@ -6,11 +6,16 @@ import MacParakeetViewModels
 @Observable
 final class MainWindowState {
     private let askWorkspaceAvailable: Bool
+    private var navigationRevision: UInt64 = 0
+    private var latestTranscriptionOpen: UUID?
 
     var selectedItem: SidebarItem = .transcribe {
         didSet {
             if selectedItem == .ask, !askWorkspaceAvailable {
                 selectedItem = .library
+            }
+            if selectedItem != oldValue {
+                navigationRevision &+= 1
             }
         }
     }
@@ -39,6 +44,35 @@ final class MainWindowState {
 
     func navigateToAsk() {
         selectedItem = .ask
+    }
+
+    /// Capture the user's intent before scheduling the load. Library and
+    /// Meetings share this boundary so a newer open, selection, or navigation
+    /// invalidates an older fetch, including leaving and returning to a tab.
+    @discardableResult
+    func openTranscription(
+        from tab: SidebarItem,
+        in viewModel: TranscriptionViewModel,
+        load: @escaping @MainActor () async -> Transcription?
+    ) -> Task<Bool, Never> {
+        let requestID = UUID()
+        latestTranscriptionOpen = requestID
+        let navigation = navigationRevision
+        let selection = viewModel.currentTranscriptionRevision
+        return Task {
+            let isCurrent = {
+                !Task.isCancelled
+                    && self.latestTranscriptionOpen == requestID
+                    && self.navigationRevision == navigation
+                    && self.selectedItem == tab
+                    && viewModel.currentTranscriptionRevision == selection
+            }
+            guard isCurrent(), let stored = await load(), isCurrent()
+            else { return false }
+            viewModel.currentTranscription = stored
+            navigateToTranscription(from: tab)
+            return true
+        }
     }
 
     func startNewTranscription() {

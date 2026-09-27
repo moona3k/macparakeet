@@ -22,7 +22,9 @@ final class LibraryThumbnailStoreTests: XCTestCase {
     }
 
     func testDecodesCachedArtworkAtCardSizeAndKeepsItInMemory() async throws {
-        let transcription = Transcription(fileName: "local.mp4", status: .completed)
+        let transcription = Transcription(
+            fileName: "local.mp4", status: .completed, thumbnailURL: "https://example.com/artwork.jpg"
+        )
         try TestJPEG.write(width: 1920, height: 1080, to: cache.fileURL(for: transcription.id))
 
         let source = try XCTUnwrap(store.source(for: transcription))
