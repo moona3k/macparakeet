@@ -717,6 +717,13 @@ final class AppRuntimePreferencesTests: XCTestCase {
 
         XCTAssertEqual(
             UserDefaultsAppRuntimePreferences(defaults: defaults).meetingAIOutputLanguagePolicy,
+            .language("ko")
+        )
+
+        defaults.set("klingon", forKey: UserDefaultsAppRuntimePreferences.meetingAIOutputLanguagePolicyKey)
+
+        XCTAssertEqual(
+            UserDefaultsAppRuntimePreferences(defaults: defaults).meetingAIOutputLanguagePolicy,
             .followTranscript
         )
     }
