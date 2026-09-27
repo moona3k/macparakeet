@@ -1,0 +1,40 @@
+Sources/MacParakeetCore/Models/MeetingAIOutputLanguagePolicy.swift
+  s_d7fbb83ffeb58e::t_76f7764af9a554 4-6
+  s_d7fbb83ffeb58e::t_e94558ac988618 3,38,40,64-66,73,76,94
+Sources/CLI/CHANGELOG.md
+  s_d7fbb83ffeb58e::t_6ca1da4be72de3 97-108
+Sources/CLI/Commands/ConfigCommand.swift
+  s_d7fbb83ffeb58e::t_0a0efcf9629bc0 53-55,178-180,771
+Sources/CLI/MacParakeetCLI.swift
+  s_d7fbb83ffeb58e::t_13ed11a225f8a0 11
+Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
+  s_d7fbb83ffeb58e::t_f63c922c75ff8b 19,846,850-851,861-866,873-878,883-978,2319-2326
+Sources/MacParakeet/Views/Settings/LanguagePickerPopover.swift
+  s_d7fbb83ffeb58e::t_994cbd2176d418 5-27,36-37,46,58,60,69-70,76,83-87,89,136-137,141-143,157
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_d7fbb83ffeb58e::t_ce220e0886bd66 530-531,535
+Tests/CLITests/ConfigCommandTests.swift
+  s_d7fbb83ffeb58e::t_03c442f9a72cba 639,644-655
+Tests/MacParakeetTests/Models/MeetingAIOutputLanguagePolicyTests.swift
+  s_d7fbb83ffeb58e::t_c682efe432def2 21-48
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_d7fbb83ffeb58e::t_a1b532170c1124 361,363
+spec/02-features.md
+  s_d7fbb83ffeb58e::t_b68ed1d5093f0e 2287
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fa32a5dad2631e83fd8d0613e241ed34517817d8",
+  "prompts": {},
+  "sessions": {
+    "s_d7fbb83ffeb58e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8c433a5-796b-41b4-9f2a-2a815507bfba",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
