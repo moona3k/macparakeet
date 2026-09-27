@@ -1,0 +1,25 @@
+docs/research/2026-09-27-issue-912-system-audio-root-cause.md
+  s_b258f0f6c3443f::t_6fdf64d085051a 244-247,273,276-278
+scripts/dev/analyze_audio_signal.py
+  s_b258f0f6c3443f::t_98ae90944c7a15 12,19-21,29,66-76,108,113-117,142-145,148
+  s_b258f0f6c3443f::t_6fdf64d085051a 118-119
+scripts/dev/tests/test_analyze_audio_signal.py
+  s_b258f0f6c3443f::t_98ae90944c7a15 3,99-143
+  s_b258f0f6c3443f::t_3634197eedcc2f 144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "33646c19ce4b4dc43d9a2c705cf4f4dcfd6a381a",
+  "prompts": {},
+  "sessions": {
+    "s_b258f0f6c3443f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e4b2-4a19-7343-b240-a7cc6b2770fa",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
