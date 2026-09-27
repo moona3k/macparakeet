@@ -368,7 +368,9 @@ The summary experience is tab-based rather than card-based.
 
 - `Transcript` remains the first tab.
 - Each completed summary gets its own tab.
-- Each pending generation gets its own tab immediately.
+- A new (non-replacing) generation gets its own tab immediately; a
+  regeneration instead occupies its source result's existing tab position (see
+  Completed Summary Tabs).
 - `Chat` remains the final tab.
 - A dedicated `Summarize` affordance opens the generation popover.
 
@@ -392,7 +394,8 @@ Summary generation uses a **single-worker queue**:
 
 - one summary may actively stream at a time
 - additional user-triggered generations are accepted immediately and appended to the queue
-- queued generations appear as their own tabs right away
+- queued generations appear immediately, as a new tab unless they replace a
+  saved result, in which case they occupy that result's existing tab position
 - when the active generation finishes, the next queued generation starts automatically
 - the app does **not** run multiple summary streams in parallel
 
@@ -412,7 +415,10 @@ When a generation completes:
 
 - completed summaries render through the shared rich Markdown surface
 - generate appends a new completed summary tab every time
-- regenerate replaces only the specific summary the user chose, and only after the new result is durably saved
+- regenerate occupies its source result's tab position from the moment it's
+  queued, through streaming and any failure; the slot's content swaps to the
+  new result only once it is durably saved, and cancelling or dismissing a
+  failure restores the saved result (see Data Model: PromptResult above)
 - regeneration compares the original result's content and edit timestamp inside the replacement transaction; if either changed while generation ran, the user edit remains saved and replacement fails visibly
 - editing another saved result cannot replace a dirty draft; return to the
   original result and Save or Cancel first. Re-entering the same edit retains

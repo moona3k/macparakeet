@@ -790,8 +790,9 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
   detects retranscription even when correction revision returns to zero,
   without changing when titles, notes, or plain/rich context presentation
   changes. Earlier rows keep `NULL` because a result may already have become
-  stale before migration. The app treats an unknown source receipt as needing
-  an update.
+  stale before migration. A `NULL` receipt alone does not surface a
+  transcript-change notice; see [spec/12-processing-layer.md](12-processing-layer.md#data-model-promptresult)
+  for the conditions that do.
 - `inferenceSettingsSnapshot` (v0.31) stores the normalized effective settings
   actually sent after provider/model capability filtering, not merely the
   settings requested on the prompt. `NULL` preserves historical rows and means

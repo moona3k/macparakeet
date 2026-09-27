@@ -1598,8 +1598,10 @@ are unaffected.
   for rewriting or removal, then **Done** saves them as one `reviseText`
   correction. Removed passages stay out of the effective transcript. **Cancel**
   discards the session. Undo restores it.
-- A prompt result generated from an older correction revision shows **Update
-  summary**. Regenerating records the revision it used.
+- A prompt result whose correction revision or transcript hash no longer
+  matches shows a generic change notice, and its **Regenerate** button
+  switches to primary styling (the label itself doesn't change). Regenerating
+  records the revision it used.
 
 The governing behavior is [ADR-031](adr/031-timed-transcript-corrections.md).
 
