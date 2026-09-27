@@ -8,6 +8,17 @@ final class IsolatedDefaultsTests: XCTestCase {
     override func tearDownWithError() throws {
         // XCTest runs registered teardown blocks before tearDownWithError.
         for suiteName in suiteNames {
+            // Force any pending daemon write to disk. This exposes delayed plist recreation
+            // without a sleep: a read cannot repair a leaked file by deleting it.
+            let flush = Process()
+            flush.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
+            flush.arguments = ["read", suiteName]
+            flush.standardOutput = FileHandle.nullDevice
+            flush.standardError = FileHandle.nullDevice
+            try flush.run()
+            flush.waitUntilExit()
+            XCTAssertEqual(flush.terminationReason, .exit)
+            XCTAssertEqual(flush.terminationStatus, 1, "Test domain should have been cleared")
             XCTAssertFalse(FileManager.default.fileExists(atPath: plistURL(for: suiteName).path))
             XCTAssertTrue(UserDefaults.standard.persistentDomain(forName: suiteName)?.isEmpty ?? true)
         }
