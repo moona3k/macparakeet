@@ -1,0 +1,39 @@
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_e6a7c79344e82e::t_fde384e12938b5 479,483
+Sources/MacParakeet/App/AppHotkeyCoordinator.swift
+  s_e6a7c79344e82e::t_82ef537437df45 10,41,81,98,126,156,224,267,370,515
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_e6a7c79344e82e::t_5acf7db36d753d 468,827-828
+Sources/MacParakeet/AppDelegate.swift
+  s_e6a7c79344e82e::t_364dad16ce9aa7 1025
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_e6a7c79344e82e::t_2675d0f900a0be 1278
+Tests/MacParakeetTests/App/AppHotkeyCoordinatorTests.swift
+  s_e6a7c79344e82e::t_4a912b050a4cc0 20,55,332,352,354
+Tests/MacParakeetTests/App/AppSettingsObserverCoordinatorTests.swift
+  s_e6a7c79344e82e::t_f62cbba505ae9c 116
+Tests/MacParakeetTests/Hotkey/HotkeyConflictPolicyTests.swift
+  s_e6a7c79344e82e::t_22449fb324f9ea 275,285,287,289,293,297,304,308-310,312,318,320
+Tests/MacParakeetTests/TelemetryServiceTests.swift
+  s_e6a7c79344e82e::t_bde0930977a95b 1926
+Tests/MacParakeetTests/Views/Onboarding/OnboardingShortcutEditorTests.swift
+  s_e6a7c79344e82e::t_ed167e9db991e3 8,17,33-34
+docs/telemetry.md
+  s_e6a7c79344e82e::t_9b27730df77d2a 411
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "70e8e16c0c1a4a1b4fc4fb9dc1e9535a4b9bae86",
+  "prompts": {},
+  "sessions": {
+    "s_e6a7c79344e82e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "42ba6a5c-292b-4265-91c3-7180e7fda41d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
