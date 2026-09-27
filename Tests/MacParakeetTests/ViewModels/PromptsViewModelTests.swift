@@ -955,6 +955,46 @@ final class PromptsViewModelTests: XCTestCase {
         XCTAssertNotNil(viewModel.generationSettingsPresentation(draft: .init(), modelOverride: ""))
     }
 
+    func testGenerationSettingsFollowNewAndEditedPromptCategory() async throws {
+        let store = MockLLMConfigStore()
+        store.config = .openai(apiKey: "default-key", model: "gpt-4.1")
+        store.taskOverrides[.analysis] = .anthropic(apiKey: "analysis-key", model: "claude-haiku-4-5")
+        viewModel.configure(repo: repo, configStore: store)
+        try await waitUntil { self.viewModel.generationProviderID == .anthropic }
+
+        viewModel.newPromptCategory = .transform
+        XCTAssertNil(viewModel.generationProviderID)
+        try await waitUntil { self.viewModel.generationProviderID == .openai }
+        XCTAssertEqual(viewModel.generationModelName, "gpt-4.1")
+
+        viewModel.newPromptCategory = .result
+        try await waitUntil { self.viewModel.generationProviderID == .anthropic }
+        viewModel.beginEditing(Prompt(name: "Transform", content: "Rewrite", category: .transform))
+        try await waitUntil { self.viewModel.generationProviderID == .openai }
+        viewModel.cancelEditing()
+        try await waitUntil { self.viewModel.generationProviderID == .anthropic }
+    }
+
+    func testTransformContextRejectsStaleAnalysisDiscoveryAndAllowsMissingDefault() async throws {
+        let store = MockLLMConfigStore()
+        store.taskOverrides[.analysis] = .openai(apiKey: "saved-key", model: "gpt-4.1")
+        let client = MockLLMClient()
+        client.modelsList = ["analysis-model"]
+        client.holdListModels = true
+        defer { client.releaseHeldListModels() }
+        viewModel.configure(repo: repo, configStore: store, llmClient: client)
+        try await waitUntil { client.listModelsCallCount == 1 }
+
+        viewModel.newPromptCategory = .transform
+        XCTAssertNil(viewModel.generationProviderID)
+        XCTAssertTrue(viewModel.generationAvailableModels.isEmpty)
+        client.releaseHeldListModels()
+        try await waitUntil { client.listModelsCompletedCount == 1 }
+        XCTAssertNil(viewModel.generationProviderID)
+        XCTAssertTrue(viewModel.generationAvailableModels.isEmpty)
+        XCTAssertNil(viewModel.generationSettingsPresentation(draft: .init(), modelOverride: ""))
+    }
+
     private func loadGenerationConfig(_ config: LLMProviderConfig) async throws {
         let store = MockLLMConfigStore()
         store.config = config

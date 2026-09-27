@@ -267,8 +267,8 @@ still apply.
   to every route using that provider. Local CLI reuses the configured shared
   template and rejects a different `--command`. A running GUI may cache
   configuration until refreshed or relaunched. `configured` describes saved
-  route configuration, not app readiness: the app still requires Default AI to
-  be configured in Settings. An already-open AI Settings draft can overwrite CLI
+  route configuration, not provider reachability. App availability is determined
+  per task route; Default AI may be None when an explicit task route is configured. An already-open AI Settings draft can overwrite CLI
   changes when saved; close it before CLI mutations and reopen afterward.
   GUI model selection conditionally updates the route it displayed and refreshes
   instead of applying a stale choice to a concurrently changed route. Route

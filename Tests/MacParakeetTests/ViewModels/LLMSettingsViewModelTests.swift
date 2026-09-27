@@ -85,6 +85,9 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.aiFormatterUnavailableReason)
         XCTAssertFalse(viewModel.hasUnsavedChanges)
         XCTAssertEqual(viewModel.setupStatus, .ready(displayName: "Apple Intelligence"))
+        XCTAssertEqual(
+            viewModel.configuredTasksDescription,
+            "Dictation & cleanup: Apple Intelligence. Meetings & library: Off. Transforms: Off.")
         XCTAssertEqual(try store.loadConfig(for: .cleanup)?.id, .appleIntelligence)
         XCTAssertNil(try store.loadConfig(for: .analysis))
         XCTAssertNil(try store.loadConfig(for: .transform))
@@ -105,6 +108,29 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertFalse(reopened.isAIFormatterAvailable)
         XCTAssertNil(try store.loadConfig(for: .cleanup))
         XCTAssertFalse(defaults.bool(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey))
+    }
+
+    func testStandaloneCloudRouteRequiresSavedCredentialsBeforeSave() throws {
+        let store = LLMConfigStore(
+            preferencesDomain: defaultsSuiteName, lockURL: routeLockURL, keychain: InMemoryKeyValueStore())
+        viewModel.configure(configStore: store, llmClient: mockClient)
+        viewModel.analysisOverrideProviderID = .openai
+        XCTAssertFalse(viewModel.canSave)
+        XCTAssertEqual(
+            viewModel.validationMessage,
+            LLMSettingsDraft.ValidationError.taskOverrideUnavailable.localizedDescription)
+
+        try store.saveConfig(.openai(apiKey: "saved-key"))
+        try store.deleteConfig()
+        XCTAssertTrue(viewModel.canSave)
+        XCTAssertNil(viewModel.validationMessage)
+        viewModel.saveConfiguration()
+        XCTAssertEqual(viewModel.saveState, .saved)
+        XCTAssertNil(try store.loadConfig())
+        XCTAssertEqual(try store.loadConfig(for: .analysis)?.id, .openai)
+        XCTAssertEqual(
+            viewModel.configuredTasksDescription,
+            "Dictation & cleanup: Off. Meetings & library: OpenAI. Transforms: Off.")
     }
 
     func testRemovingDefaultKeepsExplicitCleanupAndSavedCredentials() throws {

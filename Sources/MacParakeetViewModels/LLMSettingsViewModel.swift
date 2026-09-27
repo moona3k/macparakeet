@@ -305,6 +305,16 @@ public final class LLMSettingsViewModel {
         (try? configStore?.loadConfig(for: .analysis)) != nil
     }
 
+    public var configuredTasksDescription: String {
+        let routes: [(LLMTaskGroup, String)] = [
+            (.cleanup, "Dictation & cleanup"), (.analysis, "Meetings & library"), (.transform, "Transforms"),
+        ]
+        return routes.map { task, title in
+            let provider = try? configStore?.loadConfig(for: task)
+            return "\(title): \(provider?.id.displayName ?? "Off")."
+        }.joined(separator: " ")
+    }
+
     public var setupStatus: AISetupStatus {
         if case .error(let message) = connectionTestState,
             !isConfigured || !hasUnsavedChanges
@@ -390,7 +400,8 @@ public final class LLMSettingsViewModel {
 
     public var canSave: Bool {
         if draft.providerID == nil {
-            return isConfigured || cleanupOverrideProviderID != nil || analysisOverrideProviderID != nil
+            return (isConfigured || cleanupOverrideProviderID != nil || analysisOverrideProviderID != nil)
+                && validationMessage == nil
         }
         return draft.isValid
     }
@@ -465,7 +476,18 @@ public final class LLMSettingsViewModel {
     }
 
     public var validationMessage: String? {
-        draft.validationError?.localizedDescription
+        guard draft.providerID == nil else { return draft.validationError?.localizedDescription }
+        do {
+            _ = try preparedOverride(
+                providerID: cleanupOverrideProviderID, modelName: cleanupModelName,
+                task: .cleanup, defaultConfig: nil, stagedCLIConfig: nil)
+            _ = try preparedOverride(
+                providerID: analysisOverrideProviderID, modelName: analysisModelName,
+                task: .analysis, defaultConfig: nil, stagedCLIConfig: nil)
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
     }
 
     // Local CLI properties

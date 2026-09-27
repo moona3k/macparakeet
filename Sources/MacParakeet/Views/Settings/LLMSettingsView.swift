@@ -181,18 +181,13 @@ struct LLMSettingsView: View {
 
                     Spacer()
                 }
+            }
 
-                if let validationMessage = viewModel.validationMessage {
-                    HStack(spacing: 4) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(DesignSystem.Colors.warningAmber)
-                        Text(validationMessage)
-                            .font(DesignSystem.Typography.caption)
-                            .foregroundStyle(DesignSystem.Colors.warningAmber)
-                    }
+            if let validationMessage = viewModel.validationMessage {
+                Text(validationMessage)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.warningAmber)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                }
             }
 
             Divider()
@@ -260,7 +255,7 @@ struct LLMSettingsView: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text("AI for summaries, chat, meeting Ask, and Transforms")
+                Text("AI task availability")
                     .font(DesignSystem.Typography.body.weight(.semibold))
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
                 Text(setupStatusCopy(for: status))
@@ -272,7 +267,7 @@ struct LLMSettingsView: View {
             Spacer(minLength: DesignSystem.Spacing.md)
 
             if case .ready = status {
-                Text("Ready")
+                Text("Configured")
                     .font(DesignSystem.Typography.caption.weight(.medium))
                     .foregroundStyle(DesignSystem.Colors.successGreen)
                     .padding(.horizontal, 8)
@@ -727,8 +722,8 @@ struct LLMSettingsView: View {
         case .setUpNeeded:
             return
                 "Choose how MacParakeet should run AI features. Transcription, dictation, and meeting recording still work without this."
-        case .ready(let displayName):
-            return "Ready: using \(displayName)."
+        case .ready:
+            return viewModel.configuredTasksDescription
         case .cannotConnect(let displayName, let message):
             return "MacParakeet could not reach \(displayName): \(message)"
         }
