@@ -5,6 +5,71 @@ import XCTest
 
 @MainActor
 final class AskWorkspaceViewModelTests: XCTestCase {
+    func testActivityUpdatesInPlaceAndStreamingFlushesDuringProviderPause() async throws {
+        let source = UUID()
+        let original = AskConversation(sections: [AskContextSection(sourceIDs: [source])])
+        let service = AskWorkspaceMock(conversations: [original])
+        await service.setSources([source])
+        await service.enableControlledStream()
+        let model = AskWorkspaceViewModel(service: service)
+        await model.openConversation(original.id)
+        model.updateDraft("What changed?")
+        await model.send()
+        await service.waitUntilRequested("streamStarted")
+
+        var step = AskActivity(tool: .search, status: .running, query: "deadline")
+        await service.emit(.step(step))
+        step.status = .complete
+        step.resultCount = 0
+        await service.emit(.step(step))
+        await service.emit(.phase(.writing))
+        XCTAssertEqual(model.activities, [step])
+        XCTAssertEqual(model.runPhase, .writing)
+
+        await service.emit(.text("First"))
+        XCTAssertEqual(model.streamingText, "First")
+        for token in [" second", " third", " final"] { await service.emit(.text(token)) }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+        while model.streamingText != "First second third final", ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(model.streamingText, "First second third final")
+        XCTAssertTrue(model.isSending)
+
+        await service.finishStream(text: "Canonical saved answer")
+        await model.stopAndSettle()
+        XCTAssertEqual(model.conversation?.messages.last?.content, "Canonical saved answer")
+        XCTAssertTrue(model.activities.isEmpty)
+        XCTAssertNil(model.runPhase)
+        XCTAssertEqual(model.streamingText, "")
+        await service.emit(.step(step))
+        await service.emit(.phase(.writing))
+        await service.emit(.text("Late callback"))
+        XCTAssertTrue(model.activities.isEmpty)
+        XCTAssertNil(model.runPhase)
+        XCTAssertEqual(model.streamingText, "")
+    }
+
+    func testTerminalAnswerDoesNotWaitForBufferedTextPublication() async {
+        let source = UUID()
+        let original = AskConversation(sections: [AskContextSection(sourceIDs: [source])])
+        let service = AskWorkspaceMock(conversations: [original])
+        await service.setSources([source])
+        await service.enableControlledStream()
+        let model = AskWorkspaceViewModel(service: service)
+        await model.openConversation(original.id)
+        model.updateDraft("Question")
+        await model.send()
+        await service.waitUntilRequested("streamStarted")
+        await service.emit(.text("A"))
+        await service.emit(.text("B"))
+        await service.finishStream(text: "AB")
+        await model.stopAndSettle()
+        XCTAssertEqual(model.conversation?.messages.last?.content, "AB")
+        XCTAssertFalse(model.isSending)
+        XCTAssertEqual(model.streamingText, "")
+    }
+
     func testPickerKeepsSelectionAcrossFiltersAndCancel() async {
         let source = UUID()
         let service = AskWorkspaceMock()
@@ -720,7 +785,7 @@ final class AskWorkspaceViewModelTests: XCTestCase {
     }
 }
 
-private actor AskWorkspaceMock: AskWorkspaceServing {
+actor AskWorkspaceMock: AskWorkspaceServing {
     private var values: [UUID: AskConversation]
     private var descriptors: [UUID: AskSourceDescriptor] = [:]
     private var delayedIDs: [UUID: UInt64] = [:]
@@ -730,6 +795,18 @@ private actor AskWorkspaceMock: AskWorkspaceServing {
     private var requestedOperations: Set<String> = []
     private var shouldFailSend = false
     private var shouldFailCreate = false
+    private var controlledStream = false
+    private var streamContinuation: CheckedContinuation<Void, Never>?
+    private var eventSink: (@Sendable (AskAgentEvent) async -> Void)?
+    private var finalStreamText = ""
+
+    func enableControlledStream() { controlledStream = true }
+    func emit(_ event: AskAgentEvent) async { await eventSink?(event) }
+    func finishStream(text: String) {
+        finalStreamText = text
+        streamContinuation?.resume()
+        streamContinuation = nil
+    }
 
     init(conversations: [AskConversation] = []) {
         values = Dictionary(uniqueKeysWithValues: conversations.map { ($0.id, $0) })
@@ -849,6 +926,16 @@ private actor AskWorkspaceMock: AskWorkspaceServing {
         value.revision += 1
         values[id] = value
         await onEvent(.activity("Searching"))
+        if controlledStream {
+            eventSink = onEvent
+            await withCheckedContinuation { continuation in
+                streamContinuation = continuation
+                requestedOperations.insert("streamStarted")
+            }
+            value.messages.append(
+                AskMessage(sectionID: value.activeSection!.id, role: .assistant, content: finalStreamText))
+            values[id] = value
+        }
         return value
     }
 

@@ -123,6 +123,7 @@ public struct PiAskAgent: AskAgentRunning {
                 let messages = try Self.decodeMessages(messageObjects)
                 do {
                     if kind == "modelDecision" {
+                        await onEvent(.phase(.planning))
                         let action = try await AskModelBridge.decide(
                             messages: messages, client: client, context: context)
                         var payload: [String: Any] = ["kind": action.kind]
@@ -139,6 +140,7 @@ public struct PiAskAgent: AskAgentRunning {
                             throw AskAgentError.protocolViolation("Duplicate Ask final request")
                         }
                         finalRequestStarted = true
+                        await onEvent(.phase(.writing))
                         try await AskModelBridge.streamFinal(messages: messages, client: client, context: context) {
                             chunk in
                             try await finalBuffer.append(chunk, onEvent: onEvent)

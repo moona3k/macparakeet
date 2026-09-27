@@ -521,3 +521,14 @@ segments and additive artifact paths, command-level JSON failure envelopes, and
 Update this file, `Sources/CLI/CHANGELOG.md`, `docs/cli-testing.md`,
 `integrations/README.md` if external callers are affected, and the focused CLI
 tests in the same PR.
+
+### Experimental Ask streaming progress
+
+Developer-gated `ask send --stream` retains its existing `activity`, `text`,
+and terminal `conversation` NDJSON records and adds `phase` and `step` records.
+Phase records contain `phase` (`planning`, `writing`, `validating`). Step
+records contain `step`, an `AskActivity`; upsert by its `id`. Completed
+conversations expose optional `messages[].activities`, preserving compatibility
+with older messages. Limits, count semantics, and fields are defined in
+[the Ask workspace contract](ask-workspace.md). Consumers should ignore unknown
+event types and optional fields.

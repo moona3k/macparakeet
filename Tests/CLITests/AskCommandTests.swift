@@ -90,6 +90,28 @@ final class AskCommandTests: XCTestCase {
         }
     }
 
+    func testStreamProgressUsesAdditiveTypedEnvelopes() throws {
+        let encoder = JSONEncoder()
+        let phase = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: encoder.encode(AskStreamEvent(.phase(.writing)))) as? [String: Any])
+        XCTAssertEqual(phase["type"] as? String, "phase")
+        XCTAssertEqual(phase["phase"] as? String, "writing")
+        XCTAssertNil(phase["text"])
+        let activity = AskActivity(tool: .search, status: .complete, query: "launch", resultCount: 2)
+        let step = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: encoder.encode(AskStreamEvent(.step(activity)))) as? [String: Any])
+        XCTAssertEqual(step["type"] as? String, "step")
+        let payload = try XCTUnwrap(step["step"] as? [String: Any])
+        XCTAssertEqual(payload["id"] as? String, activity.id.uuidString)
+        XCTAssertEqual(payload["resultCount"] as? Int, 2)
+        let legacy = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: encoder.encode(AskStreamEvent(.text("answer")))) as? [String: String])
+        XCTAssertEqual(legacy, ["type": "text", "text": "answer"])
+    }
+
     private func run(_ arguments: [String]) async throws -> String {
         var command = try XCTUnwrap(
             try CLI.parseAsRoot(["ask"] + arguments + ["--enable-ask-workspace"]) as? any AsyncParsableCommand)

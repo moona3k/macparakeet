@@ -47,6 +47,41 @@ public struct AskContextSection: Codable, Identifiable, Sendable, Equatable {
     }
 }
 
+/// Runtime phases reported by the host, never inferred from generated answer text.
+public enum AskRunPhase: String, Codable, Sendable {
+    case planning, writing, validating
+}
+
+/// Bounded metadata about a real scoped source operation. No passage or summary text is stored.
+public struct AskActivity: Codable, Identifiable, Sendable, Equatable {
+    public enum Tool: String, Codable, Sendable { case listSources, search, read, getSummary }
+    public enum Status: String, Codable, Sendable { case running, complete, failed, cancelled }
+
+    public var id: UUID
+    public var tool: Tool
+    public var status: Status
+    public var sourceTitle: String?
+    public var query: String?
+    public var resultCount: Int?
+    public var sourceCount: Int?
+    public var hasMore: Bool?
+
+    public init(
+        id: UUID = UUID(), tool: Tool, status: Status = .running,
+        sourceTitle: String? = nil, query: String? = nil,
+        resultCount: Int? = nil, sourceCount: Int? = nil, hasMore: Bool? = nil
+    ) {
+        self.id = id
+        self.tool = tool
+        self.status = status
+        self.sourceTitle = sourceTitle
+        self.query = query
+        self.resultCount = resultCount
+        self.sourceCount = sourceCount
+        self.hasMore = hasMore
+    }
+}
+
 public struct AskMessage: Codable, Identifiable, Sendable, Equatable {
     public enum Role: String, Codable, Sendable { case user, assistant }
     public enum Status: String, Codable, Sendable { case complete, incomplete, failed, cancelled }
@@ -60,6 +95,7 @@ public struct AskMessage: Codable, Identifiable, Sendable, Equatable {
     public var sourceRevisions: [UUID: String]
     public var failureReason: String?
     public var provider: AskProviderDisclosure?
+    public var activities: [AskActivity]?
     public var createdAt: Date
 
     public init(
@@ -72,6 +108,7 @@ public struct AskMessage: Codable, Identifiable, Sendable, Equatable {
         sourceRevisions: [UUID: String] = [:],
         failureReason: String? = nil,
         provider: AskProviderDisclosure? = nil,
+        activities: [AskActivity]? = nil,
         createdAt: Date = Date()
     ) {
         self.id = id
@@ -83,6 +120,7 @@ public struct AskMessage: Codable, Identifiable, Sendable, Equatable {
         self.sourceRevisions = sourceRevisions
         self.failureReason = failureReason
         self.provider = provider
+        self.activities = activities
         self.createdAt = createdAt
     }
 }

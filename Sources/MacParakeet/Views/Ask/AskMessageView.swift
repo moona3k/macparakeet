@@ -3,6 +3,7 @@ import MacParakeetCore
 
 struct AskMessageView: View {
     let message: AskMessage
+    @Binding var isActivityExpanded: Bool
     let onCitation: (AskEvidenceReference) -> Void
 
     var body: some View {
@@ -11,6 +12,11 @@ struct AskMessageView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
             if message.role == .assistant {
+                if let activities = message.activities, !activities.isEmpty {
+                    AskActivityView(
+                        activities: activities, status: message.status,
+                        isExpanded: $isActivityExpanded)
+                }
                 MarkdownContentView(message.content)
                 if let provider = message.provider {
                     Text("Model: \(provider.name) · \(provider.model)")

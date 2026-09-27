@@ -11,6 +11,8 @@ public final class AskWorkspaceViewModel {
     public private(set) var isStopping = false
     public private(set) var activity: String?
     public private(set) var streamingText = ""
+    public private(set) var runPhase: AskRunPhase?
+    public private(set) var activities: [AskActivity] = []
     public private(set) var pendingQuestion: String?
     public private(set) var errorMessage: String?
     public private(set) var provider: AskProviderDisclosure?
@@ -46,6 +48,8 @@ public final class AskWorkspaceViewModel {
     private var draftReloadGeneration: Int?
     private var runGeneration = 0
     private var sendTask: Task<Void, Never>?
+    private var textPublicationTask: Task<Void, Never>?
+    private var accumulatedText = ""
     private var draftTask: Task<Void, Never>?
     private var draftSaveTask: Task<Bool, Never>?
     private var pendingLibrarySourceIDs: [UUID]?
@@ -592,6 +596,11 @@ public final class AskWorkspaceViewModel {
         draft = ""
         isStopping = false
         streamingText = ""
+        runPhase = .planning
+        activities = []
+        accumulatedText = ""
+        textPublicationTask?.cancel()
+        textPublicationTask = nil
         activity = "Starting investigation…"
         errorMessage = nil
         // Show the submitted question immediately. The saved draft remains in
@@ -639,6 +648,11 @@ public final class AskWorkspaceViewModel {
                 }
             }
             guard self.runGeneration == generation else { return }
+            self.textPublicationTask?.cancel()
+            self.textPublicationTask = nil
+            self.accumulatedText = ""
+            self.runPhase = nil
+            self.activities = []
             self.isSending = false
             self.isStopping = false
             self.activity = nil
@@ -650,10 +664,31 @@ public final class AskWorkspaceViewModel {
     }
 
     private func accept(_ event: AskAgentEvent, generation: Int, conversationID: UUID) {
-        guard runGeneration == generation, conversation?.id == conversationID else { return }
+        guard isSending, runGeneration == generation, conversation?.id == conversationID else { return }
         switch event {
         case .activity(let description): activity = description
-        case .text(let delta): streamingText += delta
+        case .phase(let phase): runPhase = phase
+        case .step(let step):
+            if let index = activities.firstIndex(where: { $0.id == step.id }) {
+                activities[index] = step
+            } else if activities.count < 32 {
+                activities.append(step)
+            }
+        case .text(let delta):
+            accumulatedText += delta
+            if streamingText.isEmpty {
+                streamingText = accumulatedText
+            } else if textPublicationTask == nil {
+                // A trailing publication also flushes bursts when the provider pauses.
+                textPublicationTask = Task { [weak self] in
+                    do { try await Task.sleep(for: .milliseconds(33)) } catch { return }
+                    guard let self, self.isSending, self.runGeneration == generation,
+                        self.conversation?.id == conversationID
+                    else { return }
+                    self.streamingText = self.accumulatedText
+                    self.textPublicationTask = nil
+                }
+            }
         }
     }
 
@@ -687,6 +722,9 @@ public final class AskWorkspaceViewModel {
     }
 
     private func adopt(_ loaded: AskConversation) {
+        textPublicationTask?.cancel()
+        textPublicationTask = nil
+        accumulatedText = ""
         conversation = loaded
         draft = loaded.draft
         savedDraftAtConflict = nil

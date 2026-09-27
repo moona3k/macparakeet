@@ -36,7 +36,7 @@ Set the version approved for the release (the example is the unreleased Ask
 CLI candidate, not a publication instruction):
 
 ```bash
-export VERSION=4.7.0
+export VERSION=4.8.0
 ```
 
 Before building, make sure the source repo is on the commit you intend to

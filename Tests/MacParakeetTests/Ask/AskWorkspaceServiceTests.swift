@@ -170,6 +170,11 @@ final class AskWorkspaceServiceTests: XCTestCase {
             approvedProviderID: nil, onEvent: { _ in })
         XCTAssertEqual(answer.messages.last?.status, .complete)
         XCTAssertEqual(answer.messages.last?.citations.first?.segmentIndex, 9)
+        let activities = try XCTUnwrap(answer.messages.last?.activities)
+        XCTAssertEqual(activities.compactMap(\.resultCount).reduce(0, +), 20)
+        XCTAssertTrue(activities.allSatisfy { ($0.resultCount ?? 10) < 10 })
+        XCTAssertEqual(activities.first?.hasMore, true)
+        XCTAssertEqual(activities.last?.hasMore, false)
     }
 
     func testRemoteProviderRequiresExplicitMatchingApprovalBeforeAnyRun() async throws {
@@ -235,6 +240,7 @@ final class AskWorkspaceServiceTests: XCTestCase {
         XCTAssertTrue(result.messages.last?.failureReason?.contains("changed") == true)
         XCTAssertEqual(result.messages.last?.content, "June [E1].")
         XCTAssertTrue(result.messages.last?.citations.isEmpty == true)
+        XCTAssertEqual(result.messages.last?.activities?.first?.status, .complete)
     }
 
     func testUnknownCitationFailsInsteadOfPersistingInventedEvidence() async throws {
@@ -595,6 +601,131 @@ final class AskWorkspaceServiceTests: XCTestCase {
         }
     }
 
+    func testActivityEventsDescribeAcceptedToolsAndPersistWithAnswer() async throws {
+        let fixture = try Fixture()
+        let source = try fixture.source("Planning", "Launch in June.")
+        let recorder = AskActivityRecorder()
+        let service = fixture.service(
+            ScriptedAskAgent { _, tool, event in
+                _ = try await tool("list_sources", "{}")
+                _ = try await tool("search", #"{"query":"June"}"#)
+                _ = try await tool("read", "{\"sourceID\":\"\(source.id)\"}")
+                _ = try await tool("get_summary", "{\"sourceID\":\"\(source.id)\"}")
+                await event(.text("June [E1]."))
+                return "June [E1]."
+            })
+        let chat = try await service.create(sourceIDs: [source.id])
+        let result = try await service.send(
+            id: chat.id, question: "When?", expectedRevision: 0,
+            approvedProviderID: nil, onEvent: { await recorder.append($0) })
+        let activities = try XCTUnwrap(result.messages.last?.activities)
+        XCTAssertEqual(activities.map(\.tool), [.listSources, .search, .read, .getSummary])
+        XCTAssertTrue(activities.allSatisfy { $0.status == .complete })
+        XCTAssertEqual(activities.map(\.sourceCount), [1, 1, 1, 1])
+        XCTAssertEqual(activities.map(\.resultCount), [nil, 1, 1, 0])
+        XCTAssertEqual(activities[1].query, "June")
+        XCTAssertEqual(activities[2].sourceTitle, "Planning")
+        XCTAssertEqual(activities[2].hasMore, false)
+        let events = await recorder.events
+        let steps = events.compactMap { event -> AskActivity? in
+            if case .step(let step) = event { return step }; return nil
+        }
+        XCTAssertEqual(steps.count, 8)
+        for index in activities.indices {
+            XCTAssertEqual(steps[index * 2].status, .running)
+            XCTAssertEqual(steps[index * 2].id, activities[index].id)
+            XCTAssertEqual(steps[index * 2 + 1], activities[index])
+        }
+        guard case .phase(.validating) = events.last else { return XCTFail("Validation must be the last phase") }
+        let saved = try await service.conversation(id: chat.id)
+        XCTAssertEqual(saved?.messages.last?.activities, activities)
+    }
+
+    func testCancelledToolActivitySettlesBeforePersistence() async throws {
+        let fixture = try Fixture()
+        let source = try fixture.source("Planning", "Launch in June.")
+        let recorder = AskActivityRecorder()
+        let service = fixture.service(
+            ScriptedAskAgent { _, tool, _ in
+                _ = try await tool("read", "{\"sourceID\":\"\(source.id)\"}")
+                XCTFail("Cancelled operation must not return evidence")
+                return ""
+            })
+        let chat = try await service.create(sourceIDs: [source.id])
+        let result = try await service.send(
+            id: chat.id, question: "When?", expectedRevision: 0, approvedProviderID: nil,
+            onEvent: { event in
+                await recorder.append(event)
+                if case .step(let step) = event, step.status == .running {
+                    withUnsafeCurrentTask { $0?.cancel() }
+                }
+            })
+        XCTAssertEqual(result.messages.last?.status, .cancelled)
+        XCTAssertEqual(result.messages.last?.activities?.first?.status, .cancelled)
+        XCTAssertNil(result.messages.last?.activities?.first?.resultCount)
+        let saved = try await service.conversation(id: chat.id)
+        XCTAssertEqual(saved?.messages.last?.activities, result.messages.last?.activities)
+        let events = await recorder.events
+        guard case .step(let terminal) = events.last else { return XCTFail("Missing cancellation event") }
+        XCTAssertEqual(terminal.status, .cancelled)
+    }
+
+    func testFailedToolDoesNotDiscloseUnselectedSourceOrRawErrors() async throws {
+        let fixture = try Fixture()
+        let source = try fixture.source("Planning", "Launch in June.")
+        let unselected = try fixture.source("Private title", "Private transcript")
+        let service = fixture.service(
+            ScriptedAskAgent { _, tool, _ in
+                _ = try await tool("list_sources", "{}")
+                _ = try await tool("read", "{\"sourceID\":\"\(unselected.id)\"}")
+                return ""
+            })
+        let chat = try await service.create(sourceIDs: [source.id])
+        let result = try await service.send(
+            id: chat.id, question: "When?", expectedRevision: 0,
+            approvedProviderID: nil, onEvent: { _ in })
+        let activities = try XCTUnwrap(result.messages.last?.activities)
+        XCTAssertEqual(result.messages.last?.status, .failed)
+        XCTAssertEqual(activities.map(\.status), [.complete, .failed])
+        XCTAssertNil(activities.last?.sourceTitle)
+        XCTAssertNil(activities.last?.resultCount)
+        let saved = try await service.conversation(id: chat.id)
+        XCTAssertEqual(saved?.messages.last?.activities, activities)
+        XCTAssertFalse(String(decoding: try JSONEncoder().encode(activities), as: UTF8.self).contains("Private"))
+    }
+
+    func testActivityHistoryBoundDoesNotStopFurtherTools() async throws {
+        let fixture = try Fixture()
+        let source = try fixture.source(String(repeating: "T", count: 250), "Launch in June.")
+        let query = String(repeating: "a", count: 250)
+        let service = fixture.service(
+            ScriptedAskAgent { _, tool, _ in
+                _ = try await tool("search", "{\"query\":\"\(query)\",\"sourceID\":\"\(source.id)\"}")
+                for _ in 0..<33 { _ = try await tool("list_sources", "{}") }
+                return "Not enough evidence."
+            })
+        let chat = try await service.create(sourceIDs: [source.id])
+        let result = try await service.send(
+            id: chat.id, question: "When?", expectedRevision: 0,
+            approvedProviderID: nil, onEvent: { _ in })
+        let activities = try XCTUnwrap(result.messages.last?.activities)
+        XCTAssertEqual(result.messages.last?.status, .incomplete)
+        XCTAssertEqual(activities.count, 32)
+        XCTAssertEqual(activities.first?.sourceTitle?.count, 200)
+        XCTAssertEqual(activities.first?.query?.count, 200)
+        XCTAssertTrue(activities.allSatisfy { $0.status == .complete })
+    }
+
+    func testLegacyMessageWithoutActivitiesDecodes() throws {
+        let original = AskMessage(sectionID: UUID(), role: .assistant, content: "Old answer")
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any])
+        object.removeValue(forKey: "activities")
+        let decoded = try JSONDecoder().decode(
+            AskMessage.self, from: JSONSerialization.data(withJSONObject: object))
+        XCTAssertNil(decoded.activities)
+        XCTAssertEqual(decoded.content, "Old answer")
+    }
+
     private struct Fixture {
         let database: DatabaseManager
         let transcriptions: TranscriptionRepository
@@ -636,4 +767,9 @@ private struct ScriptedAskAgent: AskAgentRunning {
     ) async throws -> String {
         try await operation(request, tool, onEvent)
     }
+}
+
+private actor AskActivityRecorder {
+    private(set) var events: [AskAgentEvent] = []
+    func append(_ event: AskAgentEvent) { events.append(event) }
 }

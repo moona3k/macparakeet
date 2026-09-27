@@ -1864,3 +1864,30 @@ MacParakeet follows standard macOS patterns:
 ---
 
 *Last updated: 2026-06-21*
+
+
+## Ask investigation activity
+
+Ask uses one quiet activity disclosure above each assistant answer. During a run,
+its label follows host-owned source operations and planning, writing, and reference
+validation phases. The existing Markdown renderer displays the streamed answer;
+there is no artificial typing delay or percentage estimate. Text publication is
+coalesced to 33 ms with a trailing flush during provider pauses; terminal content
+comes from the saved service result.
+
+Expanding activity shows bounded search queries, selected-source titles, returned
+counts, continuation availability, and failed/cancelled steps. Empty searches are
+completed operations, not failures. Counts describe returned results, never full
+corpus coverage. The user's expanded state survives the transition to the saved
+answer within the current view. Saved activity is collapsed by default on reopen.
+Source citations remain the separate path to inspect supporting passages.
+
+Scrolling follows content growth while the reader stays at the bottom. Moving up
+suspends following; Jump to latest resumes it. Submitting a new question returns
+to the latest turn. Disclosure motion and explicit jumps respect Reduce Motion;
+streaming growth does not queue scrolling animations. Activity text and controls
+use native type, dynamic system colors, and the shared button styles.
+
+Activity is stored locally with the answer and exposed through the CLI contract.
+It contains no copied transcript passages, raw provider errors, or model reasoning.
+See [Ask contract](contracts/ask-workspace.md) for bounds and interruption semantics.

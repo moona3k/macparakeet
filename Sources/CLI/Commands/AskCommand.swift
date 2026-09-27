@@ -173,6 +173,23 @@ private struct AskDraftCommand: AsyncParsableCommand {
     }
 }
 
+/// Additive NDJSON records; terminal conversations retain the separate existing envelope.
+struct AskStreamEvent: Encodable {
+    let type: String
+    var text: String?
+    var phase: AskRunPhase?
+    var step: AskActivity?
+
+    init(_ event: AskAgentEvent) {
+        switch event {
+        case .activity(let value): type = "activity"; text = value
+        case .text(let value): type = "text"; text = value
+        case .phase(let value): type = "phase"; phase = value
+        case .step(let value): type = "step"; step = value
+        }
+    }
+}
+
 private struct AskSendCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "send", abstract: "Investigate selected recordings using the chosen provider and Pi.")
@@ -183,7 +200,7 @@ private struct AskSendCommand: AsyncParsableCommand {
     @Option(help: "Expected conversation revision.") var revision: Int
     @Flag(help: "Allow selected recording context to be sent to the explicitly configured remote provider.")
     var allowRemote = false
-    @Flag(help: "Emit activity/text events and a final conversation as NDJSON.") var stream = false
+    @Flag(help: "Emit activity, phase, step, and text events and a final conversation as NDJSON.") var stream = false
 
     func validate() throws {
         if ["cli", "localcli"].contains(llm.provider.lowercased()) {
@@ -208,12 +225,7 @@ private struct AskSendCommand: AsyncParsableCommand {
                 approvedProviderID: allowRemote ? disclosure.id : nil,
                 onEvent: { event in
                     guard stream else { return }
-                    let fields: [String: String]
-                    switch event {
-                    case .activity(let value): fields = ["type": "activity", "text": value]
-                    case .text(let value): fields = ["type": "text", "text": value]
-                    }
-                    if let data = try? JSONEncoder().encode(fields) {
+                    if let data = try? JSONEncoder().encode(AskStreamEvent(event)) {
                         try? FileHandle.standardOutput.write(contentsOf: data + Data([0x0a]))
                     }
                 }

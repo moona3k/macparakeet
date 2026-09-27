@@ -264,7 +264,7 @@ private extension CLISpecCommand {
                 .option("--revision", valueName: "N", required: true, summary: "Expected revision."),
                 .option("--question", valueName: "TEXT", required: true, summary: "Question to investigate."),
                 .flag("--allow-remote", summary: "Permit sending selected context to this remote provider."),
-                .flag("--stream", summary: "Emit activity/text/final conversation events as NDJSON."),
+                .flag("--stream", summary: "Emit activity/phase/step/text/final conversation events as NDJSON. Ignore unknown event types."),
             ] + llmInlineOptions,
             output:
                 "Updated AskConversation; terminal message status complete, failed, cancelled, or incomplete. Any non-complete answer exits 1."

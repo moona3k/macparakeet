@@ -75,7 +75,8 @@ final class PiAskAgentTests: XCTestCase {
             },
             onEvent: { event in
                 switch event {
-                case .activity: break
+                case .activity, .step: break
+                case .phase(let phase): await recorder.phase(phase)
                 case .text(let chunk):
                     let terminal = await client.terminalObserved()
                     await recorder.chunk(chunk, beforeTerminal: !terminal)
@@ -89,6 +90,8 @@ final class PiAskAgentTests: XCTestCase {
         XCTAssertEqual(streamed, answer)
         let early = await recorder.sawChunkBeforeTerminal
         XCTAssertTrue(early)
+        let phases = await recorder.phases
+        XCTAssertEqual(phases, Array(repeating: .planning, count: 6) + [.writing])
     }
 
     func testHelperBudgetFailurePreservesItsSafeCategory() async throws {
@@ -211,6 +214,8 @@ final class PiAskAgentTests: XCTestCase {
 }
 
 private actor PiTestRecorder {
+    private(set) var phases: [AskRunPhase] = []
+    func phase(_ phase: AskRunPhase) { phases.append(phase) }
     private(set) var toolNames: [String] = []
     private(set) var streamedText = ""
     private(set) var sawChunkBeforeTerminal = false

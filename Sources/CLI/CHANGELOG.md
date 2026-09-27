@@ -94,6 +94,17 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+## [4.8.0] — 2026-09-26 (development source; not a stable app release)
+
+### Added
+
+- Ask answers retain a bounded activity history describing source operations and
+  actual returned result counts. Older answers remain readable without activity.
+- `ask send --stream` emits additive `phase` and `step` events alongside existing
+  activity/text events. Step updates share a stable ID; terminal conversation
+  records include optional assistant-message `activities`. Consumers must tolerate
+  unknown event types. Ask remains default-off with Debug-only opt-in.
+
 ## [4.7.0] — 2026-09-26 (development source; not a stable app release)
 
 This CLI source version adds saved-result editing, batch text revisions, shared

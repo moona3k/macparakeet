@@ -7,7 +7,10 @@ struct AskWorkspaceView: View {
     var onOpenAISettings: () -> Void
     var onOpenSource: (UUID) -> Void
     @State private var selectedEvidence: AskEvidenceReference?
-    @State private var isNearBottom = true
+    @State private var scrollFollow = AskScrollFollowState()
+    @State private var liveActivityExpanded = false
+    @State private var expandedActivityMessages: Set<UUID> = []
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var composerFocused: Bool
 
     var body: some View {
@@ -168,53 +171,111 @@ struct AskWorkspaceView: View {
             if !model.activeSourceSnapshots.isEmpty {
                 sourceStrip
             }
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 26) {
-                        if conversation.messages.isEmpty && model.pendingQuestion == nil && !model.isSending {
-                            emptyConversation
-                        } else {
-                            ForEach(conversation.sections) { section in
-                                if section.id != conversation.sections.first?.id {
-                                    contextBoundary(section)
-                                }
-                                ForEach(conversation.messages.filter { $0.sectionID == section.id }) { message in
-                                    AskMessageView(message: message) { reference in
-                                        selectedEvidence = reference
-                                        Task { await model.openEvidence(reference) }
+            GeometryReader { viewport in
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 26) {
+                            if conversation.messages.isEmpty && model.pendingQuestion == nil && !model.isSending {
+                                emptyConversation
+                            } else {
+                                ForEach(conversation.sections) { section in
+                                    if section.id != conversation.sections.first?.id {
+                                        contextBoundary(section)
+                                    }
+                                    ForEach(conversation.messages.filter { $0.sectionID == section.id }) { message in
+                                        AskMessageView(
+                                            message: message,
+                                            isActivityExpanded: Binding(
+                                                get: { expandedActivityMessages.contains(message.id) },
+                                                set: { expanded in
+                                                    if expanded {
+                                                        expandedActivityMessages.insert(message.id)
+                                                        scrollFollow.pause()
+                                                    } else {
+                                                        expandedActivityMessages.remove(message.id)
+                                                    }
+                                                })
+                                        ) { reference in
+                                            selectedEvidence = reference
+                                            Task { await model.openEvidence(reference) }
+                                        }
                                     }
                                 }
                             }
-                        }
-                        if let pendingQuestion = model.pendingQuestion {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text("You")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                                Text(pendingQuestion)
-                                    .textSelection(.enabled)
+                            if let pendingQuestion = model.pendingQuestion {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Text("You")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                    Text(pendingQuestion)
+                                        .textSelection(.enabled)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            if model.isSending {
+                                streamMessage
+                            }
+                            Color.clear.frame(height: 1)
+                                .id("bottom")
+
                         }
-                        if model.isSending {
-                            streamMessage
+                        .frame(maxWidth: 720)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 28)
+                        .padding(.vertical, 30)
+                        .background {
+                            GeometryReader { content in
+                                Color.clear.preference(
+                                    key: AskContentFrameKey.self,
+                                    value: content.frame(in: .named("askScroll")))
+                            }
                         }
-                        Color.clear.frame(height: 1)
-                            .id("bottom")
-                            .onAppear { isNearBottom = true }
-                            .onDisappear { isNearBottom = false }
                     }
-                    .frame(maxWidth: 720)
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 28)
-                    .padding(.vertical, 30)
-                }
-                .onChange(of: model.streamingText) { _, _ in
-                    if isNearBottom { proxy.scrollTo("bottom", anchor: .bottom) }
-                }
-                .onChange(of: model.pendingQuestion) { _, question in
-                    if question != nil && isNearBottom {
+                    .coordinateSpace(name: "askScroll")
+                    .onPreferenceChange(AskContentFrameKey.self) { frame in
+                        if scrollFollow.update(content: frame, viewportHeight: viewport.size.height) {
+                            proxy.scrollTo("bottom", anchor: .bottom)
+                        }
+                    }
+                    .onChange(of: model.pendingQuestion) { _, question in
+                        if question != nil {
+                            liveActivityExpanded = false
+                            scrollFollow.resume()
+                            proxy.scrollTo("bottom", anchor: .bottom)
+                        }
+                    }
+                    .onChange(of: model.isSending) { _, sending in
+                        if !sending, liveActivityExpanded,
+                            let answer = model.conversation?.messages.last(where: { $0.role == .assistant })
+                        {
+                            expandedActivityMessages.insert(answer.id)
+                        }
+                    }
+                    .onChange(of: conversation.id, initial: true) { _, _ in
+                        scrollFollow.resume()
+                        liveActivityExpanded = false
+                        expandedActivityMessages = []
                         proxy.scrollTo("bottom", anchor: .bottom)
+                    }
+                    .overlay(alignment: .bottom) {
+                        if !scrollFollow.followsLatest {
+                            Button {
+                                scrollFollow.resume()
+                                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) {
+                                    proxy.scrollTo("bottom", anchor: .bottom)
+                                }
+                            } label: {
+                                Label("Jump to latest", systemImage: "arrow.down")
+                                    .font(.caption.weight(.medium))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                            }
+                            .parakeetAction(.secondary)
+                            .background(.regularMaterial, in: Capsule())
+                            .clipShape(Capsule())
+                            .padding(.bottom, 12)
+                            .accessibilityIdentifier("ask.jumpToLatest")
+                        }
                     }
                 }
             }
@@ -316,24 +377,25 @@ struct AskWorkspaceView: View {
 
     private var streamMessage: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if let activity = model.activity {
-                Label(activity, systemImage: "sparkle.magnifyingglass")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Text("Ask")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            AskActivityView(
+                activities: model.activities, phase: model.runPhase,
+                isRunning: true, isStopping: model.isStopping,
+                isExpanded: Binding(
+                    get: { liveActivityExpanded },
+                    set: { expanded in
+                        liveActivityExpanded = expanded
+                        if expanded { scrollFollow.pause() }
+                    }))
             if !model.streamingText.isEmpty {
                 MarkdownContentView(model.streamingText, isStreaming: true)
                     .textSelection(.enabled)
             }
-            HStack {
-                ProgressView().controlSize(.small)
-                Text(model.isStopping ? "Stopping…" : "Investigating…")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 
     private var composer: some View {
@@ -442,4 +504,9 @@ struct AskWorkspaceView: View {
             }
         )
     }
+}
+
+private struct AskContentFrameKey: PreferenceKey {
+    static let defaultValue = CGRect.zero
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
 }

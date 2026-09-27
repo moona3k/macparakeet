@@ -187,7 +187,7 @@ public actor AskWorkspaceService: AskWorkspaceServing {
                         request: request, client: client, context: context,
                         tool: { name, arguments in
                             try Task.checkCancellation()
-                            return try await evidence.execute(name: name, arguments: arguments)
+                            return try await evidence.execute(name: name, arguments: arguments, onEvent: onEvent)
                         },
                         onEvent: { event in
                             guard !Task.isCancelled else { return }
@@ -220,6 +220,8 @@ public actor AskWorkspaceService: AskWorkspaceServing {
                 task.cancel()
             }
             try Task.checkCancellation()
+            await onEvent(.phase(.validating))
+            try Task.checkCancellation()
             let current = try sourceService.snapshot(sourceIDs: section.sourceIDs)
             guard current.allSatisfy({ $0.status == .available && revisions[$0.descriptor.id] == $0.revision }) else {
                 throw AskWorkspaceError.sourcesChanged
@@ -242,9 +244,11 @@ public actor AskWorkspaceService: AskWorkspaceServing {
             answer = await evidence.partialText
             failure = status == .cancelled ? "Stopped. This answer is incomplete." : Self.safeFailure(error)
         }
+        await evidence.finishActivities(cancelled: status == .cancelled, onEvent: onEvent)
         conversation.messages[conversation.messages.count - 1] = AskMessage(
             id: answerID, sectionID: section.id, role: .assistant, status: status, content: answer,
-            citations: citations, sourceRevisions: revisions, failureReason: failure, provider: provider
+            citations: citations, sourceRevisions: revisions, failureReason: failure, provider: provider,
+            activities: await evidence.activities
         )
         do {
             return try repository.save(
@@ -353,6 +357,7 @@ private actor AskRunEvidence {
     private var summariesByID: [UUID: AskSummary] = [:]
     var summaryReceipts: [AskSummary] { Array(summariesByID.values) }
     private var returnedBytes = 0
+    private(set) var activities: [AskActivity] = []
 
     init(service: AskSourceService, snapshots: [AskSourceSnapshot], revisions: [UUID: String]) {
         self.service = service
@@ -364,7 +369,85 @@ private actor AskRunEvidence {
         if case .text(let value) = event, partialText.utf8.count < 64_000 { partialText += value }
     }
 
-    func execute(name: String, arguments: String) throws -> String {
+    func execute(
+        name: String, arguments: String,
+        onEvent: @escaping @Sendable (AskAgentEvent) async -> Void
+    ) async throws -> String {
+        let index = startActivity(name: name, arguments: arguments)
+        if let index { await onEvent(.step(activities[index])) }
+        do {
+            try Task.checkCancellation()
+            let output = try executeTool(name: name, arguments: arguments)
+            try Task.checkCancellation()
+            if let index {
+                completeActivity(at: index, output: output)
+                await onEvent(.step(activities[index]))
+            }
+            return output
+        } catch {
+            if let index {
+                activities[index].status = Task.isCancelled || error is CancellationError ? .cancelled : .failed
+                await onEvent(.step(activities[index]))
+            }
+            throw error
+        }
+    }
+
+    func finishActivities(
+        cancelled: Bool, onEvent: @escaping @Sendable (AskAgentEvent) async -> Void
+    ) async {
+        for index in activities.indices where activities[index].status == .running {
+            activities[index].status = cancelled ? .cancelled : .failed
+            await onEvent(.step(activities[index]))
+        }
+    }
+
+    private func startActivity(name: String, arguments: String) -> Int? {
+        guard activities.count < 32 else { return nil }
+        let tool: AskActivity.Tool
+        switch name {
+        case "list_sources": tool = .listSources
+        case "search": tool = .search
+        case "read": tool = .read
+        case "get_summary": tool = .getSummary
+        default: return nil
+        }
+        let args =
+            arguments.utf8.count <= 8_192
+            ? (try? JSONSerialization.jsonObject(with: Data(arguments.utf8))) as? [String: Any] : nil
+        let sourceID = (args?["sourceID"] as? String).flatMap(UUID.init(uuidString:))
+        let title = snapshots.first { $0.descriptor.id == sourceID }?.descriptor.title
+        let query = tool == .search ? args?["query"] as? String : nil
+        activities.append(
+            AskActivity(
+                tool: tool, sourceTitle: title.map { String($0.prefix(200)) },
+                query: query.map { String($0.prefix(200)) }))
+        return activities.count - 1
+    }
+
+    private func completeActivity(at index: Int, output: String) {
+        // Read counts from the accepted payload after per-call and cumulative byte budgets.
+        let value = try? JSONSerialization.jsonObject(with: Data(output.utf8))
+        let object = value as? [String: Any]
+        activities[index].status = .complete
+        switch activities[index].tool {
+        case .listSources:
+            activities[index].sourceCount = (value as? [Any])?.count
+        case .search:
+            activities[index].resultCount = object?["returnedCount"] as? Int
+            activities[index].sourceCount = (object?["searchedSourceIDs"] as? [String])?.count
+            activities[index].hasMore = object?["hasMore"] as? Bool
+        case .read:
+            activities[index].resultCount = object?["returnedCount"] as? Int
+            activities[index].sourceCount = 1
+            activities[index].hasMore = object?["hasMore"] as? Bool
+        case .getSummary:
+            activities[index].resultCount = (value as? [Any])?.count
+            activities[index].sourceCount = 1
+        }
+    }
+
+    private func executeTool(name: String, arguments: String) throws -> String {
         struct Arguments: Decodable {
             var query: String?
             var sourceID: UUID?

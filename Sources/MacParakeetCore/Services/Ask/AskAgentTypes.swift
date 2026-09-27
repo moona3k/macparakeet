@@ -14,6 +14,8 @@ public struct AskAgentRequest: Sendable {
 
 public enum AskAgentEvent: Sendable {
     case activity(String)
+    case phase(AskRunPhase)
+    case step(AskActivity)
     case text(String)
 }
 

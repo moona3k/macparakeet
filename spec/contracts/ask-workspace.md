@@ -230,9 +230,28 @@ source revisions. Mutating commands use the expected `--revision`. `send` uses
 an explicit inline provider configuration; endpoints that require remote
 consent also require `--allow-remote`. Ask rejects Local CLI provider routes.
 `send --stream` emits NDJSON activity and text events followed by a final
-conversation record.
+conversation record. Additive host-owned records expose runtime progress:
+`{"type":"phase","phase":"planning|writing|validating"}` and
+`{"type":"step","step":{...}}`. A step is an `AskActivity` with a stable UUID,
+`tool` (`listSources`, `search`, `read`, `getSummary`), and `status` (`running`,
+`complete`, `failed`, `cancelled`). Repeated step IDs update the existing row.
+Optional `sourceTitle` comes only from the selected source snapshot; `query`
+is the requested search text. Both are truncated to 200 characters. Optional
+`resultCount`, `sourceCount`, and `hasMore` describe the accepted tool payload
+after byte budgets, not exhaustive evidence coverage. No passage, summary,
+provider error, or model reasoning text is copied into an activity.
 
-The CLI surface is additive at version 4.7.0 in this development source. That
+Each assistant message optionally stores `activities` in the same terminal
+save as the answer. Older messages decode with no activity history. The first
+32 tool operations are retained per run; this bound does not stop retrieval.
+Successful operations remain complete if a later model or validation step
+fails. Interrupted operations become failed or cancelled; the message status
+and existing `failureReason` describe why the overall run ended. Intermediate
+activity is live-only until the terminal answer save. Phases reflect actual
+host decision, final generation, and citation validation boundaries; helper
+activity text remains available for older consumers.
+
+The CLI surface is additive at version 4.8.0 in this development source. That
 version does not qualify or update the stable MacParakeet.app release.
 
 ## Deferred
