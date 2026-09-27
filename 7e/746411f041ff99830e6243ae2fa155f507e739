@@ -1,0 +1,19 @@
+.github/workflows/upload-0.8.8-dmg.yml
+  s_80447db1082ea2::t_a5c7f40fd3eca7 1-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7e746411f041ff99830e6243ae2fa155f507e739",
+  "prompts": {},
+  "sessions": {
+    "s_80447db1082ea2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e310-3c1a-71a0-95a2-e585b2abf1ff",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
