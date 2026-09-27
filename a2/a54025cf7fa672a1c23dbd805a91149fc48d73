@@ -1,0 +1,23 @@
+Sources/MacParakeetCore/Services/Ask/AskWorkspaceService.swift
+  s_9b7e2b35c64055::t_71f99ca51473c1 385,388
+Tests/MacParakeetTests/Ask/AskWorkspaceServiceTests.swift
+  s_9b7e2b35c64055::t_8fc3b24ec83d72 673-699
+Sources/MacParakeet/Views/Ask/AskActivityView.swift
+  s_9b7e2b35c64055::t_f0f7a08fb08399 69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a2a54025cf7fa672a1c23dbd805a91149fc48d73",
+  "prompts": {},
+  "sessions": {
+    "s_9b7e2b35c64055": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a78a7dc7-a057-4fae-8e49-ff630c64af47",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
