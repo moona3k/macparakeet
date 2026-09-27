@@ -206,7 +206,7 @@ public enum HotkeyConflictPolicy {
             if let conflict = overlappingConflict(
                 candidate: trigger,
                 peer: snapshot.dictationAIPolish,
-                peerName: "AI polish this dictation"
+                peerName: "AI-polished dictation"
             ) {
                 return conflict
             }
@@ -227,7 +227,7 @@ public enum HotkeyConflictPolicy {
             if let conflict = overlappingConflict(
                 candidate: trigger,
                 peer: snapshot.dictationAIPolish,
-                peerName: "AI polish this dictation"
+                peerName: "AI-polished dictation"
             ) {
                 return conflict
             }
@@ -246,7 +246,7 @@ public enum HotkeyConflictPolicy {
                     NamedCandidate(name: "file transcription", trigger: snapshot.fileTranscription),
                     NamedCandidate(name: "video URL transcription", trigger: snapshot.youtubeTranscription),
                     NamedCandidate(
-                        name: "AI polish this dictation",
+                        name: "AI-polished dictation",
                         trigger: snapshot.dictationAIPolish,
                         mode: .bareModifierDictation
                     ),
@@ -383,7 +383,7 @@ public enum HotkeyConflictPolicy {
         candidates.append(NamedCandidate(name: otherTranscriptionName, trigger: otherTranscriptionTrigger))
         candidates.append(
             NamedCandidate(
-                name: "AI polish this dictation",
+                name: "AI-polished dictation",
                 trigger: snapshot.dictationAIPolish,
                 mode: .bareModifierDictation
             )

@@ -317,7 +317,7 @@ final class HotkeyConflictPolicyTests: XCTestCase {
                 surface: .handsFreeDictation,
                 snapshot: snapshot(dictationAIPolish: commandP)
             ),
-            .blocked("Conflicts with AI polish this dictation (\(commandP.formattedLabel)).")
+            .blocked("Conflicts with AI-polished dictation (\(commandP.formattedLabel)).")
         )
     }
 

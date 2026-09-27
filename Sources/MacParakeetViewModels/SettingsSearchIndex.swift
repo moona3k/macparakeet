@@ -594,7 +594,7 @@ public enum SettingsSearchIndex {
             id: "system.startup",
             tab: .system,
             title: "Startup",
-            subtitle: "How MacParakeet shows up at sign-in.",
+            subtitle: "How MacParakeet starts and where it appears on your Mac.",
             keywords: [
                 "launch at login", "login items", "menu bar", "menu bar icon", "hide menu bar icon",
                 "status icon", "menu bar only", "startup", "boot", "auto launch",

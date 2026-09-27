@@ -980,7 +980,7 @@ struct SettingsView: View {
     private var startupCard: some View {
         settingsCard(
             title: "Startup",
-            subtitle: "How MacParakeet shows up on your Mac at sign-in.",
+            subtitle: "How MacParakeet starts and where it appears on your Mac.",
             icon: "power"
         ) {
             VStack(spacing: DesignSystem.Spacing.md) {
@@ -1039,7 +1039,7 @@ struct SettingsView: View {
             return "Cohere is batch-only, so preview stays off until transcription finishes."
         }
 
-        return "Shows a running transcript above the dictation pill as you speak. Parakeet and Nemotron support preview; Whisper is final-transcription only."
+        return "Shows a running transcript above the dictation pill as you speak. Parakeet and Nemotron support preview; Whisper shows text only when you finish."
     }
 
     private var dictationCard: some View {
@@ -1101,10 +1101,13 @@ struct SettingsView: View {
                 Divider()
 
                 transcriptionHotkeyRow(
-                    title: "AI polish this dictation",
-                    detail: "Optional extra shortcut. Tap to start or stop like hands-free (no hold-to-talk). Requires AI Formatter to be enabled, then always runs cleanup for that utterance even when Use for dictation is off.",
+                    title: "AI-polished dictation",
+                    detail: aiPolishHotkeyDetail,
                     surface: .dictationAIPolish,
-                    trigger: $viewModel.dictationAIPolishHotkeyTrigger
+                    trigger: $viewModel.dictationAIPolishHotkeyTrigger,
+                    setupAction: llmSettingsViewModel.isAIFormatterAvailable
+                        ? nil
+                        : ("Set up AI", { openRequestedSettingsDestination(tab: .ai, anchor: "ai.provider") })
                 )
 
                 if !viewModel.hotkeyTrigger.isDisabled
@@ -1198,7 +1201,7 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Escape cancels dictation",
-                    detail: "Press Escape to cancel a live dictation. Turn off if other apps need Escape while you dictate. On by default.",
+                    detail: "Press Escape to cancel a dictation in progress. Turn this off if another app needs Escape while you dictate.",
                     isOn: $viewModel.escapeCancelsDictation
                 )
 
@@ -1206,7 +1209,7 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Preserve discarded dictations",
-                    detail: "When you cancel or the undo window expires, keep the transcript in History instead of deleting it. Audio follows Save audio recordings. Off by default. Requires Save dictation history. Nothing is pasted.",
+                    detail: "Keeps canceled dictations in History instead of deleting them. They are never pasted. Needs Save dictation history; audio is kept only when Save audio recordings is on.",
                     isOn: $viewModel.preserveDiscardedDictations
                 )
 
@@ -1243,7 +1246,7 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Instant dictation",
-                    detail: "Keeps the mic ready so dictation starts faster and catches your first words; macOS shows the mic indicator while it's on. Pauses for Bluetooth mics like AirPods to protect playback quality.",
+                    detail: "Keeps the mic ready so dictation starts faster and catches your first words. macOS shows the mic indicator while this is on. Paused for Bluetooth mics such as AirPods to protect playback quality.",
                     isBeta: true,
                     isOn: $viewModel.instantDictationEnabled
                 )
@@ -1252,7 +1255,7 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Pause media while dictating",
-                    detail: "Pauses playing media during dictation and resumes it when capture stops. On speakers, a moment of media sound can reach the mic before the pause lands — speak as you press, or use headphones.",
+                    detail: "Pauses playing media while you dictate and resumes it when you stop. On speakers, a moment of audio can reach the mic before the pause takes effect; headphones avoid this.",
                     isBeta: true,
                     isOn: $viewModel.pauseMediaDuringDictation
                 )
@@ -1261,7 +1264,7 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Play sounds when dictation starts and stops",
-                    detail: "A short cue when the mic is live and another when it closes, so you know when to speak. Off by default. Follows the macOS sound effects setting. On speakers, the cues can reach the mic — use headphones to keep them out of saved audio.",
+                    detail: "Plays a short cue when the mic opens and another when it closes, so you know when to speak. Follows the macOS sound effects setting. On speakers, the mic can pick up the cues; use headphones to keep them out of saved audio.",
                     isOn: Binding(
                         get: { viewModel.playDictationCaptureSounds },
                         set: { isOn in
@@ -1275,7 +1278,7 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Keep dictation on clipboard",
-                    detail: "Leaves the same text MacParakeet pastes on the clipboard, useful when remote desktops need a manual ⌘V.",
+                    detail: "Leaves a copy of the pasted text on the clipboard, which helps when a remote desktop needs a manual ⌘V.",
                     isOn: $viewModel.keepDictationOnClipboard
                 )
 
@@ -1283,7 +1286,7 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Streaming cursor",
-                    detail: "Types the finished transcript into the app with a fast caret. Off keeps instant paste. Reduce Motion always pastes. ⌘Z may undo in pieces. Multi-line results still paste.",
+                    detail: "Types the finished transcript into the app instead of pasting it all at once. Multi-line results still paste, and so does everything when Reduce Motion is on. Undo (⌘Z) may remove typed text in several steps.",
                     isOn: $viewModel.dictationStreamingCursorEnabled
                 )
             }
@@ -1342,7 +1345,7 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Notify when transcript is ready",
-                    detail: "Plays a chime and shows a notification when a meeting finishes transcribing in the background. Applies when the app isn't set to open automatically.",
+                    detail: "Plays a chime and shows a notification when a meeting finishes transcribing in the background. Applies only when Open app when meeting ends is off.",
                     isOn: $viewModel.notifyOnMeetingEnd
                 )
                 .disabled(viewModel.openAppAfterMeetingEnd)
@@ -1418,7 +1421,7 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Also save meetings to a folder",
-                    detail: "MacParakeet keeps the complete meeting in its managed storage. Turn this on to also save the selected format to a folder you choose.",
+                    detail: "MacParakeet always keeps the complete meeting in its library. Turn this on to also save a copy, in the format you choose, to a folder.",
                     isOn: $viewModel.meetingAutoSave
                 )
 
@@ -1503,7 +1506,7 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Stop recording automatically",
-                    detail: "Stop after a meeting app quits, or both channels stay quiet for a few minutes. A countdown lets you keep recording first.",
+                    detail: "Stops when the meeting app quits, or when both your microphone and system audio stay quiet for a few minutes. A countdown lets you keep recording.",
                     isBeta: true,
                     isOn: $viewModel.meetingAutoStopEnabled
                 )
@@ -1573,7 +1576,7 @@ struct SettingsView: View {
 
     private var meetingAutoSaveOptionsView: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-            Text("Complete meeting artifacts—including transcript, notes, metadata, prompt results, and retained audio—stay in \(meetingArtifactsDisplayPath). The selected format is also saved to the folder below after each meeting.")
+            Text("Each complete meeting, including its transcript, notes, details, AI results, and any saved audio, stays in \(meetingArtifactsDisplayPath). After each meeting, a copy in the selected format is also saved to the folder below.")
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1688,7 +1691,7 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Notify when transcription finishes",
-                    detail: "Play a sound when a file, YouTube, or batch transcription completes — plus a notification banner when MacParakeet is in the background.",
+                    detail: "Plays a sound when a file, URL, or batch transcription finishes, and shows a notification when MacParakeet is in the background.",
                     isOn: $viewModel.notifyOnTranscriptionComplete
                 )
 
@@ -1724,14 +1727,30 @@ struct SettingsView: View {
         )
     }
 
+    /// The AI polish shortcut still dictates without a saved AI provider, but
+    /// formatting is skipped, so the row states which case applies.
+    private var aiPolishHotkeyDetail: String {
+        llmSettingsViewModel.isAIFormatterAvailable
+            ? "Tap to start and stop. Formats this dictation with AI before pasting, even when AI formatting for dictation is off."
+            : "Needs an AI provider. Tap to start and stop; formats this dictation with AI before pasting."
+    }
+
     private func transcriptionHotkeyRow(
         title: String,
         detail: String,
         surface: HotkeyConflictPolicy.Surface,
-        trigger: Binding<HotkeyTrigger>
+        trigger: Binding<HotkeyTrigger>,
+        setupAction: (title: String, action: () -> Void)? = nil
     ) -> some View {
         HStack(alignment: .center) {
-            rowText(title: title, detail: detail)
+            VStack(alignment: .leading, spacing: 2) {
+                rowText(title: title, detail: detail)
+                if let setupAction {
+                    Button(setupAction.title, action: setupAction.action)
+                        .parakeetAction(.subtle)
+                        .font(DesignSystem.Typography.caption)
+                }
+            }
             Spacer(minLength: DesignSystem.Spacing.md)
             VStack(alignment: .trailing, spacing: 4) {
                 HotkeyRecorderView(
@@ -1970,7 +1989,7 @@ struct SettingsView: View {
             VStack(spacing: DesignSystem.Spacing.md) {
                 settingsToggleRow(
                     title: "Save dictation history",
-                    detail: "When off, dictations are transcribed and pasted but not saved. Voice stats still tracked.",
+                    detail: "When off, dictations are still pasted but not saved to History. Voice stats are still counted.",
                     isOn: $viewModel.saveDictationHistory
                 )
 
@@ -1979,8 +1998,8 @@ struct SettingsView: View {
                 settingsToggleRow(
                     title: "Save audio recordings",
                     detail:
-                        "Keep audio alongside your dictation history. If a transcription fails, "
-                        + "its recording is kept in History for Retry either way.",
+                        "Keeps each dictation's audio in History. A dictation that fails to transcribe "
+                        + "always keeps its recording so you can retry.",
                     isOn: $viewModel.saveAudioRecordings
                 )
 
@@ -2066,7 +2085,7 @@ struct SettingsView: View {
                 }
             }
 
-            Text("Transcripts stay. Auto-removed audio is deleted permanently; playback and re-transcription will no longer be available, and MacParakeet cannot detect or backfill speakers for swept meetings.")
+            Text("Transcripts stay. Removed audio is deleted permanently, so those meetings can no longer be played back, retranscribed, or analyzed for speakers.")
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(.secondary)
         }
@@ -2115,9 +2134,9 @@ struct SettingsView: View {
         case .keepForever:
             return ""
         case .deleteAfterDays(let days):
-            return "MacParakeet will remove saved meeting audio older than \(MeetingAudioRetention.normalizedDeleteAfterDays(days)) days. Transcripts stay, and notes, AI results, and chats stay if they exist. Playback and re-transcription will no longer be available, and MacParakeet cannot detect or backfill speakers for swept meetings."
+            return "MacParakeet will remove saved meeting audio older than \(MeetingAudioRetention.normalizedDeleteAfterDays(days)) days. Transcripts, notes, AI results, and chats stay, but those meetings can no longer be played back, retranscribed, or analyzed for speakers."
         case .deleteImmediately:
-            return "New recordings will not keep audio after each final transcript is saved. Audio already saved from past meetings is kept. The meeting stays with its transcript, and notes, AI results, and chats stay if they exist. Playback and re-transcription will no longer be available for new recordings, and MacParakeet cannot detect or backfill speakers for them."
+            return "New meetings will not keep audio once their transcript is saved. Audio from past meetings is kept. Transcripts, notes, AI results, and chats stay, but new meetings can no longer be played back, retranscribed, or analyzed for speakers."
         }
     }
 
@@ -2144,7 +2163,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
                 resetSection(
                     label: "Delete data",
-                    caption: "Removes saved rows. Your lifetime stats stay."
+                    caption: "Deletes saved items. Your lifetime stats stay."
                 ) {
                     if let error = viewModel.storageCleanupError {
                         Text(error)
@@ -2168,7 +2187,7 @@ struct SettingsView: View {
                             buttonTitle: "Clear…",
                             accessibilityLabel: "Clear all dictations",
                             confirmationTitle: "Clear All Dictations?",
-                            confirmationMessage: "This will delete all \(viewModel.dictationCount) dictation\(viewModel.dictationCount == 1 ? "" : "s"), their audio files, and any private metric-only entries. Your lifetime stats are not affected. This cannot be undone.",
+                            confirmationMessage: "This will delete all \(viewModel.dictationCount) dictation\(viewModel.dictationCount == 1 ? "" : "s"), their audio files, and any hidden entries kept only for stats. Your lifetime stats are not affected. This cannot be undone.",
                             confirmButtonLabel: "Clear All",
                             perform: viewModel.clearAllDictations
                         )

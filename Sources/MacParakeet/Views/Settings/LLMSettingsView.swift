@@ -605,7 +605,7 @@ struct LLMSettingsView: View {
                     Text(
                         manager.isLocalAISelected
                             ? "Local AI is downloaded and selected."
-                            : "Local AI is downloaded. The current AI choice can still stay on a cloud or BYO provider."
+                            : "Local AI is downloaded. Your current AI choice can still use a cloud provider or your own server."
                     )
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.secondary)
@@ -800,7 +800,7 @@ struct LLMSettingsView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Transcript context for AI")
                         .font(DesignSystem.Typography.body.weight(.semibold))
-                    Text("Controls what summaries, transcript chat, and Meeting Ask send to your AI provider.")
+                    Text("Choose what summaries, transcript chat, and Meeting Ask send to your AI provider.")
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -828,7 +828,7 @@ struct LLMSettingsView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
                 Text(
-                    "When included, speaker labels are a rough reference from audio-source separation and diarization, not a high-accuracy identification of who said each line."
+                    "Speaker labels are a best guess from audio sources and voice separation, so they may not match who actually said each line."
                 )
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(.secondary)
@@ -872,7 +872,7 @@ struct LLMSettingsView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             DisclosureGroup("How it works", isExpanded: $showAIResultLanguageDetails) {
-                aiResultLanguageExplainer
+                AIResultLanguageExplainer(policy: viewModel.meetingAIOutputLanguagePolicy)
                     .padding(.top, DesignSystem.Spacing.sm)
             }
             .font(DesignSystem.Typography.caption)
@@ -890,99 +890,13 @@ struct LLMSettingsView: View {
         )
     }
 
-    /// Shows where the language request sits in the assembled prompt and the
-    /// exact text sent, so the setting reads as a request to the model rather
-    /// than a translation step.
-    private var aiResultLanguageExplainer: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-            Text(
-                """
-                MacParakeet adds one instruction to the end of every AI prompt. The model does the writing; \
-                nothing is translated afterward.
-                """
-            )
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: DesignSystem.Spacing.xs) { aiResultLanguagePromptOrder(showsArrows: true) }
-                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                    aiResultLanguagePromptOrder(showsArrows: false)
-                }
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(
-                "Prompt order: your prompt, meeting notes if included, language instruction, then extra instructions"
-            )
-
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                Text("Instruction sent to the model")
-                    .font(DesignSystem.Typography.micro.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-                Text(viewModel.meetingAIOutputLanguagePolicy.assemblyInstruction)
-                    .font(DesignSystem.Typography.caption.monospaced())
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
-                    .lineSpacing(3)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(DesignSystem.Spacing.sm)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius, style: .continuous)
-                    .fill(DesignSystem.Colors.surfaceElevated)
-            )
-
-            Text(
-                """
-                Extra instructions come last, so asking for a language there, such as \u{201C}Write in French,\u{201D} \
-                overrides this setting for that result.
-                """
-            )
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    @ViewBuilder
-    private func aiResultLanguagePromptOrder(showsArrows: Bool) -> some View {
-        let steps: [(title: String, isLanguage: Bool)] = [
-            ("Your prompt", false),
-            ("Meeting notes, if included", false),
-            ("Language instruction", true),
-            ("Extra instructions", false),
-        ]
-        ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
-            if showsArrows && index > 0 {
-                Image(systemName: "chevron.right")
-                    .font(DesignSystem.Typography.micro)
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
-            }
-            Text(step.title)
-                .font(DesignSystem.Typography.micro.weight(.semibold))
-                .foregroundStyle(step.isLanguage ? DesignSystem.Colors.accent : DesignSystem.Colors.textSecondary)
-                .lineLimit(1)
-                .fixedSize()
-                .padding(.horizontal, 7)
-                .padding(.vertical, 3)
-                .background(
-                    Capsule()
-                        .fill(
-                            step.isLanguage
-                                ? DesignSystem.Colors.accent.opacity(0.14)
-                                : DesignSystem.Colors.surfaceElevated
-                        )
-                )
-        }
-    }
-
     private var meetingTitlesSection: some View {
         HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Meeting titles")
                     .font(DesignSystem.Typography.body.weight(.semibold))
                 Text(
-                    "Use the Meetings & library AI route to replace timestamp-only meeting names with short topic titles after transcription."
+                    "Replaces date-and-time meeting names with a short topic title after transcription, using your Meetings & library AI."
                 )
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(.secondary)
@@ -1025,7 +939,7 @@ struct LLMSettingsView: View {
                                 )
                         }
                         Text(
-                            "Uses the Dictation & cleanup AI route after cleanup for file and meeting transcripts. Dictation use can add latency."
+                            "Rewrites transcripts with your Dictation & cleanup AI as the last step, after cleanup. Using it for dictation adds a short wait before pasting."
                         )
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(.secondary)
@@ -2317,10 +2231,3 @@ struct LLMSettingsView: View {
     }
 }
 
-extension PinnedLanguageOption {
-    static let followTranscript = PinnedLanguageOption(
-        code: MeetingAIOutputLanguagePolicy.followTranscript.configurationValue,
-        title: MeetingAIOutputLanguagePolicy.followTranscript.displayTitle,
-        searchTerms: ["follow transcript", "follow-transcript", "transcript", "auto"]
-    )
-}

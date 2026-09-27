@@ -31,7 +31,7 @@ final class OnboardingShortcutEditorTests: XCTestCase {
     func testDefaultPairIsBlockedWhenAnotherActionUsesFn() {
         XCTAssertTrue(
             OnboardingShortcutEditor.defaultResetConflict(in: snapshot(dictationAIPolish: .fn))?
-                .contains("AI polish this dictation") == true
+                .contains("AI-polished dictation") == true
         )
     }
 }

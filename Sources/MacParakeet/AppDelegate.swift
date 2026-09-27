@@ -952,7 +952,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             TransformShortcutReservedHotkey(
                 name: "video URL transcription", trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger),
             TransformShortcutReservedHotkey(
-                name: "AI polish this dictation",
+                name: "AI-polished dictation",
                 trigger: settingsViewModel.dictationAIPolishHotkeyTrigger,
                 conflictMode: .bareModifierDictation
             ),
