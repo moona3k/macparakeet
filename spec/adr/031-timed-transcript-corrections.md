@@ -171,8 +171,11 @@ Clearing a line is an omission. A blank replacement inside `editText` stays
 rejected.
 
 A saved prompt result records the correction revision it was generated from.
-When that revision no longer matches, the summary offers **Update summary**.
-Editing does not recall a summary that already ran.
+When that revision no longer matches (or the transcript otherwise changed), a
+generic notice appears next to the result and its **Regenerate** button
+switches to primary styling; the label itself does not change. Internal
+automation freshness checks stay conservative and unchanged. Editing does not
+recall a result that already ran.
 
 The reading editor realizes passage fields lazily. An edit session owns every
 passage draft independently of row visibility, so scrolling cannot discard

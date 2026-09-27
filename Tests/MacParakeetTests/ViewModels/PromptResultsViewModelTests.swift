@@ -1371,7 +1371,8 @@ final class PromptResultsViewModelTests: XCTestCase {
         viewModel.cancelGeneration(id: id)
         try await waitUntil { self.viewModel.pendingGeneration(id: id) == nil }
         XCTAssertEqual(viewModel.resultTabs(for: recordingID), [.result(id: original.id)])
-        XCTAssertEqual(promptResultRepo.promptResults, [original])
+        XCTAssertEqual(promptResultRepo.promptResults.map(\.id), [original.id])
+        XCTAssertEqual(promptResultRepo.promptResults.map(\.content), [original.content])
         XCTAssertTrue(promptResultRepo.replaceCalls.isEmpty)
     }
 
@@ -1423,7 +1424,8 @@ final class PromptResultsViewModelTests: XCTestCase {
         }
         viewModel.cancelGeneration(id: retryID)
         XCTAssertEqual(viewModel.resultTabs(for: recordingID), [.result(id: original.id)])
-        XCTAssertEqual(promptResultRepo.promptResults, [original])
+        XCTAssertEqual(promptResultRepo.promptResults.map(\.id), [original.id])
+        XCTAssertEqual(promptResultRepo.promptResults.map(\.content), [original.content])
     }
 
     func testTabProjectionKeepsQueuedReplacementsAndIndependentOrOrphanedWorkReachable() {

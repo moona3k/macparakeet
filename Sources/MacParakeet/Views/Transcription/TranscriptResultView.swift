@@ -3328,7 +3328,7 @@ struct TranscriptResultView: View {
                         .parakeetAction(transcriptChanged ? .primary : .secondary)
                         .controlSize(.small)
                         .help(
-                            promptResult.sourceTranscriptHash == nil
+                            !transcriptChanged && promptResult.sourceTranscriptHash == nil
                                 ? "The transcript version used for this result wasn’t recorded. Regenerate replaces it using the current transcript."
                                 : "Replace this result using the current transcript."
                         )
