@@ -1,0 +1,24 @@
+Tests/MacParakeetTests/ViewModels/PromptResultsViewModelTests.swift
+  s_aa5212448371d0::t_a0ab992208c4b8 1427-1428
+  s_aa5212448371d0::t_56d2cb83dfc36e 1374-1375
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_aa5212448371d0::t_c09c1697ac7c87 3331
+spec/adr/031-timed-transcript-corrections.md
+  s_aa5212448371d0::t_106fc97a164a7e 174-178
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "db75b3a91b4559010ad7101e1e0f82b84c85845e",
+  "prompts": {},
+  "sessions": {
+    "s_aa5212448371d0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12797ab3-7d63-40b3-b812-2017e9e866ff",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
