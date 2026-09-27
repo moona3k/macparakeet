@@ -73,8 +73,10 @@ Trigger phrases are replaced with their full expansion text.
   plus DE/ES/FR/PT/PL aliases). Prefix `literal` (or `wörtlich` / `littéral` /
   `dosłownie`) keeps the words. User snippets of the same trigger still win.
   Default on; Vocabulary and `config set spoken-punctuation` can opt out.
-  This runs on dictation only. File, URL, and meeting transcripts keep the
-  words, because recorded speech that mentions "a question mark" means them.
+  This runs on dictation only; `vocab process` also applies it because it
+  previews the dictation Clean pipeline on typed text. File, URL, and meeting
+  transcripts keep the words, because recorded speech that mentions "a
+  question mark" means them.
 
 ### Step 5: Whitespace Cleanup + Insertion Style
 
