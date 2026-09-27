@@ -1,0 +1,35 @@
+Sources/CLI/CHANGELOG.md
+  s_9abc8538e15471::t_d6017ecd25342a 97-105
+Sources/CLI/Commands/ConfigCommand.swift
+  s_9abc8538e15471::t_0411be553074d8 34,107
+Sources/MacParakeet/Views/Vocabulary/VocabularyView.swift
+  s_9abc8538e15471::t_9103c3ce45b450 273
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_9abc8538e15471::t_fed9c17ae69d53 2175-2177,2193
+Sources/MacParakeetCore/TextProcessing/README.md
+  s_9abc8538e15471::t_65f08ccfd06431 78-80
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_9abc8538e15471::t_a8ea556f508603 2617-2632
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_9abc8538e15471::t_69a3ee4f0c89ae 1117-1134
+spec/02-features.md
+  s_9abc8538e15471::t_e84faca3bc9f2d 1002
+spec/07-text-processing.md
+  s_9abc8538e15471::t_b9e3065820fcca 76-77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "21449fba325e3903ef90a501c417f417ddd48267",
+  "prompts": {},
+  "sessions": {
+    "s_9abc8538e15471": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7ba821e3-60a3-4f02-b600-df2f529e0291",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
