@@ -1,0 +1,51 @@
+Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
+  s_37bbc0378aa19a::t_8f6d6d5a64ebd3 298-304,322,344,347,403
+Sources/MacParakeetCore/Models/LLMTypes.swift
+  s_37bbc0378aa19a::t_ff334c6bac8d5e 182,189,208,214-225
+Sources/MacParakeetCore/Services/LLM/AppleIntelligenceGenerating.swift
+  s_37bbc0378aa19a::t_1b54ed4e2ad3c2 28-34
+Sources/MacParakeetCore/Services/LLM/AppleIntelligenceLLMClient.swift
+  s_37bbc0378aa19a::t_6823a05ef89e4f 82-91
+Sources/MacParakeetCore/Services/LLM/FoundationModelsAppleIntelligenceGenerator.swift
+  s_37bbc0378aa19a::t_3a3d7178ea9c39 30-46
+Sources/MacParakeetCore/Services/LLM/LLMClient.swift
+  s_37bbc0378aa19a::t_81fdc0d57258e5 39-58,64-70
+Sources/MacParakeetCore/Services/LLM/LLMConfigStore.swift
+  s_37bbc0378aa19a::t_5044a649ed6134 23,221-224
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_37bbc0378aa19a::t_99eefda1574a12 242-247,331-336,409-433,450,639-651,657,739-753,759,1182-1194,1200,1309-1323,1328-1329,1581-1631,1830-1831,1833
+Sources/MacParakeetCore/Services/LLM/RoutingLLMClient.swift
+  s_37bbc0378aa19a::t_aee4c644f4cf99 75-81
+Sources/MacParakeetViewModels/LLMSettingsViewModel.swift
+  s_37bbc0378aa19a::t_9349f7e0756e05 164-166,1316-1318,1333-1336,1472-1474
+Tests/MacParakeetTests/Services/LLM/AppleIntelligenceLLMClientTests.swift
+  s_37bbc0378aa19a::t_7f3f7e4d203955 112-141,470-487
+Tests/MacParakeetTests/Services/LLM/AppleIntelligenceLiveAPITests.swift
+  s_37bbc0378aa19a::t_a045934325e4be 111-151
+Tests/MacParakeetTests/Services/LLM/LLMConfigStoreTests.swift
+  s_37bbc0378aa19a::t_8228a30491b6af 54,69,71,392,400,512,516-517,521,566,570,572-573
+Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
+  s_37bbc0378aa19a::t_ed8bf82d3ba849 25-28,160-172,230,1405-1537
+Tests/MacParakeetTests/ViewModels/LLMSettingsViewModelTests.swift
+  s_37bbc0378aa19a::t_c7cd5de0a04d05 567-626,1312-1313,1343-1346,1357,1364,1368,1373,2499-2512
+spec/11-llm-integration.md
+  s_37bbc0378aa19a::t_6e98e0e0be3554 138,645-648,650-652
+spec/adr/032-llm-task-group-routing.md
+  s_37bbc0378aa19a::t_dbdf26ec626dab 85-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7a71da49b0cf88c310429c82760cd0f15a26601e",
+  "prompts": {},
+  "sessions": {
+    "s_37bbc0378aa19a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "75892db3-d288-420a-973d-740e47676fab",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
