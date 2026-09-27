@@ -238,6 +238,12 @@ still apply.
   opens. Reloading that recording cannot replace the editor's original baseline
   with a newer CLI edit; a conflicting save keeps the draft without overwriting
   the current result.
+- Task overrides may exist without a default provider. In that state the
+  default and unconfigured inherited tasks report `configured:false`, while an
+  explicit cleanup or analysis route reports `configured:true` and
+  `inherited:false`. `llm routes reset` returns an unconfigured route if there
+  is no default. Apple Intelligence is accepted for `cleanup` only by
+  `llm routes set`; analysis selection fails validation before persistence.
 - `llm routes list --json` returns `{ok:true,routes:[...]}`. Each entry has
   `task` (`default`, `cleanup`, `analysis`, `transform`), `inherited` and
   `configured`; configured entries also include `provider`, `model`, `isLocal`
@@ -250,6 +256,9 @@ still apply.
   Apple Intelligence can serve only `cleanup`; setting an `analysis` override
   with `--provider appleIntelligence` fails validation before credentials or
   route metadata are changed.
+  Explicit inline Apple Intelligence requests for summaries, chat, Ask, and Transforms
+  also fail before dispatch through the shared service, including streams. They
+  use the existing runtime-error envelope and exit code 1.
   Explicit models and custom-provider model requirements remain unchanged;
   one-off inline commands keep their historical compatibility defaults.
   Reset removes only that override. Explicit credential flags win,

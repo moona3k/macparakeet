@@ -78,8 +78,16 @@ stored transcript in place.
 
 ### 2. One default, sparse full-route overrides
 
+The default may be None. Explicit cleanup and analysis routes remain usable
+without a default; tasks with neither a default nor an override are disabled.
+Settings always shows the task rows, so Apple Intelligence cleanup can be the
+only configured AI route. Clear removes all routes while retaining saved keys.
+Saving the default and overrides publishes one coherent metadata snapshot.
+Launch-time retirement of unsupported routes checks eligibility and removes
+metadata under the same cross-process lease as other route writers.
+
 Keep today's Default AI block (provider, credentials, model). Add at most
-two collapsed override rows for the jobs that exist today:
+two task rows for the jobs that exist today:
 **Dictation & cleanup** (`cleanup`) and **Meetings & library**
 (`analysis`). Meeting formatter still uses the cleanup row. Each row is
 an inherited choice, labeled with the default provider (`Same as Google

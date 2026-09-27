@@ -199,6 +199,29 @@ final class AskWorkspaceServiceTests: XCTestCase {
         XCTAssertEqual(saved?.messages.count, 0)
     }
 
+    func testAppleIntelligenceIsRejectedBeforeAgentExecutionOrConversationMutation() async throws {
+        let fixture = try Fixture()
+        let source = try fixture.source("Planning", "Launch in June.")
+        let agent = ScriptedAskAgent { _, _, _ in
+            XCTFail("Must not run"); return ""
+        }
+        let service = fixture.service(agent, config: .appleIntelligence())
+        let chat = try await service.create(sourceIDs: [source.id])
+        do {
+            _ = try await service.provider()
+            XCTFail("Apple Intelligence must not be offered for analysis")
+        } catch AskWorkspaceError.unsupportedProvider {}
+        do {
+            _ = try await service.send(
+                id: chat.id, question: "When?", expectedRevision: 0,
+                approvedProviderID: nil, onEvent: { _ in })
+            XCTFail("Apple Intelligence must not execute analysis")
+        } catch AskWorkspaceError.unsupportedProvider {}
+        let saved = try await service.conversation(id: chat.id)
+        XCTAssertEqual(saved?.revision, chat.revision)
+        XCTAssertTrue(saved?.messages.isEmpty == true)
+    }
+
     func testCommandLineAgentProviderIsRejectedBeforeSourceDisclosure() async throws {
         let fixture = try Fixture()
         let source = try fixture.source("Planning", "Launch in June.")

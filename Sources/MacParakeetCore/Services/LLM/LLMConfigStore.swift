@@ -35,7 +35,7 @@ public protocol LLMConfigStoreProtocol: Sendable {
     @discardableResult
     func saveTaskOverride(_ config: LLMProviderConfig?, for task: LLMTaskGroup) throws -> LLMModelSelectionRoute?
     func saveConfiguration(
-        _ config: LLMProviderConfig,
+        _ config: LLMProviderConfig?,
         cleanupOverride: LLMProviderConfig?,
         analysisOverride: LLMProviderConfig?
     ) throws
@@ -54,11 +54,15 @@ extension LLMConfigStoreProtocol {
 
     public func loadTaskOverride(_ task: LLMTaskGroup) throws -> LLMProviderConfig? { nil }
     public func saveConfiguration(
-        _ config: LLMProviderConfig,
+        _ config: LLMProviderConfig?,
         cleanupOverride: LLMProviderConfig?,
         analysisOverride: LLMProviderConfig?
     ) throws {
-        try saveConfig(config)
+        if let config {
+            try saveConfig(config)
+        } else {
+            try deleteConfig()
+        }
         try saveTaskOverride(cleanupOverride, for: .cleanup)
         try saveTaskOverride(analysisOverride, for: .analysis)
     }
@@ -231,6 +235,23 @@ public final class LLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
         }
     }
 
+    /// Inspect and retire unsupported routes under the same cross-process lease.
+    /// A missing override inherits the default; this migration deliberately
+    /// retains that existing routing behavior.
+    public func clearRoutesProvidersCannotServe() throws {
+        try withOperationLease {
+            if let config = try metadata(for: Self.configKey), !config.id.canServeAsDefault {
+                Self.metadataKeys.forEach { write(nil, for: $0) }
+                try publish()
+            } else if let analysis = try metadata(for: Self.taskOverrideKey(.analysis)),
+                !analysis.id.canServe(.analysis)
+            {
+                write(nil, for: Self.taskOverrideKey(.analysis))
+                try publish()
+            }
+        }
+    }
+
     public func loadAPIKey() throws -> String? {
         guard let config = try loadConfigMetadata() else { return nil }
         return try loadAPIKey(for: config.id)
@@ -294,18 +315,18 @@ public final class LLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
     }
 
     public func saveConfiguration(
-        _ config: LLMProviderConfig, cleanupOverride: LLMProviderConfig?, analysisOverride: LLMProviderConfig?
+        _ config: LLMProviderConfig?, cleanupOverride: LLMProviderConfig?, analysisOverride: LLMProviderConfig?
     ) throws {
         let encoder = JSONEncoder()
-        let values = try [Optional(config), cleanupOverride, analysisOverride].map {
+        let values = try [config, cleanupOverride, analysisOverride].map {
             try $0.map { try encoder.encode($0) }
         }
         try withOperationLease {
             for override in [cleanupOverride, analysisOverride].compactMap({ $0 }) {
-                guard override.id != .localCLI, override.id != config.id, let key = override.apiKey else { continue }
+                guard override.id != .localCLI, override.id != config?.id, let key = override.apiKey else { continue }
                 if try loadAPIKey(for: override.id) != key { throw StoreError.taskCredentialChanged }
             }
-            if config.id != .localCLI, try loadAPIKey(for: config.id) != config.apiKey {
+            if let config, config.id != .localCLI, try loadAPIKey(for: config.id) != config.apiKey {
                 let key = Self.apiKeyKeychainKey(for: config.id)
                 if let value = config.apiKey {
                     try keychain.setString(value, forKey: key)

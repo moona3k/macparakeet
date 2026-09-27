@@ -23,7 +23,7 @@ public enum AskWorkspaceError: LocalizedError {
         case .invalidTool: return "The model requested an invalid source operation."
         case .unsupportedProvider:
             return
-                "Ask requires a direct model provider. Command-line agent providers are not supported. Choose a model in AI Settings."
+                "Ask requires an analysis-capable direct model provider. Apple Intelligence is cleanup-only; command-line agents are not supported. Choose another model in AI Settings."
         }
     }
 }
@@ -101,7 +101,9 @@ public actor AskWorkspaceService: AskWorkspaceServing {
         guard let context = try contextResolver.resolveContext(for: .analysis) else {
             throw AskWorkspaceError.modelNotConfigured
         }
-        guard context.providerConfig.id != .localCLI else { throw AskWorkspaceError.unsupportedProvider }
+        guard context.providerConfig.id != .localCLI, context.providerConfig.id.canServe(.analysis) else {
+            throw AskWorkspaceError.unsupportedProvider
+        }
         return Self.disclosure(context)
     }
 
@@ -133,7 +135,9 @@ public actor AskWorkspaceService: AskWorkspaceServing {
         guard let context = try contextResolver.resolveContext(for: .analysis) else {
             throw AskWorkspaceError.modelNotConfigured
         }
-        guard context.providerConfig.id != .localCLI else { throw AskWorkspaceError.unsupportedProvider }
+        guard context.providerConfig.id != .localCLI, context.providerConfig.id.canServe(.analysis) else {
+            throw AskWorkspaceError.unsupportedProvider
+        }
         let provider = Self.disclosure(context)
         guard !provider.requiresRemoteConsent || provider.id == approvedProviderID else {
             throw AskWorkspaceError.remotePermissionRequired

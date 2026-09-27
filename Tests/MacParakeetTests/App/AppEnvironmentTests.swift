@@ -73,6 +73,22 @@ final class AppEnvironmentTests: XCTestCase {
         ))
     }
 
+    func testStandaloneCleanupAvailabilitySurvivesStartupSync() {
+        let (suiteName, defaults) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = MockLLMConfigStore()
+        store.taskOverrides[.cleanup] = .appleIntelligence()
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey)
+
+        AppEnvironment.syncAIFormatterAvailabilityWithLLMConfiguration(defaults: defaults, configStore: store)
+
+        XCTAssertTrue(defaults.bool(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey))
+        XCTAssertTrue(defaults.bool(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey))
+        store.taskOverrides = [:]
+        AppEnvironment.syncAIFormatterAvailabilityWithLLMConfiguration(defaults: defaults, configStore: store)
+        XCTAssertFalse(defaults.bool(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey))
+    }
+
     func testSyncAIFormatterAvailabilityWritesTrueWhenProviderExists() {
         let (suiteName, defaults) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }

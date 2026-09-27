@@ -340,7 +340,7 @@ final class AppEnvironment {
         }
         let meetingTitleGenerationEnabledClosure: @Sendable () -> Bool = { [runtimePreferences, llmConfigStore] in
             guard runtimePreferences.shouldAutoGenerateMeetingTitles else { return false }
-            return (try? llmConfigStore.loadConfig()) != nil
+            return (try? llmConfigStore.loadConfig(for: .analysis)) != nil
         }
         let aiFormatterPromptResolver: any AIFormatterPromptResolving
         if AppFeatures.aiFormatterProfilesEnabled {
@@ -610,7 +610,7 @@ final class AppEnvironment {
     ) {
         let config: LLMProviderConfig?
         do {
-            config = try configStore.loadConfig()
+            config = try configStore.loadConfig(for: .cleanup)
         } catch {
             return
         }

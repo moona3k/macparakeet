@@ -181,11 +181,11 @@ restriction does not change existing chat or HTTP provider behavior.
   distinguishable if the process exits before terminal persistence. Completed,
   failed, and cancelled assistant messages have separate statuses; failure
   text is sanitized so provider errors cannot leak request credentials.
-- The selected analysis provider is frozen for a run. In-process/Apple
-  Intelligence and Ollama/LM Studio loopback routes need no remote consent.
+- The selected analysis provider is frozen for a run. In-process and Ollama/LM Studio loopback routes need no remote consent.
   Other endpoints require explicit approval for the exact provider identity;
   a generic OpenAI-compatible loopback endpoint is not presumed local. Ask
-  rejects the Local CLI provider. The GUI identifies the provider and context
+  rejects Local CLI and cleanup-only Apple Intelligence providers before
+  agent execution, including explicit inline CLI requests. The GUI identifies the provider and context
   categories, and CLI callers pass `--allow-remote`. Selection alone sends no
   transcript content. Failure never silently switches providers.
 - Pi runs in one private Node helper process per request over versioned JSONL
@@ -207,7 +207,6 @@ restriction does not change existing chat or HTTP provider behavior.
 - Ask decisions and final answers keep each bounded conversation request intact;
   the in-process client's automatic map/reduce summarization is disabled for
   these calls. Other model consumers retain their existing chunking policy.
-  Apple Intelligence final answers use its supported output-token ceiling.
 
 ## Native and CLI surface
 
@@ -228,7 +227,7 @@ remains reachable in the conversation list while the current draft stays open.
 by default, use complete UUIDs and ISO-8601 dates, and expose conversation and
 source revisions. Mutating commands use the expected `--revision`. `send` uses
 an explicit inline provider configuration; endpoints that require remote
-consent also require `--allow-remote`. Ask rejects Local CLI provider routes.
+consent also require `--allow-remote`. Ask rejects Local CLI and Apple Intelligence provider routes.
 `send --stream` emits NDJSON activity and text events followed by a final
 conversation record. Additive host-owned records expose runtime progress:
 `{"type":"phase","phase":"planning|writing|validating"}` and

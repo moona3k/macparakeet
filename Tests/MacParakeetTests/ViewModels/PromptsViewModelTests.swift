@@ -944,6 +944,17 @@ final class PromptsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.generationAvailableModels.contains("claude-discovered"))
     }
 
+    func testStandaloneAnalysisProvidesGenerationSettingsAndDiscoveredModels() async throws {
+        let store = MockLLMConfigStore()
+        store.taskOverrides[.analysis] = .openai(apiKey: "saved-key", model: "gpt-4.1")
+        let client = MockLLMClient()
+        client.modelsList = ["standalone-discovered"]
+        viewModel.configure(repo: repo, configStore: store, llmClient: client)
+        try await waitUntil { self.viewModel.generationAvailableModels.contains("standalone-discovered") }
+        XCTAssertEqual(viewModel.generationProviderID, .openai)
+        XCTAssertNotNil(viewModel.generationSettingsPresentation(draft: .init(), modelOverride: ""))
+    }
+
     private func loadGenerationConfig(_ config: LLMProviderConfig) async throws {
         let store = MockLLMConfigStore()
         store.config = config

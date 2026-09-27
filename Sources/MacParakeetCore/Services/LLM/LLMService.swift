@@ -1455,6 +1455,11 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         guard let context = try contextResolver.resolveContext(for: task) else {
             throw LLMError.notConfigured
         }
+        guard context.providerConfig.id.canServe(task) else {
+            throw LLMError.providerError(
+                "\(context.providerConfig.id.displayName) supports dictation cleanup only. Choose another provider for \(task.rawValue)."
+            )
+        }
         return context
     }
 

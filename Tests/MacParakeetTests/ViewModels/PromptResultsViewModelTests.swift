@@ -170,7 +170,7 @@ final class PromptResultsViewModelTests: XCTestCase {
         }
     }
 
-    func testRealServiceUsesSameProviderAnalysisModelAndAppleSystemModel() async throws {
+    func testRealServiceUsesAnalysisModelAndRejectsAppleAnalysis() async throws {
         for analysisRoute in [LLMProviderConfig.openai(apiKey: "test", model: "analysis-model"), .appleIntelligence()] {
             let store = MockLLMConfigStore()
             store.config = .openai(apiKey: "test", model: "default-model")
@@ -184,10 +184,17 @@ final class PromptResultsViewModelTests: XCTestCase {
             )
             let id = try XCTUnwrap(viewModel.generatePromptResult(transcript: "Transcript", transcriptionId: UUID()))
             XCTAssertEqual(viewModel.pendingGeneration(id: id)?.modelSnapshot, analysisRoute.modelName)
-            try await waitUntil { self.promptResultRepo.saveCalls.count == 1 }
-            XCTAssertEqual(client.capturedContext?.providerConfig, analysisRoute)
             if analysisRoute.id == .appleIntelligence {
+                try await waitUntil {
+                    if case .failed = self.viewModel.pendingGeneration(id: id)?.state { return true }
+                    return false
+                }
+                XCTAssertEqual(client.chatCompletionStreamCallCount, 0)
+                XCTAssertTrue(promptResultRepo.saveCalls.isEmpty)
                 XCTAssertFalse(viewModel.canSelectModel)
+            } else {
+                try await waitUntil { self.promptResultRepo.saveCalls.count == 1 }
+                XCTAssertEqual(client.capturedContext?.providerConfig, analysisRoute)
             }
         }
     }
@@ -707,9 +714,9 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.canGenerateManualPromptResult)
     }
 
-    func testSelectedPromptInferenceCompatibilityUsesModelOverrideWhenSettingsAreNil() {
+    func testSelectedPromptInferenceCompatibilityUsesStandaloneAnalysisWhenSettingsAreNil() {
         let store = MockLLMConfigStore()
-        store.config = .gemini(apiKey: "key", model: "gemini-3.5-flash")
+        store.taskOverrides[.analysis] = .gemini(apiKey: "key", model: "gemini-3.5-flash")
         let prompt = Prompt(
             name: "Override only",
             content: "Summarize.",
@@ -995,6 +1002,16 @@ final class PromptResultsViewModelTests: XCTestCase {
             XCTAssertEqual(promptResultRepo.promptResults.first?.providerSnapshot, savedProvider)
             XCTAssertEqual(promptResultRepo.promptResults.first?.modelSnapshot, "historical-model")
 
+            if route.id == .appleIntelligence {
+                try await waitUntil {
+                    if case .failed = self.viewModel.pendingGeneration(id: id)?.state { return true }
+                    return false
+                }
+                XCTAssertEqual(client.chatCompletionStreamCallCount, 0)
+                XCTAssertTrue(promptResultRepo.replaceCalls.isEmpty)
+                XCTAssertEqual(promptResultRepo.promptResults.first?.content, "Original result")
+                continue
+            }
             try await waitUntil { self.promptResultRepo.replaceCalls.count == 1 }
 
             XCTAssertEqual(client.capturedContext?.providerConfig.id, route.id)

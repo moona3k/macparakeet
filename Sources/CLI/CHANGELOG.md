@@ -96,6 +96,12 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Changed
 
+- Explicit Apple Intelligence summary, chat, Ask, prompt-result, and Transform
+  requests now fail before generation, including streaming CLI requests.
+  The shared service enforces the same cleanup-only policy as saved routes.
+- Task overrides can be used without a default provider, including Apple-only
+  cleanup. Tasks with no default or override remain unconfigured.
+
 - `llm routes set analysis --provider appleIntelligence` now fails validation.
   Apple Intelligence's 4,096-token window (input and answer together) is too
   small for summaries, chat, or knowledge cards over a transcript, so it serves

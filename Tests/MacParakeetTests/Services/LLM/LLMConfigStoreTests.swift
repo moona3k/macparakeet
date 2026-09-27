@@ -37,6 +37,7 @@ final class LLMConfigStoreTests: XCTestCase {
             { try blocked.saveTaskOverride(replacement, for: .analysis) },
             { try blocked.saveConfiguration(replacement, cleanupOverride: nil, analysisOverride: nil) },
             { try blocked.deleteConfig() },
+            { try blocked.clearRoutesProvidersCannotServe() },
             { try blocked.saveAPIKey("replacement") },
             { try blocked.deleteAPIKey(for: .openai) },
         ]
@@ -513,6 +514,39 @@ final class LLMConfigStoreTests: XCTestCase {
         XCTAssertEqual(try store.loadTaskOverrideMetadata(.cleanup)?.id, .appleIntelligence)
         XCTAssertNil(try store.loadTaskOverrideMetadata(.analysis))
         XCTAssertEqual(try store.loadAPIKey(for: .openai), "sk-openai")
+    }
+
+    func testRouteRetirementPreservesValidReplacementAndStandaloneCleanup() throws {
+        try store.saveConfiguration(
+            nil, cleanupOverride: .appleIntelligence(), analysisOverride: .ollama(model: "replacement"))
+        try store.clearRoutesProvidersCannotServe()
+        XCTAssertEqual(try store.loadConfig(for: .cleanup)?.id, .appleIntelligence)
+        XCTAssertEqual(try store.loadConfig(for: .analysis)?.modelName, "replacement")
+        XCTAssertNil(try store.loadConfig(for: .transform))
+    }
+
+    func testRouteRetirementHoldsLeaseThroughPublication() throws {
+        try store.saveConfig(.openai(apiKey: "saved-key"))
+        try store.saveTaskOverride(.appleIntelligence(), for: .analysis)
+        let competitor = store!
+        let retiring = LLMConfigStore(
+            preferencesDomain: suiteName, lockURL: routeLockURL, keychain: keychain,
+            synchronizePreferences: { domain in
+                do {
+                    try competitor.saveTaskOverride(.ollama(model: "replacement"), for: .analysis)
+                    XCTFail("A competing save must fail while retirement holds the lease")
+                } catch LLMConfigStore.StoreError.busy {
+                    // Expected: the inspection/publication callback still owns the lease.
+                } catch {
+                    XCTFail("Expected busy, got \(error)")
+                }
+                return CFPreferencesAppSynchronize(domain as CFString)
+            })
+        try retiring.clearRoutesProvidersCannotServe()
+        XCTAssertNil(try store.loadTaskOverrideMetadata(.analysis))
+        try competitor.saveTaskOverride(.ollama(model: "replacement"), for: .analysis)
+        try retiring.clearRoutesProvidersCannotServe()
+        XCTAssertEqual(try store.loadConfig(for: .analysis)?.modelName, "replacement")
     }
 
     func testAppleIntelligenceServesOnlyCleanup() {

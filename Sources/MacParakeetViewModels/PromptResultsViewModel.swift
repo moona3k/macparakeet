@@ -230,7 +230,7 @@ public final class PromptResultsViewModel {
 
     public var selectedPromptInferenceCompatibilityMessage: String? {
         guard let prompt = selectedPrompt,
-              let config = try? configStore?.loadConfig()
+              let config = try? configStore?.loadConfig(for: .analysis)
         else { return nil }
         return PromptsViewModel.inferenceCompatibilityMessage(
             settings: prompt.inferenceSettings,

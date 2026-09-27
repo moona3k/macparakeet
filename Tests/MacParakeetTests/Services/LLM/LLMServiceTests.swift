@@ -1350,66 +1350,55 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertEqual(LLMService.appleIntelligenceContextBudget, 12_000)
     }
 
-    func testAppleIntelligenceUsesDedicatedBudgetNotLocalFallthrough() async throws {
-        mockConfigStore.config = .appleIntelligence()
-
-        let text = String(repeating: "word ", count: 4_000)  // 20_000 chars > 12_000 Apple budget
-        _ = try await service.summarize(transcript: text)
-
-        let userMessage = mockClient.capturedMessages.last!
-        XCTAssertTrue(userMessage.content.contains("[... content truncated ...]"))
-        XCTAssertLessThanOrEqual(userMessage.content.count, LLMService.appleIntelligenceContextBudget)
-    }
-
-    func testAppleIntelligenceKnowledgeCardReservesOutputTokens() async throws {
-        mockConfigStore.config = .appleIntelligence()
-        mockClient.responseContent = """
-            {"synopsis":"Short card.","topics":[],"decisions":[],"actions":[]}
-            """
-
-        let text = String(repeating: "word ", count: 4_000)
-        _ = try await service.generateKnowledgeCard(transcript: text, source: .file)
-
-        let totalInputCharacters = mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }
-        let reservedOutputCharacters = (700 * 7 / 2)
-        XCTAssertLessThanOrEqual(
-            totalInputCharacters,
-            LLMService.appleIntelligenceContextBudget - reservedOutputCharacters
-        )
-        XCTAssertEqual(mockClient.capturedOptions?.maxTokens, 700)
-        XCTAssertTrue(mockClient.capturedMessages.last?.content.contains("[... content truncated ...]") == true)
-    }
-
-    func testAppleIntelligenceTransformUsesRoundTripBudget() async throws {
-        mockConfigStore.config = .appleIntelligence()
-        XCTAssertEqual(LLMService.appleIntelligenceRoundTripBudget, 6_000)
-
-        let text = String(repeating: "word ", count: 2_000)  // 10_000 chars > 6_000 rewrite budget
-        _ = try await service.transformDetailed(text: text, prompt: "Polish")
-
-        let userMessage = try XCTUnwrap(mockClient.capturedMessages.last)
-        XCTAssertTrue(userMessage.content.contains("[... content truncated ...]"))
-        XCTAssertLessThanOrEqual(userMessage.content.count, LLMService.appleIntelligenceRoundTripBudget)
-    }
-
-    func testAppleIntelligencePromptResultRejectsMaxTokensThatConsumeTheInputBudget() async {
-        mockConfigStore.config = .appleIntelligence()
-        let maximum = LLMService.maximumOutputTokensLeavingInputRoom(
-            in: LLMService.appleIntelligenceContextBudget
-        )
-        do {
-            _ = try await service.generatePromptResultDetailed(
-                transcript: "input",
-                systemPrompt: "S",
-                inferenceSettings: PromptInferenceSettings(maxTokens: maximum + 1)
-            )
-            XCTFail("Expected max tokens past the input budget to fail")
-        } catch let error as PromptInferenceSettings.ValidationError {
-            XCTAssertEqual(error, .outOfRange(field: .maxTokens, minimum: 1, maximum: Double(maximum)))
-        } catch {
-            XCTFail("Unexpected error \(error)")
+    func testAppleIntelligenceRejectsAnalysisAndTransformsBeforeDispatch() async throws {
+        // The CLI uses this static resolver for explicit --provider requests.
+        let inlineService = LLMService(
+            client: mockClient,
+            contextResolver: StaticLLMExecutionContextResolver(
+                context: LLMExecutionContext(providerConfig: .appleIntelligence())))
+        let requests: [() async throws -> Void] = [
+            { _ = try await inlineService.summarize(transcript: "Transcript") },
+            {
+                _ = try await inlineService.generatePromptResultDetailed(
+                    transcript: "Transcript", systemPrompt: "Summarize", inferenceSettings: nil)
+            },
+            {
+                _ = try await inlineService.chat(
+                    question: "Why?", transcript: "Transcript", userNotes: nil, history: [], source: .transcriptChat,
+                    conversationID: UUID())
+            },
+            { _ = try await inlineService.generateKnowledgeCard(transcript: "Transcript", source: .file) },
+            { _ = try await inlineService.transformDetailed(text: "Text", prompt: "Polish") },
+        ]
+        for request in requests {
+            do {
+                try await request()
+                XCTFail("Expected unsupported Apple Intelligence task to fail")
+            } catch LLMError.providerError(let message) {
+                XCTAssertTrue(message.contains("cleanup only"))
+            }
         }
         XCTAssertEqual(mockClient.chatCompletionCallCount, 0)
+    }
+
+    func testAppleIntelligenceStreamsRejectUnsupportedTasksBeforeDispatch() async throws {
+        mockConfigStore.config = .appleIntelligence()
+        let streams = [
+            service.summarizeStream(transcript: "Transcript"),
+            service.chatStream(
+                question: "Why?", transcript: "Transcript", userNotes: nil, history: [], source: .transcriptChat,
+                conversationID: UUID()),
+            service.transformStream(text: "Text", prompt: "Polish"),
+        ]
+        for stream in streams {
+            do {
+                for try await _ in stream { XCTFail("Must not emit partial output") }
+                XCTFail("Expected unsupported Apple Intelligence task to fail")
+            } catch LLMError.providerError(let message) {
+                XCTAssertTrue(message.contains("cleanup only"))
+            }
+        }
+        XCTAssertEqual(mockClient.chatCompletionStreamCallCount, 0)
     }
 
     func testAppleIntelligenceFormatterRejectsOversizedInput() async throws {

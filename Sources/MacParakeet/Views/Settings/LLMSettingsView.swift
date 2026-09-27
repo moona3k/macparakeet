@@ -53,13 +53,11 @@ struct LLMSettingsView: View {
 
             selectedAIOptionSection
 
-            if viewModel.selectedProviderID != nil {
-                Divider()
-                taskRouteSection
+            Divider()
+            taskRouteSection
 
-                if viewModel.cleanupOverrideProviderID == .appleIntelligence {
-                    appleIntelligenceStatusSection
-                }
+            if viewModel.cleanupOverrideProviderID == .appleIntelligence {
+                appleIntelligenceStatusSection
             }
 
             if viewModel.shouldShowInProcessLocalSetup {
@@ -98,9 +96,8 @@ struct LLMSettingsView: View {
                                 Button("Remove saved key") {
                                     viewModel.removeSavedAPIKey()
                                 }
-                                .buttonStyle(.plain)
+                                .parakeetAction(.secondary)
                                 .font(DesignSystem.Typography.caption)
-                                .foregroundStyle(.secondary)
                             }
                         }
                     }
@@ -172,10 +169,6 @@ struct LLMSettingsView: View {
 
                 Divider()
 
-                privacyInfo
-
-                Divider()
-
                 // Test connection + status
                 HStack(spacing: DesignSystem.Spacing.sm) {
                     Button("Test Connection") {
@@ -205,6 +198,12 @@ struct LLMSettingsView: View {
             Divider()
 
             configurationActionsRow
+
+            if viewModel.selectedProviderID != nil || viewModel.cleanupOverrideProviderID != nil
+                || viewModel.analysisOverrideProviderID != nil || viewModel.isConfigured
+            {
+                privacyInfo
+            }
 
             Divider()
 
@@ -305,7 +304,7 @@ struct LLMSettingsView: View {
     /// Names what the task inherits, like the transcription engine's
     /// `Same as Parakeet`, so the row previews the route it will use.
     private var inheritedRouteLabel: String {
-        guard let provider = viewModel.selectedProviderID else { return "Same as Default AI" }
+        guard let provider = viewModel.selectedProviderID else { return "None" }
         return "Same as \(provider.displayName)"
     }
 
@@ -352,7 +351,7 @@ struct LLMSettingsView: View {
                     Text("Default AI")
                         .font(DesignSystem.Typography.body)
                     Text(
-                        "Used for every AI feature unless a task below picks its own."
+                        "Used unless a task below picks its own. Choose None to enable only specific tasks."
                     )
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.secondary)
@@ -912,9 +911,9 @@ struct LLMSettingsView: View {
                 .toggleStyle(.switch)
                 .font(DesignSystem.Typography.caption.weight(.medium))
                 .fixedSize()
-                .disabled(!viewModel.isConfigured)
+                .disabled(!viewModel.isAnalysisConfigured)
                 .help(
-                    viewModel.isConfigured
+                    viewModel.isAnalysisConfigured
                         ? "Generate a meeting title from the completed transcript."
                         : "Set up an AI provider to generate meeting titles."
                 )
@@ -2070,8 +2069,11 @@ struct LLMSettingsView: View {
 
     private var privacyInfo: some View {
         let hasPendingChanges = viewModel.hasUnsavedChanges
-        let taskOverrides = [viewModel.cleanupOverrideProviderID, viewModel.analysisOverrideProviderID].compactMap { $0 }
-        let allRoutesLocal = viewModel.isLocalConfiguration
+        let taskOverrides = [viewModel.cleanupOverrideProviderID, viewModel.analysisOverrideProviderID].compactMap {
+            $0
+        }
+        let allRoutesLocal =
+            (viewModel.selectedProviderID == nil || viewModel.isLocalConfiguration)
             && taskOverrides.allSatisfy { provider in
                 provider == viewModel.selectedProviderID ? viewModel.isLocalConfiguration : provider.isLocal
             }
@@ -2122,17 +2124,20 @@ struct LLMSettingsView: View {
         usesInsecureHTTP: Bool
     ) -> String {
         if hasPendingChanges {
-            return "Route changes apply after Save. Until then, AI actions use the last saved configuration, which may send transcript text off this Mac."
+            return
+                "Route changes apply after Save. Until then, AI actions use the last saved configuration, which may send transcript text off this Mac."
         }
         if isCLI {
-            return "AI actions use the provider selected for each task. Local CLI commands may contact their own service."
+            return
+                "AI actions use the provider selected for each task. Local CLI commands may contact their own service."
         }
         if allRoutesLocal {
             return usesInsecureHTTP
                 ? "AI actions send transcript text only to selected local endpoints over HTTP. Use a trusted network."
                 : "AI actions send transcript text only to selected local AI routes."
         }
-        return "Transcription stays local. AI actions use the provider selected for each task; cloud routes send transcript text off this Mac."
+        return
+            "Transcription stays local. AI actions use the provider selected for each task; cloud routes send transcript text off this Mac."
     }
 
     private var configurationActionsRow: some View {
@@ -2227,4 +2232,3 @@ struct LLMSettingsView: View {
         }
     }
 }
-

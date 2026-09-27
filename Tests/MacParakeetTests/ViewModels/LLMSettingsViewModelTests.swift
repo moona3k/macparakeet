@@ -66,6 +66,64 @@ final class LLMSettingsViewModelTests: XCTestCase {
         )
     }
 
+    func testAppleOnlyCleanupCanBeSavedReopenedAndCleared() throws {
+        let store = LLMConfigStore(
+            preferencesDomain: defaultsSuiteName, lockURL: routeLockURL, keychain: InMemoryKeyValueStore())
+        viewModel = LLMSettingsViewModel(defaults: defaults, appleIntelligenceAvailabilityProvider: { .available })
+        viewModel.configure(configStore: store, llmClient: mockClient)
+        viewModel.cleanupOverrideProviderID = .appleIntelligence
+        XCTAssertNil(viewModel.selectedProviderID)
+        XCTAssertTrue(viewModel.canSave)
+        XCTAssertFalse(viewModel.isAIFormatterAvailable)
+
+        viewModel.saveConfiguration()
+
+        XCTAssertEqual(viewModel.saveState, .saved)
+        XCTAssertTrue(viewModel.isConfigured)
+        XCTAssertFalse(viewModel.isAnalysisConfigured)
+        XCTAssertTrue(viewModel.isAIFormatterAvailable)
+        XCTAssertNil(viewModel.aiFormatterUnavailableReason)
+        XCTAssertFalse(viewModel.hasUnsavedChanges)
+        XCTAssertEqual(viewModel.setupStatus, .ready(displayName: "Apple Intelligence"))
+        XCTAssertEqual(try store.loadConfig(for: .cleanup)?.id, .appleIntelligence)
+        XCTAssertNil(try store.loadConfig(for: .analysis))
+        XCTAssertNil(try store.loadConfig(for: .transform))
+        XCTAssertTrue(defaults.bool(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey))
+
+        let reopened = LLMSettingsViewModel(defaults: defaults, appleIntelligenceAvailabilityProvider: { .available })
+        reopened.configure(configStore: store, llmClient: mockClient)
+        XCTAssertNil(reopened.selectedProviderID)
+        XCTAssertEqual(reopened.cleanupOverrideProviderID, .appleIntelligence)
+        XCTAssertTrue(reopened.isAIFormatterAvailable)
+        XCTAssertFalse(reopened.hasUnsavedChanges)
+        reopened.aiFormatterPrompt = "Polish: \(AIFormatter.transcriptPlaceholder)"
+        XCTAssertEqual(
+            defaults.string(forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey), reopened.aiFormatterPrompt)
+
+        reopened.clearConfiguration()
+        XCTAssertFalse(reopened.isConfigured)
+        XCTAssertFalse(reopened.isAIFormatterAvailable)
+        XCTAssertNil(try store.loadConfig(for: .cleanup))
+        XCTAssertFalse(defaults.bool(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey))
+    }
+
+    func testRemovingDefaultKeepsExplicitCleanupAndSavedCredentials() throws {
+        let store = LLMConfigStore(
+            preferencesDomain: defaultsSuiteName, lockURL: routeLockURL, keychain: InMemoryKeyValueStore())
+        try store.saveConfiguration(
+            .gemini(apiKey: "saved-key"), cleanupOverride: .appleIntelligence(), analysisOverride: nil)
+        viewModel.configure(configStore: store, llmClient: mockClient)
+        viewModel.selectedProviderID = nil
+        viewModel.saveConfiguration()
+
+        XCTAssertEqual(viewModel.saveState, .saved)
+        XCTAssertNil(try store.loadConfig())
+        XCTAssertEqual(try store.loadConfig(for: .cleanup)?.id, .appleIntelligence)
+        XCTAssertEqual(try store.loadAPIKey(for: .gemini), "saved-key")
+        XCTAssertTrue(viewModel.isAIFormatterAvailable)
+        XCTAssertFalse(viewModel.hasUnsavedChanges)
+    }
+
     func testUnavailableAppleIntelligenceTaskRouteDoesNotReportReady() {
         viewModel = LLMSettingsViewModel(
             defaults: defaults,

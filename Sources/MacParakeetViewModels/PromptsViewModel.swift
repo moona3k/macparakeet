@@ -347,7 +347,7 @@ public final class PromptsViewModel {
         let llmClient = self.llmClient
         generationConfigLoadTask = Task { [weak self, configStore] in
             let config = await Task.detached(priority: .utility) {
-                try? configStore.loadConfig()
+                try? configStore.loadConfig(for: .analysis)
             }.value
             guard !Task.isCancelled else { return }
             self?.applyGenerationSettingsConfig(
@@ -380,7 +380,8 @@ public final class PromptsViewModel {
         generationModelListTask = LLMModelAvailability.refreshPickerModelsTask(
             for: config,
             llmClient: llmClient,
-            configStore: configStore
+            configStore: configStore,
+            task: .analysis
         ) { [weak self] models in
             guard self?.generationContextRevision == revision else { return }
             self?.generationAvailableModels = models

@@ -298,7 +298,11 @@ public final class LLMSettingsViewModel {
     }
 
     public var isConfigured: Bool {
-        configStore != nil && (try? configStore?.loadConfig()) != nil
+        LLMTaskGroup.allCases.contains { (try? configStore?.loadConfig(for: $0)) != nil }
+    }
+
+    public var isAnalysisConfigured: Bool {
+        (try? configStore?.loadConfig(for: .analysis)) != nil
     }
 
     public var setupStatus: AISetupStatus {
@@ -385,7 +389,9 @@ public final class LLMSettingsViewModel {
     }
 
     public var canSave: Bool {
-        if draft.providerID == nil { return isConfigured }
+        if draft.providerID == nil {
+            return isConfigured || cleanupOverrideProviderID != nil || analysisOverrideProviderID != nil
+        }
         return draft.isValid
     }
 
@@ -587,7 +593,8 @@ public final class LLMSettingsViewModel {
     }
 
     public var isAIFormatterAvailable: Bool {
-        draft.providerID != nil && draft.providerID == savedProviderID
+        let provider = cleanupOverrideProviderID ?? draft.providerID
+        return provider != nil && provider == (savedCleanupOverrideProviderID ?? savedProviderID)
     }
 
     public var aiFormatterPromptModeText: String {
@@ -652,16 +659,10 @@ public final class LLMSettingsViewModel {
     }
 
     public var aiFormatterUnavailableReason: String? {
-        if draft.providerID == nil {
-            return "Set up AI to enable the formatter."
+        guard cleanupOverrideProviderID != nil || draft.providerID != nil else {
+            return "Choose an AI provider for Dictation & cleanup."
         }
-        if !isConfigured {
-            return "Save your AI setup first."
-        }
-        if draft.providerID != savedProviderID {
-            return "Save this AI option first."
-        }
-        return nil
+        return isAIFormatterAvailable ? nil : "Save your cleanup setup first."
     }
 
     private var savedProviderID: LLMProviderID? {
@@ -670,7 +671,12 @@ public final class LLMSettingsViewModel {
     }
 
     private var savedAIOptionDisplayName: String? {
-        guard let configStore, let config = try? configStore.loadConfig() else { return nil }
+        guard let configStore else { return nil }
+        guard
+            let config = (try? configStore.loadConfig())
+                ?? (try? configStore.loadConfig(for: .cleanup))
+                ?? (try? configStore.loadConfig(for: .analysis))
+        else { return nil }
         if config.id == .localCLI {
             return
                 cliConfigStore
@@ -781,12 +787,12 @@ public final class LLMSettingsViewModel {
 
     public func saveConfiguration() {
         guard let configStore else { return }
-        guard draft.providerID != nil else {
+        guard draft.providerID != nil || cleanupOverrideProviderID != nil || analysisOverrideProviderID != nil else {
             clearConfiguration(finalSaveState: .saved)
             return
         }
         do {
-            guard let config = try buildConfig(from: draft) else { return }
+            let config = try buildConfig(from: draft)
             let cliConfig =
                 draft.providerID == .localCLI
                 ? LocalCLIConfig(
@@ -834,7 +840,9 @@ public final class LLMSettingsViewModel {
             _ = persistAIFormatterPreferences(from: draft)
             // Rehydrate the exact committed payload, without a fallible credential
             // reread or restarting discovery after the save has already succeeded.
-            loadCommittedDraft(config, cliConfig: cliConfig, suggestedModels: availableModels)
+            if let config {
+                loadCommittedDraft(config, cliConfig: cliConfig, suggestedModels: availableModels)
+            }
 
             saveState = .saved
             inProcessModelManager.refreshSelectionState()
@@ -1404,7 +1412,7 @@ public final class LLMSettingsViewModel {
         providerID: LLMProviderID?,
         modelName: String,
         task: LLMTaskGroup,
-        defaultConfig: LLMProviderConfig,
+        defaultConfig: LLMProviderConfig?,
         stagedCLIConfig: LocalCLIConfig?
     ) throws -> LLMProviderConfig? {
         guard let configStore, let providerID else { return nil }
@@ -1419,7 +1427,7 @@ public final class LLMSettingsViewModel {
         }
         guard !resolvedModel.isEmpty else { throw LLMSettingsDraft.ValidationError.missingCustomModel }
 
-        if defaultConfig.id == providerID {
+        if let defaultConfig, defaultConfig.id == providerID {
             return LLMProviderConfig(
                 id: providerID,
                 baseURL: defaultConfig.baseURL,
@@ -1621,7 +1629,7 @@ public final class LLMSettingsViewModel {
         transcript: String,
         dictation: String
     ) {
-        let enabled = draft.providerID != nil
+        let enabled = cleanupOverrideProviderID != nil || draft.providerID != nil
         let transcriptPrompt = draft.normalizedAIFormatterPrompt
         let dictationPrompt = draft.normalizedAIFormatterDictationPrompt
         defaults.set(enabled, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
