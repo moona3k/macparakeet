@@ -385,6 +385,67 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.editingDraft, "Other")
     }
 
+    func testFailedSameRecordingReloadPreservesDraftAndKnownResults() {
+        let existing = PromptResult(
+            transcriptionId: UUID(), promptName: "Summary", promptContent: "Summarize.", content: "Original")
+        promptResultRepo.promptResults = [existing]
+        viewModel.configure(llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo)
+        viewModel.loadPromptResults(transcriptionId: existing.transcriptionId)
+        viewModel.beginEditingPromptResult(existing)
+        viewModel.editingDraft = "GUI draft"
+
+        // A transient read error during a same-recording reload must not be
+        // mistaken for the result having been deleted.
+        promptResultRepo.fetchAllError = NSError(
+            domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: "disk read failed"])
+        viewModel.loadPromptResults(transcriptionId: existing.transcriptionId)
+
+        XCTAssertEqual(viewModel.promptResults.map(\.id), [existing.id])
+        XCTAssertFalse(viewModel.isEditingRemovedPromptResult)
+        XCTAssertEqual(viewModel.errorMessage, "disk read failed")
+        XCTAssertEqual(viewModel.editingPromptResultID, existing.id)
+        XCTAssertEqual(viewModel.editingDraft, "GUI draft")
+        XCTAssertTrue(viewModel.hasUnsavedPromptResultEdits)
+    }
+
+    func testFailedSameRecordingReloadRecoversOnNextSuccessfulReload() {
+        let existing = PromptResult(
+            transcriptionId: UUID(), promptName: "Summary", promptContent: "Summarize.", content: "Original")
+        promptResultRepo.promptResults = [existing]
+        viewModel.configure(llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo)
+        viewModel.loadPromptResults(transcriptionId: existing.transcriptionId)
+        viewModel.beginEditingPromptResult(existing)
+        viewModel.editingDraft = "GUI draft"
+        promptResultRepo.fetchAllError = NSError(domain: "test", code: 1)
+        viewModel.loadPromptResults(transcriptionId: existing.transcriptionId)
+        XCTAssertNotNil(viewModel.errorMessage)
+
+        promptResultRepo.fetchAllError = nil
+        viewModel.loadPromptResults(transcriptionId: existing.transcriptionId)
+
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertEqual(viewModel.promptResults.map(\.id), [existing.id])
+        XCTAssertEqual(viewModel.editingDraft, "GUI draft")
+        XCTAssertTrue(viewModel.saveEditingPromptResult())
+        XCTAssertEqual(promptResultRepo.promptResults.first?.content, "GUI draft")
+    }
+
+    func testFailedDifferentRecordingReloadClearsStalePriorResults() {
+        let first = PromptResult(
+            transcriptionId: UUID(), promptName: "Summary", promptContent: "Summarize.", content: "First meeting")
+        promptResultRepo.promptResults = [first]
+        viewModel.configure(llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo)
+        viewModel.loadPromptResults(transcriptionId: first.transcriptionId)
+        XCTAssertEqual(viewModel.promptResults.map(\.id), [first.id])
+
+        let secondTranscriptionId = UUID()
+        promptResultRepo.fetchAllError = NSError(domain: "test", code: 1)
+        viewModel.loadPromptResults(transcriptionId: secondTranscriptionId)
+
+        XCTAssertTrue(viewModel.promptResults.isEmpty)
+        XCTAssertNotNil(viewModel.errorMessage)
+    }
+
     func testCancelEditingPromptResultDiscardsDraft() {
         let existing = PromptResult(
             transcriptionId: UUID(),

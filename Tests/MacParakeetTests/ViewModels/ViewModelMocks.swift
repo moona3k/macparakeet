@@ -1470,6 +1470,7 @@ final class MockPromptResultRepository: PromptResultRepositoryProtocol, @uncheck
     var replaceCalls: [(promptResult: PromptResult, deletingExistingID: UUID?)] = []
     var conditionalReplaceCalls: [(promptResult: PromptResult, deletingExistingID: UUID, expectedContent: String, expectedContentEditedAt: Date?)] = []
     var deleteCalls: [UUID] = []
+    var fetchAllError: Error?
 
     func save(_ promptResult: PromptResult) throws {
         saveCalls.append(promptResult)
@@ -1523,7 +1524,10 @@ final class MockPromptResultRepository: PromptResultRepositoryProtocol, @uncheck
     }
 
     func fetchAll(transcriptionId: UUID) throws -> [PromptResult] {
-        promptResults
+        if let fetchAllError {
+            throw fetchAllError
+        }
+        return promptResults
             .filter { $0.transcriptionId == transcriptionId }
             .sorted { $0.createdAt > $1.createdAt }
     }

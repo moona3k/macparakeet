@@ -461,6 +461,9 @@ public final class PromptResultsViewModel {
                 streamingTask?.cancel()
             }
             pendingGenerations.removeAll { !$0.runsInBackground }
+            // Stale results from the meeting being left must not linger if the
+            // new meeting's fetch below fails.
+            promptResults = []
         }
         currentTranscriptionID = transcriptionId
         loadVisiblePrompts()
@@ -472,8 +475,10 @@ public final class PromptResultsViewModel {
                 ? "This result was removed. Copy or discard your draft before editing another result."
                 : nil
         } catch {
-            promptResults = []
-            onPromptResultsChanged?(transcriptionId, false)
+            // A failed read is not proof of deletion — keep the last known
+            // results (and any open draft's baseline) so a transient error
+            // cannot be mistaken for the result having been removed.
+            onPromptResultsChanged?(transcriptionId, !promptResults.isEmpty)
             errorMessage = error.localizedDescription
         }
         processNextQueuedGeneration()
