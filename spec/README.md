@@ -107,6 +107,7 @@ Feature gates in the current source (`Sources/MacParakeetCore/AppFeatures.swift`
 
 | Flag | Value | Release note |
 |------|-------|--------------|
+| `askWorkspaceEnabled` | `false` | The new cross-recording Ask workspace is experimental. DEBUG builds may opt in with `--enable-ask-workspace`; release builds ignore that argument. Existing transcript and live-meeting chat are separate surfaces. See [contract](contracts/ask-workspace.md). |
 | `voiceControlEnabled` | `false` | Explicit Voice Control is implemented on this branch; DEBUG builds may opt in with `--enable-voice-control`. Release builds ignore the argument. Native/browser and speech qualification remain separate gates; see [contract](contracts/voice-control.md). |
 | `shareLinksEnabled` | `false` | Encrypted text sharing is implemented but not publicly enabled. DEBUG builds may expose it with `--enable-share-links`; release builds ignore that argument. See the [implementation and release handoff](../docs/share-links-implementation.md). |
 | `meetingRecordingEnabled` | `true` | Shipping meeting-recording surface |
