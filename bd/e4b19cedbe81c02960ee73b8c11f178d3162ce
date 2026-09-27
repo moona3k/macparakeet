@@ -1,0 +1,29 @@
+Sources/CLI/CHANGELOG.md
+  s_80447db1082ea2::t_ce378b4647dd1e 97-99
+docs/distribution.md
+  s_80447db1082ea2::t_1af75e287d41ab 266
+docs/releases/0.8.8/README.md
+  s_80447db1082ea2::t_7b97dd06c84039 1,3,5-6,8,10,12-14
+docs/releases/0.8.8/github.md
+  s_80447db1082ea2::t_431d4eedad9c69 3,5,7-12,14,16-21,23,25-29,33-40,42,44,46,48,50
+docs/releases/0.8.8/sparkle.html
+  s_80447db1082ea2::t_7616b1a68529a2 3,5,7-10,13,15-18,21,23-27,30-31
+spec/README.md
+  s_80447db1082ea2::t_d2faf7a605bfeb 31,96-99,103-104,192,365,367
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bde4b19cedbe81c02960ee73b8c11f178d3162ce",
+  "prompts": {},
+  "sessions": {
+    "s_80447db1082ea2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e310-3c1a-71a0-95a2-e585b2abf1ff",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
