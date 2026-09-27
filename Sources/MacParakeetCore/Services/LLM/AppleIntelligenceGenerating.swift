@@ -25,6 +25,13 @@ public protocol AppleIntelligenceGenerating: Sendable {
         request: AppleIntelligenceGenerationRequest,
         onPartial: (@Sendable (String) -> Void)?
     ) async throws -> String
+    /// Input size in the system model's own tokens. Nil when this OS or SDK
+    /// cannot count tokens (before macOS 26.4).
+    func measureInput(instructions: String?, prompt: String) async throws -> LLMContextWindowUsage?
+}
+
+public extension AppleIntelligenceGenerating {
+    func measureInput(instructions: String?, prompt: String) async throws -> LLMContextWindowUsage? { nil }
 }
 
 public struct UnavailableAppleIntelligenceGenerator: AppleIntelligenceGenerating {

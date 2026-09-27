@@ -79,6 +79,16 @@ public final class AppleIntelligenceLLMClient: LLMClientProtocol, Sendable {
         return [context.providerConfig.modelName]
     }
 
+    public func contextWindowUsage(
+        messages: [ChatMessage],
+        context: LLMExecutionContext
+    ) async throws -> LLMContextWindowUsage? {
+        try ensureProvider(context)
+        // Measure exactly what `generate` would send.
+        let split = AppleIntelligencePromptBuilder.split(messages: messages)
+        return try await generator.measureInput(instructions: split.instructions, prompt: split.prompt)
+    }
+
     private func generate(
         messages: [ChatMessage],
         context: LLMExecutionContext,

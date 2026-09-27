@@ -108,4 +108,45 @@ final class AppleIntelligenceLiveAPITests: XCTestCase {
         throw XCTSkip("FoundationModels is not importable in this toolchain")
         #endif
     }
+
+    /// Timestamped, speaker-labeled transcripts run near 2.8 characters per
+    /// token, so the 12k-character budget alone overflowed the 4,096-token
+    /// window ("Text exceeds the model's context limit"). The measured fit
+    /// must leave room for the answer.
+    func testLiveDenseTranscriptPromptResultFitsTheWindow() async throws {
+        #if canImport(FoundationModels) && compiler(>=6.3)
+        guard #available(macOS 26.4, *) else {
+            throw XCTSkip("Token counting requires macOS 26.4")
+        }
+        guard AppleIntelligenceAvailability.current().canGenerate, SystemLanguageModel.default.supportsLocale()
+        else {
+            throw XCTSkip("Apple Intelligence generation is unavailable on this Mac")
+        }
+        let transcript = (0..<260).map { index in
+            "[00:\(String(format: "%02d:%02d", index * 9 / 60 % 60, index * 9 % 60))] Speaker \(index % 7 + 1): "
+                + "We reviewed step \(index) of the rollout, including a budget of \(index * 37) dollars, "
+                + "owner number \(index % 11), and the follow-up date."
+        }.joined(separator: "\n")
+        let store = MockLLMConfigStore()
+        store.config = .appleIntelligence()
+        let service = LLMService(
+            client: RoutingLLMClient(),
+            contextResolver: MockLLMExecutionContextResolver(configStore: store)
+        )
+
+        let result = try await service.generatePromptResultDetailed(
+            transcript: transcript,
+            systemPrompt: """
+                Break this transcript into logical chapters. For each chapter give a concise title, \
+                a 2-4 sentence summary, and notable moments attributed to the speaker.
+                """,
+            inferenceSettings: nil
+        )
+
+        XCTAssertFalse(result.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        print("LIVE_FIT outputChars=\(result.output.count)")
+        #else
+        throw XCTSkip("Token counting needs FoundationModels from the macOS 26.4 SDK")
+        #endif
+    }
 }

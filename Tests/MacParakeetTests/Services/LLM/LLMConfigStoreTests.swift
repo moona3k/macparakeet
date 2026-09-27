@@ -51,7 +51,7 @@ final class LLMConfigStoreTests: XCTestCase {
         XCTAssertEqual(try store.loadAPIKey(), "working-key")
     }
 
-    func testCredentialMutationKeepsLeaseUntilMetadataPublicationOrClear() throws {
+    func testCredentialMutationKeepsLeaseUntilMetadataPublication() throws {
         let keys = RouteMutationKeys()
         let writer = LLMConfigStore(preferencesDomain: suiteName, lockURL: routeLockURL, keychain: keys)
         try writer.saveConfig(.openai(apiKey: "old", model: "old"))
@@ -66,9 +66,9 @@ final class LLMConfigStoreTests: XCTestCase {
         XCTAssertEqual(try writer.loadConfig()?.modelName, "new")
         XCTAssertEqual(try writer.loadAPIKey(), "new")
         try writer.deleteConfig()
-        XCTAssertEqual(competingAttempts, 2)
+        XCTAssertEqual(competingAttempts, 1, "Clearing routes must not mutate credentials")
         XCTAssertNil(try writer.loadConfigMetadata())
-        XCTAssertNil(try keys.getString("llm_api_key_openai"))
+        XCTAssertEqual(try keys.getString("llm_api_key_openai"), "new")
     }
 
     func testRefreshFailureRejectsBeforeAnyCredentialOrMetadataMutation() throws {
@@ -389,15 +389,15 @@ final class LLMConfigStoreTests: XCTestCase {
         XCTAssertNil(loaded)
     }
 
-    func testDeleteClearsBothStores() throws {
+    func testDeleteClearsRoutesButKeepsSavedKey() throws {
         let config = LLMProviderConfig.openai(apiKey: "sk-test")
         try store.saveConfig(config)
 
         try store.deleteConfig()
 
         XCTAssertNil(try store.loadConfig())
-        XCTAssertNil(try keychain.getString("llm_api_key_openai"))
         XCTAssertNil(defaults.data(forKey: "llm_provider_config"))
+        XCTAssertEqual(try store.loadAPIKey(for: .openai), "sk-test")
     }
 
     func testOllamaConfigWithNoAPIKey() throws {
@@ -509,16 +509,16 @@ final class LLMConfigStoreTests: XCTestCase {
         XCTAssertEqual(try store.loadAPIKey(for: .anthropic), "sk-ant-key")
     }
 
-    func testDeleteOnlyClearsActiveProviderKey() throws {
-        // Save keys for multiple providers
+    func testDeleteKeepsEverySavedProviderKey() throws {
         try store.saveConfig(.openai(apiKey: "sk-openai"))
         try store.saveConfig(.anthropic(apiKey: "sk-ant"))
 
-        // Delete clears only the active provider (anthropic) key
+        // Turning AI off must not delete the active provider's key: choosing
+        // that provider again should not ask for the key again.
         try store.deleteConfig()
 
         XCTAssertEqual(try keychain.getString("llm_api_key_openai"), "sk-openai")
-        XCTAssertNil(try keychain.getString("llm_api_key_anthropic"))
+        XCTAssertEqual(try keychain.getString("llm_api_key_anthropic"), "sk-ant")
     }
 
     func testFailedCredentialWritePreservesWorkingProviderAcrossReopen() throws {
@@ -563,15 +563,14 @@ final class LLMConfigStoreTests: XCTestCase {
         XCTAssertEqual(try store.loadAPIKey(), "working-token")
     }
 
-    func testFailedClearPreservesWorkingConfiguration() throws {
+    func testClearDoesNotTouchKeychain() throws {
         try store.saveConfig(.openai(apiKey: "working-key", model: "working-model"))
         keychain.deleteError = KeyValueStoreError.unsupported
 
-        XCTAssertThrowsError(try store.deleteConfig())
+        try store.deleteConfig()
 
-        XCTAssertEqual(try store.loadConfig()?.id, .openai)
-        XCTAssertEqual(try store.loadConfig()?.modelName, "working-model")
-        XCTAssertEqual(try store.loadAPIKey(), "working-key")
+        XCTAssertNil(try store.loadConfig())
+        XCTAssertEqual(try store.loadAPIKey(for: .openai), "working-key")
     }
 
     func testTaskOverrideRoundTripDoesNotReplaceDefault() throws {

@@ -27,6 +27,23 @@ struct FoundationModelsAppleIntelligenceGenerator: AppleIntelligenceGenerating {
         }
     }
 
+    func measureInput(instructions: String?, prompt: String) async throws -> LLMContextWindowUsage? {
+        // `tokenCount(for:)` ships in the macOS 26.4 SDK (Swift 6.3). Older
+        // SDKs and OS versions keep the character budget.
+        #if compiler(>=6.3)
+        if #available(macOS 26.4, *) {
+            let model = SystemLanguageModel.default
+            guard case .available = model.availability else { return nil }
+            var tokens = try await model.tokenCount(for: FoundationModels.Prompt(prompt))
+            if let instructions {
+                tokens += try await model.tokenCount(for: FoundationModels.Instructions(instructions))
+            }
+            return LLMContextWindowUsage(inputTokens: tokens, contextWindowTokens: model.contextSize)
+        }
+        #endif
+        return nil
+    }
+
     func generate(
         request: AppleIntelligenceGenerationRequest,
         onPartial: (@Sendable (String) -> Void)?

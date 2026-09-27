@@ -295,6 +295,13 @@ struct LLMSettingsView: View {
         }
     }
 
+    /// Names what the task inherits, like the transcription engine's
+    /// `Same as Parakeet`, so the row previews the route it will use.
+    private var inheritedRouteLabel: String {
+        guard let provider = viewModel.selectedProviderID else { return "Same as Default AI" }
+        return "Same as \(provider.displayName)"
+    }
+
     private func taskRouteRow(
         title: String,
         detail: String,
@@ -312,7 +319,7 @@ struct LLMSettingsView: View {
                 }
                 Spacer(minLength: DesignSystem.Spacing.md)
                 Picker(title, selection: provider) {
-                    Text("Use default AI").tag(LLMProviderID?.none)
+                    Text(inheritedRouteLabel).tag(LLMProviderID?.none)
                     ForEach(providerOrder, id: \.self) { option in
                         Text(option.displayName).tag(Optional(option))
                     }
@@ -334,10 +341,10 @@ struct LLMSettingsView: View {
         VStack(spacing: DesignSystem.Spacing.md) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Current choice")
+                    Text("Default AI")
                         .font(DesignSystem.Typography.body)
                     Text(
-                        "Choose on-device Apple Intelligence, a local provider, an API key, or a command-line AI tool."
+                        "Used for every AI feature unless a task below picks its own."
                     )
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.secondary)
@@ -393,7 +400,7 @@ struct LLMSettingsView: View {
                     Text("On-device Apple Intelligence")
                         .font(DesignSystem.Typography.body.weight(.semibold))
                     Text(
-                        "Runs on this Mac and works best for short requests. Long meeting summaries may exceed its context window."
+                        "Runs on this Mac and works best for short requests. Long transcripts are shortened to fit its small context window."
                     )
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.secondary)

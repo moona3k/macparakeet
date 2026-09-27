@@ -82,7 +82,8 @@ Keep today's Default AI block (provider, credentials, model). Add at most
 two collapsed override rows for the jobs that exist today:
 **Dictation & cleanup** (`cleanup`) and **Meetings & library**
 (`analysis`). Meeting formatter still uses the cleanup row. Each row is
-"Use default" or a complete general-LLM route. A specialist recipe (see
+an inherited choice, labeled with the default provider (`Same as Google
+Gemini`), or a complete general-LLM route. A specialist recipe (see
 §5) is offered only on eligible tasks: `cleanup` now, `translate` only if
 F31 ships. The analysis row does not offer a recipe.
 

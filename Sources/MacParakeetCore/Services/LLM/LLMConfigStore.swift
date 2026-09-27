@@ -20,6 +20,7 @@ public protocol LLMConfigStoreProtocol: Sendable {
     func loadConfig() throws -> LLMProviderConfig?
     func loadConfig(for task: LLMTaskGroup) throws -> LLMProviderConfig?
     func saveConfig(_ config: LLMProviderConfig) throws
+    /// Clears the default and task routes. Saved provider API keys are kept.
     func deleteConfig() throws
     func loadAPIKey() throws -> String?
     func loadAPIKey(for provider: LLMProviderID) throws -> String?
@@ -217,12 +218,10 @@ public final class LLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
 
     public func deleteConfig() throws {
         try withOperationLease {
-            // Corrupt metadata remains clearable, without guessing its provider.
-            if let data = data(for: Self.configKey),
-                let config = try? JSONDecoder().decode(LLMProviderConfig.self, from: data)
-            {
-                try keychain.delete(Self.apiKeyKeychainKey(for: config.id))
-            }
+            // Turning AI off clears routes only. Saved provider keys stay in the
+            // Keychain, as they do when switching providers, so choosing the
+            // provider again does not ask for the key again. Corrupt metadata
+            // remains clearable because nothing here decodes it.
             Self.metadataKeys.forEach { write(nil, for: $0) }
             try publish()
         }

@@ -135,7 +135,7 @@ account-specific model IDs rather than a public catalog.
 
 **Local CLI:** Users with Claude Code or Codex subscriptions can use their CLI tools directly. The app runs the configured command as a subprocess via `posix_spawn`, delivering prompts via stdin and `MACPARAKEET_*` environment variables. No API key needed — the CLI tool manages its own authentication. Built-in presets for Claude Code (`claude -p --model haiku`) and Codex (`codex exec --model gpt-5.4-mini`), or any custom command. See PR #47.
 
-**Apple Intelligence:** On macOS 26 Tahoe or later, eligible Macs can use the on-device Foundation Models ~3B system model with no API key and no MacParakeet download. The user must enable Apple Intelligence in System Settings; MacParakeet does not auto-select this provider. The 4096-token window is a poor fit for full meeting summaries; Transforms, dictation cleanup, and short Ask turns are the intended workloads. The dedicated ~12k-character input budget is English-calibrated (~3.5 chars/token with output reserve). Prompt max tokens stop at the largest value that still leaves input room (3428 on that 12k budget). Rewrite-shaped work uses ~6k so the answer can be about as long as the source. Transforms stay in that budget by middle-truncating longer English text with the same marker as other providers. The AI Formatter (dictation cleanup and transcription AI formatting) shares the ~6k budget but never truncates; an oversized request fails and falls back to deterministic cleanup instead (see [spec/07-text-processing.md](07-text-processing.md#optional-ai-formatting)). The 12k ceiling is calibrated for ordinary English prose. Dense dictation, timestamped transcripts, and CJK can still overflow it and surface as a context-limit error rather than silent chunking. Inline CLI accepts `--provider appleIntelligence`. See issue #1062.
+**Apple Intelligence:** On macOS 26 Tahoe or later, eligible Macs can use the on-device Foundation Models ~3B system model with no API key and no MacParakeet download. The user must enable Apple Intelligence in System Settings; MacParakeet does not auto-select this provider. The 4096-token window is a poor fit for full meeting summaries; Transforms, dictation cleanup, and short Ask turns are the intended workloads. The dedicated ~12k-character input budget is English-calibrated (~3.5 chars/token with output reserve). Prompt max tokens stop at the largest value that still leaves input room (3428 on that 12k budget). Rewrite-shaped work uses ~6k so the answer can be about as long as the source. Transforms stay in that budget by middle-truncating longer English text with the same marker as other providers. The AI Formatter (dictation cleanup and transcription AI formatting) shares the ~6k budget but never truncates; an oversized request fails and falls back to deterministic cleanup instead (see [spec/07-text-processing.md](07-text-processing.md#optional-ai-formatting)). The 12k ceiling is only a first guess: English prose measures about 4.4 characters per token, but timestamped, speaker-labeled transcripts measure about 2.8-3.2, and CJK is denser still. On macOS 26.4+, summaries, prompt results, knowledge cards, and chat therefore measure the assembled request with the system model's `tokenCount`, shrink the transcript (middle-truncated, same marker) until the input leaves 1,024 tokens (or the requested max tokens) for the answer, and cap the answer at the room that is left, so long transcripts produce a result from the head and tail instead of a context-limit error. Transforms and the AI Formatter never use this fit, because a shortened rewrite would lose the user's text. Before macOS 26.4 the character budgets apply unchanged. Inline CLI accepts `--provider appleIntelligence`. See issue #1062.
 
 ### OpenCode Go (custom endpoint)
 
@@ -642,9 +642,14 @@ Failed Save or Clear keeps the working configuration and reports an error
 without notifying consumers or resetting formatter preferences. Successful
 transitions update the view model's committed state before notifying consumers.
 
-Clear removes the saved provider, not every remembered provider setup. It deletes
+Clear (and Save with no AI selected) removes the saved routes, not every
+remembered provider setup. Saved provider API keys stay in the Keychain, as they
+do when switching providers, so choosing a provider again does not ask for its
+key again; removing a key means emptying the field and saving. Clear deletes
 Local CLI command settings only when the saved provider can be identified as
-Local CLI, and preserves inactive providers' settings and credentials. If saved
+Local CLI, and preserves inactive providers' settings. A key typed but not yet
+saved survives switching to another provider and back within the same
+Settings session. If saved
 provider metadata is unreadable, Clear removes that metadata without guessing
 ownership of the remaining provider-specific settings. Selecting a remembered
 Local CLI draft afterward does not reactivate AI; the user must explicitly Save.

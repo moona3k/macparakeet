@@ -161,6 +161,9 @@ public final class LLMSettingsViewModel {
     public private(set) var aiFormatterSmartDefaultsPolicy: AIFormatterSmartDefaultsPolicy
     public let inProcessModelManager: InProcessModelManagerViewModel
     private var discoveredModels: [String] = []
+    /// Keys typed into the draft but not saved, by provider. Browsing other
+    /// providers before Save must not discard a key the user just pasted.
+    private var unsavedAPIKeyInputs: [LLMProviderID: String] = [:]
 
     public var selectedProviderID: LLMProviderID? {
         get { draft.providerID }
@@ -1310,6 +1313,9 @@ public final class LLMSettingsViewModel {
 
     private func applyProviderChange(to providerID: LLMProviderID?) {
         guard draft.providerID != providerID else { return }
+        if let previousProviderID = draft.providerID, previousProviderID.supportsAPIKey {
+            unsavedAPIKeyInputs[previousProviderID] = draft.apiKeyInput
+        }
         let formatterPrompt = draft.aiFormatterPrompt
         let dictationPrompt = draft.aiFormatterDictationPrompt
         guard let providerID else {
@@ -1324,7 +1330,10 @@ public final class LLMSettingsViewModel {
         }
         resetDiscoveredModels()
         refreshAppleIntelligenceAvailability()
-        let apiKey = providerID.supportsAPIKey ? ((try? configStore?.loadAPIKey(for: providerID)) ?? "") : ""
+        let apiKey =
+            providerID.supportsAPIKey
+            ? unsavedAPIKeyInputs[providerID] ?? ((try? configStore?.loadAPIKey(for: providerID)) ?? "")
+            : ""
         let cliConfig = providerID == .localCLI ? cliConfigStore?.load() : nil
         var nextDraft = LLMSettingsDraft.defaults(
             for: providerID,
@@ -1460,6 +1469,9 @@ public final class LLMSettingsViewModel {
         cliConfig: LocalCLIConfig?,
         suggestedModels: [String]
     ) {
+        // The saved key is now the stored key; a stale typed value must not
+        // replace it when the user returns to this provider.
+        unsavedAPIKeyInputs.removeValue(forKey: config.id)
         draft = .fromStoredConfig(
             config,
             suggestedModels: suggestedModels,

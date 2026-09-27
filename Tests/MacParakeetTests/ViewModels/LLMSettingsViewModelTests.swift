@@ -564,6 +564,66 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isConfigured)
     }
 
+    func testTurningAIOffKeepsSavedKeyForReselection() throws {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .gemini
+        viewModel.apiKeyInput = "gemini-key"
+        viewModel.saveConfiguration()
+        XCTAssertEqual(viewModel.saveState, .saved)
+
+        // Choosing None and saving turns AI off; it must not forget the key.
+        viewModel.selectedProviderID = nil
+        viewModel.saveConfiguration()
+        XCTAssertNil(mockConfigStore.config)
+
+        viewModel.selectedProviderID = .gemini
+        XCTAssertEqual(viewModel.apiKeyInput, "gemini-key")
+        XCTAssertEqual(try mockConfigStore.loadAPIKey(for: .gemini), "gemini-key")
+    }
+
+    func testClearKeepsSavedKeyForReselection() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .gemini
+        viewModel.apiKeyInput = "gemini-key"
+        viewModel.saveConfiguration()
+
+        viewModel.clearConfiguration()
+        XCTAssertFalse(viewModel.isConfigured)
+
+        viewModel.selectedProviderID = .anthropic
+        viewModel.selectedProviderID = .gemini
+        XCTAssertEqual(viewModel.apiKeyInput, "gemini-key")
+    }
+
+    func testUnsavedTypedKeySurvivesSwitchingProviders() throws {
+        try mockConfigStore.saveConfig(.gemini(apiKey: "saved-gemini-key"))
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "typed-openai-key"
+
+        viewModel.selectedProviderID = .anthropic
+        XCTAssertEqual(viewModel.apiKeyInput, "")
+        viewModel.selectedProviderID = .gemini
+        XCTAssertEqual(viewModel.apiKeyInput, "saved-gemini-key")
+        viewModel.selectedProviderID = .openai
+        XCTAssertEqual(viewModel.apiKeyInput, "typed-openai-key")
+    }
+
+    func testSavedKeyReplacesEarlierTypedDraftForThatProvider() throws {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "first-draft"
+        viewModel.selectedProviderID = .anthropic
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "final-key"
+        viewModel.saveConfiguration()
+        XCTAssertEqual(try mockConfigStore.loadAPIKey(for: .openai), "final-key")
+
+        viewModel.selectedProviderID = .anthropic
+        viewModel.selectedProviderID = .openai
+        XCTAssertEqual(viewModel.apiKeyInput, "final-key")
+    }
+
     func testClearResetsCustomModelDraft() {
         mockConfigStore.config = .openai(apiKey: "sk-test", model: "custom-model")
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
@@ -1249,7 +1309,8 @@ final class LLMSettingsViewModelTests: XCTestCase {
         viewModel.saveConfiguration()
 
         XCTAssertEqual(callbackCount, 1)
-        XCTAssertNil(try store.loadAPIKey(for: .openai))
+        // Turning AI off keeps the key so reselecting OpenAI does not ask again.
+        XCTAssertEqual(try store.loadAPIKey(for: .openai), "working-key")
     }
 
     func testFailedSavePreservesWorkingProviderAndDoesNotNotifyConsumers() throws {
@@ -1279,7 +1340,10 @@ final class LLMSettingsViewModelTests: XCTestCase {
 
     func testFailedClearAndSavingNonePreserveConfigurationAndPreferences() throws {
         let credentials = InMemoryKeyValueStore()
-        let store = LLMConfigStore(preferencesDomain: defaultsSuiteName, lockURL: routeLockURL, keychain: credentials)
+        let refresh = SettingsRouteRefreshSwitch()
+        let store = LLMConfigStore(
+            preferencesDomain: defaultsSuiteName, lockURL: routeLockURL, keychain: credentials,
+            synchronizePreferences: { refresh.synchronize($0) })
         try store.saveConfig(.openai(apiKey: "working-key"))
         viewModel.configure(
             configStore: store,
@@ -1290,20 +1354,23 @@ final class LLMSettingsViewModelTests: XCTestCase {
         viewModel.aiFormatterEnabledForTranscriptions = false
         viewModel.autoGenerateMeetingTitles = false
         let preferencesBefore = defaults.dictionaryRepresentation()
-        credentials.deleteError = KeyValueStoreError.unsupported
+        refresh.fails = true
         viewModel.onConfigurationChanged = { XCTFail("Failed clear must not notify consumers") }
 
         viewModel.clearConfiguration()
 
         guard case .error = viewModel.saveState else { return XCTFail("Expected a clear error") }
         XCTAssertEqual(viewModel.selectedProviderID, .openai)
+        refresh.fails = false
         XCTAssertEqual(try store.loadAPIKey(), "working-key")
         XCTAssertEqual(defaults.dictionaryRepresentation() as NSDictionary, preferencesBefore as NSDictionary)
 
+        refresh.fails = true
         viewModel.selectedProviderID = nil
         viewModel.saveConfiguration()
 
         guard case .error = viewModel.saveState else { return XCTFail("Saving None must preserve the clear error") }
+        refresh.fails = false
         XCTAssertEqual(try store.loadConfig()?.id, .openai)
         XCTAssertEqual(try store.loadAPIKey(), "working-key")
         XCTAssertTrue(viewModel.aiFormatterEnabledForDictation)
@@ -2427,5 +2494,19 @@ private actor SettingsFakeInProcessModelDownloader: InProcessModelDownloading {
     func deleteDefaultModel() async throws {
         isDownloaded = false
         cacheSizeBytes = 0
+    }
+}
+
+/// Fails the route store's preferences refresh while `fails` is set, so a
+/// Clear is rejected before it changes anything.
+private final class SettingsRouteRefreshSwitch: @unchecked Sendable {
+    private let lock = NSLock()
+    private var failing = false
+    var fails: Bool {
+        get { lock.withLock { failing } }
+        set { lock.withLock { failing = newValue } }
+    }
+    func synchronize(_ domain: String) -> Bool {
+        fails ? false : CFPreferencesAppSynchronize(domain as CFString)
     }
 }
