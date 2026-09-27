@@ -559,7 +559,6 @@ struct OnboardingShortcutEditor: View {
             fileTranscription: settingsViewModel.fileTranscriptionHotkeyTrigger,
             youtubeTranscription: settingsViewModel.youtubeTranscriptionHotkeyTrigger,
             dictationAIPolish: settingsViewModel.dictationAIPolishHotkeyTrigger,
-            dictationClipboard: settingsViewModel.dictationClipboardHotkeyTrigger,
             transformHotkeys: transformsViewModel?.transforms ?? [],
             meetingRecordingEnabled: AppFeatures.meetingRecordingEnabled
         )
@@ -575,7 +574,6 @@ struct OnboardingShortcutEditor: View {
             fileTranscription: current.fileTranscription,
             youtubeTranscription: current.youtubeTranscription,
             dictationAIPolish: current.dictationAIPolish,
-            dictationClipboard: current.dictationClipboard,
             transformHotkeys: current.transformHotkeys,
             meetingRecordingEnabled: current.meetingRecordingEnabled
         )

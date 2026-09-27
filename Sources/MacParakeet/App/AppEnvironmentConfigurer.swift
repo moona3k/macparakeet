@@ -476,12 +476,11 @@ final class AppEnvironmentConfigurer {
 
         let hotkeyCoordinator = AppHotkeyCoordinator(
             settingsViewModel: settingsViewModel,
-            onStartDictation: { mode, aiFormatterEnabled, clipboardOnly in
+            onStartDictation: { mode, aiFormatterEnabled in
                 coordinatorRefs.dictation?.startDictation(
                     mode: mode,
                     trigger: .hotkey,
-                    aiFormatterEnabled: aiFormatterEnabled,
-                    clipboardOnly: clipboardOnly
+                    aiFormatterEnabled: aiFormatterEnabled
                 ) ?? false
             },
             onStopDictation: {

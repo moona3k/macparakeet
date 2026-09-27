@@ -528,7 +528,6 @@ public enum TelemetryHotkeySurface: String, Sendable, Equatable {
     case fileTranscription = "file_transcription"
     case youtubeTranscription = "youtube_transcription"
     case dictationAIPolish = "dictation_ai_polish"
-    case dictationClipboard = "dictation_clipboard"
 }
 
 /// Mirrors `HotkeyTrigger.Kind` for telemetry. Kept separate so changes to the

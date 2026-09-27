@@ -17,7 +17,7 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
 
     private func makeCoordinator(
         settingsViewModel: SettingsViewModel,
-        onStartDictation: @escaping (FnKeyStateMachine.RecordingMode, Bool?, Bool) -> Bool = { _, _, _ in true },
+        onStartDictation: @escaping (FnKeyStateMachine.RecordingMode, Bool?) -> Bool = { _, _ in true },
         onAnyHotkeyEnabled: @escaping () -> Void = {},
         onHotkeyUnavailable: @escaping () -> Void = {},
         onHotkeyConflict: @escaping (HotkeyTrigger, [HotkeyTrigger]) -> Void
@@ -52,7 +52,7 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
     func testRefusedDictationStartResetsGestureForNextTap() {
         let coordinator = makeCoordinator(
             settingsViewModel: makeViewModel(),
-            onStartDictation: { _, _, _ in false },
+            onStartDictation: { _, _ in false },
             onHotkeyConflict: { _, _ in }
         )
         let manager = HotkeyManager(trigger: .control, gestureMode: .singleTapToggle)
@@ -140,17 +140,6 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         )
     }
 
-    func testMenuTitleDescribesClipboardOnlyWhenOtherDictationShortcutsAreDisabled() {
-        XCTAssertEqual(
-            AppHotkeyCoordinator.menuTitle(
-                handsFree: .disabled,
-                pushToTalk: .disabled,
-                clipboard: .shift
-            ),
-            "Clipboard-only: Tap Shift"
-        )
-    }
-
     func testMenuTitleDescribesAIPolishWhenOtherDictationShortcutsAreDisabled() {
         XCTAssertEqual(
             AppHotkeyCoordinator.menuTitle(
@@ -159,18 +148,6 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
                 aiPolish: .control
             ),
             "AI polish: Tap Control"
-        )
-    }
-
-    func testMenuTitleAcknowledgesBothOptionalShortcuts() {
-        XCTAssertEqual(
-            AppHotkeyCoordinator.menuTitle(
-                handsFree: .disabled,
-                pushToTalk: .disabled,
-                aiPolish: .control,
-                clipboard: .option
-            ),
-            "Dictation: AI polish / Clipboard-only"
         )
     }
 
@@ -348,72 +325,11 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         XCTAssertFalse(plan.specs.contains(where: { $0.aiFormatterEnabled == true }))
     }
 
-    func testDictationHotkeyPlanAddsClipboardOnlyAsSeparateTapToggle() {
-        let clipboard = HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 8)
-        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
-            handsFree: .fn,
-            pushToTalk: .fn,
-            clipboard: clipboard
-        )
-
-        XCTAssertEqual(plan.specs.count, 2)
-        XCTAssertEqual(plan.specs.last?.trigger, clipboard)
-        XCTAssertEqual(plan.specs.last?.gestureMode, .singleTapToggle)
-        XCTAssertEqual(plan.specs.last?.clipboardOnly, true)
-        XCTAssertNil(plan.conflict)
-    }
-
-    func testDictationHotkeyPlanReportsConflictWhenClipboardOnlyOverlapsHandsFree() {
-        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
-            handsFree: .control,
-            pushToTalk: .option,
-            clipboard: .control
-        )
-
-        XCTAssertEqual(plan.conflict?.trigger, .control)
-        XCTAssertFalse(plan.specs.contains(where: \.clipboardOnly))
-    }
-
-    func testDictationHotkeyPlanAllowsClipboardOnlyWhenOtherRolesDisabled() {
-        let clipboard = HotkeyTrigger.shift
-        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
-            handsFree: .disabled,
-            pushToTalk: .disabled,
-            clipboard: clipboard
-        )
-
-        XCTAssertEqual(
-            plan,
-            AppHotkeyCoordinator.DictationHotkeyPlan(
-                specs: [
-                    .init(trigger: clipboard, gestureMode: .singleTapToggle, clipboardOnly: true)
-                ],
-                conflict: nil
-            )
-        )
-    }
-
-    func testDictationHotkeyPlanReportsConflictBetweenSpecialDictationShortcuts() {
-        let sameChord = HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 35)
-        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
-            handsFree: .disabled,
-            pushToTalk: .disabled,
-            aiPolish: sameChord,
-            clipboard: sameChord
-        )
-
-        XCTAssertEqual(plan.conflict?.trigger, sameChord)
-        XCTAssertEqual(plan.specs.count, 1)
-        XCTAssertTrue(plan.specs[0].clipboardOnly)
-        XCTAssertNil(plan.specs[0].aiFormatterEnabled)
-    }
-
     func testRebuildResumesOnlyTheShortcutThatStartedAIPolish() {
         let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
             handsFree: .fn,
             pushToTalk: .fn,
-            aiPolish: .control,
-            clipboard: .option
+            aiPolish: .control
         )
         let polish = plan.specs.first { $0.aiFormatterEnabled == true }!
 
@@ -433,12 +349,10 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
             handsFree: .fn,
             pushToTalk: .fn,
-            aiPolish: .control,
-            clipboard: .option
+            aiPolish: .control
         )
-        let standard = plan.specs.first { !$0.clipboardOnly && $0.aiFormatterEnabled != true }!
+        let standard = plan.specs.first { $0.aiFormatterEnabled != true }!
         let polish = plan.specs.first { $0.aiFormatterEnabled == true }!
-        let clipboard = plan.specs.first { $0.clipboardOnly }!
 
         XCTAssertTrue(
             AppHotkeyCoordinator.shouldResumeDictationHotkey(
@@ -457,13 +371,6 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         XCTAssertFalse(
             AppHotkeyCoordinator.shouldResumeDictationHotkey(
                 polish,
-                activeMode: .persistent,
-                activeHotkey: nil
-            )
-        )
-        XCTAssertFalse(
-            AppHotkeyCoordinator.shouldResumeDictationHotkey(
-                clipboard,
                 activeMode: .persistent,
                 activeHotkey: nil
             )

@@ -219,11 +219,6 @@ final class DictationFlowCoordinator {
     private var currentTrigger: TelemetryDictationTrigger = .hotkey
     /// Per-invocation AI Formatter intent. `nil` follows Settings.
     private var sessionAIFormatterEnabled: Bool?
-    /// Per-utterance destination: copy instead of paste. Committed when
-    /// recording actually starts so a rejected start during processing
-    /// cannot flip an in-flight clipboard-only session to paste.
-    private var pendingSessionClipboardOnly = false
-    private var sessionClipboardOnly = false
     private var sessionIsPractice = false
     private let mutationArbiter: GUIMutationArbiter
     private var interactionLease: GUIMutationArbiter.Lease?
@@ -470,8 +465,7 @@ final class DictationFlowCoordinator {
     func startDictation(
         mode: FnKeyStateMachine.RecordingMode,
         trigger: TelemetryDictationTrigger = .hotkey,
-        aiFormatterEnabled: Bool? = nil,
-        clipboardOnly: Bool = false
+        aiFormatterEnabled: Bool? = nil
     ) -> Bool {
         // Suppressed while onboarding is up, unless its practice box is the
         // dictation target. Covers hotkey + pill.
@@ -497,7 +491,6 @@ final class DictationFlowCoordinator {
         currentTrigger = trigger
         sessionIsPractice = isPracticeTarget()
         sessionAIFormatterEnabled = aiFormatterEnabled
-        pendingSessionClipboardOnly = clipboardOnly
         return true
     }
 
@@ -820,7 +813,6 @@ final class DictationFlowCoordinator {
             }
             let transcript = dictation.cleanTranscript ?? dictation.rawTranscript
             let insertionStyle = currentDictationInsertionStyle
-            let clipboardOnly = sessionClipboardOnly
             let action = pendingPostPasteAction
             pendingPostPasteAction = nil
             let transcriptHasText = !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -832,9 +824,8 @@ final class DictationFlowCoordinator {
             let insertText = action == nil ? normalPasteText : transcript
             // IME/Reduce Motion are sampled once at dispatch. A layout switch
             // during the short stream is accepted risk; paste remains the fallback
-            // when capability is unknown. Clipboard-only never inserts.
-            let shouldStream = !clipboardOnly
-                && !sessionIsPractice
+            // when capability is unknown.
+            let shouldStream = !sessionIsPractice
                 && self.runtimePreferences.dictationStreamingCursorEnabled
                 && !self.shouldReduceMotion()
                 && self.inputSourceAllowsStreaming()
@@ -867,44 +858,6 @@ final class DictationFlowCoordinator {
                         guard self.stateMachine.generation == gen else { return }
                         self.dismissCaption(outcome: .success)
                         self.sendEvent(.pasteSucceeded(generation: gen))
-                        return
-                    }
-
-                    if clipboardOnly {
-                        self.pendingInsertTimings = nil
-                        if let action {
-                            self.dictationLog.notice(
-                                "dictation_copy_action_skipped gen=\(gen) action=\(action.rawValue, privacy: .public)"
-                            )
-                        }
-                        guard transcriptHasText else {
-                            self.dictationLog.notice("dictation_copy_skipped gen=\(gen) reason=empty_transcript")
-                            guard self.stateMachine.generation == gen else { return }
-                            self.dismissCaption(outcome: .success)
-                            self.sendEvent(.pasteSucceeded(generation: gen))
-                            return
-                        }
-                        let copied = await self.clipboardService.copyToClipboard(transcript)
-                        guard self.stateMachine.generation == gen else { return }
-                        if copied {
-                            Telemetry.send(.copyToClipboard(source: .dictation))
-                            let rawChars = dictation.rawTranscript.count
-                            let cleanChars = dictation.cleanTranscript?.count ?? 0
-                            self.dictationLog.notice(
-                                "dictation_completed gen=\(gen) outcome=success rawChars=\(rawChars) cleanChars=\(cleanChars) autoPasted=false destination=clipboard"
-                            )
-                            self.dismissCaption(outcome: .success)
-                            self.sendEvent(.pasteSucceeded(generation: gen))
-                            self.onDictationDelivered?(transcript)
-                        } else {
-                            self.dismissCaption(outcome: .failure)
-                            self.sendEvent(
-                                .pasteFailed(
-                                    generation: gen,
-                                    message: "Could not copy to the clipboard."
-                                )
-                            )
-                        }
                         return
                     }
 
@@ -1287,8 +1240,6 @@ final class DictationFlowCoordinator {
     ) {
         let trigger = currentTrigger
         let aiFormatterOverride = sessionAIFormatterEnabled
-        let clipboardOnly = pendingSessionClipboardOnly
-        sessionClipboardOnly = clipboardOnly
         recordingTask = Task { @MainActor in
             do {
                 try Task.checkCancellation()

@@ -5,7 +5,7 @@ import XCTest
 final class OnboardingShortcutEditorTests: XCTestCase {
     private func snapshot(
         meeting: HotkeyTrigger = .disabled,
-        dictationClipboard: HotkeyTrigger = .disabled,
+        dictationAIPolish: HotkeyTrigger = .disabled,
         meetingRecordingEnabled: Bool = true
     ) -> HotkeyConflictPolicy.SettingsSnapshot {
         HotkeyConflictPolicy.SettingsSnapshot(
@@ -14,8 +14,7 @@ final class OnboardingShortcutEditorTests: XCTestCase {
             meeting: meeting,
             fileTranscription: .disabled,
             youtubeTranscription: .disabled,
-            dictationAIPolish: .disabled,
-            dictationClipboard: dictationClipboard,
+            dictationAIPolish: dictationAIPolish,
             transformHotkeys: [],
             meetingRecordingEnabled: meetingRecordingEnabled
         )
@@ -31,8 +30,8 @@ final class OnboardingShortcutEditorTests: XCTestCase {
 
     func testDefaultPairIsBlockedWhenAnotherActionUsesFn() {
         XCTAssertTrue(
-            OnboardingShortcutEditor.defaultResetConflict(in: snapshot(dictationClipboard: .fn))?
-                .contains("clipboard-only dictation") == true
+            OnboardingShortcutEditor.defaultResetConflict(in: snapshot(dictationAIPolish: .fn))?
+                .contains("AI polish this dictation") == true
         )
     }
 }

@@ -68,7 +68,6 @@ public enum HotkeyConflictPolicy {
         case fileTranscription
         case youtubeTranscription
         case dictationAIPolish
-        case dictationClipboard
     }
 
     public struct Candidate: Equatable, Sendable {
@@ -117,7 +116,6 @@ public enum HotkeyConflictPolicy {
         public let fileTranscription: HotkeyTrigger
         public let youtubeTranscription: HotkeyTrigger
         public let dictationAIPolish: HotkeyTrigger
-        public let dictationClipboard: HotkeyTrigger
         public let transformHotkeys: [Prompt]
         public let meetingRecordingEnabled: Bool
 
@@ -128,7 +126,6 @@ public enum HotkeyConflictPolicy {
             fileTranscription: HotkeyTrigger,
             youtubeTranscription: HotkeyTrigger,
             dictationAIPolish: HotkeyTrigger = .disabled,
-            dictationClipboard: HotkeyTrigger = .disabled,
             transformHotkeys: [Prompt],
             meetingRecordingEnabled: Bool
         ) {
@@ -138,7 +135,6 @@ public enum HotkeyConflictPolicy {
             self.fileTranscription = fileTranscription
             self.youtubeTranscription = youtubeTranscription
             self.dictationAIPolish = dictationAIPolish
-            self.dictationClipboard = dictationClipboard
             self.transformHotkeys = transformHotkeys
             self.meetingRecordingEnabled = meetingRecordingEnabled
         }
@@ -214,13 +210,6 @@ public enum HotkeyConflictPolicy {
             ) {
                 return conflict
             }
-            if let conflict = overlappingConflict(
-                candidate: trigger,
-                peer: snapshot.dictationClipboard,
-                peerName: "clipboard-only dictation"
-            ) {
-                return conflict
-            }
             return firstConflict(
                 for: trigger,
                 selfMode: .bareModifierDictation,
@@ -239,13 +228,6 @@ public enum HotkeyConflictPolicy {
                 candidate: trigger,
                 peer: snapshot.dictationAIPolish,
                 peerName: "AI polish this dictation"
-            ) {
-                return conflict
-            }
-            if let conflict = overlappingConflict(
-                candidate: trigger,
-                peer: snapshot.dictationClipboard,
-                peerName: "clipboard-only dictation"
             ) {
                 return conflict
             }
@@ -268,7 +250,6 @@ public enum HotkeyConflictPolicy {
                         trigger: snapshot.dictationAIPolish,
                         mode: .bareModifierDictation
                     ),
-                    NamedCandidate(name: "clipboard-only dictation", trigger: snapshot.dictationClipboard),
                 ] + transformCandidates(snapshot.transformHotkeys)
             )
 
@@ -307,43 +288,9 @@ public enum HotkeyConflictPolicy {
             ) {
                 return conflict
             }
-            if let conflict = overlappingConflict(
-                candidate: trigger,
-                peer: snapshot.dictationClipboard,
-                peerName: "clipboard-only dictation"
-            ) {
-                return conflict
-            }
             return firstConflict(
                 for: trigger,
                 selfMode: .bareModifierDictation,
-                among: dictationPeerCandidates(snapshot: snapshot)
-            )
-
-        case .dictationClipboard:
-            if let conflict = overlappingConflict(
-                candidate: trigger,
-                peer: snapshot.handsFree,
-                peerName: "hands-free mode"
-            ) {
-                return conflict
-            }
-            if let conflict = overlappingConflict(
-                candidate: trigger,
-                peer: snapshot.pushToTalk,
-                peerName: "push to talk"
-            ) {
-                return conflict
-            }
-            if let conflict = overlappingConflict(
-                candidate: trigger,
-                peer: snapshot.dictationAIPolish,
-                peerName: "AI polish this dictation"
-            ) {
-                return conflict
-            }
-            return firstConflict(
-                for: trigger,
                 among: dictationPeerCandidates(snapshot: snapshot)
             )
         }
@@ -441,7 +388,6 @@ public enum HotkeyConflictPolicy {
                 mode: .bareModifierDictation
             )
         )
-        candidates.append(NamedCandidate(name: "clipboard-only dictation", trigger: snapshot.dictationClipboard))
         candidates.append(contentsOf: transformCandidates(snapshot.transformHotkeys))
         return candidates
     }

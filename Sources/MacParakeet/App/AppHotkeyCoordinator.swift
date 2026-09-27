@@ -7,7 +7,7 @@ final class AppHotkeyCoordinator {
     static let holdToTalkStopTailMs = 200
 
     private let settingsViewModel: SettingsViewModel
-    private let onStartDictation: (FnKeyStateMachine.RecordingMode, Bool?, Bool) -> Bool
+    private let onStartDictation: (FnKeyStateMachine.RecordingMode, Bool?) -> Bool
     private let onStopDictation: () -> Void
     private let onStopDictationPending: () -> Void
     private let onStopDictationPendingCancelled: () -> Void
@@ -38,7 +38,7 @@ final class AppHotkeyCoordinator {
 
     init(
         settingsViewModel: SettingsViewModel,
-        onStartDictation: @escaping (FnKeyStateMachine.RecordingMode, Bool?, Bool) -> Bool,
+        onStartDictation: @escaping (FnKeyStateMachine.RecordingMode, Bool?) -> Bool,
         onStopDictation: @escaping () -> Void,
         onStopDictationPending: @escaping () -> Void = {},
         onStopDictationPendingCancelled: @escaping () -> Void = {},
@@ -78,8 +78,7 @@ final class AppHotkeyCoordinator {
         Self.menuTitle(
             handsFree: settingsViewModel.hotkeyTrigger,
             pushToTalk: settingsViewModel.pushToTalkHotkeyTrigger,
-            aiPolish: settingsViewModel.dictationAIPolishHotkeyTrigger,
-            clipboard: settingsViewModel.dictationClipboardHotkeyTrigger
+            aiPolish: settingsViewModel.dictationAIPolishHotkeyTrigger
         )
     }
 
@@ -90,22 +89,19 @@ final class AppHotkeyCoordinator {
             let startupDebounceMs: Int
             let holdToTalkStopTailMs: Int
             let aiFormatterEnabled: Bool?
-            let clipboardOnly: Bool
 
             init(
                 trigger: HotkeyTrigger,
                 gestureMode: HotkeyGestureController.Mode,
                 startupDebounceMs: Int = FnKeyStateMachine.defaultStartupDebounceMs,
                 holdToTalkStopTailMs: Int = 0,
-                aiFormatterEnabled: Bool? = nil,
-                clipboardOnly: Bool = false
+                aiFormatterEnabled: Bool? = nil
             ) {
                 self.trigger = trigger
                 self.gestureMode = gestureMode
                 self.startupDebounceMs = startupDebounceMs
                 self.holdToTalkStopTailMs = max(0, holdToTalkStopTailMs)
                 self.aiFormatterEnabled = aiFormatterEnabled
-                self.clipboardOnly = clipboardOnly
             }
         }
 
@@ -127,18 +123,11 @@ final class AppHotkeyCoordinator {
     static func menuTitle(
         handsFree: HotkeyTrigger,
         pushToTalk: HotkeyTrigger,
-        aiPolish: HotkeyTrigger = .disabled,
-        clipboard: HotkeyTrigger = .disabled
+        aiPolish: HotkeyTrigger = .disabled
     ) -> String {
         if handsFree.isDisabled && pushToTalk.isDisabled {
-            if !aiPolish.isDisabled && !clipboard.isDisabled {
-                return "Dictation: AI polish / Clipboard-only"
-            }
             if !aiPolish.isDisabled {
                 return "AI polish: Tap \(aiPolish.displayName)"
-            }
-            if !clipboard.isDisabled {
-                return "Clipboard-only: Tap \(clipboard.displayName)"
             }
             return "Dictation Shortcuts: Disabled"
         }
@@ -164,8 +153,7 @@ final class AppHotkeyCoordinator {
     static func dictationHotkeyPlan(
         handsFree handsFreeTrigger: HotkeyTrigger,
         pushToTalk pushToTalkTrigger: HotkeyTrigger,
-        aiPolish aiPolishTrigger: HotkeyTrigger = .disabled,
-        clipboard clipboardTrigger: HotkeyTrigger = .disabled
+        aiPolish aiPolishTrigger: HotkeyTrigger = .disabled
     ) -> DictationHotkeyPlan {
         let base: DictationHotkeyPlan
         if !handsFreeTrigger.isDisabled || !pushToTalkTrigger.isDisabled {
@@ -227,21 +215,13 @@ final class AppHotkeyCoordinator {
             base = DictationHotkeyPlan(specs: [], conflict: nil)
         }
 
-        let withClipboard = appending(
-            DictationHotkeyPlan.Spec(
-                trigger: clipboardTrigger,
-                gestureMode: .singleTapToggle,
-                clipboardOnly: true
-            ),
-            to: base
-        )
         return appending(
             DictationHotkeyPlan.Spec(
                 trigger: aiPolishTrigger,
                 gestureMode: .singleTapToggle,
                 aiFormatterEnabled: true
             ),
-            to: withClipboard
+            to: base
         )
     }
 
@@ -284,8 +264,7 @@ final class AppHotkeyCoordinator {
         let plan = Self.dictationHotkeyPlan(
             handsFree: settingsViewModel.hotkeyTrigger,
             pushToTalk: settingsViewModel.pushToTalkHotkeyTrigger,
-            aiPolish: settingsViewModel.dictationAIPolishHotkeyTrigger,
-            clipboard: settingsViewModel.dictationClipboardHotkeyTrigger
+            aiPolish: settingsViewModel.dictationAIPolishHotkeyTrigger
         )
         if let conflict = plan.conflict {
             onHotkeyConflict(conflict.trigger, conflict.conflicts)
@@ -388,7 +367,7 @@ final class AppHotkeyCoordinator {
         spec: DictationHotkeyPlan.Spec,
         mode: FnKeyStateMachine.RecordingMode
     ) {
-        guard onStartDictation(mode, spec.aiFormatterEnabled, spec.clipboardOnly) else {
+        guard onStartDictation(mode, spec.aiFormatterEnabled) else {
             // The gesture controller has already entered recording mode.
             // A refused start must leave the next press able to start a take.
             manager.resetToIdle()
@@ -423,7 +402,6 @@ final class AppHotkeyCoordinator {
                 .init(settingsViewModel.fileTranscriptionHotkeyTrigger),
                 .init(settingsViewModel.youtubeTranscriptionHotkeyTrigger),
                 .init(settingsViewModel.dictationAIPolishHotkeyTrigger, mode: .bareModifierDictation),
-                .init(settingsViewModel.dictationClipboardHotkeyTrigger),
             ],
             onTrigger: { [weak self] in
                 self?.onToggleMeetingRecording()
@@ -440,7 +418,6 @@ final class AppHotkeyCoordinator {
                 .init(settingsViewModel.meetingHotkeyTrigger),
                 .init(settingsViewModel.youtubeTranscriptionHotkeyTrigger),
                 .init(settingsViewModel.dictationAIPolishHotkeyTrigger, mode: .bareModifierDictation),
-                .init(settingsViewModel.dictationClipboardHotkeyTrigger),
             ],
             onTrigger: { [weak self] in
                 self?.onTriggerFileTranscription()
@@ -457,7 +434,6 @@ final class AppHotkeyCoordinator {
                 .init(settingsViewModel.meetingHotkeyTrigger),
                 .init(settingsViewModel.fileTranscriptionHotkeyTrigger),
                 .init(settingsViewModel.dictationAIPolishHotkeyTrigger, mode: .bareModifierDictation),
-                .init(settingsViewModel.dictationClipboardHotkeyTrigger),
             ],
             onTrigger: { [weak self] in
                 self?.onTriggerYouTubeTranscription()
@@ -536,10 +512,9 @@ final class AppHotkeyCoordinator {
         guard let activeHotkey else {
             // Recordings started outside a shortcut keep the existing regular
             // dictation behavior; specialized shortcuts cannot take over it.
-            return spec.aiFormatterEnabled != true && !spec.clipboardOnly
+            return spec.aiFormatterEnabled != true
         }
         return spec.aiFormatterEnabled == activeHotkey.aiFormatterEnabled
-            && spec.clipboardOnly == activeHotkey.clipboardOnly
     }
 
     func syncDictationHotkeyRecordingMode(_ mode: FnKeyStateMachine.RecordingMode) {

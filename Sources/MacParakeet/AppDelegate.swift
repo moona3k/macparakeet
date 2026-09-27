@@ -358,9 +358,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         onDictationAIPolishHotkeyTriggerChanged: { [weak self] in
             self?.handleHotkeyTriggerChange()
         },
-        onDictationClipboardHotkeyTriggerChanged: { [weak self] in
-            self?.handleHotkeyTriggerChange()
-        },
         onAppearanceModeChanged: { [weak self] in
             self?.applyAppAppearance()
         },
@@ -951,10 +948,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 conflictMode: .bareModifierDictation
             ),
             TransformShortcutReservedHotkey(
-                name: "clipboard-only dictation",
-                trigger: settingsViewModel.dictationClipboardHotkeyTrigger
-            ),
-            TransformShortcutReservedHotkey(
                 name: "file transcription", trigger: settingsViewModel.fileTranscriptionHotkeyTrigger),
             TransformShortcutReservedHotkey(
                 name: "video URL transcription", trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger),
@@ -1029,8 +1022,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ?? AppHotkeyCoordinator.menuTitle(
                 handsFree: settingsViewModel.hotkeyTrigger,
                 pushToTalk: settingsViewModel.pushToTalkHotkeyTrigger,
-                aiPolish: settingsViewModel.dictationAIPolishHotkeyTrigger,
-                clipboard: settingsViewModel.dictationClipboardHotkeyTrigger
+                aiPolish: settingsViewModel.dictationAIPolishHotkeyTrigger
             )
     }
 
