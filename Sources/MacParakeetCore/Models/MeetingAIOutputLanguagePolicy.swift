@@ -1,8 +1,9 @@
 import Foundation
 
-/// Policy for the language of generated meeting AI results (summary, chapters,
-/// action items). This does not change speech recognition or the stored
-/// transcript. Do not use Parakeet detected-language metadata.
+/// Policy for the language of generated AI prompt results (summaries,
+/// chapters, action items, and custom prompts) for any transcript source.
+/// This does not change speech recognition or the stored transcript. Do not
+/// use Parakeet detected-language metadata.
 public enum MeetingAIOutputLanguagePolicy: Equatable, Hashable, Sendable, Identifiable {
     case followTranscript
     case language(String)
@@ -34,11 +35,9 @@ public enum MeetingAIOutputLanguagePolicy: Equatable, Hashable, Sendable, Identi
         switch self {
         case .followTranscript:
             return
-                "Ask the model to write results in the predominant language of the transcript text. Mixed or unclear transcripts fall back to English."
-        case .language(let code) where code == "en":
-            return "Always write meeting AI results in English, including headings."
+                "Matches the main language of each transcript. English is used when the language is mixed or unclear."
         case .language:
-            return "Always write meeting AI results in \(displayTitle), including headings."
+            return "Always writes results in \(displayTitle), including headings, whatever language was spoken."
         }
     }
 
@@ -62,37 +61,19 @@ public enum MeetingAIOutputLanguagePolicy: Equatable, Hashable, Sendable, Identi
         }
     }
 
-    public static let pickerCases: [MeetingAIOutputLanguagePolicy] = [
-        .followTranscript,
-        .language("en"),
-        .language("pl"),
-        .language("de"),
-        .language("es"),
-        .language("fr"),
-        .language("pt"),
-        .language("ja"),
-        .language("zh"),
-    ]
-
-    public static var configurationValues: [String] {
-        pickerCases.map(\.configurationValue)
-    }
-
+    /// Accepts `follow-transcript`, any catalog language code, a regional tag
+    /// such as `ko-KR`, or an English language name such as `korean`. Stores
+    /// the canonical catalog code.
     public init?(configurationValue: String) {
         let trimmed = configurationValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if trimmed == "follow-transcript" || trimmed == "follow_transcript" {
             self = .followTranscript
             return
         }
-        guard
-            Self.pickerCases.contains(where: {
-                if case .language(let code) = $0 { return code == trimmed }
-                return false
-            })
-        else {
+        guard let language = WhisperLanguageCatalog.language(forCode: trimmed) else {
             return nil
         }
-        self = .language(trimmed)
+        self = .language(language.code)
     }
 
     public static func current(defaults: UserDefaults = .standard) -> MeetingAIOutputLanguagePolicy {
@@ -110,16 +91,6 @@ public enum MeetingAIOutputLanguagePolicy: Equatable, Hashable, Sendable, Identi
     }
 
     private static func displayName(for code: String) -> String {
-        switch code {
-        case "en": return "English"
-        case "pl": return "Polish"
-        case "de": return "German"
-        case "es": return "Spanish"
-        case "fr": return "French"
-        case "pt": return "Portuguese"
-        case "ja": return "Japanese"
-        case "zh": return "Chinese"
-        default: return code
-        }
+        WhisperLanguageCatalog.language(forCode: code)?.englishName ?? code
     }
 }

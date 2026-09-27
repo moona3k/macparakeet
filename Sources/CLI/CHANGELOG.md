@@ -94,6 +94,18 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+## [4.9.0] — 2026-09-26 (development source; not a stable app release)
+
+### Changed
+
+- `config set meeting-ai-output-language` accepts any Whisper language code
+  (for example `ko`, `it`, `nl`), a regional tag such as `ko-KR`, or an English
+  language name such as `korean`, in addition to `follow-transcript`. Values are
+  stored as the canonical code. Existing `en|pl|de|es|fr|pt|ja|zh` values keep
+  working. `spec --json` now reports this key with `valueSyntax`
+  `follow-transcript|<Whisper language code>` and `allowedValues: null`, matching
+  `whisper-language`.
+
 ### Fixed
 
 - `config spoken-punctuation` now applies to Clean dictation only, including

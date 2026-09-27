@@ -50,8 +50,9 @@ struct ConfigCommand: ParsableCommand {
           meeting-speaker-detection on|off                          default: on
           custom-vocabulary-boosting on|off                         default: off
           auto-meeting-titles       on|off                          default: on
-          meeting-ai-output-language follow-transcript|en|pl|de|    default: follow-transcript
-                                    es|fr|pt|ja|zh
+          meeting-ai-output-language follow-transcript|            default: follow-transcript
+                                    <Whisper language code>
+                                    (language of AI results, not speech)
           voice-return-enabled      on|off                          default: off
           voice-return-triggers     phrase[|phrase...]              default: press return
           play-dictation-capture-sounds
@@ -174,9 +175,9 @@ struct ConfigCommand: ParsableCommand {
         ),
         CLIConfigKeySpec(
             key: "meeting-ai-output-language",
-            valueSyntax: MeetingAIOutputLanguagePolicy.configurationValues.joined(separator: "|"),
-            allowedValues: MeetingAIOutputLanguagePolicy.configurationValues,
-            summary: "Language for generated AI results."
+            valueSyntax: "follow-transcript|<Whisper language code>",
+            allowedValues: nil,
+            summary: "Language for generated AI results; accepts follow-transcript, a Whisper language code, or an English language name."
         ),
         CLIConfigKeySpec(
             key: "voice-return-enabled",
@@ -767,7 +768,7 @@ struct ConfigCommand: ParsableCommand {
     static func parseMeetingAIOutputLanguage(_ value: String) throws -> MeetingAIOutputLanguagePolicy {
         guard let policy = MeetingAIOutputLanguagePolicy(configurationValue: value) else {
             throw ValidationError(
-                "Invalid value for meeting-ai-output-language: '\(value)'. Use \(MeetingAIOutputLanguagePolicy.configurationValues.joined(separator: ", "))."
+                "Invalid value for meeting-ai-output-language: '\(value)'. Use follow-transcript or a Whisper language code such as en, ko, or ja."
             )
         }
         return policy

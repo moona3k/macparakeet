@@ -17,8 +17,35 @@ final class MeetingAIOutputLanguagePolicyTests: XCTestCase {
             .followTranscript
         )
         XCTAssertEqual(MeetingAIOutputLanguagePolicy(configurationValue: "PL"), .language("pl"))
-        XCTAssertNil(MeetingAIOutputLanguagePolicy(configurationValue: "ko"))
         XCTAssertNil(MeetingAIOutputLanguagePolicy(configurationValue: "auto"))
+        XCTAssertNil(MeetingAIOutputLanguagePolicy(configurationValue: "klingon"))
+        XCTAssertNil(MeetingAIOutputLanguagePolicy(configurationValue: ""))
+    }
+
+    func testAcceptsEveryCatalogLanguageAndNormalizesAliases() {
+        for language in WhisperLanguageCatalog.all {
+            XCTAssertEqual(
+                MeetingAIOutputLanguagePolicy(configurationValue: language.code),
+                .language(language.code),
+                "Catalog code \(language.code) should be accepted"
+            )
+        }
+        XCTAssertEqual(MeetingAIOutputLanguagePolicy(configurationValue: "ko"), .language("ko"))
+        XCTAssertEqual(MeetingAIOutputLanguagePolicy(configurationValue: "ko-KR"), .language("ko"))
+        XCTAssertEqual(MeetingAIOutputLanguagePolicy(configurationValue: "Korean"), .language("ko"))
+    }
+
+    func testLanguageInstructionNamesTheLanguageInEnglish() {
+        let korean = MeetingAIOutputLanguagePolicy.language("ko")
+        XCTAssertEqual(korean.displayTitle, "Korean")
+        XCTAssertTrue(korean.assemblyInstruction.hasPrefix("Write the result, including headings, in Korean."))
+        XCTAssertTrue(korean.detail.contains("Korean"))
+    }
+
+    func testLegacyStoredLanguageCodesStillResolve() {
+        for code in ["en", "pl", "de", "es", "fr", "pt", "ja", "zh"] {
+            XCTAssertEqual(MeetingAIOutputLanguagePolicy(configurationValue: code), .language(code))
+        }
     }
 
     func testCurrentFallsBackToTranscriptForMissingOrUnknownValues() {

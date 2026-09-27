@@ -16,6 +16,7 @@ struct LLMSettingsView: View {
 
     @State private var showAdvanced = false
     @State private var showAIFormatterPrompt = false
+    @State private var showAIResultLanguageDetails = false
     @State private var showAIFormatterDictationPrompt = false
     @State private var showAIFormatterCustomProfiles = false
     @State private var showAIFormatterAppPicker = false
@@ -842,12 +843,12 @@ struct LLMSettingsView: View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("AI result language")
+                    Text("Language of AI results")
                         .font(DesignSystem.Typography.body.weight(.semibold))
                     Text(
                         """
-                        Language for generated summaries, chapters, and action items. \
-                        Does not change speech recognition or the stored transcript.
+                        Summaries, chapters, action items, and other prompt results are written in this \
+                        language. Transcripts always stay in the language that was spoken.
                         """
                     )
                     .font(DesignSystem.Typography.caption)
@@ -857,22 +858,122 @@ struct LLMSettingsView: View {
 
                 Spacer(minLength: DesignSystem.Spacing.md)
 
-                Picker("AI result language", selection: $viewModel.meetingAIOutputLanguagePolicy) {
-                    ForEach(MeetingAIOutputLanguagePolicy.pickerCases) { policy in
-                        Text(policy.displayTitle).tag(policy)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(width: 200)
+                LanguagePickerButton(
+                    selection: aiResultLanguageSelection,
+                    isDisabled: false,
+                    pinned: .followTranscript,
+                    accessibilityName: "Language of AI results"
+                )
             }
 
             Text(viewModel.meetingAIOutputLanguagePolicy.detail)
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            DisclosureGroup("How it works", isExpanded: $showAIResultLanguageDetails) {
+                aiResultLanguageExplainer
+                    .padding(.top, DesignSystem.Spacing.sm)
+            }
+            .font(DesignSystem.Typography.caption)
         }
         .id("ai.meetingLanguage")
+    }
+
+    private var aiResultLanguageSelection: Binding<String> {
+        Binding(
+            get: { viewModel.meetingAIOutputLanguagePolicy.configurationValue },
+            set: { value in
+                guard let policy = MeetingAIOutputLanguagePolicy(configurationValue: value) else { return }
+                viewModel.meetingAIOutputLanguagePolicy = policy
+            }
+        )
+    }
+
+    /// Shows where the language request sits in the assembled prompt and the
+    /// exact text sent, so the setting reads as a request to the model rather
+    /// than a translation step.
+    private var aiResultLanguageExplainer: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            Text(
+                """
+                MacParakeet adds one instruction to the end of every AI prompt. The model does the writing; \
+                nothing is translated afterward.
+                """
+            )
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: DesignSystem.Spacing.xs) { aiResultLanguagePromptOrder(showsArrows: true) }
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                    aiResultLanguagePromptOrder(showsArrows: false)
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(
+                "Prompt order: your prompt, meeting notes if included, language instruction, then extra instructions"
+            )
+
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                Text("Instruction sent to the model")
+                    .font(DesignSystem.Typography.micro.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                Text(viewModel.meetingAIOutputLanguagePolicy.assemblyInstruction)
+                    .font(DesignSystem.Typography.caption.monospaced())
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    .lineSpacing(3)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(DesignSystem.Spacing.sm)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius, style: .continuous)
+                    .fill(DesignSystem.Colors.surfaceElevated)
+            )
+
+            Text(
+                """
+                Extra instructions come last, so asking for a language there, such as \u{201C}Write in French,\u{201D} \
+                overrides this setting for that result.
+                """
+            )
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
+    private func aiResultLanguagePromptOrder(showsArrows: Bool) -> some View {
+        let steps: [(title: String, isLanguage: Bool)] = [
+            ("Your prompt", false),
+            ("Meeting notes, if included", false),
+            ("Language instruction", true),
+            ("Extra instructions", false),
+        ]
+        ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+            if showsArrows && index > 0 {
+                Image(systemName: "chevron.right")
+                    .font(DesignSystem.Typography.micro)
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+            }
+            Text(step.title)
+                .font(DesignSystem.Typography.micro.weight(.semibold))
+                .foregroundStyle(step.isLanguage ? DesignSystem.Colors.accent : DesignSystem.Colors.textSecondary)
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(
+                    Capsule()
+                        .fill(
+                            step.isLanguage
+                                ? DesignSystem.Colors.accent.opacity(0.14)
+                                : DesignSystem.Colors.surfaceElevated
+                        )
+                )
+        }
     }
 
     private var meetingTitlesSection: some View {
@@ -2214,4 +2315,12 @@ struct LLMSettingsView: View {
             }
         }
     }
+}
+
+extension PinnedLanguageOption {
+    static let followTranscript = PinnedLanguageOption(
+        code: MeetingAIOutputLanguagePolicy.followTranscript.configurationValue,
+        title: MeetingAIOutputLanguagePolicy.followTranscript.displayTitle,
+        searchTerms: ["follow transcript", "follow-transcript", "transcript", "auto"]
+    )
 }

@@ -636,9 +636,21 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertThrowsError(try ConfigCommand.write(key: "voice-return-triggers", value: " | ", defaults: defaults)) { error in
             XCTAssertTrue(error is ValidationError)
         }
-        XCTAssertThrowsError(try ConfigCommand.write(key: "meeting-ai-output-language", value: "ko", defaults: defaults)) { error in
+        XCTAssertThrowsError(try ConfigCommand.write(key: "meeting-ai-output-language", value: "klingon", defaults: defaults)) { error in
             XCTAssertTrue(error is ValidationError)
         }
+    }
+
+    func testMeetingAIOutputLanguageAcceptsCatalogCodesAndNames() throws {
+        XCTAssertEqual(
+            try ConfigCommand.write(key: "meeting-ai-output-language", value: "ko", defaults: defaults),
+            "ko"
+        )
+        XCTAssertEqual(
+            try ConfigCommand.write(key: "meeting-ai-output-language", value: "Korean", defaults: defaults),
+            "ko"
+        )
+        XCTAssertEqual(try ConfigCommand.read(key: "meeting-ai-output-language", defaults: defaults), "ko")
     }
 
     func testPromptsRunLanguagePolicyReadsInjectedAppDefaults() throws {
