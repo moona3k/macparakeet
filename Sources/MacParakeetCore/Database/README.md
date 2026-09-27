@@ -147,6 +147,14 @@ This repository is the persistence piece only; media
 export, actual STT and completion automation belong to other collaborators
 described in `spec/contracts/meeting-splitting.md`.
 
+**Library summary rows are read-only.** `fetchLibraryPage` defaults to
+complete rows (the CLI relies on this). The app's Library and Meetings lists
+request `TranscriptionLibraryPayload.summary`, which loads word, segment, and
+diarization timing JSON as `NULL`; on a real library that JSON is over 90% of
+a page's bytes. Transcript text and metadata stay, so search and previews
+are unchanged. Reload a summary row by ID before persisting it, exporting
+it, or opening it in transcript detail.
+
 **Never use raw SQL `WHERE id = ?` with `uuid.uuidString`.**
 GRDB stores UUID values via Codable encoding, which produces a
 representation that is not always equal to `UUID.uuidString`. Use

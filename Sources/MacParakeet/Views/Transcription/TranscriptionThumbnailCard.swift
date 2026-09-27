@@ -2,8 +2,6 @@ import SwiftUI
 import MacParakeetCore
 import MacParakeetViewModels
 
-private let sharedThumbnailCache = ThumbnailCacheService.shared
-
 /// Thumbnail card for displaying a transcription in a grid layout.
 struct TranscriptionThumbnailCard<MenuContent: View>: View {
     let transcription: Transcription
@@ -16,6 +14,8 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
     @ViewBuilder var menuContent: () -> MenuContent
 
     @State private var hovered = false
+    @State private var thumbnail: CGImage?
+    @State private var thumbnailLoadFailed = false
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -29,16 +29,6 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
         .accessibilityElement(children: .contain)
         .onHover { hovered = $0 }
         .animation(DesignSystem.Animation.hoverTransition, value: hovered)
-        .onAppear {
-            // If not locally cached, trigger background download so it's cached for next render
-            if sharedThumbnailCache.cachedThumbnail(for: transcription.id) == nil,
-               let urlString = transcription.thumbnailURL {
-                let id = transcription.id
-                Task.detached(priority: .utility) {
-                    _ = try? await ThumbnailCacheService.shared.downloadThumbnail(from: urlString, for: id)
-                }
-            }
-        }
     }
 
     private var cardButton: some View {
@@ -50,7 +40,6 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
             .background(
                 RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
                     .fill(isSelected ? DesignSystem.Colors.accentLight : DesignSystem.Colors.cardBackground)
-                    .cardShadow(hovered ? DesignSystem.Shadows.cardHover : DesignSystem.Shadows.cardRest)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
@@ -141,11 +130,14 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
     // MARK: - Thumbnail
 
     private var thumbnailArea: some View {
+        let image = thumbnail ?? LibraryThumbnailStore.shared.cachedImage(for: transcription.id)
+        let source = image == nil ? LibraryThumbnailStore.shared.source(for: transcription) : nil
+
         // Color.clear establishes a consistent 16:9 frame regardless of content
-        Color.clear
+        return Color.clear
             .aspectRatio(DesignSystem.Layout.thumbnailAspectRatio, contentMode: .fit)
             .overlay {
-                thumbnailContent
+                thumbnailContent(image: image, source: source)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .overlay(alignment: .bottomTrailing) {
@@ -164,48 +156,39 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
                 }
             }
             .clipShape(Rectangle())
+            .task(id: source) {
+                await loadThumbnail(from: source)
+            }
     }
 
     @ViewBuilder
-    private var thumbnailContent: some View {
-        if let cached = sharedThumbnailCache.cachedThumbnail(for: transcription.id),
-           let nsImage = NSImage(contentsOf: cached) {
-            // Locally cached thumbnail (YouTube download or local video frame)
-            Image(nsImage: nsImage)
+    private func thumbnailContent(image: CGImage?, source: LibraryThumbnailStore.Source?) -> some View {
+        if let image {
+            Image(decorative: image, scale: 1)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
-        } else if let url = resolvedThumbnailURL {
-            // Remote URL — load and cache in background
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                case .empty:
-                    remoteLoadingView
-                case .failure:
-                    placeholderView
-                @unknown default:
-                    placeholderView
-                }
-            }
         } else {
-            placeholderView
+            switch source {
+            case .cachedFile where !thumbnailLoadFailed:
+                // Decoding takes a few milliseconds; hold the frame quietly.
+                DesignSystem.Colors.surfaceElevated
+            case .remote where !thumbnailLoadFailed:
+                remoteLoadingView
+            case .cachedFile, .remote, nil:
+                placeholderView
+            }
         }
     }
 
-    /// Resolves a thumbnail URL: explicit thumbnailURL, or derived from YouTube sourceURL.
-    private var resolvedThumbnailURL: URL? {
-        if let urlString = transcription.thumbnailURL, let url = URL(string: urlString) {
-            return url
+    private func loadThumbnail(from source: LibraryThumbnailStore.Source?) async {
+        guard let source else { return }
+        let image = await LibraryThumbnailStore.shared.image(for: transcription.id, from: source)
+        guard !Task.isCancelled else { return }
+        if let image {
+            thumbnail = image
+        } else {
+            thumbnailLoadFailed = true
         }
-        // Derive from YouTube video ID
-        if let sourceURL = transcription.sourceURL,
-           let videoID = YouTubeURLValidator.extractVideoID(sourceURL) {
-            return URL(string: "https://i.ytimg.com/vi/\(videoID)/hqdefault.jpg")
-        }
-        return nil
     }
 
     private var placeholderView: some View {

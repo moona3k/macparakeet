@@ -204,6 +204,7 @@ public final class TranscriptionLibraryViewModel {
     public private(set) var speakerAttributionProjectionProvider:
         (@Sendable (Transcription) throws -> SpeakerAttributionProjection)?
     private var loadTask: Task<Void, Never>?
+    private var openRequestID = UUID()
     private var searchDebounceTask: Task<Void, Never>?
     private var loadGeneration = 0
     private var requestedWindowSize = 0
@@ -307,6 +308,40 @@ public final class TranscriptionLibraryViewModel {
 
     public var selectedLoadedTranscriptionsForExport: [Transcription] {
         selectedLoadedTranscriptions
+    }
+
+    /// Loaded rows omit timing data (`TranscriptionLibraryPayload.summary`).
+    /// Returns the complete stored row to open in transcript detail, or `nil`
+    /// when the row is gone, loading fails, or a later open superseded this one.
+    public func loadForOpening(_ transcription: Transcription) async -> Transcription? {
+        let requestID = UUID()
+        openRequestID = requestID
+        do {
+            let stored = try await fetchStoredTranscriptions(ids: [transcription.id]).first
+            guard openRequestID == requestID else { return nil }
+            if stored == nil {
+                errorMessage = "This recording is no longer in the Library."
+            }
+            return stored
+        } catch {
+            guard openRequestID == requestID else { return nil }
+            logger.error("Failed to open transcription: \(error.localizedDescription, privacy: .private)")
+            errorMessage = "Failed to open transcription: \(error.localizedDescription)"
+            return nil
+        }
+    }
+
+    /// Complete stored rows for `targets`, in order, for export. Rows deleted
+    /// since they were loaded are skipped.
+    public func loadForExport(_ targets: [Transcription]) async throws -> [Transcription] {
+        try await fetchStoredTranscriptions(ids: targets.map(\.id))
+    }
+
+    private func fetchStoredTranscriptions(ids: [UUID]) async throws -> [Transcription] {
+        guard let repo = transcriptionRepo else { return [] }
+        return try await Task.detached(priority: .userInitiated) {
+            try ids.compactMap { try repo.fetch(id: $0) }
+        }.value
     }
 
     private func groupByDate(_ items: [Transcription]) -> [(group: TranscriptionDateGroup, items: [Transcription])] {
@@ -851,7 +886,8 @@ public final class TranscriptionLibraryViewModel {
             limit: pageSize,
             offset: offset,
             includeProcessing: false,
-            includeProcessingMeetings: true
+            includeProcessingMeetings: true,
+            payload: .summary
         )
     }
 

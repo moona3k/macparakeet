@@ -169,8 +169,14 @@ struct MainWindowView: View {
                                 settingsViewModel.requestPendingMeetingRecovery()
                             },
                             onSelectMeeting: { transcription in
-                                transcriptionViewModel.currentTranscription = transcription
-                                state.navigateToTranscription(from: .meetings)
+                                Task {
+                                    let meetings = meetingsWorkspaceViewModel.recentMeetingsViewModel
+                                    guard let stored = await meetings.loadForOpening(transcription),
+                                        state.selectedItem == .meetings
+                                    else { return }
+                                    transcriptionViewModel.currentTranscription = stored
+                                    state.navigateToTranscription(from: .meetings)
+                                }
                             }
                         )
                     case .library:
@@ -232,7 +238,12 @@ struct MainWindowView: View {
                                     state.navigateToAsk()
                                 }
                             ) { transcription in
-                                transcriptionViewModel.currentTranscription = transcription
+                                Task {
+                                    guard let stored = await libraryViewModel.loadForOpening(transcription),
+                                        state.selectedItem == .library
+                                    else { return }
+                                    transcriptionViewModel.currentTranscription = stored
+                                }
                             }
                         }
                     case .ask:

@@ -75,6 +75,89 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertEqual(loaded.cleanTranscript, "Wrong words.")
     }
 
+    // MARK: - Summary rows and complete-row hand-offs
+
+    func testLoadedRowsOmitTimingDataThatOpeningLoads() async throws {
+        let stored = timedTranscription(fileName: "timed.m4a")
+        try repo.save(stored)
+
+        await load()
+        let loaded = try XCTUnwrap(vm.transcriptions.first)
+        XCTAssertNil(loaded.wordTimestamps)
+        XCTAssertEqual(loaded.cleanTranscript, "Hello world.")
+
+        let opened = await vm.loadForOpening(loaded)
+        XCTAssertEqual(opened?.wordTimestamps?.map(\.word), ["Hello", "world."])
+        XCTAssertEqual(opened?.transcriptSegments?.count, 1)
+    }
+
+    func testOpeningARowDeletedSinceLoadReportsItAndOpensNothing() async throws {
+        let stored = timedTranscription(fileName: "gone.m4a")
+        try repo.save(stored)
+        await load()
+        let loaded = try XCTUnwrap(vm.transcriptions.first)
+        XCTAssertTrue(try repo.delete(id: stored.id))
+
+        let opened = await vm.loadForOpening(loaded)
+
+        XCTAssertNil(opened)
+        XCTAssertNotNil(vm.errorMessage)
+    }
+
+    func testLaterOpenSupersedesAnEarlierOne() async throws {
+        let first = timedTranscription(fileName: "first.m4a")
+        let second = timedTranscription(fileName: "second.m4a")
+        try repo.save(first)
+        try repo.save(second)
+
+        let earlier = Task { await vm.loadForOpening(first) }
+        let later = Task { await vm.loadForOpening(second) }
+
+        let earlierResult = await earlier.value
+        let laterResult = await later.value
+        XCTAssertNil(earlierResult)
+        XCTAssertEqual(laterResult?.id, second.id)
+    }
+
+    func testExportLoadsCompleteRowsInSelectionOrderSkippingDeletedRows() async throws {
+        let kept = timedTranscription(fileName: "kept.m4a")
+        let deleted = timedTranscription(fileName: "deleted.m4a")
+        let alsoKept = timedTranscription(fileName: "also-kept.m4a")
+        for transcription in [kept, deleted, alsoKept] {
+            try repo.save(transcription)
+        }
+        XCTAssertTrue(try repo.delete(id: deleted.id))
+
+        let exported = try await vm.loadForExport([alsoKept, deleted, kept])
+
+        XCTAssertEqual(exported.map(\.id), [alsoKept.id, kept.id])
+        XCTAssertTrue(exported.allSatisfy { $0.wordTimestamps?.count == 2 })
+    }
+
+    private func timedTranscription(fileName: String) -> Transcription {
+        Transcription(
+            fileName: fileName,
+            rawTranscript: "Hello world.",
+            cleanTranscript: "Hello world.",
+            wordTimestamps: [
+                WordTimestamp(word: "Hello", startMs: 0, endMs: 200, confidence: 1, speakerId: "S1"),
+                WordTimestamp(word: "world.", startMs: 220, endMs: 500, confidence: 1, speakerId: "S1"),
+            ],
+            speakers: [.init(id: "S1", label: "Speaker 1")],
+            transcriptSegments: [
+                TranscriptSegmentRecord(
+                    startMs: 0,
+                    endMs: 500,
+                    speakerId: "S1",
+                    speakerLabel: "Speaker 1",
+                    text: "Hello world.",
+                    wordRange: .init(startIndex: 0, endIndexExclusive: 2)
+                )
+            ],
+            status: .completed
+        )
+    }
+
     func testRetryRefreshRetainsCurrentCorrectionOnFailureAndClearsItForNewFingerprint() async throws {
         let words = [
             WordTimestamp(word: "Wrong", startMs: 0, endMs: 150, confidence: 1, speakerId: "S1"),

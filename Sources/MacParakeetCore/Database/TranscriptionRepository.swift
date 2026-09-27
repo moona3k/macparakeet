@@ -408,11 +408,12 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
                     normalizedQuery: UnicodeSearch.makeKey(searchText),
                     sortOrder: query.sortOrder,
                     limit: limit,
-                    offset: offset
+                    offset: offset,
+                    payload: query.payload
                 )
             }
 
-            var sql = "SELECT * FROM transcriptions"
+            var sql = "SELECT \(try Self.librarySelection(for: query.payload, in: db)) FROM transcriptions"
             if !whereClauses.isEmpty {
                 sql += " WHERE " + whereClauses.joined(separator: " AND ")
             }
@@ -432,6 +433,7 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
                 hasMore: fetched.count > limit,
                 effectiveTranscriptTextByID: try Self.effectiveLibraryTranscriptTexts(
                     for: items,
+                    payload: query.payload,
                     in: db
                 )
             )
@@ -460,9 +462,10 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
         normalizedQuery: String,
         sortOrder: TranscriptionLibrarySortOrder,
         limit: Int,
-        offset: Int
+        offset: Int,
+        payload: TranscriptionLibraryPayload
     ) throws -> TranscriptionLibraryPage {
-        var sql = "SELECT * FROM transcriptions"
+        var sql = "SELECT \(try librarySelection(for: payload, in: db)) FROM transcriptions"
         if !whereClauses.isEmpty {
             sql += " WHERE " + whereClauses.joined(separator: " AND ")
         }
@@ -480,6 +483,7 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
         while let transcription = try cursor.next() {
             let effectiveTranscriptText = try effectiveLibraryTranscriptText(
                 for: transcription,
+                payload: payload,
                 activeTextCorrectionIDs: activeTextCorrectionIDs,
                 in: db
             )
@@ -951,14 +955,34 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
         }
     }
 
+    /// The column list for a Library page. `.summary` keeps every column
+    /// but selects the timing JSON as `NULL`, so rows still decode as
+    /// `Transcription` and columns added later are included automatically.
+    private static func librarySelection(for payload: TranscriptionLibraryPayload, in db: Database) throws -> String {
+        switch payload {
+        case .full:
+            return "*"
+        case .summary:
+            return try db.columns(in: Transcription.databaseTableName)
+                .map { column in
+                    let name = column.name.quotedDatabaseIdentifier
+                    return TranscriptionLibraryPayload.summaryOmittedColumns.contains(column.name)
+                        ? "NULL AS \(name)" : name
+                }
+                .joined(separator: ", ")
+        }
+    }
+
     private static func effectiveLibraryTranscriptTexts(
         for transcriptions: [Transcription],
+        payload: TranscriptionLibraryPayload,
         in db: Database
     ) throws -> [UUID: String] {
         let activeTextCorrectionIDs = try activeTextCorrectionTranscriptionIDs(in: db)
         return try transcriptions.reduce(into: [:]) { result, transcription in
             result[transcription.id] = try effectiveLibraryTranscriptText(
                 for: transcription,
+                payload: payload,
                 activeTextCorrectionIDs: activeTextCorrectionIDs,
                 in: db
             )
@@ -1008,12 +1032,19 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
 
     private static func effectiveLibraryTranscriptText(
         for transcription: Transcription,
+        payload: TranscriptionLibraryPayload = .full,
         activeTextCorrectionIDs: Set<UUID>,
         in db: Database
     ) throws -> String? {
         guard activeTextCorrectionIDs.contains(transcription.id) else { return nil }
+        // Corrections resolve against timing evidence, which a summary row
+        // omits. Only corrected rows pay for loading it.
+        let stored =
+            payload == .summary
+            ? try Transcription.fetchOne(db, key: transcription.id) ?? transcription
+            : transcription
         let projection = try SpeakerAttributionReadService.resolve(
-            transcription: transcription,
+            transcription: stored,
             in: db
         )
         guard projection.attribution.hasTextCorrections else { return nil }
