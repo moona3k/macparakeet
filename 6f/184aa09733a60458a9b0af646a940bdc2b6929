@@ -1,0 +1,25 @@
+Tests/CLITests/IsolatedDefaults.swift
+  s_6b3fc720ed30db::t_3491a743e97c04 13-24
+  s_6b3fc720ed30db::t_5ec7eeb98f72e6 6
+Tests/MacParakeetTests/IsolatedDefaults.swift
+  s_6b3fc720ed30db::t_3491a743e97c04 13-24
+  s_6b3fc720ed30db::t_f01572a01c9daf 6
+Tests/MacParakeetTests/IsolatedDefaultsTests.swift
+  s_6b3fc720ed30db::t_1d32ecf6ae8932 11-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6f184aa09733a60458a9b0af646a940bdc2b6929",
+  "prompts": {},
+  "sessions": {
+    "s_6b3fc720ed30db": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e3a7-90ec-7333-93bc-b927b6c91137",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
