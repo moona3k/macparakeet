@@ -1,0 +1,21 @@
+docs/releases/0.8.8/github.md
+  s_bb0159acd21445::t_b53ec5501396d6 19
+docs/releases/0.8.8/sparkle.html
+  s_bb0159acd21445::t_ac1f990d9437c6 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "cce3554d1996d40609d3d8192fe217df4028db68",
+  "prompts": {},
+  "sessions": {
+    "s_bb0159acd21445": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "87a55e08-5eae-4845-a85f-5d9670c3039e",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
