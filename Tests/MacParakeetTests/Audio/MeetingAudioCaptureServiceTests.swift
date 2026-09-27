@@ -1012,7 +1012,7 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
     }
 
     func testInterruptsOnlyMicrophoneWhenItsBufferCopyFails() async throws {
-        let microphone = MockMeetingMicrophoneCapture()
+        let microphone = MockMeetingMicrophoneCapture(emitsStartupBuffer: false)
         let service = MeetingAudioCaptureService(
             microphoneCapture: microphone,
             systemAudioCaptureFactory: { MockMeetingSystemAudioCapture() }
@@ -1022,12 +1022,15 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         _ = try await service.startForTesting { events.append($0) }
         defer { Task { await service.stop() } }
 
-        // Microphone start is async; emit only once its callbacks are installed.
-        try await waitUntil { microphone.isStallObserverInstalled }
+        // Runtime interruption requires a successfully delivered microphone buffer.
+        try await establishMicrophoneDelivery(microphone, events: events)
         let invalidBuffer = try XCTUnwrap(makeInterleavedFloat64StereoBuffer(samples: [0.5, 0.5]))
         microphone.emit(buffer: invalidBuffer, time: AVAudioTime(hostTime: 1))
 
-        let emitted = try await events.waitForFirst()
+        let emitted = try await events.wait {
+            if case .sourceInterrupted = $0 { return true }
+            return false
+        }
         guard case let .sourceInterrupted(.microphone, error) = emitted else {
             XCTFail("Expected microphone interruption, got \(String(describing: emitted))")
             return
@@ -1040,7 +1043,7 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
     }
 
     func testInterruptsOnlyMicrophoneWhenNonInterleavedBufferCopyFails() async throws {
-        let microphone = MockMeetingMicrophoneCapture()
+        let microphone = MockMeetingMicrophoneCapture(emitsStartupBuffer: false)
         let service = MeetingAudioCaptureService(
             microphoneCapture: microphone,
             systemAudioCaptureFactory: { MockMeetingSystemAudioCapture() }
@@ -1050,12 +1053,15 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         _ = try await service.startForTesting { events.append($0) }
         defer { Task { await service.stop() } }
 
-        // Microphone start is async; emit only once its callbacks are installed.
-        try await waitUntil { microphone.isStallObserverInstalled }
+        // Runtime interruption requires a successfully delivered microphone buffer.
+        try await establishMicrophoneDelivery(microphone, events: events)
         let invalidBuffer = try XCTUnwrap(makeNonInterleavedFloat64MonoBuffer(frames: 4))
         microphone.emit(buffer: invalidBuffer, time: AVAudioTime(hostTime: 1))
 
-        let emitted = try await events.waitForFirst()
+        let emitted = try await events.wait {
+            if case .sourceInterrupted = $0 { return true }
+            return false
+        }
         guard case let .sourceInterrupted(.microphone, error) = emitted else {
             XCTFail("Expected microphone interruption, got \(String(describing: emitted))")
             return
