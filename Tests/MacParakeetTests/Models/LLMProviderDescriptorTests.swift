@@ -157,9 +157,8 @@ final class LLMProviderDescriptorTests: XCTestCase {
     }
 
     func testDeveloperOverrideCanExposeInProcessLocalProviderWithoutFlippingPublicFlag() {
-        let suiteName = "LLMProviderDescriptorTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("LLMProviderDescriptorTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
 
         defaults.set(true, forKey: AppFeatures.inProcessLocalLLMDeveloperDefaultsKey)
 
@@ -175,9 +174,8 @@ final class LLMProviderDescriptorTests: XCTestCase {
     }
 
     func testDeveloperOverrideDoesNotExposeInProcessLocalProviderWhenRuntimeUnavailable() {
-        let suiteName = "LLMProviderDescriptorTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("LLMProviderDescriptorTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
 
         defaults.set(true, forKey: AppFeatures.inProcessLocalLLMDeveloperDefaultsKey)
 
@@ -199,9 +197,8 @@ final class LLMProviderDescriptorTests: XCTestCase {
     }
 
     func testDeveloperLaunchArgumentCanExposeInProcessLocalProviderWithoutFlippingPublicFlag() {
-        let suiteName = "LLMProviderDescriptorTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("LLMProviderDescriptorTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
 
         XCTAssertFalse(AppFeatures.inProcessLocalLLMEnabled)
         XCTAssertTrue(

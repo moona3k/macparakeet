@@ -12,7 +12,7 @@ final class LLMConfigStoreTests: XCTestCase {
 
     override func setUp() {
         keychain = InMemoryKeyValueStore()
-        suiteName = UUID().uuidString
+        suiteName = makeIsolatedDefaultsSuite("LLMConfigStoreTests.")
         routeLockURL = FileManager.default.temporaryDirectory.appendingPathComponent(suiteName).appendingPathComponent(
             "routes.lock")
         defaults = UserDefaults(suiteName: suiteName)!
@@ -21,7 +21,6 @@ final class LLMConfigStoreTests: XCTestCase {
 
     override func tearDown() {
         try? FileManager.default.removeItem(at: routeLockURL.deletingLastPathComponent())
-        defaults.removePersistentDomain(forName: suiteName)
     }
 
     func testBusyMutationsCannotReadRotateOrDeleteCredentials() throws {

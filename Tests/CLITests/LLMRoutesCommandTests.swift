@@ -15,9 +15,8 @@ final class LLMRoutesCommandTests: XCTestCase {
     }
 
     private func sharedDefaults() -> (UserDefaults, String, URL) {
-        let name = "LLMRoutesCommandTests.\(UUID().uuidString)"
+        let name = makeIsolatedDefaultsSuite("LLMRoutesCommandTests.")
         let defaults = UserDefaults(suiteName: name)!
-        addTeardownBlock { defaults.removePersistentDomain(forName: name) }
         let lockURL = FileManager.default.temporaryDirectory.appendingPathComponent(name).appendingPathComponent(
             "routes.lock")
         addTeardownBlock { try? FileManager.default.removeItem(at: lockURL.deletingLastPathComponent()) }

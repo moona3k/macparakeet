@@ -57,9 +57,8 @@ final class TranscriptDocumentLayoutTests: XCTestCase {
     }
 
     func testSavedResultEditorUsesAvailableHeight() throws {
-        let suite = "TranscriptDocumentLayoutTests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("TranscriptDocumentLayoutTests.")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
         let transcription = Transcription(
             fileName: "Synthetic meeting", cleanTranscript: "Synthetic transcript", status: .completed)
         let model = TranscriptionViewModel(defaults: defaults)

@@ -93,15 +93,12 @@ final class DictationMediaPauseCoordinatorTests: XCTestCase {
     private var settings: SettingsViewModel!
 
     override func setUp() {
-        defaultsSuiteName = "dictation-media-pause-\(UUID().uuidString)"
+        defaultsSuiteName = makeIsolatedDefaultsSuite("dictation-media-pause-")
         defaults = UserDefaults(suiteName: defaultsSuiteName)!
         settings = SettingsViewModel(defaults: defaults)
     }
 
     override func tearDown() {
-        if let defaultsSuiteName {
-            defaults.removePersistentDomain(forName: defaultsSuiteName)
-        }
         settings = nil
         defaults = nil
         defaultsSuiteName = nil

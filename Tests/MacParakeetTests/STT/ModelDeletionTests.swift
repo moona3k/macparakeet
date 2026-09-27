@@ -441,9 +441,8 @@ final class ModelDeletionTests: XCTestCase {
     // MARK: - Whisper variant file removal
 
     func testDeleteWhisperModelRemovesFolderAndClearsOptimizedFlag() throws {
-        let suite = "test.ModelDeletion.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("test.ModelDeletion.")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let variant = SpeechEnginePreference.defaultWhisperModelVariant
         let folder = tempRoot.appendingPathComponent(variant, isDirectory: true)
@@ -459,9 +458,8 @@ final class ModelDeletionTests: XCTestCase {
     }
 
     func testDeleteWhisperModelIsNoOpWhenNotDownloaded() throws {
-        let suite = "test.ModelDeletion.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("test.ModelDeletion.")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let removed = WhisperEngine.deleteModel(
             model: SpeechEnginePreference.defaultWhisperModelVariant,

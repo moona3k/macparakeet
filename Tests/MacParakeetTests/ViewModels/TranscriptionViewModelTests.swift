@@ -329,9 +329,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testTranscribeFileProgressSublineUsesFinalEngineSnapshot() async throws {
-        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("TranscriptionViewModelTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         SpeechEnginePreference.parakeet.save(to: defaults)
         SpeechEnginePreference.saveFinalTranscriptionOverride(.whisper, defaults: defaults)
         SpeechEnginePreference.saveWhisperModelVariant(
@@ -355,9 +354,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testTranscribeFileShowsIndeterminateWhisperModelPreparation() async throws {
-        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("TranscriptionViewModelTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         SpeechEnginePreference.whisper.save(to: defaults)
         viewModel = TranscriptionViewModel(defaults: defaults)
         await mockService.configureProgress(phases: [.preparingSpeechModel])
@@ -380,9 +378,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testTranscribeFileProgressSublineUsesNemotronVariantSnapshot() async throws {
-        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("TranscriptionViewModelTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         SpeechEnginePreference.nemotron.save(to: defaults)
         SpeechEnginePreference.saveNemotronModelVariant(.english1120, defaults: defaults)
         viewModel = TranscriptionViewModel(defaults: defaults)
@@ -878,9 +875,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testPresentCompletedMeetingDeletesAudioWhenRetentionIsOff() throws {
-        let suite = "transcription-vm-meeting-audio-\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("transcription-vm-meeting-audio-")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey)
         viewModel = TranscriptionViewModel(defaults: defaults)
 
@@ -915,9 +911,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testPresentCompletedMeetingSurfacesUnavailableAutoSaveFolder() throws {
-        let suite = "transcription-vm-meeting-auto-save-\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("transcription-vm-meeting-auto-save-")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("meeting-auto-save-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -948,9 +943,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testPresentCompletedMeetingComposesExistingErrorWithUnavailableAutoSaveFolderWarning() throws {
-        let suite = "transcription-vm-meeting-auto-save-existing-error-\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("transcription-vm-meeting-auto-save-existing-error-")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("meeting-auto-save-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -982,9 +976,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testPresentRecoveredMeetingKeepsAudioEvenWhenRetentionIsOff() throws {
-        let suite = "transcription-vm-meeting-recovery-\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("transcription-vm-meeting-recovery-")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey)
         viewModel = TranscriptionViewModel(defaults: defaults)
 
@@ -1297,9 +1290,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testUnselectedMeetingCompletionStillExportsRefreshesAndRunsAutoPrompts() async throws {
-        let suite = "test.quiet-meeting-completion.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("test.quiet-meeting-completion.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("quiet-meeting-export-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -3616,9 +3608,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testRetranscribeProgressSublineUsesSpeechEngineOverride() async throws {
-        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("TranscriptionViewModelTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         SpeechEnginePreference.parakeet.save(to: defaults)
         SpeechEnginePreference.saveWhisperModelVariant(
             SpeechEnginePreference.defaultWhisperModelVariant, defaults: defaults)
@@ -3747,9 +3738,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testRetranscriptionEngineOptionUsesCurrentSettingsForLegacyMeetingMetadata() throws {
-        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("TranscriptionViewModelTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         SpeechEnginePreference.whisper.save(to: defaults)
         SpeechEnginePreference.saveWhisperDefaultLanguage("ja", defaults: defaults)
         SpeechEnginePreference.saveNemotronModelVariant(.english1120, defaults: defaults)
@@ -3787,9 +3777,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testRetranscriptionEngineOptionUsesRecordedEngineForFileTranscript() throws {
-        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("TranscriptionViewModelTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         // Current default is Parakeet — deliberately different from the engine
         // that produced this file, so a leak of the current default would fail.
         SpeechEnginePreference.parakeet.save(to: defaults)
@@ -3827,9 +3816,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testRetranscriptionEngineOptionKeepsCurrentVariantForRecordedParakeet() throws {
-        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("TranscriptionViewModelTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         SpeechEnginePreference.parakeet.save(to: defaults)
         // The transcript was made with the Unified build, but the user's current
         // Parakeet build is v2. A rerun resolves the *persisted* variant at run
@@ -3868,9 +3856,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testRetranscriptionEngineOptionFirstTimestampCapableChoiceUsesParakeetTDT() throws {
-        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("TranscriptionViewModelTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         SpeechEnginePreference.saveParakeetModelVariant(.v3, defaults: defaults)
         viewModel = TranscriptionViewModel(
             defaults: defaults,
@@ -3911,9 +3898,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testRetranscriptionEngineOptionFirstTimestampCapableChoiceCanUseParakeetUnified() throws {
-        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("TranscriptionViewModelTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         SpeechEnginePreference.saveParakeetModelVariant(.unified, defaults: defaults)
         viewModel = TranscriptionViewModel(
             defaults: defaults,
@@ -3966,9 +3952,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testRetranscriptionEngineOptionChoicesCarryRegistryTimestampCapabilities() throws {
-        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("TranscriptionViewModelTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         SpeechEnginePreference.saveParakeetModelVariant(.unified, defaults: defaults)
         SpeechEnginePreference.saveNemotronModelVariant(.english1120, defaults: defaults)
         SpeechEnginePreference.saveWhisperModelVariant(
@@ -4048,9 +4033,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     func testRetranscriptionEngineOptionFirstTimestampCapableChoiceUsesUnifiedWhenOtherTimestampEnginesAreUnavailable()
         throws
     {
-        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("TranscriptionViewModelTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         SpeechEnginePreference.saveParakeetModelVariant(.unified, defaults: defaults)
         viewModel = TranscriptionViewModel(
             defaults: defaults,
@@ -4097,9 +4081,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testRetranscriptionEngineOptionFallsBackToFinalRouteForLegacyFileTranscript() throws {
-        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("TranscriptionViewModelTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         SpeechEnginePreference.parakeet.save(to: defaults)
         SpeechEnginePreference.saveFinalTranscriptionOverride(.whisper, defaults: defaults)
         SpeechEnginePreference.saveWhisperDefaultLanguage("ko", defaults: defaults)
@@ -4195,9 +4178,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testRetranscriptionEngineOptionAdvisesColdWhisperSwitch() throws {
-        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("TranscriptionViewModelTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         SpeechEnginePreference.parakeet.save(to: defaults)
         SpeechEnginePreference.saveWhisperModelVariant(
             SpeechEnginePreference.defaultWhisperModelVariant,
@@ -4270,9 +4252,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testRetranscriptionEngineOptionAvailableForYouTubeSource() throws {
-        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("TranscriptionViewModelTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         SpeechEnginePreference.parakeet.save(to: defaults)
         SpeechEnginePreference.saveNemotronDefaultLanguage("en_US", defaults: defaults)
         viewModel = TranscriptionViewModel(
@@ -4309,9 +4290,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testRetranscriptionEngineOptionAvailableForFileSource() throws {
-        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("TranscriptionViewModelTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         SpeechEnginePreference.whisper.save(to: defaults)
         SpeechEnginePreference.saveWhisperDefaultLanguage("ko", defaults: defaults)
         viewModel = TranscriptionViewModel(
@@ -4350,9 +4330,8 @@ final class TranscriptionViewModelTests: XCTestCase {
         // Cohere has no auto-detect and the engine defaults to English, so the
         // retranscription choice must carry the persisted picker language —
         // otherwise a non-English Cohere user gets silently English output.
-        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("TranscriptionViewModelTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         SpeechEnginePreference.parakeet.save(to: defaults)
         SpeechEnginePreference.saveCohereDefaultLanguage("fr", defaults: defaults)
         viewModel = TranscriptionViewModel(
@@ -4384,9 +4363,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testRetranscriptionEngineOptionDisablesMissingCohereModel() throws {
-        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("TranscriptionViewModelTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         SpeechEnginePreference.parakeet.save(to: defaults)
         viewModel = TranscriptionViewModel(
             defaults: defaults,
@@ -4661,9 +4639,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testAutoRunPromptsUseRichTranscriptContextByDefault() {
-        let suite = "test.transcription.context.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("test.transcription.context.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
         viewModel = TranscriptionViewModel(defaults: defaults)
 
         let llm = MockLLMService()
@@ -4762,9 +4739,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testAutoRunPromptsUsePlainTranscriptContextWhenConfigured() {
-        let suite = "test.transcription.context.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("test.transcription.context.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(
             TranscriptAIContextMode.plainTranscript.rawValue,
             forKey: UserDefaultsAppRuntimePreferences.transcriptAIContextModeKey

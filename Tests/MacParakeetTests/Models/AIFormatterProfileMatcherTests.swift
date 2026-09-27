@@ -292,9 +292,8 @@ final class AIFormatterProfileMatcherTests: XCTestCase {
     }
 
     func testSmartDefaultsPolicyRoundTripsThroughUserDefaults() throws {
-        let suiteName = "matcher-policy-tests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("matcher-policy-tests-")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
 
         XCTAssertEqual(AIFormatterSmartDefaultsPolicy.current(defaults: defaults), .allEnabled)
 

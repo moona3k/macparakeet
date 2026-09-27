@@ -42,7 +42,7 @@ final class TransformsViewModelTests: XCTestCase {
     }
 
     func testMenuBarVisibilityDefaultsOnAndCanHide() {
-        let suiteName = "test.menu-bar-transforms.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("test.menu-bar-transforms.")
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
         let id = UUID()
@@ -55,7 +55,7 @@ final class TransformsViewModelTests: XCTestCase {
     }
 
     func testSetVisibleInMenuBarUsesInjectedDefaults() async throws {
-        let suiteName = "test.vm-menu-bar-transforms.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("test.vm-menu-bar-transforms.")
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
         viewModel = TransformsViewModel()

@@ -58,9 +58,8 @@ final class DictationOverlayLayoutTests: XCTestCase {
     }
 
     func testStoredPlacementFallsBackToBottomForMissingOrUnknownValues() {
-        let suite = "overlay-placement-\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("overlay-placement-")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
         let key = UserDefaultsAppRuntimePreferences.dictationOverlayPlacementKey
 
         XCTAssertEqual(DictationOverlayPlacement.current(defaults: defaults), .bottom)

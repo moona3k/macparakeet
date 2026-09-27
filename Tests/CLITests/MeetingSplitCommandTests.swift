@@ -434,9 +434,8 @@ final class MeetingSplitCommandTests: XCTestCase {
     /// standalone CLI process. Uses an isolated `UserDefaults` suite, never
     /// the real app preferences domain.
     func testSplitMeetingRecordingsRootURLHonorsACustomAppDefaultsFolderPreference() throws {
-        let suiteName = "meeting-split-root-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("meeting-split-root-")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         let customFolder = FileManager.default.temporaryDirectory
             .appendingPathComponent("custom-meeting-recordings-\(UUID().uuidString)").path
         defaults.set(customFolder, forKey: AppPaths.meetingArtifactsFolderKey)
@@ -452,9 +451,8 @@ final class MeetingSplitCommandTests: XCTestCase {
     /// itself owns the default-path/DEBUG-override fallback), never a
     /// separately reimplemented default.
     func testSplitMeetingRecordingsRootURLFallsBackToTheSharedDefaultResolution() throws {
-        let suiteName = "meeting-split-root-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("meeting-split-root-")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let rootURL = meetingRecordingsRootURL(defaults: defaults)
 

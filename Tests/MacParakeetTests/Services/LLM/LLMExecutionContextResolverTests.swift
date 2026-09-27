@@ -4,9 +4,8 @@ import XCTest
 final class LLMExecutionContextResolverTests: XCTestCase {
     func testStoredResolverReturnsNilWithoutProviderConfig() throws {
         let configStore = MockLLMConfigStore()
-        let suiteName = "test.llm.context.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("test.llm.context.")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         let resolver = StoredLLMExecutionContextResolver(
             configStore: configStore,
             cliConfigStore: LocalCLIConfigStore(defaults: defaults)
@@ -19,9 +18,8 @@ final class LLMExecutionContextResolverTests: XCTestCase {
         let configStore = MockLLMConfigStore()
         configStore.config = .openai(apiKey: "sk-test", model: "gpt-5.4")
 
-        let suiteName = "test.llm.context.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("test.llm.context.")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         let resolver = StoredLLMExecutionContextResolver(
             configStore: configStore,
             cliConfigStore: LocalCLIConfigStore(defaults: defaults)
@@ -36,9 +34,8 @@ final class LLMExecutionContextResolverTests: XCTestCase {
         let configStore = MockLLMConfigStore()
         configStore.config = .localCLI()
 
-        let suiteName = "test.llm.context.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("test.llm.context.")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         let cliConfigStore = LocalCLIConfigStore(defaults: defaults)
         try cliConfigStore.save(
             LocalCLIConfig(
@@ -64,9 +61,8 @@ final class LLMExecutionContextResolverTests: XCTestCase {
     func testStoredResolverInheritsDefaultWhenTaskHasNoOverride() throws {
         let configStore = MockLLMConfigStore()
         configStore.config = .openai(apiKey: "sk-test", model: "gpt-5.4")
-        let suiteName = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let resolver = StoredLLMExecutionContextResolver(
             configStore: configStore,
@@ -82,9 +78,8 @@ final class LLMExecutionContextResolverTests: XCTestCase {
         let configStore = MockLLMConfigStore()
         configStore.config = .anthropic(apiKey: "sk-ant", model: "claude-sonnet-5")
         configStore.taskOverrides[.cleanup] = .ollama(model: "llama3.2")
-        let suiteName = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let resolver = StoredLLMExecutionContextResolver(
             configStore: configStore,
@@ -102,9 +97,8 @@ final class LLMExecutionContextResolverTests: XCTestCase {
         configStore.config = .openai(apiKey: "sk-test", model: "gpt-5.4")
         configStore.taskOverrides[.cleanup] = .ollama(model: "llama3.2")
         configStore.taskOverrides[.transform] = .gemini(apiKey: "gemini-key")
-        let suiteName = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let resolver = StoredLLMExecutionContextResolver(
             configStore: configStore,

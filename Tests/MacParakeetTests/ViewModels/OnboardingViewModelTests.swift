@@ -215,9 +215,8 @@ final class OnboardingViewModelTests: XCTestCase {
         perms.microphonePermission = .notDetermined
         perms.accessibilityPermission = true
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .permissions)
@@ -236,9 +235,8 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = MockPermissionService()
         perms.accessibilityPermission = false
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .permissions)
@@ -262,9 +260,8 @@ final class OnboardingViewModelTests: XCTestCase {
         perms.accessibilityPermission = false
         perms.requestAccessibilityResult = false
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .permissions)
@@ -301,9 +298,8 @@ final class OnboardingViewModelTests: XCTestCase {
         perms.accessibilityPermission = false
         perms.requestAccessibilityResult = false
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .permissions)
@@ -333,9 +329,8 @@ final class OnboardingViewModelTests: XCTestCase {
         perms.accessibilityPermission = false
         perms.requestAccessibilityResult = false
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .permissions)
@@ -360,9 +355,8 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = DelayedMicrophonePermissionService()
         perms.accessibilityPermission = false
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.refresh()
@@ -404,9 +398,8 @@ final class OnboardingViewModelTests: XCTestCase {
         perms.microphonePermission = .granted
         perms.accessibilityPermission = true
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms, sttClient: stt, defaults: defaults, practicePasteGrace: .zero)
@@ -452,9 +445,8 @@ final class OnboardingViewModelTests: XCTestCase {
     func testGoBackWalksFourSteps() {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .done)
@@ -477,9 +469,8 @@ final class OnboardingViewModelTests: XCTestCase {
         perms.microphonePermission = .notDetermined
         perms.accessibilityPermission = false
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
 
@@ -505,9 +496,8 @@ final class OnboardingViewModelTests: XCTestCase {
     func testKeyRehearsalOnlyLatchesOnTryItStep() {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .permissions)
@@ -555,9 +545,8 @@ final class OnboardingViewModelTests: XCTestCase {
 
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .practice)
@@ -579,9 +568,8 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         await stt.configureWarmUpProgressDelay(.milliseconds(300))
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms, sttClient: stt, defaults: defaults, practicePasteGrace: .zero)
@@ -615,9 +603,8 @@ final class OnboardingViewModelTests: XCTestCase {
     func testPracticeBoxWaitsForKeyEvenWhenEngineIsReady() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.startEngineWarmUp()
@@ -633,9 +620,8 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         await stt.configureWarmUp(error: STTError.engineStartFailed("boom"))
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .practice)
@@ -717,9 +703,8 @@ final class OnboardingViewModelTests: XCTestCase {
     func testPracticeActivityOnlyTracksWhileListening() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .practice)
@@ -755,9 +740,8 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         await stt.configureWarmUpProgressDelay(.seconds(5))
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.startEngineWarmUp()
@@ -811,9 +795,8 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         await stt.configureWarmUp(error: STTError.engineStartFailed("boom"))
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .practice)
@@ -832,9 +815,8 @@ final class OnboardingViewModelTests: XCTestCase {
     func testSkipIsIgnoredOffTryItStep() {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .permissions)
@@ -850,9 +832,8 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         await stt.configureWarmUp(error: STTError.engineStartFailed("boom"))
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .permissions)
@@ -894,9 +875,8 @@ final class OnboardingViewModelTests: XCTestCase {
     ) async throws -> OnboardingViewModel {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms, sttClient: stt, defaults: defaults, practicePasteGrace: practicePasteGrace)
@@ -914,9 +894,8 @@ final class OnboardingViewModelTests: XCTestCase {
     func testExistingUsersDoNotReOnboard() {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set("2026-01-01T00:00:00Z", forKey: OnboardingViewModel.onboardingCompletedKey)
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
@@ -926,9 +905,8 @@ final class OnboardingViewModelTests: XCTestCase {
     func testPersistedCompletionDoesNotCompleteCurrentRunProgress() {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set("2026-01-01T00:00:00Z", forKey: OnboardingViewModel.onboardingCompletedKey)
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
@@ -946,9 +924,8 @@ final class OnboardingViewModelTests: XCTestCase {
     func testStartNewCurrentRunClearsCurrentProgressButKeepsPersistedCompletion() {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
         let clock = OnboardingTestClock(Date(timeIntervalSince1970: 100))
 
         let vm = makeViewModel(
@@ -1012,9 +989,8 @@ final class OnboardingViewModelTests: XCTestCase {
     func testPermissionPollingLifecycleStopsAfterCancellation() async throws {
         let perms = PollingPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
         let vm = makeViewModel(
             permissionService: perms,
             sttClient: stt,
@@ -1046,9 +1022,8 @@ final class OnboardingViewModelTests: XCTestCase {
     func testEngineWarmUpTransitionsToReady() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .practice)
@@ -1070,9 +1045,8 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         await stt.configureWarmUpHangIndefinitely()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -1109,9 +1083,8 @@ final class OnboardingViewModelTests: XCTestCase {
     func testEngineWarmUpDoesNotStallOnHealthyWarmUpWithShortTimeout() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -1142,9 +1115,8 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         await stt.configureWarmUpHangIndefinitely()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         XCTAssertEqual(vm.step, .welcome, "head-start fires while still on Welcome")
@@ -1167,9 +1139,8 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         await stt.configureWarmUpHangIndefinitely()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.startEngineWarmUp()
@@ -1187,9 +1158,8 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         await stt.configureWarmUpHangIndefinitely()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
 
@@ -1225,9 +1195,8 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         await stt.configureWarmUp(error: STTError.engineStartFailed("boom"))
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .practice)
@@ -1260,9 +1229,8 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         await stt.configureWarmUp(error: STTError.engineStartFailed("boom"))
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         XCTAssertEqual(vm.step, .welcome)
@@ -1302,9 +1270,8 @@ final class OnboardingViewModelTests: XCTestCase {
     func testHeadStartTakesWhisperPathForCJKLocaleBeforeEngineStep() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -1327,9 +1294,8 @@ final class OnboardingViewModelTests: XCTestCase {
     func testEngineWarmUpDownloadRemainsOnPath() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .practice)
@@ -1353,9 +1319,8 @@ final class OnboardingViewModelTests: XCTestCase {
 
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -1391,9 +1356,8 @@ final class OnboardingViewModelTests: XCTestCase {
         let diarization = MockDiarizationService()
         await diarization.configureCachedModels(false)
         await diarization.configureReady(false)
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -1421,9 +1385,8 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         let downloadSpy = WhisperDownloadSpy()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -1466,9 +1429,8 @@ final class OnboardingViewModelTests: XCTestCase {
     func testEngineWarmUpFailsWhisperPreflightWhenCJKLocaleAndOffline() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -1497,9 +1459,8 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         let diarization = MockDiarizationService()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -1523,9 +1484,8 @@ final class OnboardingViewModelTests: XCTestCase {
         let diarization = MockDiarizationService()
         let upstreamError = URLError(.notConnectedToInternet)
         await diarization.configurePrepareModels(error: upstreamError)
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -1557,9 +1517,8 @@ final class OnboardingViewModelTests: XCTestCase {
         await diarization.configureCachedModels(false)
         await diarization.configureReady(false)
         await diarization.configurePrepareModels(error: STTError.modelNotLoaded)
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -1605,9 +1564,8 @@ final class OnboardingViewModelTests: XCTestCase {
                     NSLocalizedDescriptionKey: "Could not write /Users/private/Library/models/segmentation.mlmodelc"
                 ]
             ))
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -1645,9 +1603,8 @@ final class OnboardingViewModelTests: XCTestCase {
                         "FluidAudio checksum failed at /Users/private/Library/models/embedding.mlmodelc"
                 ]
             ))
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -1678,9 +1635,8 @@ final class OnboardingViewModelTests: XCTestCase {
         let stt = MockSTTClient()
         let diarization = MockDiarizationService()
         await diarization.configurePrepareModels(error: CancellationError())
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -1703,9 +1659,8 @@ final class OnboardingViewModelTests: XCTestCase {
     func testMarkOnboardingCompletedPersistsToDefaults() {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         XCTAssertFalse(vm.hasCompletedOnboarding)
@@ -1720,9 +1675,8 @@ final class OnboardingViewModelTests: XCTestCase {
 
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
         let clock = OnboardingTestClock(Date(timeIntervalSince1970: 100))
 
         let vm = makeViewModel(
@@ -1765,9 +1719,8 @@ final class OnboardingViewModelTests: XCTestCase {
 
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
         let clock = OnboardingTestClock(Date(timeIntervalSince1970: 100))
 
         let vm = makeViewModel(
@@ -1801,9 +1754,8 @@ final class OnboardingViewModelTests: XCTestCase {
 
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
         let clock = OnboardingTestClock(Date(timeIntervalSince1970: 100))
 
         let vm = makeViewModel(
@@ -1844,9 +1796,8 @@ final class OnboardingViewModelTests: XCTestCase {
 
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
         let clock = OnboardingTestClock(Date(timeIntervalSince1970: 10))
 
         let vm = makeViewModel(
@@ -1902,9 +1853,8 @@ final class OnboardingViewModelTests: XCTestCase {
             "Downloading speech model (571 MB)... 50%",
             "Loading model into memory...",
         ])
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .practice)
@@ -1947,9 +1897,8 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         await stt.configureWarmUpFailuresBeforeSuccess(2)
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .practice)
@@ -1973,9 +1922,8 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         await stt.configureWarmUp(error: STTError.modelDownloadFailed)
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .practice)
@@ -2002,9 +1950,8 @@ final class OnboardingViewModelTests: XCTestCase {
     func testEngineWarmUpFailsPreflightWhenOfflineOnFirstSetup() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -2034,9 +1981,8 @@ final class OnboardingViewModelTests: XCTestCase {
         let diarization = MockDiarizationService()
         await diarization.configureCachedModels(false)
         await diarization.configureReady(false)
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -2067,9 +2013,8 @@ final class OnboardingViewModelTests: XCTestCase {
         let diarization = MockDiarizationService()
         await diarization.configureCachedModels(true)
         await diarization.configureReady(false)
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -2091,9 +2036,8 @@ final class OnboardingViewModelTests: XCTestCase {
     func testEngineWarmUpFailsPreflightWhenDiskTooLowOnFirstSetup() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -2120,9 +2064,8 @@ final class OnboardingViewModelTests: XCTestCase {
     func testEngineWarmUpFailsPreflightWhenRuntimeUnsupported() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,

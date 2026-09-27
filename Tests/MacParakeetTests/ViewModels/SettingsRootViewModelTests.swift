@@ -11,12 +11,11 @@ final class SettingsRootViewModelTests: XCTestCase {
         // Each test gets an isolated UserDefaults suite so tab persistence
         // assertions don't leak across cases or interfere with the user's
         // real preferences during local runs.
-        suiteName = "SettingsRootViewModelTests.\(UUID().uuidString)"
+        suiteName = makeIsolatedDefaultsSuite("SettingsRootViewModelTests.")
         defaults = UserDefaults(suiteName: suiteName)
     }
 
     override func tearDown() {
-        defaults.removePersistentDomain(forName: suiteName)
         defaults = nil
         suiteName = nil
         super.tearDown()

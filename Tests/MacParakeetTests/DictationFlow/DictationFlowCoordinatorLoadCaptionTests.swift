@@ -616,11 +616,8 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
             transcribeGate: transcribeGate
         )
         let repo = DictationRepository(dbQueue: dbManager.dbQueue)
-        let preferencesSuiteName = "load-caption-\(UUID().uuidString)"
+        let preferencesSuiteName = makeIsolatedDefaultsSuite("load-caption-")
         let preferencesDefaults = UserDefaults(suiteName: preferencesSuiteName)!
-        addTeardownBlock {
-            UserDefaults(suiteName: preferencesSuiteName)?.removePersistentDomain(forName: preferencesSuiteName)
-        }
         preferencesDefaults.set(
             keepDictationOnClipboard, forKey: UserDefaultsAppRuntimePreferences.keepDictationOnClipboardKey)
         preferencesDefaults.set(
@@ -647,11 +644,8 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
             }
         )
 
-        let settingsSuiteName = "load-caption-settings-\(UUID().uuidString)"
+        let settingsSuiteName = makeIsolatedDefaultsSuite("load-caption-settings-")
         let settingsDefaults = UserDefaults(suiteName: settingsSuiteName)!
-        addTeardownBlock {
-            UserDefaults(suiteName: settingsSuiteName)?.removePersistentDomain(forName: settingsSuiteName)
-        }
         settingsDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.showIdlePillKey)
         let settings = SettingsViewModel(defaults: settingsDefaults)
 

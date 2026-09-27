@@ -98,11 +98,8 @@ final class VocabCommandTests: XCTestCase {
     }
 
     func testVocabWordsRecognitionBoostingStatusLineUsesCapabilityRegistry() {
-        let suiteName = "macparakeet-vocab-cli-defaults-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("macparakeet-vocab-cli-defaults-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer {
-            defaults.removePersistentDomain(forName: suiteName)
-        }
 
         SpeechEnginePreference.parakeet.save(to: defaults)
         SpeechEnginePreference.saveParakeetModelVariant(.v3, defaults: defaults)

@@ -7,11 +7,8 @@ import MacParakeetViewModels
 final class AppHotkeyCoordinatorTests: XCTestCase {
 
     private func makeViewModel(functionName: String = #function) -> SettingsViewModel {
-        let suiteName = "AppHotkeyCoordinatorTests.\(functionName).\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("AppHotkeyCoordinatorTests.\(functionName).")
         let defaults = UserDefaults(suiteName: suiteName)!
-        addTeardownBlock {
-            UserDefaults(suiteName: suiteName)?.removePersistentDomain(forName: suiteName)
-        }
         return SettingsViewModel(defaults: defaults)
     }
 

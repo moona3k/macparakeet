@@ -13,7 +13,7 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
     override func setUpWithError() throws {
         mockService = MockTranscriptionService()
         mockRepo = MockTranscriptionRepository()
-        suiteName = "TranscriptionViewModelBatchTests-\(UUID().uuidString)"
+        suiteName = makeIsolatedDefaultsSuite("TranscriptionViewModelBatchTests-")
         defaults = UserDefaults(suiteName: suiteName)
         tempDir = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("VMBatch-\(UUID().uuidString)")
@@ -21,7 +21,6 @@ final class TranscriptionViewModelBatchTests: XCTestCase {
     }
 
     override func tearDownWithError() throws {
-        defaults.removePersistentDomain(forName: suiteName)
         try? FileManager.default.removeItem(at: tempDir)
     }
 

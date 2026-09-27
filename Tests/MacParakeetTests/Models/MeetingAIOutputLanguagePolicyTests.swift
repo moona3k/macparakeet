@@ -49,9 +49,8 @@ final class MeetingAIOutputLanguagePolicyTests: XCTestCase {
     }
 
     func testCurrentFallsBackToTranscriptForMissingOrUnknownValues() {
-        let suite = "meeting-ai-language-\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("meeting-ai-language-")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         XCTAssertEqual(MeetingAIOutputLanguagePolicy.current(defaults: defaults), .followTranscript)
 
@@ -63,9 +62,8 @@ final class MeetingAIOutputLanguagePolicyTests: XCTestCase {
     }
 
     func testSaveRoundTripsThroughUserDefaults() {
-        let suite = "meeting-ai-language-\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("meeting-ai-language-")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
 
         MeetingAIOutputLanguagePolicy.save(.followTranscript, defaults: defaults)
         XCTAssertEqual(

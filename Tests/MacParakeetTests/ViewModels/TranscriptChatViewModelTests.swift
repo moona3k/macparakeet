@@ -631,12 +631,11 @@ final class TranscriptChatViewModelTests: XCTestCase {
     }
 
     func testUnconfirmedModelPublicationDoesNotReportPickerSuccess() throws {
-        let domain = "picker-publication.\(UUID().uuidString)"
+        let domain = makeIsolatedDefaultsSuite("picker-publication.")
         let lockURL = FileManager.default.temporaryDirectory.appendingPathComponent(domain).appendingPathComponent(
             "routes.lock")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: domain))
         defer {
-            defaults.removePersistentDomain(forName: domain)
             try? FileManager.default.removeItem(at: lockURL.deletingLastPathComponent())
         }
         let keys = InMemoryKeyValueStore()
@@ -826,9 +825,8 @@ final class TranscriptChatViewModelTests: XCTestCase {
     }
 
     func testRefreshModelInfoShowsLocalCLIPresetName() throws {
-        let suiteName = "test.chat.localcli.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("test.chat.localcli.")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         let cliStore = LocalCLIConfigStore(defaults: defaults)
         try cliStore.save(
             LocalCLIConfig(commandTemplate: "codex exec --skip-git-repo-check --model gpt-5.4-mini")
@@ -854,9 +852,8 @@ final class TranscriptChatViewModelTests: XCTestCase {
     }
 
     func testRefreshModelInfoShowsCustomCLILabel() throws {
-        let suiteName = "test.chat.customcli.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("test.chat.customcli.")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         let cliStore = LocalCLIConfigStore(defaults: defaults)
         try cliStore.save(LocalCLIConfig(commandTemplate: "python llm_wrapper.py"))
 

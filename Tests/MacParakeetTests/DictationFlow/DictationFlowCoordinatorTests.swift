@@ -982,12 +982,9 @@ final class DictationFlowCoordinatorTests: XCTestCase {
     }
 
     private func makeTestDefaults(prefix: String) -> UserDefaults {
-        let suiteName = "\(prefix)-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("\(prefix)-")
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
-        addTeardownBlock {
-            UserDefaults(suiteName: suiteName)?.removePersistentDomain(forName: suiteName)
-        }
         return defaults
     }
 

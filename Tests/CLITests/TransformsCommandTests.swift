@@ -481,9 +481,8 @@ final class TransformsCommandTests: XCTestCase {
     }
 
     func testAppHotkeyCollisionAllowsChordSharingBareModifierDictationHotkey() throws {
-        let suiteName = "com.macparakeet.tests.transforms.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("com.macparakeet.tests.transforms.")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
 
         HotkeyTrigger.option.save(
             to: defaults,

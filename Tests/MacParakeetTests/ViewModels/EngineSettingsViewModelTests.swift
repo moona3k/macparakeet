@@ -8,14 +8,13 @@ final class EngineSettingsViewModelTests: XCTestCase {
     private var defaultsSuiteName: String!
 
     override func setUp() {
-        defaultsSuiteName = "test.enginesettings.\(UUID().uuidString)"
+        defaultsSuiteName = makeIsolatedDefaultsSuite("test.enginesettings.")
         defaults = UserDefaults(suiteName: defaultsSuiteName)!
         defaults.removePersistentDomain(forName: defaultsSuiteName)
     }
 
     override func tearDown() {
         Telemetry.configure(NoOpTelemetryService())
-        defaults.removePersistentDomain(forName: defaultsSuiteName)
         defaults = nil
         defaultsSuiteName = nil
     }

@@ -21,7 +21,7 @@ final class MeetingAutoStopCoordinatorTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        let suite = "com.macparakeet.tests.auto-stop.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.auto-stop.")
         suiteName = suite
         defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
@@ -40,9 +40,6 @@ final class MeetingAutoStopCoordinatorTests: XCTestCase {
 
     override func tearDown() {
         Telemetry.configure(NoOpTelemetryService())
-        if let suiteName {
-            defaults?.removePersistentDomain(forName: suiteName)
-        }
         defaults = nil
         suiteName = nil
         settings = nil

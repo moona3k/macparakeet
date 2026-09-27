@@ -12,12 +12,11 @@ final class ConfigCommandTests: XCTestCase {
         super.setUp()
         // Isolate each test in a unique UserDefaults suite so we never touch
         // the user's real `com.macparakeet.MacParakeet` plist.
-        suiteName = "macparakeet.test.config.\(UUID().uuidString)"
+        suiteName = makeIsolatedDefaultsSuite("macparakeet.test.config.")
         defaults = UserDefaults(suiteName: suiteName)
     }
 
     override func tearDown() {
-        defaults.removePersistentDomain(forName: suiteName)
         defaults = nil
         suiteName = nil
         super.tearDown()

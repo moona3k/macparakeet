@@ -589,9 +589,8 @@ final class TranscriptionServiceTests: XCTestCase {
     }
 
     func testTranscribeURLSnapshotsEngineBeforeDownload() async throws {
-        let defaultsSuite = "test.transcription-route.\(UUID().uuidString)"
+        let defaultsSuite = makeIsolatedDefaultsSuite("test.transcription-route.")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsSuite))
-        defer { defaults.removePersistentDomain(forName: defaultsSuite) }
         SpeechEnginePreference.cohere.saveForTranscriptions(to: defaults)
 
         let downloadedAudio = try makeTempDownloadedAudio()

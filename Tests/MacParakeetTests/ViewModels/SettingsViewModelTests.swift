@@ -78,7 +78,7 @@ final class SettingsViewModelTests: XCTestCase {
         try? FileManager.default.createDirectory(at: meetingRecordingsTestDir, withIntermediateDirectories: true)
 
         // Use a unique suite name for isolated UserDefaults per test
-        testDefaultsSuiteName = "com.macparakeet.tests.\(UUID().uuidString)"
+        testDefaultsSuiteName = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         testDefaults = UserDefaults(suiteName: testDefaultsSuiteName)!
 
         viewModel = SettingsViewModel(
@@ -101,10 +101,6 @@ final class SettingsViewModelTests: XCTestCase {
     override func tearDown() {
         Telemetry.configure(NoOpTelemetryService())
 
-        // Clean up the test UserDefaults suite
-        if let testDefaultsSuiteName {
-            testDefaults.removePersistentDomain(forName: testDefaultsSuiteName)
-        }
         if let youtubeDownloadsTestDir {
             try? FileManager.default.removeItem(at: youtubeDownloadsTestDir)
         }
@@ -810,9 +806,8 @@ final class SettingsViewModelTests: XCTestCase {
         // To exercise the legacy upgrade path (transcription configured,
         // meeting empty) we need a separate suite that hasn't been
         // touched by ensureFolderConfigured yet.
-        let suite = "com.macparakeet.tests.legacy.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.legacy.")
         let fresh = UserDefaults(suiteName: suite)!
-        defer { fresh.removePersistentDomain(forName: suite) }
 
         fresh.set(true, forKey: AutoSaveService.enabledKey)
         fresh.set(AutoSaveFormat.json.rawValue, forKey: AutoSaveService.formatKey)
@@ -865,9 +860,8 @@ final class SettingsViewModelTests: XCTestCase {
         // setUp's `viewModel` already populated `testDefaults` via
         // ensureFolderConfigured, so use a separate suite to observe
         // the fresh-defaults case.
-        let suite = "com.macparakeet.tests.fresh.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.fresh.")
         let fresh = UserDefaults(suiteName: suite)!
-        defer { fresh.removePersistentDomain(forName: suite) }
 
         XCTAssertNil(fresh.data(forKey: AutoSaveService.folderBookmarkKey))
         XCTAssertNil(fresh.data(forKey: AutoSaveScope.meeting.folderBookmarkKey))
@@ -940,9 +934,8 @@ final class SettingsViewModelTests: XCTestCase {
     }
 
     func testInitPreservesEnabledMeetingAutoSaveWhenFolderIsUnavailable() throws {
-        let suite = "com.macparakeet.tests.unavailable-meeting-folder.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.unavailable-meeting-folder.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("unavailable-meeting-folder-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -961,9 +954,8 @@ final class SettingsViewModelTests: XCTestCase {
         // Running ensureFolderConfigured twice on fresh defaults must
         // produce the same path — the second call should see the first
         // call's bookmark and not re-create or move the folder.
-        let suite = "com.macparakeet.tests.idempotent.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.idempotent.")
         let fresh = UserDefaults(suiteName: suite)!
-        defer { fresh.removePersistentDomain(forName: suite) }
 
         let first = AutoSaveService.ensureFolderConfigured(scope: .transcription, defaults: fresh)
         let second = AutoSaveService.ensureFolderConfigured(scope: .transcription, defaults: fresh)

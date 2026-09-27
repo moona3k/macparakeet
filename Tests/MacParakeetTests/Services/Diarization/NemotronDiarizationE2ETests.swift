@@ -48,9 +48,8 @@ final class NemotronDiarizationE2ETests: XCTestCase {
         let databasePath = root.appendingPathComponent("verification.sqlite").path
         let database = try DatabaseManager(path: databasePath)
         let repository = TranscriptionRepository(dbQueue: database.dbQueue)
-        let defaultsName = "com.macparakeet.tests.nemotron-e2e.\(UUID().uuidString)"
+        let defaultsName = makeIsolatedDefaultsSuite("com.macparakeet.tests.nemotron-e2e.")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
-        defer { defaults.removePersistentDomain(forName: defaultsName) }
         let stt = STTClient(parakeetModelVariant: .v3, defaults: defaults)
         do {
             try await verifyPipeline(

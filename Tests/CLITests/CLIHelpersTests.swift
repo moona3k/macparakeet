@@ -385,9 +385,8 @@ final class CLIHelpersTests: XCTestCase {
     }
 
     func testMakeSharedLLMContextResolverReadsInjectedSuiteNotStandard() throws {
-        let suiteName = "cli.shared-llm.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("cli.shared-llm.")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let lockURL = FileManager.default.temporaryDirectory.appendingPathComponent(suiteName).appendingPathComponent(
             "routes.lock")

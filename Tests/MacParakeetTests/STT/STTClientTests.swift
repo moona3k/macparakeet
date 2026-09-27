@@ -32,19 +32,17 @@ final class STTClientTests: XCTestCase {
     }
 
     func testSpeechEnginePreferenceDefaultsToParakeet() {
-        let suiteName = "com.macparakeet.tests.speech-engine.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("com.macparakeet.tests.speech-engine.")
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
-        defer { defaults.removePersistentDomain(forName: suiteName) }
 
         XCTAssertEqual(SpeechEnginePreference.current(defaults: defaults), .parakeet)
     }
 
     func testSpeechEnginePreferencePersistsWhisperLanguage() {
-        let suiteName = "com.macparakeet.tests.whisper-language.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("com.macparakeet.tests.whisper-language.")
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
-        defer { defaults.removePersistentDomain(forName: suiteName) }
 
         SpeechEnginePreference.whisper.save(to: defaults)
         SpeechEnginePreference.saveWhisperDefaultLanguage("KO_kr", defaults: defaults)

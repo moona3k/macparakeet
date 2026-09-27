@@ -46,9 +46,8 @@ final class AppPathsTests: XCTestCase {
     }
 
     func testMeetingRecordingsDirCanBeConfiguredFromDefaults() {
-        let suiteName = "macparakeet.test.paths.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("macparakeet.test.paths.")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
 
         XCTAssertEqual(
             AppPaths.configuredMeetingRecordingsDir(defaults: defaults),
@@ -124,9 +123,8 @@ final class AppPathsTests: XCTestCase {
     }
 
     func testDeveloperAppStateDirKeepsMeetingRecordingsInsideThrowawayRoot() {
-        let suiteName = "macparakeet.test.paths.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("macparakeet.test.paths.")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let realLookingCustom = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("MacParakeetRealArtifacts")

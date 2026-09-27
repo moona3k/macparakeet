@@ -239,11 +239,8 @@ final class MeetingAudioRetentionSweepCoordinatorTests: XCTestCase {
     }
 
     private func makeDefaults() -> UserDefaults {
-        let suite = "meeting-audio-retention-sweep-\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("meeting-audio-retention-sweep-")
         let defaults = UserDefaults(suiteName: suite)!
-        addTeardownBlock {
-            UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
-        }
         return defaults
     }
 
