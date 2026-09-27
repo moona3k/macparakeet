@@ -1,0 +1,19 @@
+.github/workflows/upload-0.8.9-dmg.yml
+  s_2d54016b675eb5::t_c01820cc93b9b4 1-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b7783224e0c9dada8a38019993a58b5126ca9739",
+  "prompts": {},
+  "sessions": {
+    "s_2d54016b675eb5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e380-6162-7851-9b52-531206dfa48f",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
