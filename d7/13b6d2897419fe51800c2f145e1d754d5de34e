@@ -1,0 +1,41 @@
+scripts/process-tap-audio-only-probe.swift
+  s_b258f0f6c3443f::t_cc96e783dbdf4d 122-123,136-139,169-170,191-192
+  s_b258f0f6c3443f::t_5b82974140a68e 111,128-130,143-146,307-308,530,539-577,579-604,650-652
+  s_b258f0f6c3443f::t_278c9ad53ba136 525,653-654,678,691
+  s_b258f0f6c3443f::t_56b89b7560ac20 578
+  s_b258f0f6c3443f::t_17fdaba5ca0d18 17,24,39-40,108-110,112-121,124-127,131-135,140-142,147-168,171-190,193-206,290,292,342-346,348-352,478,481,488-489,501,507,512-516,523-524
+docs/research/2026-09-27-issue-912-system-audio-root-cause.md
+  s_b258f0f6c3443f::t_884db3d2a76d77 203-209,239-276,278-293,329,337-346,349-350
+  s_b258f0f6c3443f::t_1295641649e958 277
+scripts/tests/test_process_tap_runner.py
+  s_b258f0f6c3443f::t_e4b62629aaef0c 159
+  s_b258f0f6c3443f::t_c4fac2adc9c180 154
+  s_b258f0f6c3443f::t_6a5a3fbe11d9cc 24-34,108,110-113,134-153,155-158
+Tests/MacParakeetTests/Audio/PCMBufferToSampleBufferTests.swift
+  s_b258f0f6c3443f::t_56b89b7560ac20 92-123
+  s_b258f0f6c3443f::t_f3fcd46734e2b6 124-125
+scripts/tests/test_process_tap_observation.py
+  s_b258f0f6c3443f::t_54ccdd9b057237 1-87
+docs/research/issue-924-audio-only-process-tap-probe.md
+  s_b258f0f6c3443f::t_884db3d2a76d77 52-68
+scripts/run-process-tap-audio-only-probe.sh
+  s_b258f0f6c3443f::t_04db6dfc1f478b 146-153,190,192-195
+  s_b258f0f6c3443f::t_066594aea03d21 4-9,11-12,27-30,42,52-61,68,179-185,227-238
+  s_b258f0f6c3443f::t_c4fac2adc9c180 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d713b6d2897419fe51800c2f145e1d754d5de34e",
+  "prompts": {},
+  "sessions": {
+    "s_b258f0f6c3443f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e4b2-4a19-7343-b240-a7cc6b2770fa",
+        "model": "gpt-6-astra"
+      },
+      "human_author": null
+    }
+  }
+}
