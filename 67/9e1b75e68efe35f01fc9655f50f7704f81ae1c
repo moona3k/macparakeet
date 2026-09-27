@@ -1,0 +1,53 @@
+README.md
+  s_37bbc0378aa19a::t_cb4eb934a7d80b 294
+Sources/CLI/CHANGELOG.md
+  s_37bbc0378aa19a::t_b924b8a6ef2551 97-104
+Sources/CLI/Commands/LLMRoutesCommand.swift
+  s_37bbc0378aa19a::t_340b453145d392 111-114
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_37bbc0378aa19a::t_632459b7540da6 114-116
+Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
+  s_37bbc0378aa19a::t_a86fd9e47d2e3a 60,93-105,292-293,299-300,316-317,331,399,2104,2122
+Sources/MacParakeetCore/Models/LLMTypes.swift
+  s_37bbc0378aa19a::t_8950f0639742c4 188
+Sources/MacParakeetCore/Services/LLM/LLMConfigStore.swift
+  s_37bbc0378aa19a::t_42855402a8376d 28-29,73-74,86-87,247,249-251
+Sources/MacParakeetCore/Services/LLM/LLMExecutionContext.swift
+  s_37bbc0378aa19a::t_0f332bbb6f4121 13-43
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_37bbc0378aa19a::t_073ba1f8ce0389 397-411,428,617-622,628,710-716,1144-1149,1155,1264-1270,1275,1725,1727
+Sources/MacParakeetViewModels/LLMSettingsViewModel.swift
+  s_37bbc0378aa19a::t_6419ff6a9061c6 162-163,195-218,313,424,426-434,438,910-912,1316-1319,1321,1336-1339,1361,1479
+Tests/CLITests/LLMRoutesCommandTests.swift
+  s_37bbc0378aa19a::t_b46c3db4ebb594 53-65
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_37bbc0378aa19a::t_1d12bd9a6b51a5 2109
+Tests/MacParakeetTests/Services/LLM/LLMConfigStoreTests.swift
+  s_37bbc0378aa19a::t_4443c8c4aaccd0 41,476-523
+Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
+  s_37bbc0378aa19a::t_4317b4ac90484a 230-231
+Tests/MacParakeetTests/ViewModels/LLMSettingsViewModelTests.swift
+  s_37bbc0378aa19a::t_0cca303b47fe86 54-57,59,61-62,64-65,77,82,591-634
+spec/11-llm-integration.md
+  s_37bbc0378aa19a::t_67331c06eb77a1 86,138,648-649
+spec/adr/002-local-only.md
+  s_37bbc0378aa19a::t_8b8def533f3400 132,140
+spec/adr/011-llm-cloud-and-local-providers.md
+  s_37bbc0378aa19a::t_c18955dc3d4506 80-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "679e1b75e68efe35f01fc9655f50f7704f81ae1c",
+  "prompts": {},
+  "sessions": {
+    "s_37bbc0378aa19a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "75892db3-d288-420a-973d-740e47676fab",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
