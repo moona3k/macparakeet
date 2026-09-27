@@ -1,0 +1,81 @@
+Sources/CLI/CHANGELOG.md
+  s_2d54016b675eb5::t_53b94316dc5767 99-104
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_2d54016b675eb5::t_25426af1483734 343,613
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_2d54016b675eb5::t_b4fbbc11819fd1 117,227,635,643
+Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
+  s_2d54016b675eb5::t_1ba5d855bc17ad 56-57,59-60,99,202-207,307,354,914,916,2072-2076,2127-2128,2131-2132,2139-2140
+Sources/MacParakeetCore/Services/Ask/AskWorkspaceService.swift
+  s_2d54016b675eb5::t_54b79d68ed4681 26,104-106,138-140
+Sources/MacParakeetCore/Services/LLM/LLMConfigStore.swift
+  s_2d54016b675eb5::t_d4a3ece28f0052 38,57,61-65,238-254,318,321,326,329
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_2d54016b675eb5::t_4de1e4977586ca 1458-1462
+Sources/MacParakeetViewModels/LLMSettingsViewModel.swift
+  s_2d54016b675eb5::t_5c39df47a70ac2 301-305,392-394,596-597,662-663,665,674-679,790,795,843-845,1415,1430,1632
+Sources/MacParakeetViewModels/PromptResultsViewModel.swift
+  s_2d54016b675eb5::t_593658272becbe 233
+Sources/MacParakeetViewModels/PromptsViewModel.swift
+  s_2d54016b675eb5::t_6f168d70005683 350,383-384
+Tests/CLITests/LLMJSONOutputTests.swift
+  s_2d54016b675eb5::t_0c8f9299ecf1f5 41-63
+Tests/CLITests/LLMRoutesCommandTests.swift
+  s_2d54016b675eb5::t_9e314f5d70f219 66-77
+Tests/MacParakeetTests/App/AppEnvironmentTests.swift
+  s_2d54016b675eb5::t_809af3e121bd7c 76-91
+Tests/MacParakeetTests/Ask/AskWorkspaceServiceTests.swift
+  s_2d54016b675eb5::t_a433a35b37db0a 202-224
+Tests/MacParakeetTests/Services/LLM/LLMConfigStoreTests.swift
+  s_37bbc0378aa19a::t_8b86bb954bbf07 40,519-551,769
+Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
+  s_2d54016b675eb5::t_5def3f35c6c45c 1353-1381,1384,1386-1399,1401
+Tests/MacParakeetTests/ViewModels/LLMSettingsViewModelTests.swift
+  s_54e6f39bcb73e5::t_5d8b72d72d0719 69-126
+Tests/MacParakeetTests/ViewModels/PromptResultsViewModelTests.swift
+  s_37bbc0378aa19a::t_92518276cc6696 173,188-193,195-197,717,719,1005-1014
+Tests/MacParakeetTests/ViewModels/PromptsViewModelTests.swift
+  s_2d54016b675eb5::t_56b4b42c88365c 947-957
+spec/11-llm-integration.md
+  s_2d54016b675eb5::t_4c8000cf8a0c98 138,506,645,648-652
+spec/adr/011-llm-cloud-and-local-providers.md
+  s_2d54016b675eb5::t_cd382dcc6bda62 80
+spec/adr/032-llm-task-group-routing.md
+  s_2d54016b675eb5::t_cca9f0240aad78 81-88,90
+spec/contracts/ask-workspace.md
+  s_2d54016b675eb5::t_dee45bce1a6f93 184,187-188,230
+spec/contracts/cli-json-v1.md
+  s_2d54016b675eb5::t_b877f4479352b9 241-246,259-261
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b931267df0d697fdc0d8180551be171a26276644",
+  "prompts": {},
+  "sessions": {
+    "s_2d54016b675eb5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e380-6162-7851-9b52-531206dfa48f",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_37bbc0378aa19a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "75892db3-d288-420a-973d-740e47676fab",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_54e6f39bcb73e5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e38e-8faf-7012-91b7-3ad3fe19d1b6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
