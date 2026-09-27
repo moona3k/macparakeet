@@ -1,0 +1,27 @@
+Sources/CLI/CHANGELOG.md
+  s_2d54016b675eb5::t_30196575921107 97-103
+Sources/CLI/MacParakeetCLI.swift
+  s_2d54016b675eb5::t_6b5462888cf3dc 11
+docs/releases/0.8.9/README.md
+  s_2d54016b675eb5::t_e716be785d32ac 1-11
+docs/releases/0.8.9/github.md
+  s_2d54016b675eb5::t_bf537ecd8c3157 1-19
+docs/releases/0.8.9/sparkle.html
+  s_2d54016b675eb5::t_6baad8969d8977 1-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a89a152c84a955a6c377e918a6d0f64e637d22a2",
+  "prompts": {},
+  "sessions": {
+    "s_2d54016b675eb5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e380-6162-7851-9b52-531206dfa48f",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
