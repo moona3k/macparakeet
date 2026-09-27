@@ -51,54 +51,18 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.transcriptAIContextMode, .richTranscript)
     }
 
-    func testAppleIntelligenceOfferAppearsOnlyBeforeAChoiceOnAnEligibleMac() {
-        let turnOn = LLMSettingsViewModel.appleIntelligenceOffer(
-            availability: .appleIntelligenceNotEnabled,
-            selectedProviderID: nil
+    func testAppleIntelligenceIsOfferedOnlyForCleanup() {
+        viewModel = LLMSettingsViewModel(
+            defaults: defaults,
+            appleIntelligenceAvailabilityProvider: { .available }
         )
-        XCTAssertEqual(
-            turnOn?.message,
-            "This Mac can run Apple Intelligence on device. Turn it on in System Settings, then choose it here."
-        )
-        XCTAssertEqual(
-            turnOn?.settingsURL,
-            AppleIntelligenceAvailability.appleIntelligenceNotEnabled.settingsURL
-        )
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
 
-        let preparing = LLMSettingsViewModel.appleIntelligenceOffer(
-            availability: .modelNotReady,
-            selectedProviderID: nil
-        )
+        XCTAssertFalse(viewModel.selectableProviderIDs.contains(.appleIntelligence))
+        XCTAssertTrue(viewModel.cleanupProviderIDs.contains(.appleIntelligence))
         XCTAssertEqual(
-            preparing?.message,
-            "Apple Intelligence is downloading on this Mac. Choose it here when it's ready."
-        )
-        XCTAssertNil(preparing?.settingsURL)
-
-        for availability in [
-            AppleIntelligenceAvailability.unsupported,
-            .deviceNotEligible,
-            .available,
-            .localeLimited,
-        ] {
-            XCTAssertNil(
-                LLMSettingsViewModel.appleIntelligenceOffer(
-                    availability: availability,
-                    selectedProviderID: nil
-                )
-            )
-        }
-        XCTAssertNil(
-            LLMSettingsViewModel.appleIntelligenceOffer(
-                availability: .appleIntelligenceNotEnabled,
-                selectedProviderID: .appleIntelligence
-            )
-        )
-        XCTAssertNil(
-            LLMSettingsViewModel.appleIntelligenceOffer(
-                availability: .appleIntelligenceNotEnabled,
-                selectedProviderID: .ollama
-            )
+            viewModel.cleanupProviderIDs.filter { $0 != .appleIntelligence },
+            viewModel.selectableProviderIDs
         )
     }
 
@@ -110,12 +74,12 @@ final class LLMSettingsViewModelTests: XCTestCase {
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
         viewModel.selectedProviderID = .openai
         viewModel.apiKeyInput = "test-key"
-        viewModel.analysisOverrideProviderID = .appleIntelligence
+        viewModel.cleanupOverrideProviderID = .appleIntelligence
 
         viewModel.saveConfiguration()
 
         XCTAssertEqual(mockConfigStore.config?.id, .openai)
-        XCTAssertEqual(mockConfigStore.taskOverrides[.analysis]?.id, .appleIntelligence)
+        XCTAssertEqual(mockConfigStore.taskOverrides[.cleanup]?.id, .appleIntelligence)
         XCTAssertEqual(
             viewModel.setupStatus,
             .cannotConnect(
@@ -622,6 +586,50 @@ final class LLMSettingsViewModelTests: XCTestCase {
         viewModel.selectedProviderID = .anthropic
         viewModel.selectedProviderID = .openai
         XCTAssertEqual(viewModel.apiKeyInput, "final-key")
+    }
+
+    func testUneditedKeyIsNotCachedOverAKeyRotatedElsewhere() throws {
+        try mockConfigStore.saveConfig(.gemini(apiKey: "old-key"))
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        XCTAssertEqual(viewModel.apiKeyInput, "old-key")
+
+        viewModel.selectedProviderID = .anthropic
+        // The CLI or another app instance rotates the key meanwhile.
+        mockConfigStore.storedKeys[.gemini] = "rotated-key"
+        viewModel.selectedProviderID = .gemini
+
+        XCTAssertEqual(viewModel.apiKeyInput, "rotated-key")
+    }
+
+    func testTurningAIOffDropsUnsavedTypedKeys() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "typed-but-abandoned"
+        viewModel.selectedProviderID = nil
+        viewModel.saveConfiguration()
+
+        viewModel.selectedProviderID = .openai
+        XCTAssertEqual(viewModel.apiKeyInput, "")
+    }
+
+    func testRemoveSavedKeyIsOfferedOnlyWhenNoSavedRouteUsesIt() throws {
+        try mockConfigStore.saveConfig(.gemini(apiKey: "gemini-key"))
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        XCTAssertFalse(viewModel.canRemoveSavedAPIKey, "The saved default uses this key")
+
+        viewModel.selectedProviderID = nil
+        viewModel.saveConfiguration()
+        viewModel.selectedProviderID = .gemini
+        XCTAssertTrue(viewModel.canRemoveSavedAPIKey)
+
+        viewModel.removeSavedAPIKey()
+
+        XCTAssertNil(try mockConfigStore.loadAPIKey(for: .gemini))
+        XCTAssertEqual(viewModel.apiKeyInput, "")
+        XCTAssertFalse(viewModel.canRemoveSavedAPIKey)
+        viewModel.selectedProviderID = .anthropic
+        viewModel.selectedProviderID = .gemini
+        XCTAssertEqual(viewModel.apiKeyInput, "")
     }
 
     func testClearResetsCustomModelDraft() {

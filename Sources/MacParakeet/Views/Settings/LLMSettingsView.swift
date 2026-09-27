@@ -57,10 +57,7 @@ struct LLMSettingsView: View {
                 Divider()
                 taskRouteSection
 
-                if viewModel.selectedProviderID != .appleIntelligence,
-                    viewModel.cleanupOverrideProviderID == .appleIntelligence
-                        || viewModel.analysisOverrideProviderID == .appleIntelligence
-                {
+                if viewModel.cleanupOverrideProviderID == .appleIntelligence {
                     appleIntelligenceStatusSection
                 }
             }
@@ -93,9 +90,19 @@ struct LLMSettingsView: View {
                             .foregroundStyle(.secondary)
                         }
                         Spacer(minLength: DesignSystem.Spacing.md)
-                        SecureField(viewModel.apiKeyPlaceholder, text: $viewModel.apiKeyInput)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 220)
+                        VStack(alignment: .trailing, spacing: 4) {
+                            SecureField(viewModel.apiKeyPlaceholder, text: $viewModel.apiKeyInput)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 220)
+                            if viewModel.canRemoveSavedAPIKey {
+                                Button("Remove saved key") {
+                                    viewModel.removeSavedAPIKey()
+                                }
+                                .buttonStyle(.plain)
+                                .font(DesignSystem.Typography.caption)
+                                .foregroundStyle(.secondary)
+                            }
+                        }
                     }
 
                     Divider()
@@ -103,8 +110,6 @@ struct LLMSettingsView: View {
 
                 if viewModel.selectedProviderID == .localCLI {
                     cliSettingsSection
-                } else if viewModel.selectedProviderID == .appleIntelligence {
-                    appleIntelligenceStatusSection
                 } else {
                     if viewModel.selectedProviderID?.requiresCustomEndpoint == true {
                         HStack(alignment: .top) {
@@ -284,13 +289,15 @@ struct LLMSettingsView: View {
                 title: "Dictation & cleanup",
                 detail: "Formatter for dictation and transcripts.",
                 provider: $viewModel.cleanupOverrideProviderID,
-                model: $viewModel.cleanupModelName
+                model: $viewModel.cleanupModelName,
+                providers: viewModel.cleanupProviderIDs
             )
             taskRouteRow(
                 title: "Meetings & library",
                 detail: "Summaries, Ask, and knowledge cards.",
                 provider: $viewModel.analysisOverrideProviderID,
-                model: $viewModel.analysisModelName
+                model: $viewModel.analysisModelName,
+                providers: providerOrder
             )
         }
     }
@@ -306,7 +313,8 @@ struct LLMSettingsView: View {
         title: String,
         detail: String,
         provider: Binding<LLMProviderID?>,
-        model: Binding<String>
+        model: Binding<String>,
+        providers: [LLMProviderID]
     ) -> some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             HStack(alignment: .top) {
@@ -320,7 +328,7 @@ struct LLMSettingsView: View {
                 Spacer(minLength: DesignSystem.Spacing.md)
                 Picker(title, selection: provider) {
                     Text(inheritedRouteLabel).tag(LLMProviderID?.none)
-                    ForEach(providerOrder, id: \.self) { option in
+                    ForEach(providers, id: \.self) { option in
                         Text(option.displayName).tag(Optional(option))
                     }
                 }
@@ -371,18 +379,6 @@ struct LLMSettingsView: View {
                             .font(DesignSystem.Typography.caption)
                             .foregroundStyle(.secondary)
                     }
-                    if let offer = viewModel.appleIntelligenceOffer {
-                        Text(offer.message)
-                            .font(DesignSystem.Typography.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        if let url = offer.settingsURL {
-                            Button("Open System Settings") {
-                                openAppleIntelligenceSettings(url)
-                            }
-                            .parakeetAction(.secondary)
-                        }
-                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -400,7 +396,7 @@ struct LLMSettingsView: View {
                     Text("On-device Apple Intelligence")
                         .font(DesignSystem.Typography.body.weight(.semibold))
                     Text(
-                        "Runs on this Mac and works best for short requests. Long transcripts are shortened to fit its small context window."
+                        "Runs on this Mac for dictation cleanup. Its context window is too small for meetings and summaries."
                     )
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.secondary)
@@ -2105,8 +2101,7 @@ struct LLMSettingsView: View {
                     hasPendingChanges: hasPendingChanges,
                     allRoutesLocal: allRoutesLocal,
                     isCLI: isCLI,
-                    usesInsecureHTTP: usesInsecureHTTP,
-                    isAppleIntelligence: viewModel.selectedProviderID == .appleIntelligence && taskOverrides.isEmpty
+                    usesInsecureHTTP: usesInsecureHTTP
                 )
             )
             .font(DesignSystem.Typography.caption)
@@ -2124,15 +2119,10 @@ struct LLMSettingsView: View {
         hasPendingChanges: Bool,
         allRoutesLocal: Bool,
         isCLI: Bool,
-        usesInsecureHTTP: Bool,
-        isAppleIntelligence: Bool
+        usesInsecureHTTP: Bool
     ) -> String {
         if hasPendingChanges {
             return "Route changes apply after Save. Until then, AI actions use the last saved configuration, which may send transcript text off this Mac."
-        }
-        if isAppleIntelligence {
-            return
-                "Transcript text stays on this Mac. Apple Intelligence runs on-device and does not send it to the cloud."
         }
         if isCLI {
             return "AI actions use the provider selected for each task. Local CLI commands may contact their own service."

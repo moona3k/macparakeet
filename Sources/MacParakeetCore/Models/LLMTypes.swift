@@ -179,14 +179,13 @@ public struct ChatCompletionOptions: Sendable, Equatable {
 
     private init(
         _ options: ChatCompletionOptions,
-        maxTokens: Int?,
         usesPromptInferenceSettings: Bool,
         effectiveInferenceSettings: PromptInferenceSettings?
     ) {
         self.temperature = options.temperature
         self.topP = options.topP
         self.topK = options.topK
-        self.maxTokens = maxTokens
+        self.maxTokens = options.maxTokens
         self.thinkingMode = options.thinkingMode
         self.reasoningEffort = options.reasoningEffort
         self.usesPromptInferenceSettings = usesPromptInferenceSettings
@@ -205,21 +204,8 @@ public struct ChatCompletionOptions: Sendable, Equatable {
     ) -> ChatCompletionOptions {
         ChatCompletionOptions(
             self,
-            maxTokens: maxTokens,
             usesPromptInferenceSettings: usesPromptInferenceSettings,
             effectiveInferenceSettings: effectiveSettings
-        )
-    }
-
-    /// Caps the answer at `limit` tokens, keeping a lower requested limit and
-    /// the inference receipt. A nil limit leaves the options unchanged.
-    func limitingMaxTokens(to limit: Int?) -> ChatCompletionOptions {
-        guard let limit else { return self }
-        return ChatCompletionOptions(
-            self,
-            maxTokens: min(maxTokens ?? limit, limit),
-            usesPromptInferenceSettings: usesPromptInferenceSettings,
-            effectiveInferenceSettings: effectiveInferenceSettings
         )
     }
 

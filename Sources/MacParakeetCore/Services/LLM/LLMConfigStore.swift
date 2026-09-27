@@ -25,7 +25,8 @@ public protocol LLMConfigStoreProtocol: Sendable {
     func loadAPIKey() throws -> String?
     func loadAPIKey(for provider: LLMProviderID) throws -> String?
     func saveAPIKey(_ key: String) throws
-    func deleteAPIKey() throws
+    /// Deletes one provider's saved key. Refused while a saved route uses it.
+    func deleteAPIKey(for provider: LLMProviderID) throws
     func updateModelName(_ modelName: String) throws
     /// Compare and update the displayed route as one operation. False means no write.
     func updateModelName(_ modelName: String, for task: LLMTaskGroup, expected: LLMModelSelectionRoute) throws -> Bool
@@ -69,7 +70,8 @@ extension LLMConfigStoreProtocol {
 // the lease before Keychain access; other operations fail busy during a mutation.
 public final class LLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
     enum StoreError: LocalizedError {
-        case busy, invalidLock, lockIO(Int32), refreshFailed, publicationUnconfirmed, taskCredentialChanged
+        case busy, invalidLock, lockIO(Int32), refreshFailed, publicationUnconfirmed, taskCredentialChanged,
+            credentialInUse
 
         var errorDescription: String? {
             switch self {
@@ -81,6 +83,8 @@ public final class LLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
                 return "AI settings may have changed, but saving could not be confirmed. Refresh before retrying."
             case .taskCredentialChanged:
                 return "A task provider's saved API key changed. Reopen AI settings and try again."
+            case .credentialInUse:
+                return "A saved AI route uses this key. Choose another provider and save before removing it."
             }
         }
     }
@@ -240,10 +244,11 @@ public final class LLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
             try keychain.setString(key, forKey: Self.apiKeyKeychainKey(for: config.id))
         }
     }
-    public func deleteAPIKey() throws {
+    public func deleteAPIKey(for provider: LLMProviderID) throws {
         try withOperationLease {
-            guard let config = try metadata(for: Self.configKey) else { return }
-            try keychain.delete(Self.apiKeyKeychainKey(for: config.id))
+            let routeProviders = try Self.metadataKeys.compactMap { try metadata(for: $0)?.id }
+            guard !routeProviders.contains(provider) else { throw StoreError.credentialInUse }
+            try keychain.delete(Self.apiKeyKeychainKey(for: provider))
         }
     }
 

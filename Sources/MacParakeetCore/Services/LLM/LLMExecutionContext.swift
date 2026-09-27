@@ -10,6 +10,37 @@ public enum LLMTaskGroup: String, Sendable, Codable, CaseIterable {
     }
 }
 
+public extension LLMProviderID {
+    /// Apple Intelligence's 4,096-token window holds the input and the answer
+    /// together. That fits dictation cleanup, but a summary, chat, or card over
+    /// a meeting-length transcript would see only a fraction of it, so Apple
+    /// Intelligence serves the cleanup route only.
+    func canServe(_ task: LLMTaskGroup) -> Bool {
+        self != .appleIntelligence || task == .cleanup
+    }
+
+    /// The default route serves every task that does not override it.
+    var canServeAsDefault: Bool {
+        LLMTaskGroup.allCases.allSatisfy(canServe)
+    }
+}
+
+public extension LLMConfigStoreProtocol {
+    /// Clears saved routes whose provider can no longer serve them (an Apple
+    /// Intelligence default or analysis route saved before the cleanup-only
+    /// rule). A cleared default turns AI off, the same as choosing None.
+    /// Saved keys are kept.
+    func clearRoutesProvidersCannotServe() throws {
+        if let config = try loadConfigMetadata(), !config.id.canServeAsDefault {
+            try deleteConfig()
+            return
+        }
+        if let analysis = try loadTaskOverrideMetadata(.analysis), !analysis.id.canServe(.analysis) {
+            try saveTaskOverride(nil, for: .analysis)
+        }
+    }
+}
+
 public struct LLMExecutionContext: Sendable, Equatable {
     public let providerConfig: LLMProviderConfig
     public let localCLIConfig: LocalCLIConfig?

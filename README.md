@@ -291,7 +291,7 @@ AI features are entirely **opt-in** and separate from speech recognition — tra
 | Type | Options |
 |------|---------|
 | Cloud | Anthropic (Claude), OpenAI, Google Gemini, OpenRouter, Moonshot (Kimi), DeepSeek, Qwen, Z.AI, MiniMax |
-| Local | Ollama, LM Studio, Apple Intelligence (macOS 26, eligible Macs, no API key) |
+| Local | Ollama, LM Studio, Apple Intelligence for dictation cleanup (macOS 26, eligible Macs, no API key) |
 | Custom | OpenAI-Compatible (any API-shaped endpoint — vLLM, LocalAI, LiteLLM, llama.cpp server, third-party hosts) |
 | CLI subprocess | Claude Code, Codex, or another configured command |
 

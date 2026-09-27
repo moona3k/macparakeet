@@ -38,7 +38,7 @@ final class LLMConfigStoreTests: XCTestCase {
             { try blocked.saveConfiguration(replacement, cleanupOverride: nil, analysisOverride: nil) },
             { try blocked.deleteConfig() },
             { try blocked.saveAPIKey("replacement") },
-            { try blocked.deleteAPIKey() },
+            { try blocked.deleteAPIKey(for: .openai) },
         ]
         for operation in operations {
             XCTAssertThrowsError(try operation()) { error in
@@ -473,8 +473,54 @@ final class LLMConfigStoreTests: XCTestCase {
         XCTAssertEqual(try store.loadAPIKey(), "sk-direct")
         XCTAssertEqual(try store.loadAPIKey(for: .openai), "sk-direct")
 
-        try store.deleteAPIKey()
-        XCTAssertNil(try store.loadAPIKey())
+    }
+
+    func testDeleteAPIKeyRefusesAProviderASavedRouteUses() throws {
+        try store.saveConfig(.anthropic(apiKey: "sk-ant"))
+        try store.saveTaskOverride(.openai(apiKey: "sk-openai"), for: .analysis)
+
+        for provider in [LLMProviderID.anthropic, .openai] {
+            XCTAssertThrowsError(try store.deleteAPIKey(for: provider)) { error in
+                guard case LLMConfigStore.StoreError.credentialInUse = error else {
+                    return XCTFail("Expected credentialInUse, got \(error)")
+                }
+            }
+        }
+        XCTAssertEqual(try store.loadAPIKey(for: .anthropic), "sk-ant")
+        XCTAssertEqual(try store.loadAPIKey(for: .openai), "sk-openai")
+    }
+
+    func testDeleteAPIKeyRemovesAnUnusedProviderKey() throws {
+        try store.saveConfig(.gemini(apiKey: "sk-gemini"))
+        try store.deleteConfig()
+
+        try store.deleteAPIKey(for: .gemini)
+
+        XCTAssertNil(try store.loadAPIKey(for: .gemini))
+    }
+
+    func testClearRoutesProvidersCannotServeRetiresAppleDefaultAndAnalysis() throws {
+        try store.saveConfig(.appleIntelligence())
+        try store.clearRoutesProvidersCannotServe()
+        XCTAssertNil(try store.loadConfigMetadata())
+
+        try store.saveConfig(.openai(apiKey: "sk-openai"))
+        try store.saveTaskOverride(.appleIntelligence(), for: .cleanup)
+        try store.saveTaskOverride(.appleIntelligence(), for: .analysis)
+        try store.clearRoutesProvidersCannotServe()
+
+        XCTAssertEqual(try store.loadConfigMetadata()?.id, .openai)
+        XCTAssertEqual(try store.loadTaskOverrideMetadata(.cleanup)?.id, .appleIntelligence)
+        XCTAssertNil(try store.loadTaskOverrideMetadata(.analysis))
+        XCTAssertEqual(try store.loadAPIKey(for: .openai), "sk-openai")
+    }
+
+    func testAppleIntelligenceServesOnlyCleanup() {
+        XCTAssertTrue(LLMProviderID.appleIntelligence.canServe(.cleanup))
+        XCTAssertFalse(LLMProviderID.appleIntelligence.canServe(.analysis))
+        XCTAssertFalse(LLMProviderID.appleIntelligence.canServe(.transform))
+        XCTAssertFalse(LLMProviderID.appleIntelligence.canServeAsDefault)
+        XCTAssertTrue(LLMProviderID.allCases.filter { $0 != .appleIntelligence }.allSatisfy(\.canServeAsDefault))
     }
 
     func testMissingKeychainKeyReturnsConfigWithNilAPIKey() throws {

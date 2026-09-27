@@ -239,12 +239,6 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         let inputTruncated: Bool
     }
 
-    private struct ContextWindowFit {
-        let assembly: MessageAssembly
-        /// Largest answer the measured window still holds; nil when unmeasured.
-        let answerTokenLimit: Int?
-    }
-
     private struct PromptResultOutputBudgetError: LocalizedError, Sendable {
         let maxOutputTokens: Int
 
@@ -328,12 +322,6 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     /// Transforms and dictation cleanup answer at about the length of the source.
     /// Half the window, in the same character unit, leaves room for that rewrite.
     internal static let appleIntelligenceRoundTripBudget = 6_000
-    /// Answer room kept free when a request sets no max tokens: about 4.5k
-    /// characters of English, enough for a summary or a chapter list.
-    internal static let appleIntelligenceDefaultOutputReserveTokens = 1_024
-    /// Covers session framing that per-part token counts do not include.
-    internal static let appleIntelligenceTokenMargin = 64
-    private static let contextWindowFitAttempts = 3
 
     /// Largest output-token request that still leaves input under the
     /// ceil(3.5 characters per token) reservation used by prompt results.
@@ -406,31 +394,21 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                 for: capability
             ))
             """
-        let cardTranscript = """
-            <untrusted_transcript_data>
-            \(transcript)
-            </untrusted_transcript_data>
-            """
-        let cardInputBudget =
-            context.providerConfig.id == .appleIntelligence
-            ? try promptResultInputBudget(
-                for: context.providerConfig,
-                maxOutputTokens: 700
-            )
-            : nil
-        let fit = await fittedToContextWindow(
-            context: context,
-            inputBudget: cardInputBudget,
-            outputReserveTokens: 700
-        ) { budget in
-            buildPromptResultMessages(
-                transcript: cardTranscript,
-                systemPrompt: systemPrompt,
-                config: context.providerConfig,
-                inputBudget: budget
-            )
-        }
-        let assembly = fit.assembly
+        let assembly = buildPromptResultMessages(
+            transcript: """
+                <untrusted_transcript_data>
+                \(transcript)
+                </untrusted_transcript_data>
+                """,
+            systemPrompt: systemPrompt,
+            config: context.providerConfig,
+            inputBudget: context.providerConfig.id == .appleIntelligence
+                ? try promptResultInputBudget(
+                    for: context.providerConfig,
+                    maxOutputTokens: 700
+                )
+                : nil
+        )
         let responseFormat: ChatResponseFormat? =
             capability == .nativeJSONSchema ? Self.knowledgeCardResponseFormat : nil
         let attemptCount = capability == .promptEmbeddedJSONSchema ? 2 : 1
@@ -447,7 +425,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                         temperature: 0.1,
                         maxTokens: 700,
                         responseFormat: responseFormat
-                    ).limitingMaxTokens(to: fit.answerTokenLimit)
+                    )
                 )
                 if let usage = response.usage {
                     promptTokens = (promptTokens ?? 0) + usage.promptTokens
@@ -636,25 +614,18 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                 for: config,
                 maxOutputTokens: resolution.effectiveSettings?.maxTokens
             )
-            let fit = await fittedToContextWindow(
-                context: context,
-                inputBudget: inputBudget,
-                outputReserveTokens: resolution.effectiveSettings?.maxTokens
-            ) { budget in
-                buildPromptResultMessages(
-                    transcript: transcript,
-                    systemPrompt: systemPrompt,
-                    config: config,
-                    inputBudget: budget
-                )
-            }
-            let assembly = fit.assembly
+            let assembly = buildPromptResultMessages(
+                transcript: transcript,
+                systemPrompt: systemPrompt,
+                config: config,
+                inputBudget: inputBudget
+            )
             inputTruncated = assembly.inputTruncated
             let messages = assembly.messages
             let response = try await client.chatCompletion(
                 messages: messages,
                 context: context,
-                options: resolution.options.limitingMaxTokens(to: fit.answerTokenLimit)
+                options: resolution.options
             )
             let latencyMs = Self.latencyMs(since: startedAt)
             Telemetry.send(.llmPromptResultUsed(provider: config.id.rawValue))
@@ -736,27 +707,18 @@ public final class LLMService: LLMServiceProtocol, Sendable {
             messageCount: history.count + 1
         )
         let config = context.providerConfig
-        let fit = await fittedToContextWindow(
-            context: context,
-            inputBudget: nil,
-            outputReserveTokens: nil
-        ) { budget in
-            buildChatMessages(
-                question: question,
-                transcript: transcript,
-                userNotes: userNotes,
-                history: history,
-                config: config,
-                budget: budget
-            )
-        }
-        let assembly = fit.assembly
+        let assembly = buildChatMessages(
+            question: question,
+            transcript: transcript,
+            userNotes: userNotes,
+            history: history,
+            config: config
+        )
         let messages = assembly.messages
         do {
             let response = try await client.chatCompletion(
                 messages: messages, context: context,
                 options: ChatCompletionOptions(temperature: 0.7, conversationID: conversationID)
-                    .limitingMaxTokens(to: fit.answerTokenLimit)
             )
             let latencyMs = Self.latencyMs(since: startedAt)
             Telemetry.send(.llmChatUsed(provider: config.id.rawValue, source: source, messageCount: history.count + 1))
@@ -1179,25 +1141,18 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                         for: config,
                         maxOutputTokens: resolution.effectiveSettings?.maxTokens
                     )
-                    let fit = await self.fittedToContextWindow(
-                        context: context,
-                        inputBudget: inputBudget,
-                        outputReserveTokens: resolution.effectiveSettings?.maxTokens
-                    ) { budget in
-                        self.buildPromptResultMessages(
-                            transcript: transcript,
-                            systemPrompt: systemPrompt,
-                            config: config,
-                            inputBudget: budget
-                        )
-                    }
-                    let assembly = fit.assembly
+                    let assembly = self.buildPromptResultMessages(
+                        transcript: transcript,
+                        systemPrompt: systemPrompt,
+                        config: config,
+                        inputBudget: inputBudget
+                    )
                     inputTruncated = assembly.inputTruncated
                     let messages = assembly.messages
                     let stream = self.client.chatCompletionDetailedStream(
                         messages: messages,
                         context: context,
-                        options: resolution.options.limitingMaxTokens(to: fit.answerTokenLimit)
+                        options: resolution.options
                     )
                     var terminalReceipt: LLMStreamTerminal?
                     for try await event in stream {
@@ -1306,27 +1261,18 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     }
                     let config = context.providerConfig
                     provider = config.id.rawValue
-                    let fit = await self.fittedToContextWindow(
-                        context: context,
-                        inputBudget: nil,
-                        outputReserveTokens: nil
-                    ) { budget in
-                        self.buildChatMessages(
-                            question: question,
-                            transcript: transcript,
-                            userNotes: userNotes,
-                            history: history,
-                            config: config,
-                            budget: budget
-                        )
-                    }
-                    let assembly = fit.assembly
+                    let assembly = self.buildChatMessages(
+                        question: question,
+                        transcript: transcript,
+                        userNotes: userNotes,
+                        history: history,
+                        config: config
+                    )
                     inputTruncated = assembly.inputTruncated
                     let messages = assembly.messages
                     let stream = self.client.chatCompletionStream(
                         messages: messages, context: context,
-                        options: ChatCompletionOptions(temperature: 0.7, conversationID: conversationID)
-                            .limitingMaxTokens(to: fit.answerTokenLimit))
+                        options: ChatCompletionOptions(temperature: 0.7, conversationID: conversationID))
                     for try await token in stream {
                         outputChars += token.count
                         continuation.yield(token)
@@ -1578,57 +1524,6 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         return config.isLocal ? Self.localContextBudget : Self.cloudContextBudget
     }
 
-    /// Apple Intelligence's 4,096-token window also holds the answer, and the
-    /// character budget is only a first guess: speaker labels, timestamps and
-    /// non-English text use far more tokens per character than English prose.
-    /// When the system model can count tokens, shrink the budget until the
-    /// measured input leaves room for the answer, then cap the answer at the
-    /// room that is left so a long answer ends early instead of failing.
-    /// Other providers, and Macs that cannot count tokens, keep the character
-    /// budget unchanged. Rewrites (Transforms, the formatter) must not use this:
-    /// a shortened input or answer there would lose the user's text.
-    private func fittedToContextWindow(
-        context: LLMExecutionContext,
-        inputBudget: Int?,
-        outputReserveTokens: Int?,
-        build: (Int?) -> MessageAssembly
-    ) async -> ContextWindowFit {
-        var assembly = build(inputBudget)
-        guard context.providerConfig.id == .appleIntelligence else {
-            return ContextWindowFit(assembly: assembly, answerTokenLimit: nil)
-        }
-        let reserve = outputReserveTokens ?? Self.appleIntelligenceDefaultOutputReserveTokens
-        let allowedInputTokens = { (usage: LLMContextWindowUsage) in
-            usage.contextWindowTokens - reserve - Self.appleIntelligenceTokenMargin
-        }
-        var budget = inputBudget ?? contextBudget(for: context.providerConfig)
-        var measured = try? await client.contextWindowUsage(messages: assembly.messages, context: context)
-        var attempts = 0
-        while let usage = measured, usage.inputTokens > allowedInputTokens(usage),
-            attempts < Self.contextWindowFitAttempts
-        {
-            // Shrink slightly past the measured ratio so the next pass usually fits.
-            let ratio = Double(max(0, allowedInputTokens(usage))) / Double(usage.inputTokens)
-            let scaled = Int(Double(budget) * ratio * 0.95)
-            guard scaled > 0, scaled < budget else { break }
-            budget = scaled
-            assembly = build(budget)
-            measured = try? await client.contextWindowUsage(messages: assembly.messages, context: context)
-            attempts += 1
-        }
-        // Stay within the max-tokens range the Apple client accepts.
-        let answerRoom = measured.map {
-            min(
-                $0.contextWindowTokens - $0.inputTokens - Self.appleIntelligenceTokenMargin,
-                Self.maximumOutputTokensLeavingInputRoom(in: Self.appleIntelligenceContextBudget)
-            )
-        }
-        return ContextWindowFit(
-            assembly: assembly,
-            answerTokenLimit: answerRoom.flatMap { $0 > 0 ? $0 : nil }
-        )
-    }
-
     private func transcriptBudget(totalBudget: Int, systemPrompt: String) -> Int {
         max(0, totalBudget - systemPrompt.count)
     }
@@ -1827,10 +1722,9 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         transcript: String,
         userNotes: String?,
         history: [ChatMessage],
-        config: LLMProviderConfig,
-        budget: Int? = nil
+        config: LLMProviderConfig
     ) -> MessageAssembly {
-        let budget = budget ?? contextBudget(for: config)
+        let budget = contextBudget(for: config)
         let systemPromptBuild = Self.buildChatSystemPrompt(
             transcript: transcript,
             userNotes: userNotes,

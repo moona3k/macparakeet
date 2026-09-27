@@ -94,6 +94,14 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Changed
+
+- `llm routes set analysis --provider appleIntelligence` now fails validation.
+  Apple Intelligence's 4,096-token window (input and answer together) is too
+  small for summaries, chat, or knowledge cards over a transcript, so it serves
+  only the `cleanup` route. The app also clears a saved Apple Intelligence
+  default or analysis route at launch; saved API keys are kept.
+
 ## [4.9.0] — 2026-09-27 (bundled with MacParakeet 0.8.8)
 
 The standalone Homebrew CLI has its own release channel.

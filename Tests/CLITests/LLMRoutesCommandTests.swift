@@ -50,6 +50,19 @@ final class LLMRoutesCommandTests: XCTestCase {
         XCTAssertEqual(routes.first { $0.task == "analysis" }?.model, "default-model")
     }
 
+    func testAppleIntelligenceCanServeOnlyTheCleanupRoute() throws {
+        let (store, cliStore) = fixture()
+        try store.saveConfig(.openai(apiKey: "secret-default"))
+        let options = try LLMInlineOptions.parse(["--provider", "apple"])
+
+        XCTAssertThrowsError(
+            try setLLMRoute("analysis", options: options, store: store, cliStore: cliStore, environment: [:]))
+        XCTAssertNil(try store.loadTaskOverrideMetadata(.analysis))
+
+        try setLLMRoute("cleanup", options: options, store: store, cliStore: cliStore, environment: [:])
+        XCTAssertEqual(try store.loadTaskOverrideMetadata(.cleanup)?.id, .appleIntelligence)
+    }
+
     func testInvalidTaskDoesNotPersistAnything() throws {
         let (store, cliStore) = fixture()
         let options = try LLMInlineOptions.parse(["--provider", "openai", "--api-key", "secret"])

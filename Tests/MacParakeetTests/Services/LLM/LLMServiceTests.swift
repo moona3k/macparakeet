@@ -22,10 +22,6 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
     var chatCompletionError: Error?
     var holdInProcessModelRemoval = false
     var inProcessModelRemovalCallCount = 0
-    /// When set, `contextWindowUsage` reports this many tokens per input
-    /// character against a 4,096-token window, like Apple Intelligence.
-    var measuredTokensPerCharacter: Double?
-    var contextWindowMeasureCount = 0
     private var inProcessModelRemovalContinuation: CheckedContinuation<Void, Never>?
 
     func chatCompletion(
@@ -157,19 +153,6 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
         try await operation()
     }
 
-    func contextWindowUsage(
-        messages: [ChatMessage],
-        context: LLMExecutionContext
-    ) async throws -> LLMContextWindowUsage? {
-        contextWindowMeasureCount += 1
-        guard let measuredTokensPerCharacter else { return nil }
-        let characters = messages.reduce(0) { $0 + $1.content.count }
-        return LLMContextWindowUsage(
-            inputTokens: Int((Double(characters) * measuredTokensPerCharacter).rounded(.up)),
-            contextWindowTokens: 4_096
-        )
-    }
-
     func releaseInProcessModelRemoval() {
         holdInProcessModelRemoval = false
         inProcessModelRemovalContinuation?.resume()
@@ -244,13 +227,8 @@ final class MockLLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
         )
     }
 
-    func deleteAPIKey() throws {
-        guard let existing = config else { return }
-        storedKeys.removeValue(forKey: existing.id)
-        config = LLMProviderConfig(
-            id: existing.id, baseURL: existing.baseURL, apiKey: nil,
-            modelName: existing.modelName, isLocal: existing.isLocal
-        )
+    func deleteAPIKey(for provider: LLMProviderID) throws {
+        storedKeys.removeValue(forKey: provider)
     }
 
     func updateModelName(_ modelName: String) throws {
@@ -1400,139 +1378,6 @@ final class LLMServiceTests: XCTestCase {
         )
         XCTAssertEqual(mockClient.capturedOptions?.maxTokens, 700)
         XCTAssertTrue(mockClient.capturedMessages.last?.content.contains("[... content truncated ...]") == true)
-    }
-
-    /// Room the fit must leave: window minus default answer reserve and margin.
-    private var appleIntelligenceFittedInputTokens: Int {
-        4_096 - LLMService.appleIntelligenceDefaultOutputReserveTokens - LLMService.appleIntelligenceTokenMargin
-    }
-
-    private func measuredTokens(_ messages: [ChatMessage], perCharacter ratio: Double) -> Int {
-        Int((Double(messages.reduce(0) { $0 + $1.content.count }) * ratio).rounded(.up))
-    }
-
-    func testAppleIntelligencePromptResultShrinksDenseInputToLeaveAnswerRoom() async throws {
-        mockConfigStore.config = .appleIntelligence()
-        // Two characters per token: speaker labels, timestamps, or CJK text.
-        mockClient.measuredTokensPerCharacter = 0.5
-
-        _ = try await service.generatePromptResultDetailed(
-            transcript: String(repeating: "word ", count: 4_000),
-            systemPrompt: "Break this transcript into chapters.",
-            inferenceSettings: nil
-        )
-
-        XCTAssertLessThanOrEqual(
-            measuredTokens(mockClient.capturedMessages, perCharacter: 0.5),
-            appleIntelligenceFittedInputTokens
-        )
-        XCTAssertTrue(mockClient.capturedMessages.last?.content.contains("[... content truncated ...]") == true)
-        // The answer is capped at the room left so a long answer ends instead of failing.
-        let answerLimit = try XCTUnwrap(mockClient.capturedOptions?.maxTokens)
-        XCTAssertLessThanOrEqual(
-            measuredTokens(mockClient.capturedMessages, perCharacter: 0.5) + answerLimit,
-            4_096 - LLMService.appleIntelligenceTokenMargin
-        )
-        XCTAssertGreaterThanOrEqual(answerLimit, LLMService.appleIntelligenceDefaultOutputReserveTokens)
-    }
-
-    func testAppleIntelligenceShortRequestAnswerCapStaysInAcceptedRange() async throws {
-        mockConfigStore.config = .appleIntelligence()
-        mockClient.measuredTokensPerCharacter = 0.25
-
-        _ = try await service.chat(
-            question: "Hi?", transcript: "Short.", userNotes: nil, history: [], source: .transcriptChat,
-            conversationID: UUID())
-
-        XCTAssertEqual(
-            mockClient.capturedOptions?.maxTokens,
-            LLMService.maximumOutputTokensLeavingInputRoom(in: LLMService.appleIntelligenceContextBudget)
-        )
-    }
-
-    func testAppleIntelligencePromptResultStreamShrinksDenseInput() async throws {
-        mockConfigStore.config = .appleIntelligence()
-        mockClient.measuredTokensPerCharacter = 0.5
-        mockClient.streamTokens = ["Done"]
-
-        for try await _ in service.generatePromptResultStream(
-            transcript: String(repeating: "word ", count: 4_000),
-            systemPrompt: "Break this transcript into chapters."
-        ) {}
-
-        XCTAssertLessThanOrEqual(
-            measuredTokens(mockClient.capturedMessages, perCharacter: 0.5),
-            appleIntelligenceFittedInputTokens
-        )
-    }
-
-    func testAppleIntelligencePromptResultReservesRequestedMaxTokens() async throws {
-        mockConfigStore.config = .appleIntelligence()
-        mockClient.measuredTokensPerCharacter = 0.5
-
-        _ = try await service.generatePromptResultDetailed(
-            transcript: String(repeating: "word ", count: 4_000),
-            systemPrompt: "Summarize.",
-            inferenceSettings: PromptInferenceSettings(maxTokens: 2_000)
-        )
-
-        XCTAssertLessThanOrEqual(
-            measuredTokens(mockClient.capturedMessages, perCharacter: 0.5),
-            4_096 - 2_000 - LLMService.appleIntelligenceTokenMargin
-        )
-    }
-
-    func testAppleIntelligenceChatShrinksDenseTranscript() async throws {
-        mockConfigStore.config = .appleIntelligence()
-        mockClient.measuredTokensPerCharacter = 0.5
-
-        _ = try await service.chat(
-            question: "What was decided?", transcript: String(repeating: "word ", count: 4_000), userNotes: nil,
-            history: [], source: .transcriptChat, conversationID: UUID())
-
-        XCTAssertLessThanOrEqual(
-            measuredTokens(mockClient.capturedMessages, perCharacter: 0.5),
-            appleIntelligenceFittedInputTokens
-        )
-        XCTAssertEqual(mockClient.capturedMessages.last?.content, "What was decided?")
-    }
-
-    func testAppleIntelligenceKeepsCharacterBudgetWhenMeasuredInputFits() async throws {
-        mockConfigStore.config = .appleIntelligence()
-        let transcript = String(repeating: "word ", count: 4_000)
-        _ = try await service.generatePromptResultDetailed(
-            transcript: transcript, systemPrompt: "Summarize.", inferenceSettings: nil)
-        let unmeasured = mockClient.capturedMessages
-
-        // English prose measured on macOS 26.6: about 4.4 characters per token.
-        mockClient.measuredTokensPerCharacter = 1 / 4.4
-        _ = try await service.generatePromptResultDetailed(
-            transcript: transcript, systemPrompt: "Summarize.", inferenceSettings: nil)
-
-        XCTAssertEqual(mockClient.capturedMessages, unmeasured)
-        XCTAssertGreaterThan(mockClient.contextWindowMeasureCount, 0)
-    }
-
-    func testContextWindowFitIsAppleIntelligenceOnly() async throws {
-        mockConfigStore.config = .ollama(model: "llama3.2")
-        mockClient.measuredTokensPerCharacter = 0.5
-
-        _ = try await service.generatePromptResultDetailed(
-            transcript: String(repeating: "word ", count: 4_000), systemPrompt: "Summarize.", inferenceSettings: nil)
-        _ = try await service.transformDetailed(text: "Short text.", prompt: "Polish")
-
-        XCTAssertEqual(mockClient.contextWindowMeasureCount, 0)
-    }
-
-    func testAppleIntelligenceTransformNeverUsesTokenFit() async throws {
-        mockConfigStore.config = .appleIntelligence()
-        mockClient.measuredTokensPerCharacter = 0.5
-
-        _ = try await service.transformDetailed(text: "Short text.", prompt: "Polish")
-
-        // Rewrites must not lose the user's text to an automatic shrink.
-        XCTAssertEqual(mockClient.contextWindowMeasureCount, 0)
-        XCTAssertTrue(mockClient.capturedMessages.last?.content.contains("Short text.") == true)
     }
 
     func testAppleIntelligenceTransformUsesRoundTripBudget() async throws {

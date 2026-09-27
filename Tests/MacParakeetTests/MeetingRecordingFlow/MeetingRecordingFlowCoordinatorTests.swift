@@ -2106,7 +2106,7 @@ private final class NoOpLLMConfigStore: LLMConfigStoreProtocol, @unchecked Senda
     func loadAPIKey() throws -> String? { nil }
     func loadAPIKey(for provider: LLMProviderID) throws -> String? { nil }
     func saveAPIKey(_ key: String) throws {}
-    func deleteAPIKey() throws {}
+    func deleteAPIKey(for provider: LLMProviderID) throws {}
     func updateModelName(_ modelName: String) throws {}
 }
 

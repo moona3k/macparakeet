@@ -108,6 +108,10 @@ func setLLMRoute(
     let group = try overridableLLMTask(task)
     var options = options
     let provider = try options.providerID()
+    guard provider.canServe(group) else {
+        throw ValidationError(
+            "\(provider.displayName) can serve only the cleanup route; its context window is too small for \(group.rawValue).")
+    }
     if let model = options.model {
         let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw ValidationError("--model must not be empty") }

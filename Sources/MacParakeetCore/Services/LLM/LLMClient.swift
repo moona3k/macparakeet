@@ -36,37 +36,10 @@ public protocol LLMClientProtocol: Sendable {
     /// and before future in-process generations may start. Non in-process
     /// clients execute the operation directly.
     func withInProcessLocalModelRemoval(_ operation: @Sendable () async throws -> Void) async throws
-
-    /// Measures `messages` against the provider's context window in its own
-    /// tokens. Nil means the provider cannot measure; callers keep their
-    /// character budgets.
-    func contextWindowUsage(
-        messages: [ChatMessage],
-        context: LLMExecutionContext
-    ) async throws -> LLMContextWindowUsage?
-}
-
-/// Measured input size against a provider's full context window, which also
-/// has to hold the generated answer.
-public struct LLMContextWindowUsage: Sendable, Equatable {
-    public let inputTokens: Int
-    public let contextWindowTokens: Int
-
-    public init(inputTokens: Int, contextWindowTokens: Int) {
-        self.inputTokens = inputTokens
-        self.contextWindowTokens = contextWindowTokens
-    }
 }
 
 public extension LLMClientProtocol {
     var supportsInProcessLocalLLM: Bool { false }
-
-    func contextWindowUsage(
-        messages: [ChatMessage],
-        context: LLMExecutionContext
-    ) async throws -> LLMContextWindowUsage? {
-        nil
-    }
 
     func structuredOutputCapability(
         context: LLMExecutionContext

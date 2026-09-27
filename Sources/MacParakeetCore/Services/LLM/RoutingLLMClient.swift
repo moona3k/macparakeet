@@ -72,13 +72,6 @@ public final class RoutingLLMClient: LLMClientProtocol, Sendable {
         try await inProcessClient.withInProcessLocalModelRemoval(operation)
     }
 
-    public func contextWindowUsage(
-        messages: [ChatMessage],
-        context: LLMExecutionContext
-    ) async throws -> LLMContextWindowUsage? {
-        try await client(for: context).contextWindowUsage(messages: messages, context: context)
-    }
-
     private func client(for context: LLMExecutionContext) -> any LLMClientProtocol {
         switch context.providerConfig.id {
         case .localCLI:

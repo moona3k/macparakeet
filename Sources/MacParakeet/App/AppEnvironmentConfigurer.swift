@@ -111,6 +111,9 @@ final class AppEnvironmentConfigurer {
             await env.entitlementsService.refreshValidationIfNeeded()
         }
 
+        // Apple Intelligence is cleanup-only; retire routes saved before that
+        // rule. A failure leaves the routes as they were until the next launch.
+        try? env.llmConfigStore.clearRoutesProvidersCannotServe()
         let hasLLMConfig = (try? env.llmConfigStore.loadConfig()) != nil
 
         transcriptionViewModel.configure(

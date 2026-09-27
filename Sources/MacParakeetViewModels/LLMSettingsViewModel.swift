@@ -2,11 +2,6 @@ import Foundation
 import MacParakeetCore
 import OSLog
 
-public struct AppleIntelligenceOffer: Equatable, Sendable {
-    public let message: String
-    public let settingsURL: URL?
-}
-
 @MainActor
 @Observable
 public final class LLMSettingsViewModel {
@@ -164,6 +159,8 @@ public final class LLMSettingsViewModel {
     /// Keys typed into the draft but not saved, by provider. Browsing other
     /// providers before Save must not discard a key the user just pasted.
     private var unsavedAPIKeyInputs: [LLMProviderID: String] = [:]
+    /// The Keychain key for the draft's provider when the draft was loaded.
+    private var draftStoredAPIKey = ""
 
     public var selectedProviderID: LLMProviderID? {
         get { draft.providerID }
@@ -193,6 +190,30 @@ public final class LLMSettingsViewModel {
             nextDraft.apiKeyInput = newValue
             updateDraft(nextDraft)
         }
+    }
+
+    /// A saved key can be removed once no saved route uses its provider;
+    /// otherwise that route would stop working.
+    public var canRemoveSavedAPIKey: Bool {
+        guard let providerID = draft.providerID, providerID.supportsAPIKey, !draftStoredAPIKey.isEmpty else {
+            return false
+        }
+        return ![savedProviderID, savedCleanupOverrideProviderID, savedAnalysisOverrideProviderID].contains(providerID)
+    }
+
+    /// Deletes the draft provider's saved key. Turning AI off keeps keys, and
+    /// required keys cannot be saved empty, so this is the removal path.
+    public func removeSavedAPIKey() {
+        guard canRemoveSavedAPIKey, let configStore, let providerID = draft.providerID else { return }
+        do {
+            try configStore.deleteAPIKey(for: providerID)
+        } catch {
+            saveState = .error(error.localizedDescription)
+            return
+        }
+        unsavedAPIKeyInputs.removeValue(forKey: providerID)
+        draftStoredAPIKey = ""
+        apiKeyInput = ""
     }
 
     public var modelName: String {
@@ -289,9 +310,7 @@ public final class LLMSettingsViewModel {
         }
         if isConfigured {
             let displayName = savedAIOptionDisplayName ?? draftAIOptionDisplayName ?? "AI"
-            if (savedProviderID == .appleIntelligence
-                || savedCleanupOverrideProviderID == .appleIntelligence
-                || savedAnalysisOverrideProviderID == .appleIntelligence),
+            if savedCleanupOverrideProviderID == .appleIntelligence,
                 !appleIntelligenceAvailability.canGenerate
             {
                 return .cannotConnect(
@@ -402,12 +421,21 @@ public final class LLMSettingsViewModel {
             "Local AI is enabled by a developer override, but this app build does not include the MLX runtime. Build with MACPARAKEET_ENABLE_MLX_LOCAL_LLM=1 to test it. The model download is disabled for this build."
     }
 
+    /// Providers for Default AI and Meetings & library.
     public var selectableProviderIDs: [LLMProviderID] {
         LLMProviderID.userSelectableProviderIDs(
             inProcessLocalLLMVisible: shouldShowInProcessLocalSetup,
+            appleIntelligenceVisible: false
+        )
+    }
+
+    /// Dictation & cleanup also offers Apple Intelligence, the one route its
+    /// small context window can serve (`LLMProviderID.canServe(_:)`).
+    public var cleanupProviderIDs: [LLMProviderID] {
+        LLMProviderID.userSelectableProviderIDs(
+            inProcessLocalLLMVisible: shouldShowInProcessLocalSetup,
             appleIntelligenceVisible: appleIntelligenceAvailability.isUserSelectable
-                || draft.providerID == .appleIntelligence
-                || savedProviderID == .appleIntelligence
+                || cleanupOverrideProviderID == .appleIntelligence
         )
     }
 
@@ -420,38 +448,6 @@ public final class LLMSettingsViewModel {
 
     public var appleIntelligenceSettingsURL: URL? {
         appleIntelligenceAvailability.settingsURL
-    }
-
-    /// Quiet prompt on the AI page when this Mac can use Apple Intelligence and
-    /// the user has not already chosen it. Older systems and ineligible Macs
-    /// stay silent.
-    public var appleIntelligenceOffer: AppleIntelligenceOffer? {
-        Self.appleIntelligenceOffer(
-            availability: appleIntelligenceAvailability,
-            selectedProviderID: selectedProviderID
-        )
-    }
-
-    public static func appleIntelligenceOffer(
-        availability: AppleIntelligenceAvailability,
-        selectedProviderID: LLMProviderID?
-    ) -> AppleIntelligenceOffer? {
-        guard selectedProviderID == nil else { return nil }
-        switch availability {
-        case .appleIntelligenceNotEnabled:
-            return AppleIntelligenceOffer(
-                message:
-                    "This Mac can run Apple Intelligence on device. Turn it on in System Settings, then choose it here.",
-                settingsURL: availability.settingsURL
-            )
-        case .modelNotReady:
-            return AppleIntelligenceOffer(
-                message: "Apple Intelligence is downloading on this Mac. Choose it here when it's ready.",
-                settingsURL: nil
-            )
-        case .unsupported, .deviceNotEligible, .available, .localeLimited:
-            return nil
-        }
     }
 
     public func refreshAppleIntelligenceAvailability() {
@@ -911,6 +907,9 @@ public final class LLMSettingsViewModel {
         } else {
             apiKey = ""
         }
+        // Turning AI off drops keys that were typed but never saved.
+        unsavedAPIKeyInputs.removeAll()
+        draftStoredAPIKey = apiKey
         defaults.removeObject(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
         defaults.set(AIFormatter.defaultPromptTemplate, forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey)
         defaults.set(
@@ -1314,8 +1313,12 @@ public final class LLMSettingsViewModel {
     private func applyProviderChange(to providerID: LLMProviderID?) {
         guard draft.providerID != providerID else { return }
         if let previousProviderID = draft.providerID, previousProviderID.supportsAPIKey {
-            unsavedAPIKeyInputs[previousProviderID] = draft.apiKeyInput
+            // Remember only real edits, so a key rotated elsewhere is not
+            // overwritten by a stale copy of the old one.
+            unsavedAPIKeyInputs[previousProviderID] =
+                draft.apiKeyInput == draftStoredAPIKey ? nil : draft.apiKeyInput
         }
+        draftStoredAPIKey = ""
         let formatterPrompt = draft.aiFormatterPrompt
         let dictationPrompt = draft.aiFormatterDictationPrompt
         guard let providerID else {
@@ -1330,10 +1333,10 @@ public final class LLMSettingsViewModel {
         }
         resetDiscoveredModels()
         refreshAppleIntelligenceAvailability()
-        let apiKey =
-            providerID.supportsAPIKey
-            ? unsavedAPIKeyInputs[providerID] ?? ((try? configStore?.loadAPIKey(for: providerID)) ?? "")
-            : ""
+        if providerID.supportsAPIKey {
+            draftStoredAPIKey = (try? configStore?.loadAPIKey(for: providerID)) ?? ""
+        }
+        let apiKey = unsavedAPIKeyInputs[providerID] ?? draftStoredAPIKey
         let cliConfig = providerID == .localCLI ? cliConfigStore?.load() : nil
         var nextDraft = LLMSettingsDraft.defaults(
             for: providerID,
@@ -1355,6 +1358,7 @@ public final class LLMSettingsViewModel {
 
     private func loadExistingConfig() {
         guard let configStore, let config = try? configStore.loadConfig() else {
+            draftStoredAPIKey = ""
             draft = LLMSettingsDraft(
                 aiFormatterPrompt: Self.loadStoredAIFormatterPrompt(from: defaults),
                 aiFormatterDictationPrompt: Self.loadStoredAIFormatterDictationPrompt(from: defaults)
@@ -1472,6 +1476,7 @@ public final class LLMSettingsViewModel {
         // The saved key is now the stored key; a stale typed value must not
         // replace it when the user returns to this provider.
         unsavedAPIKeyInputs.removeValue(forKey: config.id)
+        draftStoredAPIKey = config.apiKey ?? ""
         draft = .fromStoredConfig(
             config,
             suggestedModels: suggestedModels,

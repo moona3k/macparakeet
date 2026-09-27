@@ -109,36 +109,6 @@ final class AppleIntelligenceLLMClientTests: XCTestCase {
         XCTAssertEqual(streamed, ["Hel", "lo"])
     }
 
-    func testContextWindowUsageMeasuresTheSplitThatGenerationSends() async throws {
-        let generator = MeasuringAppleIntelligenceGenerator()
-        let client = AppleIntelligenceLLMClient(generator: generator)
-        let messages = [
-            ChatMessage(role: .system, content: "Summarize."),
-            ChatMessage(role: .user, content: "Transcript text"),
-        ]
-
-        let usage = try await client.contextWindowUsage(
-            messages: messages,
-            context: LLMExecutionContext(providerConfig: .appleIntelligence())
-        )
-
-        let split = AppleIntelligencePromptBuilder.split(messages: messages)
-        XCTAssertEqual(generator.measured?.instructions, split.instructions)
-        XCTAssertEqual(generator.measured?.prompt, split.prompt)
-        XCTAssertEqual(usage, LLMContextWindowUsage(inputTokens: 42, contextWindowTokens: 4_096))
-    }
-
-    func testContextWindowUsageIsNilWhenTheModelCannotCount() async throws {
-        let client = AppleIntelligenceLLMClient(
-            generator: StubAppleIntelligenceGenerator(availability: .available, chunks: ["OK"])
-        )
-        let usage = try await client.contextWindowUsage(
-            messages: [ChatMessage(role: .user, content: "Hi")],
-            context: LLMExecutionContext(providerConfig: .appleIntelligence())
-        )
-        XCTAssertNil(usage)
-    }
-
     func testStubGeneratorStreamsCombiningMarkDeltas() async throws {
         let generator = StubAppleIntelligenceGenerator(
             availability: .available,
@@ -465,23 +435,5 @@ private struct StubAppleIntelligenceGenerator: AppleIntelligenceGenerating {
             return reducer.emitted
         }
         return chunks.last ?? ""
-    }
-}
-
-private final class MeasuringAppleIntelligenceGenerator: AppleIntelligenceGenerating, @unchecked Sendable {
-    private(set) var measured: (instructions: String?, prompt: String)?
-
-    func currentAvailability() -> AppleIntelligenceAvailability { .available }
-
-    func generate(
-        request: AppleIntelligenceGenerationRequest,
-        onPartial: (@Sendable (String) -> Void)?
-    ) async throws -> String {
-        "OK"
-    }
-
-    func measureInput(instructions: String?, prompt: String) async throws -> LLMContextWindowUsage? {
-        measured = (instructions, prompt)
-        return LLMContextWindowUsage(inputTokens: 42, contextWindowTokens: 4_096)
     }
 }
