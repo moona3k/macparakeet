@@ -1,0 +1,73 @@
+Sources/CLI/CHANGELOG.md
+  s_97d84c3d2286a9::t_920d0d4a31e665 97-107
+Sources/CLI/Commands/AskCommand.swift
+  s_97d84c3d2286a9::t_efc08668505d85 176-192,203,228
+Sources/CLI/Commands/SpecCommand.swift
+  s_97d84c3d2286a9::t_489a061e98237a 267
+Sources/CLI/MacParakeetCLI.swift
+  s_97d84c3d2286a9::t_41e8e417c75132 11
+Sources/MacParakeet/Views/Ask/AskActivityView.swift
+  s_97d84c3d2286a9::t_c123a3750d4e11 1-184
+Sources/MacParakeet/Views/Ask/AskMessageView.swift
+  s_97d84c3d2286a9::t_b152ace24b8026 6,15-19
+Sources/MacParakeet/Views/Ask/AskScrollFollowState.swift
+  s_97d84c3d2286a9::t_406a4b72bacc5c 1-28
+Sources/MacParakeet/Views/Ask/AskWorkspaceView.swift
+  s_97d84c3d2286a9::t_61b695126d4a2f 10-13,174-201,205-220,222-230,233-244,247-257,260-279,380-391,398,508-512
+Sources/MacParakeetCore/Models/AskWorkspace.swift
+  s_97d84c3d2286a9::t_1971548d8cba1f 50-84,98,111,123
+Sources/MacParakeetCore/Services/Ask/AskAgentTypes.swift
+  s_97d84c3d2286a9::t_75d0470047d94a 17-18
+Sources/MacParakeetCore/Services/Ask/AskWorkspaceService.swift
+  s_97d84c3d2286a9::t_96cabbe5606653 190,223-224,247,250-251,360,372-450
+Sources/MacParakeetCore/Services/Ask/PiAskAgent.swift
+  s_97d84c3d2286a9::t_c0f671c4d892d4 126,143
+Sources/MacParakeetViewModels/AskWorkspaceViewModel.swift
+  s_97d84c3d2286a9::t_4b133a36c77e92 14-15,51-52,599-603,651-655,667,670-691,725-727
+Tests/CLITests/AskCommandTests.swift
+  s_97d84c3d2286a9::t_92c67308f283fd 93-114
+Tests/MacParakeetTests/Ask/AskWorkspaceServiceTests.swift
+  s_97d84c3d2286a9::t_6e01ca1bf93bb5 173-177,243,604-728,771-775
+Tests/MacParakeetTests/Ask/AskWorkspaceViewModelTests.swift
+  s_7947a554c2f7ea::t_213cd5062d06ae 8-72,788,798-809,929-938
+Tests/MacParakeetTests/Ask/PiAskAgentTests.swift
+  s_97d84c3d2286a9::t_b3274d274b188a 78-79,93-94,217-218
+Tests/MacParakeetTests/Views/AskActivityViewTests.swift
+  s_7947a554c2f7ea::t_ee46f121fc9777 1-137
+Tests/MacParakeetTests/Views/AskScrollFollowStateTests.swift
+  s_97d84c3d2286a9::t_6f825e33651acc 1-50
+docs/research/2026-09-26-ask-activity-ui.md
+  s_97d84c3d2286a9::t_259e266521d0e8 1-83
+scripts/dist/homebrew-tap-scaffold/HOWTO.md
+  s_97d84c3d2286a9::t_d5fa26297670fc 39
+spec/04-ui-patterns.md
+  s_97d84c3d2286a9::t_797028e408849b 1867-1893
+spec/contracts/ask-workspace.md
+  s_97d84c3d2286a9::t_0fee50c893e9ca 233-242,244-254
+spec/contracts/cli-json-v1.md
+  s_97d84c3d2286a9::t_5c2009b36da8c9 524-534
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c5c0cf61401f2c9aa4ecc7f763ad8988c34a0193",
+  "prompts": {},
+  "sessions": {
+    "s_7947a554c2f7ea": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fdfc1359-081c-4dd7-84c5-4d9f320b6fbb",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_97d84c3d2286a9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e06a-aa8c-7b83-b3c9-65c774b51da5",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
