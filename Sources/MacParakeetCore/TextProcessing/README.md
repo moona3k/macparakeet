@@ -75,8 +75,9 @@ mode.
    Built-in spoken punctuation (`question mark` → `?`) runs after user
    snippets so a custom snippet of the same trigger still wins. A snippet
    expansion that itself contains a command phrase is also converted.
-   Prefix `literal` keeps the words. Default on in Clean mode; meetings
-   never run this step.
+   Prefix `literal` keeps the words. Default on for Clean dictation only;
+   file, URL, and meeting transcripts never run this step, because recorded
+   speech that mentions "a question mark" means the words.
 5. **Whitespace cleanup and insertion styling.** Collapse repeated
    spaces, fix punctuation spacing, normalize, then apply the selected
    dictation insertion style. Sentence style preserves the historic

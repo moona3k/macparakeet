@@ -94,6 +94,15 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Fixed
+
+- `config spoken-punctuation` now applies to Clean dictation only, including
+  `retranscribe --kind dictation` and `vocab process`. `transcribe` and file
+  retranscription keep spoken "question mark" / "exclamation mark" phrases as
+  words, so recorded speech such as "a question mark over the plan" is not
+  rewritten. No stable app or Homebrew CLI release shipped the earlier
+  file-transcription behavior from 4.6.0.
+
 ## [4.8.0] — 2026-09-26 (development source; not a stable app release)
 
 ### Added

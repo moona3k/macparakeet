@@ -31,7 +31,7 @@ struct ConfigCommand: ParsableCommand {
           telemetry                 on|off                         default: on
           processing-mode           raw|clean                       default: raw
           spoken-punctuation        on|off                          default: on
-                                    (Clean dictation/files; meetings never convert)
+                                    (Clean dictation only; transcripts never convert)
           remove-um-filler          on|off                          default: on
                                     (Clean processing; off keeps
                                     Portuguese/German um)
@@ -104,7 +104,7 @@ struct ConfigCommand: ParsableCommand {
             key: "spoken-punctuation",
             valueSyntax: "on|off",
             allowedValues: ["on", "off"],
-            summary: "Convert spoken question/exclamation marks in Clean dictation and file transcription. Meetings never convert."
+            summary: "Convert spoken question/exclamation marks in Clean dictation. File, URL, and meeting transcripts never convert."
         ),
         CLIConfigKeySpec(
             key: "remove-um-filler",

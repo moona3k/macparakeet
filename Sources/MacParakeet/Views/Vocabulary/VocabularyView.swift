@@ -270,7 +270,7 @@ struct VocabularyView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Spoken punctuation")
                     .font(DesignSystem.Typography.body)
-                Text("“question mark” → ? · “literal question mark” keeps the words. Dictation and files only; meetings stay verbatim.")
+                Text("“question mark” → ? · “literal question mark” keeps the words. Dictation only; file and meeting transcripts stay verbatim.")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.secondary)
             }

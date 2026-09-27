@@ -2614,6 +2614,22 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(result.dictation.wordCount, 2)
     }
 
+    func testStopRecordingConvertsSpokenPunctuationByDefaultInCleanMode() async throws {
+        await mockSTT.configure(result: STTResult(text: "are you coming question mark"))
+
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            processingMode: { .clean }
+        )
+
+        try await service.startRecording()
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.cleanTranscript, "Are you coming?")
+    }
+
     func testStopRecordingStripsUmFillerByDefaultInCleanMode() async throws {
         await mockSTT.configure(result: STTResult(text: "I um think we should ship it"))
 

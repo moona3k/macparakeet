@@ -1114,6 +1114,24 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(result.cleanTranscript, "Um, dois, três")
     }
 
+    func testTranscribeFileKeepsSpokenPunctuationPhrasesAsWords() async throws {
+        // Spoken punctuation is a dictation command. Recorded speech that
+        // mentions a question mark must not become "a big? over his future".
+        let transcript = "There's a big question mark over his future. The exclamation point is overused."
+        await mockSTT.configure(result: STTResult(text: transcript))
+
+        let cleanService = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            processingMode: { .clean }
+        )
+
+        let result = try await cleanService.transcribe(fileURL: URL(fileURLWithPath: "/tmp/test.mp3"))
+
+        XCTAssertEqual(result.cleanTranscript, transcript)
+    }
+
     func testTranscribeMeetingDoesNotStripFillersInCleanMode() async throws {
         let transcript = "Treffe dich um drei uh"
         await mockSTT.configure(result: STTResult(

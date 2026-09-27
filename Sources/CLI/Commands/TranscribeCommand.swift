@@ -658,9 +658,6 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 processingMode: {
                     processingMode
                 },
-                spokenPunctuationEnabled: {
-                    UserDefaultsAppRuntimePreferences.spokenPunctuationEnabled(defaults: defaults)
-                },
                 removeUmFiller: {
                     UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: defaults)
                 },

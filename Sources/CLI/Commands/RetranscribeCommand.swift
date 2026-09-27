@@ -588,9 +588,6 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
             processingMode: { processingMode },
-            spokenPunctuationEnabled: {
-                UserDefaultsAppRuntimePreferences.spokenPunctuationEnabled(defaults: defaults)
-            },
             removeUmFiller: {
                 UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: defaults)
             },

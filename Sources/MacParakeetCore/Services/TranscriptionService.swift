@@ -306,7 +306,6 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
     private let customWordRepo: CustomWordRepositoryProtocol?
     private let snippetRepo: TextSnippetRepositoryProtocol?
     private let processingMode: @Sendable () -> Dictation.ProcessingMode
-    private let spokenPunctuationEnabled: @Sendable () -> Bool
     private let removeUmFiller: @Sendable () -> Bool
     private let textRefinementService: TextRefinementService
     private let llmService: LLMServiceProtocol?
@@ -345,7 +344,6 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         customWordRepo: CustomWordRepositoryProtocol? = nil,
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
         processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil,
-        spokenPunctuationEnabled: (@Sendable () -> Bool)? = nil,
         removeUmFiller: (@Sendable () -> Bool)? = nil,
         llmService: LLMServiceProtocol? = nil,
         llmRunRepo: LLMRunRepositoryProtocol? = nil,
@@ -381,7 +379,6 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
             processingMode: processingMode,
-            spokenPunctuationEnabled: spokenPunctuationEnabled,
             removeUmFiller: removeUmFiller,
             llmService: llmService,
             llmRunRepo: llmRunRepo,
@@ -420,7 +417,6 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         customWordRepo: CustomWordRepositoryProtocol? = nil,
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
         processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil,
-        spokenPunctuationEnabled: (@Sendable () -> Bool)? = nil,
         removeUmFiller: (@Sendable () -> Bool)? = nil,
         llmService: LLMServiceProtocol? = nil,
         llmRunRepo: LLMRunRepositoryProtocol? = nil,
@@ -455,7 +451,6 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         self.customWordRepo = customWordRepo
         self.snippetRepo = snippetRepo
         self.processingMode = processingMode ?? { .raw }
-        self.spokenPunctuationEnabled = spokenPunctuationEnabled ?? { true }
         self.removeUmFiller = removeUmFiller ?? { true }
         self.textRefinementService = TextRefinementService()
         self.llmService = llmService
@@ -2177,7 +2172,9 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         let mode = processingMode()
         // Meetings keep a verbatim record: custom words already ran through
         // `MeetingTranscriptVocabularyApplier`. Filler removal, snippets, and
-        // insertion styling stay dictation/file-only (spec/07).
+        // insertion styling stay dictation/file-only (spec/07). Spoken
+        // punctuation is a dictation command, so recorded speech never runs it:
+        // "a question mark over his future" must stay words.
         let appliesCleanPipeline = source != .meeting && mode.usesDeterministicPipeline
         var customWords: [CustomWord] = []
         var snippets: [TextSnippet] = []
@@ -2193,7 +2190,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
             mode: appliesCleanPipeline ? mode : .raw,
             customWords: customWords,
             snippets: snippets,
-            spokenPunctuationEnabled: source == .meeting ? false : spokenPunctuationEnabled(),
+            spokenPunctuationEnabled: false,
             removeUmFiller: appliesCleanPipeline && removeUmFiller()
         )
         let baseText = refinement.text ?? rawText

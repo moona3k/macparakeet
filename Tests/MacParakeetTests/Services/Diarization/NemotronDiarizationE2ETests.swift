@@ -83,7 +83,6 @@ final class NemotronDiarizationE2ETests: XCTestCase {
             sttTranscriber: stt,
             transcriptionRepo: repository,
             processingMode: { .raw },
-            spokenPunctuationEnabled: { false },
             removeUmFiller: { false },
             shouldUseAIFormatter: { false },
             shouldAutoGenerateMeetingTitles: { false },
