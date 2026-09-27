@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/AppRuntimePreferencesTests.swift
+  s_d7fbb83ffeb58e::t_d9dc72d978e701 718-724
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4d19a0826eb011b194ac3767d9cfb10f16bd785c",
+  "prompts": {},
+  "sessions": {
+    "s_d7fbb83ffeb58e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8c433a5-796b-41b4-9f2a-2a815507bfba",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
