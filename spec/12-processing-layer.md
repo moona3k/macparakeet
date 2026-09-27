@@ -220,8 +220,20 @@ when automatic clean text is empty). The text receipt catches retranscription
 even when the new transcript's correction revision resets to zero. Plain/rich
 context display settings and recording metadata do not affect this hash.
 Existing rows keep a `NULL` receipt in migration v0.48 because their source
-text cannot be proven from the current transcript; the app offers to update
-them.
+text cannot be proven from the current transcript. Missing receipts alone do
+not show a freshness banner: the normal Regenerate action explains the missing
+tracking in its help text. Only a known hash or correction-revision mismatch
+shows a transcript-change notice, using “result” for every prompt type.
+Regenerate replaces the result using the current transcript; it does not merely
+check freshness. Automation freshness fields retain their conservative unknown
+semantics.
+
+Regeneration occupies the original result's tab position while queued,
+streaming, or failed. Success replaces that tab in place for the current visit,
+including same-recording reloads; reopening a recording uses creation order.
+Cancellation or dismissing a failure restores the saved result. The saved row
+remains intact until conditional replacement succeeds; external edits and
+source deletion still fail safely. Independent generations append new tabs.
 
 ```sql
 CREATE TABLE summaries (

@@ -3055,13 +3055,7 @@ struct TranscriptResultView: View {
 
     private var orderedTabs: [TranscriptionViewModel.TranscriptTab] {
         var tabs = TranscriptResultTabOrdering.leadingTabs(for: activeTranscription.sourceType)
-        // Generated content after transcript, oldest first so new tabs appear on the right
-        for promptResult in promptResultsViewModel.promptResults.reversed() {
-            tabs.append(.result(id: promptResult.id))
-        }
-        for generation in promptResultsViewModel.pendingGenerations(for: transcription.id) {
-            tabs.append(.generation(id: generation.id))
-        }
+        tabs += promptResultsViewModel.resultTabs(for: transcription.id)
         tabs.append(.chat)
         return tabs
     }
@@ -3168,7 +3162,7 @@ struct TranscriptResultView: View {
             }
             if case .generation(let id) = tab {
                 Button("Remove", role: .destructive) {
-                    promptResultsViewModel.cancelGeneration(id: id)
+                    cancelGenerationAndRestoreResult(id: id)
                 }
             }
         }
@@ -3281,18 +3275,14 @@ struct TranscriptResultView: View {
         let promptResult = promptResultsViewModel.promptResults.first(where: { $0.id == promptResultID })
         return VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
             if let promptResult {
-                let summaryNeedsUpdate = PromptResultFreshness.summaryNeedsUpdate(
+                let transcriptChanged = PromptResultFreshness.hasKnownTranscriptChange(
                     sourceCorrectionRevision: promptResult.sourceCorrectionRevision,
                     currentCorrectionRevision: currentCorrectionRevision,
                     sourceTranscriptHash: promptResult.sourceTranscriptHash,
                     currentTranscriptHash: currentSourceTranscriptHash
                 )
-                if summaryNeedsUpdate {
-                    Text(
-                        promptResult.sourceTranscriptHash == nil
-                            ? "This summary's source transcript is unknown. Update it to check against the current transcript."
-                            : "The transcript changed after this summary."
-                    )
+                if transcriptChanged {
+                    Text("The transcript changed after this result was generated. Regenerate to use the current transcript.")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
                 }
@@ -3331,12 +3321,17 @@ struct TranscriptResultView: View {
                         } label: {
                             HStack(spacing: DesignSystem.Spacing.xs) {
                                 Image(systemName: "arrow.clockwise")
-                                Text(summaryNeedsUpdate ? "Update summary" : "Regenerate")
+                                Text("Regenerate")
                             }
                             .font(DesignSystem.Typography.caption)
                         }
-                        .parakeetAction(summaryNeedsUpdate ? .primary : .secondary)
+                        .parakeetAction(transcriptChanged ? .primary : .secondary)
                         .controlSize(.small)
+                        .help(
+                            promptResult.sourceTranscriptHash == nil
+                                ? "The transcript version used for this result wasn’t recorded. Regenerate replaces it using the current transcript."
+                                : "Replace this result using the current transcript."
+                        )
                         .disabled(
                             promptNotesActionGate.isRunning || richContextLoader.preparingPromptContext
                                 || !promptResultsViewModel.canGeneratePromptResult
@@ -3531,14 +3526,24 @@ struct TranscriptResultView: View {
         ) {
             Button("Keep", role: .cancel) {}
             Button(generation.state == .queued ? "Remove" : "Cancel", role: .destructive) {
-                promptResultsViewModel.cancelGeneration(id: generation.id)
-                viewModel.selectedTab = .transcript
+                cancelGenerationAndRestoreResult(id: generation.id)
             }
         } message: {
             Text(
                 generation.state == .queued
                     ? "This will remove the prompt from the generation queue."
                     : "This will stop the AI from generating the result.")
+        }
+    }
+
+    private func cancelGenerationAndRestoreResult(id: UUID) {
+        let replacingID = promptResultsViewModel.pendingGeneration(id: id)?.replacingPromptResultID
+        promptResultsViewModel.cancelGeneration(id: id)
+        guard viewModel.selectedTab == .generation(id: id) else { return }
+        if let replacingID, promptResultsViewModel.promptResults.contains(where: { $0.id == replacingID }) {
+            viewModel.selectedTab = .result(id: replacingID)
+        } else {
+            viewModel.selectedTab = .transcript
         }
     }
 
@@ -3569,9 +3574,7 @@ struct TranscriptResultView: View {
                 .controlSize(.regular)
 
                 Button("Dismiss") {
-                    let replacingID = generation.replacingPromptResultID
-                    promptResultsViewModel.cancelGeneration(id: generation.id)
-                    viewModel.selectedTab = replacingID.map { .result(id: $0) } ?? .transcript
+                    cancelGenerationAndRestoreResult(id: generation.id)
                 }
                 .parakeetAction(.secondary)
                 .controlSize(.regular)

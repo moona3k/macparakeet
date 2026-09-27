@@ -36,6 +36,22 @@ public enum PromptResultFreshness {
         return SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
+    /// Missing receipts are unknown, not evidence that the transcript changed.
+    /// GUI notices use this stricter check; automation retains summaryNeedsUpdate.
+    public static func hasKnownTranscriptChange(
+        sourceCorrectionRevision: Int?,
+        currentCorrectionRevision: Int,
+        sourceTranscriptHash: String?,
+        currentTranscriptHash: String?
+    ) -> Bool {
+        if let sourceTranscriptHash, let currentTranscriptHash,
+            sourceTranscriptHash != currentTranscriptHash
+        {
+            return true
+        }
+        return sourceCorrectionRevision.map { $0 != currentCorrectionRevision } ?? false
+    }
+
     public static func summaryNeedsUpdate(
         sourceCorrectionRevision: Int?,
         currentCorrectionRevision: Int,

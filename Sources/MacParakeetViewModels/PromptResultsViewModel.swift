@@ -468,7 +468,14 @@ public final class PromptResultsViewModel {
         currentTranscriptionID = transcriptionId
         loadVisiblePrompts()
         do {
-            promptResults = try promptResultRepo?.fetchAll(transcriptionId: transcriptionId) ?? []
+            let fetched = try promptResultRepo?.fetchAll(transcriptionId: transcriptionId) ?? []
+            // Keep this visit's tab positions after regeneration, including
+            // same-recording refreshes. Newly discovered results go on the right.
+            let fetchedByID = Dictionary(uniqueKeysWithValues: fetched.map { ($0.id, $0) })
+            let knownIDs = Set(promptResults.map(\.id))
+            promptResults =
+                fetched.filter { !knownIDs.contains($0.id) }
+                + promptResults.compactMap { fetchedByID[$0.id] }
             onPromptResultsChanged?(transcriptionId, !promptResults.isEmpty)
             errorMessage =
                 isEditingRemovedPromptResult
@@ -490,6 +497,26 @@ public final class PromptResultsViewModel {
 
     public func hasUnreadPromptResult(_ promptResultID: UUID) -> Bool {
         unreadPromptResultIDs.contains(promptResultID)
+    }
+
+    /// A replacement occupies its saved result's slot throughout queued,
+    /// streaming, and failed states. Independent generations still append.
+    public func resultTabs(for transcriptionID: UUID) -> [TranscriptionViewModel.TranscriptTab] {
+        let generations = pendingGenerations(for: transcriptionID)
+        let results = promptResults.filter { $0.transcriptionId == transcriptionID }
+        var representedGenerationIDs: Set<UUID> = []
+        var tabs: [TranscriptionViewModel.TranscriptTab] = results.reversed().map { result in
+            if let replacement = generations.first(where: { $0.replacingPromptResultID == result.id }) {
+                representedGenerationIDs.insert(replacement.id)
+                return .generation(id: replacement.id)
+            }
+            return .result(id: result.id)
+        }
+        // Keep work reachable if its source was removed, or another attempt
+        // exists for the same saved result after a failure.
+        tabs += generations.filter { !representedGenerationIDs.contains($0.id) }
+            .map { .generation(id: $0.id) }
+        return tabs
     }
 
     public func pendingGeneration(id: UUID) -> PendingGeneration? {
@@ -1007,9 +1034,14 @@ public final class PromptResultsViewModel {
             errorMessage = nil
             if let replacingPromptResultID = generation.replacingPromptResultID {
                 unreadPromptResultIDs.remove(replacingPromptResultID)
-                promptResults.removeAll { $0.id == replacingPromptResultID }
             }
-            promptResults.insert(promptResult, at: 0)
+            if let replacingID = generation.replacingPromptResultID,
+                let resultIndex = promptResults.firstIndex(where: { $0.id == replacingID })
+            {
+                promptResults[resultIndex] = promptResult
+            } else {
+                promptResults.insert(promptResult, at: 0)
+            }
         }
 
         // Hand the selected pending tab to its saved result in the same

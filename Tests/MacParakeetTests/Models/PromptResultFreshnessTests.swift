@@ -2,6 +2,34 @@ import XCTest
 @testable import MacParakeetCore
 
 final class PromptResultFreshnessTests: XCTestCase {
+    func testVisibleNoticeRequiresEvidenceOfAChangeRatherThanMissingTracking() {
+        XCTAssertFalse(
+            PromptResultFreshness.hasKnownTranscriptChange(
+                sourceCorrectionRevision: nil, currentCorrectionRevision: 3,
+                sourceTranscriptHash: nil, currentTranscriptHash: "current"))
+        XCTAssertFalse(
+            PromptResultFreshness.hasKnownTranscriptChange(
+                sourceCorrectionRevision: 3, currentCorrectionRevision: 3,
+                sourceTranscriptHash: nil, currentTranscriptHash: "current"))
+        XCTAssertTrue(
+            PromptResultFreshness.hasKnownTranscriptChange(
+                sourceCorrectionRevision: 2, currentCorrectionRevision: 3,
+                sourceTranscriptHash: nil, currentTranscriptHash: "current"))
+        XCTAssertTrue(
+            PromptResultFreshness.hasKnownTranscriptChange(
+                sourceCorrectionRevision: 0, currentCorrectionRevision: 0,
+                sourceTranscriptHash: "original", currentTranscriptHash: "current"))
+        XCTAssertFalse(
+            PromptResultFreshness.hasKnownTranscriptChange(
+                sourceCorrectionRevision: 0, currentCorrectionRevision: 0,
+                sourceTranscriptHash: "current", currentTranscriptHash: "current"))
+        // The automation contract remains conservative for missing receipts.
+        XCTAssertTrue(
+            PromptResultFreshness.summaryNeedsUpdate(
+                sourceCorrectionRevision: nil, currentCorrectionRevision: 0,
+                sourceTranscriptHash: nil, currentTranscriptHash: "current"))
+    }
+
     func testSummaryNeedsUpdateOnlyAfterTheTranscriptRevisionChanges() {
         XCTAssertFalse(
             PromptResultFreshness.summaryNeedsUpdate(

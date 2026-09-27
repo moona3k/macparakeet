@@ -1329,6 +1329,141 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertEqual(llm.summarizeCallCount, 0)
     }
 
+    func testRegenerationKeepsOneTabInItsSlotThroughCompletionAndReload() async throws {
+        let recordingID = UUID()
+        let original = PromptResult(
+            transcriptionId: recordingID, promptName: "Actions", promptContent: "Extract actions",
+            content: "Original", createdAt: Date(timeIntervalSince1970: 1))
+        let neighbor = PromptResult(
+            transcriptionId: recordingID, promptName: "Chapters", promptContent: "Extract chapters",
+            content: "Chapters", createdAt: Date(timeIntervalSince1970: 2))
+        promptResultRepo.promptResults = [original, neighbor]
+        viewModel.configure(llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo)
+        viewModel.loadPromptResults(transcriptionId: recordingID)
+        llm.streamTokens = ["Replacement"]
+        llm.streamDelayNs = 50_000_000
+        let id = try XCTUnwrap(viewModel.regeneratePromptResult(original, transcript: "Transcript"))
+        XCTAssertEqual(viewModel.resultTabs(for: recordingID), [.generation(id: id), .result(id: neighbor.id)])
+        XCTAssertEqual(promptResultRepo.promptResults.first?.content, "Original")
+        try await waitUntil { self.viewModel.pendingGeneration(id: id) == nil }
+        XCTAssertEqual(viewModel.resultTabs(for: recordingID), [.result(id: id), .result(id: neighbor.id)])
+        viewModel.loadPromptResults(transcriptionId: recordingID)
+        XCTAssertEqual(viewModel.resultTabs(for: recordingID), [.result(id: id), .result(id: neighbor.id)])
+        XCTAssertEqual(viewModel.promptResults.last?.content, "Replacement")
+        // A different visit restores repository creation order, without leaking old tabs.
+        viewModel.loadPromptResults(transcriptionId: UUID())
+        XCTAssertTrue(viewModel.resultTabs(for: recordingID).isEmpty)
+        viewModel.loadPromptResults(transcriptionId: recordingID)
+        XCTAssertEqual(viewModel.resultTabs(for: recordingID), [.result(id: neighbor.id), .result(id: id)])
+    }
+
+    func testCancellingStreamingReplacementRestoresOriginalTabAndSavedContent() async throws {
+        let recordingID = UUID()
+        let original = PromptResult(
+            transcriptionId: recordingID, promptName: "Actions", promptContent: "Actions", content: "Original")
+        promptResultRepo.promptResults = [original]
+        viewModel.configure(llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo)
+        viewModel.loadPromptResults(transcriptionId: recordingID)
+        llm.streamDelayNs = 500_000_000
+        let id = try XCTUnwrap(viewModel.regeneratePromptResult(original, transcript: "Transcript"))
+        try await waitUntil { self.viewModel.pendingGeneration(id: id)?.state == .streaming }
+        XCTAssertEqual(viewModel.resultTabs(for: recordingID), [.generation(id: id)])
+        viewModel.cancelGeneration(id: id)
+        try await waitUntil { self.viewModel.pendingGeneration(id: id) == nil }
+        XCTAssertEqual(viewModel.resultTabs(for: recordingID), [.result(id: original.id)])
+        XCTAssertEqual(promptResultRepo.promptResults, [original])
+        XCTAssertTrue(promptResultRepo.replaceCalls.isEmpty)
+    }
+
+    func testReloadReconcilesExternalAdditionsAndDeletionsWithoutReorderingSurvivors() {
+        let recordingID = UUID()
+        let first = PromptResult(
+            transcriptionId: recordingID, promptName: "First", promptContent: "First", content: "First",
+            createdAt: Date(timeIntervalSince1970: 3))
+        let removed = PromptResult(
+            transcriptionId: recordingID, promptName: "Removed", promptContent: "Removed", content: "Removed",
+            createdAt: Date(timeIntervalSince1970: 1))
+        let last = PromptResult(
+            transcriptionId: recordingID, promptName: "Last", promptContent: "Last", content: "Last",
+            createdAt: Date(timeIntervalSince1970: 2))
+        let added = PromptResult(
+            transcriptionId: recordingID, promptName: "Added", promptContent: "Added", content: "Added")
+        viewModel.configure(llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo)
+        viewModel.loadPromptResults(transcriptionId: recordingID)
+        // This visit's order may differ from creation order after regeneration.
+        viewModel.promptResults = [last, removed, first]
+        promptResultRepo.promptResults = [added, last, first]
+        viewModel.loadPromptResults(transcriptionId: recordingID)
+        XCTAssertEqual(
+            viewModel.resultTabs(for: recordingID),
+            [
+                .result(id: first.id), .result(id: last.id), .result(id: added.id),
+            ])
+    }
+
+    func testReplacementTabStaysInPlaceOnFailureRetryAndDismiss() async throws {
+        let recordingID = UUID()
+        let original = PromptResult(
+            transcriptionId: recordingID, promptName: "Actions", promptContent: "Extract actions", content: "Original")
+        promptResultRepo.promptResults = [original]
+        viewModel.configure(llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo)
+        viewModel.loadPromptResults(transcriptionId: recordingID)
+        llm.streamTokens = []
+        let failedID = try XCTUnwrap(viewModel.regeneratePromptResult(original, transcript: "Transcript"))
+        try await waitUntil {
+            if case .failed = self.viewModel.pendingGeneration(id: failedID)?.state { return true }
+            return false
+        }
+        XCTAssertEqual(viewModel.resultTabs(for: recordingID), [.generation(id: failedID)])
+        let retryID = try XCTUnwrap(viewModel.retryGeneration(id: failedID))
+        XCTAssertEqual(viewModel.resultTabs(for: recordingID), [.generation(id: retryID)])
+        try await waitUntil {
+            if case .failed = self.viewModel.pendingGeneration(id: retryID)?.state { return true }
+            return false
+        }
+        viewModel.cancelGeneration(id: retryID)
+        XCTAssertEqual(viewModel.resultTabs(for: recordingID), [.result(id: original.id)])
+        XCTAssertEqual(promptResultRepo.promptResults, [original])
+    }
+
+    func testTabProjectionKeepsQueuedReplacementsAndIndependentOrOrphanedWorkReachable() {
+        let recordingID = UUID()
+        let original = PromptResult(
+            transcriptionId: recordingID, promptName: "Actions", promptContent: "Actions", content: "Original")
+        let replacement = PromptResultsViewModel.PendingGeneration(
+            transcriptionId: recordingID, promptName: "Actions", promptContent: "Actions",
+            extraInstructions: nil, transcript: "Text", replacingPromptResultID: original.id)
+        let independent = PromptResultsViewModel.PendingGeneration(
+            transcriptionId: recordingID, promptName: "Actions", promptContent: "Actions",
+            extraInstructions: nil, transcript: "Text")
+        viewModel.promptResults = [original]
+        viewModel.pendingGenerations = [independent, replacement]
+        XCTAssertEqual(
+            viewModel.resultTabs(for: recordingID),
+            [
+                .generation(id: replacement.id), .generation(id: independent.id),
+            ])
+        viewModel.cancelGeneration(id: replacement.id)
+        XCTAssertEqual(
+            viewModel.resultTabs(for: recordingID),
+            [
+                .result(id: original.id), .generation(id: independent.id),
+            ])
+        var failedAttempt = replacement
+        failedAttempt.id = UUID()
+        failedAttempt.state = .failed(message: "Provider unavailable")
+        viewModel.pendingGenerations = [failedAttempt, replacement]
+        XCTAssertEqual(
+            viewModel.resultTabs(for: recordingID),
+            [
+                .generation(id: failedAttempt.id), .generation(id: replacement.id),
+            ])
+        viewModel.pendingGenerations = [replacement]
+        viewModel.promptResults = []
+        XCTAssertEqual(viewModel.resultTabs(for: recordingID), [.generation(id: replacement.id)])
+        XCTAssertTrue(viewModel.resultTabs(for: UUID()).isEmpty)
+    }
+
     func testRegeneratePromptResultReplacesExistingResult() async throws {
         let transcriptionID = UUID()
         let existing = PromptResult(
