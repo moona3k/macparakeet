@@ -14,8 +14,9 @@ final class LibraryThumbnailStore {
 
     /// Where a recording's artwork comes from.
     enum Source: Hashable, Sendable {
-        /// Artwork already saved in the thumbnail cache.
-        case cachedFile(URL)
+        /// Artwork already saved in the thumbnail cache, with the remote
+        /// artwork to fetch again if the saved file cannot be decoded.
+        case cachedFile(URL, remoteFallback: URL?)
         /// Artwork that must be downloaded (and saved) first.
         case remote(URL)
     }
@@ -24,11 +25,11 @@ final class LibraryThumbnailStore {
     /// card at 2x without holding full-size bitmaps.
     nonisolated static let maxPixelSize = 800
 
-    private let thumbnailCache: ThumbnailCacheService
+    private let thumbnailCache: any ThumbnailCaching
     private let images = NSCache<NSUUID, DecodedThumbnail>()
     private var inFlight: [UUID: Task<CGImage?, Never>] = [:]
 
-    init(thumbnailCache: ThumbnailCacheService = .shared) {
+    init(thumbnailCache: any ThumbnailCaching = ThumbnailCacheService.shared) {
         self.thumbnailCache = thumbnailCache
         images.countLimit = 160
         images.totalCostLimit = 128 * 1024 * 1024
@@ -41,16 +42,21 @@ final class LibraryThumbnailStore {
     /// Resolves where artwork for `transcription` can be loaded from, or
     /// `nil` when it has none. Costs one file-existence check.
     func source(for transcription: Transcription) -> Source? {
+        let remote = Self.remoteURL(for: transcription)
         if let file = thumbnailCache.cachedThumbnail(for: transcription.id) {
-            return .cachedFile(file)
+            return .cachedFile(file, remoteFallback: remote)
         }
+        return remote.map(Source.remote)
+    }
+
+    private static func remoteURL(for transcription: Transcription) -> URL? {
         if let urlString = transcription.thumbnailURL, let url = URL(string: urlString) {
-            return .remote(url)
+            return url
         }
         if let sourceURL = transcription.sourceURL,
             let videoID = YouTubeURLValidator.extractVideoID(sourceURL)
         {
-            return URL(string: "https://i.ytimg.com/vi/\(videoID)/hqdefault.jpg").map(Source.remote)
+            return URL(string: "https://i.ytimg.com/vi/\(videoID)/hqdefault.jpg")
         }
         return nil
     }
@@ -86,20 +92,32 @@ final class LibraryThumbnailStore {
     nonisolated private static func decode(
         _ source: Source,
         for id: UUID,
-        thumbnailCache: ThumbnailCacheService
+        thumbnailCache: any ThumbnailCaching
     ) async -> CGImage? {
-        let fileURL: URL
         switch source {
-        case .cachedFile(let url):
-            fileURL = url
-        case .remote(let url):
-            guard let downloaded = try? await thumbnailCache.downloadThumbnail(from: url.absoluteString, for: id)
-            else {
-                return nil
+        case .cachedFile(let file, let remoteFallback):
+            if let image = ThumbnailImageDecoder.image(contentsOf: file, maxPixelSize: maxPixelSize) {
+                return image
             }
-            fileURL = downloaded
+            guard let remoteFallback else { return nil }
+            // A damaged cache file (a partial write, say) must not hide
+            // artwork that can still be fetched.
+            thumbnailCache.deleteThumbnail(for: id)
+            return await download(remoteFallback, for: id, thumbnailCache: thumbnailCache)
+        case .remote(let url):
+            return await download(url, for: id, thumbnailCache: thumbnailCache)
         }
-        return ThumbnailImageDecoder.image(contentsOf: fileURL, maxPixelSize: maxPixelSize)
+    }
+
+    nonisolated private static func download(
+        _ url: URL,
+        for id: UUID,
+        thumbnailCache: any ThumbnailCaching
+    ) async -> CGImage? {
+        guard let file = try? await thumbnailCache.downloadThumbnail(from: url.absoluteString, for: id) else {
+            return nil
+        }
+        return ThumbnailImageDecoder.image(contentsOf: file, maxPixelSize: maxPixelSize)
     }
 }
 

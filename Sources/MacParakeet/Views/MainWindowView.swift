@@ -170,12 +170,14 @@ struct MainWindowView: View {
                             },
                             onSelectMeeting: { transcription in
                                 Task {
-                                    let meetings = meetingsWorkspaceViewModel.recentMeetingsViewModel
-                                    guard let stored = await meetings.loadForOpening(transcription),
-                                        state.selectedItem == .meetings
-                                    else { return }
-                                    transcriptionViewModel.currentTranscription = stored
-                                    state.navigateToTranscription(from: .meetings)
+                                    let opened = await openLibraryRow(
+                                        transcription,
+                                        from: meetingsWorkspaceViewModel.recentMeetingsViewModel,
+                                        in: .meetings
+                                    )
+                                    if opened {
+                                        state.navigateToTranscription(from: .meetings)
+                                    }
                                 }
                             }
                         )
@@ -239,10 +241,7 @@ struct MainWindowView: View {
                                 }
                             ) { transcription in
                                 Task {
-                                    guard let stored = await libraryViewModel.loadForOpening(transcription),
-                                        state.selectedItem == .library
-                                    else { return }
-                                    transcriptionViewModel.currentTranscription = stored
+                                    await openLibraryRow(transcription, from: libraryViewModel, in: .library)
                                 }
                             }
                         }
@@ -565,6 +564,24 @@ struct MainWindowView: View {
         .overlay(alignment: .top) {
             Divider()
         }
+    }
+
+    /// Library rows omit timing data, so opening one loads the stored row
+    /// first. The result is dropped when the user left `tab` or anything
+    /// else (another open, a finished meeting) changed the selection meanwhile.
+    @discardableResult
+    private func openLibraryRow(
+        _ transcription: Transcription,
+        from library: TranscriptionLibraryViewModel,
+        in tab: SidebarItem
+    ) async -> Bool {
+        let selectionRevision = transcriptionViewModel.currentTranscriptionRevision
+        guard let stored = await library.loadForOpening(transcription),
+            state.selectedItem == tab,
+            transcriptionViewModel.currentTranscriptionRevision == selectionRevision
+        else { return false }
+        transcriptionViewModel.currentTranscription = stored
+        return true
     }
 }
 

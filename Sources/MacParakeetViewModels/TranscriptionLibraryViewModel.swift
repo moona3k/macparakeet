@@ -339,9 +339,17 @@ public final class TranscriptionLibraryViewModel {
 
     private func fetchStoredTranscriptions(ids: [UUID]) async throws -> [Transcription] {
         guard let repo = transcriptionRepo else { return [] }
-        return try await Task.detached(priority: .userInitiated) {
-            try ids.compactMap { try repo.fetch(id: $0) }
-        }.value
+        let fetch = Task.detached(priority: .userInitiated) {
+            try ids.compactMap { id in
+                try Task.checkCancellation()
+                return try repo.fetch(id: id)
+            }
+        }
+        return try await withTaskCancellationHandler {
+            try await fetch.value
+        } onCancel: {
+            fetch.cancel()
+        }
     }
 
     private func groupByDate(_ items: [Transcription]) -> [(group: TranscriptionDateGroup, items: [Transcription])] {

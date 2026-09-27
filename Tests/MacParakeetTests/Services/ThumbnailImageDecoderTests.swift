@@ -1,6 +1,3 @@
-import CoreGraphics
-import ImageIO
-import UniformTypeIdentifiers
 import XCTest
 @testable import MacParakeetCore
 
@@ -45,25 +42,8 @@ final class ThumbnailImageDecoderTests: XCTestCase {
     }
 
     private func writeJPEG(width: Int, height: Int) throws -> URL {
-        let context = try XCTUnwrap(
-            CGContext(
-                data: nil,
-                width: width,
-                height: height,
-                bitsPerComponent: 8,
-                bytesPerRow: 0,
-                space: CGColorSpaceCreateDeviceRGB(),
-                bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
-            ))
-        context.setFillColor(CGColor(red: 0.2, green: 0.4, blue: 0.8, alpha: 1))
-        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
-        let image = try XCTUnwrap(context.makeImage())
-
         let url = tempDir.appendingPathComponent("\(UUID().uuidString).jpg")
-        let destination = try XCTUnwrap(
-            CGImageDestinationCreateWithURL(url as CFURL, UTType.jpeg.identifier as CFString, 1, nil))
-        CGImageDestinationAddImage(destination, image, nil)
-        XCTAssertTrue(CGImageDestinationFinalize(destination))
+        try TestJPEG.write(width: width, height: height, to: url)
         return url
     }
 }

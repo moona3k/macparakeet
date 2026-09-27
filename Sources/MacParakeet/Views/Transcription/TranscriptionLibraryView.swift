@@ -916,6 +916,7 @@ struct TranscriptionLibraryView: View {
                 } onCancel: {
                     exportTask.cancel()
                 }
+                .includingUnavailable(selection.count - targets.count)
                 guard bulkExportRunID == runID else { return }
                 bulkExportWorkerTask = nil
 

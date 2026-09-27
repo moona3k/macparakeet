@@ -202,6 +202,27 @@ final class TranscriptResultActionsTests: XCTestCase {
         XCTAssertFalse(result.isCompleteSuccess)
     }
 
+    func testBulkExportCountsRecordingsDeletedBeforeExportAsFailures() {
+        let exported = BulkTranscriptExportResult(
+            directory: tempDir,
+            format: .txt,
+            requestedCount: 1,
+            exportedURLs: [tempDir.appendingPathComponent("one.txt")],
+            failedCount: 0,
+            firstErrorDescription: nil
+        )
+        XCTAssertTrue(exported.isCompleteSuccess)
+
+        let result = exported.includingUnavailable(2)
+
+        XCTAssertFalse(result.isCompleteSuccess)
+        XCTAssertEqual(result.requestedCount, 3)
+        XCTAssertEqual(result.failedCount, 2)
+        XCTAssertEqual(result.exportedCount, 1)
+        XCTAssertEqual(result.firstErrorDescription, "2 selected recordings were deleted before export.")
+        XCTAssertTrue(exported.includingUnavailable(0).isCompleteSuccess)
+    }
+
     func testBulkExportResolvesOptionsPerTranscript() async throws {
         let timed = Transcription(
             fileName: "timed.m4a",
