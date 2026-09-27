@@ -1,0 +1,25 @@
+spec/01-data-model.md
+  s_fd1c50e773c088::t_dce884b381a23f 793-795
+spec/02-features.md
+  s_fd1c50e773c088::t_728a1aed6e0d5f 1601-1604
+spec/12-processing-layer.md
+  s_fd1c50e773c088::t_4d52f04c32400c 418-421
+  s_fd1c50e773c088::t_13090028a3634f 397-398
+  s_fd1c50e773c088::t_b349b9f023d395 371-373
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ed9e9f63a35cbc40946157cc5c5b40de4f566b56",
+  "prompts": {},
+  "sessions": {
+    "s_fd1c50e773c088": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "75caa82f-13eb-47c3-8f4f-2458670501ae",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
