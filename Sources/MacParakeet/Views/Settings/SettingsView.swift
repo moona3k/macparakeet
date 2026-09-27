@@ -1732,7 +1732,7 @@ struct SettingsView: View {
     private var aiPolishHotkeyDetail: String {
         llmSettingsViewModel.isAIFormatterAvailable
             ? "Tap to start and stop. Formats this dictation with AI before pasting, even when AI formatting for dictation is off."
-            : "Needs an AI provider. Tap to start and stop; formats this dictation with AI before pasting."
+            : "Needs an AI provider to format your dictation. Until one is set up, this shortcut pastes plain, unformatted text."
     }
 
     private func transcriptionHotkeyRow(
