@@ -1,0 +1,39 @@
+Tests/MacParakeetTests/App/MainWindowStateTests.swift
+  s_0266eb6b11b7b7::t_5f183785e7d5ed 130-131,133-173,175,178-185,187,208-210,212-312
+  s_0266eb6b11b7b7::t_aadbefc06f0bbd 174,176-177,186,188-207
+  s_0266eb6b11b7b7::t_e9418eca11ce0e 132,211
+Tests/MacParakeetTests/ViewModels/TranscriptionLibraryViewModelTests.swift
+  s_0266eb6b11b7b7::t_36ed6b1bc8731b 137-166,1701-1705
+  s_0266eb6b11b7b7::t_b824424af1d0a0 1706
+plans/active/2026-09-26-library-grid-rendering.md
+  s_0266eb6b11b7b7::t_5a857f948e59ad 37-43,59-61
+Sources/MacParakeet/Views/MainWindowView.swift
+  s_0266eb6b11b7b7::t_0516059c9a7adf 172,237-238
+  s_0266eb6b11b7b7::t_4cca642c728d93 173-174
+Tests/MacParakeetTests/Views/TranscriptResultActionsTests.swift
+  s_0266eb6b11b7b7::t_acb21df7c3f03e 2,206-239
+Tests/MacParakeetTests/Views/LibraryThumbnailStoreTests.swift
+  s_0266eb6b11b7b7::t_afdc845287e26d 25-27
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  s_0266eb6b11b7b7::t_36ed6b1bc8731b 154,209
+Sources/MacParakeet/Views/MainWindowState.swift
+  s_0266eb6b11b7b7::t_aadbefc06f0bbd 63-70
+  s_0266eb6b11b7b7::t_0516059c9a7adf 9-10,17-19,49-62,71-75
+  s_0266eb6b11b7b7::t_4b4aeaab36d20c 76-77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "cb27d8eee314489fe75cd34a5c1966f8d07ac597",
+  "prompts": {},
+  "sessions": {
+    "s_0266eb6b11b7b7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e172-7081-7751-bac7-c8c7a4fead9a",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
