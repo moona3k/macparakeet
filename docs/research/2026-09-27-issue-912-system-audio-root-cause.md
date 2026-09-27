@@ -241,7 +241,10 @@ installed `ffprobe` and `ffmpeg` executables and Python 3. It opens only a local
 file, decodes the first audio stream to Float32 PCM without changing its channel
 count or sample rate, and emits scalar JSON. It performs no transcription,
 playback, network requests, or writes to the source. Decoder errors fail the
-command rather than accepting a partial measurement.
+command rather than accepting a partial measurement. Probing has a 30-second
+limit. The decoder has a 300-second deadline, configurable with
+`--timeout-seconds`; smaller values also reduce the probe limit. The deadline
+kills a stalled decoder so a blocked pipe read can finish and fail cleanly.
 
 ```sh
 python3 scripts/dev/analyze_audio_signal.py /absolute/path/system-raw.m4a > /tmp/system-signal.json
@@ -267,10 +270,12 @@ may cause small numeric differences; retain the artifact hash when comparing.
 Completed: live GitHub issue/comment retrieval; attachment hashes, formats,
 decoded levels and silent intervals; exact-version and current-source review;
 inspection of existing channel-preservation tests; primary-source comparison.
-The analyzer's seven behavioral tests pass, including silence, bursts separated
+The analyzer's nine behavioral tests pass, including silence, bursts separated
 by zeros, quiet nonzero samples, right-only and inverse stereo, source
 preservation, and failure without success JSON for corrupt, missing, or
-partially decodable truncated input.
+partially decodable truncated input. Real stalled subprocess fixtures verify
+that both probe and decoder deadlines terminate their child without success
+JSON; invalid deadline values are rejected before starting subprocesses.
 
 Not completed: live Phone/FaceTime reproduction; original stereo callback
 inspection; controlled backend comparison; reporter output-route identification;

@@ -9,13 +9,16 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
 
 
 def dbfs(value):
     return 20 * math.log10(value) if value > 0 else None
 
 
-def analyze(path):
+def analyze(path, timeout_seconds=300):
+    if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
+        raise ValueError("timeout must be a positive, finite number of seconds")
     path = Path(path).resolve(strict=True)
     if not path.is_file():
         raise ValueError("input must be a local regular file")
@@ -23,7 +26,7 @@ def analyze(path):
         "ffprobe", "-v", "error", "-protocol_whitelist", "file,pipe",
         "-select_streams", "a:0", "-show_entries",
         "stream=codec_name,sample_rate,channels,duration", "-of", "json", str(path),
-    ], stderr=subprocess.DEVNULL))
+    ], stderr=subprocess.DEVNULL, timeout=min(30, timeout_seconds)))
     if not metadata.get("streams"):
         raise ValueError("input has no audio stream")
     stream = metadata["streams"][0]
@@ -60,6 +63,17 @@ def analyze(path):
             "-protocol_whitelist", "file,pipe", "-i", str(path),
             "-map", "0:a:0", "-f", "f32le", "-acodec", "pcm_f32le", "-",
         ], stdout=subprocess.PIPE, stderr=errors) as decoder:
+            deadline_expired = threading.Event()
+
+            def expire():
+                deadline_expired.set()
+                decoder.kill()
+
+            # Killing the child closes its pipe even when read() is blocked.
+            # A timeout on wait() alone cannot bound that read.
+            deadline = threading.Timer(timeout_seconds, expire)
+            deadline.daemon = True
+            deadline.start()
             try:
                 while block := decoder.stdout.read(4096 * channels * 4):
                     if len(block) % (channels * 4):
@@ -91,12 +105,18 @@ def analyze(path):
                             zero_run = 0
                         if window_frames == sample_rate:
                             finish_window()
-                if decoder.wait() != 0:
-                    raise ValueError("audio decoding failed; no measurements accepted")
+                returncode = decoder.wait()
             except BaseException:
                 decoder.kill()
                 decoder.wait()
                 raise
+            finally:
+                deadline.cancel()
+                deadline.join()
+            if deadline_expired.is_set():
+                raise ValueError("audio decoding deadline exceeded; no measurements accepted")
+            if returncode != 0:
+                raise ValueError("audio decoding failed; no measurements accepted")
     if not frames:
         raise ValueError("decoder produced no audio frames")
     finish_window()
@@ -119,9 +139,13 @@ def analyze(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("audio_file", type=Path)
+    parser.add_argument(
+        "--timeout-seconds", type=float, default=300,
+        help="decoder deadline (default: 300); probing is limited to at most 30 seconds",
+    )
     args = parser.parse_args()
     try:
-        result = analyze(args.audio_file)
+        result = analyze(args.audio_file, timeout_seconds=args.timeout_seconds)
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
         print(f"Audio analysis failed: {error}", file=sys.stderr)
         return 1

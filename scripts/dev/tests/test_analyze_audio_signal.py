@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import os
 from pathlib import Path
 import shutil
 import struct
@@ -94,6 +95,52 @@ class AudioSignalAnalysisTests(unittest.TestCase):
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "")
+
+    def test_stalled_probe_and_decoder_are_terminated_without_success_json(self):
+        self.write_audio([1000] * 8000)
+        executables = Path(self.folder.name) / "bin"
+        executables.mkdir()
+        pid_file = Path(self.folder.name) / "child.pid"
+        environment = dict(os.environ, PATH=f"{executables}{os.pathsep}{os.environ['PATH']}")
+        probe_result = {"streams": [{"codec_name": "pcm_s16le", "sample_rate": "8000", "channels": 1}]}
+        for stalled_stage in ["ffprobe", "ffmpeg"]:
+            with self.subTest(stage=stalled_stage):
+                for executable in ["ffprobe", "ffmpeg"]:
+                    if executable == stalled_stage:
+                        body = (
+                            "import os, time\n"
+                            f"open({str(pid_file)!r}, 'w').write(str(os.getpid()))\n"
+                            "time.sleep(60)\n"
+                        )
+                    else:
+                        body = f"print({json.dumps(probe_result)!r})\n"
+                    path = executables / executable
+                    path.write_text(f"#!{sys.executable}\n{body}")
+                    path.chmod(0o755)
+                try:
+                    result = subprocess.run(
+                        [sys.executable, str(SCRIPT), str(self.path), "--timeout-seconds", "1"],
+                        capture_output=True, text=True, env=environment, timeout=5,
+                    )
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(result.stdout, "")
+                    child_pid = int(pid_file.read_text())
+                    with self.assertRaises(ProcessLookupError):
+                        os.kill(child_pid, 0)
+                finally:
+                    # Also retire the fixture if this regression fails.
+                    if pid_file.exists():
+                        try:
+                            os.kill(int(pid_file.read_text()), 9)
+                        except ProcessLookupError:
+                            pass
+                        pid_file.unlink()
+
+    def test_invalid_deadlines_are_rejected(self):
+        for deadline in [0, -1, float("inf"), float("nan")]:
+            with self.subTest(deadline=deadline):
+                with self.assertRaisesRegex(ValueError, "timeout must"):
+                    MODULE.analyze(self.path, timeout_seconds=deadline)
 
 
 if __name__ == "__main__":
