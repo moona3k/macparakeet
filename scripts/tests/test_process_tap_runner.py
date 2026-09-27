@@ -18,10 +18,20 @@ import Darwin
         guard setpgid(0, 0) == 0 else { exit(2) }
         let args = CommandLine.arguments
         let output = URL(fileURLWithPath: args[args.firstIndex(of: "--output")! + 1])
-        let tone = args[args.firstIndex(of: "--tone")! + 1]
         let env = ProcessInfo.processInfo.environment
         try String(getpid()).write(to: output.deletingLastPathComponent().appendingPathComponent("probe.pid"),
                                    atomically: true, encoding: .utf8)
+        if args.contains("--observe-seconds") {
+            precondition(!args.contains("--tone") && !args.contains("--cycles"))
+            if env["FIXTURE_MODE"] == "hang" { Thread.sleep(forTimeInterval: 60) }
+            let result: [String: Any] = ["schemaVersion": 3, "microphoneRequested": false,
+                "screenPixelsRequested": false, "status": "OBSERVED", "mode": "external_audio_observation",
+                "generatedPlayback": false, "teardownVerified": true, "capturedFrames": 100,
+                "windows": [["channels": [["samples": 100, "exactZeroSamples": 100, "peak": 0]]]]]
+            try JSONSerialization.data(withJSONObject: result).write(to: output)
+            return
+        }
+        let tone = args[args.firstIndex(of: "--tone")! + 1]
         do {
             try playProbeTone(at: tone, executable: env["FIXTURE_PLAYER"]!)
         } catch { exit(1) }
@@ -95,9 +105,12 @@ class RunnerTests(unittest.TestCase):
         self.unrelated.wait()
         self.temp.cleanup()
 
-    def launch(self, mode='pass', deadline='20'):
+    def launch(self, mode='pass', deadline='20', observe_seconds=None):
         self.env.update(FIXTURE_MODE=mode, MACPARAKEET_PROCESS_TAP_PROBE_DEADLINE_SECONDS=deadline)
-        self.runner = subprocess.Popen(['bash', str(RUNNER), str(self.output)], env=self.env,
+        arguments = ['bash', str(RUNNER), str(self.output)]
+        if observe_seconds is not None:
+            arguments += ['--observe-seconds', str(observe_seconds)]
+        self.runner = subprocess.Popen(arguments, env=self.env,
                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def await_child(self):
@@ -117,6 +130,32 @@ class RunnerTests(unittest.TestCase):
                 return
             time.sleep(0.05)
         self.fail('probe child survived cleanup')
+
+    def test_external_observation_does_not_launch_player_or_call_silence_pass(self):
+        self.launch(observe_seconds=1)
+        self.assertEqual(self.runner.wait(timeout=15), 0)
+        result = json.loads((self.output / 'result.json').read_text())
+        self.assertEqual(result['status'], 'OBSERVED')
+        self.assertFalse(result['generatedPlayback'])
+        self.assertFalse((self.output / 'child.pid').exists())
+        self.assertFalse((self.output / 'generated-997hz.wav').exists())
+        self.assertIsNone(self.unrelated.poll())
+
+    def test_external_observation_deadline_cannot_leave_observed_result(self):
+        self.launch(mode='hang', deadline='1', observe_seconds=60)
+        self.assertEqual(self.runner.wait(timeout=15), 124)
+        result = json.loads((self.output / 'result.json').read_text())
+        self.assertEqual(result['status'], 'FAIL')
+        self.assertEqual(result['failureType'], 'deadline_exceeded')
+        self.assertFalse((self.output / 'child.pid').exists())
+        self.assertIsNone(self.unrelated.poll())
+
+    def test_invalid_observation_duration_fails_before_building_or_capturing(self):
+        for value in ('', '0', '301', 'nan', 'inf', '-1'):
+            with self.subTest(value=value):
+                self.launch(observe_seconds=value)
+                self.assertEqual(self.runner.wait(timeout=10), 64)
+                self.assertFalse(self.output.exists())
 
     def test_success(self):
         self.launch()

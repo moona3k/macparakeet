@@ -49,6 +49,23 @@ one machine is
 agreement, permission UX design, fallback policy, device/route coverage, and
 reproduction of the previously documented VPIO conflict boundary.
 
+For missing Phone/FaceTime audio, an explicit external observation mode is now
+available:
+
+```bash
+scripts/run-process-tap-audio-only-probe.sh /absolute/fresh/output --observe-seconds 60
+```
+
+This mode plays no tone, captures no microphone, and stores only per-channel
+signal windows. Its schema-3 `OBSERVED` result means measurement and teardown
+completed, including when all samples are zero; it is not a successful-call or
+permission verdict. The runner embeds `NSAudioCaptureUsageDescription` in the
+ad-hoc-signed executable. First-use consent and distributed-app permission
+behavior still require live verification. See the
+[issue #912 comparison procedure](2026-09-27-issue-912-system-audio-root-cause.md#ready-to-run-call-comparison)
+for interpretation and route controls. The default tone mode and its schema-2
+PASS criteria remain unchanged.
+
 By default the probe performs one create/capture/destroy cycle. Repeated cycles
 exercise teardown and re-creation in the same process, so a later cycle exposes
 stale aggregate-device or process-tap state instead of process exit hiding it:

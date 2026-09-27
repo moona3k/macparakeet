@@ -89,6 +89,40 @@ final class PCMBufferToSampleBufferTests: XCTestCase {
         XCTAssertEqual(decodedSamples[128], buffer.floatChannelData![0][128], accuracy: 0.000_1)
     }
 
+    func testSampleBufferToPCMBufferPreservesEachStereoChannel() throws {
+        for interleaved in [false, true] {
+            for left: [Float] in [[0, 0, 0, 0], [0.25, -0.5, 0.75, -1]] {
+                let right: [Float] = [-0.25, 0.5, -0.75, 1]
+                let format = try XCTUnwrap(
+                    AVAudioFormat(
+                        commonFormat: .pcmFormatFloat32, sampleRate: 48_000,
+                        channels: 2, interleaved: interleaved
+                    ))
+                let source = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4))
+                source.frameLength = 4
+                for frame in 0..<4 {
+                    source.floatChannelData![0][frame * source.stride] = left[frame]
+                    source.floatChannelData![interleaved ? 0 : 1][frame * source.stride + (interleaved ? 1 : 0)] =
+                        right[frame]
+                }
+                let sampleBuffer = try PCMBufferToSampleBuffer().makeSampleBuffer(
+                    from: source, presentationTimeSamples: 0
+                )
+                let decoded = try CMSampleBufferToPCMBuffer().makePCMBuffer(from: sampleBuffer)
+                XCTAssertEqual(decoded.frameLength, 4)
+                XCTAssertEqual(decoded.format.channelCount, 2)
+                for frame in 0..<4 {
+                    XCTAssertEqual(decoded.floatChannelData![0][frame * decoded.stride], left[frame])
+                    XCTAssertEqual(
+                        decoded.floatChannelData![decoded.format.isInterleaved ? 0 : 1][
+                            frame * decoded.stride + (decoded.format.isInterleaved ? 1 : 0)
+                        ], right[frame]
+                    )
+                }
+            }
+        }
+    }
+
     private func makeConstantBuffer(frameCount: Int, value: Float) throws -> AVAudioPCMBuffer {
         guard let format = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,

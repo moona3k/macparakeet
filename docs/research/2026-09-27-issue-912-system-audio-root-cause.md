@@ -200,11 +200,13 @@ process taps conflicted with VPIO. The current raw-mic default reduces one
 conflict risk; it does not establish coexistence during dictation, microphone
 route transitions, or another app's voice-processing session.
 
-The current probe cannot be pointed at a call unchanged: it plays its own tone,
-inspects channel zero, and requires that tone for PASS. A call experiment needs
-an explicit external-input observation mode with no generated playback and
-per-channel measurements over time, reusing its bounded runner and checked
-teardown. Nonzero samples alone must never become a “call captured” verdict.
+The probe's default mode plays its own tone, inspects channel zero, and requires
+that tone for PASS. This PR adds a separate external-input observation mode:
+no generated playback, per-channel windows, bounded execution, and checked
+teardown. It also embeds `NSAudioCaptureUsageDescription` in the signed probe;
+the earlier runner did not embed this key, so its historic successful runs are
+not evidence of first-use permission behavior. Nonzero samples alone never
+become a “call captured” verdict.
 
 Before selecting Core Audio as a production replacement, verify:
 
@@ -233,6 +235,61 @@ A repeated automatic restart on silence is not the preferred fix: silence can
 be valid, the Phone report survives a restart already, and restarts create more
 capture gaps. Likewise, do not declare FaceTime categorically unsupported from
 one report or silently fall back to acoustic speaker pickup.
+
+## Ready-to-run call comparison
+
+The external observer is research tooling, not a production backend or a fix.
+It opens no microphone and writes no captured audio. It measures every Float32
+channel directly at the Core Audio callback, before any downmix. Start with a
+fresh output directory for each run:
+
+```sh
+scripts/run-process-tap-audio-only-probe.sh /tmp/issue-912-call-01 --observe-seconds 60
+```
+
+The runner builds and signs the probe, then prints `Observing external system
+audio` when startup returns. Permission interaction may be needed. A run has
+the requested observation period plus a 30-second runner allowance by default;
+`MACPARAKEET_PROCESS_TAP_PROBE_DEADLINE_SECONDS` can override that deadline.
+Compilation happens before the capture deadline starts.
+
+For a meaningful comparison:
+
+1. Confirm the far side is audible through the intended output. Record the
+   macOS version, Phone versus FaceTime, the call application's selected output,
+   macOS default output, and the microphone selection. Record whether a
+   permission prompt appeared and its response; a successful tap API call does
+   not prove permission was granted.
+2. Record the same call in MacParakeet while the observer runs. Keep other media
+   stopped during a marked remote-speech interval and record its UTC start/end.
+   Repeat with microphone capture off, then on. Use a consented test call; the
+   observer does not dial or contact anyone.
+3. Run an ordinary-media control on the same route. The existing default probe
+   mode plays a two-second generated tone and can provide a separate control:
+   `scripts/run-process-tap-audio-only-probe.sh /tmp/issue-912-tone-01`.
+   Never run that tone inside the remote-speech interval.
+4. Compare the per-channel `result.json` windows with the saved MacParakeet
+   system source using the file analyzer below. Repeat with each capture alone,
+   then with built-in/wired and Bluetooth routes, to identify observer interference.
+
+External results use schema version 3 and status `OBSERVED`, including for valid
+all-zero PCM. That means frames were measured and teardown succeeded, not that
+the call or permission worked. No delivered frames, malformed PCM, nonfinite values,
+capacity overflow, teardown failure, cancellation, or deadline produce failure.
+The original tone mode retains schema version 2 and its tone-specific PASS rule.
+
+Windows use captured-frame time, with per-window first/last callback uptime to
+help align observations. They do not fill callback gaps with zeros or provide
+exact call connection timestamps. Start/end output UIDs are local diagnostic
+data; remove them before sharing if desired. Those two snapshots cannot detect
+every intermediate route change or establish the call application's route.
+
+Tap signal during confirmed remote speech while the app source is zero supports
+qualifying the alternative backend. It still does not inspect the app's original
+stereo SCK callbacks. If the conversion boundary remains in doubt, the next
+targeted diagnostic is a bounded comparison of original CMSampleBuffer channels
+and converted PCM inside the existing `SystemAudioStream`, not another fresh
+SCK process that could hide the original long-lived-process failure.
 
 ## Reproduce the file measurements
 
@@ -269,7 +326,7 @@ may cause small numeric differences; retain the artifact hash when comparing.
 
 Completed: live GitHub issue/comment retrieval; attachment hashes, formats,
 decoded levels and silent intervals; exact-version and current-source review;
-inspection of existing channel-preservation tests; primary-source comparison.
+execution of existing channel-preservation tests; primary-source comparison.
 The analyzer's nine behavioral tests pass, including silence, bursts separated
 by zeros, quiet nonzero samples, right-only and inverse stereo, source
 preservation, and failure without success JSON for corrupt, missing, or
@@ -277,10 +334,20 @@ partially decodable truncated input. Real stalled subprocess fixtures verify
 that both probe and decoder deadlines terminate their child without success
 JSON; invalid deadline values are rejected before starting subprocesses.
 
+The 21 focused Swift conversion/writer tests pass, including a new exact-value
+round trip for right-only and inverse stereo in interleaved and planar layouts.
+The observer's Swift fixture covers both layouts, silence, window continuation,
+invalid formats, nonfinite samples, and capacity overflow without opening an
+audio device. Seven runner tests cover external-mode silence and no player,
+invalid/empty duration, timeout, and the existing tone-mode ownership paths.
+An optimized Swift 6 probe build, strict ad-hoc signature verification, and
+extraction of its embedded Info.plist verified the usage-description key.
+This is build/configuration proof, not a TCC permission or live-call test.
+
 Not completed: live Phone/FaceTime reproduction; original stereo callback
 inspection; controlled backend comparison; reporter output-route identification;
-native GUI verification. Existing tests are evidence of intended coverage, not
-a claim that they were executed during this investigation.
+native GUI verification. No original SCK callback trace or affected-machine
+backend comparison has been collected.
 
 Keep #912 open. The evidence supports the capture-path hypothesis for Rodentia
 and identifies why a lifetime signal flag cannot expose the missing interval;
