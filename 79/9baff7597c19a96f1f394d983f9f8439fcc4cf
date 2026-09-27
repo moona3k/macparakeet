@@ -1,0 +1,21 @@
+Sources/CLI/Commands/LLMRoutesCommand.swift
+  s_54e6f39bcb73e5::t_6854fde672d401 113-114
+spec/contracts/cli-json-v1.md
+  s_54e6f39bcb73e5::t_6854fde672d401 250-252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "799baff7597c19a96f1f394d983f9f8439fcc4cf",
+  "prompts": {},
+  "sessions": {
+    "s_54e6f39bcb73e5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e38e-8faf-7012-91b7-3ad3fe19d1b6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
