@@ -504,14 +504,15 @@ macparakeet-cli ask evidence --enable-ask-workspace <recording-uuid> \
 
 `ask list`, `new`, `show`, `rename`, `delete`, `sources`, `select`, `draft`,
 `send`, and `evidence` emit JSON by default. Use `send --stream` for NDJSON
-activity and text records followed by a final conversation record. Provider
-configuration is inline for each send; Ask accepts direct model providers and
-rejects Local CLI. `--allow-remote` is required for providers that may receive
-selected transcript content, including generic OpenAI-compatible endpoints
-even when their URL is loopback. In-process/Apple Intelligence and Ollama or
-LM Studio loopback routes are the consent-free local paths. Ask never silently
-switches providers. See the [Ask contract](../spec/contracts/ask-workspace.md)
-for source revisions, citations, consent, and lifecycle behavior. CLI 4.7.0
+activity, phase, step, and text records followed by a final conversation
+record; ignore unknown event types. Provider configuration is inline for each
+send; Ask accepts direct model providers and rejects Local CLI. `--allow-remote`
+is required for providers that may receive selected transcript content,
+including generic OpenAI-compatible endpoints even when their URL is loopback.
+In-process/Apple Intelligence and Ollama or LM Studio loopback routes are the
+consent-free local paths. Ask never silently switches providers. See the
+[Ask contract](../spec/contracts/ask-workspace.md) for source revisions,
+citations, consent, streaming event fields, and lifecycle behavior. CLI 4.8.0
 adds this surface in development source; it does not announce a stable app or
 standalone CLI release.
 
