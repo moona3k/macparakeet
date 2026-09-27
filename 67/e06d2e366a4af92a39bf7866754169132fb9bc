@@ -1,0 +1,25 @@
+README.md
+  s_2d54016b675eb5::t_be2758ccd711a0 58,62,66-67,136
+docs/distribution.md
+  s_2d54016b675eb5::t_a2cd0abeccd021 266,397-402
+docs/releases/0.8.9/README.md
+  s_2d54016b675eb5::t_4943364e7d1dcf 3,5-7,9,11-26
+spec/README.md
+  s_2d54016b675eb5::t_ce8888f4cd1c7b 31,96,98-99,103-104,192,365,367
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "67e06d2e366a4af92a39bf7866754169132fb9bc",
+  "prompts": {},
+  "sessions": {
+    "s_2d54016b675eb5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e380-6162-7851-9b52-531206dfa48f",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
