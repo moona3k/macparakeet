@@ -1,0 +1,28 @@
+docs/releases/0.8.8/sparkle.html
+  s_7947a554c2f7ea::t_d07c03f05c1adf 15
+docs/releases/0.8.8/github.md
+  s_7947a554c2f7ea::t_418f47cf6decaf 19
+Tests/MacParakeetTests/ViewModels/PromptResultsViewModelTests.swift
+  s_7947a554c2f7ea::t_c09076e413663b 388-448
+Sources/MacParakeetViewModels/PromptResultsViewModel.swift
+  s_7947a554c2f7ea::t_407a8fa0bb25c0 464-466,478-481
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  s_7947a554c2f7ea::t_97495f7231cf9a 1473
+  s_7947a554c2f7ea::t_ffa15ab2e9d4ad 1527-1530
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7680fea48082a08ec4a02f9fef850bb4f6f933a0",
+  "prompts": {},
+  "sessions": {
+    "s_7947a554c2f7ea": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fdfc1359-081c-4dd7-84c5-4d9f320b6fbb",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
