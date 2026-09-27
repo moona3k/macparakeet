@@ -1,0 +1,27 @@
+Tests/MacParakeetTests/Database/SegmentRepositoryTests.swift
+  s_d0372fc8d96bba::t_1463cdec762a9d 217-263
+Sources/MacParakeetCore/Utilities/KnowledgeSegmenter.swift
+  s_d0372fc8d96bba::t_efb612463774c7 109-127,129-144
+  s_d0372fc8d96bba::t_4e2d2480639695 173-177
+Tests/MacParakeetTests/ViewModels/TranscriptEditPersistenceTests.swift
+  s_d0372fc8d96bba::t_8d9a6391aa23b3 38-75
+spec/contracts/whole-transcript-edits.md
+  s_d0372fc8d96bba::t_ed3c45fe7d8a10 15-17
+  s_d0372fc8d96bba::t_4e62822792e68c 21-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "afc51204767608bedb423b20491029c918bb8c25",
+  "prompts": {},
+  "sessions": {
+    "s_d0372fc8d96bba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e9ad2d3-682d-495d-afbd-30c146e4f7a0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

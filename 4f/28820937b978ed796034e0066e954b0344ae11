@@ -1,0 +1,22 @@
+Sources/MacParakeetCore/Utilities/KnowledgeSegmenter.swift
+  s_6d39fe9a6ccaf7::t_698ec55408b636 5
+Tests/MacParakeetTests/Database/SegmentRepositoryTests.swift
+  s_6d39fe9a6ccaf7::t_f33a9523df7bab 76
+  s_6d39fe9a6ccaf7::t_cfb0411e6f3b54 264-321
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4f28820937b978ed796034e0066e954b0344ae11",
+  "prompts": {},
+  "sessions": {
+    "s_6d39fe9a6ccaf7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7854b4af-e4ee-4d34-ae90-f5245e79b29d",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
