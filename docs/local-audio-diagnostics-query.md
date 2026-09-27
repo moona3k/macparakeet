@@ -94,6 +94,16 @@ See the [lifecycle catalog](telemetry.md#5e-microphone-engine-lifecycle) and
 for field semantics and evidence limits. Do not sum checkpoints into operation
 failure rates or upload the complete local log as a telemetry event.
 
+For a saved meeting whose remote side is missing, compare the log with decoded
+source audio using `python3 scripts/dev/analyze_audio_signal.py /path/system-raw.m4a`.
+This separate, offline utility requires FFmpeg and emits per-second levels and
+exact-zero durations across every channel. It does not transcribe or modify the
+file. A nonzero lifetime peak can be only a ringtone; successful decoding and
+buffer coverage do not establish remote-speech capture. See the
+[issue #912 investigation](research/2026-09-27-issue-912-system-audio-root-cause.md)
+for commands, field semantics, measured evidence, and the required live-call
+qualification before selecting a different capture backend.
+
 The log retains only about 5 MB and best-effort writes can fail. New file sink
 failures are reported through OSLog's `AudioCaptureDiagnostics` category as
 `audio_diagnostic_write_failed`. Shareable file error fields contain classified
