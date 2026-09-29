@@ -137,7 +137,7 @@ The relaunch archives validated local-only lifecycle history before deleting a
 successfully delivered crash report. `process_session`, the line timestamp and
 `uptime_ns` describe that relaunch. `crash_session` and `crash_timestamp` describe
 the original process and incident; join other lines using the original ID.
-`crash_id` can repeat when archival or delivery is retried.
+`crash_id` can repeat when delivery is retried.
 
 `crash_records` contains at most 32 `sequence:0xPAYLOAD` entries, separated by
 semicolons. The stable numeric layout and finite enums live in
@@ -147,7 +147,8 @@ lifecycle observers, not engine generations. There are no per-record clocks,
 and missing records do not prove missing actions. Registered consumers mean
 workflow ownership, not successful audio.
 
-Archival never initiates log rotation or waits for another writer. If it cannot
-append, the pending report stays in the bounded crash spool for a later launch,
-subject to capacity eviction. Existing log rotation may remove old recovered
+Archival never initiates log rotation or waits for another writer, and it is
+best effort. If it cannot append, that report's local history is lost once
+telemetry delivers the report or drops it for opt-out; archival failure never
+keeps a report pending. Existing log rotation may remove old recovered
 history. This utility's JSON schema and read-only behavior are unchanged.

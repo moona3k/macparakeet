@@ -57,7 +57,10 @@ completion, storage ownership, privacy, wire compatibility, and deduplication.
 Review found and fixed deletion after a transient report-read failure. A
 second review correction preserves local-only history before uploaded reports
 are discarded. The archive declines when the existing log requires rotation,
-avoiding a large read/rewrite under a lock shared with ordinary logging.
+avoiding a large read/rewrite under a lock shared with ordinary logging. A final
+review made archival best effort: retaining a report after archive failure let a
+report dropped under opt-out upload after a later opt-in, and re-uploaded
+delivered reports on every launch.
 Malformed optional metadata cannot poison a valid crash batch.
 
 The receiver's full telemetry suite passed 151 tests and its website build

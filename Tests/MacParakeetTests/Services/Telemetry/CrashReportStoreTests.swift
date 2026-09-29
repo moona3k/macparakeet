@@ -238,34 +238,46 @@ final class CrashReportStoreTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
     }
 
-    func testFailedArchiveRetainsDeliveredReportUntilLocalEvidenceIsPreserved() async throws {
-        let packed = CrashAudioContext.Record(kind: .phase, phase: .startEngine, attempt: 7).packed
-        let content =
-            report() + """
-                crash_context_version: 1
-                crash_id: a17e1881-3d55-4ab8-af5f-32dedd0571c4
-                crash_session: 57b2573a-8629-4d7e-8c24-42304d44d388
-                breadcrumb: 1,0x\(String(packed, radix: 16))
+    private func reportWithContext(_ packed: UInt64) -> String {
+        report() + """
+            crash_context_version: 1
+            crash_id: a17e1881-3d55-4ab8-af5f-32dedd0571c4
+            crash_session: 57b2573a-8629-4d7e-8c24-42304d44d388
+            breadcrumb: 1,0x\(String(packed, radix: 16))
 
-                """
-        let url = try pendingReport(content)
-        let telemetry = StoreTelemetry()
-        await CrashReporter.sendPendingReports(via: telemetry, store: store) { _ in
-            throw NSError(domain: NSPOSIXErrorDomain, code: Int(EWOULDBLOCK))
-        }
-        XCTAssertEqual(telemetry.events.count, 1)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+            """
+    }
+
+    func testArchivePrecedesUploadAndKeepsBreadcrumbsLocal() async throws {
+        let packed = CrashAudioContext.Record(kind: .phase, phase: .startEngine, attempt: 7).packed
+        let url = try pendingReport(reportWithContext(packed))
         let log = temporaryDirectory.appendingPathComponent("archive.log")
-        let afterArchive = StoreTelemetry { _ in
+        let telemetry = StoreTelemetry { _ in
             XCTAssertTrue(FileManager.default.fileExists(atPath: log.path), "Archive must precede upload")
             return true
         }
-        await CrashReporter.sendPendingReports(via: afterArchive, store: store) { try $0.persist(to: log) }
+        await CrashReporter.sendPendingReports(via: telemetry, store: store) { try $0.persist(to: log) }
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
         let archived = try String(contentsOf: log)
         XCTAssertTrue(archived.contains("crash_records=1:0x\(String(packed, radix: 16))"))
-        XCTAssertEqual(telemetry.events.first?.props?["crash_id"], afterArchive.events.first?.props?["crash_id"])
-        XCTAssertNil(afterArchive.events.first?.props?["crash_records"])
+        XCTAssertEqual(telemetry.events.first?.props?["crash_id"], "a17e1881-3d55-4ab8-af5f-32dedd0571c4")
+        XCTAssertNil(telemetry.events.first?.props?["crash_records"])
+    }
+
+    /// Telemetry reports an opt-out drop as handled. A failed local archive must
+    /// not keep that report pending, or a later opt-in would upload it.
+    func testFailedArchiveStillDiscardsHandledReportSoLaterOptInCannotUploadIt() async throws {
+        let packed = CrashAudioContext.Record(kind: .phase, phase: .startEngine, attempt: 7).packed
+        let url = try pendingReport(reportWithContext(packed))
+        let optedOut = StoreTelemetry(result: true)
+        await CrashReporter.sendPendingReports(via: optedOut, store: store) { _ in
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(EWOULDBLOCK))
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+
+        let optedIn = StoreTelemetry()
+        await CrashReporter.sendPendingReports(via: optedIn, store: store)
+        XCTAssertTrue(optedIn.events.isEmpty)
     }
 
     func testConcurrentDrainsDoNotSendTheSameReportTwice() async throws {

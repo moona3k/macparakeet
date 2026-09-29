@@ -199,10 +199,12 @@ removing a delivered report, its validated numeric history is copied into one
 `crash_context_recovered` line in the existing bounded local audio log. The
 line retains original crash/session identity; its ordinary log prefix describes
 the relaunch that recovered it. The archive uses nonblocking log ownership and
-does not initiate rotation. If archival fails, the spool remains pending even
-when telemetry delivery succeeds. Retried local lines can repeat the same
-crash ID; there is no exactly-once local-write guarantee. Legacy reports and
-reports without valid numeric history need no archive. No queue lock spans
+does not initiate rotation. Archival is best effort: telemetry disposition alone
+decides retention, so a report delivered or intentionally dropped by opt-out is
+removed even if its history could not be archived. A report whose delivery
+failed is retried, so local lines can repeat the same crash ID; there is no
+exactly-once local-write guarantee. Legacy reports and reports without valid
+numeric history need no archive. No queue lock spans
 network awaits. Unreadable/unparseable reports remain pending,
 subject to capacity eviction. Legacy files are renamed into a claim before
 upload; an old writer that ignores leases remains a migration limitation.

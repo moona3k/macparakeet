@@ -16,8 +16,9 @@ final class CrashAudioContextTests: XCTestCase {
             transport: .usb, outcome: .failure, reason: .failedAttempt,
             attempt: 0x1234_5678
         )
-        let expected: UInt64 = (0x1234_5678 << 32) | 4 | (2 << 3) | (18 << 5)
-            | (5 << 10) | (2 << 14) | (4 << 17)
+        // Keep each term typed: one long literal expression times out CI's type checker.
+        let fields: [UInt64] = [4, 2 << 3, 18 << 5, 5 << 10, 2 << 14, 4 << 17, 0x1234_5678 << 32]
+        let expected = fields.reduce(0, |)
         XCTAssertEqual(record.packed, expected)
         XCTAssertEqual(CrashAudioContext.Record(packed: expected), record)
         XCTAssertNil(CrashAudioContext.Record(packed: expected | (1 << 22)))

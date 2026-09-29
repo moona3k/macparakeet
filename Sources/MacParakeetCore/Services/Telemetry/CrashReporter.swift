@@ -429,16 +429,10 @@ public final class CrashReporter {
                     // malformed file. Retain it subject to the capacity bound.
                     continue
                 }
-                var archived = true
-                if let context = report.archiveContext {
-                    do { try archive(context) }
-                    catch { archived = false }
-                }
-                // Keep local-only evidence if archival failed, even if the
-                // network accepted the event. Its persisted ID identifies
-                // retries for receiver incident grouping; finite spool retention still applies.
-                let delivered = await CrashReporter.send(report, via: telemetry)
-                if delivered && archived { _ = store.discard(claim) }
+                // Archival is best effort and never decides retention. Keeping a
+                // report after an opt-out drop would let a later opt-in upload it.
+                if let context = report.archiveContext { try? archive(context) }
+                if await CrashReporter.send(report, via: telemetry) { _ = store.discard(claim) }
             }
         }
     }
