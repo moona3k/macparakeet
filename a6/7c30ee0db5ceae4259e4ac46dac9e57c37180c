@@ -1,0 +1,39 @@
+Tests/MacParakeetTests/ViewModels/TranscriptFindReplacementReceiptTests.swift
+  s_5399b28a6d8675::t_bfa5502df09c9a 1-34
+  s_5399b28a6d8675::t_4bb23bc1762089 35-39
+Sources/MacParakeetViewModels/TranscriptFindReplaceEdit.swift
+  s_5399b28a6d8675::t_0d78eb5d8f2b67 8-22
+Tests/MacParakeetTests/ViewModels/TranscriptFindModelTests.swift
+  s_5399b28a6d8675::t_0d78eb5d8f2b67 268-311
+Sources/MacParakeetViewModels/TranscriptFindTextMapping.swift
+  s_5399b28a6d8675::t_d7eb97c6f5f5dc 1-72
+Tests/MacParakeetTests/ViewModels/TranscriptFindTextMappingTests.swift
+  s_5399b28a6d8675::t_d7eb97c6f5f5dc 1-92
+  s_5399b28a6d8675::t_166cb053c69b97 93-97
+Sources/MacParakeetViewModels/TranscriptFindReplacementReceipt.swift
+  s_5399b28a6d8675::t_f54b6d1be4452c 1-40
+Sources/MacParakeet/Views/Transcription/TranscriptFindBar.swift
+  s_5399b28a6d8675::t_050e6343d96427 11-13,58-63,156-157,183,192
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_5399b28a6d8675::t_8dbad579257b86 600,603,2181,2288-2292,2424-2425,2427-2433,2439-2449,2457-2460,2463,2471-2476,2484-2485,2487-2488,2493,2496,2503,2509-2516,2518-2531,2533-2535,2538-2541,2553-2562,2567-2574,2577-2580,2585-2586,2588-2591,2593-2602
+Tests/MacParakeetTests/Services/SpeakerCorrectionServiceTests.swift
+  s_5399b28a6d8675::t_5f358c4b0be371 154-190,202-208
+spec/02-features.md
+  s_5399b28a6d8675::t_1260c35bb07d41 1605-1616
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a67c30ee0db5ceae4259e4ac46dac9e57c37180c",
+  "prompts": {},
+  "sessions": {
+    "s_5399b28a6d8675": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0ea77-ec9f-73c1-9e73-0b22864022e8",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
