@@ -1,0 +1,57 @@
+Sources/CLI/CHANGELOG.md
+  s_bae3e5f7b83550::t_8bed9966cea4e6 97-113
+Sources/CLI/Commands/LLMInlineConfig.swift
+  s_171cf2fb8cf7d7::t_cbcd536a24cda5 18,88
+Sources/MacParakeetCore/Models/LLMProvider.swift
+  s_171cf2fb8cf7d7::t_45c5e0c5d4bd78 62,64-66,135,137-139
+Sources/MacParakeetCore/Models/PromptInferenceSettings.swift
+  s_bae3e5f7b83550::t_e8014c579f2833 618-619,703-708,728-748
+Sources/MacParakeetCore/Services/LLM/AnthropicLLMHTTPAdapter.swift
+  s_bae3e5f7b83550::t_8638ddfa9021a6 4-8,14-20,47-49,98,124-127,129,225,330,352-357
+Sources/MacParakeetCore/Services/LLM/LLMClient.swift
+  s_bae3e5f7b83550::t_1aa0ccd680762b 166-170
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_bae3e5f7b83550::t_f33633ae978f0c 426-428
+Tests/CLITests/LLMConfigCommandTests.swift
+  s_171cf2fb8cf7d7::t_f8704e199e0644 162-163
+Tests/MacParakeetTests/Models/LLMProviderDescriptorTests.swift
+  s_171cf2fb8cf7d7::t_12c1c1c0006d52 55,58,61,65-67
+Tests/MacParakeetTests/Models/PromptInferenceSettingsTests.swift
+  s_171cf2fb8cf7d7::t_73532ad8de66a6 207,212,229,382,402,412,423
+Tests/MacParakeetTests/Services/LLM/CardGenerationServiceTests.swift
+  s_171cf2fb8cf7d7::t_7c38954ec6a629 30
+Tests/MacParakeetTests/Services/LLM/LLMClientTests.swift
+  s_bae3e5f7b83550::t_264f88bc00d06c 230
+Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift
+  s_bae3e5f7b83550::t_b36275e80c2809 952,955-974,983-1021,1069,1074,1291,1302-1348
+Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
+  s_171cf2fb8cf7d7::t_b555d14b595c6d 1527,1529
+Tests/MacParakeetTests/ViewModels/LLMSettingsViewModelTests.swift
+  s_171cf2fb8cf7d7::t_3dd24eda67c1e3 453,2096
+docs/cli-testing.md
+  s_171cf2fb8cf7d7::t_ad2c1ee2a4b2ff 599,603
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "972db2800bbf307cd1fc6147772cf232f0ee7365",
+  "prompts": {},
+  "sessions": {
+    "s_171cf2fb8cf7d7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0ea6c-5904-7351-ad3a-a307be5a2bc6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_bae3e5f7b83550": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6d5ba465-aee8-4fb9-a4d6-da05d93f7181",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
