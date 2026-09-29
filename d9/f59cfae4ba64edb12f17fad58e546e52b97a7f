@@ -1,0 +1,20 @@
+Tests/MacParakeetTests/Views/TranscriptTimestampedLayoutSmokeTests.swift
+  s_3369165b9f3548::t_04f10cd38776b8 634-644
+  s_3369165b9f3548::t_552e47bd38a326 623-624
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d9f59cfae4ba64edb12f17fad58e546e52b97a7f",
+  "prompts": {},
+  "sessions": {
+    "s_3369165b9f3548": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0ea77-fb49-7b81-8afe-d9c9de34cc8e",
+        "model": "gpt-6-astra"
+      },
+      "human_author": null
+    }
+  }
+}
