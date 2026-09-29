@@ -79,11 +79,22 @@ struct CrashReportStore: Sendable {
         } ?? []
     }
 
-    /// Only the claimed directory is removed. Failure leaves it available for
-    /// later cleanup/retry; delivery is best effort, never exactly-once.
+    /// Only the claimed directory is removed. The held owner lease already
+    /// excludes every other claimant, so the report itself is unlinked without
+    /// the queue lock: queue contention must not leave a report that telemetry
+    /// dropped for opt-out uploadable after a later opt-in. An empty
+    /// reservation left by contention is reclaimed by later scans.
     @discardableResult
     func discard(_ lease: Lease) -> Bool {
-        withQueueLock { rootDescriptor in
+        var info = stat()
+        if fstatat(lease.directoryDescriptor, Self.reportName, &info, AT_SYMLINK_NOFOLLOW) == 0 {
+            guard (info.st_mode & S_IFMT) == S_IFREG,
+                unlinkat(lease.directoryDescriptor, Self.reportName, 0) == 0
+            else { return false }
+        } else if errno != ENOENT {
+            return false
+        }
+        return withQueueLock { rootDescriptor in
             remove(lease, rootDescriptor: rootDescriptor)
         } ?? false
     }

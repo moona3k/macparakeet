@@ -30,6 +30,32 @@ final class CrashAudioContextTests: XCTestCase {
         XCTAssertNil(CrashAudioContext.Record(packed: expected | (1 << 20)))
     }
 
+    /// Reason and Operation already fill their bit fields. A new case must fail
+    /// here instead of silently spilling into a neighboring field.
+    func testEveryEnumCaseFitsItsSchemaField() {
+        func assertRoundTrips(_ record: CrashAudioContext.Record, file: StaticString = #filePath, line: UInt = #line) {
+            XCTAssertEqual(CrashAudioContext.Record(packed: record.packed), record, file: file, line: line)
+        }
+        for kind in CrashAudioContext.Kind.allCases where kind != .workflowChange {
+            assertRoundTrips(.init(kind: kind, attempt: 1))
+        }
+        for operation in CrashAudioContext.Operation.allCases {
+            assertRoundTrips(.init(kind: .phase, operation: operation, attempt: 1))
+        }
+        for phase in CrashAudioContext.Phase.allCases {
+            assertRoundTrips(.init(kind: .phase, phase: phase, attempt: 1))
+        }
+        for transport in CrashAudioContext.Transport.allCases {
+            assertRoundTrips(.init(kind: .phase, transport: transport, attempt: 1))
+        }
+        for outcome in CrashAudioContext.Outcome.allCases {
+            assertRoundTrips(.init(kind: .finish, outcome: outcome, attempt: 1))
+        }
+        for reason in CrashAudioContext.Reason.allCases {
+            assertRoundTrips(.init(kind: .teardown, reason: reason, attempt: 1))
+        }
+    }
+
     func testFiniteMappingsPreserveKnownCategoriesAndDropArbitraryLabels() {
         let known: [(String, CrashAudioContext.Transport)] = [
             ("unknown", .unknown), ("none", .none), ("built-in", .builtIn),

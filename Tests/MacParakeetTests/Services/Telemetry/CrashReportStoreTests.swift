@@ -142,6 +142,8 @@ final class CrashReportStoreTests: XCTestCase {
         XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: url.path), target.path)
     }
 
+    /// The handled report is ours to remove, but an unexpected sibling keeps
+    /// the directory: it is never recursively deleted.
     func testUnexpectedFileInsideManagedDirectoryIsPreserved() throws {
         let url = try pendingReport()
         let extra = url.deletingLastPathComponent().appendingPathComponent("unrelated.txt")
@@ -149,7 +151,7 @@ final class CrashReportStoreTests: XCTestCase {
         let claim = try XCTUnwrap(store.claimPendingReports().first)
         XCTAssertFalse(store.discard(claim))
         XCTAssertEqual(try String(contentsOf: extra), "keep")
-        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
     }
 
     func testOversizedAndMalformedOwnedReportsAreBoundedAndRetained() async throws {
@@ -278,6 +280,29 @@ final class CrashReportStoreTests: XCTestCase {
         let optedIn = StoreTelemetry()
         await CrashReporter.sendPendingReports(via: optedIn, store: store)
         XCTAssertTrue(optedIn.events.isEmpty)
+    }
+
+    /// Another process can hold the spool queue lock while an opt-out drop
+    /// completes. The handled report must still be gone for a later opt-in.
+    func testQueueLockContentionStillDiscardsHandledReport() async throws {
+        let url = try pendingReport()
+        let queueLock = store.rootURL.appendingPathComponent(".queue.lock").path
+        let contender = open(queueLock, O_RDWR | O_CLOEXEC)
+        XCTAssertGreaterThanOrEqual(contender, 0)
+        defer { close(contender) }
+        let optedOut = StoreTelemetry { _ in
+            // Claims are taken before delivery; contend only for the discard.
+            flock(contender, LOCK_EX | LOCK_NB) == 0
+        }
+        await CrashReporter.sendPendingReports(via: optedOut, store: store)
+        XCTAssertEqual(optedOut.events.count, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+
+        XCTAssertEqual(flock(contender, LOCK_UN), 0)
+        let optedIn = StoreTelemetry()
+        await CrashReporter.sendPendingReports(via: optedIn, store: store)
+        XCTAssertTrue(optedIn.events.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.deletingLastPathComponent().path))
     }
 
     func testConcurrentDrainsDoNotSendTheSameReportTwice() async throws {
