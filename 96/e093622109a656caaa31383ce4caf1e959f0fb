@@ -1,0 +1,89 @@
+Sources/MacParakeetCore/Audio/AudioCaptureDiagnostics.swift
+  s_fe57bf0bffb1f0::t_9f16e27a049e7f 9
+Sources/MacParakeetCore/Services/Telemetry/TelemetryService.swift
+  s_fe57bf0bffb1f0::t_92934e7a109b36 166
+scripts/dev/tests/crash_context_probe.c
+  s_fe57bf0bffb1f0::t_bc3edd57e48e3b 12
+  s_fe57bf0bffb1f0::t_5de43453fb717e 1-11,13-123
+  s_fe57bf0bffb1f0::t_880c64cc09b2b0 124
+Tests/MacParakeetTests/Services/Telemetry/CrashContextNativeTests.swift
+  s_fe57bf0bffb1f0::t_c60e87d4da3387 1-60
+docs/crash-context-verification.md
+  s_fe57bf0bffb1f0::t_2ee8fd414a41d6 1-81
+  s_fe57bf0bffb1f0::t_eb5fb9a5bb6392 82-89
+Tests/MacParakeetTests/Audio/AudioCaptureDiagnosticsTests.swift
+  s_fe57bf0bffb1f0::t_42534c359c91ab 127
+Sources/MacParakeetCore/Services/Telemetry/CrashDiagnosticMetadata.swift
+  s_fe57bf0bffb1f0::t_92934e7a109b36 1-41
+  s_fe57bf0bffb1f0::t_a52aec7e7de191 42-45
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_fe57bf0bffb1f0::t_92934e7a109b36 1004-1005,1785-1786,1799-1801
+Sources/MacParakeetCore/Audio/AudioEngineLifecycleDiagnostics.swift
+  s_fe57bf0bffb1f0::t_cc8e1276951faf 119,140-142,172-174,211,213-214,226,229,252-255,296-301,303-309,311-325,327-332
+  s_fe57bf0bffb1f0::t_0c56fab8a8050f 120,212,228,256-261,302,310,326
+  s_fe57bf0bffb1f0::t_c1c7b0cd57539e 162
+  s_fe57bf0bffb1f0::t_e5071508bc5d49 333
+docs/plans/2026-09-28-crash-observability.md
+  s_fe57bf0bffb1f0::t_dcf7aef41bba30 1-2,4-40
+  s_fe57bf0bffb1f0::t_0956b932066d97 3,41-49
+  s_fe57bf0bffb1f0::t_a9b2a4d2784114 50-58
+Tests/MacParakeetTests/Services/Telemetry/CrashDiagnosticMetadataTests.swift
+  s_fe57bf0bffb1f0::t_c60e87d4da3387 1-45
+Sources/MacParakeetCore/Audio/MicrophoneEnginePlatform.swift
+  s_fe57bf0bffb1f0::t_87c26c4bf2ef99 1623,1647,1651,1655,1662,1676,1690,1694,1700-1716,2101
+  s_fe57bf0bffb1f0::t_42534c359c91ab 1624-1626,1677-1679
+Sources/MacParakeetCore/Services/Telemetry/Observability.swift
+  s_fe57bf0bffb1f0::t_9f16e27a049e7f 65-68,130,136,138-140,149-163
+Sources/MacParakeetObjCShims/MPKCrashSignalHandler.c
+  s_fe57bf0bffb1f0::t_4f4fb90b1e49c1 13-17,23,43-55,57-78,80-83,85,87-95,102-104,106
+  s_fe57bf0bffb1f0::t_5714fc1e2adf69 243-336,342,428
+  s_fe57bf0bffb1f0::t_f51b43eb61fd3d 481-485
+  s_fe57bf0bffb1f0::t_5de43453fb717e 96-101
+  s_fe57bf0bffb1f0::t_a2bcefb612be78 56,79,84,86,105
+  s_fe57bf0bffb1f0::t_733f7ca23816df 429
+Tests/MacParakeetTests/Services/Telemetry/CrashAudioContextTests.swift
+  s_fe57bf0bffb1f0::t_c5b4f8603ed7db 1-181
+Sources/MacParakeetObjCShims/include/MPKCrashSignalHandler.h
+  s_fe57bf0bffb1f0::t_44075d26f4338e 4-6,21-25,28-51
+  s_fe57bf0bffb1f0::t_178df7065d21d8 52
+Sources/MacParakeetCore/Services/Telemetry/CrashAudioContext.swift
+  s_fe57bf0bffb1f0::t_198ad3fa5ee56a 1-184
+Sources/MacParakeetCore/Services/Telemetry/CrashContextArchive.swift
+  s_fe57bf0bffb1f0::t_5aeb66ba2a8957 1-73
+Sources/MacParakeetCore/Services/Telemetry/CrashReportStore.swift
+  s_fe57bf0bffb1f0::t_edb6f5876791e3 1-263
+Sources/MacParakeetCore/Services/Telemetry/CrashReporter.swift
+  s_fe57bf0bffb1f0::t_a51d4ab674b91e 17-20,54-61,83-88,93-94,106-126,137-139,157-165,168,173-176,193,234,255-258,261-262,272,280,296-300,312,328-330,370-382,389-393,395-396,406,409-410,412,414-452,454
+Tests/MacParakeetTests/Services/Telemetry/CrashContextArchiveTests.swift
+  s_fe57bf0bffb1f0::t_375b3cf3063e80 1-88
+Tests/MacParakeetTests/Services/Telemetry/CrashReportStoreTests.swift
+  s_fe57bf0bffb1f0::t_8fc27a4247b0af 1-320
+Tests/MacParakeetTests/Services/Telemetry/CrashReporterSignalProbeTests.swift
+  s_fe57bf0bffb1f0::t_98e7bbfcc12b0f 218-219
+Tests/MacParakeetTests/Services/Telemetry/CrashReporterTests.swift
+  s_fe57bf0bffb1f0::t_3151adf2a32cb8 142,441,497,525,531-569
+Tests/MacParakeetTests/TelemetryServiceTests.swift
+  s_fe57bf0bffb1f0::t_c9a093a9f20659 1947,1958-1960
+docs/local-audio-diagnostics-query.md
+  s_fe57bf0bffb1f0::t_dddb973f5e0ed2 55-56,129-153
+docs/telemetry.md
+  s_fe57bf0bffb1f0::t_0acd09dfce912e 594-602
+spec/contracts/telemetry-v1.md
+  s_fe57bf0bffb1f0::t_1110f722e70728 151-209,240-242
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "96e093622109a656caaa31383ce4caf1e959f0fb",
+  "prompts": {},
+  "sessions": {
+    "s_fe57bf0bffb1f0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e892-1bda-73b1-a2ae-56866e2083c3",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
