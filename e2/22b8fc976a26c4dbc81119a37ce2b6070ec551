@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/Views/TranscriptTimestampedLayoutSmokeTests.swift
+  s_3369165b9f3548::t_04f10cd38776b8 631-641
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e222b8fc976a26c4dbc81119a37ce2b6070ec551",
+  "prompts": {},
+  "sessions": {
+    "s_3369165b9f3548": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0ea77-fb49-7b81-8afe-d9c9de34cc8e",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
