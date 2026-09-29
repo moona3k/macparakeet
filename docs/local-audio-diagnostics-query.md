@@ -52,8 +52,8 @@ Always inspect `status` and the scan counters before drawing conclusions:
 New records carry `process_id`, a random per-launch `process_session`, and
 monotonic `uptime_ns`. Filter by `process_session` to separate app/CLI launches.
 Use `uptime_ns` within a process to reason about wall-clock corrections or
-delayed writes. This local ID is distinct from the network telemetry session
-UUID. It is not a user ID or a capture-operation ID.
+delayed writes. New builds share this ID with the network telemetry session UUID; older
+builds used separate IDs. It is not a user ID or a capture-operation ID.
 
 For a dictation incident, inspect `dictation_capture_start`,
 `dictation_capture_first_buffer`, `dictation_capture_stop`, and terminal
@@ -126,3 +126,28 @@ Run the deterministic synthetic-file tests with:
 ```sh
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/dev/tests -p 'test_query_audio_diagnostics.py'
 ```
+
+## Recovered crash context
+
+```sh
+python3 scripts/dev/query_audio_diagnostics.py --event crash_context_recovered --limit 20
+```
+
+The relaunch archives validated local-only lifecycle history before deleting a
+successfully delivered crash report. `process_session`, the line timestamp and
+`uptime_ns` describe that relaunch. `crash_session` and `crash_timestamp` describe
+the original process and incident; join other lines using the original ID.
+`crash_id` can repeat when archival or delivery is retried.
+
+`crash_records` contains at most 32 `sequence:0xPAYLOAD` entries, separated by
+semicolons. The stable numeric layout and finite enums live in
+`CrashAudioContext.Record` (context version 1); its strict decoder is also used
+before archival. Sequences order observed transitions. Attempt tokens identify
+lifecycle observers, not engine generations. There are no per-record clocks,
+and missing records do not prove missing actions. Registered consumers mean
+workflow ownership, not successful audio.
+
+Archival never initiates log rotation or waits for another writer. If it cannot
+append, the pending report stays in the bounded crash spool for a later launch,
+subject to capacity eviction. Existing log rotation may remove old recovered
+history. This utility's JSON schema and read-only behavior are unchanged.

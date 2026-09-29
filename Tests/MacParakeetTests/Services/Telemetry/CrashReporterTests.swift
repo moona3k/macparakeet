@@ -139,7 +139,7 @@ final class CrashReporterTests: XCTestCase {
 
         // Verify event was sent
         XCTAssertEqual(mock.sentEvents.count, 1)
-        if case .crashOccurred(let crashType, let signal, let name, _, _, _, _, _, _, _, _, _, _) = mock.sentEvents.first {
+        if case .crashOccurred(let crashType, let signal, let name, _, _, _, _, _, _, _, _, _, _, _) = mock.sentEvents.first {
             XCTAssertEqual(crashType, "signal")
             XCTAssertEqual(signal, "11")
             XCTAssertEqual(name, "SIGSEGV")
@@ -438,7 +438,7 @@ final class CrashReporterTests: XCTestCase {
         let mock = MockTelemetryService()
         await CrashReporter.sendPendingReport(via: mock, from: testCrashPath)
 
-        guard case .crashOccurred(_, _, _, _, _, _, _, _, _, _, let siCode, let pc, let faultAddr) = mock.sentEvents.first else {
+        guard case .crashOccurred(_, _, _, _, _, _, _, _, _, _, let siCode, let pc, let faultAddr, _) = mock.sentEvents.first else {
             XCTFail("Expected crashOccurred event")
             return
         }
@@ -494,7 +494,7 @@ final class CrashReporterTests: XCTestCase {
         let mock = MockTelemetryService()
         await CrashReporter.sendPendingReport(via: mock, from: testCrashPath)
 
-        if case .crashOccurred(_, _, _, _, let appVer, let osVer, let uuid, let slide, let reason, let stackTrace, _, _, _) = mock.sentEvents.first {
+        if case .crashOccurred(_, _, _, _, let appVer, let osVer, let uuid, let slide, let reason, let stackTrace, _, _, _, _) = mock.sentEvents.first {
             XCTAssertEqual(appVer, "0.5.1")
             XCTAssertEqual(osVer, "15.3")
             XCTAssertEqual(uuid, "TEST-UUID")
@@ -522,12 +522,51 @@ final class CrashReporterTests: XCTestCase {
         let mock = MockTelemetryService()
         await CrashReporter.sendPendingReport(via: mock, from: testCrashPath)
 
-        if case .crashOccurred(_, _, _, _, _, _, _, _, let reason, _, _, _, _) = mock.sentEvents.first {
+        if case .crashOccurred(_, _, _, _, _, _, _, _, let reason, _, _, _, _, _) = mock.sentEvents.first {
             XCTAssertEqual(reason, "index 5 beyond bounds [0..3]\nmore context here")
         } else {
             XCTFail("Expected crashOccurred event with reason")
         }
     }
+    func testOriginalProcessMetadataIsValidatedAndRawBreadcrumbsStayLocal() throws {
+        let content = """
+        crash_type: signal
+        signal: 6
+        name: SIGABRT
+        timestamp: 123
+        app_ver: 0.8.9
+        crash_id: A17E1881-3D55-4AB8-AF5F-32DEDD0571C4
+        crash_session: 57B2573A-8629-4D7E-8C24-42304D44D388
+        crash_os_build: 25G83
+        shared_cache_uuid: F2E86C53-6052-388B-BA71-5A0C9B569413
+        shared_cache_slide: 0x8490000
+        crash_context_version: 1
+        crash_registered_consumers: 3
+        crash_breadcrumbs_dropped: 2
+        crash_breadcrumbs_incomplete: 1
+        breadcrumb: 1,0x123
+        breadcrumb: 2,0x456
+        --- stack ---
+        0x1234
+        """
+        try content.write(toFile: testCrashPath, atomically: true, encoding: .utf8)
+        let parsed = try XCTUnwrap(CrashReporter.loadPendingReport(from: testCrashPath))
+        let props = try XCTUnwrap(parsed.diagnosticMetadata).props
+        XCTAssertEqual(props["crash_id"], "a17e1881-3d55-4ab8-af5f-32dedd0571c4")
+        XCTAssertEqual(props["crash_session"], "57b2573a-8629-4d7e-8c24-42304d44d388")
+        XCTAssertEqual(props["crash_registered_consumers"], "both")
+        XCTAssertEqual(props["crash_os_build"], "25G83")
+        XCTAssertNil(props["breadcrumb"])
+        XCTAssertEqual(parsed.stackTrace, ["0x1234"])
+    }
+
+    func testLegacyReportHasNoInventedOriginalIdentity() throws {
+        let content = "crash_type: signal\nsignal: 6\nname: SIGABRT\ntimestamp: 123\napp_ver: 0.8.7\n"
+        try content.write(toFile: testCrashPath, atomically: true, encoding: .utf8)
+        let parsed = try XCTUnwrap(CrashReporter.loadPendingReport(from: testCrashPath))
+        XCTAssertNil(parsed.diagnosticMetadata)
+    }
+
 }
 
 // MARK: - Mock Telemetry Service

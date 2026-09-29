@@ -1944,7 +1944,7 @@ final class TelemetryServiceTests: XCTestCase {
 
     // MARK: - Session UUID
 
-    func testSessionIdIsPerInstance() async {
+    func testSessionIdMatchesSharedProcessIdentityAcrossInstances() async {
         let service1 = makeService()
         let service2 = makeService()
 
@@ -1955,7 +1955,9 @@ final class TelemetryServiceTests: XCTestCase {
 
         let payloads = TelemetryMockURLProtocol.recordedPayloads()
         let sessions = Set(payloads.flatMap(\.events).map(\.session))
-        XCTAssertGreaterThanOrEqual(sessions.count, 2)
+        XCTAssertGreaterThanOrEqual(payloads.flatMap(\.events).count, 2)
+        XCTAssertEqual(sessions, [Observability.processSessionID])
+        XCTAssertNotNil(UUID(uuidString: Observability.processSessionID))
     }
 
     // MARK: - Payload Encoding

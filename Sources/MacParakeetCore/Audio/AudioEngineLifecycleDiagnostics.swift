@@ -116,6 +116,8 @@ final class AudioEngineLifecycleDiagnostics: @unchecked Sendable {
         var prepared = false
         var routeSource = "unknown"
         var transport = "unknown"
+        var crashTransport = CrashAudioContext.Transport.unknown
+        var crashHasNativeProgress = false
         var lastErrorType: String?
         var lastErrorPhase: Phase?
         var reportedSlow = false
@@ -135,6 +137,9 @@ final class AudioEngineLifecycleDiagnostics: @unchecked Sendable {
     private let bufferSize: UInt32
     private let workflowID: String?
     private let consumer: String?
+    let crashAttemptToken: UInt32
+    private let crashOperation: CrashAudioContext.Operation
+    private let crashSink: @Sendable (CrashAudioContext.Record) -> Void
     private let startedAt: UInt64
     private let slowThresholdNanoseconds: UInt64
     private let now: @Sendable () -> UInt64
@@ -154,6 +159,7 @@ final class AudioEngineLifecycleDiagnostics: @unchecked Sendable {
         slowThreshold: TimeInterval = 5,
         now: @escaping @Sendable () -> UInt64 = { DispatchTime.now().uptimeNanoseconds },
         automaticallySchedule: Bool = true,
+        crashSink: @escaping @Sendable (CrashAudioContext.Record) -> Void = { CrashAudioContext.record($0) },
         sink: @escaping @Sendable (AudioEngineLifecycleSnapshot) -> Void = {
             AudioCaptureDiagnostics.appendAsync($0.localLogLine, correlation: nil)
             Telemetry.send(.audioEngineLifecycle($0))
@@ -163,6 +169,9 @@ final class AudioEngineLifecycleDiagnostics: @unchecked Sendable {
         self.scope = scope
         self.vpioEnabled = vpioEnabled
         self.bufferSize = bufferSize
+        self.crashAttemptToken = scope == nil ? CrashAudioContext.nextAttempt() : 0
+        self.crashOperation = CrashAudioContext.Operation(operation)
+        self.crashSink = crashSink
         let correlation = Observability.currentCaptureCorrelation
         self.workflowID =
             correlation.flatMap { UUID(uuidString: $0.workflowID) != nil ? $0.workflowID : nil }
@@ -199,6 +208,10 @@ final class AudioEngineLifecycleDiagnostics: @unchecked Sendable {
             )
             state.phase = phase
             state.phaseStartedAt = time
+            if phase != .queueWait {
+                state.crashHasNativeProgress = true
+                recordCrash(.phase, state: state)
+            }
         }
     }
 
@@ -210,7 +223,10 @@ final class AudioEngineLifecycleDiagnostics: @unchecked Sendable {
             if state.attemptCount < Int.max { state.attemptCount += 1 }
             state.routeSource = source
             state.transport = transport
+            state.crashTransport = CrashAudioContext.Transport(label: transport)
             state.prepared = prepared
+            state.crashHasNativeProgress = true
+            recordCrash(.attempt, state: state)
         }
     }
 
@@ -233,6 +249,16 @@ final class AudioEngineLifecycleDiagnostics: @unchecked Sendable {
             guard !state.finished else { return }
             let time = state.observe(time)
             state.finished = true
+            // Keep the originating attempt even if another observer has entered
+            // the native queue. This is a historical transition, not a clear of
+            // process-wide "current" state. Include fast prepare/stop here even
+            // though their ordinary telemetry remains suppressed below.
+            if state.crashHasNativeProgress {
+                recordCrash(
+                    .finish, state: state,
+                    outcome: error == nil ? .success : (cancelled ? .cancelled : .failure)
+                )
+            }
             // Native cleanup may have advanced to teardown after noteError.
             // These fields describe the last recorded attempt error. The
             // platform can throw an earlier fallback error, so do not replace
@@ -265,6 +291,44 @@ final class AudioEngineLifecycleDiagnostics: @unchecked Sendable {
             state.reportedSlow = true
             enqueue(snapshot(state: state, time: time, outcome: .slow, wasSlow: true))
         }
+    }
+
+    /// Native teardown callers already run on the platform queue. The small
+    /// numeric sink does not enqueue work or inspect a device. Keep it under
+    /// this existing lock so a concurrent finish cannot reorder this observer.
+    func recordCrashTeardown(_ phase: CrashAudioContext.Phase, reason: CrashAudioContext.Reason = .none) {
+        state.withLock { state in
+            guard !state.finished else { return }
+            state.crashHasNativeProgress = true
+            recordCrash(.teardown, state: state, phase: phase, reason: reason)
+        }
+    }
+
+    func recordCrashRecovery(_ reason: CrashAudioContext.Reason) {
+        state.withLock { state in
+            guard !state.finished else { return }
+            state.crashHasNativeProgress = true
+            recordCrash(.recovery, state: state, reason: reason)
+        }
+    }
+
+    private func recordCrash(
+        _ kind: CrashAudioContext.Kind,
+        state: State,
+        phase: CrashAudioContext.Phase? = nil,
+        outcome: CrashAudioContext.Outcome = .pending,
+        reason: CrashAudioContext.Reason = .none
+    ) {
+        guard scope == nil, crashAttemptToken != 0 else { return }
+        crashSink(CrashAudioContext.Record(
+            kind: kind,
+            operation: crashOperation,
+            phase: phase ?? (state.phase == .queueWait ? .none : CrashAudioContext.Phase(state.phase)),
+            transport: state.crashTransport,
+            outcome: outcome,
+            reason: reason,
+            attempt: crashAttemptToken
+        ))
     }
 
     /// Awaits snapshots already submitted, without waiting for the lifecycle to

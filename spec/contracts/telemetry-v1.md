@@ -148,6 +148,65 @@ their original classification.
 The same `workflow_id` / `consumer` pair is appended to local audio log lines
 at enqueue time so a deferred write cannot pick up a later session.
 
+## Crash context and pending reports
+
+`crash_occurred` optionally includes these private fields. Invalid optional
+values are omitted; legacy clients and reports remain accepted.
+
+| Field | Shape and meaning |
+| --- | --- |
+| `crash_id` | Persisted UUID, normalized lowercase; retry deduplication identity |
+| `crash_session` | Original process UUID, distinct from the uploader's envelope session |
+| `crash_os_build` | 1–31 ASCII alphanumeric OS build characters |
+| `shared_cache_uuid` | UUID identifying the crash process's dyld shared cache |
+| `shared_cache_slide` | `0x` plus 1–16 hex digits; cache slide, not every image's slide |
+| `crash_context_version` | `1` |
+| `crash_registered_consumers` | `none`, `dictation`, `meeting`, `both`; registered workflow owners, not proof of active audio |
+| `crash_breadcrumbs_dropped` | Canonical decimal UInt32, saturating wire representation of native contention/exhaustion drops |
+| `crash_breadcrumbs_incomplete` | Canonical decimal 0–32, bounded indication of interrupted/skipped publication, not a distinct lost-event count |
+
+The receiver must deploy before this producer ships. It validates optional
+fields, prefers a valid persisted crash ID over legacy incident grouping, and
+removes these fields from public aggregate responses, including old snapshots.
+Legacy reports never receive invented crash IDs. Delivery remains best effort;
+a successful request is not an exactly-once guarantee.
+
+Detailed history stays local: a 32-slot numeric ring records lifecycle and
+teardown transitions, tagged by a process-local attempt token. Tokens are not
+engine generations. Late completion of one attempt cannot clear another's
+state because records describe observed history, not authoritative current
+state. No raw content, device names, paths or arbitrary strings enter the ring.
+Schema 1's packed layout is defined in `CrashAudioContext.Record`; decoding
+rejects reserved bits and unknown finite enum values. Workflow mask snapshots
+are independent of successful ring insertion and do not imply readiness.
+
+Recording performs fixed atomic operations without I/O, formatting, allocation,
+new jobs or timers. It never runs from audio render/buffer callbacks. Writers
+try once and drop on contention. Fatal readers make one pass without waiting
+for an interrupted writer; complete records and bounded metadata are written
+before the existing best-effort backtrace. OS build/cache metadata is captured
+at startup using public SDK APIs. SIGKILL, power loss, unsupported stack
+capture and non-cache images remain evidence gaps.
+
+A process reserves one directory in a 16-entry `CrashReports` spool. Stable
+nonblocking owner leases protect live writers and upload claims. Scans inspect
+at most 64 names; reports are at most 32KiB. Capacity eviction removes the
+oldest reclaimable diagnostic reservation; all-live/claimed capacity or lock
+failure disables persistence for that process. Filesystem work is bounded in
+operation count, not guaranteed latency. Startup reserves the destination;
+next-launch scanning, parsing and delivery run off the main actor. Before
+removing a delivered report, its validated numeric history is copied into one
+`crash_context_recovered` line in the existing bounded local audio log. The
+line retains original crash/session identity; its ordinary log prefix describes
+the relaunch that recovered it. The archive uses nonblocking log ownership and
+does not initiate rotation. If archival fails, the spool remains pending even
+when telemetry delivery succeeds. Retried local lines can repeat the same
+crash ID; there is no exactly-once local-write guarantee. Legacy reports and
+reports without valid numeric history need no archive. No queue lock spans
+network awaits. Unreadable/unparseable reports remain pending,
+subject to capacity eviction. Legacy files are renamed into a claim before
+upload; an old writer that ignores leases remains a migration limitation.
+
 ## Aggregate evidence
 
 The website's `/api/stats` keeps its existing aggregate fields. Additive
@@ -178,9 +237,9 @@ fresh stats snapshot proves a successful read/aggregation, not ingestion health.
 ## Local diagnostic evidence
 
 The bounded local audio log records event occurrence time, process ID, a random
-per-process session, monotonic uptime and audio lifecycle fields. These process
-correlation fields are not transmitted as telemetry; an explicit diagnostic
-export includes the log. Legacy lines without them remain readable.
+per-process session, monotonic uptime and audio lifecycle fields. The random process session is shared with the telemetry envelope and optional
+original `crash_session`; process ID and monotonic uptime remain local. An
+explicit diagnostic export includes the log. Legacy lines without them remain readable.
 The shareable log records structured error type and explicitly named
 `bridged_error_code` rather than raw exception text. A bridged Swift enum code
 is not an underlying CoreAudio status; recognized native status is retained in

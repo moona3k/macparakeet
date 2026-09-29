@@ -14,7 +14,10 @@ import MacParakeetObjCShims
 ///      writes a minimal crash report (metadata, `si_code`, fault address,
 ///      interrupted PC) to disk *before* attempting a best-effort backtrace.
 ///      No Swift or Objective-C runtime call happens inside this handler.
-///   3. `sendPendingReport(via:)` — reads crash file on next launch, sends telemetry event
+///   3. `sendPendingReport(via:)` — claims previous-process reports on next
+///      launch and sends them under the existing telemetry consent policy.
+/// Each process writes to its own bounded spool entry. A lifetime filesystem
+/// lease keeps uploaders and retention cleanup away from live writers.
 ///
 /// Known limitations:
 /// - `backtrace()` (called from the C handler) is not strictly async-signal-safe
@@ -48,6 +51,14 @@ public final class CrashReporter {
     nonisolated(unsafe) private static var osVersionString = ""
     nonisolated(unsafe) private static var machOUUIDString = ""
     nonisolated(unsafe) private static var aslrSlideString = ""
+    // The stable lease must outlive all signal/exception writes. It is never
+    // released by the next-launch uploader in this process.
+    nonisolated(unsafe) private static var activeReportLease: CrashReportStore.Lease?
+    private static let drain = PendingReportDrain()
+
+    private static var reportStore: CrashReportStore {
+        CrashReportStore(appSupportURL: URL(fileURLWithPath: AppPaths.appSupportDir, isDirectory: true))
+    }
 
     /// Previous ObjC exception handler (for chaining).
     nonisolated(unsafe) private static var previousExceptionHandler: (@convention(c) (NSException) -> Void)?
@@ -69,12 +80,18 @@ public final class CrashReporter {
             return
         }
 
+        guard let reservation = reportStore.reserve(), reservation.reportURL.path.utf8.count < 512 else {
+            installed = false
+            return
+        }
+        activeReportLease = reservation
+
         // 2. Snapshot version/image metadata as plain Swift strings (normal
         // context — used to build the ObjC exception report and passed as
         // C strings to the C signal-handler installer below).
         let info = SystemInfo.current
-        appVersionString = info.appVersion
-        osVersionString = info.macOSVersion
+        appVersionString = String(info.appVersion.prefix(63))
+        osVersionString = String(info.macOSVersion.prefix(31))
         machOUUIDString = snapshotMachOUUID()
         let slide = _dyld_get_image_vmaddr_slide(0)
         aslrSlideString = String(format: "0x%lx", UInt(bitPattern: slide))
@@ -86,22 +103,27 @@ public final class CrashReporter {
         // buffer rather than a Swift `Array`, so the stack's storage address
         // is fixed for the process's lifetime regardless of Swift-side
         // retain/copy behavior.
-        crashReportPath.withCString { pathPtr in
-            appVersionString.withCString { appVerPtr in
-                osVersionString.withCString { osVerPtr in
-                    machOUUIDString.withCString { uuidPtr in
-                        aslrSlideString.withCString { slidePtr in
-                            var metadata = MPKCrashMetadata(
-                                app_version: appVerPtr,
-                                os_version: osVerPtr,
-                                mach_uuid: uuidPtr,
-                                aslr_slide: slidePtr
-                            )
-                            MPKInstallCrashSignalHandler(pathPtr, &metadata)
-                        }
-                    }
-                }
-            }
+        var systemMetadata = MPKCrashSystemMetadata()
+        MPKReadCrashSystemMetadata(&systemMetadata)
+        let osBuild = withUnsafeBytes(of: systemMetadata.os_build) {
+            String(cString: $0.baseAddress!.assumingMemoryBound(to: CChar.self))
+        }
+        let cacheUUID = withUnsafeBytes(of: systemMetadata.shared_cache_uuid) {
+            String(cString: $0.baseAddress!.assumingMemoryBound(to: CChar.self))
+        }
+        let cacheSlide = withUnsafeBytes(of: systemMetadata.shared_cache_slide) {
+            String(cString: $0.baseAddress!.assumingMemoryBound(to: CChar.self))
+        }
+        let values = [reservation.reportURL.path, appVersionString, osVersionString, machOUUIDString,
+                      aslrSlideString, UUID().uuidString.lowercased(), Observability.processSessionID,
+                      osBuild, cacheUUID, cacheSlide]
+        withCStringPointers(values) { pointers in
+            var metadata = MPKCrashMetadata(
+                app_version: pointers[1], os_version: pointers[2], mach_uuid: pointers[3],
+                aslr_slide: pointers[4], crash_id: pointers[5], crash_session: pointers[6],
+                os_build: pointers[7], shared_cache_uuid: pointers[8], shared_cache_slide: pointers[9]
+            )
+            MPKInstallCrashSignalHandler(pointers[0], &metadata)
         }
 
         // 4. Register ObjC uncaught exception handler
@@ -112,7 +134,9 @@ public final class CrashReporter {
     // MARK: - ObjC Exception Handler (normal Swift context, NOT signal handler)
 
     private static let objcExceptionHandler: @convention(c) (NSException) -> Void = { exception in
-        let name = exception.name.rawValue
+        guard let reportPath = activeReportLease?.reportURL.path else { return }
+        let name = String(exception.name.rawValue.prefix(128))
+            .replacingOccurrences(of: "\n", with: " ").replacingOccurrences(of: "\r", with: " ")
         let reason = TelemetryErrorClassifier.errorDetail(
             NSError(domain: name, code: 0, userInfo: [NSLocalizedDescriptionKey: exception.reason ?? ""])
         )
@@ -130,14 +154,26 @@ public final class CrashReporter {
         let safeReason = reason.replacingOccurrences(of: "\n", with: "\\n")
                                .replacingOccurrences(of: "\r", with: "\\r")
         lines.append("reason: \(safeReason)")
+        var context = [CChar](repeating: 0, count: 8192)
+        let contextCount = context.withUnsafeMutableBufferPointer { buffer in
+            MPKCopyCrashContext(buffer.baseAddress, buffer.count)
+        }
+        if contextCount > 0 {
+            let count = min(Int(contextCount), context.count)
+            let data = context.withUnsafeBytes { Data($0.prefix(count)) }
+            lines.append(String(decoding: data, as: UTF8.self))
+        }
         lines.append("--- stack ---")
 
-        for address in exception.callStackReturnAddresses {
+        for address in exception.callStackReturnAddresses.prefix(64) {
             lines.append(String(format: "0x%lx", address.uintValue))
         }
 
         let content = lines.joined(separator: "\n") + "\n"
-        if (try? content.write(toFile: crashReportPath, atomically: true, encoding: .utf8)) != nil {
+        // Strings and frame count above are bounded independently; retain a
+        // final byte ceiling so corrupt exception metadata cannot grow the spool.
+        let data = Data(content.utf8.prefix(CrashReportStore.maximumReportBytes))
+        if (try? data.write(to: URL(fileURLWithPath: reportPath), options: [.atomic])) != nil {
             // Prevent the subsequent SIGABRT (from abort() after uncaught exception)
             // from overwriting this richer exception report with a generic signal report.
             // Only claimed after a successful write — if the write failed, leave the
@@ -154,10 +190,7 @@ public final class CrashReporter {
         var isDir: ObjCBool = false
         do {
             if FileManager.default.fileExists(atPath: dir, isDirectory: &isDir) {
-                if !isDir.boolValue {
-                    try FileManager.default.removeItem(atPath: dir)
-                    try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-                }
+                guard isDir.boolValue else { return false }
             } else {
                 try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
             }
@@ -198,7 +231,7 @@ public final class CrashReporter {
     // MARK: - Crash Report Recovery (normal Swift, called on next launch)
 
     /// Parsed crash report from a previous session.
-    public struct CrashReport {
+    public struct CrashReport: Sendable {
         public let crashType: String    // "signal" or "exception"
         public let signal: String       // e.g. "11" or "exception"
         public let name: String         // e.g. "SIGSEGV" or "NSInvalidArgumentException"
@@ -219,9 +252,14 @@ public final class CrashReporter {
         /// Faulting memory address (`siginfo_t.si_addr`), as `0x`-prefixed
         /// hex. Signal crashes only; absent from exceptions and older report files.
         public let faultAddr: String?
+        /// Validated original-process and system metadata. Raw breadcrumbs stay
+        /// in the local report and are never included in this wire value.
+        public let diagnosticMetadata: CrashDiagnosticMetadata?
+        let archiveContext: CrashContextArchive?
     }
 
-    /// Path to the crash report file.
+    /// Legacy single-report path, retained for compatibility with older files.
+    /// New handlers write only to their leased per-process destination.
     public static var crashReportPath: String {
         AppPaths.appSupportDir + "/crash_report.txt"
     }
@@ -231,8 +269,7 @@ public final class CrashReporter {
         let filePath = path ?? crashReportPath
         // Use tolerant UTF-8 decoding: a crash mid-write could truncate a
         // multi-byte character, and strict .utf8 would discard the entire report.
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)),
-              !data.isEmpty else {
+        guard let data = CrashReportStore.readReport(at: URL(fileURLWithPath: filePath)) else {
             return nil
         }
         let content = String(decoding: data, as: UTF8.self)
@@ -240,6 +277,7 @@ public final class CrashReporter {
         let lines = content.components(separatedBy: "\n")
         var fields = [String: String]()
         var stackTrace = [String]()
+        var breadcrumbs = [String]()
         var inStack = false
 
         for line in lines {
@@ -255,7 +293,11 @@ public final class CrashReporter {
             } else if let colonIndex = line.firstIndex(of: ":") {
                 let key = String(line[line.startIndex..<colonIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
                 let value = String(line[line.index(after: colonIndex)...]).trimmingCharacters(in: .whitespacesAndNewlines)
-                fields[key] = value
+                if key == "breadcrumb" {
+                    if breadcrumbs.count < 32 { breadcrumbs.append(value) }
+                } else {
+                    fields[key] = value
+                }
             }
         }
 
@@ -267,6 +309,7 @@ public final class CrashReporter {
             return nil
         }
 
+        let diagnosticMetadata = CrashDiagnosticMetadata(fields: fields)
         return CrashReport(
             crashType: crashType,
             signal: signal,
@@ -282,7 +325,9 @@ public final class CrashReporter {
             stackTrace: stackTrace,
             siCode: crashType == "signal" ? validatedDecimal(fields["si_code"]) : nil,
             pc: crashType == "signal" ? validatedHexAddress(fields["pc"]) : nil,
-            faultAddr: crashType == "signal" ? validatedHexAddress(fields["fault_addr"]) : nil
+            faultAddr: crashType == "signal" ? validatedHexAddress(fields["fault_addr"]) : nil,
+            diagnosticMetadata: diagnosticMetadata.props.isEmpty ? nil : diagnosticMetadata,
+            archiveContext: CrashContextArchive(fields: fields, breadcrumbLines: breadcrumbs)
         )
     }
 
@@ -322,16 +367,33 @@ public final class CrashReporter {
     /// when telemetry reports that the event was delivered or intentionally dropped.
     /// Call after TelemetryService is initialized.
     public static func sendPendingReport(via telemetry: TelemetryServiceProtocol) async {
-        await sendPendingReport(via: telemetry, from: crashReportPath)
+        await sendPendingReports(via: telemetry, store: reportStore)
+    }
+
+    /// Injectable spool for filesystem/ownership tests; actor execution keeps
+    /// scanning and parsing off the main actor even when startup calls from it.
+    static func sendPendingReports(
+        via telemetry: TelemetryServiceProtocol,
+        store: CrashReportStore,
+        archive: @escaping @Sendable (CrashContextArchive) throws -> Void = {
+            try $0.persist(to: AudioCaptureDiagnostics.diagnosticLogFileURL)
+        }
+    ) async {
+        await drain.sendPendingReports(via: telemetry, store: store, archive: archive)
     }
 
     /// Internal variant with injectable path for testing.
     static func sendPendingReport(via telemetry: TelemetryServiceProtocol, from path: String) async {
         guard let report = loadPendingReport(from: path) else { return }
 
-        let stackTraceString = report.stackTrace.joined(separator: "\n")
+        let delivered = await send(report, via: telemetry)
+        if delivered {
+            deleteCrashFile(at: path)
+        }
+    }
 
-        let delivered = await telemetry.sendAndFlush(.crashOccurred(
+    private static func send(_ report: CrashReport, via telemetry: TelemetryServiceProtocol) async -> Bool {
+        await telemetry.sendAndFlush(.crashOccurred(
             crashType: report.crashType,
             signal: report.signal,
             name: report.name,
@@ -341,16 +403,55 @@ public final class CrashReporter {
             uuid: report.uuid,
             slide: report.slide,
             reason: report.reason,
-            stackTrace: stackTraceString,
+            stackTrace: report.stackTrace.joined(separator: "\n"),
             siCode: report.siCode,
             pc: report.pc,
-            faultAddr: report.faultAddr
+            faultAddr: report.faultAddr,
+            diagnosticMetadata: report.diagnosticMetadata
         ))
+    }
 
-        if delivered {
-            // Delete only after telemetry has either been flushed or intentionally dropped by opt-out.
-            deleteCrashFile(at: path)
+    private actor PendingReportDrain {
+        private var drainingRoots: Set<String> = []
+
+        func sendPendingReports(
+            via telemetry: TelemetryServiceProtocol,
+            store: CrashReportStore,
+            archive: @Sendable (CrashContextArchive) throws -> Void
+        ) async {
+            let key = store.rootURL.standardizedFileURL.path
+            guard drainingRoots.insert(key).inserted else { return }
+            defer { drainingRoots.remove(key) }
+            let claims = store.claimPendingReports()
+            for claim in claims {
+                guard let report = CrashReporter.loadPendingReport(from: claim.reportURL.path) else {
+                    // A read error can be transient; nil does not establish a
+                    // malformed file. Retain it subject to the capacity bound.
+                    continue
+                }
+                var archived = true
+                if let context = report.archiveContext {
+                    do { try archive(context) }
+                    catch { archived = false }
+                }
+                // Keep local-only evidence if archival failed, even if the
+                // network accepted the event. Its persisted ID identifies
+                // retries for receiver incident grouping; finite spool retention still applies.
+                let delivered = await CrashReporter.send(report, via: telemetry)
+                if delivered && archived { _ = store.discard(claim) }
+            }
         }
+    }
+
+    private static func withCStringPointers<Result>(
+        _ strings: [String],
+        _ body: ([UnsafePointer<CChar>]) -> Result
+    ) -> Result {
+        func visit(_ index: Int, _ pointers: [UnsafePointer<CChar>]) -> Result {
+            guard index < strings.count else { return body(pointers) }
+            return strings[index].withCString { visit(index + 1, pointers + [$0]) }
+        }
+        return visit(0, [])
     }
 
     private static func deleteCrashFile(at path: String? = nil) {

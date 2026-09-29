@@ -124,6 +124,7 @@ final class AudioCaptureDiagnosticsTests: XCTestCase {
         let sessionField = try XCTUnwrap(fields.first { $0.hasPrefix("process_session=") })
         let sessionID = String(sessionField.dropFirst("process_session=".count))
         XCTAssertNotNil(UUID(uuidString: sessionID))
+        XCTAssertEqual(sessionID, Observability.processSessionID)
 
         let second = String(
             decoding: AudioCaptureDiagnostics.encodedLogLine(
