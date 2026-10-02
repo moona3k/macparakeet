@@ -1,0 +1,25 @@
+spec/adr/014-meeting-recording.md
+  s_4c7c815eb99073::t_27a8d49e90931c 161-167
+Tests/MacParakeetTests/Services/Capture/LiveChunkTranscriberTests.swift
+  s_4c7c815eb99073::t_3c9f622ec24537 1-283
+  s_4c7c815eb99073::t_2c877083b0fd27 284-286
+Sources/MacParakeetCore/Services/Capture/LiveChunkTranscriber.swift
+  s_4c7c815eb99073::t_27a8d49e90931c 87,160-167,170-175,202-203,224-230
+  s_4c7c815eb99073::t_e6521e100de622 231-236
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "00f08a908a100a43056ac74a0cf3065c9ffea3a7",
+  "prompts": {},
+  "sessions": {
+    "s_4c7c815eb99073": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f814-2761-7123-b0dd-edd450cf8b51",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
