@@ -688,7 +688,7 @@ public final class PromptResultsViewModel {
             errorMessage = "This result is already regenerating."
             return nil
         }
-        let config = try? configStore?.loadConfig(for: .analysis)
+        let config = try? configStore?.loadRouteMetadata(for: .analysis)?.config
         let sameProvider = config.map { promptResult.providerSnapshot == $0.id.rawValue } ?? false
         let reuseModel = sameProvider && config?.id != .localCLI && config?.id != .appleIntelligence
         let prompt = Prompt(

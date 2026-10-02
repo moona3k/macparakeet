@@ -1,6 +1,5 @@
 import Foundation
 import Security
-import LocalAuthentication
 
 public final class KeychainKeyValueStore: KeyValueStore {
     private let service: String
@@ -20,12 +19,6 @@ public final class KeychainKeyValueStore: KeyValueStore {
         }
     }
 
-    private func authenticationContext() -> LAContext {
-        let context = LAContext()
-        context.interactionNotAllowed = true
-        return context
-    }
-
     public init(service: String) {
         self.service = service
     }
@@ -36,7 +29,6 @@ public final class KeychainKeyValueStore: KeyValueStore {
                 kSecClass as String: kSecClassGenericPassword,
                 kSecAttrService as String: service,
                 kSecAttrAccount as String: key,
-                kSecUseAuthenticationContext as String: authenticationContext(),
                 kSecMatchLimit as String: kSecMatchLimitOne,
                 kSecReturnData as String: true,
                     // kSecUseDataProtectionKeychain requires entitlements not available in SPM dev builds
@@ -60,7 +52,6 @@ public final class KeychainKeyValueStore: KeyValueStore {
                 kSecClass as String: kSecClassGenericPassword,
                 kSecAttrService as String: service,
                 kSecAttrAccount as String: key,
-                kSecUseAuthenticationContext as String: authenticationContext(),
                 // kSecUseDataProtectionKeychain requires entitlements not available in SPM dev builds
                 kSecAttrSynchronizable as String: kCFBooleanFalse as Any,
             ]
@@ -89,7 +80,6 @@ public final class KeychainKeyValueStore: KeyValueStore {
                 kSecClass as String: kSecClassGenericPassword,
                 kSecAttrService as String: service,
                 kSecAttrAccount as String: key,
-                kSecUseAuthenticationContext as String: authenticationContext(),
                     // kSecUseDataProtectionKeychain requires entitlements not available in SPM dev builds
             ]
             let status = SecItemDelete(query as CFDictionary)

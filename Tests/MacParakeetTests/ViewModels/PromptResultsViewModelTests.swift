@@ -738,6 +738,35 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertEqual(credentials.readCount, readsBeforeRendering)
     }
 
+    func testRegenerationKeepsSnapshotSettingsWhenCredentialsAreBlocked() throws {
+        let domain = makeIsolatedDefaultsSuite("test.prompt-credential-regeneration.")
+        let lockURL = FileManager.default.temporaryDirectory.appendingPathComponent(domain)
+            .appendingPathComponent("routes.lock")
+        defer { try? FileManager.default.removeItem(at: lockURL.deletingLastPathComponent()) }
+        let credentials = InMemoryKeyValueStore()
+        let store = LLMConfigStore(preferencesDomain: domain, lockURL: lockURL, keychain: credentials)
+        let route = LLMProviderConfig.gemini(apiKey: "saved-key", model: "gemini-3.5-flash")
+        try store.saveTaskOverride(route, for: .analysis)
+        credentials.getError = KeyValueStoreError.unsupported
+        let existing = PromptResult(
+            transcriptionId: UUID(), promptId: UUID(), promptVersionId: UUID(),
+            promptName: "Saved prompt", promptContent: "Historical prompt instructions.",
+            content: "Original result",
+            inferenceSettingsSnapshot: PromptInferenceSettings(temperature: 0.5, maxTokens: 600),
+            providerSnapshot: route.id.rawValue, modelSnapshot: "historical-model"
+        )
+        promptResultRepo.promptResults = [existing]
+        viewModel.configure(
+            llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo, configStore: store)
+        viewModel.loadPromptResults(transcriptionId: existing.transcriptionId)
+
+        let id = try XCTUnwrap(viewModel.regeneratePromptResult(existing, transcript: "Transcript"))
+
+        let pending = try XCTUnwrap(viewModel.pendingGeneration(id: id))
+        XCTAssertEqual(pending.modelSnapshot, "historical-model")
+        XCTAssertEqual(pending.inferenceSettings, existing.inferenceSettingsSnapshot)
+    }
+
     func testSelectedPromptInferenceCompatibilityUsesStandaloneAnalysisWhenSettingsAreNil() {
         let store = MockLLMConfigStore()
         store.taskOverrides[.analysis] = .gemini(apiKey: "key", model: "gemini-3.5-flash")

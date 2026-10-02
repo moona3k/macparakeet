@@ -64,7 +64,7 @@ hot-pathing.
 interaction and return errors when authorization is unavailable. Preserve the
 service/account namespaces and existing keys. UI status checks use provider
 metadata instead of secret reads. See
-[credential access](../../../../spec/contracts/credential-access.md).
+[credential access](../../../spec/contracts/credential-access.md).
 
 ## How to verify a change
 

@@ -8,9 +8,8 @@ returns an error; only `errSecItemNotFound` means no saved item.
 The existing services, account names, and app/dev/CLI sharing stay unchanged.
 This change does not migrate, clear, or weaken access controls on stored keys.
 File-based Keychain calls run with user interaction disabled inside a serialized
-scope that restores the previous process-wide setting. Each query also disables
-Local Authentication interaction. The legacy switch remains necessary while
-SwiftPM builds use the file-based Keychain.
+scope that restores the previous process-wide setting, including when the call
+fails. The scope covers each whole read, write, or delete.
 
 Provider presence, task routes, and displayed provider/model names use metadata
 without reading credential values. A credential read failure must not hide or
