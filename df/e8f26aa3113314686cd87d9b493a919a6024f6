@@ -1,0 +1,28 @@
+spec/contracts/README.md
+  s_8a5d7ff1deef5f::t_b765a81ee58805 41
+spec/02-features.md
+  s_8a5d7ff1deef5f::t_bf0aa4353680d6 223
+spec/contracts/dictation-shortcuts.md
+  s_8a5d7ff1deef5f::t_9d5aec7cb5ec50 57-59
+  s_8a5d7ff1deef5f::t_d6b782eb787c13 37-38
+README.md
+  s_8a5d7ff1deef5f::t_d2fef0172eef5c 78
+spec/09-testing.md
+  s_8a5d7ff1deef5f::t_7b64724f747d4d 401
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "dfe8f26aa3113314686cd87d9b493a919a6024f6",
+  "prompts": {},
+  "sessions": {
+    "s_8a5d7ff1deef5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d453e707-f24c-4941-b05c-71b8780b2be8",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
