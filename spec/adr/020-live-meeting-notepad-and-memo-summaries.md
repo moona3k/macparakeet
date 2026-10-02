@@ -5,6 +5,30 @@
 > Related: ADR-013 (prompt library + multi-summary), ADR-014 (meeting recording), ADR-017 (calendar auto-start), ADR-018 (live meeting Ask tab), ADR-019 (crash-resilient meeting recording)
 > Naming Note (2026-04-28): The persisted table remains `summaries`, but the current Swift names are `PromptResult`, `PromptResultRepository`, and `PromptResultsViewModel`.
 
+## Amendment (2026-10-02, notes visibility and correction guidance — issue #1204)
+
+The opt-in default and saved-result replay semantics remain unchanged. The
+meeting generation popover now states whether the selected prompt will include
+notes and points to **Manage Prompts → expand Summary → Include meeting notes
+as context** when disabled. Saved meeting results expose their recorded notes
+snapshot when present, or explain that notes were off/unrecorded. A result with
+notes disabled explicitly directs users to generate a **new** result after
+changing the preference: **Regenerate** replays the original result's setting,
+even when the library prompt has since changed.
+
+The automatically appended notes block allows explicit name/spelling
+corrections to resolve speech-recognition errors when the referent is clear.
+Relevant URLs are preserved exactly as supplied context; no URL fetch is added.
+Names and links alone do not establish attendance, speaker identity, decisions,
+or commitments. Other factual conflicts still favor transcript evidence, with
+material uncertainty stated. Explicit `{{userNotes}}` templates continue to own
+their own framing and are not given a duplicate automatic block.
+
+This amendment corrects the earlier blanket instruction that all factual
+conflicts favor the transcript, which could defeat the user's spelling hints.
+Tests verify emitted requests and receipts; those tests do not establish that
+every AI provider will obey the guidance or include every note in its output.
+
 ## Amendment (2026-09-05, saved notes and opt-in prompt context)
 
 > Implementation status: implemented and locally verified on 2026-09-05;

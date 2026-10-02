@@ -3612,6 +3612,34 @@ struct TranscriptResultView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .trailing)
 
+                if transcription.sourceType == .meeting {
+                    if let notes = promptResult.userNotesSnapshot,
+                        notes.contains(where: { !$0.isWhitespace }),
+                        promptResult.includeMeetingNotesSnapshot || promptResult.promptContent.contains("{{userNotes}}")
+                    {
+                        DisclosureGroup("Meeting notes snapshot") {
+                            ScrollView {
+                                Text(notes)
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .frame(maxHeight: 160)
+                        }
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    } else {
+                        Text(
+                            promptResult.includeMeetingNotesSnapshot
+                                || promptResult.promptContent.contains("{{userNotes}}")
+                                ? "No meeting notes were recorded for this result. Regenerate to use your current notes."
+                                : "Meeting notes are off for this result. Enable ‘Include meeting notes as context’ in Manage Prompts, then generate a new result. Regenerate keeps the original setting."
+                        )
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
                 if promptResultsViewModel.isEditingPromptResult(promptResult.id) {
                     TextEditor(text: $promptResultsViewModel.editingDraft)
                         .focused($promptResultEditorFocused)
@@ -3812,6 +3840,17 @@ struct TranscriptResultView: View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
             // Prompt chips
             promptChips
+
+            if transcription.sourceType == .meeting, let prompt = promptResultsViewModel.selectedPrompt {
+                Text(
+                    prompt.includeMeetingNotes || prompt.content.contains("{{userNotes}}")
+                        ? "Meeting notes will be sent to your selected AI provider when present."
+                        : "Meeting notes are off for this prompt. Enable ‘Include meeting notes as context’ in Manage Prompts to include them."
+                )
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
 
             if promptResultsViewModel.selectedPromptInferenceSummary != nil
                 || promptResultsViewModel.selectedPromptInferenceCompatibilityMessage != nil
