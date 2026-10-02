@@ -1,0 +1,23 @@
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingURLCommandTests.swift
+  s_63c8b57c7f6e8c::t_fa13a7717cb859 82-100
+Sources/MacParakeet/App/MeetingURLCommand.swift
+  s_63c8b57c7f6e8c::t_f827975451a4a4 58
+spec/contracts/meeting-url-control-v1.md
+  s_63c8b57c7f6e8c::t_f827975451a4a4 22-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0a3a25acb06d94c435e814365eb25c1c1b0f4d6b",
+  "prompts": {},
+  "sessions": {
+    "s_63c8b57c7f6e8c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fe53-365e-7f91-881f-f0e1aa4e141b",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
