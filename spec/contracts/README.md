@@ -35,10 +35,9 @@ Each contract document should include:
 
 ## Current Contracts
 
-- [Meeting URL control v1](meeting-url-control-v1.md) — opt-in GUI recording commands and creation titles
-
 Planned contracts are listed separately below; they do not describe available payloads.
 
+- [Meeting URL control v1](meeting-url-control-v1.md) — opt-in GUI recording commands and creation titles
 - [Voice Control](voice-control.md) — gated shared speech, consent, foreground ownership and revocable execution
 - [Meeting Import v1](meeting-import-v1.md) — one-file app/CLI import, managed-media ownership, recovery, and durable results
 - [Split and Transcribe](meeting-splitting.md) — implemented shared Core, native app, and public CLI lifecycle

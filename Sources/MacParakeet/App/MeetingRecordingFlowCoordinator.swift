@@ -286,8 +286,16 @@ final class MeetingRecordingFlowCoordinator {
         setPaused(!(pendingPauseTarget ?? pillViewModel.isPaused))
     }
 
-    /// Explicit desired state makes repeated automation commands idempotent.
-    /// Serialize service calls so a suspended pause cannot land after resume.
+    /// Pause / resume the in-flight recording. The state flip happens AFTER
+    /// the service confirms — an optimistic flip before the await would race
+    /// with the 1s polling reconciler (which reads `captureMode` from the
+    /// actor and could see `.full` while the spawned pause Task is still
+    /// queued, then flip the pill back to `.recording`).
+    ///
+    /// An explicit desired state makes repeated automation commands
+    /// idempotent. Service calls are serialized so a suspended pause cannot
+    /// land after a later resume, and a stop or capture failure that lands
+    /// during an await must not be stomped by a stale flip.
     func setPaused(_ wantPause: Bool) {
         guard stateMachine.state == .recording, pillViewModel.canTogglePause else { return }
         guard (pendingPauseTarget ?? pillViewModel.isPaused) != wantPause else { return }
@@ -507,10 +515,11 @@ final class MeetingRecordingFlowCoordinator {
 
     /// Discard the pending start context (trigger + title) when the start
     /// sequence exits without ever reaching the `.startRecording` effect —
-    /// including denied permissions or a stop during permission checking. The `.startRecording`
-    /// effect handler clears these inline because it needs to snapshot
-    /// them first to fire telemetry; this helper is for the paths that
-    /// bail out earlier. If the bailing-out start was calendar-driven,
+    /// denied permissions or a stop during permission checking. The
+    /// `.startRecording` effect handler clears these inline because it needs
+    /// to snapshot them first to fire telemetry; this helper is for the paths
+    /// that bail out earlier, reporting `outcome` (`.unavailable` unless the
+    /// caller cancelled). If the bailing-out start was calendar-driven,
     /// emits `calendar_auto_start_failed{reason}` for observability.
     private func clearPendingStartContext(
         failureReason: String,
