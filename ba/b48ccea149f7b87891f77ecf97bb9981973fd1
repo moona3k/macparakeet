@@ -1,0 +1,30 @@
+Sources/MacParakeet/Views/Onboarding/OnboardingPracticeStepView.swift
+  s_78872c520d1d30::t_f1474024148680 241-247
+Tests/MacParakeetTests/ViewModels/TranscriptionLibraryViewModelTests.swift
+  s_78872c520d1d30::t_3cd1d057e905dc 1055-1134
+  s_78872c520d1d30::t_b70c8a7377a8e5 1135
+spec/04-ui-patterns.md
+  s_78872c520d1d30::t_3766fbe7989be3 215-222,1399-1411
+  s_78872c520d1d30::t_eece75f8f130a1 1412
+Sources/MacParakeetViewModels/TranscriptionLibraryViewModel.swift
+  s_78872c520d1d30::t_f1474024148680 407,636,664,791-805
+  s_78872c520d1d30::t_1c27ee513f79c5 806-807
+spec/adr/005-onboarding-first-run.md
+  s_78872c520d1d30::t_3766fbe7989be3 109-127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bab48ccea149f7b87891f77ecf97bb9981973fd1",
+  "prompts": {},
+  "sessions": {
+    "s_78872c520d1d30": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fdfa-3264-7ea2-8c67-35821c108110",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
