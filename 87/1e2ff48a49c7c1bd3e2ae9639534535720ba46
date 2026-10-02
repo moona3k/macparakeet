@@ -1,0 +1,30 @@
+spec/01-data-model.md
+  s_ae9c6922f176af::t_6dfc0d39609c25 732-735
+Tests/MacParakeetTests/Database/PromptRepositoryTests.swift
+  s_ae9c6922f176af::t_9a1d1afd17edfd 563-576,578-581,585,601-613
+  s_ae9c6922f176af::t_f0707978afdd4b 577,582-584,586-600
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_ae9c6922f176af::t_d788599a40c093 2591-2592,2595,2610-2612
+  s_ae9c6922f176af::t_6d06d02b8e6c7a 2642-2644
+  s_ae9c6922f176af::t_f1a70628d19a2e 2605
+docs/solutions/logic-errors/2026-10-02-meeting-summary-notes-context.md
+  s_ae9c6922f176af::t_8726ea380e5c38 63-65,70-71
+Sources/MacParakeetCore/Models/PromptResult.swift
+  s_ae9c6922f176af::t_81b4b61a47dd28 127-128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "871e2ff48a49c7c1bd3e2ae9639534535720ba46",
+  "prompts": {},
+  "sessions": {
+    "s_ae9c6922f176af": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b87092-5dde-4aca-a80c-aaba1884cce1",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
