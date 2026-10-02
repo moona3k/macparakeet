@@ -1,0 +1,28 @@
+spec/contracts/credential-access.md
+  s_bfe37583f0489d::t_c613cdf95a6259 34-36
+spec/adr/032-llm-task-group-routing.md
+  s_bfe37583f0489d::t_3b3b5d075374c7 146
+docs/share-service-privacy-and-operations.md
+  s_bfe37583f0489d::t_c6caed92bb0e0a 59
+integrations/README.md
+  s_bfe37583f0489d::t_50c23eb39bd24a 716-717
+spec/11-llm-integration.md
+  s_bfe37583f0489d::t_7c1a54d13f9bd1 69
+  s_bfe37583f0489d::t_038f3d5433a67a 638-640
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "959fe5d19c819123b2402cc2188fed5fc21448be",
+  "prompts": {},
+  "sessions": {
+    "s_bfe37583f0489d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a27d8fbf-7e4c-416e-8f8c-6458f5fcb4e5",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
