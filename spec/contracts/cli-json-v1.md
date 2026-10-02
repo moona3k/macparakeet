@@ -217,6 +217,7 @@ still apply.
   that generation. `false` covers migrated and externally imported results.
   Nullable `userNotesSnapshot` contains the exact normalized, bounded notes
   value supplied to prompt assembly, not necessarily the full canonical note.
+  Results saved by older versions can hold uncapped notes.
 - `meetings results list|add|edit --json` prompt-result objects may include
   `sourceTranscriptHash`, a
   SHA-256 receipt of cue words when timed cues are available on an unedited

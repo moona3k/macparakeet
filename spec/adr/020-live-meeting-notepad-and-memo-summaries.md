@@ -1,7 +1,7 @@
 # ADR-020: Live Meeting Notepad + Memo-Steered Summaries
 
 > Status: Implemented (live notepad, saved-note editing, template plumbing, and opt-in prompt context are locally verified; release availability follows the normal channel process)
-> Date: 2026-04-25 (proposed) · Amended 2026-04-25 (post-review) · Implemented 2026-04-25 (Phases 1–4) · Amended 2026-05-02 (Notes + Transcript tab badges dropped — all three tabs plain) · Amended 2026-05-02 ("Memo-Steered Notes" built-in prompt reverted) · Amended 2026-09-05 (saved-note editing + per-prompt opt-in context specified)
+> Date: 2026-04-25 (proposed) · Amended 2026-04-25 (post-review) · Implemented 2026-04-25 (Phases 1–4) · Amended 2026-05-02 (Notes + Transcript tab badges dropped — all three tabs plain) · Amended 2026-05-02 ("Memo-Steered Notes" built-in prompt reverted) · Amended 2026-09-05 (saved-note editing + per-prompt opt-in context specified) · Amended 2026-10-02 (Summary notes default on for new prompt libraries; spelling/URL guidance)
 > Related: ADR-013 (prompt library + multi-summary), ADR-014 (meeting recording), ADR-017 (calendar auto-start), ADR-018 (live meeting Ask tab), ADR-019 (crash-resilient meeting recording)
 > Naming Note (2026-04-28): The persisted table remains `summaries`, but the current Swift names are `PromptResult`, `PromptResultRepository`, and `PromptResultsViewModel`.
 
@@ -20,7 +20,7 @@ the transcript. Notes do not trigger an AI run independently. Empty notes add
 no context block. Saved-result replay semantics remain unchanged.
 
 The meeting generation popover now states whether the selected prompt will include
-notes and points to **Manage Prompts → expand Summary → Include meeting notes
+notes and points to **Manage Prompts → expand the prompt → Include meeting notes
 as context** when disabled. Saved meeting results expose their recorded notes
 snapshot when present, or explain that notes were enabled but none were
 recorded, that notes were off for a library prompt's result, or, for imported or
@@ -67,8 +67,9 @@ Result prompts gain an `includeMeetingNotes` preference, exposed as an
 prompts. Its general default is `false`, with the newly seeded built-in Summary
 exception described in the 2026-10-02 amendment. It is unavailable for
 Transforms and never opts existing prompts in implicitly. When enabled and non-empty meeting notes exist,
-the shared prompt assembler adds one delimited notes-context block while
-keeping the transcript as factual source of truth.
+the shared prompt assembler adds one delimited notes-context block. The
+transcript stays the factual source of truth, except for the explicit
+spelling-correction guidance in the 2026-10-02 amendment.
 
 `{{userNotes}}` remains a case-sensitive advanced custom-template variable.
 It substitutes notes even when the checkbox is off; when the checkbox is on,

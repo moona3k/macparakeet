@@ -771,7 +771,9 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
 - `promptName` and `promptContent` are snapshots, not references to the `prompts` table. Editing or deleting a prompt after generation doesn't change the result's metadata.
 - `userNotesSnapshot` captures the exact normalized and 8,000-word-capped notes
   value supplied to prompt assembly, not the unbounded canonical DB value, so
-  later note edits do not rewrite historical prompt results.
+  later note edits do not rewrite historical prompt results. Results saved by
+  older versions can hold uncapped notes, so a legacy snapshot is not always a
+  byte-exact record of what was sent; the UI labels it as a snapshot only.
 - `contentEditedAt` (v0.45) is set when the user saves an in-place edit of
   `content`. Prompt snapshots stay the generation receipt. `NULL` means no
   in-place edit is recorded, including on generated, historical, and imported

@@ -1,6 +1,8 @@
 ---
-module: Meeting summaries
+title: Meeting notes excluded from Summary context (issue #1204)
 date: 2026-10-02
+category: logic-errors
+module: Meeting summaries
 problem_type: logic_error
 component: prompt_assembly
 symptoms:
