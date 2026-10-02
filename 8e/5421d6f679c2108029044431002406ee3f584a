@@ -1,0 +1,33 @@
+Tests/MacParakeetTests/App/AppHotkeyCoordinatorTests.swift
+  s_2e0d0ba58c48ef::t_7a1537e9155434 255-282,284-348
+  s_e9de7e92b8b353::t_79bbf0bc613551 867-921
+  s_2e0d0ba58c48ef::t_8b5d4a9c3aa05d 283
+Sources/MacParakeet/App/AppHotkeyCoordinator.swift
+  s_2e0d0ba58c48ef::t_e9deb588554afc 173-174,269-288,290
+spec/contracts/dictation-shortcuts.md
+  s_2e0d0ba58c48ef::t_1a1e353593c170 27-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8e5421d6f679c2108029044431002406ee3f584a",
+  "prompts": {},
+  "sessions": {
+    "s_2e0d0ba58c48ef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "19afbe05-0edf-4237-bb19-77c567ec33ff",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_e9de7e92b8b353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c272f26a-ae17-4355-a2ee-4e8f12f4f5a6",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
