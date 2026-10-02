@@ -1,0 +1,44 @@
+docs/audits/2026-10-02-app-audit/README.md
+  s_78872c520d1d30::t_074a3fc050131b 17-20
+Sources/MacParakeetViewModels/TranscriptionLibraryViewModel.swift
+  s_78872c520d1d30::t_63038179c2592c 796,814-819,830,835-837,861-870
+Tests/MacParakeetTests/ViewModels/TranscriptionLibraryViewModelTests.swift
+  s_78872c520d1d30::t_58dbb01e972c37 3,25-36,1214-1218,1243
+  s_78872c520d1d30::t_1fd4f569ba05fc 408-464,1145-1188,1233-1240
+  s_78872c520d1d30::t_0a16544b532a70 1189
+spec/04-ui-patterns.md
+  s_78872c520d1d30::t_325b5abe021ca1 217-224
+docs/audits/2026-10-02-app-audit/gui-onboarding.md
+  s_78872c520d1d30::t_169941df369107 26,112,155
+docs/audits/2026-10-02-app-audit/follow-through.md
+  s_78872c520d1d30::t_074a3fc050131b 1-49
+  s_78872c520d1d30::t_30d5b988ca94e5 50-53
+docs/audits/2026-10-02-app-audit/cli-data.md
+  s_78872c520d1d30::t_5a88f3e939c479 130
+docs/audits/2026-10-02-app-audit/evidence/gui-onboarding/README.md
+  s_78872c520d1d30::t_a6aeb566cf01e9 22-30
+docs/audits/2026-10-02-app-audit/evidence/onboarding-dashboard-browser.json
+  s_78872c520d1d30::t_a0e938c239a2f5 1-80
+docs/audits/2026-10-02-app-audit/evidence/validation-receipt.json
+  s_78872c520d1d30::t_f2382564c9befc 81-88,96-106
+docs/audits/2026-10-02-app-audit/validation.md
+  s_78872c520d1d30::t_7d99727b706c96 11-13,55-71
+spec/contracts/telemetry-v1.md
+  s_78872c520d1d30::t_d0932e7f545a88 253-262
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5e4c96ac4cc1bf17eeab2839b1ed6bcf27db65a4",
+  "prompts": {},
+  "sessions": {
+    "s_78872c520d1d30": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fdfa-3264-7ea2-8c67-35821c108110",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
