@@ -603,6 +603,13 @@ public struct HotkeyTrigger: Sendable {
         }
     }
 
+    /// Chords on one terminal key with different modifiers do not overlap, yet a
+    /// take held by one cannot tell the other's key events from its own once two
+    /// keyboards send that key. Dictation pairs that must not interfere reject it.
+    public func sharesChordKey(with other: HotkeyTrigger) -> Bool {
+        kind == .chord && other.kind == .chord && keyCode != nil && keyCode == other.keyCode
+    }
+
     public func conflicts(
         with other: HotkeyTrigger,
         selfMode: ConflictMode = .exclusive,
@@ -686,6 +693,8 @@ public struct HotkeyTrigger: Sendable {
     // MARK: - Persistence
 
     public static let defaultsKey = "hotkeyTrigger"
+    public static let alternateHandsFreeDefaultsKey = "alternateHandsFreeHotkeyTrigger"
+    public static let alternatePushToTalkDefaultsKey = "alternatePushToTalkHotkeyTrigger"
     public static let pushToTalkDefaultsKey = "pushToTalkHotkeyTrigger"
     public static let meetingDefaultsKey = "meetingHotkeyTrigger"
     public static let fileTranscriptionDefaultsKey = "fileTranscriptionHotkeyTrigger"

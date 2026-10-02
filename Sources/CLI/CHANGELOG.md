@@ -94,6 +94,11 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Changed
+
+- Transform shortcut assignment rejects collisions with either additional dictation
+  shortcut configured in the app. Existing error/output schemas are unchanged.
+
 ### Fixed
 
 - `retranscribe --update` for saved transcriptions and meetings returns the row

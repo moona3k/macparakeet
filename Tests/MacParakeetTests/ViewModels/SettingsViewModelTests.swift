@@ -1393,6 +1393,32 @@ final class SettingsViewModelTests: XCTestCase {
         wait(for: [expectation], timeout: 1.0)
     }
 
+    func testAdditionalDictationShortcutsRoundTripWithoutChangingPrimaryBindings() {
+        XCTAssertEqual(viewModel.alternateHandsFreeHotkeyTrigger, .disabled)
+        XCTAssertEqual(viewModel.alternatePushToTalkHotkeyTrigger, .disabled)
+        let primary = viewModel.hotkeyTrigger
+        let hold = viewModel.pushToTalkHotkeyTrigger
+        let key = HotkeyTrigger.fromKeyCode(117)
+        let handsFreeChanged = expectation(forNotification: .macParakeetHotkeyTriggerDidChange, object: nil)
+        let holdChanged = expectation(forNotification: .macParakeetPushToTalkHotkeyTriggerDidChange, object: nil)
+        viewModel.alternateHandsFreeHotkeyTrigger = key
+        viewModel.alternatePushToTalkHotkeyTrigger = key
+        wait(for: [handsFreeChanged, holdChanged], timeout: 1)
+        let reloaded = SettingsViewModel(defaults: testDefaults)
+        XCTAssertEqual(reloaded.alternateHandsFreeHotkeyTrigger, key)
+        XCTAssertEqual(reloaded.alternatePushToTalkHotkeyTrigger, key)
+        XCTAssertEqual(reloaded.hotkeyTrigger, primary)
+        XCTAssertEqual(reloaded.pushToTalkHotkeyTrigger, hold)
+        reloaded.alternateHandsFreeHotkeyTrigger = .disabled
+        XCTAssertEqual(SettingsViewModel(defaults: testDefaults).alternateHandsFreeHotkeyTrigger, .disabled)
+        XCTAssertEqual(SettingsViewModel(defaults: testDefaults).alternatePushToTalkHotkeyTrigger, key)
+    }
+
+    func testMalformedAdditionalShortcutFallsBackToDisabled() {
+        testDefaults.set("broken json", forKey: HotkeyTrigger.alternateHandsFreeDefaultsKey)
+        XCTAssertEqual(SettingsViewModel(defaults: testDefaults).alternateHandsFreeHotkeyTrigger, .disabled)
+    }
+
     func testPushToTalkHotkeyPostsNotificationOnChange() {
         let expectation = expectation(
             forNotification: Notification.Name("macparakeet.pushToTalkHotkeyTriggerDidChange"),
