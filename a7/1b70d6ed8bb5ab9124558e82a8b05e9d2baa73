@@ -1,0 +1,106 @@
+docs/audits/2026-10-02-app-audit/architecture-ci-performance.md
+  s_78872c520d1d30::t_a47e6be2e2890c 1-202
+docs/audits/2026-10-02-app-audit/gui-onboarding.md
+  s_78872c520d1d30::t_7915318ece507e 1-8,10-22,24,26-28,30-31,33-34,36,38-64,67-79,81-149
+  s_78872c520d1d30::t_f93b4e7663d208 9,23,29,32,35,65-66,150-151,155
+  s_78872c520d1d30::t_295f9ba8ec5837 25,152
+  s_78872c520d1d30::t_361cd54f1ff8f9 37,80,153-154
+docs/testing/README.md
+  s_78872c520d1d30::t_7657acac1065c3 15-16,24-37
+  s_78872c520d1d30::t_6274e4fe4a7f27 38
+docs/audits/2026-10-02-app-audit/recommendations.md
+  s_78872c520d1d30::t_a47e6be2e2890c 1-164
+spec/03-architecture.md
+  s_78872c520d1d30::t_bb0c4199b62f18 3,159-163,385-389
+benchmarks/diarization/2026-09-25-nemotron-evaluation.md
+  s_78872c520d1d30::t_295aa88a7a6ee2 8-14
+benchmarks/diarization/README.md
+  s_78872c520d1d30::t_295aa88a7a6ee2 8-21
+  s_78872c520d1d30::t_738b4bf0f83d2a 22-28
+docs/audits/2026-10-02-app-audit/validation.md
+  s_78872c520d1d30::t_aadc65246ed536 1-132
+  s_78872c520d1d30::t_2e5412d248dc84 133-154
+spec/contracts/telemetry-v1.md
+  s_78872c520d1d30::t_bb0c4199b62f18 218-221
+  s_78872c520d1d30::t_7657acac1065c3 243-253
+  s_78872c520d1d30::t_919f4a0f90036d 254
+docs/audits/2026-10-02-app-audit/evidence/gui-onboarding/README.md
+  s_78872c520d1d30::t_5e3f95a877148b 1-41
+spec/adr/010-speaker-diarization.md
+  s_78872c520d1d30::t_295aa88a7a6ee2 56-66,76-93
+  s_78872c520d1d30::t_738b4bf0f83d2a 67-75
+spec/09-testing.md
+  s_78872c520d1d30::t_bb0c4199b62f18 169-170,172,219-222,241-242,286-305
+  s_78872c520d1d30::t_897d726f1d115b 177-185
+docs/audits/2026-10-02-app-audit/README.md
+  s_78872c520d1d30::t_ff89c81190cc11 1-57
+  s_78872c520d1d30::t_3ddb525c2df31c 58-136
+docs/audits/2026-10-02-app-audit/cli-data.md
+  s_78872c520d1d30::t_07b59f23a1ecc1 1-132
+docs/audits/2026-10-02-app-audit/diarization.md
+  s_78872c520d1d30::t_6e1d3ffba969a5 1-139
+docs/audits/2026-10-02-app-audit/evidence/base-sha.txt
+  s_78872c520d1d30::t_4c73e7e3ea000c 1
+docs/audits/2026-10-02-app-audit/evidence/baseline-ci-jobs.json
+  s_78872c520d1d30::t_d7f5ee74fd036f 1
+docs/audits/2026-10-02-app-audit/evidence/baseline-ci-summary.json
+  s_78872c520d1d30::t_67319fc32fc842 1-207
+docs/audits/2026-10-02-app-audit/evidence/cli-catalog-coverage.json
+  s_78872c520d1d30::t_0e6b3593e81a70 1-9
+docs/audits/2026-10-02-app-audit/evidence/cli-prefix-scale.json
+  s_78872c520d1d30::t_06a028779fda1f 1-32
+docs/audits/2026-10-02-app-audit/evidence/cli-process-probes.json
+  s_78872c520d1d30::t_8de9fd9e95bdb7 1-190
+docs/audits/2026-10-02-app-audit/evidence/diarization/matched-regression-scores.json
+  s_78872c520d1d30::t_f2b73b76401568 1-119
+docs/audits/2026-10-02-app-audit/evidence/diarization/model-hashes.json
+  s_78872c520d1d30::t_e0d06a59d886e5 1-152
+docs/audits/2026-10-02-app-audit/evidence/diarization/parakeet-model-hashes.json
+  s_78872c520d1d30::t_36c834eb02b8e1 1-117
+docs/audits/2026-10-02-app-audit/evidence/diarization/product-e2e-summary.json
+  s_78872c520d1d30::t_d25e7148187654 1-100
+docs/audits/2026-10-02-app-audit/evidence/diarization/replay-speaker-merger.py
+  s_78872c520d1d30::t_0b5f7e4d80cfea 1-65
+docs/audits/2026-10-02-app-audit/evidence/diarization/run-receipt.json
+  s_78872c520d1d30::t_490462742847c5 1-60
+docs/audits/2026-10-02-app-audit/evidence/diarization/speaker-merger-replay.json
+  s_78872c520d1d30::t_420eb0fa335705 1-30
+docs/audits/2026-10-02-app-audit/evidence/github-cache-usage.json
+  s_78872c520d1d30::t_6100a2d2043272 1
+docs/audits/2026-10-02-app-audit/evidence/github-caches.json
+  s_78872c520d1d30::t_f0935709228408 1
+docs/audits/2026-10-02-app-audit/evidence/gui-onboarding/OnboardingAuditRenderTests.swift.txt
+  s_78872c520d1d30::t_a0c0acafa6840b 1-136
+docs/audits/2026-10-02-app-audit/evidence/gui-onboarding/receipt.json
+  s_78872c520d1d30::t_9e7ebdb800c4e1 1-127
+docs/audits/2026-10-02-app-audit/evidence/latest-release.json
+  s_78872c520d1d30::t_a719df038ab50d 1
+docs/audits/2026-10-02-app-audit/evidence/public-stats-health.json
+  s_78872c520d1d30::t_f24fb5299126d6 1-59
+docs/audits/2026-10-02-app-audit/evidence/public-stats-selected.json
+  s_78872c520d1d30::t_b212d0895c8b1d 1-438
+docs/audits/2026-10-02-app-audit/evidence/source-inventory.json
+  s_78872c520d1d30::t_281ccb86ebc2ce 1-294
+docs/audits/2026-10-02-app-audit/evidence/validation-receipt.json
+  s_78872c520d1d30::t_a0354ec7db7295 1-89
+docs/audits/2026-10-02-app-audit/overview.html
+  s_78872c520d1d30::t_eb1df30b4ef898 1-88
+docs/audits/2026-10-02-app-audit/telemetry-observability.md
+  s_78872c520d1d30::t_154732f983e152 1-161
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a71b70d6ed8bb5ab9124558e82a8b05e9d2baa73",
+  "prompts": {},
+  "sessions": {
+    "s_78872c520d1d30": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fdfa-3264-7ea2-8c67-35821c108110",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
