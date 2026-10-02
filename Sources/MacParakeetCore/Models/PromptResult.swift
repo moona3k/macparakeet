@@ -121,6 +121,34 @@ public struct PromptResult: Codable, Identifiable, Sendable {
     }
 }
 
+/// What a saved result can truthfully say about meeting notes. Presentation
+/// only; it never changes what regeneration replays.
+public enum PromptResultMeetingNotesStatus: Equatable, Sendable {
+    /// Exact effective notes supplied to the model.
+    case sent(String)
+    /// Notes were enabled for this result, but none existed when it ran.
+    case enabledWithoutNotes
+    /// A library prompt ran with notes disabled.
+    case off
+    /// Imported or unlinked result with no notes receipt.
+    case notRecorded
+}
+
+extension PromptResult {
+    public var meetingNotesStatus: PromptResultMeetingNotesStatus {
+        let consumesNotes = PromptSystemPromptAssembler.consumesMeetingNotes(
+            promptContent: promptContent,
+            includeMeetingNotes: includeMeetingNotesSnapshot
+        )
+        if consumesNotes, let userNotesSnapshot, userNotesSnapshot.contains(where: { !$0.isWhitespace }) {
+            return .sent(userNotesSnapshot)
+        }
+        if includeMeetingNotesSnapshot { return .enabledWithoutNotes }
+        if promptId == nil { return .notRecorded }
+        return consumesNotes ? .enabledWithoutNotes : .off
+    }
+}
+
 extension PromptResult: FetchableRecord, PersistableRecord {
     public static let databaseTableName = "summaries"
 

@@ -161,7 +161,7 @@ public struct Prompt: Codable, Identifiable, Sendable {
     public var keyboardShortcut: String?  // transform-only encoded shortcut
     public var runningLabel: String?       // transform-only progress label
     public var inferenceSettings: PromptInferenceSettings?  // result-only typed settings; nil = MacParakeet defaults
-    public var includeMeetingNotes: Bool  // result-only automatic context opt-in; defaults false
+    public var includeMeetingNotes: Bool  // result-only automatic context opt-in; defaults false (newly seeded Summary: true)
 
     public enum Category: String, Codable, Sendable {
         case result = "summary"
@@ -281,7 +281,7 @@ the current MacParakeet prompt-result and adapter defaults. See
 
 The current implementation seeds built-in/community prompts from `Prompt.builtInPrompts()` in Swift. `Sources/MacParakeetCore/Resources/community-prompts.json` exists as a contribution/reference file, but it is not yet the runtime source of truth for prompt seeding.
 
-`Summary` is the auto-run default and the classic built-in fallback. The shipped built-in list is defined in code and currently includes `Summary`, `Action Items & Decisions`, `Chapter Breakdown`, `Study Guide`, `Blog Post`, and `What Stood Out`. The `PromptTemplateRenderer` still exposes `{{userNotes}}` and `{{transcript}}` for advanced custom prompts; no built-in references `{{userNotes}}` today (the "Memo-Steered Notes" built-in was reverted on 2026-05-02; see ADR-020). The implemented replacement is a separate `includeMeetingNotes` checkbox on every result prompt, default false; it does not restore or rewrite a built-in prompt.
+`Summary` is the auto-run default and the classic built-in fallback. The shipped built-in list is defined in code and currently includes `Summary`, `Action Items & Decisions`, `Chapter Breakdown`, `Study Guide`, `Blog Post`, and `What Stood Out`. The `PromptTemplateRenderer` still exposes `{{userNotes}}` and `{{transcript}}` for advanced custom prompts; no built-in references `{{userNotes}}` today (the "Memo-Steered Notes" built-in was reverted on 2026-05-02; see ADR-020). The implemented replacement is a separate `includeMeetingNotes` checkbox on every result prompt. It defaults false, except that the built-in `Summary` is seeded with it on when the prompt library is first created; existing libraries keep their saved value, including an explicit opt-out. It does not restore or rewrite a built-in prompt.
 
 ### System Prompt Assembly
 
@@ -309,9 +309,10 @@ can ask the model to override that language request. This is prompt text, not
 a guaranteed runtime filter. Language is inferred from transcript text when
 following the transcript; Parakeet detected-language metadata is not used.
 
-Automatic notes context is opt-in and result-prompt-only. Existing, built-in,
-and new prompts default false; Transforms cannot enable it. Assembly follows
-this decision table:
+Automatic notes context is result-prompt-only. Existing prompts, custom
+prompts, and built-ins other than `Summary` default false; a newly seeded
+`Summary` defaults true and an existing library's saved value is preserved.
+Transforms cannot enable it. Assembly follows this decision table:
 
 | Notes | Checkbox | Template contains `{{userNotes}}` | Result |
 |-------|----------|------------------------------------|--------|
@@ -323,7 +324,11 @@ this decision table:
 | Present | On | Yes | Substitute at token; do not append |
 
 The automatic block labels notes as user-authored source material rather than
-instructions and says that the transcript wins factual conflicts. Retry reuses
+instructions. It lets explicit name/spelling corrections resolve speech-recognition
+errors when the referent is clear, preserves relevant URLs exactly without
+fetching them, does not infer attendance, speaker identity, decisions, or
+commitments from a name or link alone, and otherwise prefers the transcript for
+factual conflicts. Retry reuses
 the failed queue snapshot. Regenerate reuses the result's checkbox snapshot
 with the meeting's current committed notes. Chat/Ask has a separate existing
 assembly path and remains unchanged.

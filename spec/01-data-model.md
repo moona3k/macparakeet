@@ -778,7 +778,9 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
   generation, including the meaningful case where it was enabled but no notes
   existed yet. Retry reuses its queued snapshot; regenerate reuses this Boolean
   receipt with the meeting's current committed notes. The column defaults false
-  for historical results and is installed by migration v0.33.
+  for historical results and is installed by migration v0.33. Imported or
+  unlinked results with no notes receipt are presented as "not recorded", not
+  as a disabled setting.
 - `outputLanguagePolicySnapshot` (v0.47) records the meeting AI output-language
   policy used for that generation (`follow-transcript` or a language code).
   `NULL` means no policy was recorded, including results created before the
@@ -1431,7 +1433,7 @@ struct Prompt: Codable, Identifiable, Sendable {
     var runningLabel: String?
     var appliesToSources: Set<Transcription.SourceType>?  // v0.20 auto-run scoping; nil = all sources
     var inferenceSettings: PromptInferenceSettings?       // v0.31; nil = MacParakeet defaults
-    var includeMeetingNotes: Bool                         // v0.33; result-only opt-in, defaults false
+    var includeMeetingNotes: Bool                         // v0.33; result-only opt-in, defaults false (newly seeded Summary: true)
     var createdAt: Date
     var updatedAt: Date
 

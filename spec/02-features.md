@@ -2003,11 +2003,16 @@ through the CLI, its pending draft no longer blocks quit. Database read errors
 keep the draft and continue to block quit. A still-open deleted meeting keeps
 the draft readable for copying and labels it as unsaved to the deleted meeting.
 Every result prompt, including read-only built-ins, exposes an
-**Include meeting notes as context** checkbox. It defaults off for all existing
-and new prompts and is not available for Transforms.
+**Include meeting notes as context** checkbox. It defaults off for existing
+prompts, custom prompts, and built-ins other than Summary. The built-in Summary
+is seeded with it on when the prompt library is first created; existing
+libraries keep their saved choice, including an explicit opt-out. It is not
+available for Transforms.
 
-When enabled, non-empty notes are added once as a delimited context block and
-the transcript remains the factual source of truth. Advanced custom prompts
+When enabled, non-empty notes are added once as a delimited context block.
+Explicit name/spelling corrections in the notes can resolve speech-recognition
+errors when the referent is clear, relevant URLs are preserved without being
+fetched, and other factual conflicts still favor the transcript. Advanced custom prompts
 may continue to place notes explicitly with case-sensitive `{{userNotes}}`,
 even when the checkbox is off; enabling the checkbox cannot duplicate that
 content. Empty notes preserve the previous assembled prompt byte-for-byte.
@@ -2016,7 +2021,8 @@ time without a checkbox.
 
 The additive schema stores
 `prompts.includeMeetingNotes` and
-`summaries.includeMeetingNotesSnapshot`, both non-null and default false.
+`summaries.includeMeetingNotesSnapshot`, both non-null with a column default of
+false; the newly seeded Summary row sets its value to true.
 `userNotesSnapshot` stores the exact bounded notes value supplied to prompt
 assembly. The public CLI mirrors the setting on `prompts set` with
 `--include-meeting-notes` / `--no-include-meeting-notes` and additive JSON

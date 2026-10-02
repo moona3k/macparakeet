@@ -3613,10 +3613,8 @@ struct TranscriptResultView: View {
                 .frame(maxWidth: .infinity, alignment: .trailing)
 
                 if transcription.sourceType == .meeting {
-                    if let notes = promptResult.userNotesSnapshot,
-                        notes.contains(where: { !$0.isWhitespace }),
-                        promptResult.includeMeetingNotesSnapshot || promptResult.promptContent.contains("{{userNotes}}")
-                    {
+                    switch promptResult.meetingNotesStatus {
+                    case .sent(let notes):
                         DisclosureGroup("Meeting notes snapshot") {
                             ScrollView {
                                 Text(notes)
@@ -3627,16 +3625,15 @@ struct TranscriptResultView: View {
                         }
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    } else {
-                        Text(
-                            promptResult.includeMeetingNotesSnapshot
-                                || promptResult.promptContent.contains("{{userNotes}}")
-                                ? "No meeting notes were recorded for this result. Regenerate to use your current notes."
-                                : "Meeting notes are off for this result. Enable ‘Include meeting notes as context’ in Manage Prompts, then generate a new result. Regenerate keeps the original setting."
+                    case .enabledWithoutNotes:
+                        meetingNotesStatusText(
+                            "No meeting notes were recorded for this result. Regenerate to use your current notes.")
+                    case .off:
+                        meetingNotesStatusText(
+                            "Meeting notes are off for this result. Enable ‘Include meeting notes as context’ in Manage Prompts, then generate a new result. Regenerate keeps the original setting."
                         )
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    case .notRecorded:
+                        meetingNotesStatusText("Meeting notes context was not recorded for this result.")
                     }
                 }
 
@@ -3675,6 +3672,13 @@ struct TranscriptResultView: View {
             RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
                 .strokeBorder(DesignSystem.Colors.border.opacity(0.75), lineWidth: 0.5)
         )
+    }
+
+    private func meetingNotesStatusText(_ message: String) -> some View {
+        Text(message)
+            .font(DesignSystem.Typography.caption)
+            .foregroundStyle(DesignSystem.Colors.textSecondary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder
@@ -3842,14 +3846,13 @@ struct TranscriptResultView: View {
             promptChips
 
             if transcription.sourceType == .meeting, let prompt = promptResultsViewModel.selectedPrompt {
-                Text(
-                    prompt.includeMeetingNotes || prompt.content.contains("{{userNotes}}")
+                meetingNotesStatusText(
+                    PromptSystemPromptAssembler.consumesMeetingNotes(
+                        promptContent: prompt.content,
+                        includeMeetingNotes: prompt.includeMeetingNotes)
                         ? "Meeting notes will be sent to your selected AI provider when present."
                         : "Meeting notes are off for this prompt. Enable ‘Include meeting notes as context’ in Manage Prompts to include them."
                 )
-                .font(DesignSystem.Typography.caption)
-                .foregroundStyle(DesignSystem.Colors.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
             }
 
             if promptResultsViewModel.selectedPromptInferenceSummary != nil

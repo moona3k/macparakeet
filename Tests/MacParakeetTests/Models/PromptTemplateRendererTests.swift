@@ -129,6 +129,34 @@ final class PromptTemplateRendererTests: XCTestCase {
         XCTAssertNil(assembly.effectiveUserNotes)
     }
 
+    func testConsumesMeetingNotesFollowsOptInOrExplicitToken() {
+        XCTAssertFalse(
+            PromptSystemPromptAssembler.consumesMeetingNotes(
+                promptContent: "Summarize.", includeMeetingNotes: false))
+        XCTAssertTrue(
+            PromptSystemPromptAssembler.consumesMeetingNotes(
+                promptContent: "Summarize.", includeMeetingNotes: true))
+        XCTAssertTrue(
+            PromptSystemPromptAssembler.consumesMeetingNotes(
+                promptContent: "Notes: {{userNotes}}", includeMeetingNotes: false))
+        XCTAssertFalse(
+            PromptSystemPromptAssembler.consumesMeetingNotes(
+                promptContent: "Notes: {{usernotes}}", includeMeetingNotes: false))
+    }
+
+    func testEffectiveUserNotesAgreeWithConsumesMeetingNotes() {
+        for (content, include) in [
+            ("Summarize.", false), ("Summarize.", true), ("{{userNotes}}", false),
+        ] {
+            let effective = PromptSystemPromptAssembler.effectiveUserNotes(
+                promptContent: content, includeMeetingNotes: include, userNotes: "Spell it Siobhan.")
+            XCTAssertEqual(
+                effective != nil,
+                PromptSystemPromptAssembler.consumesMeetingNotes(
+                    promptContent: content, includeMeetingNotes: include))
+        }
+    }
+
     func testSystemPromptAssemblerReceiptMatchesCappedNotesExactly() throws {
         let notes = String(repeating: "word ", count: PromptSystemPromptAssembler.userNotesPromptWordCap + 1)
         let assembly = PromptSystemPromptAssembler.assembleDetailed(

@@ -54,14 +54,22 @@ public enum PromptSystemPromptAssembler {
         return Assembly(systemPrompt: systemPrompt, effectiveUserNotes: effectiveNotes)
     }
 
+    /// Whether this prompt sends meeting notes when they exist. Explicit
+    /// `{{userNotes}}` template intent is independent of the opt-in.
+    public static func consumesMeetingNotes(
+        promptContent: String,
+        includeMeetingNotes: Bool
+    ) -> Bool {
+        includeMeetingNotes || promptContent.contains("{{userNotes}}")
+    }
+
     /// Normalize and cap notes only when this prompt will actually send them.
-    /// Explicit `{{userNotes}}` template intent is independent of the opt-in.
     public static func effectiveUserNotes(
         promptContent: String,
         includeMeetingNotes: Bool,
         userNotes: String?
     ) -> String? {
-        guard includeMeetingNotes || promptContent.contains("{{userNotes}}"),
+        guard consumesMeetingNotes(promptContent: promptContent, includeMeetingNotes: includeMeetingNotes),
             let userNotes,
             userNotes.contains(where: { !$0.isWhitespace })
         else { return nil }
