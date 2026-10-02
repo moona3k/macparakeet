@@ -389,12 +389,23 @@ saves for other meetings preserve the banner; unrelated diagnostics remain intac
 The expanded configuration area of every result-prompt card includes an
 **Include meeting notes as context** checkbox and this help text:
 
-> When this prompt runs on a meeting with notes, use those notes as additional
-> context. The transcript remains the source of truth.
+> Send your meeting notes to the selected AI provider as context, including
+> spelling corrections and reference URLs. Linked pages are not fetched.
+> Changes apply to new results; Regenerate keeps the original setting.
 
-The checkbox is present for built-in and custom result prompts, absent for
-Transforms, and off by default. Custom-prompt Create/Edit sheets expose the
-same choice; an enabled card may show a quiet `Meeting notes` context badge.
+The checkbox is present for built-in and custom result prompts and absent for
+Transforms. It is off by default except for the built-in **Summary** prompt in
+a newly created prompt library, where it is on; existing libraries keep their
+saved choice, including an explicit opt-out. Custom-prompt Create/Edit sheets
+expose the same choice (off by default); an enabled card may show a quiet
+`Meeting notes` context badge.
+
+On a meeting, the generation popover states whether the selected prompt will
+send notes. A saved meeting result shows its recorded notes snapshot when one
+exists. Otherwise it says that notes were enabled but none were recorded, that
+notes were off for the result's library prompt, or, for imported or unlinked
+results without a notes receipt, that the notes context was not recorded. The
+last case does not claim a disabled setting or point at a prompt setting.
 The primary UI does not mention `{{userNotes}}`: that variable remains an
 advanced custom-template compatibility mechanism. Chat/Ask does not gain this
 checkbox and retains its existing automatic use of committed meeting notes.

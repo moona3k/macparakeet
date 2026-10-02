@@ -2602,6 +2602,58 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertNil(promptResultRepo.saveCalls.first?.userNotesSnapshot)
     }
 
+    func testEnablingNotesAffectsNewSummaryButRegenerationKeepsOriginalOptOut() async throws {
+        let transcriptionID = UUID()
+        let notes = "Attendee spelling: Siobhán. Project URL: https://example.com/roadmap"
+        try transcriptionRepo.save(
+            Transcription(
+                id: transcriptionID,
+                fileName: "meeting.m4a",
+                sourceType: .meeting,
+                userNotes: notes
+            )
+        )
+        var prompt = Prompt.classicSummaryPrompt()
+        XCTAssertTrue(prompt.includeMeetingNotes)
+        // The historical result was generated before the default changed.
+        let existing = PromptResult(
+            transcriptionId: transcriptionID,
+            promptId: prompt.id,
+            promptName: prompt.name,
+            promptContent: prompt.content,
+            content: "Original summary"
+        )
+        prompt.includeMeetingNotes = true
+        promptRepo.prompts = [prompt]
+        promptResultRepo.promptResults = [existing]
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo,
+            transcriptionRepo: transcriptionRepo
+        )
+        viewModel.loadPromptResults(transcriptionId: transcriptionID)
+        llm.streamTokens = ["Replacement"]
+
+        _ = viewModel.regeneratePromptResult(existing, transcript: "Shivon discussed the roadmap.")
+        try await waitUntil { self.promptResultRepo.replaceCalls.count == 1 }
+        let replacement = try XCTUnwrap(promptResultRepo.replaceCalls.first?.promptResult)
+        XCTAssertFalse(replacement.includeMeetingNotesSnapshot)
+        XCTAssertNil(replacement.userNotesSnapshot)
+        XCTAssertFalse(try XCTUnwrap(llm.lastSummarySystemPrompt).contains(notes))
+
+        viewModel.selectedPrompt = prompt
+        let generationID = try XCTUnwrap(
+            viewModel.generatePromptResult(
+                transcript: "Shivon discussed the roadmap.", transcriptionId: transcriptionID
+            ))
+        try await waitUntil { self.promptResultRepo.saveCalls.contains(where: { $0.id == generationID }) }
+        let fresh = try XCTUnwrap(promptResultRepo.saveCalls.first(where: { $0.id == generationID }))
+        XCTAssertTrue(fresh.includeMeetingNotesSnapshot)
+        XCTAssertEqual(fresh.userNotesSnapshot, notes)
+        XCTAssertTrue(try XCTUnwrap(llm.lastSummarySystemPrompt).contains(notes))
+    }
+
     func testRegenerateUsesCheckboxSnapshotWithCurrentNotes() async throws {
         let transcriptionID = UUID()
         try transcriptionRepo.save(

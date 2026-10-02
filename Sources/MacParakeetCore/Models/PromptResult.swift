@@ -13,9 +13,10 @@ public struct PromptResult: Codable, Identifiable, Sendable {
     public var promptContent: String
     public var extraInstructions: String?
     public var content: String
-    /// Exact effective notes supplied to the LLM for this result, after blank
-    /// normalization and the prompt-context word cap. Nil means no notes were
-    /// sent. Editing canonical meeting notes never changes this receipt.
+    /// Notes used in prompt assembly after blank normalization and the word
+    /// cap. Provider context limits can trim the assembled prompt further, and
+    /// legacy snapshots can be uncapped. Nil means no notes were used in assembly.
+    /// Editing canonical meeting notes never changes this receipt.
     public var userNotesSnapshot: String?
     /// Snapshot of the per-prompt automatic meeting-notes preference used for
     /// this generation. This remains meaningful when no notes existed, so a
@@ -118,6 +119,35 @@ public struct PromptResult: Codable, Identifiable, Sendable {
         self.contentEditedAt = contentEditedAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+}
+
+/// What a saved result can truthfully say about meeting notes. Presentation
+/// only; it never changes what regeneration replays.
+public enum PromptResultMeetingNotesStatus: Equatable, Sendable {
+    /// The notes saved as this result's assembly snapshot, before provider
+    /// context trimming. Legacy snapshots can be uncapped.
+    case sent(String)
+    /// Notes were enabled for this result, but none existed when it ran.
+    case enabledWithoutNotes
+    /// A library prompt ran with notes disabled.
+    case off
+    /// Imported or unlinked result with no notes receipt.
+    case notRecorded
+}
+
+extension PromptResult {
+    public var meetingNotesStatus: PromptResultMeetingNotesStatus {
+        let consumesNotes = PromptSystemPromptAssembler.consumesMeetingNotes(
+            promptContent: promptContent,
+            includeMeetingNotes: includeMeetingNotesSnapshot
+        )
+        if consumesNotes, let userNotesSnapshot, userNotesSnapshot.contains(where: { !$0.isWhitespace }) {
+            return .sent(userNotesSnapshot)
+        }
+        if includeMeetingNotesSnapshot { return .enabledWithoutNotes }
+        if promptId == nil { return .notRecorded }
+        return consumesNotes ? .enabledWithoutNotes : .off
     }
 }
 

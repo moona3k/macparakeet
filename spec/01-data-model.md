@@ -43,6 +43,12 @@ identifiers already stored as BLOBs retain their bytes. The migration does
 not rewrite parent identifiers or re-encode their references.
 
 Prompt name and operational metadata stay on `prompts` and are not versioned.
+On first creation of the prompt library, reconciliation applies the canonical
+meeting-notes defaults after historical migrations: Summary includes notes by
+default, while other built-ins do not. Existing libraries preserve their saved
+preferences, including explicit opt-outs; no schema migration or result snapshot
+rewrite is involved (ADR-020, issue #1204).
+
 The historical `prompts.content` and `prompts.inferenceSettings` columns are
 copied into V1 during migration and dropped by
 `v0.36-drop-legacy-prompt-values`; only the active version owns those values. `summaries.promptContent` and
@@ -373,8 +379,8 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
 - `isTranscriptEdited` marks the legacy whole-transcript replacement path. Its text has no safe mapping to the automatic words and therefore has `untimed` alignment. Timed line corrections do not set this flag; they are journal commands projected through `transcriptSegments`. Added in v0.7.7.
 - `userNotes` stores the canonical free-form meeting notes. Live capture writes
   it at finalize; the saved-meeting Notes tab autosaves to the same field. Prompt
-  generation snapshots the exact effective notes sent
-  to assembly on `summaries.userNotesSnapshot`. Added in v0.8.
+  generation snapshots the effective notes supplied to prompt assembly on
+  `summaries.userNotesSnapshot`. Added in v0.8.
 - `engine` / `engineVariant` record the STT engine attribution for Parakeet, Nemotron Beta, Cohere, and optional WhisperKit paths. Added in v0.8; legacy rows keep `NULL`.
 - `calendarEventSnapshot` is a JSON blob for meeting rows only. It stores `confidence` (`confirmed` for calendar auto-start, `probable` for manual starts matched against the current poll cache), EventKit `eventIdentifier`, optional `externalId`, event title, scheduled start/end, attendee names/emails, organizer name/email, meeting URL/service, and capture timestamp. This is local user data and must not be sent in telemetry, including attendee counts. Added in v0.25.
 - `titleOverride` stores a user-authored display title for file transcriptions and durable explicit-title intent for meetings. File titles do not rename or move the external source or replace its original `fileName`. Meetings still display `fileName`; a meeting rename or explicit import title also sets the normalized override, preventing automatic title generation from replacing it on completion or Retry. Default/generated meeting names leave the override `NULL`. Blank overrides normalize to `NULL`. Added in v0.26; meeting intent applies with external import.
@@ -723,7 +729,10 @@ CREATE UNIQUE INDEX idx_prompts_name ON prompts(name COLLATE NOCASE);
   JSON decoding and repository writes independently reject invalid numeric
   values with the settings validation error. Current Transform execution also uses its active version settings.
 - `includeMeetingNotes` is a result-prompt-only Boolean, defaulting to false
-  for migrated, built-in and new prompts. When enabled, non-empty meeting notes
+  for migrated, built-in and new prompts, except that the built-in Summary is
+  seeded true when the prompt library is first created. Existing libraries keep
+  their saved value, including when a legacy built-in row is replaced by its
+  canonical identity. When enabled, non-empty meeting notes
   are appended as context unless explicitly placed with `{{userNotes}}`.
   Transform rows remain false. Migration `v0.33-prompt-meeting-notes-context`
   adds this column and `summaries.includeMeetingNotesSnapshot`.
@@ -762,7 +771,11 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
 - `promptName` and `promptContent` are snapshots, not references to the `prompts` table. Editing or deleting a prompt after generation doesn't change the result's metadata.
 - `userNotesSnapshot` captures the exact normalized and 8,000-word-capped notes
   value supplied to prompt assembly, not the unbounded canonical DB value, so
-  later note edits do not rewrite historical prompt results.
+  later note edits do not rewrite historical prompt results. Results saved by
+  older versions can hold uncapped notes, so a legacy snapshot is not always a
+  byte-exact record of what was sent. Provider context limits can also trim the
+  assembled prompt further for current results. The UI labels it as a snapshot
+  of assembly input, not an exact network receipt.
 - `contentEditedAt` (v0.45) is set when the user saves an in-place edit of
   `content`. Prompt snapshots stay the generation receipt. `NULL` means no
   in-place edit is recorded, including on generated, historical, and imported
@@ -772,7 +785,9 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
   generation, including the meaningful case where it was enabled but no notes
   existed yet. Retry reuses its queued snapshot; regenerate reuses this Boolean
   receipt with the meeting's current committed notes. The column defaults false
-  for historical results and is installed by migration v0.33.
+  for historical results and is installed by migration v0.33. Imported or
+  unlinked results with no notes receipt are presented as "not recorded", not
+  as a disabled setting.
 - `outputLanguagePolicySnapshot` (v0.47) records the meeting AI output-language
   policy used for that generation (`follow-transcript` or a language code).
   `NULL` means no policy was recorded, including results created before the
@@ -1425,7 +1440,7 @@ struct Prompt: Codable, Identifiable, Sendable {
     var runningLabel: String?
     var appliesToSources: Set<Transcription.SourceType>?  // v0.20 auto-run scoping; nil = all sources
     var inferenceSettings: PromptInferenceSettings?       // v0.31; nil = MacParakeet defaults
-    var includeMeetingNotes: Bool                         // v0.33; result-only opt-in, defaults false
+    var includeMeetingNotes: Bool                         // v0.33; result-only opt-in, defaults false (newly seeded Summary: true)
     var createdAt: Date
     var updatedAt: Date
 
