@@ -1,0 +1,52 @@
+Sources/MacParakeetCore/STT/HotkeyTrigger.swift
+  s_04e1bc2c715569::t_1039c63760c17e 606-612
+Sources/MacParakeet/Hotkey/HotkeyManager.swift
+  s_04e1bc2c715569::t_1d9bb1fc5fb059 1263-1264
+  s_04e1bc2c715569::t_5884724bdeb168 1260
+  s_04e1bc2c715569::t_f8c62a47000a47 1261-1262
+  s_04e1bc2c715569::t_1b50d86746f142 817,903-909,1026-1027,1207-1211,1215,1220-1224,1226,1231
+Tests/MacParakeetTests/Hotkey/HotkeyPeerInputPolicyTests.swift
+  s_04e1bc2c715569::t_e5dc55a7a9311b 10,73-86
+  s_04e1bc2c715569::t_fc01ab47e44054 87-88
+Tests/MacParakeetTests/App/AppHotkeyCoordinatorTests.swift
+  s_04e1bc2c715569::t_5884724bdeb168 1526-1527
+  s_04e1bc2c715569::t_e5dc55a7a9311b 1115-1126
+  s_04e1bc2c715569::t_9c2c9fe98128c7 1012-1014,1453-1525,1528-1535,1539,1548-1552,1555,1557-1558,1560-1564,1567,1569-1574
+  s_04e1bc2c715569::t_2dabffe43d5d55 698-730
+  s_04e1bc2c715569::t_e5d209148afa82 1536-1538,1540-1547,1553-1554,1556,1559,1565-1566,1568
+spec/02-features.md
+  s_04e1bc2c715569::t_d7c4d70ee85587 224
+spec/adr/009-custom-hotkey.md
+  s_04e1bc2c715569::t_d7c4d70ee85587 128
+  s_04e1bc2c715569::t_5cfbceb8c10f59 129-131
+Tests/MacParakeetTests/Hotkey/HotkeyConflictPolicyTests.swift
+  s_04e1bc2c715569::t_2dabffe43d5d55 481-514,517-518,526-550,552-553,555-561
+  s_04e1bc2c715569::t_ae167e2ddd99e9 515-516,521-522,525
+  s_04e1bc2c715569::t_5884724bdeb168 519-520,523-524,551,554
+Sources/MacParakeet/Hotkey/HotkeyPeerInputPolicy.swift
+  s_04e1bc2c715569::t_9da70cdd3b6f4b 51-53,56
+Sources/MacParakeetCore/Hotkey/HotkeyConflictPolicy.swift
+  s_04e1bc2c715569::t_1039c63760c17e 218,220,243,377-386
+  s_04e1bc2c715569::t_b1c15812d207fc 387-389
+Sources/MacParakeet/App/AppHotkeyCoordinator.swift
+  s_04e1bc2c715569::t_8ff4e517d5aa0c 173,249-250,254,258
+  s_04e1bc2c715569::t_715cd02b6158e8 172,253,257,259
+spec/contracts/dictation-shortcuts.md
+  s_04e1bc2c715569::t_d7c4d70ee85587 69-74,111-113,116-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "cef4c46e6c5bc5eb2a75f2cffb53dfdad0087543",
+  "prompts": {},
+  "sessions": {
+    "s_04e1bc2c715569": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d190ad33-c427-409b-b7de-8e1330f5bdb3",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
