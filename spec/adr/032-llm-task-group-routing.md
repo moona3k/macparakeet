@@ -143,7 +143,7 @@ Model writes do not read or rewrite provider credentials.
 
 Credential-changing mutations acquire the same lease before touching Keychain
 and hold it through metadata publication. A competing operation fails busy
-before changing either store, including while Keychain authorization is pending.
+before changing either store, including while another credential operation is in progress.
 There is no blocking lock wait. This ordering prevents an abandoned route save
 or deletion from damaging the credentials of a retained route.
 
