@@ -1,0 +1,31 @@
+spec/04-ui-patterns.md
+  s_78872c520d1d30::t_1f5f77570fc6f8 217-222
+docs/audits/2026-10-02-app-audit/re-review.md
+  s_78872c520d1d30::t_1f5f77570fc6f8 1-67
+Tests/MacParakeetTests/ViewModels/TranscriptionLibraryViewModelTests.swift
+  s_78872c520d1d30::t_13fc9540dc80c9 1772-1856
+Sources/MacParakeetViewModels/TranscriptionLibraryViewModel.swift
+  s_78872c520d1d30::t_9260a1b07e11f2 586,607,794-799
+docs/audits/2026-10-02-app-audit/README.md
+  s_78872c520d1d30::t_58f833d32d247a 31
+docs/audits/2026-10-02-app-audit/evidence/library-bulk-pagination-re-review.json
+  s_78872c520d1d30::t_b29518b8441d98 1-26
+docs/audits/2026-10-02-app-audit/follow-through.md
+  s_78872c520d1d30::t_875b75bbb4b838 52-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9ae8e191e2af371c420d3983e1d746b6ee7456cf",
+  "prompts": {},
+  "sessions": {
+    "s_78872c520d1d30": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fdfa-3264-7ea2-8c67-35821c108110",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
