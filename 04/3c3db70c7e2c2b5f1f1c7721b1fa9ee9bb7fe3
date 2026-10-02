@@ -1,0 +1,27 @@
+spec/adr/020-live-meeting-notepad-and-memo-summaries.md
+  s_75ff6db79ece85::t_44202b36525c62 23
+  s_75ff6db79ece85::t_8f1217d4b25de3 70-72
+  s_75ff6db79ece85::t_d3ce8a7a8ca267 4
+spec/01-data-model.md
+  s_75ff6db79ece85::t_a9307baa1dcabc 774-776
+docs/solutions/logic-errors/2026-10-02-meeting-summary-notes-context.md
+  s_75ff6db79ece85::t_1a97ae1cdc2461 2,4-5
+spec/contracts/cli-json-v1.md
+  s_75ff6db79ece85::t_b7d116185e290b 220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "043c3db70c7e2c2b5f1f1c7721b1fa9ee9bb7fe3",
+  "prompts": {},
+  "sessions": {
+    "s_75ff6db79ece85": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e75a018e-dcfc-4565-81d1-edb63d53e826",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
