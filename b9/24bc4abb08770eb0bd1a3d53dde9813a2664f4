@@ -1,0 +1,30 @@
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_8e18011eb8697e::t_5534f74f1f9315 210,230,256
+  s_8e18011eb8697e::t_7a61600926e20d 145-209,211-229,231-255,257-265,1669-1670,1686-1687,2416-2424
+  s_8e18011eb8697e::t_d78c241d20ec9f 2425-2426
+spec/02-features.md
+  s_8e18011eb8697e::t_e6c705b1e23126 2084-2086
+integrations/README.md
+  s_8e18011eb8697e::t_e6c705b1e23126 1093-1095
+spec/contracts/meeting-url-control-v1.md
+  s_8e18011eb8697e::t_e6c705b1e23126 56-64,90-92
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_8e18011eb8697e::t_c375a689ae7105 106,121,189-192,235,268-275,589,1325-1343
+  s_8e18011eb8697e::t_70a82f8bff592e 1344
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b924bc4abb08770eb0bd1a3d53dde9813a2664f4",
+  "prompts": {},
+  "sessions": {
+    "s_8e18011eb8697e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0beb1e6a-a944-4c92-9387-3e392ead3c20",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
