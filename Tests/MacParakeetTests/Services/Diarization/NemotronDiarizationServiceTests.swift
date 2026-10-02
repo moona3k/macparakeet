@@ -106,6 +106,55 @@ final class NemotronDiarizationServiceTests: XCTestCase {
         XCTAssertFalse(called)
     }
 
+    func testCancellationWhileFallbackFinishesDoesNotReturnSuccessfulAttribution() async throws {
+        try await assertCancelledFallback(
+            .success(
+                .init(
+                    segments: [.init(speakerId: "S1", startMs: 0, endMs: 2000)],
+                    speakerCount: 1, speakers: [.init(id: "S1", label: "Speaker 1")]
+                )))
+    }
+
+    func testCancellationWhileFallbackFailsDoesNotRetainNativeAttribution() async throws {
+        try await assertCancelledFallback(.failure(URLError(.cannotDecodeContentData)))
+    }
+
+    func testCancellationWhileNativeInferenceFailsTakesPrecedenceOverBackendFailure() async throws {
+        let runner = SuspendedFailingRunner(entered: expectation(description: "native inference entered"))
+        let service = NemotronDiarizationService(
+            loadRunner: { runner }, fallback: MockDiarizationService(),
+            inferenceGate: ANEInferenceGate(serializationRequired: false)
+        )
+        let task = Task { try await service.diarize(audioURL: audioURL) }
+        await fulfillment(of: [runner.entered], timeout: 2)
+        task.cancel()
+        runner.release.signal()
+        do {
+            _ = try await task.value
+            XCTFail("Expected cancellation")
+        } catch is CancellationError {
+        } catch {
+            XCTFail("Expected cancellation, received \(error)")
+        }
+    }
+
+    func testUncancelledNativeInferencePreservesBackendFailure() async throws {
+        let runner = SuspendedFailingRunner(entered: expectation(description: "native inference entered"))
+        let service = NemotronDiarizationService(
+            loadRunner: { runner }, fallback: MockDiarizationService(),
+            inferenceGate: ANEInferenceGate(serializationRequired: false)
+        )
+        let task = Task { try await service.diarize(audioURL: audioURL) }
+        await fulfillment(of: [runner.entered], timeout: 2)
+        runner.release.signal()
+        do {
+            _ = try await task.value
+            XCTFail("Expected the backend failure")
+        } catch let error as URLError {
+            XCTAssertEqual(error.code, .cannotDecodeContentData)
+        }
+    }
+
     func testConcurrentPreparationLoadsOnceAndFailedPreparationCanRetry() async throws {
         let loader = CountingLoader()
         let service = NemotronDiarizationService(
@@ -283,6 +332,86 @@ final class NemotronDiarizationServiceTests: XCTestCase {
     }
 
     private var audioURL: URL { URL(fileURLWithPath: "/unused.wav") }
+
+    private func assertCancelledFallback(
+        _ completion: Result<MacParakeetDiarizationResult, Error>,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        let fallback = SuspendedFallback(entered: expectation(description: "fallback entered"))
+        let service = NemotronDiarizationService(
+            loadRunner: {
+                FixtureRunner(segments: [
+                    .init(speakerIndex: 0, startSeconds: 0, endSeconds: 1),
+                    .init(speakerIndex: 1, startSeconds: 1, endSeconds: 2),
+                ])
+            }, fallback: fallback,
+            inferenceGate: ANEInferenceGate(serializationRequired: false)
+        )
+        let task = Task {
+            try await service.diarize(audioURL: audioURL, speakerConstraint: .range(min: 1, max: 1))
+        }
+        await fulfillment(of: [fallback.entered], timeout: 2)
+        task.cancel()
+        await fallback.finish(with: completion)
+        do {
+            _ = try await task.value
+            XCTFail("Cancellation must not become successful attribution", file: file, line: line)
+        } catch is CancellationError {
+        } catch {
+            XCTFail("Expected cancellation, received \(error)", file: file, line: line)
+        }
+    }
+
+    private actor SuspendedFallback: DiarizationServiceProtocol {
+        nonisolated let entered: XCTestExpectation
+        private var continuation: CheckedContinuation<MacParakeetDiarizationResult, Error>?
+        private var completion: Result<MacParakeetDiarizationResult, Error>?
+
+        init(entered: XCTestExpectation) {
+            self.entered = entered
+        }
+
+        func diarize(audioURL: URL, speakerConstraint: SpeakerDiarizationConstraint?) async throws
+            -> MacParakeetDiarizationResult
+        {
+            try await withCheckedThrowingContinuation { continuation in
+                self.continuation = continuation
+                entered.fulfill()
+                if let completion {
+                    self.continuation = nil
+                    continuation.resume(with: completion)
+                }
+            }
+        }
+
+        func finish(with completion: Result<MacParakeetDiarizationResult, Error>) {
+            self.completion = completion
+            continuation?.resume(with: completion)
+            continuation = nil
+        }
+
+        func prepareModels(onProgress: (@Sendable (String) -> Void)?) async throws {}
+        func isReady() async -> Bool { true }
+    }
+
+    /// Deliberately reports a backend error after cancellation, as native SDKs can.
+    private final class SuspendedFailingRunner: NemotronDiarizationRunning, @unchecked Sendable {
+        let entered: XCTestExpectation
+        let release = DispatchSemaphore(value: 0)
+
+        init(entered: XCTestExpectation) {
+            self.entered = entered
+        }
+
+        func process(audioURL: URL) throws -> [NemotronSpeakerActivity] {
+            entered.fulfill()
+            guard release.wait(timeout: .now() + 5) == .success else {
+                throw URLError(.timedOut)
+            }
+            throw URLError(.cannotDecodeContentData)
+        }
+    }
 
     private struct FixtureRunner: NemotronDiarizationRunning {
         let segments: [NemotronSpeakerActivity]

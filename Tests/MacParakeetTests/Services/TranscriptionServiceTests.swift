@@ -68,6 +68,114 @@ private actor TestAsyncSignal {
     }
 }
 
+/// Deliberately non-cooperative: models/providers can finish after cancellation.
+/// A continuation gate (rather than a sleep or AsyncStream) ensures cancellation
+/// cannot release inference before the test explicitly permits its result.
+private struct GatedTranscriptionDiarizer: DiarizationServiceProtocol {
+    let started: XCTestExpectation
+    let release: TestAsyncSignal
+    let fails: Bool
+
+    func diarize(
+        audioURL: URL,
+        speakerConstraint: SpeakerDiarizationConstraint?
+    ) async throws -> MacParakeetDiarizationResult {
+        started.fulfill()
+        await release.wait()
+        if fails { throw LLMError.providerError("Late test backend error") }
+        return MacParakeetDiarizationResult(
+            segments: [SpeakerSegment(speakerId: "S1", startMs: 0, endMs: 10_000)],
+            speakerCount: 1,
+            speakers: [SpeakerInfo(id: "S1", label: "Speaker 1")]
+        )
+    }
+
+    func prepareModels(onProgress: (@Sendable (String) -> Void)?) async throws {}
+    func isReady() async -> Bool { true }
+}
+
+/// Only title generation is gated; unrelated protocol methods use the shared
+/// test mock so this fixture does not introduce another provider implementation.
+private struct GatedTranscriptionTitleService: LLMServiceProtocol {
+    let started: XCTestExpectation
+    let release: TestAsyncSignal
+    let fails: Bool
+    private let fallback = MockLLMService()
+
+    func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String {
+        started.fulfill()
+        await release.wait()
+        if fails { throw LLMError.providerError("Late test title error") }
+        return "Product Roadmap Review"
+    }
+
+    func generatePromptResultDetailed(transcript: String, systemPrompt: String?) async throws -> LLMResult {
+        try await fallback.generatePromptResultDetailed(transcript: transcript, systemPrompt: systemPrompt)
+    }
+
+    func chat(
+        question: String, transcript: String, userNotes: String?, history: [ChatMessage],
+        source: TelemetryChatSource, conversationID: UUID
+    ) async throws -> String {
+        try await fallback.chat(
+            question: question, transcript: transcript, userNotes: userNotes,
+            history: history, source: source, conversationID: conversationID
+        )
+    }
+
+    func chatDetailed(
+        question: String, transcript: String, userNotes: String?, history: [ChatMessage],
+        source: TelemetryChatSource, conversationID: UUID
+    ) async throws -> LLMResult {
+        try await fallback.chatDetailed(
+            question: question, transcript: transcript, userNotes: userNotes,
+            history: history, source: source, conversationID: conversationID
+        )
+    }
+
+    func transform(text: String, prompt: String) async throws -> String {
+        try await fallback.transform(text: text, prompt: prompt)
+    }
+
+    func transformDetailed(text: String, prompt: String) async throws -> LLMResult {
+        try await fallback.transformDetailed(text: text, prompt: prompt)
+    }
+
+    func formatTranscript(
+        transcript: String, promptTemplate: String, source: TelemetryFormatterSource, defaultPromptUsed: Bool
+    ) async throws -> String {
+        try await fallback.formatTranscript(
+            transcript: transcript, promptTemplate: promptTemplate, source: source, defaultPromptUsed: defaultPromptUsed
+        )
+    }
+
+    func formatTranscriptDetailed(
+        transcript: String, promptTemplate: String, source: TelemetryFormatterSource, defaultPromptUsed: Bool
+    ) async throws -> LLMFormatterResult {
+        try await fallback.formatTranscriptDetailed(
+            transcript: transcript, promptTemplate: promptTemplate, source: source, defaultPromptUsed: defaultPromptUsed
+        )
+    }
+
+    func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error> {
+        fallback.generatePromptResultStream(transcript: transcript, systemPrompt: systemPrompt)
+    }
+
+    func chatStream(
+        question: String, transcript: String, userNotes: String?, history: [ChatMessage],
+        source: TelemetryChatSource, conversationID: UUID
+    ) -> AsyncThrowingStream<String, Error> {
+        fallback.chatStream(
+            question: question, transcript: transcript, userNotes: userNotes,
+            history: history, source: source, conversationID: conversationID
+        )
+    }
+
+    func transformStream(text: String, prompt: String) -> AsyncThrowingStream<String, Error> {
+        fallback.transformStream(text: text, prompt: prompt)
+    }
+}
+
 private final class DiarizationConstraintRecorder: @unchecked Sendable {
     private let lock = OSAllocatedUnfairLock(initialState: [SpeakerDiarizationConstraint?]())
 
@@ -3511,6 +3619,194 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(all[0].transcriptSegments?.map(\.text), ["New transcript"])
         let indexedText: [String] = try segmentRepo.fetch(transcriptionId: original.id).map(\.text)
         XCTAssertEqual(indexedText, ["New transcript"])
+    }
+
+    func testCancelledFileRetranscriptionDiscardsLateDiarizationSuccess() async throws {
+        try await assertRetranscriptionCancellationBoundary(source: .file, stage: .diarization, fails: false)
+    }
+
+    func testCancelledFileRetranscriptionDiscardsLateDiarizationError() async throws {
+        try await assertRetranscriptionCancellationBoundary(source: .file, stage: .diarization, fails: true)
+    }
+
+    func testCancelledMeetingRetranscriptionDiscardsLateDiarizationSuccess() async throws {
+        try await assertRetranscriptionCancellationBoundary(source: .meeting, stage: .diarization, fails: false)
+    }
+
+    func testCancelledMeetingRetranscriptionDiscardsLateDiarizationError() async throws {
+        try await assertRetranscriptionCancellationBoundary(source: .meeting, stage: .diarization, fails: true)
+    }
+
+    func testFileRetranscriptionRetainsASRWhenOptionalDiarizationFails() async throws {
+        try await assertRetranscriptionCancellationBoundary(
+            source: .file, stage: .diarization, fails: true, cancel: false)
+    }
+
+    func testMeetingRetranscriptionRetainsASRWhenOptionalDiarizationFails() async throws {
+        try await assertRetranscriptionCancellationBoundary(
+            source: .meeting, stage: .diarization, fails: true, cancel: false)
+    }
+
+    func testCancelledFileRetranscriptionDiscardsLateFormatterSuccess() async throws {
+        try await assertRetranscriptionCancellationBoundary(source: .file, stage: .formatter, fails: false)
+    }
+
+    func testCancelledFileRetranscriptionDiscardsLateFormatterError() async throws {
+        try await assertRetranscriptionCancellationBoundary(source: .file, stage: .formatter, fails: true)
+    }
+
+    func testCancelledMeetingRetranscriptionDiscardsLateFormatterSuccess() async throws {
+        try await assertRetranscriptionCancellationBoundary(source: .meeting, stage: .formatter, fails: false)
+    }
+
+    func testCancelledMeetingRetranscriptionDiscardsLateFormatterError() async throws {
+        try await assertRetranscriptionCancellationBoundary(source: .meeting, stage: .formatter, fails: true)
+    }
+
+    func testCancelledMeetingRetranscriptionDiscardsLateTitleSuccess() async throws {
+        try await assertRetranscriptionCancellationBoundary(source: .meeting, stage: .title, fails: false)
+    }
+
+    func testCancelledMeetingRetranscriptionDiscardsLateTitleError() async throws {
+        try await assertRetranscriptionCancellationBoundary(source: .meeting, stage: .title, fails: true)
+    }
+
+    private enum CancellationBoundaryStage: Sendable {
+        case diarization
+        case formatter
+        case title
+    }
+
+    private func assertRetranscriptionCancellationBoundary(
+        source: TelemetryTranscriptionSource,
+        stage: CancellationBoundaryStage,
+        fails: Bool,
+        cancel: Bool = true,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        let recording = source == .meeting ? try makeDualSourceMeetingRecording(displayName: "Meeting") : nil
+        defer {
+            if let recording { try? FileManager.default.removeItem(at: recording.folderURL) }
+        }
+        var original = Transcription(
+            createdAt: Date(timeIntervalSince1970: 123),
+            fileName: "Meeting", filePath: recording?.mixedAudioURL.path ?? "/tmp/cancellation-fixture.wav",
+            durationMs: 2_000,
+            rawTranscript: "Original searchable transcript", cleanTranscript: "Original edited transcript",
+            wordTimestamps: [
+                WordTimestamp(word: "Original searchable transcript", startMs: 0, endMs: 1_000, confidence: 1)
+            ],
+            status: .completed, isFavorite: true, sourceType: source == .meeting ? .meeting : .file,
+            isTranscriptEdited: true, userNotes: "User notes remain intact",
+            engine: "whisper", derivedTitle: "Original title", derivedSnippet: "Original snippet",
+            updatedAt: Date(timeIntervalSince1970: 456)
+        )
+        original.transcriptSegments = KnowledgeSegmenter.materializeFileTranscriptSegments(
+            words: try XCTUnwrap(original.wordTimestamps), speakers: nil
+        )
+        try transcriptionRepo.save(original)
+        try segmentRepo.replaceSegments(for: original)
+        // Compare the database's own round-tripped record to avoid date encoding
+        // precision differences and cover metadata beyond the text assertions.
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        let before = try encoder.encode(XCTUnwrap(transcriptionRepo.fetch(id: original.id)))
+        let segmentsBefore = try segmentRepo.fetch(transcriptionId: original.id)
+        XCTAssertFalse(segmentsBefore.isEmpty, file: file, line: line)
+        XCTAssertEqual(try segmentRepo.search(SegmentSearchQuery(query: "Original")).count, 1, file: file, line: line)
+
+        let replacementText =
+            "We reviewed the product roadmap launch plan customer onboarding risks and next milestones for the mobile beta release"
+        let sttResult = STTResult(text: replacementText, words: timestampedWords(from: replacementText))
+        await mockSTT.configureSequence(results: recording == nil ? [sttResult] : [sttResult, sttResult])
+        let started = expectation(description: "Non-cooperative backend started")
+        let release = TestAsyncSignal()
+        // Even a failed assertion/setup after starting cannot strand a worker.
+        defer { Task { await release.signal() } }
+        let diarizer = GatedTranscriptionDiarizer(started: started, release: release, fails: fails)
+        let formatter = MockLLMService()
+        formatter.formatTranscriptResult = "Late formatted replacement"
+        if fails { formatter.errorToThrow = LLMError.providerError("Late test formatter error") }
+        formatter.formatTranscriptHook = {
+            started.fulfill()
+            await release.wait()
+        }
+        let llm: any LLMServiceProtocol =
+            stage == .title
+            ? GatedTranscriptionTitleService(started: started, release: release, fails: fails)
+            : formatter
+        let telemetry = TelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer { Telemetry.configure(NoOpTelemetryService()) }
+        let service = TranscriptionService(
+            audioProcessor: mockAudio, sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo, segmentRepo: segmentRepo,
+            processingMode: { .raw }, llmService: llm, llmRunRepo: llmRunRepo,
+            shouldUseAIFormatter: { stage == .formatter },
+            shouldAutoGenerateMeetingTitles: { stage == .title },
+            shouldDiarize: { stage == .diarization }, shouldDiarizeMeetings: { stage == .diarization },
+            diarizationService: diarizer,
+            meetingArtifactStore: nil, meetingAutomationHookRunner: nil
+        )
+        let savedOriginal = original
+        let task = Task {
+            if let recording {
+                return try await service.retranscribeMeeting(existing: savedOriginal, recording: recording)
+            }
+            return try await service.retranscribe(
+                existing: savedOriginal, fileURL: URL(fileURLWithPath: savedOriginal.filePath!), source: source
+            )
+        }
+        await fulfillment(of: [started], timeout: 2)
+        if cancel { task.cancel() }
+        await release.signal()
+        if cancel {
+            do {
+                _ = try await task.value
+                XCTFail("A cancelled replacement must not return success", file: file, line: line)
+            } catch {
+                XCTAssertTrue(error is CancellationError, "Unexpected error: \(error)", file: file, line: line)
+            }
+            let persisted = try XCTUnwrap(transcriptionRepo.fetch(id: original.id))
+            XCTAssertEqual(persisted.rawTranscript, original.rawTranscript, file: file, line: line)
+            XCTAssertEqual(persisted.cleanTranscript, original.cleanTranscript, file: file, line: line)
+            XCTAssertEqual(
+                try encoder.encode(persisted), before, "All prior text and metadata must remain intact", file: file,
+                line: line)
+            XCTAssertEqual(try segmentRepo.fetch(transcriptionId: original.id), segmentsBefore, file: file, line: line)
+            XCTAssertEqual(
+                try segmentRepo.search(SegmentSearchQuery(query: "Original")).count, 1, file: file, line: line)
+            XCTAssertTrue(try segmentRepo.search(SegmentSearchQuery(query: "roadmap")).isEmpty, file: file, line: line)
+            XCTAssertTrue(try llmRunRepo.fetchForTranscription(id: original.id).isEmpty, file: file, line: line)
+            XCTAssertTrue(
+                telemetry.snapshot().contains {
+                    if case .transcriptionCancelled = $0 { return true }
+                    return false
+                }, file: file, line: line)
+            XCTAssertFalse(
+                telemetry.snapshot().contains {
+                    if case .transcriptionCompleted = $0 { return true }
+                    if stage == .diarization {
+                        if case .diarizationCompleted = $0 { return true }
+                        if case .diarizationFailed = $0 { return true }
+                    }
+                    return false
+                }, file: file, line: line)
+        } else {
+            let result = try await task.value
+            XCTAssertEqual(result.status, .completed, file: file, line: line)
+            XCTAssertTrue(result.rawTranscript?.contains("roadmap") == true, file: file, line: line)
+            XCTAssertEqual(
+                try transcriptionRepo.fetch(id: original.id)?.rawTranscript, result.rawTranscript, file: file,
+                line: line)
+            XCTAssertFalse(try segmentRepo.search(SegmentSearchQuery(query: "roadmap")).isEmpty, file: file, line: line)
+            XCTAssertTrue(
+                telemetry.snapshot().contains {
+                    if case .diarizationFailed = $0 { return true }
+                    return false
+                }, file: file, line: line)
+        }
     }
 
     func testRetranscribeDeletedDuringSTTDoesNotReturnOrRecreateRecording() async throws {

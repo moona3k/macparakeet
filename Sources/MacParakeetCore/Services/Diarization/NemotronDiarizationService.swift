@@ -112,7 +112,10 @@ public actor NemotronDiarizationService: DiarizationServiceProtocol {
         // of deleting speaker channels or silently ignoring the prior.
         if !Self.satisfies(speakerConstraint, count: result.speakerCount), !native.isEmpty {
             do {
-                return try await fallback.diarize(audioURL: audioURL, speakerConstraint: speakerConstraint)
+                let fallbackResult = try await fallback.diarize(
+                    audioURL: audioURL, speakerConstraint: speakerConstraint)
+                try Task.checkCancellation()
+                return fallbackResult
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
@@ -145,7 +148,9 @@ public actor NemotronDiarizationService: DiarizationServiceProtocol {
                 try runner.process(audioURL: audioURL)
             }
             return try await withTaskCancellationHandler {
-                try await inference.value
+                let result = await inference.result
+                try Task.checkCancellation()
+                return try result.get()
             } onCancel: {
                 inference.cancel()
             }

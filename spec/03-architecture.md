@@ -159,6 +159,14 @@ row aborts completion instead of recreating an item deleted during processing.
 See the [database guide](../Sources/MacParakeetCore/Database/README.md) and
 [file audio-track contract](contracts/file-transcription-audio-tracks.md).
 
+Cancellation is checked after optional speaker detection and awaited text
+processing, with a final cooperative check before search invalidation and
+canonical publication. A late backend success or ordinary error cannot bypass
+that check. A cancelled replacement preserves the old row/index when observed
+at this boundary; cancellation arriving after it does not roll back committed
+work. Genuine optional diarization failures still allow successful ASR. See the
+[diarization cancellation amendment](adr/010-speaker-diarization.md#cancellation-boundary-amendment-2026-10-02).
+
 `MeetingImportService` is the shared app/CLI boundary for turning one external
 recording into a managed meeting. It normalizes the first/default audio stream
 under the meeting-recordings root while holding the media mutation lease,

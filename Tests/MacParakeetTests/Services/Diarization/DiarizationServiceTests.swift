@@ -181,6 +181,51 @@ final class DiarizationServiceTests: XCTestCase {
 
     // MARK: - Shared model loading
 
+    func testCancellationAfterProcessingReturnsDoesNotReturnSpeakerResult() async throws {
+        try await assertCancelledProcessing(
+            .success(
+                DiarizationResult(segments: [
+                    TimedSpeakerSegment(
+                        speakerId: "S1", embedding: [], startTimeSeconds: 0,
+                        endTimeSeconds: 1, qualityScore: 1
+                    )
+                ])))
+    }
+
+    func testCancellationAfterNoSpeechErrorDoesNotReturnEmptySuccess() async throws {
+        try await assertCancelledProcessing(.failure(OfflineDiarizationError.noSpeechDetected))
+    }
+
+    func testCancellationAfterProcessingErrorTakesPrecedenceOverBackendFailure() async throws {
+        try await assertCancelledProcessing(.failure(URLError(.cannotDecodeContentData)))
+    }
+
+    func testUncancelledNoSpeechErrorStillReturnsEmptySuccess() async throws {
+        let manager = SuspendedOfflineDiarizerManager(entered: expectation(description: "processing entered"))
+        let service = makeSuspendedService(manager)
+        let task = Task { try await service.diarize(audioURL: URL(fileURLWithPath: "/unused.wav")) }
+        await fulfillment(of: [manager.entered], timeout: 2)
+        await manager.finish(with: .failure(OfflineDiarizationError.noSpeechDetected))
+        let result = try await task.value
+        XCTAssertEqual(result.speakerCount, 0)
+        XCTAssertTrue(result.segments.isEmpty)
+        XCTAssertTrue(result.speakers.isEmpty)
+    }
+
+    func testUncancelledProcessingErrorPreservesBackendFailure() async throws {
+        let manager = SuspendedOfflineDiarizerManager(entered: expectation(description: "processing entered"))
+        let service = makeSuspendedService(manager)
+        let task = Task { try await service.diarize(audioURL: URL(fileURLWithPath: "/unused.wav")) }
+        await fulfillment(of: [manager.entered], timeout: 2)
+        await manager.finish(with: .failure(URLError(.cannotDecodeContentData)))
+        do {
+            _ = try await task.value
+            XCTFail("Expected the backend failure")
+        } catch let error as URLError {
+            XCTAssertEqual(error.code, .cannotDecodeContentData)
+        }
+    }
+
     func testSuspendedDownloadDoesNotHoldInferenceGate() async throws {
         let loader = RecordingModelLoader()
         let entered = expectation(description: "load entered")
@@ -392,6 +437,35 @@ final class DiarizationServiceTests: XCTestCase {
         return directory
     }
 
+    private func assertCancelledProcessing(
+        _ completion: Result<DiarizationResult, Error>,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        let manager = SuspendedOfflineDiarizerManager(entered: expectation(description: "processing entered"))
+        let service = makeSuspendedService(manager)
+        let task = Task { try await service.diarize(audioURL: URL(fileURLWithPath: "/unused.wav")) }
+        await fulfillment(of: [manager.entered], timeout: 2)
+        task.cancel()
+        await manager.finish(with: completion)
+        do {
+            _ = try await task.value
+            XCTFail("Cancellation must not become successful diarization", file: file, line: line)
+        } catch is CancellationError {
+        } catch {
+            XCTFail("Expected cancellation, received \(error)", file: file, line: line)
+        }
+    }
+
+    private func makeSuspendedService(_ manager: SuspendedOfflineDiarizerManager) -> DiarizationService {
+        DiarizationService(
+            loadManagerFactory: { _ in { _ in manager } },
+            modelsDirectory: FileManager.default.temporaryDirectory,
+            explicitConstraint: nil,
+            inferenceGate: ANEInferenceGate(serializationRequired: false)
+        )
+    }
+
     private func makeService(
         _ loader: RecordingModelLoader,
         directory: URL = FileManager.default.temporaryDirectory,
@@ -404,6 +478,34 @@ final class DiarizationServiceTests: XCTestCase {
             explicitConstraint: explicitConstraint,
             inferenceGate: gate
         )
+    }
+}
+
+/// Models an SDK call that finishes its work before observing cancellation.
+private actor SuspendedOfflineDiarizerManager: OfflineDiarizerManaging {
+    nonisolated let entered: XCTestExpectation
+    private var continuation: CheckedContinuation<DiarizationResult, Error>?
+    private var completion: Result<DiarizationResult, Error>?
+
+    init(entered: XCTestExpectation) {
+        self.entered = entered
+    }
+
+    func process(audioURL: URL) async throws -> DiarizationResult {
+        try await withCheckedThrowingContinuation { continuation in
+            self.continuation = continuation
+            entered.fulfill()
+            if let completion {
+                self.continuation = nil
+                continuation.resume(with: completion)
+            }
+        }
+    }
+
+    func finish(with completion: Result<DiarizationResult, Error>) {
+        self.completion = completion
+        continuation?.resume(with: completion)
+        continuation = nil
     }
 }
 

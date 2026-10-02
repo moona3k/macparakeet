@@ -558,3 +558,22 @@ Scope, gating and the release conditions live in
 [F13a](../02-features.md) and
 [the plan](../../plans/active/2026-07-03-speaker-voiceprints.md). The internal
 boundary is [`spec/contracts/speaker-voiceprints.md`](../contracts/speaker-voiceprints.md).
+
+## Cancellation boundary amendment (2026-10-02)
+
+Optional speaker-detection failure remains non-fatal only while its owning task
+is not cancelled. After SDK/native inference returns, adapters check the task
+before accepting success, interpreting no-speech as empty success, or forwarding
+a generic backend error. Advisory fallback follows the same rule. Active
+native work is still awaited under its inference permit; this does not promise
+immediate interruption of a CoreML kernel.
+
+File and meeting orchestration also check cancellation before interpreting
+optional detection outcomes and after awaited post-processing. The last check
+precedes search invalidation and canonical transcript publication. Cancellation
+observed there preserves an existing retranscription and its index; cancellation
+arriving after that boundary may commit and does not roll back saved work.
+The [regression record](../../docs/audits/2026-10-02-diarization-cancellation.md)
+covers late backend, formatter and title outcomes plus uncancelled controls.
+Durable speaker-detection outcome/provenance remains a
+[separate planned slice](../../plans/active/2026-10-02-diarization-outcomes.md).

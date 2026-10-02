@@ -1752,6 +1752,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
             explicitConstraint: await diarizationService.explicitSpeakerConstraint()
         )
         do {
+            try Task.checkCancellation()
             onProgress?(.identifyingSpeakers)
             Telemetry.send(.diarizationStarted(source: .meeting))
             let diarStartedAt = Date()
@@ -1759,6 +1760,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
                 audioURL: systemWavURL,
                 speakerConstraint: speakerPolicy.speakerConstraintHint
             )
+            try Task.checkCancellation()
             let diarDuration = Date().timeIntervalSince(diarStartedAt)
             logger.notice(
                 "meeting_system_diarization_completed prior=\(speakerPolicy.diagnosticsLabel, privacy: .public) speakers=\(diarResult.speakerCount, privacy: .public) segments=\(diarResult.segments.count, privacy: .public) duration_s=\(String(format: "%.2f", diarDuration), privacy: .public)"
@@ -1816,6 +1818,10 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         } catch is CancellationError {
             throw CancellationError()
         } catch {
+            // A backend may report its own error after cancellation. Preserve
+            // ASR on genuine optional failures, but never turn cancellation into
+            // a successful completion through that fallback.
+            try Task.checkCancellation()
             logger.error("meeting_system_diarization_failed error=\(error.localizedDescription, privacy: .public)")
             Telemetry.send(.diarizationFailed(
                 source: .meeting,
@@ -1972,10 +1978,12 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
             if let diarizationService = activeDiarizationService, diarizationRequested, !words.isEmpty {
                 lifecycleStage = .diarization
                 do {
+                    try Task.checkCancellation()
                     onProgress?(.identifyingSpeakers)
                     Telemetry.send(.diarizationStarted(source: source))
                     let diarStartedAt = Date()
                     let diarResult = try await diarizationService.diarize(audioURL: wavURL)
+                    try Task.checkCancellation()
                     let diarDuration = Date().timeIntervalSince(diarStartedAt)
                     if !diarResult.segments.isEmpty {
                         let mergedWords = SpeakerMerger.mergeWordTimestampsWithSpeakers(
@@ -1998,6 +2006,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
                 } catch is CancellationError {
                     throw CancellationError()
                 } catch {
+                    try Task.checkCancellation()
                     diarizationApplied = false
                     logger.error("diarization_failed error=\(error.localizedDescription, privacy: .public)")
                     Telemetry.send(.diarizationFailed(
@@ -2168,6 +2177,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         diarizationApplied: Bool,
         persistResult: Bool = true
     ) async throws -> Transcription {
+        try Task.checkCancellation()
         let originalFileName = transcription.fileName
         let mode = processingMode()
         // Meetings keep a verbatim record: custom words already ran through
@@ -2193,6 +2203,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
             spokenPunctuationEnabled: false,
             removeUmFiller: appliesCleanPipeline && removeUmFiller()
         )
+        try Task.checkCancellation()
         let baseText = refinement.text ?? rawText
         let transcriptFormatter = TranscriptFormatter(
             llmService: llmService,
@@ -2206,6 +2217,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
             lane: .transcription,
             resolvePrompt: { (promptTemplateProvider(), nil) }
         )
+        try Task.checkCancellation()
         let formattedTranscript = formatterOutcome.text
         transcription.cleanTranscript = formattedTranscript ?? refinement.text
 
@@ -2240,6 +2252,10 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
             transcription.derivedTitle = generatedTitle
         }
 
+        // This is the final cancellation boundary before invalidating the old
+        // index and publishing canonical text. After publication, finish the
+        // derived/artifact work without reporting the committed result cancelled.
+        try Task.checkCancellation()
         transcription.status = .completed
         transcription.updatedAt = Date()
         if persistResult {
