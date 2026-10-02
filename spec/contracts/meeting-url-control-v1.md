@@ -19,7 +19,8 @@ by default. The `meetingURLControlEnabled` preference must be explicitly true.
 Any app or website can send a custom URL; this is a global opt-in, not caller
 authentication or a per-site allowlist. Disable the switch to revoke control.
 Disabled requests are ignored and never replayed after enabling the switch.
-Queued requests recheck consent at dispatch. Onboarding and quit dialogs block
+Consent is rechecked before each dispatch, including later commands in a ready
+batch and queued requests. Onboarding and quit dialogs block
 dispatch; requests received during those flows are not replayed later.
 
 Normal macOS microphone and system audio permissions still apply. Starting

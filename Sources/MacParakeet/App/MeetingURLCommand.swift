@@ -55,6 +55,7 @@ final class MeetingURLCommandRouter {
         for url in urls {
             guard let command = MeetingURLCommand(url: url, scheme: scheme) else { continue }
             if isReady {
+                guard isEnabled() else { return }
                 execute(command)
             } else if pending.count < 16 {
                 pending.append(command)

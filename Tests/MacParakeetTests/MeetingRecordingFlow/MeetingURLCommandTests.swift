@@ -79,6 +79,25 @@ final class MeetingURLCommandTests: XCTestCase {
         XCTAssertEqual(received, [.pause])
     }
 
+    func testReadyBatchRechecksConsentAndDoesNotReplayRevokedCommands() throws {
+        var enabled = true
+        var received: [MeetingURLCommand] = []
+        let router = MeetingURLCommandRouter(scheme: "macparakeet", isEnabled: { enabled }) {
+            received.append($0)
+            // Dispatch can enter a modal loop where consent is revoked.
+            enabled = false
+        }
+        router.finishLaunching()
+        router.open([try url("pause"), try url("resume"), try url("start?title=Later")])
+        XCTAssertEqual(received, [.pause])
+
+        enabled = true
+        router.finishLaunching()
+        XCTAssertEqual(received, [.pause], "Revoked commands must not be queued for later replay")
+        router.open([try url("resume")])
+        XCTAssertEqual(received, [.pause, .resume])
+    }
+
     func testFailedStartupDiscardsCommandsAndQueueIsBounded() throws {
         var received: [MeetingURLCommand] = []
         let router = MeetingURLCommandRouter(scheme: "macparakeet", isEnabled: { true }) { received.append($0) }
