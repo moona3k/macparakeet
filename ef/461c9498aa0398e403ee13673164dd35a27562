@@ -1,0 +1,44 @@
+Tests/MacParakeetTests/Services/Diarization/DiarizationServiceTests.swift
+  s_78872c520d1d30::t_aaace52959ef8b 184-228,440-468,484-507
+  s_78872c520d1d30::t_32a4c524d12524 508-511
+Sources/MacParakeetCore/Services/Diarization/NemotronDiarizationService.swift
+  s_78872c520d1d30::t_3a7b8a340d577f 115-118,151-152
+  s_78872c520d1d30::t_517848f0a4bdb4 153
+Tests/MacParakeetTests/Services/Diarization/NemotronDiarizationServiceTests.swift
+  s_78872c520d1d30::t_aaace52959ef8b 109-157,336-410,415
+  s_78872c520d1d30::t_8f03df29632ac1 411-414
+Sources/MacParakeetCore/Services/Diarization/DiarizationService.swift
+  s_78872c520d1d30::t_3a7b8a340d577f 258-263,266
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_78872c520d1d30::t_820ec27afc10eb 1755,1763,1821-1824,1981,1986,2009,2180,2206,2220,2255-2258
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_78872c520d1d30::t_b18bacbc43f849 71-178,3624-3811
+docs/audits/2026-10-02-diarization-cancellation-validation.json
+  s_78872c520d1d30::t_818159a346d6f7 1-92
+docs/audits/2026-10-02-diarization-cancellation.md
+  s_78872c520d1d30::t_717c9b34279c00 1-65
+plans/README.md
+  s_78872c520d1d30::t_c43dadc6950ea5 42
+plans/active/2026-10-02-diarization-outcomes.md
+  s_78872c520d1d30::t_a41d1c10338fc1 1-412
+spec/03-architecture.md
+  s_78872c520d1d30::t_feb9a543ccf50a 162-169
+spec/adr/010-speaker-diarization.md
+  s_78872c520d1d30::t_4d52f213c6ce5d 561-579
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ef461c9498aa0398e403ee13673164dd35a27562",
+  "prompts": {},
+  "sessions": {
+    "s_78872c520d1d30": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fdfa-3264-7ea2-8c67-35821c108110",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
