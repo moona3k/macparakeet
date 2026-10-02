@@ -1,0 +1,71 @@
+docs/audits/2026-10-02-app-audit/README.md
+  s_dde2a4545fb121::t_751540e0684e56 10,31,46,102-103,138-146
+docs/audits/2026-10-02-app-audit/evidence/integrated-main-tests.json
+  s_78872c520d1d30::t_0734f55bb9626d 1-23
+docs/audits/2026-10-02-app-audit/evidence/library-stale-error-adjudication.json
+  s_78872c520d1d30::t_a56b8e4e4ba25b 1-11
+docs/audits/2026-10-02-app-audit/evidence/library-stale-error-adjudication.patch
+  s_78872c520d1d30::t_b4e9b6f1bd0b8b 1-21
+docs/audits/2026-10-02-app-audit/evidence/native-audio.json
+  s_dde2a4545fb121::t_c35fa8a33cc5a9 1-374
+docs/audits/2026-10-02-app-audit/evidence/pr1205-final-ci.json
+  s_78872c520d1d30::t_11f94df010deb4 1-48
+docs/audits/2026-10-02-app-audit/evidence/pr1205-test-summary.md
+  s_78872c520d1d30::t_fb13253e822272 1-22
+docs/audits/2026-10-02-app-audit/evidence/pr1206-final-ci.json
+  s_54a3efe5844c32::t_04f68709336a65 1-48
+docs/audits/2026-10-02-app-audit/evidence/pr1206-test-summary.md
+  s_dca6554ecd2e85::t_b73ad6445ea88b 1-22
+docs/audits/2026-10-02-app-audit/follow-through.md
+  s_78872c520d1d30::t_0fef0974563014 19-50,54-58,67-69
+docs/audits/2026-10-02-app-audit/native-audio.md
+  s_dde2a4545fb121::t_33effd66495d77 1-71
+docs/audits/2026-10-02-app-audit/overview.html
+  s_78872c520d1d30::t_d5923ed96a9d0c 74,76
+docs/audits/2026-10-02-app-audit/validation.md
+  s_78872c520d1d30::t_97f8f80e524e8e 183-222
+docs/audits/2026-10-02-diarization-cancellation.md
+  s_dde2a4545fb121::t_5653f108cc719e 3-5,65-69
+plans/active/2026-10-02-diarization-outcomes.md
+  s_78872c520d1d30::t_646bd1518a7d9e 109,157,159-163,257
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e5ec1281628812026f40e6fc42890e6aca3652e4",
+  "prompts": {},
+  "sessions": {
+    "s_54a3efe5844c32": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fe09cd8b-f38e-492c-bd31-15dfffe74fcf",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_78872c520d1d30": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fdfa-3264-7ea2-8c67-35821c108110",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_dca6554ecd2e85": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fe4b-bb61-77c3-8ca9-7b629251ee7e",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_dde2a4545fb121": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f4d6-65fb-7f82-954d-1ba34b7911ce",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
