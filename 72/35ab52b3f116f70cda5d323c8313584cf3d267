@@ -1,0 +1,19 @@
+Sources/MacParakeetCore/Services/Capture/LiveChunkTranscriber.swift
+  s_4c7c815eb99073::t_86e394d1170678 229-231
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7235ab52b3f116f70cda5d323c8313584cf3d267",
+  "prompts": {},
+  "sessions": {
+    "s_4c7c815eb99073": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f814-2761-7123-b0dd-edd450cf8b51",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
