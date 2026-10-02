@@ -106,7 +106,7 @@ history, or copies of acoustic turns are needed for this milestone.
 | Primary throws, ASR usable | `failed`, `detectionFailed`, known attempted descriptor if available, no selected successful result. |
 | Advisory fallback succeeds | Preserve the returned fallback result exactly, even if empty; record Nemotron primary, Community-1 selected, fallback `used`. Do not silently substitute the earlier native result. |
 | Advisory fallback fails and current code retains native result | Native `completed`/`noSpeakerActivity`, Nemotron selected, fallback `failedRetainedPrimary`, constraint satisfaction computed honestly. |
-| Cancellation, including a generic backend error after task cancellation | Propagate cancellation. Do not persist a degraded completed transcript or overwrite an old outcome. |
+| Cancellation observed at or before the final pre-mutation check, including a generic backend error after task cancellation | Propagate cancellation. Do not persist a degraded completed transcript or overwrite an old outcome. |
 
 For disabled/inapplicable runs use `notAttempted` word attribution. For an
 actual acoustic run with no timed system text, prioritize the timing/no-words
@@ -154,11 +154,13 @@ speaker activity was empty. These rules avoid contradictory user explanations.
    work finishes or change scheduler cancellation ownership.
 
 5. **New/replacement lifecycle.** `makeRetranscriptionRecord` at
-   `TranscriptionService.swift:2104` resets the candidate's old report. Only a
+   `TranscriptionService.swift` resets the candidate's old report. Only a
    successful completion commits the new one, including disabled/skipped/failed
-   optional detection. Failed/cancelled retranscription preserves the previous
-   saved text and report. `persistResult: false` still returns the report without
-   inserting a database row. `savePreservingUserMetadata` remains the single
+   optional detection. Failed retranscription, or cancellation observed at or
+   before the final pre-mutation check, preserves the previous saved text and
+   report. Later cancellation can still commit; it does not roll back saved work.
+   `persistResult: false` still returns the report without inserting a database
+   row. `savePreservingUserMetadata` remains the single
    authoritative completion write; this computed result is not a user-owned
    metadata field to copy back from the old row. Preserve deletion refusal.
 
@@ -252,7 +254,7 @@ podcast-to-output-directory, and each batch result. `emitStdout` alone misses
 file-only outputs (`TranscribeCommand.swift:679-710,790-804`). Use one bounded
 report-to-notice helper called exactly once per result after processing, with
 stderr as its output. Keep native stdout suppression/teardown order intact.
-`RetranscribeCommand.printResult` at `:760` similarly handles human output;
+`RetranscribeCommand.printResult` similarly handles human output;
 dictation payloads have no diarization outcome and remain unaffected. A no-save
 run must not say “saved”; use “Transcription completed, but speaker detection
 was unavailable.” in CLI copy.

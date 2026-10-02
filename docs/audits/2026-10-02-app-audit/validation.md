@@ -180,3 +180,43 @@ step was used; all audit judgments came from direct agent analysis and tests.
 Passing unit tests, a large count, a fresh dashboard and a model result are
 different evidence lanes. None substitutes for the missing native, device,
 receiver or release proof described above.
+
+## Final landing and physical follow-through
+
+App [PR #1205](https://github.com/moona3k/macparakeet/pull/1205) and
+[cancellation PR #1206](https://github.com/moona3k/macparakeet/pull/1206) merged
+on October 2 after their final heads passed hosted tests, Swift 6 and release/
+bundle checks, with no unresolved review threads. Each run reports 7,929 xUnit
+cases with zero failures/errors plus 30 Swift Testing cases; xUnit does not
+report skipped-case counts. The telemetry allowlist comparison and opt-in
+cache-invalidation job skipped. Final receipts and test summaries:
+[#1205](evidence/pr1205-final-ci.json),
+[#1205 test summary](evidence/pr1205-test-summary.md),
+[#1206](evidence/pr1206-final-ci.json),
+[#1206 test summary](evidence/pr1206-test-summary.md).
+
+After both merges, 440 distinct focused cases passed on combined `main`
+`f3a8758ae7be4c0b3fdd65aa37a5a5cfea3072bd`: 424 in the main selection and
+16 batch cases in a separate invocation after correcting the filter's suite
+name. This rebuilt from the integrated source in its owning worktree and
+covers CLI/GUI persistence, Library, both diarization adapters and transcription
+orchestration together. [Receipt](evidence/integrated-main-tests.json).
+No second full local suite was run. The hosted results above are separate
+per-PR results, not a claim that post-merge main CI had finished.
+
+A final review's stale-error concern was already prevented by the current
+clearing behavior. Two targeted cases passed with a temporarily strengthened
+assertion; the patch was then removed without changing the reviewed source.
+[Adjudication receipt](evidence/library-stale-error-adjudication.json).
+
+The owner skipped first-run qualification and authorized physical capture on
+this Mac. Short native dual-source and microphone-only recordings completed,
+recognized the known phrases in the normal-gain runs and survived database
+reopen. The lower-gain probe's absent recognized phrase is retained explicitly.
+The [physical report](native-audio.md) and [sanitized receipt](evidence/native-audio.json)
+record source coverage, artifacts, unavailable AEC assets and remaining limits.
+No raw physical media, incidental transcript or screenshot was published.
+
+The final native-audio report/receipt received an independent factual/privacy
+review with no blockers. This audit used direct engineering review, source
+inspection and deterministic checks; no Jev classification step was used.

@@ -7,7 +7,7 @@ is to protect user intent across asynchronous operations, make uncertain
 speaker attribution explicit, and qualify complete native journeys. A broad
 rewrite would add risk without addressing the demonstrated failures.
 
-This audit includes four contained app fixes, a separate telemetry dashboard
+This audit includes targeted app fixes, a separate telemetry dashboard
 fix, real-model execution, native view inspection, current CI measurements,
 and aligned specifications. The [validation record](validation.md) separates
 what passed from unexecuted hardware, production and release checks and
@@ -28,6 +28,7 @@ recommendations. Current delivery and execution order are recorded in
 | [Telemetry and observability](telemetry-observability.md) | Consent/privacy, delivery, producer/receiver drift, metric interpretation, crashes, latency and activation |
 | [Architecture, code quality, CI and performance](architecture-ci-performance.md) | Ownership boundaries, large-file seams, cancellation, measured build cost, coverage and latency priorities |
 | [Prioritized follow-through](recommendations.md) | Five concrete projects with scope, acceptance criteria, effort, dependencies and stopping rules |
+| [Physical audio follow-through](native-audio.md) | Real GUI capture on this Mac, microphone-only recognition, durable artifacts and explicit limits |
 | [Validation and coverage](validation.md) | Reproduction commands, local/CI/runtime distinctions, independent reviews, exclusions and PRs |
 
 ## Highest-value findings
@@ -42,6 +43,7 @@ baseline unless explicitly identified as the fix.
 | P1 | Completed/cancelled dictation reruns recreated deleted History or overwrote changed status | Deletion/status interleavings and lifetime-statistics assertions | Fixed: atomic existence/status precondition; same-status metadata merging remains a limitation |
 | P1 | GUI retranscription could overwrite a transcript correction saved after Core completed | Real Core/SQLite regression failed before removal of the redundant GUI save | Fixed: publish Core's committed result without a second save |
 | P1 | Library queries restored stale favorite/deleted/audio state or skipped a row during pagination | Four of five gated tests failed on baseline; 71 Library tests passed for the initial repair; final review passes 80 Library cases and 264 combined GUI cases ([validation](validation.md#landing-review-follow-up)) | Fixed: invalidate older queries and retain the requested page window |
+| P1 | Cancellation could become saved success after a late speaker-model or formatter result | Deterministic cancellation gates, real SQLite preservation, 155 focused cases and final hosted CI | Fixed in [PR #1206](https://github.com/moona3k/macparakeet/pull/1206); [repair boundary](../2026-10-02-diarization-cancellation.md) |
 | P1 | Speaker quality is not qualified at the final word/identity boundary | Four acoustic runs plus real ASR/product integration; a correct word assignment erased by smoothing | Held-out final-word evaluation before changing policy |
 | P1 | Speaker failures and actual backend/fallback lack a shared durable GUI/CLI outcome | Service/model/event tracing and ADR mismatch | Add typed outcome/provenance |
 | P1 | Whisper setup lacks the background lifetime promised after Skip/Finish | Window cancellation reaches the view-model-owned download | Open conformance gap in ADR-005; qualify and fix with a controlled downloader |
@@ -97,8 +99,8 @@ call, it does not forcibly terminate one.
 Next investment order:
 
 1. Qualify final speaker-attributed words and expose failures/provenance.
-2. Run clean-install → permissions → model → actual insertion, plus recovery
-   and relaunch, in a disposable native account.
+2. Continue native recovery and actual-insertion qualification. Short physical
+   capture passed on this Mac; first-run testing was skipped at the owner's request.
 3. Close producer/receiver compatibility and deployed-ingestion evidence.
 4. Measure tail latency and long-meeting memory on constrained hardware under
    an actual call workload.
@@ -133,9 +135,12 @@ Local host: Apple Silicon Mac16,7, 48 GiB RAM, macOS 26.7.1, Xcode 26.4.1,
 Swift 6.3.1. Hosted baseline CI used macOS 14 and Xcode 16.1.
 
 This was a risk-weighted review of a 643-file, 227,336-line first-party Swift
-codebase, not proof that every line is defect-free. No personal recordings,
-transcripts, production database writes, permission resets, provider spending,
-deployment, release or merge were performed. Signed upgrade, physical audio,
-native TCC/focus, full VoiceOver, long low-memory calls, all migrations and
-third-party binary internals remain separately qualified boundaries. Each
-report identifies inspected versus executed areas.
+codebase, not proof that every line is defect-free. The initial audit used
+public/synthetic media. The owner-authorized follow-through merged the fixes
+and exercised short physical captures in isolated local state; see
+[delivery](follow-through.md) and [native audio](native-audio.md). No raw
+physical recordings or transcripts are published. No production database
+writes, personal permission resets, provider spending, manual deployment or
+release were performed. Signed upgrade, native TCC/focus, full VoiceOver,
+Bluetooth, long low-memory calls, all migrations and third-party binary
+internals remain separately qualified boundaries.

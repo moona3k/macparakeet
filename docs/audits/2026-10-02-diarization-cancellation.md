@@ -1,7 +1,8 @@
 # Cancellation during speaker detection and finalization
 
-Status: implemented locally; 155 focused tests pass; independent review found no
-blocker; exact-head CI/merge are pending. This is a bounded
+Status: merged in [PR #1206](https://github.com/moona3k/macparakeet/pull/1206)
+at `f3a8758ae7be4c0b3fdd65aa37a5a5cfea3072bd`. All 155 focused tests passed;
+independent review and final-head hosted CI passed before merge. This is a bounded
 follow-through from the [app audit](2026-10-02-app-audit/README.md), separate
 from the planned [durable outcome receipt](../../plans/active/2026-10-02-diarization-outcomes.md).
 
@@ -61,5 +62,9 @@ The [validation receipt](2026-10-02-diarization-cancellation-validation.json)
 records retained log hashes and tested source hashes. These are injected
 concurrency and real SQLite persistence tests; no acoustic quality or native
 physical-audio claim follows from them. No second full local suite was run
-within the parent audit task; the final hosted CI remains the full-suite gate.
+within the parent audit task. Final-head [CI run 37061023797](https://github.com/moona3k/macparakeet/actions/runs/37061023797)
+passed 7,929 xUnit cases and 30 Swift Testing cases, plus Swift 6 and release/
+bundle checks. The xUnit summary does not report skipped-case counts; the
+telemetry allowlist comparison was explicitly skipped. See the
+[delivery receipt](2026-10-02-app-audit/evidence/pr1206-final-ci.json).
 

@@ -1,0 +1,15 @@
+{
+  "head": "317374b55a335a5a618f5bdb0e22db62960c0ffb",
+  "purpose": "Adjudicate stale-error finding; existing favorite and loadPage clear errors. Temporary assertion patch was removed after two focused cases passed. No production or PR source change.",
+  "testCases": 2,
+  "failures": 0,
+  "log": {
+    "pathRelativeToAppAuditWorktree": ".build/audit-evidence/library-stale-error-adjudication.log",
+    "sha256": "cd48f6f9f2a7e7936a3de53ceaa05a74081675eb38eb753199067936991f492c"
+  },
+  "patch": {
+    "pathRelativeToAppAuditWorktree": ".build/audit-evidence/library-stale-error-adjudication.patch",
+    "sha256": "acb59cfbfbba4183de1c927dfb1a4d58ebe729850095fb8de1b8592fb36e30a9",
+    "retention": "local; patch not compiled or published"
+  }
+}
