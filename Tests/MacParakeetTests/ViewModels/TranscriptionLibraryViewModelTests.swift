@@ -1769,6 +1769,91 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertNotNil(vm.errorMessage)
     }
 
+    func testBulkDeleteRepairsPagePublishedBetweenTargetDeletions() async throws {
+        try await assertBulkDeleteRepairsPagePublishedBeforeCompletion(partialFailure: false)
+    }
+
+    func testBulkDeletePartialFailureRepairsPagePublishedBetweenTargetDeletions() async throws {
+        try await assertBulkDeleteRepairsPagePublishedBeforeCompletion(partialFailure: true)
+    }
+
+    private func assertBulkDeleteRepairsPagePublishedBeforeCompletion(partialFailure: Bool) async throws {
+        let mockRepo = MockTranscriptionRepository()
+        let items = ["A", "B", "C", "D", "E"].enumerated().map { index, name in
+            Transcription(
+                createdAt: Date(timeIntervalSince1970: Double(5 - index)),
+                fileName: name, status: .completed, sourceType: .file
+            )
+        }
+        let first = items[0]
+        let second = items[1]
+        mockRepo.transcriptions = items
+        let viewModel = TranscriptionLibraryViewModel()
+        viewModel.pageSize = 2
+        viewModel.configure(transcriptionRepo: mockRepo)
+        await viewModel.loadTranscriptions().value
+        XCTAssertEqual(viewModel.transcriptions.map(\.id), [first.id, second.id])
+        viewModel.beginBulkSelection(startingWith: first)
+        viewModel.toggleSelection(for: second)
+        viewModel.requestDeleteSelectedItems()
+        let operation = try XCTUnwrap(viewModel.pendingBulkOperation)
+
+        let pageGate = StaleFetchGate()
+        let deleteGate = StaleFetchGate()
+        defer {
+            pageGate.allowFirstFetchToFinish()
+            deleteGate.allowFirstFetchToFinish()
+        }
+        mockRepo.fetchAllHandler = { _ in
+            if pageGate.nextCallNumber() == 1 {
+                // Read only after the first deletion shifts the old offset.
+                pageGate.blockFirstFetchUntilAllowed()
+            }
+            return mockRepo.transcriptions.sorted { $0.createdAt > $1.createdAt }
+        }
+        mockRepo.onDelete = { id in
+            if id == second.id {
+                // The first target is already gone. Hold bulk completion while
+                // the pending offset-2 page reads and publishes [D, E].
+                deleteGate.blockFirstFetchUntilAllowed()
+                mockRepo.deleteResult = !partialFailure
+            }
+        }
+
+        let pendingPage = try XCTUnwrap(viewModel.loadMoreTranscriptions())
+        let pageStarted = await Task.detached { pageGate.waitForFirstFetchStarted() }.value
+        XCTAssertTrue(pageStarted)
+        guard pageStarted else { return }
+        let bulkTask = Task { await viewModel.confirmBulkOperation(operation) }
+        let deletionStarted = await Task.detached { deleteGate.waitForFirstFetchStarted() }.value
+        XCTAssertTrue(deletionStarted)
+        guard deletionStarted else { return }
+        XCTAssertNil(try mockRepo.fetch(id: first.id))
+        XCTAssertNotNil(try mockRepo.fetch(id: second.id))
+
+        pageGate.allowFirstFetchToFinish()
+        await pendingPage.value
+        XCTAssertTrue(viewModel.isBulkOperationInProgress)
+        deleteGate.allowFirstFetchToFinish()
+        let result = await bulkTask.value
+        await waitForPendingLoad(viewModel)
+
+        let expected = partialFailure ? Array(items.dropFirst()) : Array(items.dropFirst(2))
+        XCTAssertEqual(viewModel.transcriptions.map(\.id), expected.map(\.id))
+        XCTAssertEqual(Set(viewModel.transcriptions.map(\.id)).count, expected.count)
+        XCTAssertFalse(viewModel.hasMore, "Every surviving row fits inside the requested four-row window")
+        XCTAssertNil(viewModel.loadMoreTranscriptions())
+        XCTAssertEqual(result, BulkOperationResult(succeeded: partialFailure ? 1 : 2, failed: partialFailure ? 1 : 0))
+        XCTAssertFalse(viewModel.isBulkOperationInProgress)
+        XCTAssertEqual(viewModel.isBulkSelectionModeEnabled, partialFailure)
+        XCTAssertEqual(viewModel.selectedTranscriptionIDs, partialFailure ? [second.id] : [])
+        if partialFailure {
+            XCTAssertEqual(viewModel.errorMessage, "Deleted 1 items. 1 could not be deleted.")
+        } else {
+            XCTAssertNil(viewModel.errorMessage)
+        }
+    }
+
     func testBulkDeletePartialFailureSurvivesFailedReplacementQuery() async throws {
         let good = Transcription(fileName: "good.mp3", status: .completed)
         let failing = Transcription(fileName: "failing.mp3", status: .completed)

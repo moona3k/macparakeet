@@ -214,9 +214,12 @@ when its rows publish.
 
 While a Library refresh or Load More query is pending, a successful single-item
 favorite change, recording deletion, or meeting-audio deletion invalidates that
-query's older snapshot. Bulk recording/audio deletion applies the same rule
-for successfully changed items, preserving failed-item selection and the bulk
-failure summary if the replacement read also fails. Publish the successful
+query's older snapshot. After any successful bulk recording/audio deletion,
+refresh the current requested window even if a query finished while the bulk
+operation was suspended. A page can read after an early target is deleted but
+publish before later targets finish, so its completed loading state does not
+prove that its offsets remain valid. Preserve failed-item selection and the
+bulk failure summary if the replacement read also fails. Publish the successful
 mutation immediately and run
 the replacement database read off the main actor through the normal cancellable
 page loader. The refreshed result keeps the requested page window and current

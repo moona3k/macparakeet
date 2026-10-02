@@ -583,7 +583,7 @@ public final class TranscriptionLibraryViewModel {
             isBulkOperationInProgress = false
             if !result.succeededIDs.isEmpty {
                 removeLoadedTranscriptions(withIDs: Set(result.succeededIDs))
-                refreshPendingLoadAfterMutation()
+                refreshPendingLoadAfterMutation(force: true)
             }
             if !result.failedIDs.isEmpty {
                 restoreFailedSelectionIfCurrent(result.failedIDs, operationGeneration: operationGeneration)
@@ -604,7 +604,7 @@ public final class TranscriptionLibraryViewModel {
             isBulkOperationInProgress = false
             if !result.succeededIDs.isEmpty {
                 clearLoadedMeetingAudio(forIDs: Set(result.succeededIDs))
-                refreshPendingLoadAfterMutation()
+                refreshPendingLoadAfterMutation(force: true)
             }
             if !result.failedIDs.isEmpty {
                 restoreFailedSelectionIfCurrent(result.failedIDs, operationGeneration: operationGeneration)
@@ -791,9 +791,12 @@ public final class TranscriptionLibraryViewModel {
     /// A detached read may already hold a pre-mutation snapshot. Replace its
     /// entire requested window so it cannot restore old state or skip a row
     /// when a deletion shifts the offset of an in-flight next page.
-    private func refreshPendingLoadAfterMutation() {
-        guard isLoading else { return }
-        loadPage(offset: 0, append: false, limit: requestedWindowSize, preservingMutationOnFailure: true)
+    /// Bulk work also refreshes after a query finishes during its mutations.
+    private func refreshPendingLoadAfterMutation(force: Bool = false) {
+        guard isLoading || force else { return }
+        loadPage(
+            offset: 0, append: false, limit: max(pageSize, requestedWindowSize), preservingMutationOnFailure: true
+        )
     }
 
     private func debounceSearchReload() {

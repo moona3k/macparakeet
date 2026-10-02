@@ -28,6 +28,7 @@ recommendations. Current delivery and execution order are recorded in
 | [Telemetry and observability](telemetry-observability.md) | Consent/privacy, delivery, producer/receiver drift, metric interpretation, crashes, latency and activation |
 | [Architecture, code quality, CI and performance](architecture-ci-performance.md) | Ownership boundaries, large-file seams, cancellation, measured build cost, coverage and latency priorities |
 | [Prioritized follow-through](recommendations.md) | Five concrete projects with scope, acceptance criteria, effort, dependencies and stopping rules |
+| [Independent follow-up review](re-review.md) | Fresh persistence/cancellation review and remaining bulk-delete pagination race repair |
 | [Physical audio follow-through](native-audio.md) | Real GUI capture on this Mac, microphone-only recognition, durable artifacts and explicit limits |
 | [Validation and coverage](validation.md) | Reproduction commands, local/CI/runtime distinctions, independent reviews, exclusions and PRs |
 

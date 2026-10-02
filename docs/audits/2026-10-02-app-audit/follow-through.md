@@ -49,6 +49,11 @@ source, pending review and still-unqualified product behavior.
   It is not implemented by the cancellation repair. Legacy outcome handling,
   public CLI/GUI exposure and held-out final-word evaluation remain next work.
 
+A subsequent [independent re-review](re-review.md) reproduced a remaining bulk
+pagination interleaving and repaired it with two gated tests; all 82 Library
+cases pass locally. The original 80-case and 440-case receipts above remain
+dated evidence for their recorded heads.
+
 ## Execution order
 
 1. **App fixes landed.** Exact-head CI and review convergence completed for
