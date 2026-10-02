@@ -1,0 +1,23 @@
+docs/solutions/logic-errors/2026-10-02-meeting-summary-notes-context.md
+  s_5d98aff0ae0bdc::t_8c6c82bdde4e81 81-83
+spec/11-llm-integration.md
+  s_5d98aff0ae0bdc::t_984e9e9393e70e 532-534
+spec/01-data-model.md
+  s_5d98aff0ae0bdc::t_f845bb5a22ca7b 382-383
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ef543f10b962bdfe92f6249ebe0133c96743a1e5",
+  "prompts": {},
+  "sessions": {
+    "s_5d98aff0ae0bdc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ca3046a-d86f-4e30-913f-26a17712a493",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
