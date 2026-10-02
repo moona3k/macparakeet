@@ -610,7 +610,7 @@ final class AppEnvironment {
     ) {
         let config: LLMProviderConfig?
         do {
-            config = try configStore.loadConfig(for: .cleanup)
+            config = try configStore.loadRouteMetadata(for: .cleanup)?.config
         } catch {
             return
         }
