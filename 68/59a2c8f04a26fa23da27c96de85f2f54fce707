@@ -1,0 +1,19 @@
+docs/audits/2026-10-02-app-audit/evidence/library-stale-error-adjudication.json
+  s_78872c520d1d30::t_eb945dff1583c1 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6859a2c8f04a26fa23da27c96de85f2f54fce707",
+  "prompts": {},
+  "sessions": {
+    "s_78872c520d1d30": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fdfa-3264-7ea2-8c67-35821c108110",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
