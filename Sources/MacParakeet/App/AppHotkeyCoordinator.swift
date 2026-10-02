@@ -25,6 +25,7 @@ final class AppHotkeyCoordinator {
     private let dictationRecordingModeProvider: () -> FnKeyStateMachine.RecordingMode?
 
     private var dictationHotkeyEntries: [(spec: DictationHotkeyPlan.Spec, manager: HotkeyManager)] = []
+    private weak var escapeHotkeyManager: HotkeyManager?
     private var activeDictationHotkey: DictationHotkeyPlan.Spec?
     private var meetingHotkeyManager: GlobalShortcutManager?
     private var fileTranscriptionHotkeyManager: GlobalShortcutManager?
@@ -78,7 +79,9 @@ final class AppHotkeyCoordinator {
         Self.menuTitle(
             handsFree: settingsViewModel.hotkeyTrigger,
             pushToTalk: settingsViewModel.pushToTalkHotkeyTrigger,
-            aiPolish: settingsViewModel.dictationAIPolishHotkeyTrigger
+            aiPolish: settingsViewModel.dictationAIPolishHotkeyTrigger,
+            alternateHandsFree: settingsViewModel.alternateHandsFreeHotkeyTrigger,
+            alternatePushToTalk: settingsViewModel.alternatePushToTalkHotkeyTrigger
         )
     }
 
@@ -123,8 +126,15 @@ final class AppHotkeyCoordinator {
     static func menuTitle(
         handsFree: HotkeyTrigger,
         pushToTalk: HotkeyTrigger,
-        aiPolish: HotkeyTrigger = .disabled
+        aiPolish: HotkeyTrigger = .disabled,
+        alternateHandsFree: HotkeyTrigger = .disabled,
+        alternatePushToTalk: HotkeyTrigger = .disabled
     ) -> String {
+        if !alternateHandsFree.isDisabled || !alternatePushToTalk.isDisabled {
+            let alternate = menuTitle(handsFree: alternateHandsFree, pushToTalk: alternatePushToTalk)
+            if handsFree.isDisabled && pushToTalk.isDisabled && aiPolish.isDisabled { return alternate }
+            return menuTitle(handsFree: handsFree, pushToTalk: pushToTalk, aiPolish: aiPolish) + " · " + alternate
+        }
         if handsFree.isDisabled && pushToTalk.isDisabled {
             if !aiPolish.isDisabled {
                 return "AI polish: Tap \(aiPolish.displayName)"
@@ -151,6 +161,19 @@ final class AppHotkeyCoordinator {
     }
 
     static func dictationHotkeyPlan(
+        handsFree: HotkeyTrigger,
+        pushToTalk: HotkeyTrigger,
+        aiPolish: HotkeyTrigger = .disabled,
+        alternateHandsFree: HotkeyTrigger = .disabled,
+        alternatePushToTalk: HotkeyTrigger = .disabled
+    ) -> DictationHotkeyPlan {
+        var plan = primaryDictationHotkeyPlan(handsFree: handsFree, pushToTalk: pushToTalk, aiPolish: aiPolish)
+        let alternate = primaryDictationHotkeyPlan(handsFree: alternateHandsFree, pushToTalk: alternatePushToTalk)
+        for spec in alternate.specs { plan = appending(spec, to: plan) }
+        return DictationHotkeyPlan(specs: plan.specs, conflict: plan.conflict ?? alternate.conflict)
+    }
+
+    private static func primaryDictationHotkeyPlan(
         handsFree handsFreeTrigger: HotkeyTrigger,
         pushToTalk pushToTalkTrigger: HotkeyTrigger,
         aiPolish aiPolishTrigger: HotkeyTrigger = .disabled
@@ -264,7 +287,9 @@ final class AppHotkeyCoordinator {
         let plan = Self.dictationHotkeyPlan(
             handsFree: settingsViewModel.hotkeyTrigger,
             pushToTalk: settingsViewModel.pushToTalkHotkeyTrigger,
-            aiPolish: settingsViewModel.dictationAIPolishHotkeyTrigger
+            aiPolish: settingsViewModel.dictationAIPolishHotkeyTrigger,
+            alternateHandsFree: settingsViewModel.alternateHandsFreeHotkeyTrigger,
+            alternatePushToTalk: settingsViewModel.alternatePushToTalkHotkeyTrigger
         )
         if let conflict = plan.conflict {
             onHotkeyConflict(conflict.trigger, conflict.conflicts)
@@ -291,6 +316,12 @@ final class AppHotkeyCoordinator {
             return (spec: spec, manager: manager)
         }
         dictationHotkeyEntries = entries
+        configureEscapeHandling(
+            entries.map(\.manager),
+            preferred: entries.first {
+                Self.shouldResumeDictationHotkey(
+                    $0.spec, activeMode: activeRecordingMode, activeHotkey: activeDictationHotkey)
+            }?.manager)
         onDictationHotkeyManagersChanged(entries.map { $0.manager })
     }
 
@@ -377,6 +408,19 @@ final class AppHotkeyCoordinator {
         // A rapid restart can reset the previous take's hotkey state while
         // handling onStartDictation. Record this take's owner afterward.
         activeDictationHotkey = spec
+        escapeHotkeyManager = manager
+    }
+
+    /// Keep one Escape dispatcher through the cancel countdown, even though
+    /// the flow clears recording ownership when it enters that countdown.
+    func configureEscapeHandling(_ managers: [HotkeyManager], preferred: HotkeyManager? = nil) {
+        escapeHotkeyManager = preferred ?? managers.first
+        for manager in managers {
+            manager.shouldDispatchEscape = { [weak self, weak manager] in
+                guard let self, let manager else { return false }
+                return self.escapeHotkeyManager === manager
+            }
+        }
     }
 
     private func suppressOtherDictationHotkeys(activeManager: HotkeyManager) {
@@ -399,6 +443,8 @@ final class AppHotkeyCoordinator {
             conflicts: [
                 .init(settingsViewModel.hotkeyTrigger, mode: .bareModifierDictation),
                 .init(settingsViewModel.pushToTalkHotkeyTrigger, mode: .bareModifierDictation),
+                .init(settingsViewModel.alternateHandsFreeHotkeyTrigger, mode: .bareModifierDictation),
+                .init(settingsViewModel.alternatePushToTalkHotkeyTrigger, mode: .bareModifierDictation),
                 .init(settingsViewModel.fileTranscriptionHotkeyTrigger),
                 .init(settingsViewModel.youtubeTranscriptionHotkeyTrigger),
                 .init(settingsViewModel.dictationAIPolishHotkeyTrigger, mode: .bareModifierDictation),
@@ -415,6 +461,8 @@ final class AppHotkeyCoordinator {
             conflicts: [
                 .init(settingsViewModel.hotkeyTrigger, mode: .bareModifierDictation),
                 .init(settingsViewModel.pushToTalkHotkeyTrigger, mode: .bareModifierDictation),
+                .init(settingsViewModel.alternateHandsFreeHotkeyTrigger, mode: .bareModifierDictation),
+                .init(settingsViewModel.alternatePushToTalkHotkeyTrigger, mode: .bareModifierDictation),
                 .init(settingsViewModel.meetingHotkeyTrigger),
                 .init(settingsViewModel.youtubeTranscriptionHotkeyTrigger),
                 .init(settingsViewModel.dictationAIPolishHotkeyTrigger, mode: .bareModifierDictation),
@@ -431,6 +479,8 @@ final class AppHotkeyCoordinator {
             conflicts: [
                 .init(settingsViewModel.hotkeyTrigger, mode: .bareModifierDictation),
                 .init(settingsViewModel.pushToTalkHotkeyTrigger, mode: .bareModifierDictation),
+                .init(settingsViewModel.alternateHandsFreeHotkeyTrigger, mode: .bareModifierDictation),
+                .init(settingsViewModel.alternatePushToTalkHotkeyTrigger, mode: .bareModifierDictation),
                 .init(settingsViewModel.meetingHotkeyTrigger),
                 .init(settingsViewModel.fileTranscriptionHotkeyTrigger),
                 .init(settingsViewModel.dictationAIPolishHotkeyTrigger, mode: .bareModifierDictation),
@@ -514,29 +564,38 @@ final class AppHotkeyCoordinator {
             // dictation behavior; specialized shortcuts cannot take over it.
             return spec.aiFormatterEnabled != true
         }
+        if activeMode == .holdToTalk {
+            return spec.trigger == activeHotkey.trigger && spec.aiFormatterEnabled == activeHotkey.aiFormatterEnabled
+        }
         return spec.aiFormatterEnabled == activeHotkey.aiFormatterEnabled
     }
 
     func syncDictationHotkeyRecordingMode(_ mode: FnKeyStateMachine.RecordingMode) {
-        Self.syncDictationHotkeyManagers(
+        if let dispatcher = Self.syncDictationHotkeyManagers(
             dictationHotkeyEntries,
             mode: mode,
             activeHotkey: activeDictationHotkey
-        )
+        ) {
+            escapeHotkeyManager = dispatcher
+        }
     }
 
+    @discardableResult
     static func syncDictationHotkeyManagers(
         _ entries: [(spec: DictationHotkeyPlan.Spec, manager: HotkeyManager)],
         mode: FnKeyStateMachine.RecordingMode,
         activeHotkey: DictationHotkeyPlan.Spec?
-    ) {
+    ) -> HotkeyManager? {
+        var dispatcher: HotkeyManager?
         for entry in entries {
             if shouldResumeDictationHotkey(entry.spec, activeMode: mode, activeHotkey: activeHotkey) {
                 entry.manager.syncRecordingMode(mode)
+                if dispatcher == nil { dispatcher = entry.manager }
             } else {
                 entry.manager.suppressUntilReset()
             }
         }
+        return dispatcher
     }
 
     func clearActiveDictationHotkey() {

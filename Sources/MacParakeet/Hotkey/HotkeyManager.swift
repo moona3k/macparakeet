@@ -27,6 +27,8 @@ public final class HotkeyManager {
     /// overlay still dismisses. Read on the main thread while processing a
     /// forwarded Escape; Escape itself is never consumed.
     public var shouldCancelOnEscape: () -> Bool = { true }
+    /// Multiple taps see the same Escape. Only one may dispatch shared flow effects.
+    var shouldDispatchEscape: () -> Bool = { true }
 
     private let gestureController: HotkeyGestureController
     private let trigger: HotkeyTrigger
@@ -826,7 +828,16 @@ public final class HotkeyManager {
         // still clears it. A live take keeps `activeRecordingMode` set, so
         // Escape stays ignored when the setting is off.
         if shouldCancelOnEscape() || activeRecordingMode == nil {
-            return gestureController.escapePressed()
+            let outputs = gestureController.escapePressed()
+            if shouldDispatchEscape() { return outputs }
+            // Still clear this manager's pending gesture/timers. Never dispatch
+            // a second cancellation or idle dismissal for the same physical key.
+            return outputs.filter {
+                switch $0 {
+                case .cancelStartupDebounce, .cancelHoldWindow: return true
+                default: return false
+                }
+            }
         }
         return []
     }

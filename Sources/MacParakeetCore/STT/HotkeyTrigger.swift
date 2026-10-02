@@ -686,6 +686,8 @@ public struct HotkeyTrigger: Sendable {
     // MARK: - Persistence
 
     public static let defaultsKey = "hotkeyTrigger"
+    public static let alternateHandsFreeDefaultsKey = "alternateHandsFreeHotkeyTrigger"
+    public static let alternatePushToTalkDefaultsKey = "alternatePushToTalkHotkeyTrigger"
     public static let pushToTalkDefaultsKey = "pushToTalkHotkeyTrigger"
     public static let meetingDefaultsKey = "meetingHotkeyTrigger"
     public static let fileTranscriptionDefaultsKey = "fileTranscriptionHotkeyTrigger"

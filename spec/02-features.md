@@ -169,6 +169,16 @@ Meeting Recording and Calendar are opt-in and self-prompt on first use (see ADR-
 
 Dictation defaults to a built-in shared `Fn` gesture preset: hold `Fn` for push-to-talk, or double-tap `Fn` for hands-free mode. `Fn+Fn` is not a customizable recorded hotkey; choosing restore default returns to this preset. Each dictation role can still be assigned a custom shortcut. The "record a shortcut" UI supports bare modifiers (Fn, Control, etc.), standalone keys (F5, Tab, etc.), modifier+key chords (Fn+Space, Cmd+9, Ctrl+Shift+D), and modifier-only chords (Command+Option, including side-specific variants like Right Command+Right Option). See ADR-009 for full details. Custom dictation shortcuts may be distinct, or both roles may share the exact same non-disabled trigger to reuse the hold/double-tap gesture model. Settings blocks overlapping but non-identical triggers.
 
+Settings > Capture > Dictation > **Additional shortcuts** provides an optional
+second push-to-talk and hands-free shortcut. Both pairs remain active on all
+keyboards. Within either pair, assigning the same trigger enables hold/double-tap
+behavior; distinct triggers use hold and single-tap respectively. Additional
+slots default to disabled and never migrate or replace the primary pair. During
+hands-free recording either ordinary hands-free shortcut can stop the take;
+hold-to-talk remains owned by the trigger that started it. See
+[dictation shortcuts contract](contracts/dictation-shortcuts.md).
+
+
 | Mode | Gesture | Behavior |
 |------|---------|----------|
 | **Hands-free** | Double-tap the shared Fn/custom trigger when both dictation roles share one, or tap the configured hands-free shortcut when roles are distinct | Persistent recording. Tap the shortcut again to stop. |

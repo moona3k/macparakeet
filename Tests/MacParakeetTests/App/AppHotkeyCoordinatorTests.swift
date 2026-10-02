@@ -54,6 +54,7 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         )
         let manager = HotkeyManager(trigger: .control, gestureMode: .singleTapToggle)
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
+        manager.setPhysicalFlagsProviderForTesting { [] }
         manager.resumeRecording(mode: .persistent)
         let spec = AppHotkeyCoordinator.DictationHotkeyPlan.Spec(
             trigger: .control,
@@ -581,4 +582,132 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         XCTAssertNil(AppHotkeyCoordinator.resumeMode(nil, for: .doubleTapAndHold))
         XCTAssertFalse(AppHotkeyCoordinator.shouldSuppressPeer(nil, for: .doubleTapAndHold))
     }
+    func testAdditionalPairPlansTwoCombinedManagersForFnAndDelete() {
+        let key = HotkeyTrigger.fromKeyCode(117)
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .fn, pushToTalk: .fn, alternateHandsFree: key, alternatePushToTalk: key)
+        XCTAssertNil(plan.conflict)
+        XCTAssertEqual(plan.specs.map(\.trigger), [.fn, key])
+        XCTAssertEqual(plan.specs.map(\.gestureMode), [.doubleTapAndHold, .doubleTapAndHold])
+        XCTAssertTrue(plan.specs.allSatisfy { $0.holdToTalkStopTailMs == 200
+})
+    }
+
+    func testAdditionalPairSupportsSeparateModesAndDisabledPrimaries() {
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .disabled, pushToTalk: .disabled, alternateHandsFree: .control, alternatePushToTalk: .option)
+        XCTAssertNil(plan.conflict)
+        XCTAssertEqual(plan.specs.map(\.gestureMode), [.singleTapToggle, .holdOnly])
+    }
+
+    func testAdditionalShortcutCannotRegisterDuplicateOfPrimaryOrPolish() {
+        for key in [HotkeyTrigger.fn, .control] {
+            let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+                handsFree: .fn, pushToTalk: .fn, aiPolish: .control, alternateHandsFree: key)
+            XCTAssertEqual(plan.specs.count, 2)
+            XCTAssertEqual(plan.conflict?.trigger, key)
+        }
+    }
+
+    func testHoldRecordingSyncKeepsAdditionalTriggerSuppressed() {
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .control, pushToTalk: .control, alternateHandsFree: .option, alternatePushToTalk: .option)
+        let owner = plan.specs[0]
+        let peer = plan.specs[1]
+        let manager = HotkeyManager(trigger: peer.trigger, gestureMode: peer.gestureMode)
+        manager.setPhysicalKeyStateProviderForTesting { _ in false }
+        manager.setPhysicalFlagsProviderForTesting { [] }
+        AppHotkeyCoordinator.syncDictationHotkeyManagers([(peer, manager)], mode: .holdToTalk, activeHotkey: owner)
+        XCTAssertEqual(manager.modifierFlagsChangedOutputsForTesting(flags: [.maskAlternate], timestampMs: 1000), [])
+        XCTAssertEqual(manager.modifierFlagsChangedOutputsForTesting(flags: [], timestampMs: 1100), [])
+        XCTAssertFalse(
+            AppHotkeyCoordinator.shouldResumeDictationHotkey(peer, activeMode: .holdToTalk, activeHotkey: owner))
+        XCTAssertTrue(
+            AppHotkeyCoordinator.shouldResumeDictationHotkey(owner, activeMode: .holdToTalk, activeHotkey: owner))
+    }
+
+    func testHandsFreeRecordingCanStopFromAdditionalShortcutAfterSync() {
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .control, pushToTalk: .control, alternateHandsFree: .option, alternatePushToTalk: .option)
+        let peer = plan.specs[1]
+        let manager = HotkeyManager(trigger: peer.trigger, gestureMode: peer.gestureMode)
+        manager.setPhysicalKeyStateProviderForTesting { _ in false }
+        manager.setPhysicalFlagsProviderForTesting { [] }
+        manager.suppressUntilReset()
+        AppHotkeyCoordinator.syncDictationHotkeyManagers(
+            [(peer, manager)], mode: .persistent, activeHotkey: plan.specs[0])
+        let down = manager.modifierFlagsChangedOutputsForTesting(flags: [.maskAlternate], timestampMs: 1000)
+        let up = manager.modifierFlagsChangedOutputsForTesting(flags: [], timestampMs: 1050)
+        XCTAssertEqual((down + up).filter { $0 == .stopRecording }.count, 1)
+    }
+
+    func testAuxiliaryRegistrationReservesAdditionalShortcut() {
+        let vm = makeViewModel()
+        vm.alternatePushToTalkHotkeyTrigger = .fromKeyCode(117)
+        vm.fileTranscriptionHotkeyTrigger = vm.alternatePushToTalkHotkeyTrigger
+        var conflicts: [HotkeyTrigger] = []
+        let coordinator = makeCoordinator(settingsViewModel: vm, onHotkeyConflict: { _, peers in conflicts = peers })
+        coordinator.setupFileTranscriptionHotkey()
+        XCTAssertEqual(conflicts, [vm.alternatePushToTalkHotkeyTrigger])
+    }
+
+    func testOneEscapeDispatchesOneCancellationAcrossManagersInEitherOrder() {
+        for reverse in [false, true] {
+            let coordinator = makeCoordinator(settingsViewModel: makeViewModel(), onHotkeyConflict: { _, _ in })
+            let owner = HotkeyManager(trigger: .control, gestureMode: .doubleTapAndHold)
+            let peer = HotkeyManager(trigger: .option, gestureMode: .doubleTapAndHold)
+            let managers = reverse ? [peer, owner] : [owner, peer]
+            coordinator.configureEscapeHandling(managers, preferred: owner)
+            owner.resumeRecording(mode: .persistent)
+            peer.resumeRecording(mode: .persistent)
+            var cancellationCount = 0
+            for press in 1...2 {
+                for manager in managers {
+                    let outputs = manager.modifierKeyDownOutputsForTesting(
+                        keyCode: 53, timestampMs: UInt64(press * 1000))
+                    if outputs.contains(.cancelRecording) {
+                        cancellationCount += 1
+                        // The real flow clears active ownership and synchronously
+                        // puts every manager into the Undo/cancel window.
+                        coordinator.clearActiveDictationHotkey()
+                        managers.forEach { $0.notifyCancelledByUI() }
+                    }
+                    XCTAssertFalse(outputs.contains(.escapeWhileIdle))
+                }
+                XCTAssertEqual(cancellationCount, press, "One press must not skip the Undo window")
+            }
+        }
+    }
+
+    func testHoldOwnershipSurvivesChangingSharedTriggerToHoldOnly() {
+        let old = AppHotkeyCoordinator.DictationHotkeyPlan.Spec(trigger: .fn, gestureMode: .doubleTapAndHold)
+        let replacement = AppHotkeyCoordinator.DictationHotkeyPlan.Spec(trigger: .fn, gestureMode: .holdOnly)
+        XCTAssertTrue(
+            AppHotkeyCoordinator.shouldResumeDictationHotkey(replacement, activeMode: .holdToTalk, activeHotkey: old))
+    }
+
+    func testEscapeClearsPendingGestureOnNonDispatchingManager() {
+        let manager = HotkeyManager(trigger: .option, gestureMode: .holdOnly)
+        manager.shouldDispatchEscape = { false }
+        manager.setPhysicalKeyStateProviderForTesting { _ in false }
+        manager.setPhysicalFlagsProviderForTesting { [] }
+        _ = manager.modifierFlagsChangedOutputsForTesting(flags: [.maskAlternate], timestampMs: 1000)
+        let outputs = manager.modifierKeyDownOutputsForTesting(keyCode: 53, timestampMs: 1050)
+        XCTAssertTrue(outputs.contains(.cancelStartupDebounce))
+        XCTAssertFalse(outputs.contains(.cancelRecording))
+        XCTAssertEqual(manager.modifierFlagsChangedOutputsForTesting(flags: [], timestampMs: 1100), [.cancelStartupDebounce, .cancelHoldWindow])
+    }
+
+    func testMenuStartedPersistentRecordingSelectsAnEligibleEscapeDispatcher() {
+        let coordinator = makeCoordinator(settingsViewModel: makeViewModel(), onHotkeyConflict: { _, _ in })
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(handsFree: .disabled, pushToTalk: .fn, alternateHandsFree: .option)
+        let managers = plan.specs.map { HotkeyManager(trigger: $0.trigger, gestureMode: $0.gestureMode) }
+        let entries = Array(zip(plan.specs, managers)).map { (spec: $0.0, manager: $0.1) }
+        let dispatcher = AppHotkeyCoordinator.syncDictationHotkeyManagers(entries, mode: .persistent, activeHotkey: nil)
+        XCTAssertTrue(dispatcher === managers[1])
+        coordinator.configureEscapeHandling(managers, preferred: dispatcher)
+        let outputs = managers.flatMap { $0.modifierKeyDownOutputsForTesting(keyCode: 53, timestampMs: 1000) }
+        XCTAssertEqual(outputs.filter { $0 == .cancelRecording }.count, 1)
+    }
+
 }

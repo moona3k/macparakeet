@@ -106,6 +106,11 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   with a `lookup` error instead of restoring stale history or recounting a
   deleted take. Failed-dictation recovery and audio-retention rules are unchanged.
 
+### Changed
+
+- Transform shortcut assignment rejects collisions with either additional dictation
+  shortcut configured in the app. Existing error/output schemas are unchanged.
+
 ## [5.0.0] — 2026-09-27 (bundled with MacParakeet 0.8.9)
 
 This major version removes Apple Intelligence analysis and Transform execution.

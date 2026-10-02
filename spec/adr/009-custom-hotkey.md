@@ -117,3 +117,17 @@ thread.
 
 Tap options, masks and consumed keys are unchanged. A main-thread stall now
 delays only gesture processing, not other apps' input.
+
+
+## Amendment: Additional dictation shortcuts (2026-10-02)
+
+Issue #1197 adds one optional second trigger per ordinary dictation role. Both
+pairs are active simultaneously; there is no keyboard identity detection or
+per-device profile. Settings groups these under Additional shortcuts, reusing
+the recorder, validation, and disable action. Each pair independently retains
+the existing shared-trigger hold/double-tap semantics. Overlaps across pairs are
+blocked instead of installing duplicate listeners. The existing coordinator
+plans and owns all managers; no second dictation engine or capture flow is added.
+Hold-to-talk restoration is restricted to its owning trigger, while either
+ordinary hands-free shortcut can stop a persistent take. AI-polish remains a
+separate invocation policy. See `spec/contracts/dictation-shortcuts.md`.
