@@ -1088,11 +1088,12 @@ open 'macparakeet://meeting/stop'
 Omit `title` to use the normal date-based title. Percent-encode title text;
 for example, `R&D` is `R%26D`. Repeated commands are safe: `start` never toggles
 or renames an active recording, and `pause`/`resume` set an explicit state.
-Pause/resume require capture to have started. Stop saves through the normal
-meeting workflow. `open` does not return recording status or wait for saving.
-A `start` sent while the previous recording is still finishing is not queued:
+Pause/resume require capture to have started. A stop during permission checks
+cancels the pending start. For starting or active capture, stop uses the normal
+save workflow. `open` does not return recording status or wait for saving.
+A `start` sent while stopping, saving, or showing an error pill is not queued:
 the app shows a "Meeting Recorder Is Busy" alert, so a script that runs `stop`
-then `start` must retry the `start` after the previous recording finishes.
+then `start` must retry the `start` once the recorder is idle.
 The app may launch to receive the URL; controls are ignored while disabled or
 during onboarding. Use `macparakeet-dev://` for development bundles.
 
