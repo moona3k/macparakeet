@@ -1,0 +1,21 @@
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_b9353f30e8f62a::t_b9c4a5472bed9c 613
+Tests/MacParakeetTests/App/AppEnvironmentTests.swift
+  s_b9353f30e8f62a::t_f0a0e4e24e0c27 92-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4a386b4de9ef6deae7b68e0836a7109bba0da958",
+  "prompts": {},
+  "sessions": {
+    "s_b9353f30e8f62a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc934a02-cc91-4448-b369-b8bbe508a088",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
