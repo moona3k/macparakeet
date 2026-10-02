@@ -41,7 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var dictationFlowCoordinator: DictationFlowCoordinator?
     private var meetingRecordingFlowCoordinator: MeetingRecordingFlowCoordinator?
     private lazy var meetingURLCommandRouter = MeetingURLCommandRouter(
-        scheme: Bundle.main.bundleIdentifier == "com.macparakeet.dev" ? "macparakeet-dev" : "macparakeet",
+        scheme: Bundle.main.bundleIdentifier == AppPaths.developmentBundleIdentifier ? "macparakeet-dev" : "macparakeet",
         isEnabled: { UserDefaultsAppRuntimePreferences.meetingURLControlEnabled() },
         execute: { [weak self] command in
             guard let self, !self.onboardingWindowController.isVisible,
