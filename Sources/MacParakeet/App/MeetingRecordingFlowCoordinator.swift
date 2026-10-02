@@ -394,7 +394,7 @@ final class MeetingRecordingFlowCoordinator {
             // No capture exists yet. Cancel the permission task without
             // scheduling service cancellation that could hit a later session.
             actionTask?.cancel()
-            clearPendingStartContext(failureReason: "cancelled")
+            clearPendingStartContext(failureReason: "cancelled", outcome: .cancelled)
             sendEvent(.stopRequested)
             return true
         case .idle, .stopping, .finishing:
@@ -512,10 +512,13 @@ final class MeetingRecordingFlowCoordinator {
     /// them first to fire telemetry; this helper is for the paths that
     /// bail out earlier. If the bailing-out start was calendar-driven,
     /// emits `calendar_auto_start_failed{reason}` for observability.
-    private func clearPendingStartContext(failureReason: String) {
+    private func clearPendingStartContext(
+        failureReason: String,
+        outcome: ObservabilityOutcome = .unavailable
+    ) {
         let wasCalendarTriggered = pendingTrigger == .calendarAutoStart
         sendMeetingOperation(
-            outcome: .unavailable,
+            outcome: outcome,
             trigger: pendingTrigger.map(TelemetryMeetingOperationTrigger.init),
             stage: .permissions,
             errorType: failureReason
@@ -1334,9 +1337,9 @@ final class MeetingRecordingFlowCoordinator {
 
         let alert = NSAlert()
         alert.alertStyle = .informational
-        alert.messageText = "Still Saving the Last Meeting"
+        alert.messageText = "Meeting Recorder Is Busy"
         alert.informativeText =
-            "MacParakeet can't start a new recording until the previous meeting finishes saving. "
+            "MacParakeet is still finishing the previous recording. "
             + "Send the start link again in a moment."
         alert.addButton(withTitle: "OK")
         alert.runModal()

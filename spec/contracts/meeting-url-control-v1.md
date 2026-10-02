@@ -56,12 +56,12 @@ scheme. Distribution bundles register `macparakeet://`.
 - `start` is accepted only when the recorder is idle. Repeated starts never
   stop or rename an existing recording; a title only applies to a newly accepted
   start. While a start is checking permissions, starting, or recording, a
-  repeated `start` is a silent no-op. While the previous meeting is still
+  repeated `start` is a silent no-op. While the previous recording is still
   stopping or saving, or its error pill is showing, the request is not queued or
-  deferred: the app activates and shows a single "Still Saving the Last
-  Meeting" alert (further rejected starts coalesce while it is open), and the
-  caller must send `start` again once the recorder is idle. Automations that
-  chain `stop` then `start` should retry or wait for saving to finish.
+  deferred: the app activates and shows a single "Meeting Recorder Is Busy"
+  alert (further rejected starts coalesce while it is open), and the caller
+  must send `start` again once the recorder is idle. Automations that chain
+  `stop` then `start` should retry or wait for the previous recording to finish.
 - `stop` cancels a start still checking permissions. Once capture is starting
   or active, it uses normal stop/save behavior, including when paused. It never
   discards an existing recording. It is a no-op when idle or already stopping.

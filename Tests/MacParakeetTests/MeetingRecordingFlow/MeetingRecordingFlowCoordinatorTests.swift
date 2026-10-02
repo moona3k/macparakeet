@@ -106,6 +106,10 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.testHook_state, .checkingPermissions)
         coordinator.handleURLCommand(.stop)
         XCTAssertEqual(coordinator.testHook_state, .idle)
+        let cancelled = try XCTUnwrap(telemetry.snapshot().compactMap(\.meetingOperationPayload).last)
+        XCTAssertEqual(cancelled.outcome, .cancelled)
+        XCTAssertEqual(cancelled.stage, .permissions)
+        XCTAssertEqual(cancelled.errorType, "cancelled")
         coordinator.handleURLCommand(.start(title: "Next"))
         try await waitForPillState(pill, .recording)
         let calls = await service.startCalls
@@ -2328,9 +2332,11 @@ private final class FlowTelemetrySpy: TelemetryServiceProtocol, @unchecked Senda
 private struct MeetingOperationPayload: Equatable {
     let outcome: ObservabilityOutcome
     let trigger: TelemetryMeetingOperationTrigger?
+    let stage: TelemetryMeetingOperationStage?
     let durationSeconds: Double?
     let microphoneTrackPresent: Bool?
     let systemTrackPresent: Bool?
+    let errorType: String?
     let captureStartCompleted: Bool?
 }
 
@@ -2342,7 +2348,7 @@ private extension TelemetryEventSpec {
                 _,
                 let outcome,
                 let trigger,
-                _,
+                let stage,
                 let durationSeconds,
                 _,
                 _,
@@ -2350,7 +2356,7 @@ private extension TelemetryEventSpec {
                 let systemTrackPresent,
                 _,
                 _,
-                _,
+                let errorType,
                 let captureStartCompleted,
                 _
             ) = self
@@ -2361,9 +2367,11 @@ private extension TelemetryEventSpec {
         return MeetingOperationPayload(
             outcome: outcome,
             trigger: trigger,
+            stage: stage,
             durationSeconds: durationSeconds,
             microphoneTrackPresent: microphoneTrackPresent,
             systemTrackPresent: systemTrackPresent,
+            errorType: errorType,
             captureStartCompleted: captureStartCompleted
         )
     }

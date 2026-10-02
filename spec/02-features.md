@@ -2082,8 +2082,8 @@ The GUI app accepts opt-in `macparakeet://meeting/start`, `stop`, `pause`, and
 The default-off **Allow recording control from links** switch is in Capture
 settings. Any app or website can send these links once enabled; existing audio
 permissions and recording settings remain in force. A `start` sent while the
-previous meeting is still saving is not queued; the app shows a busy alert and
-the caller retries. The [URL control contract](contracts/meeting-url-control-v1.md) defines validation,
+previous recording is still finishing is not queued; the app shows a busy alert
+and the caller retries. The [URL control contract](contracts/meeting-url-control-v1.md) defines validation,
 startup delivery, idempotency, and development-scheme isolation.
 
 ### F42: Meeting Recording Pause / Resume
