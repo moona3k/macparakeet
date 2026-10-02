@@ -169,7 +169,8 @@ final class AppHotkeyCoordinator {
     ) -> DictationHotkeyPlan {
         var plan = primaryDictationHotkeyPlan(handsFree: handsFree, pushToTalk: pushToTalk, aiPolish: aiPolish)
         let alternate = primaryDictationHotkeyPlan(handsFree: alternateHandsFree, pushToTalk: alternatePushToTalk)
-        for spec in alternate.specs { plan = appending(spec, to: plan) }
+        let otherPair = plan.specs.map(\.trigger)
+        for spec in alternate.specs { plan = appending(spec, to: plan, rejectingChordKeysOf: otherPair) }
         return holdingBareFnForChords(
             DictationHotkeyPlan(specs: plan.specs, conflict: plan.conflict ?? alternate.conflict))
     }
@@ -245,12 +246,17 @@ final class AppHotkeyCoordinator {
         )
     }
 
+    /// `otherPair` lists triggers the spec may not share a chord's terminal key
+    /// with, even when their modifiers differ (see `HotkeyTrigger.sharesChordKey`).
     private static func appending(
         _ spec: DictationHotkeyPlan.Spec,
-        to plan: DictationHotkeyPlan
+        to plan: DictationHotkeyPlan,
+        rejectingChordKeysOf otherPair: [HotkeyTrigger] = []
     ) -> DictationHotkeyPlan {
         guard !spec.trigger.isDisabled else { return plan }
-        let conflicting = plan.specs.map(\.trigger).filter { spec.trigger.overlaps(with: $0) }
+        let conflicting = plan.specs.map(\.trigger).filter {
+            spec.trigger.overlaps(with: $0) || (otherPair.contains($0) && spec.trigger.sharesChordKey(with: $0))
+        }
         if !conflicting.isEmpty {
             return DictationHotkeyPlan(
                 specs: plan.specs,

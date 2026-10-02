@@ -814,16 +814,7 @@ public final class HotkeyManager {
             trigger: trigger,
             flags: flags
         )
-        // Modifiers held for a peer shortcut do not make the chord inexact.
-        let exactPressed = ModifierKeyMatcher.modifierChordMatches(
-            trigger: trigger,
-            flags: flags.subtracting(
-                peerModifierFlags(
-                    in: flags,
-                    excluding: CGEventFlags(rawValue: trigger.modifierChordEventFlags)
-                )
-            )
-        )
+        let exactPressed = modifierChordIsExact(in: flags)
         let wasRequiredPressed = modifierChordRequiredWasPressed
         modifierChordRequiredWasPressed = requiredPressed
 
@@ -907,6 +898,13 @@ public final class HotkeyManager {
     /// Drops the modifier keys that belong to peer shortcuts.
     private func unclaimedByPeers(_ keyCodes: Set<UInt16>) -> Set<UInt16> {
         ownsHeldTake ? keyCodes.filter { !peerInput.claimsModifierKeyCode($0) } : keyCodes
+    }
+
+    /// Modifiers held for a peer shortcut do not make the modifier chord inexact.
+    private func modifierChordIsExact(in flags: CGEventFlags) -> Bool {
+        let peerHeld = peerModifierFlags(
+            in: flags, excluding: CGEventFlags(rawValue: trigger.modifierChordEventFlags))
+        return ModifierKeyMatcher.modifierChordMatches(trigger: trigger, flags: flags.subtracting(peerHeld))
     }
 
     /// True when a keyDown belongs to a peer shortcut and must not interrupt
@@ -1025,6 +1023,8 @@ public final class HotkeyManager {
     ) -> [HotkeyGestureController.Output] {
         // The tap may have missed events, so trust the key-state snapshot again.
         releaseObservedKeyCodes.removeAll(keepingCapacity: true)
+        // A peer key released while the tap was down no longer excuses typing it.
+        claimedPeerKeyCodes = claimedPeerKeyCodes.filter(physicalKeyStateProvider)
         let triggerPressed = currentPhysicalTriggerIsPressed(
             flags: flags,
             triggerKeyPressed: triggerKeyPressed
@@ -1204,23 +1204,31 @@ public final class HotkeyManager {
         case .modifier:
             guard let mask = targetMask else { return false }
             let activeTrackedModifiers = currentFlags.intersection(ModifierKeyMatcher.trackedModifierMasks)
-            if !activeTrackedModifiers.subtracting(mask).isEmpty {
+            if !activeTrackedModifiers
+                .subtracting(mask)
+                .subtracting(peerModifierFlags(in: currentFlags, excluding: mask))
+                .isEmpty
+            {
                 return true
             }
             if trigger == .fn {
-                if !pressedNonFnKeyCodes.isEmpty {
+                if !pressedNonFnKeyCodes.subtracting(claimedPeerKeyCodes).isEmpty {
                     return true
                 }
             }
             if let targetKeyCode = trigger.modifierKeyCode {
-                return ModifierKeyMatcher.oppositeSideModifierIsPressed(
+                // The opposite side held for a peer shortcut is not contamination.
+                guard let oppositeKeyCode = HotkeyTrigger.oppositeModifierKeyCode(for: targetKeyCode),
+                    !unclaimedByPeers([oppositeKeyCode]).isEmpty
+                else { return false }
+                return ModifierKeyMatcher.sideSpecificModifierIsPressed(
                     flags: currentFlags,
-                    keyCode: targetKeyCode
+                    keyCode: oppositeKeyCode
                 )
             }
             return false
         case .modifierChord:
-            return !ModifierKeyMatcher.modifierChordMatches(trigger: trigger, flags: currentFlags)
+            return !modifierChordIsExact(in: currentFlags)
         default:
             return false
         }
@@ -1249,8 +1257,11 @@ public final class HotkeyManager {
         // Alpha Shift is a latched state, not proof that Caps Lock is held.
         // A physical Caps key is covered by the key ledger; transitions are
         // handled from changedKeyCode in modifierFlagsChangedOutputs.
-        return !activeTrackedModifiers.subtracting(fnMask).isEmpty
-            || !pressedNonFnKeyCodes.isEmpty
+        // Peer input is exempt only for a take already held; admission stays raw.
+        let peerHeld = peerModifierFlags(in: flags, excluding: fnMask)
+        let otherModifiers = activeTrackedModifiers.subtracting(fnMask).subtracting(peerHeld)
+        let otherKeys = pressedNonFnKeyCodes.subtracting(claimedPeerKeyCodes)
+        return !otherModifiers.isEmpty || !otherKeys.isEmpty
     }
 
     private func interruptPendingPassiveFnWindow() -> [HotkeyGestureController.Output] {

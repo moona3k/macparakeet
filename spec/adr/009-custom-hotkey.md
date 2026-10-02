@@ -125,8 +125,10 @@ pairs are active simultaneously; there is no keyboard identity detection or
 per-device profile. Settings groups these under Additional shortcuts, reusing
 the recorder, validation, and disable action. Each pair independently retains
 the existing shared-trigger hold/double-tap semantics. Overlaps across pairs are
-blocked instead of installing duplicate listeners. The existing coordinator
-plans and owns all managers; no second dictation engine or capture flow is added.
+blocked instead of installing duplicate listeners, as are chords on one terminal
+key between the additional pair and the primary pair or AI polish. The existing
+coordinator plans and owns all managers; no second dictation engine or capture
+flow is added.
 Hold-to-talk restoration is restricted to its owning trigger, input from the
 other accepted shortcuts does not interrupt a held take, while either
 ordinary hands-free shortcut can stop a persistent take. AI-polish remains a

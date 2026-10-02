@@ -215,8 +215,9 @@ public enum HotkeyConflictPolicy {
             for peer in [
                 NamedCandidate(name: "hands-free mode", trigger: snapshot.handsFree),
                 NamedCandidate(name: "push to talk", trigger: snapshot.pushToTalk),
+                NamedCandidate(name: "AI-polished dictation", trigger: snapshot.dictationAIPolish),
             ] {
-                if let conflict = overlappingConflict(candidate: trigger, peer: peer.trigger, peerName: peer.name) {
+                if let conflict = acrossPairsConflict(candidate: trigger, peer: peer.trigger, peerName: peer.name) {
                     return conflict
                 }
             }
@@ -239,7 +240,7 @@ public enum HotkeyConflictPolicy {
             }
         case .handsFreeDictation, .pushToTalk, .dictationAIPolish:
             for peer in alternates {
-                if let conflict = overlappingConflict(candidate: trigger, peer: peer.trigger, peerName: peer.name) {
+                if let conflict = acrossPairsConflict(candidate: trigger, peer: peer.trigger, peerName: peer.name) {
                     return conflict
                 }
             }
@@ -370,6 +371,19 @@ public enum HotkeyConflictPolicy {
         peerName: String
     ) -> Conflict? {
         guard candidate.overlaps(with: peer) else { return nil }
+        return Conflict(name: peerName, trigger: peer)
+    }
+
+    /// The additional pair against the primary pair and AI polish. Chords on one
+    /// terminal key collide across pairs even with different modifiers, so one
+    /// pair's key release cannot be mistaken for the other's. Within a pair the
+    /// ordinary role policy applies.
+    private static func acrossPairsConflict(
+        candidate: HotkeyTrigger,
+        peer: HotkeyTrigger,
+        peerName: String
+    ) -> Conflict? {
+        guard candidate.overlaps(with: peer) || candidate.sharesChordKey(with: peer) else { return nil }
         return Conflict(name: peerName, trigger: peer)
     }
 

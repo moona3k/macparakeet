@@ -695,6 +695,39 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         XCTAssertEqual(plan.specs.map(\.gestureMode), [.singleTapToggle, .holdOnly])
     }
 
+    func testAdditionalChordOnAnotherPairsTerminalKeyIsReportedAsAConflict() {
+        let commandK = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 40)
+        let optionK = HotkeyTrigger.chord(modifiers: ["option"], keyCode: 40)
+        let shared = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: commandK, pushToTalk: commandK, alternateHandsFree: optionK, alternatePushToTalk: optionK)
+        XCTAssertEqual(shared.specs.map(\.trigger), [commandK], "The primary shortcut keeps its tap")
+        XCTAssertEqual(shared.conflict?.trigger, optionK)
+        XCTAssertEqual(shared.conflict?.conflicts, [commandK])
+
+        let withPolish = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .disabled, pushToTalk: .disabled, aiPolish: commandK, alternateHandsFree: optionK)
+        XCTAssertEqual(withPolish.specs.map(\.trigger), [commandK])
+        XCTAssertEqual(withPolish.conflict?.trigger, optionK)
+    }
+
+    func testChordsOnOneTerminalKeyStillCoexistWithinTheLongStandingPrimaryPlan() {
+        let commandK = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 40)
+        let optionK = HotkeyTrigger.chord(modifiers: ["option"], keyCode: 40)
+        let primary = AppHotkeyCoordinator.dictationHotkeyPlan(handsFree: commandK, pushToTalk: optionK)
+        XCTAssertNil(primary.conflict)
+        XCTAssertEqual(primary.specs.map(\.trigger), [commandK, optionK])
+
+        let additionalPair = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .disabled, pushToTalk: .disabled, alternateHandsFree: commandK, alternatePushToTalk: optionK)
+        XCTAssertNil(additionalPair.conflict)
+        XCTAssertEqual(additionalPair.specs.map(\.trigger), [commandK, optionK])
+
+        let polish = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: commandK, pushToTalk: commandK, aiPolish: optionK)
+        XCTAssertNil(polish.conflict)
+        XCTAssertEqual(polish.specs.map(\.trigger), [commandK, optionK])
+    }
+
     func testAdditionalShortcutCannotRegisterDuplicateOfPrimaryOrPolish() {
         for key in [HotkeyTrigger.fn, .control] {
             let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
@@ -976,6 +1009,9 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
     private static let rightCommandTrigger = HotkeyTrigger(
         kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
+    private static let leftCommandTrigger = HotkeyTrigger(
+        kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 55)
+    private static let leftCommand = device(NX_DEVICELCMDKEYMASK)
 
     /// A shortcut pair where `owner` holds a take and the user then presses and
     /// releases the `peer` shortcut, as the taps see it.
@@ -1076,6 +1112,18 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
                 .modifier(61, [ctrl, leftControl]),
             ],
             ownerRelease: [.modifier(59, [])]),
+        PeerScenario(
+            name: "Control owner, side-specific peer reporting only the generic flag",
+            owner: .control, peer: rightOptionTrigger,
+            ownerPress: [.modifier(59, ctrl)],
+            peerInput: [.modifier(61, ctrlOpt), .modifier(61, ctrl)],
+            ownerRelease: [.modifier(59, [])]),
+        PeerScenario(
+            name: "Modifier-chord owner, side-specific peer reporting only the generic flag",
+            owner: .modifierChord(modifiers: ["control", "shift"]), peer: rightOptionTrigger,
+            ownerPress: [.modifier(59, ctrl), .modifier(56, [ctrl, shift])],
+            peerInput: [.modifier(61, [ctrl, shift, opt]), .modifier(61, [ctrl, shift])],
+            ownerRelease: [.modifier(56, ctrl), .modifier(59, [])]),
         PeerScenario(
             name: "Side-specific owner, Option peer",
             owner: rightCommandTrigger, peer: .option,
@@ -1400,6 +1448,128 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             }
             rig.send([.down(119, Self.ctrl)])
             XCTAssertEqual(rig.recorder.killedTakes, 1, "A stale claim absorbed typing: \(rig.label)")
+        }
+    }
+    // MARK: - Tap recovery during a held take
+
+    /// A tap that macOS disabled and re-enabled resyncs from the physical state.
+    /// Peer input held at that moment is judged the way the live paths judge it.
+    func testTapRecoveryKeepsPeerInputThatIsHeldDuringAHeldTakeFromBecomingAnInterruption() {
+        struct Recovery {
+            let scenario: PeerScenario
+            let heldAtRecovery: CGEventFlags
+            let heldKeys: Set<UInt16>
+            let afterRecovery: [PhysicalEvent]
+        }
+        let ctrlShift: CGEventFlags = [Self.ctrl, Self.shift]
+        let recoveries = [
+            Recovery(
+                scenario: PeerScenario(
+                    name: "Control owner, Option peer", owner: .control, peer: .option,
+                    ownerPress: [.modifier(59, Self.ctrl)], peerInput: [.modifier(58, Self.ctrlOpt)],
+                    ownerRelease: [.modifier(59, [])]),
+                heldAtRecovery: Self.ctrlOpt, heldKeys: [], afterRecovery: [.modifier(58, Self.ctrl)]),
+            Recovery(
+                scenario: PeerScenario(
+                    name: "Fn owner, Option peer", owner: .fn, peer: .option,
+                    ownerPress: [.modifier(63, Self.fn)], peerInput: [.modifier(58, [Self.fn, Self.opt])],
+                    ownerRelease: [.modifier(63, [])]),
+                heldAtRecovery: [Self.fn, Self.opt], heldKeys: [], afterRecovery: [.modifier(58, Self.fn)]),
+            Recovery(
+                scenario: PeerScenario(
+                    name: "Fn owner, standalone key peer", owner: .fn, peer: .fromKeyCode(117),
+                    ownerPress: [.modifier(63, Self.fn)], peerInput: [.down(117, Self.fn)],
+                    ownerRelease: [.modifier(63, [])]),
+                heldAtRecovery: Self.fn, heldKeys: [117], afterRecovery: [.up(117, Self.fn)]),
+            Recovery(
+                scenario: PeerScenario(
+                    name: "Modifier-chord owner, Option peer",
+                    owner: .modifierChord(modifiers: ["control", "shift"]), peer: .option,
+                    ownerPress: [.modifier(59, Self.ctrl), .modifier(56, ctrlShift)],
+                    peerInput: [.modifier(58, [Self.ctrl, Self.shift, Self.opt])],
+                    ownerRelease: [.modifier(56, Self.ctrl), .modifier(59, [])]),
+                heldAtRecovery: [Self.ctrl, Self.shift, Self.opt], heldKeys: [],
+                afterRecovery: [.modifier(58, ctrlShift)]),
+            Recovery(
+                scenario: PeerScenario(
+                    name: "Right Command owner, Left Command peer",
+                    owner: Self.rightCommandTrigger, peer: Self.leftCommandTrigger,
+                    ownerPress: [.modifier(54, [.maskCommand, Self.rightCommand])],
+                    peerInput: [.modifier(55, [.maskCommand, Self.rightCommand, Self.leftCommand])],
+                    ownerRelease: [.modifier(54, [])]),
+                heldAtRecovery: [.maskCommand, Self.rightCommand, Self.leftCommand], heldKeys: [],
+                afterRecovery: [.modifier(55, [.maskCommand, Self.rightCommand])]),
+        ]
+        for recovery in recoveries {
+            forEachPeerRig([recovery.scenario], variants: [.provisional, .confirmed]) { rig in
+                rig.startHeldTake()
+                rig.send(recovery.scenario.peerInput)
+                rig.owner.setPhysicalKeyStateProviderForTesting { recovery.heldKeys.contains($0) }
+                rig.owner.recoverFromDisabledTapForTesting(flags: recovery.heldAtRecovery, triggerKeyPressed: false)
+                XCTAssertEqual(rig.recorder.killedTakes, 0, "Recovery killed the take: \(rig.label)")
+
+                rig.send(recovery.afterRecovery)
+                rig.releaseOwnerAfterTapThreshold()
+                XCTAssertEqual(rig.recorder.pendingStops, 1, "Owner release must stop, not cancel: \(rig.label)")
+                XCTAssertEqual(rig.recorder.killedTakes, 0, rig.label)
+            }
+        }
+    }
+
+    func testTapRecoveryStillTreatsAnUnconfiguredModifierAsInterference() {
+        let scenario = PeerScenario(
+            name: "Control owner, Option peer, Shift held", owner: .control, peer: .option,
+            ownerPress: [.modifier(59, Self.ctrl)], peerInput: [],
+            ownerRelease: [.modifier(59, [])])
+        forEachPeerRig([scenario], variants: [.confirmed]) { rig in
+            rig.startHeldTake()
+            rig.owner.recoverFromDisabledTapForTesting(
+                flags: [Self.ctrl, Self.opt, Self.shift], triggerKeyPressed: false)
+            rig.releaseOwnerAfterTapThreshold()
+            XCTAssertEqual(rig.recorder.pendingStops, 0, "Shift is not a peer, so the release cancels: \(rig.label)")
+            XCTAssertEqual(rig.recorder.killedTakes, 1, rig.label)
+        }
+    }
+
+    func testTapRecoveryDropsPeerKeyClaimsForKeysReleasedWhileTheTapWasDown() {
+        let optionEnd = HotkeyTrigger.chord(modifiers: ["option"], keyCode: 119)
+        let owners: [(name: String, owner: HotkeyTrigger, ownerPress: PhysicalEvent, held: CGEventFlags)] = [
+            ("Control owner", .control, .modifier(59, Self.ctrl), Self.ctrl),
+            ("Fn owner", .fn, .modifier(63, Self.fn), Self.fn),
+        ]
+        for (name, owner, ownerPress, held) in owners {
+            let withOption = held.union(Self.opt)
+            let scenario = PeerScenario(
+                name: "\(name), Option+End peer", owner: owner, peer: optionEnd,
+                ownerPress: [ownerPress],
+                peerInput: [.modifier(58, withOption), .down(119, withOption)],
+                ownerRelease: [.modifier(owner == .fn ? 63 : 59, [])])
+
+            // The key went up while the tap was down, so typing it is typing again.
+            forEachPeerRig([scenario], variants: [.confirmed]) { rig in
+                rig.startHeldTake()
+                rig.send(scenario.peerInput)
+                rig.owner.setPhysicalKeyStateProviderForTesting { _ in false }
+                rig.owner.recoverFromDisabledTapForTesting(flags: held, triggerKeyPressed: false)
+                XCTAssertEqual(rig.recorder.killedTakes, 0, "Recovery alone is fine: \(rig.label)")
+
+                rig.send([.down(119, held)])
+                XCTAssertEqual(rig.recorder.killedTakes, 1, "A stale claim excused typing: \(rig.label)")
+            }
+
+            // The key is still down after recovery, so its claim holds until keyUp.
+            forEachPeerRig([scenario], variants: [.confirmed]) { rig in
+                rig.startHeldTake()
+                rig.send(scenario.peerInput)
+                rig.owner.setPhysicalKeyStateProviderForTesting { $0 == 119 }
+                rig.owner.recoverFromDisabledTapForTesting(flags: withOption, triggerKeyPressed: false)
+                rig.send([.up(119, withOption), .modifier(58, held)])
+                XCTAssertEqual(rig.recorder.killedTakes, 0, "A held peer key survives recovery: \(rig.label)")
+
+                rig.releaseOwnerAfterTapThreshold()
+                XCTAssertEqual(rig.recorder.pendingStops, 1, rig.label)
+                XCTAssertEqual(rig.recorder.killedTakes, 0, rig.label)
+            }
         }
     }
 

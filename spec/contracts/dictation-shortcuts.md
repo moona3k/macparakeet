@@ -66,6 +66,12 @@ and that one shortcut's use never silently ends another's take.
   Additional shortcuts reserve their triggers against AI polish, meetings,
   file/URL transcription, and Transforms, and each of those reserves against
   them. The existing bare-modifier versus chord exception remains.
+- Between the additional pair and the primary pair or AI polish, two chords on
+  the same terminal key are rejected even with different modifiers. Both
+  keyboards can send that key, so a held take could not tell a peer's key
+  release from its owner's. Within one pair, and within the primary pair and AI
+  polish, the long-standing rule is unchanged and such chords may coexist.
+  Settings, onboarding, and the runtime plan apply this one rule.
 - Runtime plans keep primary and AI-polish bindings ahead of conflicting
   additional bindings imported outside Settings. A rejected binding reports a
   conflict instead of installing a competing tap.
@@ -102,9 +108,15 @@ flags, so another shortcut's keys reach the manager that owns a held take.
   input is a configured peer modifier (a side-specific peer matches only its own
   side), the modifier prefix of a peer chord, the exact key of a peer key
   trigger, the terminal key of a peer chord while its modifiers are held, and
-  the Fn key macOS reports when Fn is a peer.
+  the Fn key macOS reports when Fn is a peer. When an event carries no side
+  bits, a side-specific peer is not ruled out, so the generic flag falls back to
+  it, as side-specific triggers match when macOS reports only that flag.
 - A claimed peer key stays claimed until its keyUp, even if its chord modifiers
   release first. The claim ends with the take.
+- When macOS disables and re-enables a tap during a held take, held peer
+  modifiers and claimed peer keys are judged as in the live paths, so the
+  owner's release still stops the take. Claims for keys no longer physically
+  down are dropped. Outside a held take recovery stays conservative.
 - Everything else still interrupts: ordinary typing, a chord's terminal key
   without its modifiers, another key under a chord prefix, an unconfigured
   modifier, and the opposite side of a side-specific peer.

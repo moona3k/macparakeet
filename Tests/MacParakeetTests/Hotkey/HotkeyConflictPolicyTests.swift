@@ -478,4 +478,85 @@ final class HotkeyConflictPolicyTests: XCTestCase {
         )
     }
 
+    // MARK: - Chords on one terminal key
+
+    private let commandK = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 40)
+    private let optionK = HotkeyTrigger.chord(modifiers: ["option"], keyCode: 40)
+
+    /// Two keyboards can both send the key, and a held take cannot tell whose
+    /// release it sees, so an additional chord may not share a key with another pair.
+    func testAdditionalChordCannotShareATerminalKeyWithAnotherPairInEitherDirection() {
+        XCTAssertFalse(commandK.overlaps(with: optionK), "Different modifiers do not overlap")
+        let primaryRoles = [
+            snapshot(handsFree: commandK), snapshot(pushToTalk: commandK), snapshot(dictationAIPolish: commandK),
+        ]
+        for settings in primaryRoles {
+            for surface: HotkeyConflictPolicy.Surface in [.alternateHandsFree, .alternatePushToTalk] {
+                guard
+                    case .blocked = HotkeyConflictPolicy.settingsValidation(
+                        candidate: optionK, surface: surface, snapshot: settings)
+                else {
+                    return XCTFail("Expected an additional \(surface) chord to collide on the shared key")
+                }
+            }
+        }
+        for settings in [snapshot(alternateHandsFree: commandK), snapshot(alternatePushToTalk: commandK)] {
+            for surface: HotkeyConflictPolicy.Surface in [.handsFreeDictation, .pushToTalk, .dictationAIPolish] {
+                guard
+                    case .blocked = HotkeyConflictPolicy.settingsValidation(
+                        candidate: optionK, surface: surface, snapshot: settings)
+                else {
+                    return XCTFail("Expected a \(surface) chord to collide with the additional chord's key")
+                }
+            }
+        }
+    }
+
+    func testPersistedAdditionalChordOnAnotherPairsKeyIsReportedAsDisabled() {
+        // The runtime plan keeps the primary shortcut and drops the additional one.
+        let settings = snapshot(handsFree: commandK, alternateHandsFree: optionK)
+        XCTAssertEqual(
+            HotkeyConflictPolicy.settingsConflictMessage(
+                for: optionK, surface: .alternateHandsFree, snapshot: settings),
+            SettingsHotkeyConflictMessage.disabled(conflictingWith: "hands-free mode", trigger: commandK))
+        XCTAssertEqual(
+            HotkeyConflictPolicy.settingsConflictMessage(
+                for: commandK, surface: .handsFreeDictation, snapshot: settings),
+            SettingsHotkeyConflictMessage.blocked(conflictingWith: "additional hands-free shortcut", trigger: optionK))
+    }
+
+    func testChordsMayStillShareAKeyWithinOnePair() {
+        // Primary pair and AI polish keep their long-standing rules.
+        XCTAssertEqual(
+            HotkeyConflictPolicy.settingsValidation(
+                candidate: optionK, surface: .pushToTalk, snapshot: snapshot(handsFree: commandK)),
+            .allowed)
+        XCTAssertEqual(
+            HotkeyConflictPolicy.settingsValidation(
+                candidate: optionK, surface: .dictationAIPolish, snapshot: snapshot(handsFree: commandK)),
+            .allowed)
+        // The additional pair follows the same role policy as the primary pair.
+        XCTAssertEqual(
+            HotkeyConflictPolicy.settingsValidation(
+                candidate: optionK, surface: .alternatePushToTalk, snapshot: snapshot(alternateHandsFree: commandK)),
+            .allowed)
+        XCTAssertEqual(
+            HotkeyConflictPolicy.settingsValidation(
+                candidate: commandK, surface: .alternatePushToTalk, snapshot: snapshot(alternateHandsFree: commandK)),
+            .allowed)
+    }
+
+    func testAdditionalChordMayShareAKeyWithAKeyOrModifierShortcutThatDoesNotOverlap() {
+        let settings = snapshot(handsFree: .fn, pushToTalk: .fn, alternateHandsFree: commandK)
+        let otherKey = HotkeyTrigger.chord(modifiers: ["option"], keyCode: 41)
+        XCTAssertEqual(
+            HotkeyConflictPolicy.settingsValidation(
+                candidate: otherKey, surface: .alternatePushToTalk, snapshot: settings),
+            .allowed)
+        XCTAssertEqual(
+            HotkeyConflictPolicy.settingsValidation(
+                candidate: optionK, surface: .meetingRecording, snapshot: settings),
+            .allowed, "Only dictation takes can be ended by a peer's key release")
+    }
+
 }

@@ -48,10 +48,12 @@ struct HotkeyPeerInputPolicy: Equatable {
     /// True when a key release can matter, so the owner's tap must see keyUp.
     var claimsKeys: Bool { !keyTriggers.isEmpty }
 
-    /// `keyCode` is the pressed side, or nil when the event does not say.
+    /// `keyCode` is the pressed side, or nil when the event does not say. Without
+    /// a side nothing rules a side-specific peer out, so the generic flag falls
+    /// back to it, as side-specific triggers match when macOS reports only that.
     func claimsModifier(named name: String, keyCode: UInt16?) -> Bool {
         modifierComponents.contains {
-            $0.modifierName == name && ($0.keyCode == nil || $0.keyCode == keyCode)
+            $0.modifierName == name && (keyCode == nil || $0.keyCode == nil || $0.keyCode == keyCode)
         }
     }
 

@@ -7,6 +7,7 @@ final class HotkeyPeerInputPolicyTests: XCTestCase {
     private let option = CGEventFlags.maskAlternate.rawValue
     private let leftOption = CGEventFlags(rawValue: UInt64(NX_DEVICELALTKEYMASK))
     private let rightOption = CGEventFlags(rawValue: UInt64(NX_DEVICERALTKEYMASK))
+    private let leftControl = CGEventFlags(rawValue: UInt64(NX_DEVICELCTLKEYMASK))
     private let rightOptionTrigger = HotkeyTrigger(
         kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
 
@@ -65,11 +66,24 @@ final class HotkeyPeerInputPolicyTests: XCTestCase {
         XCTAssertEqual(
             policy.claimedModifierFlags(in: [.maskAlternate, leftOption, rightOption], excluding: []), [],
             "A modifier also held by an unconfigured side is not peer-only")
-        XCTAssertEqual(
-            policy.claimedModifierFlags(in: [.maskAlternate], excluding: []), [],
-            "Without side bits the pressed side is unknown")
         XCTAssertTrue(policy.claimsModifierKeyCode(61))
         XCTAssertFalse(policy.claimsModifierKeyCode(58))
+    }
+
+    func testSideSpecificPeerFallsBackToTheGenericFlagWhenTheEventCarriesNoSideBits() {
+        let policy = HotkeyPeerInputPolicy(peers: [rightOptionTrigger])
+        XCTAssertEqual(
+            policy.claimedModifierFlags(in: [.maskAlternate], excluding: []), .maskAlternate,
+            "Without side bits nothing rules the peer out, as for a side-specific trigger's own matching")
+        XCTAssertEqual(
+            policy.claimedModifierFlags(in: [.maskControl, .maskAlternate, .maskShift], excluding: .maskControl),
+            .maskAlternate, "Only modifiers a peer uses fall back")
+        XCTAssertEqual(
+            policy.claimedModifierFlags(in: [.maskAlternate, .maskControl, leftControl], excluding: []),
+            .maskAlternate, "Side bits on another modifier do not decide this one")
+        XCTAssertEqual(
+            policy.claimedModifierFlags(in: [.maskAlternate, leftOption], excluding: []), [],
+            "A reported opposite side still rules the peer out")
     }
 
     func testChordPrefixAndModifierChordComponentsAreClaimed() {
