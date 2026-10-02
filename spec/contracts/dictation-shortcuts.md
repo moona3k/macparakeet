@@ -34,7 +34,8 @@ changes to audio, transcription, formatting, paste, or privacy behavior.
   AI-polish recordings remain separate from ordinary dictation shortcuts.
 - One manager dispatches Escape effects across all dictation taps, preserving the
   cancellation Undo window. Other managers clear a pending first press and its
-  timers but never leave a live-take or cancel-window state on Escape.
+  timers but leave live-take and cancel-window state unchanged on Escape, so
+  they stay blocked until the flow resets them.
 - Discarding a provisional hold take (quick tap or interrupting key) releases
   the other taps that the start suppressed; the discarding tap keeps its
   second-tap window.
@@ -53,8 +54,9 @@ key is intercepted system-wide.
 
 ## Verification
 
-Focused suites: `AppHotkeyCoordinatorTests`, `HotkeyConflictPolicyTests`,
-`SettingsViewModelTests`, `OnboardingShortcutEditorTests`, `TransformsCommandTests`.
+Focused suites: `AppHotkeyCoordinatorTests`, `HotkeyGestureControllerTests`,
+`HotkeyConflictPolicyTests`, `SettingsViewModelTests`,
+`OnboardingShortcutEditorTests`, `TransformsCommandTests`.
 Native acceptance: keep Fn on the Mac keyboard, assign Delete to both additional
 roles, exercise hold/release and double-tap/stop on both keyboards, stop a
 hands-free take from the other keyboard, and verify releasing the other shortcut

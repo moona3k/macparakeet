@@ -118,7 +118,6 @@ thread.
 Tap options, masks and consumed keys are unchanged. A main-thread stall now
 delays only gesture processing, not other apps' input.
 
-
 ## Amendment: Additional dictation shortcuts (2026-10-02)
 
 Issue #1197 adds one optional second trigger per ordinary dictation role. Both

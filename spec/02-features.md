@@ -178,7 +178,6 @@ hands-free recording either ordinary hands-free shortcut can stop the take;
 hold-to-talk remains owned by the trigger that started it. See
 [dictation shortcuts contract](contracts/dictation-shortcuts.md).
 
-
 | Mode | Gesture | Behavior |
 |------|---------|----------|
 | **Hands-free** | Double-tap the shared Fn/custom trigger when both dictation roles share one, or tap the configured hands-free shortcut when roles are distinct | Persistent recording. Tap the shortcut again to stop. |
@@ -221,7 +220,7 @@ Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migra
 - Chord validation: Escape blocked for all kinds. Modifier+key chords containing Command warn about system shortcut conflicts (Cmd+Tab, Cmd+Space, Cmd+Q/W/H/M). Fn is allowed in modifier+key chords such as Fn+Space.
 - Hands-free key-down: toggles persistent recording immediately for key and modifier+key triggers; bare modifier hands-free triggers toggle on bare release so normal modifier shortcuts are not captured.
 - Dedicated push-to-talk key-down: schedule only the startup debounce, then start hold-to-talk.
-- Duplicate or overlapping dictation shortcuts: exact duplicate triggers are allowed and use the shared hold/double-tap gesture model; overlapping but non-identical assignments are rejected in Settings and reported at runtime instead of creating a hidden combined gesture.
+- Duplicate or overlapping dictation shortcuts: within one pair, exact duplicate triggers are allowed and use the shared hold/double-tap gesture model; overlapping but non-identical assignments are rejected in Settings and reported at runtime instead of creating a hidden combined gesture. Across the primary and additional pairs every overlap, including an exact duplicate, is rejected (see the dictation shortcuts contract).
 - On key-up: dedicated push-to-talk releases after startup debounce stop and process.
 - Escape cannot be assigned as a hotkey. It cancels a live dictation by default (`escapeCancelsDictation`). Off leaves Escape for the front app during a live take. A pending gesture that has not started a take still clears.
 - Requires Accessibility permission (prompted on first activation).
