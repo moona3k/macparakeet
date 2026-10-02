@@ -1,0 +1,19 @@
+integrations/README.md
+  s_63c8b57c7f6e8c::t_6fe0d8c9d9d011 1091-1094,1096
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "40bffbe2aad60e9048bb7385c002ae64995de6a7",
+  "prompts": {},
+  "sessions": {
+    "s_63c8b57c7f6e8c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fe53-365e-7f91-881f-f0e1aa4e141b",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
