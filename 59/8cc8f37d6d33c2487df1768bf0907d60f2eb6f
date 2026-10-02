@@ -1,0 +1,37 @@
+Sources/MacParakeet/Hotkey/HotkeyManager.swift
+  s_31c99a8fc84603::t_550b94761ac8c2 835
+  s_31c99a8fc84603::t_bc3edd310eaea5 831-834
+Sources/MacParakeet/App/AppHotkeyCoordinator.swift
+  s_31c99a8fc84603::t_2352fc334af9b5 341-358
+  s_31c99a8fc84603::t_ce4d16b960dcb2 385-388,390-391
+  s_31c99a8fc84603::t_550b94761ac8c2 389
+  s_31c99a8fc84603::t_e0b082b7cd6316 441-446
+  s_31c99a8fc84603::t_8e33c7263bcf9d 402
+  s_31c99a8fc84603::t_24737c597b2581 687-692
+spec/contracts/dictation-shortcuts.md
+  s_31c99a8fc84603::t_166f1f8229c28d 32-36
+Tests/MacParakeetTests/Hotkey/HotkeyGestureControllerTests.swift
+  s_31c99a8fc84603::t_e268cef4517e99 5-6
+  s_31c99a8fc84603::t_a34be373eb07b7 345-400
+Sources/MacParakeetCore/STT/HotkeyGestureController.swift
+  s_31c99a8fc84603::t_46e8c8272ede3b 261-273
+Tests/MacParakeetTests/App/AppHotkeyCoordinatorTests.swift
+  s_31c99a8fc84603::t_9da9a97462f43d 696-772
+  s_31c99a8fc84603::t_cf4bf86c24b885 660-663,682-691
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "598cc8f37d6d33c2487df1768bf0907d60f2eb6f",
+  "prompts": {},
+  "sessions": {
+    "s_31c99a8fc84603": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ed832c40-8548-4922-b3d1-05d5bd35e969",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
