@@ -212,6 +212,14 @@ While a source-filter query reloads, existing cards retain the attribution
 resolved for their displayed result set; the destination context applies only
 when its rows publish.
 
+While a Library refresh or Load More query is pending, a successful single-item
+favorite change, recording deletion, or meeting-audio deletion invalidates that
+query's older snapshot. The refreshed result keeps the requested page window
+and current filters, so deleted rows/audio affordances cannot reappear and a
+deletion cannot shift pagination past an unseen recording. If the mutation
+succeeds but the refresh fails, report the refresh failure separately; do not
+claim the saved mutation failed.
+
 `Video` has narrowed the source to one family but not to one platform, so it
 shows the platform's own brand mark from `Resources/BrandGlyphs` without the
 word. The word is dropped only where such a mark replaces it: a source that
@@ -1387,6 +1395,20 @@ Centered at the bottom of the settings form:
 ### Onboarding
 
 Button to re-run onboarding flow: "Run Onboarding Again..."
+
+The first-run window follows [ADR-005](adr/005-onboarding-first-run.md): Welcome,
+Permissions, Try It, and Ready. Try It has a hotkey rehearsal phase and a real
+dictation phase. Loading and inactive practice boxes may use compact fixed
+heights; model-setup failures use their content's intrinsic height in either
+phase so the heading, explanation, recovery tips, and Retry / Open Settings
+buttons do not overlap adjacent content. The step body scrolls while navigation
+and Skip remain in the footer.
+
+Synthetic native hosting tests can validate these view states and geometry.
+They do not establish physical hotkey behavior, microphone or Accessibility
+permission prompts, real-model readiness, cross-app paste, or VoiceOver support.
+The [October audit](../docs/audits/2026-10-02-app-audit/gui-onboarding.md) records
+the verified states and outstanding end-to-end qualification.
 
 ---
 

@@ -238,8 +238,13 @@ struct OnboardingPracticeStepView: View {
                     }
                 }
 
-                box
-                    .frame(height: isDictationPhase ? boxHeight : 76)
+                if case .failed = viewModel.practiceBoxState {
+                    // Recovery text and actions need their intrinsic height
+                    // even before the user has confirmed a working hotkey.
+                    box.fixedSize(horizontal: false, vertical: true)
+                } else {
+                    box.frame(height: isDictationPhase ? 150 : 76)
+                }
 
                 if isDictationPhase, viewModel.hasPracticeResult {
                     HStack(spacing: 10) {
@@ -264,11 +269,6 @@ struct OnboardingPracticeStepView: View {
             }
             .padding(DesignSystem.Spacing.md)
         }
-    }
-
-    private var boxHeight: CGFloat {
-        if case .failed = viewModel.practiceBoxState { return 176 }
-        return 150
     }
 
     @ViewBuilder

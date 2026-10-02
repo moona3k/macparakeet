@@ -404,6 +404,7 @@ public final class TranscriptionLibraryViewModel {
                 }
                 publishLoadedItems(transcriptions, hasMore: hasMore, filter: displayedFilter)
             }
+            refreshPendingLoadAfterMutation()
             Telemetry.send(.transcriptionFavorited(isFavorite: newValue))
         } catch {
             logger.error("Failed to update transcription favorite: \(error.localizedDescription, privacy: .private)")
@@ -632,6 +633,7 @@ public final class TranscriptionLibraryViewModel {
             transcriptions.removeAll { $0.id == transcription.id }
             selectedTranscriptionIDs.remove(transcription.id)
             publishLoadedItems(transcriptions, hasMore: hasMore, filter: displayedFilter)
+            refreshPendingLoadAfterMutation()
             Telemetry.send(.transcriptionDeleted)
         } catch {
             logger.error("Failed to delete transcription: \(error.localizedDescription, privacy: .private)")
@@ -659,6 +661,7 @@ public final class TranscriptionLibraryViewModel {
                 transcriptions[idx].filePath = nil
                 publishLoadedItems(transcriptions, hasMore: hasMore, filter: displayedFilter)
             }
+            refreshPendingLoadAfterMutation()
         } catch TranscriptionAssetCleanupError.meetingAudioFinalizationInProgress {
             errorMessage = TranscriptionAssetCleanup.meetingAudioFinalizationInProgressMessage
         } catch {
@@ -783,6 +786,23 @@ public final class TranscriptionLibraryViewModel {
         loadTask = nil
         loadGeneration += 1
         isLoading = false
+    }
+
+    /// A detached read may already hold a pre-mutation snapshot. Replace its
+    /// entire requested window so it cannot restore old state or skip a row
+    /// when a deletion shifts the offset of an in-flight next page.
+    private func refreshPendingLoadAfterMutation() {
+        guard isLoading else { return }
+        let windowSize = requestedWindowSize
+        cancelActiveLoad()
+        do {
+            try reloadLoadedWindow(limit: windowSize)
+        } catch {
+            logger.error(
+                "Updated Library but failed to refresh pending query: \(error.localizedDescription, privacy: .private)"
+            )
+            errorMessage = "Updated Library, but failed to refresh: \(error.localizedDescription)"
+        }
     }
 
     private func debounceSearchReload() {

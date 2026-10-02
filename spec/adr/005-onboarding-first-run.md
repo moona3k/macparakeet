@@ -106,3 +106,22 @@ The Microphone step stays in onboarding, but Continue is no longer gated on gran
 - `onboarding_step` names are now `welcome`, `permissions`, `practice`, `ready`, with new actions `hotkey_confirmed`, `practice_succeeded`, and `practice_skipped`. `total_steps` is 4.
 
 **Out of scope:** sign-in, intent or meeting surveys, calendar connect, time-saved claims, referrals, and fake third-party app chrome. The after-close tip and a job picker are possible follow-ups.
+
+## Implementation qualification — 2026-10-02 audit
+
+The September 23 decision remains the intended behavior. The independent audit
+identified an implementation gap in its background-download guarantee:
+Parakeet preparation runs in the shared speech runtime, while the locale-selected
+Whisper download currently runs inside the onboarding view model's task. Closing
+the window cancels that task. A cancellation-aware Whisper downloader can
+therefore stop after Skip / Finish instead of completing in the background.
+Whisper setup also does not currently use the progress-stall watchdog installed
+for Parakeet. These are open conformance gaps, not accepted engine-specific UX
+differences; see GUI-03 and GUI-04 in the
+[audit report](../../docs/audits/2026-10-02-app-audit/gui-onboarding.md).
+
+The same audit corrected failed-setup layout before key confirmation: error
+content now uses intrinsic height in both Try It phases. Native hosting renders
+with synthetic dependencies establish layout evidence only. Clean-install TCC,
+physical Fn gestures, real model download/cancellation, first audio capture,
+and cross-app paste still require native end-to-end qualification.

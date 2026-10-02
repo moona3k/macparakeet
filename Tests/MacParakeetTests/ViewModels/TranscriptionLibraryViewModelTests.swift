@@ -1052,6 +1052,87 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
 
     // MARK: - Favorites
 
+    func testFavoriteMutationRejectsStaleRefreshSnapshot() async throws {
+        try await assertMutationRejectsStaleSnapshot(loadMore: false, mutation: .favorite)
+    }
+
+    func testFavoriteMutationPreservesRequestedPaginationWindow() async throws {
+        try await assertMutationRejectsStaleSnapshot(loadMore: true, mutation: .favorite)
+    }
+
+    func testDeleteMutationRejectsStaleRefreshSnapshot() async throws {
+        try await assertMutationRejectsStaleSnapshot(loadMore: false, mutation: .delete)
+    }
+
+    func testDeleteMutationPreservesRequestedPaginationWindow() async throws {
+        try await assertMutationRejectsStaleSnapshot(loadMore: true, mutation: .delete)
+    }
+
+    func testDeleteAudioMutationRejectsStaleRefreshSnapshot() async throws {
+        try await assertMutationRejectsStaleSnapshot(loadMore: false, mutation: .deleteAudio)
+    }
+
+    private enum SnapshotMutation {
+        case favorite, delete, deleteAudio
+    }
+
+    private func assertMutationRejectsStaleSnapshot(loadMore: Bool, mutation: SnapshotMutation) async throws {
+        let mockRepo = MockTranscriptionRepository()
+        let viewModel = TranscriptionLibraryViewModel()
+        viewModel.pageSize = loadMore ? 1 : 100
+        let folder = try makeTemporaryManagedMeetingFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let audio = folder.appendingPathComponent("meeting-playback.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: audio.path, contents: Data("synthetic audio".utf8)))
+        let target = Transcription(
+            createdAt: Date(timeIntervalSince1970: 3), fileName: "Latest meeting", filePath: audio.path,
+            status: .completed, sourceType: .meeting)
+        let second = Transcription(createdAt: Date(timeIntervalSince1970: 2), fileName: "Second", status: .completed)
+        let third = Transcription(createdAt: Date(timeIntervalSince1970: 1), fileName: "Third", status: .completed)
+        mockRepo.transcriptions = [target, second, third]
+        viewModel.configure(transcriptionRepo: mockRepo)
+        await viewModel.loadTranscriptions().value
+
+        let gate = StaleFetchGate()
+        mockRepo.fetchAllHandler = { [mockRepo, gate] limit in
+            let snapshot = mockRepo.transcriptions.sorted { $0.createdAt > $1.createdAt }
+            if gate.nextCallNumber() == 1 { gate.blockFirstFetchUntilAllowed() }
+            return limit.map { Array(snapshot.prefix($0)) } ?? snapshot
+        }
+        let staleLoad =
+            loadMore
+            ? try XCTUnwrap(viewModel.loadMoreTranscriptions()) : viewModel.loadTranscriptions()
+        defer { gate.allowFirstFetchToFinish() }
+        let started = await Task.detached { gate.waitForFirstFetchStarted() }.value
+        XCTAssertTrue(started)
+        switch mutation {
+        case .favorite: viewModel.toggleFavorite(target)
+        case .delete: viewModel.deleteTranscription(target)
+        case .deleteAudio: viewModel.deleteMeetingAudio(target)
+        }
+        XCTAssertNil(viewModel.errorMessage)
+        gate.allowFirstFetchToFinish()
+        await staleLoad.value
+
+        switch mutation {
+        case .favorite:
+            XCTAssertTrue(try XCTUnwrap(viewModel.transcriptions.first { $0.id == target.id }).isFavorite)
+            XCTAssertTrue(try XCTUnwrap(mockRepo.fetch(id: target.id)).isFavorite)
+        case .delete:
+            XCTAssertFalse(viewModel.transcriptions.contains { $0.id == target.id })
+            XCTAssertNil(try mockRepo.fetch(id: target.id))
+        case .deleteAudio:
+            XCTAssertNil(try XCTUnwrap(viewModel.transcriptions.first { $0.id == target.id }).filePath)
+            XCTAssertNil(try XCTUnwrap(mockRepo.fetch(id: target.id)).filePath)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: audio.path))
+        }
+        if loadMore {
+            XCTAssertEqual(viewModel.transcriptions.count, 2, "The requested next page must survive the mutation")
+            XCTAssertEqual(Set(viewModel.transcriptions.map(\.id)).count, 2)
+            XCTAssertEqual(viewModel.hasMore, mutation != .delete)
+        }
+    }
+
     func testToggleFavorite() async throws {
         let t = Transcription(fileName: "test.mp3", status: .completed)
         try repo.save(t)
