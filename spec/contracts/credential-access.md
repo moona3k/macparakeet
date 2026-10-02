@@ -31,6 +31,7 @@ route metadata or removing an unreadable optional API key. Actual AI requests
 continue to resolve credentials at execution time, preserving cross-process key
 rotation behavior.
 
-Verification: `KeychainInteractionTests`, `LLMConfigStoreTests`, and
-`LLMSettingsViewModelTests`. Runtime verification uses synthetic credentials;
+Verification: `KeychainInteractionTests`, `LLMConfigStoreTests`,
+`LLMSettingsViewModelTests`, `PromptsViewModelTests`,
+`PromptResultsViewModelTests`, and `AppEnvironmentTests`. Runtime verification uses synthetic credentials;
 never reproduce by reading, changing, or deleting a user's saved API keys.

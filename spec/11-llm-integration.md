@@ -66,7 +66,7 @@ previous routes active.
 Route metadata is refreshed and read or written under a shared nonblocking
 cross-process lease. Mutations acquire it before changing credentials and keep
 it through metadata publication; competing operations fail busy without changes,
-including while Keychain authorization is pending. Effective-route resolution uses one metadata snapshot before loading the
+including while another credential operation is in progress. Effective-route resolution uses one metadata snapshot before loading the
 selected provider's credentials outside that lock. Model pickers compare their
 displayed route and inheritance identity as part of the same store operation
 that changes the model, so a simultaneous CLI route change cannot redirect a
@@ -635,6 +635,9 @@ The setup header and settings card describe the saved provider: a failed test
 of an unsaved draft does not mark the working saved provider as disconnected.
 Test Connection never saves a draft; Save remains a separate action. A saved
 configuration is shown as ready without implying that connectivity was tested.
+Status rendering uses provider metadata rather than secret reads; blocked saved
+credentials show Open Keychain Access and Retry access actions. See
+[credential access](contracts/credential-access.md).
 Credential writes/deletes must succeed before replacing provider metadata.
 Local CLI settings are encoded before committing the provider switch, so an
 encoding failure leaves the previous provider and CLI settings intact.
