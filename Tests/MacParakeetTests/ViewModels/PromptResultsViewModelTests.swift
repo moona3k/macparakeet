@@ -2614,7 +2614,8 @@ final class PromptResultsViewModelTests: XCTestCase {
             )
         )
         var prompt = Prompt.classicSummaryPrompt()
-        XCTAssertFalse(prompt.includeMeetingNotes)
+        XCTAssertTrue(prompt.includeMeetingNotes)
+        // The historical result was generated before the default changed.
         let existing = PromptResult(
             transcriptionId: transcriptionID,
             promptId: prompt.id,

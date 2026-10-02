@@ -5,10 +5,21 @@
 > Related: ADR-013 (prompt library + multi-summary), ADR-014 (meeting recording), ADR-017 (calendar auto-start), ADR-018 (live meeting Ask tab), ADR-019 (crash-resilient meeting recording)
 > Naming Note (2026-04-28): The persisted table remains `summaries`, but the current Swift names are `PromptResult`, `PromptResultRepository`, and `PromptResultsViewModel`.
 
-## Amendment (2026-10-02, notes visibility and correction guidance — issue #1204)
+## Amendment (2026-10-02, Summary default and notes guidance — issue #1204)
 
-The opt-in default and saved-result replay semantics remain unchanged. The
-meeting generation popover now states whether the selected prompt will include
+Newly seeded built-in **Summary** prompts enable `includeMeetingNotes` by
+default. Users can turn the checkbox off. Existing saved preferences, including
+false values, are preserved: older databases cannot distinguish an untouched
+default from a deliberate opt-out. Other built-in prompts, new custom prompts,
+legacy decoding, and the database column default remain false. The existing
+Restore Defaults action still re-shows prompts and clears source scoping without
+resetting notes preferences. No data migration is required.
+
+When Summary runs with notes, the selected AI provider receives them along with
+the transcript. Notes do not trigger an AI run independently. Empty notes add
+no context block. Saved-result replay semantics remain unchanged.
+
+The meeting generation popover now states whether the selected prompt will include
 notes and points to **Manage Prompts → expand Summary → Include meeting notes
 as context** when disabled. Saved meeting results expose their recorded notes
 snapshot when present, or explain that notes were off/unrecorded. A result with
@@ -50,8 +61,9 @@ stale files after a newer commit. Cross-process conflict UI is out of scope.
 
 Result prompts gain an `includeMeetingNotes` preference, exposed as an
 **Include meeting notes as context** checkbox for built-in and custom result
-prompts. It defaults to `false`, is unavailable for Transforms, and never opts
-existing prompts in implicitly. When enabled and non-empty meeting notes exist,
+prompts. Its general default is `false`, with the newly seeded built-in Summary
+exception described in the 2026-10-02 amendment. It is unavailable for
+Transforms and never opts existing prompts in implicitly. When enabled and non-empty meeting notes exist,
 the shared prompt assembler adds one delimited notes-context block while
 keeping the transcript as factual source of truth.
 

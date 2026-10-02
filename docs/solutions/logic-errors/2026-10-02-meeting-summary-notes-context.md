@@ -13,6 +13,20 @@ tags: [meetings, notes, summaries, prompt-context, issue-1204]
 
 # Meeting notes excluded from Summary: issue #1204
 
+## Approved direction and implementation plan
+
+The user subsequently requested notes enabled by default and a reviewed PR.
+The built-in Summary is now seeded with notes enabled. Existing preferences are
+preserved because a stored false value cannot distinguish an untouched default
+from an intentional opt-out. Other built-in and custom prompts remain unchanged.
+The historical findings below describe 0.8.9 and the investigation base.
+
+The implementation plan is to change Summary's seed preference, preserve
+checkbox opt-outs across launches and Restore Defaults, retain generation
+receipts and Regenerate replay policy, update ADR/CLI contracts, verify focused
+repository and request-boundary tests, and publish the reviewed branch as a PR.
+No schema migration, URL fetch, automatic AI run, or release deployment is added.
+
 ## Verdict and evidence
 
 The reported behavior is reproducible under default settings. This does not
@@ -51,7 +65,8 @@ that commit and the investigation base `f43f4bed2` shows the same exclusion rule
 - Automatic context now permits explicit spelling corrections when the referent
   is clear and asks for relevant URLs to be preserved exactly. Names/links alone
   cannot establish attendance, speaker identity, decisions, or commitments.
-- Existing opt-in choices, replay behavior, notes persistence, the 8,000-word
+- Summary's new-install default is enabled. Existing choices, replay behavior,
+  notes persistence, the 8,000-word
   cap, custom template framing, and URL-fetch behavior remain unchanged.
 - Historical snapshots are labeled neutrally: older versions stored full notes
   even when the request was capped, so they are not always exact sent receipts.

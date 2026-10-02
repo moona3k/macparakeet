@@ -43,6 +43,12 @@ identifiers already stored as BLOBs retain their bytes. The migration does
 not rewrite parent identifiers or re-encode their references.
 
 Prompt name and operational metadata stay on `prompts` and are not versioned.
+On first creation of the prompt library, reconciliation applies the canonical
+meeting-notes defaults after historical migrations: Summary includes notes by
+default, while other built-ins do not. Existing libraries preserve their saved
+preferences, including explicit opt-outs; no schema migration or result snapshot
+rewrite is involved (ADR-020, issue #1204).
+
 The historical `prompts.content` and `prompts.inferenceSettings` columns are
 copied into V1 during migration and dropped by
 `v0.36-drop-legacy-prompt-values`; only the active version owns those values. `summaries.promptContent` and

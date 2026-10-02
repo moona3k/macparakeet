@@ -523,6 +523,24 @@ final class PromptRepositoryTests: XCTestCase {
         )
     }
 
+    func testBuiltInSummaryIncludesMeetingNotesByDefault() throws {
+        let summary = try XCTUnwrap(try repo.fetch(id: Prompt.classicSummaryPrompt().id))
+        XCTAssertTrue(summary.includeMeetingNotes)
+        let otherBuiltIns = try repo.fetchAll().filter { $0.isBuiltIn && $0.id != summary.id }
+        XCTAssertFalse(otherBuiltIns.isEmpty)
+        XCTAssertTrue(otherBuiltIns.allSatisfy { !$0.includeMeetingNotes })
+        let custom = Prompt(name: "Custom", content: "Summarize.")
+        try repo.save(custom)
+        XCTAssertFalse(try XCTUnwrap(repo.fetch(id: custom.id)).includeMeetingNotes)
+    }
+
+    func testRestoreDefaultsPreservesSummaryNotesOptOut() throws {
+        let summaryID = Prompt.classicSummaryPrompt().id
+        try repo.setIncludeMeetingNotes(id: summaryID, enabled: false)
+        try repo.restoreDefaults()
+        XCTAssertFalse(try XCTUnwrap(repo.fetch(id: summaryID)).includeMeetingNotes)
+    }
+
     func testReconcilerPreservesBuiltInMeetingNotesPreference() throws {
         let tmpDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("reconciler-meeting-notes-\(UUID().uuidString)")
@@ -535,11 +553,11 @@ final class PromptRepositoryTests: XCTestCase {
         let summary = try XCTUnwrap(
             (try firstRepo.fetchAll()).first(where: { $0.name == "Summary" })
         )
-        try firstRepo.setIncludeMeetingNotes(id: summary.id, enabled: true)
+        try firstRepo.setIncludeMeetingNotes(id: summary.id, enabled: false)
 
         let second = try DatabaseManager(path: dbPath)
         let secondRepo = PromptRepository(dbQueue: second.dbQueue)
-        XCTAssertEqual(try secondRepo.fetch(id: summary.id)?.includeMeetingNotes, true)
+        XCTAssertEqual(try secondRepo.fetch(id: summary.id)?.includeMeetingNotes, false)
     }
 
     func testReconcilerPreservesLegacyPartialAppliesToSources() throws {

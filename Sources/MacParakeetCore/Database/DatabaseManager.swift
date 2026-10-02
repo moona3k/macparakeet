@@ -110,8 +110,12 @@ public final class DatabaseManager: Sendable {
     #endif
 
     private func migrate() throws {
+        // Historical migrations seed built-ins before newer preference columns
+        // exist. Apply today's defaults only when creating the prompt library;
+        // an existing library's saved preferences belong to the user.
+        let hadPromptLibrary = try dbQueue.read { try $0.tableExists("prompts") }
         try Self.makeMigrator().migrate(dbQueue)
-        try reconcileBuiltInPrompts()
+        try reconcileBuiltInPrompts(initializeMeetingNotesDefaults: !hadPromptLibrary)
         try reconcileBuiltInQuickPrompts()
     }
 
@@ -2469,7 +2473,7 @@ public final class DatabaseManager: Sendable {
         try repo.seedIfNeeded()
     }
 
-    private func reconcileBuiltInPrompts() throws {
+    private func reconcileBuiltInPrompts(initializeMeetingNotesDefaults: Bool) throws {
         let builtInPrompts = Prompt.builtInPrompts(now: Date())
         let canonicalIDs = builtInPrompts.map { $0.id }
 
@@ -2492,6 +2496,13 @@ public final class DatabaseManager: Sendable {
                     // history without an explicit user action.
                     guard existing.deletedAt == nil, existing.userCustomizedAt == nil else {
                         continue
+                    }
+
+                    if initializeMeetingNotesDefaults {
+                        try db.execute(
+                            sql: "UPDATE prompts SET includeMeetingNotes = ? WHERE id = ?",
+                            arguments: [prompt.includeMeetingNotes, existing.id]
+                        )
                     }
 
                     let canonicalRevision = prompt.lastAppliedCanonicalRevision ?? 1

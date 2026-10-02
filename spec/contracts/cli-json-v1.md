@@ -131,7 +131,10 @@ still apply.
   that every field is supported by the provider selected for a later run.
 - The same prompt JSON objects include additive Boolean
   `includeMeetingNotes`, the result prompt's automatic meeting-notes context
-  preference. Its default is `false`. The `--include-meeting-notes` flag on
+  preference. Its generic default is `false`; newly seeded built-in Summary
+  prompts set it to `true`. Existing saved settings and historical result
+  snapshots are preserved. `prompts restore-defaults` preserves this preference.
+  The `--include-meeting-notes` flag on
   `prompts set <prompt>` enables it and `--no-include-meeting-notes` disables
   it; the flags are mutually exclusive and rejected for Transform prompts.
   Explicit `{{userNotes}}` custom-template substitution remains

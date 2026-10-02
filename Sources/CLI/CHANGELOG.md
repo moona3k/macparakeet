@@ -106,6 +106,14 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   with a `lookup` error instead of restoring stale history or recounting a
   deleted take. Failed-dictation recovery and audio-retention rules are unchanged.
 
+### Changed
+
+- Newly seeded built-in Summary prompts include meeting notes by default,
+  including when run through `prompts run`. Existing preferences, custom prompt
+  defaults, and saved result snapshots are preserved. Disable notes with
+  `prompts set Summary --no-include-meeting-notes`; `prompts restore-defaults`
+  continues to preserve notes preferences. No JSON schema changes (#1204).
+
 ## [5.0.0] — 2026-09-27 (bundled with MacParakeet 0.8.9)
 
 This major version removes Apple Intelligence analysis and Transform execution.
