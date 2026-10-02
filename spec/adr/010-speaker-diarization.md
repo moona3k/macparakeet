@@ -53,6 +53,22 @@ Nemotron licensing note is superseded by the final model's OpenMDW-1.1 license;
 attribution and its full license accompany the app. FluidAudio itself uses
 Apache-2.0. No new runtime or cloud speech service is introduced.
 
+## Community-1 input dither (2026-10-01)
+
+Community-1 reads its input through `DitheredAudioSampleSource`, which adds
+uniform ±10 LSB noise (about −70 dBFS) as a pure function of the sample index.
+Muted remote tracks contain long runs of exact zeros; FBank's per-window mean
+log-mel is then dominated by the log floor, those windows lose the voice, and
+they gather into extra clusters that mix people
+([#1046](https://github.com/moona3k/macparakeet/issues/1046),
+[FluidAudio #981](https://github.com/FluidInference/FluidAudio/issues/981)).
+On the 16 AMI mixed-headset test meetings with non-speech zeroed, NIST-scored as
+in the Nemotron evaluation, confusion goes from 5.14% to 3.53% and the summed
+speaker-count error from 48 to 9; the original audio moves from 23.19% to 23.31%
+DER (count error 5 to 7). Nemotron is unaffected by exact zeros and is not
+dithered. Remove the dither once FluidAudio excludes silent frames from the
+FBank mean.
+
 ## Context (original decision)
 
 MacParakeet v0.4 adds speaker diarization to file transcription (F13). Users who transcribe interviews, podcasts, and meetings need to know "who said what" — not just the raw text.
