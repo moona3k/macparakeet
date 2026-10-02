@@ -53,8 +53,15 @@ scheme. Distribution bundles register `macparakeet://`.
 
 ## Lifecycle semantics
 
-- `start` is a no-op unless the recorder is idle. Repeated starts never stop
-  or rename an existing recording; a title only applies to a newly accepted start.
+- `start` is accepted only when the recorder is idle. Repeated starts never
+  stop or rename an existing recording; a title only applies to a newly accepted
+  start. While a start is checking permissions, starting, or recording, a
+  repeated `start` is a silent no-op. While the previous meeting is still
+  stopping or saving, or its error pill is showing, the request is not queued or
+  deferred: the app activates and shows a single "Still Saving the Last
+  Meeting" alert (further rejected starts coalesce while it is open), and the
+  caller must send `start` again once the recorder is idle. Automations that
+  chain `stop` then `start` should retry or wait for saving to finish.
 - `stop` cancels a start still checking permissions. Once capture is starting
   or active, it uses normal stop/save behavior, including when paused. It never
   discards an existing recording. It is a no-op when idle or already stopping.
@@ -80,7 +87,9 @@ local artifact paths are not stable protocol fields.
 `MeetingURLCommandTests` covers grammar, title decoding, scheme isolation,
 consent, cold-launch ordering, startup failure, and bounded buffering.
 `MeetingRecordingFlowCoordinatorTests` covers title propagation, repeated
-starts, pending-start cancellation, pause/resume, and existing saving paths.
+starts, the busy notice while stopping or finishing, pending-start
+cancellation, pause/resume (including pause intent that does not leak into a
+following manual or calendar start), and existing saving paths.
 `SettingsViewModelTests` covers default-off consent and persistence.
 Packaged-app verification must additionally check Launch Services registration
 and warm/cold URL delivery; unit tests do not prove OS delivery or real audio.

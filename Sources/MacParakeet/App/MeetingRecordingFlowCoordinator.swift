@@ -103,6 +103,7 @@ final class MeetingRecordingFlowCoordinator {
     private let onRecordingBegan: () -> Void
     private let onRecordingStopping: () -> Void
     private let onFlowReturnedToIdle: () -> Void
+    private let presentStartBusyNotice: @MainActor () -> Void
     private let meetingTranscriptionQueue: MeetingTranscriptionQueue
 
     private var stateMachine = MeetingRecordingFlowStateMachine()
@@ -117,6 +118,7 @@ final class MeetingRecordingFlowCoordinator {
     private var pauseToggleTask: Task<Void, Never>?
     private var pendingPauseTarget: Bool?
     private var pausePublicationRevision: UInt64 = 0
+    private var isPresentingStartBusyNotice = false
     private var microphoneMuteToggleTask: Task<Void, Never>?
     private var meetingTypeUpdateTail: Task<Void, Never>?
     private var autoDismissTask: Task<Void, Never>?
@@ -184,7 +186,10 @@ final class MeetingRecordingFlowCoordinator {
         onQueuedTranscriptionFailed: ((UUID, TranscriptionCompletionNotifier.Content) -> Void)? = nil,
         onRecordingBegan: @escaping () -> Void = {},
         onRecordingStopping: @escaping () -> Void = {},
-        onFlowReturnedToIdle: @escaping () -> Void = {}
+        onFlowReturnedToIdle: @escaping () -> Void = {},
+        presentStartBusyNotice: @escaping @MainActor () -> Void = {
+            MeetingRecordingFlowCoordinator.presentStartBusyAlert()
+        }
     ) {
         self.meetingRecordingService = meetingRecordingService
         self.transcriptionService = transcriptionService
@@ -227,6 +232,7 @@ final class MeetingRecordingFlowCoordinator {
         self.onRecordingBegan = onRecordingBegan
         self.onRecordingStopping = onRecordingStopping
         self.onFlowReturnedToIdle = onFlowReturnedToIdle
+        self.presentStartBusyNotice = presentStartBusyNotice
         self.meetingTranscriptionQueue.onStateChanged = { [weak self] snapshot in
             self?.pillViewModel.backgroundTranscriptionCount = snapshot.totalCount
         }
@@ -259,7 +265,14 @@ final class MeetingRecordingFlowCoordinator {
     func handleURLCommand(_ command: MeetingURLCommand) {
         switch command {
         case .start(let title):
-            startRecording(title: title, presentLivePanelWhenReady: true)
+            switch stateMachine.state {
+            case .idle:
+                startRecording(title: title, presentLivePanelWhenReady: true)
+            case .stopping, .finishing:
+                presentStartBusyNoticeOnce()
+            case .checkingPermissions, .starting, .recording:
+                break
+            }
         case .stop:
             stopRecording()
         case .pause:
@@ -338,7 +351,6 @@ final class MeetingRecordingFlowCoordinator {
         presentLivePanelWhenReady: Bool = false
     ) -> Int? {
         guard stateMachine.state == .idle else { return nil }
-        pendingPauseTarget = nil
         let resolvedTrigger = pendingTrigger ?? trigger
         let sourceMode = meetingAudioSourceModeProvider()
         pendingLivePanelPresentation = presentLivePanelWhenReady
@@ -574,6 +586,7 @@ final class MeetingRecordingFlowCoordinator {
     private func executeEffect(_ effect: MeetingRecordingFlowEffect) {
         switch effect {
         case .checkPermissions:
+            pendingPauseTarget = nil
             let gen = stateMachine.generation
             actionTask = Task { @MainActor in
                 let sourceMode = self.pendingAudioSourceMode ?? meetingAudioSourceModeProvider()
@@ -1307,6 +1320,26 @@ final class MeetingRecordingFlowCoordinator {
         panelController = nil
         panelViewModel = nil
         pendingLivePanelPresentation = false
+    }
+
+    private func presentStartBusyNoticeOnce() {
+        guard !isPresentingStartBusyNotice else { return }
+        isPresentingStartBusyNotice = true
+        defer { isPresentingStartBusyNotice = false }
+        presentStartBusyNotice()
+    }
+
+    static func presentStartBusyAlert() {
+        NSApp.activate(ignoringOtherApps: true)
+
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = "Still Saving the Last Meeting"
+        alert.informativeText =
+            "MacParakeet can't start a new recording until the previous meeting finishes saving. "
+            + "Send the start link again in a moment."
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     private func confirmAndCancelRecording() {

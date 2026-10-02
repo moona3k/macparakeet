@@ -142,6 +142,127 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         await coordinator.discardRecordingAndWaitForCompletion()
     }
 
+    func testURLStartWhileStoppingShowsOneCoalescedBusyNoticeAndNeverQueuesStart() async throws {
+        let service = MeetingRecordingServiceSpy(
+            output: makeRecordingOutput(), blocksStart: true, publishesSessionAfterStart: true)
+        let notices = StartBusyNoticeRecorder()
+        let coordinator = makeQuitTeardownCoordinator(
+            recordingService: service, presentStartBusyNotice: { notices.present() })
+        notices.onPresent = { coordinator.handleURLCommand(.start(title: "Sent while the notice is open")) }
+        coordinator.handleURLCommand(.start(title: "First"))
+        await service.waitUntilStartCalled()
+        let stopRead = expectation(description: "Stop observed startup without a session")
+        await service.observeNextMissingSession(reached: stopRead)
+        coordinator.handleURLCommand(.stop)
+        XCTAssertEqual(coordinator.testHook_state, .stopping)
+
+        coordinator.handleURLCommand(.start(title: "Too early"))
+        XCTAssertEqual(notices.count, 1)
+        XCTAssertEqual(coordinator.testHook_state, .stopping)
+
+        await fulfillment(of: [stopRead], timeout: 5)
+        await service.releaseStart()
+        await coordinator.testHook_waitForActionTask()
+        XCTAssertEqual(coordinator.testHook_state, .idle)
+        let calls = await service.startCalls
+        XCTAssertEqual(calls.map(\.title), ["First"], "A rejected start must not be queued or replayed")
+
+        notices.onPresent = nil
+        coordinator.handleURLCommand(.start(title: "Retry"))
+        XCTAssertEqual(coordinator.testHook_state, .checkingPermissions)
+        XCTAssertEqual(notices.count, 1)
+        XCTAssertTrue(coordinator.stopRecording())
+        await coordinator.testHook_waitForMeetingTranscriptionQueue()
+    }
+
+    func testURLStartWhileFinishingShowsBusyNoticeAndDoesNotStart() async throws {
+        let service = MeetingRecordingServiceSpy(
+            output: makeRecordingOutput(), blocksStart: true, startShouldFail: true)
+        let notices = StartBusyNoticeRecorder()
+        let coordinator = makeQuitTeardownCoordinator(
+            recordingService: service, presentStartBusyNotice: { notices.present() })
+        coordinator.handleURLCommand(.start(title: "Fails"))
+        await service.waitUntilStartCalled()
+        await service.releaseStart()
+        await coordinator.testHook_waitForActionTask()
+        guard case .finishing = coordinator.testHook_state else {
+            return XCTFail("Expected the failed start to be finishing, got \(coordinator.testHook_state)")
+        }
+
+        coordinator.handleURLCommand(.start(title: "Next"))
+        XCTAssertEqual(notices.count, 1)
+        guard case .finishing = coordinator.testHook_state else {
+            return XCTFail("A rejected start must not leave finishing, got \(coordinator.testHook_state)")
+        }
+        let calls = await service.startCalls
+        XCTAssertEqual(calls.map(\.title), ["Fails"])
+    }
+
+    func testURLStartDuringActiveFlowNeverShowsBusyNotice() async throws {
+        let service = MeetingRecordingServiceSpy(output: makeRecordingOutput())
+        let pill = MeetingRecordingPillViewModel()
+        let notices = StartBusyNoticeRecorder()
+        let coordinator = makeQuitTeardownCoordinator(
+            recordingService: service, pillViewModel: pill, presentStartBusyNotice: { notices.present() })
+        coordinator.handleURLCommand(.start(title: "Active"))
+        XCTAssertEqual(coordinator.testHook_state, .checkingPermissions)
+        coordinator.handleURLCommand(.start(title: "While checking"))
+        try await waitForPillState(pill, .recording, timeout: .seconds(5))
+        coordinator.handleURLCommand(.start(title: "While recording"))
+        XCTAssertEqual(coordinator.testHook_state, .recording)
+        XCTAssertEqual(notices.count, 0)
+        let calls = await service.startCalls
+        XCTAssertEqual(calls.map(\.title), ["Active"])
+        await coordinator.discardRecordingAndWaitForCompletion()
+    }
+
+    func testPauseThenStopDoesNotLeakPauseIntentIntoNextStart() async throws {
+        enum NextStart: CaseIterable {
+            case url
+            case calendarTitle
+            case calendarSnapshot
+        }
+        for next in NextStart.allCases {
+            let service = MeetingRecordingServiceSpy(output: makeRecordingOutput())
+            let pill = MeetingRecordingPillViewModel()
+            let coordinator = makeQuitTeardownCoordinator(recordingService: service, pillViewModel: pill)
+            coordinator.handleURLCommand(.start(title: nil))
+            try await waitForPillState(pill, .recording, timeout: .seconds(5))
+            coordinator.handleURLCommand(.pause)
+            coordinator.handleURLCommand(.stop)
+            await coordinator.testHook_waitForActionTask()
+            await coordinator.testHook_waitForPauseToggleTask()
+            await coordinator.testHook_waitForMeetingTranscriptionQueue()
+            XCTAssertEqual(coordinator.testHook_state, .idle, "\(next)")
+            let leakedPauses = await service.pauseCallCount
+            XCTAssertEqual(leakedPauses, 0, "\(next)")
+
+            switch next {
+            case .url:
+                coordinator.handleURLCommand(.start(title: nil))
+            case .calendarTitle:
+                XCTAssertNotNil(coordinator.startFromCalendar(title: "Back to back"))
+            case .calendarSnapshot:
+                XCTAssertNotNil(
+                    coordinator.startFromCalendar(
+                        calendarEventSnapshot: MeetingCalendarSnapshot(
+                            confidence: .confirmed,
+                            eventIdentifier: "evt-back-to-back",
+                            title: "Back to back",
+                            scheduledStartAt: Date(),
+                            scheduledEndAt: Date().addingTimeInterval(1800)
+                        )))
+            }
+            try await waitForPillState(pill, .recording, timeout: .seconds(5))
+            coordinator.handleURLCommand(.pause)
+            await coordinator.testHook_waitForPauseToggleTask()
+            XCTAssertEqual(pill.state, .paused, "\(next)")
+            let pauses = await service.pauseCallCount
+            XCTAssertEqual(pauses, 1, "\(next)")
+            await coordinator.discardRecordingAndWaitForCompletion()
+        }
+    }
+
     func testLivePreviewUsesReadingParagraphs() {
         let sentenceWords = [
             ("First", 0, 100), ("sentence", 120, 220), ("ends.", 240, 340),
@@ -1545,7 +1666,8 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         shouldShowFloatingMeetingPill: @escaping @MainActor @Sendable () -> Bool = { true },
         pillViewModel: MeetingRecordingPillViewModel? = nil,
         permissionService: any PermissionServiceProtocol = MockPermissionService(),
-        onMenuBarIconUpdate: @escaping (BreathWaveIcon.MenuBarState) -> Void = { _ in }
+        onMenuBarIconUpdate: @escaping (BreathWaveIcon.MenuBarState) -> Void = { _ in },
+        presentStartBusyNotice: @escaping @MainActor () -> Void = {}
     ) -> MeetingRecordingFlowCoordinator {
         let recordingService = recordingService ?? MeetingRecordingServiceSpy(output: makeRecordingOutput())
         return MeetingRecordingFlowCoordinator(
@@ -1561,7 +1683,8 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             pillViewModel: pillViewModel ?? MeetingRecordingPillViewModel(),
             meetingRecordingSettlement: makeSettlement(),
             onMenuBarIconUpdate: onMenuBarIconUpdate,
-            onTranscriptionReady: { _ in }
+            onTranscriptionReady: { _ in },
+            presentStartBusyNotice: presentStartBusyNotice
         )
     }
 
@@ -2287,6 +2410,17 @@ private final class NoOpQuickPromptRepository: QuickPromptRepositoryProtocol, @u
         dryRun: Bool
     ) throws -> QuickPromptImport.Summary {
         QuickPromptImport.Summary(added: 0, updated: 0, deleted: 0, unchanged: 0)
+    }
+}
+
+@MainActor
+private final class StartBusyNoticeRecorder {
+    private(set) var count = 0
+    var onPresent: (() -> Void)?
+
+    func present() {
+        count += 1
+        onPresent?()
     }
 }
 
