@@ -35,7 +35,8 @@
         " 9 step events"
       ],
       "pageErrors": [],
-      "screenshot": "legacy.png"
+      "screenshot": ".build/audit-browser/legacy.png",
+      "screenshotSha256": "55ab8a7dda93617b7ebb102263392972e297a00cd38cdb00c5ad0e33614dc99b"
     },
     {
       "mode": "current",
@@ -67,7 +68,8 @@
         " 9 sessions"
       ],
       "pageErrors": [],
-      "screenshot": "current.png"
+      "screenshot": ".build/audit-browser/current.png",
+      "screenshotSha256": "deb40287193239ce31a18a1440eb1fbf10d82051181c4276b32b3646fcf45d6c"
     }
   ],
   "localHead": "30743ed31f1b02176f9e8a9ea4098c81b477a041",
@@ -76,5 +78,6 @@
     "stats.astro_astro_type_script_index_0_lang.DVRQdKtb.js": "b3aba6c58af9f4f18034b34400f3de7e6980dfa8fbdeb8d9c2d2d1fe8b284421"
   },
   "screenshotsInspected": true,
-  "cleanup": "Owned browser contexts, browser process and ephemeral localhost server closed in finally block."
+  "cleanup": "Owned browser contexts, browser process and ephemeral localhost server closed in finally block.",
+  "artifactRetention": "Screenshots and replay script retained in the isolated receiver audit worktree under .build/audit-browser; paths below are relative to that worktree, not this app repository. Images were visually inspected; they are not committed here."
 }

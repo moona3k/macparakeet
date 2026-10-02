@@ -580,16 +580,16 @@ public final class TranscriptionLibraryViewModel {
             for _ in 0..<result.succeededIDs.count {
                 Telemetry.send(.transcriptionDeleted)
             }
+            isBulkOperationInProgress = false
             if !result.succeededIDs.isEmpty {
                 removeLoadedTranscriptions(withIDs: Set(result.succeededIDs))
+                refreshPendingLoadAfterMutation()
             }
             if !result.failedIDs.isEmpty {
-                isBulkOperationInProgress = false
                 restoreFailedSelectionIfCurrent(result.failedIDs, operationGeneration: operationGeneration)
                 errorMessage = Self.bulkDeleteFailureMessage(
                     succeeded: result.succeededIDs.count, failed: result.failedIDs.count)
             } else {
-                isBulkOperationInProgress = false
                 finishBulkSelection()
             }
             return BulkOperationResult(
@@ -601,11 +601,12 @@ public final class TranscriptionLibraryViewModel {
             let result = await Task.detached(priority: .userInitiated) {
                 Self.detachMeetingAudioTargets(targets, using: repo)
             }.value
+            isBulkOperationInProgress = false
             if !result.succeededIDs.isEmpty {
                 clearLoadedMeetingAudio(forIDs: Set(result.succeededIDs))
+                refreshPendingLoadAfterMutation()
             }
             if !result.failedIDs.isEmpty {
-                isBulkOperationInProgress = false
                 restoreFailedSelectionIfCurrent(result.failedIDs, operationGeneration: operationGeneration)
                 errorMessage = Self.bulkAudioDeleteFailureMessage(
                     succeeded: result.succeededIDs.count,
@@ -613,7 +614,6 @@ public final class TranscriptionLibraryViewModel {
                     skipped: skipped
                 )
             } else {
-                isBulkOperationInProgress = false
                 finishBulkSelection()
             }
             return BulkOperationResult(
@@ -862,7 +862,10 @@ public final class TranscriptionLibraryViewModel {
                     self.logger.error(
                         "Updated Library but failed to refresh pending query: \(error.localizedDescription, privacy: .private)"
                     )
-                    self.errorMessage = "Updated Library, but failed to refresh: \(error.localizedDescription)"
+                    let refreshError = "Updated Library, but failed to refresh: \(error.localizedDescription)"
+                    // A partially successful bulk operation may already have a
+                    // failure summary. Retain it alongside the refresh failure.
+                    self.errorMessage = self.errorMessage.map { "\($0)\n\(refreshError)" } ?? refreshError
                 } else {
                     self.logger.error("Failed to load transcriptions: \(error.localizedDescription, privacy: .private)")
                     self.publishLoadedItems([], hasMore: false, filter: requestedFilter)

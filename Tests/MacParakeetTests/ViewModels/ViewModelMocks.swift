@@ -482,6 +482,11 @@ final class MockLaunchAtLoginService: LaunchAtLoginControlling {
 
 actor MockTranscriptionService: SpeakerConfiguredRetranscriptionService {
     private var transcribeHook: (@Sendable () async -> Void)?
+    private let retranscriptionRepository: (any TranscriptionRepositoryProtocol)?
+
+    init(retranscriptionRepository: (any TranscriptionRepositoryProtocol)? = nil) {
+        self.retranscriptionRepository = retranscriptionRepository
+    }
 
     func setTranscribeHook(_ hook: @escaping @Sendable () async -> Void) {
         transcribeHook = hook
@@ -727,11 +732,35 @@ actor MockTranscriptionService: SpeakerConfiguredRetranscriptionService {
         existing transcription: Transcription,
         fileURL: URL,
         source: TelemetryTranscriptionSource,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription {
+        try await retranscribe(
+            existing: transcription, fileURL: fileURL, source: source,
+            speechEngineOverride: nil, onProgress: onProgress
+        )
+    }
+
+    func retranscribeMeeting(
+        existing transcription: Transcription,
+        recording: MeetingRecordingOutput,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription {
+        try await retranscribeMeeting(
+            existing: transcription, recording: recording,
+            speechEngineOverride: nil, onProgress: onProgress
+        )
+    }
+
+    func retranscribe(
+        existing transcription: Transcription,
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
         speechEngineOverride: SpeechEngineSelection?,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription {
         lastSpeechEngineOverride = speechEngineOverride
-        return try await transcribe(fileURL: fileURL, source: source, onProgress: onProgress)
+        let result = try await transcribe(fileURL: fileURL, source: source, onProgress: onProgress)
+        return try completeRetranscription(result, original: transcription)
     }
 
     func retranscribeMeeting(
@@ -741,7 +770,8 @@ actor MockTranscriptionService: SpeakerConfiguredRetranscriptionService {
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription {
         lastSpeechEngineOverride = speechEngineOverride
-        return try await transcribeMeeting(recording: recording, onProgress: onProgress)
+        let result = try await transcribeMeeting(recording: recording, onProgress: onProgress)
+        return try completeRetranscription(result, original: transcription)
     }
 
     func retranscribe(
@@ -754,7 +784,8 @@ actor MockTranscriptionService: SpeakerConfiguredRetranscriptionService {
     ) async throws -> Transcription {
         lastSpeechEngineOverride = speechEngineOverride
         lastRetranscriptionSpeakerSelection = speakerSelection
-        return try await transcribe(fileURL: fileURL, source: source, onProgress: onProgress)
+        let result = try await transcribe(fileURL: fileURL, source: source, onProgress: onProgress)
+        return try completeRetranscription(result, original: transcription)
     }
 
     func retranscribeMeeting(
@@ -766,7 +797,36 @@ actor MockTranscriptionService: SpeakerConfiguredRetranscriptionService {
     ) async throws -> Transcription {
         lastSpeechEngineOverride = speechEngineOverride
         lastRetranscriptionSpeakerSelection = speakerSelection
-        return try await transcribeMeeting(recording: recording, onProgress: onProgress)
+        let result = try await transcribeMeeting(recording: recording, onProgress: onProgress)
+        return try completeRetranscription(result, original: transcription)
+    }
+
+    /// Model Core's in-place completion contract. A configured repository owns
+    /// the save, including metadata merging and rejection of a deleted row.
+    private func completeRetranscription(_ result: Transcription, original: Transcription) throws -> Transcription {
+        var updated = original
+        updated.durationMs = original.sourceType == .meeting ? original.durationMs : result.durationMs
+        updated.fileSizeBytes = result.fileSizeBytes
+        updated.rawTranscript = result.rawTranscript
+        updated.cleanTranscript = result.cleanTranscript
+        updated.wordTimestamps = result.wordTimestamps
+        updated.language = result.language
+        updated.speakerCount = result.speakerCount
+        updated.speakers = result.speakers
+        updated.diarizationSegments = result.diarizationSegments
+        updated.transcriptSegments = result.transcriptSegments
+        updated.status = result.status
+        updated.errorMessage = result.errorMessage
+        updated.exportPath = result.exportPath
+        updated.engine = result.engine
+        updated.engineVariant = result.engineVariant
+        updated.derivedTitle = result.derivedTitle
+        updated.derivedSnippet = result.derivedSnippet
+        updated.isTranscriptEdited = result.isTranscriptEdited
+        updated.updatedAt = result.updatedAt
+        return try retranscriptionRepository?.savePreservingUserMetadata(
+            updated, originalFileName: original.fileName
+        ) ?? updated
     }
 
     func transcribeURL(urlString: String, onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil) async throws

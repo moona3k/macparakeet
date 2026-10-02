@@ -25,6 +25,30 @@ Production personal app state was not inspected. Native evidence is limited to s
 - **Change included:** Single-item mutations now invalidate an active older snapshot and reload its requested window; completed idle paths retain their existing behavior. Refresh failure is reported separately from successful persistence. The fixed focused Library suite passed all 71 tests, including the five new regression cases.
 - **PR review follow-up:** [PR #1205 review](https://github.com/moona3k/macparakeet/pull/1205) identified that the initial repair performed its replacement query synchronously on the main actor. Five added thread assertions reproduced that concern. The replacement now reuses the existing asynchronous `loadPage` path with the full requested window, cancellation and generation checks. Successful mutations publish immediately; a failed replacement retains the updated rows, selection, pagination and displayed source attribution. All 74 focused Library tests pass, including deterministic checks for superseded results/errors during filter changes and preserved state after replacement failure. This proves thread ownership and state ordering, not a measured latency improvement.
 
+### Landing review: bulk mutations and GUI completion ownership
+
+The same pending-query defect also affected bulk recording deletion and bulk
+audio detachment. Five additional regressions produced three failed cases/five
+assertions before the repair; the two audio-pagination controls already passed.
+Bulk success now uses the same generation-checked asynchronous replacement,
+retains the requested window, and preserves failed-item selection and both
+operation/refresh error messages when partial failures coincide.
+
+A separate GUI retranscription defect remained in `TranscriptionViewModel`:
+a second metadata-preserving save after Core's completion could overwrite a
+transcript correction made after that commit. A real Core/SQLite fixture
+reproduced the lost corrected text and edit marker (one of two cases failed,
+two assertions). Concurrent notes/chat/audio metadata controls across four
+source types passed before the fix; those fields were already protected by
+the GUI's metadata merge. The repair removes the second GUI save and publishes
+Core's committed result. It protects database durability; it does not promise
+that the current view automatically reflects a later external correction.
+
+Final focused verification passes 264 cases: 80 Library, 166 transcription
+view-model, 16 batch and two real Core/SQLite GUI cases. Audio/STT are injected
+in these persistence tests; the meeting fixture exercises canonical mixed-audio
+fallback. This is separate from physical capture qualification.
+
 ### [GUI-02] Give failed onboarding setup enough room before key confirmation
 
 - **Type / priority:** Confirmed native-render layout defect; P2 recovery quality.

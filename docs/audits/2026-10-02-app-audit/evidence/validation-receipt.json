@@ -86,6 +86,18 @@
     {
       "path": ".build/audit-evidence/library-async-refresh-green.log",
       "sha256": "3f8607aca12001aa4c38e99092429d6133ad93d52d0733d5f342c5bb89c236a5"
+    },
+    {
+      "path": ".build/audit-evidence/library-bulk-snapshot-red.log",
+      "sha256": "8b553e528a59ffec7c715c4ccdb36510745ba579ade3aadc58659d841033ce0e"
+    },
+    {
+      "path": ".build/audit-evidence/gui-retranscription-persistence-red.log",
+      "sha256": "ab57fe17dd88b6c0ddacd7c31c699cf6e6cea4c86023db062e1a8d547b63d7af"
+    },
+    {
+      "path": ".build/audit-evidence/gui-bulk-retranscription-final-green.log",
+      "sha256": "1770a76c2823f682435ca4bcc38151519c35adcebfa82fe64f78522c4e10bf39"
     }
   ],
   "limits": [
@@ -103,5 +115,24 @@
     "newTests": 3,
     "fullSuiteRerun": false,
     "browserReceipt": "onboarding-dashboard-browser.json"
+  },
+  "finalGUIRefinement": {
+    "libraryCases": 80,
+    "transcriptionViewModelCases": 166,
+    "batchCases": 16,
+    "coreSQLiteGUICases": 2,
+    "total": 264,
+    "failures": 0,
+    "bulkRed": {
+      "tests": 5,
+      "failedCases": 3,
+      "assertions": 5
+    },
+    "guiRed": {
+      "tests": 2,
+      "failedCases": 1,
+      "assertions": 2
+    },
+    "fullSuiteRerun": false
   }
 }

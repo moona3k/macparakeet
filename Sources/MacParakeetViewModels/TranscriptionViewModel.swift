@@ -1082,39 +1082,11 @@ public final class TranscriptionViewModel {
                         )
                     }
                 }
-                var updatedResult = result
-                // Preserve row identity and user-owned metadata so retranscription updates
-                // the existing record instead of deleting and recreating it.
-                updatedResult.id = original.id
-                updatedResult.createdAt = original.createdAt
-                updatedResult.isFavorite = original.isFavorite
-                updatedResult.fileName = original.fileName
-                updatedResult.filePath = original.filePath
-                updatedResult.sourceURL = original.sourceURL
-                updatedResult.thumbnailURL = original.thumbnailURL
-                updatedResult.channelName = original.channelName
-                updatedResult.videoDescription = original.videoDescription
-                updatedResult.sourceType = original.sourceType
-                updatedResult.recoveredFromCrash = original.recoveredFromCrash
-                updatedResult.userNotes = original.userNotes
-                updatedResult.updatedAt = Date()
-                do {
-                    if let transcriptionRepo {
-                        updatedResult = try transcriptionRepo.savePreservingUserMetadata(
-                            updatedResult, originalFileName: original.fileName
-                        )
-                    }
-                    promptResultsViewModel?.generateKnowledgeCard(
-                        transcriptionId: updatedResult.id
-                    )
-                    // Skip auto-run prompts on retranscribe — they would duplicate the existing tabs.
-                    completeSuccessfulTranscription(taskID: taskID, result: updatedResult, runAutoPrompts: false)
-                } catch {
-                    logger.error(
-                        "Failed to save transcription result error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
-                    )
-                    completeFailedTranscription(taskID: taskID, error: error)
-                }
+                // Core already committed the row and merged current user metadata.
+                // Saving again here could overwrite edits made after that commit.
+                promptResultsViewModel?.generateKnowledgeCard(transcriptionId: result.id)
+                // Skip auto-run prompts on retranscribe — they would duplicate the existing tabs.
+                completeSuccessfulTranscription(taskID: taskID, result: result, runAutoPrompts: false)
             } catch is CancellationError {
                 completeCancelledTranscription(taskID: taskID)
             } catch {

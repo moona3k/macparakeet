@@ -40,7 +40,7 @@ gate, missing receiver support or a chart that omits the current product flow.
 
 - Evidence: CI run [37041613709](https://github.com/moona3k/macparakeet/actions/runs/37041613709)
   `check-telemetry-allowlist.log` says `SKIPPED` because it cannot read the
-  private website repository. `scripts/ci/check-telemetry-allowlist.sh:92-96`
+  private website repository. `scripts/ci/check-telemetry-allowlist.sh:80-83`
   deliberately exits zero in that condition. The workflow's step is green.
 - Independent current check with the freshly fetched receiver succeeded:
   **104 app events, 110 receiver events**, all app names accepted.
@@ -131,7 +131,8 @@ SIGKILL and OS-level termination remain outside reporter coverage.
   parameterized inserts and idempotent event IDs. The sampled public failure
   rows contain `error_detail: null`.
 - Freshness metadata and no-store stale fallback prevent old data from being
-  silently represented as fresh. This was confirmed on the public read.
+  silently represented as fresh. Receiver handler tests exercise stale/no-store
+  behavior; the recorded public GET confirmed only the fresh metadata branch.
 
 ## Verification and limits
 

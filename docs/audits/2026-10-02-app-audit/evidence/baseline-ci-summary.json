@@ -203,5 +203,12 @@
   ],
   "cases_xml": 7908,
   "swift_testing_cases": 30,
-  "telemetry_guard": "SKIPPED"
+  "telemetry_guard": "SKIPPED",
+  "omittedJobs": [
+    {
+      "job": "Build Cache Invalidation",
+      "conclusion": "skipped",
+      "reason": "No executed steps or duration; retained in baseline-ci-jobs.json but omitted from timing totals."
+    }
+  ]
 }

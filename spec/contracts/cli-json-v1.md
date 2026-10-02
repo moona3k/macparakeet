@@ -80,7 +80,9 @@ still apply.
   after completion, including when the row is deleted before output is emitted.
   A recording deleted before the completion transaction cannot be recreated.
   Dictation reruns require the row still to exist with its original status;
-  deletion or a status change yields the existing `lookup` error with exit `1`.
+  for non-empty results, deletion or a status change yields the existing
+  `lookup` error with exit `1`. A blank failed-dictation retry is rejected as
+  `emptyTranscript` before the completion status guard.
   That status check is not a general revision check for same-status dictation
   edits. These rules do not change JSON fields or exit-code meanings.
 - Transcription-shaped JSON payloads include nullable `splitProvenance`. It is

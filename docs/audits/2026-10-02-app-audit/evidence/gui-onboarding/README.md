@@ -27,6 +27,10 @@ reproduction, inspect every image and recapture if it shows an intermediate
 state; do not promote this archive into a deterministic CI layout test without
 observable layout/state readiness and appropriate geometry assertions. The
 archive is retained as the exact capture code used for the dated evidence.
+Its nonzero scroll-delta assertion also assumes capture starts above the target
+position with overflowing content; it can fail on a host already at the bottom.
+That limitation must be addressed before turning this manual capture aid into
+a repeatable layout gate, rather than rewriting its historical provenance.
 
 The audit-only probe is archived as `OnboardingAuditRenderTests.swift.txt`,
 rather than leaving a skipped audit test in the permanent suite. To reproduce

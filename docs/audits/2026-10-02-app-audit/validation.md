@@ -24,7 +24,7 @@ cloned and hash-checked. Temporary test databases were synthetic.
 | Clean `swift build --build-tests --jobs 8` | Exit 0, 206.30s wall / 201.90s reported build | Current local SwiftPM app/CLI/benchmark/tests compile; different toolchain from CI |
 | Initial diarization/attribution/telemetry selection | 190 XCTest + 26 Swift Testing pass; 88 TelemetryService cases | Deterministic service and contract behavior |
 | Library regressions before fix | 5 cases, 4 failed tests / 6 failed assertions; favorite-pagination control passed | Real stale publication/pagination defects, not just source suspicion |
-| Library after fix | All 71 tests pass | Favorite/delete/audio-detach generation handling and existing Library behavior |
+| Library initial repair (before review refinement) | All 71 tests pass | Favorite/delete/audio-detach generation handling and existing Library behavior |
 | CLI regressions before fix | 19 command tests: 8 failed assertions; 4 persistence tests: 45 failed assertions | Deletion/status and stale metadata loss/resurrection; deletion during Core recognition remains a passing control |
 | CLI regressions after fix | 17 command + 4 persistence tests pass | Two obsolete stale-copy helper tests replaced with real Core/SQLite integration coverage |
 | Onboarding native render probe | 8 before / 9 after images; scroll assertion passed | Actual production SwiftUI layout with synthetic injected state; not full app/TCC/hotkey E2E |
@@ -60,6 +60,15 @@ failed before the refinement. The corrected loader reuses the existing
 asynchronous path; all 74 focused Library cases pass, including stale
 result/error and refresh-failure coverage. No second full local suite was run.
 Exact revised-head hosted CI is required before merge.
+
+The final review also reproduced bulk mutation stale snapshots (three failed
+cases/five assertions) and GUI post-Core transcript-correction loss (one failed
+case/two assertions). After those repairs, all 264 focused GUI cases pass:
+80 Library, 166 transcription view-model, 16 batch and two Core/SQLite
+persistence cases. The shared service mock now models Core's in-place commit
+through both base and speaker-override protocol paths. An initial combined run
+exposed four mock-dispatch failures; correcting that test double yielded the
+final passing selection. No additional full local suite was run.
 
 Website PR #102 was merged after rerunning all 146 telemetry tests and the
 86-page build. An actual local browser probe also exercised the built stats

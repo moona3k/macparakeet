@@ -1142,6 +1142,26 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         try await assertMutationRejectsStaleSnapshot(loadMore: false, mutation: .deleteAudio)
     }
 
+    func testDeleteAudioMutationPreservesRequestedPaginationWindow() async throws {
+        try await assertMutationRejectsStaleSnapshot(loadMore: true, mutation: .deleteAudio)
+    }
+
+    func testBulkDeleteMutationRejectsStaleRefreshSnapshot() async throws {
+        try await assertMutationRejectsStaleSnapshot(loadMore: false, mutation: .bulkDelete)
+    }
+
+    func testBulkDeleteMutationPreservesRequestedPaginationWindow() async throws {
+        try await assertMutationRejectsStaleSnapshot(loadMore: true, mutation: .bulkDelete)
+    }
+
+    func testBulkDeleteAudioMutationRejectsStaleRefreshSnapshot() async throws {
+        try await assertMutationRejectsStaleSnapshot(loadMore: false, mutation: .bulkDeleteAudio)
+    }
+
+    func testBulkDeleteAudioMutationPreservesRequestedPaginationWindow() async throws {
+        try await assertMutationRejectsStaleSnapshot(loadMore: true, mutation: .bulkDeleteAudio)
+    }
+
     func testMutationRefreshFailurePreservesSavedFavoriteAndVisibleRows() async throws {
         let mockRepo = MockTranscriptionRepository()
         let target = Transcription(createdAt: Date(timeIntervalSince1970: 3), fileName: "Latest", status: .completed)
@@ -1188,7 +1208,7 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
     }
 
     private enum SnapshotMutation {
-        case favorite, delete, deleteAudio
+        case favorite, delete, deleteAudio, bulkDelete, bulkDeleteAudio
     }
 
     private func assertMutationRejectsStaleSnapshot(loadMore: Bool, mutation: SnapshotMutation) async throws {
@@ -1228,14 +1248,20 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         case .favorite: viewModel.toggleFavorite(target)
         case .delete: viewModel.deleteTranscription(target)
         case .deleteAudio: viewModel.deleteMeetingAudio(target)
+        case .bulkDelete:
+            let result = await viewModel.confirmBulkOperation(.deleteItems([target]))
+            XCTAssertEqual(result, BulkOperationResult(succeeded: 1, failed: 0))
+        case .bulkDeleteAudio:
+            let result = await viewModel.confirmBulkOperation(.deleteAudioOnly(targets: [target], skipped: 0))
+            XCTAssertEqual(result, BulkOperationResult(succeeded: 1, failed: 0))
         }
         XCTAssertNil(viewModel.errorMessage)
         switch mutation {
         case .favorite:
             XCTAssertTrue(try XCTUnwrap(viewModel.transcriptions.first { $0.id == target.id }).isFavorite)
-        case .delete:
+        case .delete, .bulkDelete:
             XCTAssertFalse(viewModel.transcriptions.contains { $0.id == target.id })
-        case .deleteAudio:
+        case .deleteAudio, .bulkDeleteAudio:
             XCTAssertNil(try XCTUnwrap(viewModel.transcriptions.first { $0.id == target.id }).filePath)
         }
         gate.allowFirstFetchToFinish()
@@ -1246,10 +1272,10 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         case .favorite:
             XCTAssertTrue(try XCTUnwrap(viewModel.transcriptions.first { $0.id == target.id }).isFavorite)
             XCTAssertTrue(try XCTUnwrap(mockRepo.fetch(id: target.id)).isFavorite)
-        case .delete:
+        case .delete, .bulkDelete:
             XCTAssertFalse(viewModel.transcriptions.contains { $0.id == target.id })
             XCTAssertNil(try mockRepo.fetch(id: target.id))
-        case .deleteAudio:
+        case .deleteAudio, .bulkDeleteAudio:
             XCTAssertNil(try XCTUnwrap(viewModel.transcriptions.first { $0.id == target.id }).filePath)
             XCTAssertNil(try XCTUnwrap(mockRepo.fetch(id: target.id)).filePath)
             XCTAssertFalse(FileManager.default.fileExists(atPath: audio.path))
@@ -1257,7 +1283,7 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         if loadMore {
             XCTAssertEqual(viewModel.transcriptions.count, 2, "The requested next page must survive the mutation")
             XCTAssertEqual(Set(viewModel.transcriptions.map(\.id)).count, 2)
-            XCTAssertEqual(viewModel.hasMore, mutation != .delete)
+            XCTAssertEqual(viewModel.hasMore, mutation != .delete && mutation != .bulkDelete)
         }
     }
 
@@ -1741,6 +1767,47 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertTrue(vm.isBulkSelectionModeEnabled)
         XCTAssertEqual(vm.selectedTranscriptionIDs, [failing.id])
         XCTAssertNotNil(vm.errorMessage)
+    }
+
+    func testBulkDeletePartialFailureSurvivesFailedReplacementQuery() async throws {
+        let good = Transcription(fileName: "good.mp3", status: .completed)
+        let failing = Transcription(fileName: "failing.mp3", status: .completed)
+        let mockRepo = MockTranscriptionRepository()
+        mockRepo.transcriptions = [good, failing]
+        mockRepo.onDelete = { id in mockRepo.deleteResult = id == good.id }
+        let viewModel = TranscriptionLibraryViewModel()
+        viewModel.configure(transcriptionRepo: mockRepo)
+        await viewModel.loadTranscriptions().value
+
+        let gate = StaleFetchGate()
+        defer { gate.allowFirstFetchToFinish() }
+        mockRepo.fetchAllHandler = { _ in
+            if gate.nextCallNumber() == 1 {
+                gate.blockFirstFetchUntilAllowed()
+                return [good, failing]
+            }
+            throw LibraryRenameTestError.reloadFailed
+        }
+        let staleLoad = viewModel.loadTranscriptions()
+        let started = await Task.detached { gate.waitForFirstFetchStarted() }.value
+        XCTAssertTrue(started)
+        guard started else { return }
+
+        let result = await viewModel.confirmBulkOperation(.deleteItems([good, failing]))
+        XCTAssertEqual(result, BulkOperationResult(succeeded: 1, failed: 1))
+        let deletionError = try XCTUnwrap(viewModel.errorMessage)
+        await waitForPendingLoad(viewModel)
+        gate.allowFirstFetchToFinish()
+        await staleLoad.value
+
+        XCTAssertNil(try mockRepo.fetch(id: good.id))
+        XCTAssertEqual(viewModel.transcriptions.map(\.id), [failing.id])
+        XCTAssertEqual(viewModel.selectedTranscriptionIDs, [failing.id])
+        XCTAssertTrue(viewModel.isBulkSelectionModeEnabled)
+        XCTAssertFalse(viewModel.isBulkOperationInProgress)
+        let combinedError = try XCTUnwrap(viewModel.errorMessage)
+        XCTAssertTrue(combinedError.contains(deletionError))
+        XCTAssertTrue(combinedError.contains("Updated Library, but failed to refresh:"))
     }
 
     func testBulkDeleteKeepsSelectionModeAndIgnoresSelectionChangesWhileInProgress() async throws {
