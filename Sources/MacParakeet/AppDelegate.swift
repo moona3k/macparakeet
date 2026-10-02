@@ -687,7 +687,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let llmService = env.llmService
         let llmServiceProvider: () -> LLMServiceProtocol? = { [weak configStore, llmService] in
             guard let configStore else { return nil }
-            return (try? configStore.loadConfig()) != nil ? llmService : nil
+            return (try? configStore.loadConfigMetadata()) != nil ? llmService : nil
         }
 
         // Productized Transforms coordinator (ADR-022). Reads `.transform`
@@ -699,7 +699,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             promptRepository: env.promptRepo,
             historyRepository: env.transformHistoryRepo,
             activeModelNameProvider: { [weak configStore] in
-                try? configStore?.loadConfig()?.modelName
+                try? configStore?.loadConfigMetadata()?.modelName
             },
             reservedHotkeysProvider: { [weak self] in
                 self?.transformReservedHotkeysForTransforms() ?? []

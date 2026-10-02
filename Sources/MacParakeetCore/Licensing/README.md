@@ -19,7 +19,7 @@ through it.
   activation and validation against LemonSqueezy.
 - `KeychainKeyValueStore.swift` + `KeyValueStore.swift` — generic
   keychain-backed K/V used by this folder. Not licensing-specific in
-  shape, but currently used only here.
+  shape; also used by AI providers, voice control, and sharing.
 
 ## Cross-references
 
@@ -59,6 +59,12 @@ result never locks the current free build.
 **Keychain access is not free on first call.** The first read after
 launch can take tens of milliseconds. Cache results in callers if
 hot-pathing.
+
+**Credential access must not prompt.** All store operations disable system
+interaction and return errors when authorization is unavailable. Preserve the
+service/account namespaces and existing keys. UI status checks use provider
+metadata instead of secret reads. See
+[credential access](../../../../spec/contracts/credential-access.md).
 
 ## How to verify a change
 

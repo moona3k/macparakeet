@@ -161,6 +161,56 @@ public final class LLMSettingsViewModel {
     private var unsavedAPIKeyInputs: [LLMProviderID: String] = [:]
     /// The Keychain key for the draft's provider when the draft was loaded.
     private var draftStoredAPIKey = ""
+    private var draftCredentialAccessError: String?
+    private var taskCredentialAccessError: String?
+    public var credentialAccessError: String? {
+        draftCredentialAccessError ?? taskCredentialAccessError
+    }
+
+    /// Retry only when requested, preserving any key or model edits in the draft.
+    public func retrySavedCredentialAccess() {
+        guard let configStore else { return }
+        draftCredentialAccessError = nil
+        if let provider = draft.providerID, provider.supportsAPIKey {
+            let hadKeyEdit = draft.apiKeyInput != draftStoredAPIKey
+            do {
+                let key = try configStore.loadAPIKey(for: provider) ?? ""
+                draftStoredAPIKey = key
+                if !hadKeyEdit {
+                    var next = draft
+                    next.apiKeyInput = key
+                    updateDraft(next)
+                }
+            } catch {
+                draftCredentialAccessError = error.localizedDescription
+            }
+        }
+        refreshTaskCredentialAccess()
+        if credentialAccessError == nil {
+            onConfigurationChanged?()
+        }
+    }
+
+    /// Cache failures on route changes, never while rendering status text.
+    private func refreshTaskCredentialAccess() {
+        taskCredentialAccessError = nil
+        let providers = Set([cleanupOverrideProviderID, analysisOverrideProviderID].compactMap { $0 })
+        for provider in providers where provider.supportsAPIKey {
+            do { _ = try configStore?.loadAPIKey(for: provider) } catch {
+                taskCredentialAccessError = error.localizedDescription
+                return
+            }
+        }
+    }
+
+    private func savedAPIKey(for provider: LLMProviderID) -> String {
+        draftCredentialAccessError = nil
+        guard provider.supportsAPIKey else { return "" }
+        do { return try configStore?.loadAPIKey(for: provider) ?? "" } catch {
+            draftCredentialAccessError = error.localizedDescription
+            return ""
+        }
+    }
 
     public var selectedProviderID: LLMProviderID? {
         get { draft.providerID }
@@ -172,6 +222,7 @@ public final class LLMSettingsViewModel {
         didSet {
             guard cleanupOverrideProviderID != oldValue else { return }
             cleanupModelName = cleanupOverrideProviderID?.defaultModelName ?? ""
+            refreshTaskCredentialAccess()
         }
     }
     public var cleanupModelName = ""
@@ -179,6 +230,7 @@ public final class LLMSettingsViewModel {
         didSet {
             guard analysisOverrideProviderID != oldValue else { return }
             analysisModelName = analysisOverrideProviderID?.defaultModelName ?? ""
+            refreshTaskCredentialAccess()
         }
     }
     public var analysisModelName = ""
@@ -298,11 +350,11 @@ public final class LLMSettingsViewModel {
     }
 
     public var isConfigured: Bool {
-        LLMTaskGroup.allCases.contains { (try? configStore?.loadConfig(for: $0)) != nil }
+        LLMTaskGroup.allCases.contains { (try? configStore?.loadRouteMetadata(for: $0)) != nil }
     }
 
     public var isAnalysisConfigured: Bool {
-        (try? configStore?.loadConfig(for: .analysis)) != nil
+        (try? configStore?.loadRouteMetadata(for: .analysis)) != nil
     }
 
     public var configuredTasksDescription: String {
@@ -310,12 +362,17 @@ public final class LLMSettingsViewModel {
             (.cleanup, "Dictation & cleanup"), (.analysis, "Meetings & library"), (.transform, "Transforms"),
         ]
         return routes.map { task, title in
-            let provider = try? configStore?.loadConfig(for: task)
+            let provider = try? configStore?.loadRouteMetadata(for: task)?.config
             return "\(title): \(provider?.id.displayName ?? "Off")."
         }.joined(separator: " ")
     }
 
     public var setupStatus: AISetupStatus {
+        if isConfigured, let credentialAccessError {
+            return .cannotConnect(
+                displayName: savedAIOptionDisplayName ?? draftAIOptionDisplayName ?? "AI",
+                message: credentialAccessError)
+        }
         if case .error(let message) = connectionTestState,
             !isConfigured || !hasUnsavedChanges
         {
@@ -399,6 +456,7 @@ public final class LLMSettingsViewModel {
     }
 
     public var canSave: Bool {
+        guard credentialAccessError == nil else { return false }
         if draft.providerID == nil {
             return (isConfigured || cleanupOverrideProviderID != nil || analysisOverrideProviderID != nil)
                 && validationMessage == nil
@@ -689,15 +747,15 @@ public final class LLMSettingsViewModel {
 
     private var savedProviderID: LLMProviderID? {
         guard let configStore else { return nil }
-        return (try? configStore.loadConfig())?.id
+        return (try? configStore.loadConfigMetadata())?.id
     }
 
     private var savedAIOptionDisplayName: String? {
         guard let configStore else { return nil }
         guard
-            let config = (try? configStore.loadConfig())
-                ?? (try? configStore.loadConfig(for: .cleanup))
-                ?? (try? configStore.loadConfig(for: .analysis))
+            let config = (try? configStore.loadConfigMetadata())
+                ?? (try? configStore.loadRouteMetadata(for: .cleanup)?.config)
+                ?? (try? configStore.loadRouteMetadata(for: .analysis)?.config)
         else { return nil }
         if config.id == .localCLI {
             return
@@ -809,6 +867,10 @@ public final class LLMSettingsViewModel {
 
     public func saveConfiguration() {
         guard let configStore else { return }
+        if let credentialAccessError {
+            saveState = .error(credentialAccessError)
+            return
+        }
         guard draft.providerID != nil || cleanupOverrideProviderID != nil || analysisOverrideProviderID != nil else {
             clearConfiguration(finalSaveState: .saved)
             return
@@ -866,6 +928,7 @@ public final class LLMSettingsViewModel {
                 loadCommittedDraft(config, cliConfig: cliConfig, suggestedModels: availableModels)
             }
 
+            draftCredentialAccessError = nil
             saveState = .saved
             inProcessModelManager.refreshSelectionState()
             onConfigurationChanged?()
@@ -915,7 +978,7 @@ public final class LLMSettingsViewModel {
         guard let configStore else { return }
         // Provider lookup only controls optional CLI cleanup. The store's
         // deletion boundary can also recover undecodable provider metadata.
-        let storedProviderID = (try? configStore.loadConfig())?.id
+        let storedProviderID = (try? configStore.loadConfigMetadata())?.id
         do {
             try configStore.deleteConfig()
         } catch {
@@ -933,7 +996,7 @@ public final class LLMSettingsViewModel {
         let currentProvider = draft.providerID
         let apiKey: String
         if let currentProvider, currentProvider.supportsAPIKey {
-            apiKey = (try? configStore.loadAPIKey(for: currentProvider)) ?? ""
+            apiKey = savedAPIKey(for: currentProvider)
         } else {
             apiKey = ""
         }
@@ -1349,6 +1412,7 @@ public final class LLMSettingsViewModel {
                 draft.apiKeyInput == draftStoredAPIKey ? nil : draft.apiKeyInput
         }
         draftStoredAPIKey = ""
+        draftCredentialAccessError = nil
         let formatterPrompt = draft.aiFormatterPrompt
         let dictationPrompt = draft.aiFormatterDictationPrompt
         guard let providerID else {
@@ -1364,7 +1428,7 @@ public final class LLMSettingsViewModel {
         resetDiscoveredModels()
         refreshAppleIntelligenceAvailability()
         if providerID.supportsAPIKey {
-            draftStoredAPIKey = (try? configStore?.loadAPIKey(for: providerID)) ?? ""
+            draftStoredAPIKey = savedAPIKey(for: providerID)
         }
         let apiKey = unsavedAPIKeyInputs[providerID] ?? draftStoredAPIKey
         let cliConfig = providerID == .localCLI ? cliConfigStore?.load() : nil
@@ -1387,7 +1451,15 @@ public final class LLMSettingsViewModel {
     }
 
     private func loadExistingConfig() {
-        guard let configStore, let config = try? configStore.loadConfig() else {
+        draftCredentialAccessError = nil
+        let loaded: LLMProviderConfig?
+        do { loaded = try configStore?.loadConfig() } catch {
+            // A locked/denied key is not a missing route. Preserve the saved setup.
+            draftCredentialAccessError = error.localizedDescription
+            loaded = try? configStore?.loadConfigMetadata()
+        }
+        guard let config = loaded else {
+            draftCredentialAccessError = nil
             draftStoredAPIKey = ""
             draft = LLMSettingsDraft(
                 aiFormatterPrompt: Self.loadStoredAIFormatterPrompt(from: defaults),
@@ -1416,11 +1488,11 @@ public final class LLMSettingsViewModel {
         cleanupModelName = ""
         analysisOverrideProviderID = nil
         analysisModelName = ""
-        if let cleanup = try? configStore?.loadTaskOverride(.cleanup) {
+        if let cleanup = try? configStore?.loadTaskOverrideMetadata(.cleanup) {
             cleanupOverrideProviderID = cleanup.id
             cleanupModelName = cleanup.modelName
         }
-        if let analysis = try? configStore?.loadTaskOverride(.analysis) {
+        if let analysis = try? configStore?.loadTaskOverrideMetadata(.analysis) {
             analysisOverrideProviderID = analysis.id
             analysisModelName = analysis.modelName
         }
@@ -1428,6 +1500,7 @@ public final class LLMSettingsViewModel {
         savedCleanupModelName = cleanupModelName
         savedAnalysisOverrideProviderID = analysisOverrideProviderID
         savedAnalysisModelName = analysisModelName
+        refreshTaskCredentialAccess()
     }
 
     private func preparedOverride(
@@ -1624,12 +1697,12 @@ public final class LLMSettingsViewModel {
     }
 
     private func savedConfigurationSnapshot() -> ConfigurationSnapshot {
-        guard let configStore, let config = try? configStore.loadConfig() else { return .none }
+        guard let configStore, let config = try? configStore.loadConfigMetadata() else { return .none }
         return .provider(
             id: config.id,
             baseURL: config.baseURL.absoluteString,
             modelName: config.modelName,
-            apiKey: config.id.supportsAPIKey ? (config.apiKey ?? "") : nil,
+            apiKey: config.id.supportsAPIKey ? draftStoredAPIKey : nil,
             isLocal: config.isLocal,
             localCLIConfig: config.id == .localCLI ? cliConfigStore?.load() : nil
         )

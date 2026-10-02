@@ -96,6 +96,12 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Fixed
 
+- Saved Keychain credentials no longer open system password dialogs during CLI
+  execution. Blocked access returns an error; grant this executable access in
+  Keychain Access before retrying. Existing keys and routes are preserved.
+
+### Fixed
+
 - `retranscribe --update` for saved transcriptions and meetings returns the row
   committed by the shared transcription service. Notes, chat, names, favorites
   and audio metadata changed during recognition are preserved; the CLI no longer

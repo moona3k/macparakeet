@@ -186,13 +186,21 @@ final class LLMConfigStoreTests: XCTestCase {
         XCTAssertEqual(try store.loadConfigMetadata()?.modelName, "recovered")
     }
 
+    func testKeylessProviderLoadsWithoutCredentialAccess() throws {
+        try store.saveConfig(.ollama(model: "local-model"))
+        keychain.getError = KeyValueStoreError.unsupported
+        XCTAssertEqual(try store.loadConfig()?.modelName, "local-model")
+        XCTAssertNil(try store.loadConfig()?.apiKey)
+        XCTAssertNil(try store.loadAPIKey(for: .appleIntelligence))
+    }
+
     func testExecutionHydratesOnlySelectedProviderOutsideMetadataLock() throws {
         try store.saveConfiguration(
             .openai(apiKey: "default-key", model: "old-default"), cleanupOverride: nil,
-            analysisOverride: .ollama(model: "old-analysis"))
+            analysisOverride: .lmstudio(model: "old-analysis"))
         let keys = RouteHookKeys()
         keys.onRead = { [self] key in
-            XCTAssertEqual(key, "llm_api_key_ollama")
+            XCTAssertEqual(key, "llm_api_key_lmstudio")
             // A writer can run during credential loading: metadata selection was
             // already captured, and no lock is held across credential access.
             try store.saveConfiguration(.ollama(model: "new-default"), cleanupOverride: nil, analysisOverride: nil)

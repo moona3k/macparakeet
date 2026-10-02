@@ -114,7 +114,7 @@ final class AppEnvironmentConfigurer {
         // Apple Intelligence is cleanup-only; retire routes saved before that
         // rule. A failure leaves the routes as they were until the next launch.
         try? env.llmConfigStore.clearRoutesProvidersCannotServe()
-        let hasLLMConfig = (try? env.llmConfigStore.loadConfig(for: .analysis)) != nil
+        let hasLLMConfig = (try? env.llmConfigStore.loadRouteMetadata(for: .analysis)) != nil
 
         transcriptionViewModel.configure(
             transcriptionService: env.transcriptionService,
@@ -224,7 +224,7 @@ final class AppEnvironmentConfigurer {
             repo: env.promptRepo,
             historyRepo: env.transformHistoryRepo,
             clipboardService: env.clipboardService,
-            hasLLMProvider: (try? env.llmConfigStore.loadConfig(for: .transform)) != nil
+            hasLLMProvider: (try? env.llmConfigStore.loadRouteMetadata(for: .transform)) != nil
         )
         llmSettingsViewModel.configure(
             configStore: env.llmConfigStore,
@@ -632,7 +632,7 @@ final class AppEnvironmentConfigurer {
     }
 
     func refreshLLMAvailability(in env: AppEnvironment) {
-        let hasConfig = (try? env.llmConfigStore.loadConfig(for: .analysis)) != nil
+        let hasConfig = (try? env.llmConfigStore.loadRouteMetadata(for: .analysis)) != nil
         let service: LLMService? = hasConfig ? env.llmService : nil
         transcriptionViewModel.updateLLMAvailability(hasConfig, llmService: service)
         chatViewModel.updateLLMService(service)
@@ -640,7 +640,7 @@ final class AppEnvironmentConfigurer {
             service,
             cardGenerator: hasConfig ? env.cardGenerationService : nil
         )
-        transformsViewModel.setHasLLMProvider((try? env.llmConfigStore.loadConfig(for: .transform)) != nil)
+        transformsViewModel.setHasLLMProvider((try? env.llmConfigStore.loadRouteMetadata(for: .transform)) != nil)
         promptsViewModel.refreshGenerationSettingsContext()
         liveMeetingCoordinator?.updateLLMService(service)
     }

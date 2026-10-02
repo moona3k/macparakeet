@@ -714,6 +714,30 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.canGenerateManualPromptResult)
     }
 
+    func testInferenceWarningDoesNotReadBlockedCredentials() throws {
+        let domain = makeIsolatedDefaultsSuite("test.prompt-credential-display.")
+        let lockURL = FileManager.default.temporaryDirectory.appendingPathComponent(domain)
+            .appendingPathComponent("routes.lock")
+        defer { try? FileManager.default.removeItem(at: lockURL.deletingLastPathComponent()) }
+        let credentials = InMemoryKeyValueStore()
+        let store = LLMConfigStore(preferencesDomain: domain, lockURL: lockURL, keychain: credentials)
+        try store.saveTaskOverride(.gemini(apiKey: "saved-key", model: "gemini-3.5-flash"), for: .analysis)
+        credentials.getError = KeyValueStoreError.unsupported
+        let prompt = Prompt(name: "Override", content: "Summarize.", modelOverride: "claude-sonnet-5")
+        promptRepo.prompts = [prompt]
+        viewModel.configure(
+            llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo, configStore: store)
+        viewModel.selectedPrompt = prompt
+        let readsBeforeRendering = credentials.readCount
+
+        for _ in 0..<3 {
+            XCTAssertEqual(
+                viewModel.selectedPromptInferenceCompatibilityMessage,
+                "This prompt's model isn't available with Google Gemini: the model identifier does not match this provider.")
+        }
+        XCTAssertEqual(credentials.readCount, readsBeforeRendering)
+    }
+
     func testSelectedPromptInferenceCompatibilityUsesStandaloneAnalysisWhenSettingsAreNil() {
         let store = MockLLMConfigStore()
         store.taskOverrides[.analysis] = .gemini(apiKey: "key", model: "gemini-3.5-flash")
