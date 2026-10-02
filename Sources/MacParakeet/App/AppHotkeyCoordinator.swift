@@ -316,6 +316,7 @@ final class AppHotkeyCoordinator {
             guard
                 let manager = startDictationHotkey(
                     spec: spec,
+                    in: plan,
                     resumeMode: shouldResume ? resumeMode : nil,
                     suppressUntilReset: activeRecordingMode != nil && !shouldResume
                 )
@@ -340,12 +341,13 @@ final class AppHotkeyCoordinator {
 
     private func startDictationHotkey(
         spec: DictationHotkeyPlan.Spec,
+        in plan: DictationHotkeyPlan,
         resumeMode: FnKeyStateMachine.RecordingMode? = nil,
         suppressUntilReset: Bool = false
     ) -> HotkeyManager? {
         guard !spec.trigger.isDisabled else { return nil }
 
-        let manager = makeDictationHotkeyManager(spec: spec)
+        let manager = makeDictationHotkeyManager(spec: spec, in: plan)
         if let resumeMode {
             manager.resumeRecording(mode: resumeMode)
         }
@@ -362,12 +364,18 @@ final class AppHotkeyCoordinator {
         }
     }
 
-    func makeDictationHotkeyManager(spec: DictationHotkeyPlan.Spec) -> HotkeyManager {
+    /// Every accepted shortcut in `plan` other than `spec` is a peer: its input
+    /// must not interrupt a take that `spec` holds.
+    func makeDictationHotkeyManager(
+        spec: DictationHotkeyPlan.Spec,
+        in plan: DictationHotkeyPlan
+    ) -> HotkeyManager {
         let manager = HotkeyManager(
             trigger: spec.trigger,
             gestureMode: spec.gestureMode,
             startupDebounceMs: spec.startupDebounceMs,
-            holdToTalkStopTailMs: spec.holdToTalkStopTailMs
+            holdToTalkStopTailMs: spec.holdToTalkStopTailMs,
+            peerTriggers: plan.specs.map(\.trigger).filter { $0 != spec.trigger }
         )
         manager.onStartRecording = { [weak self, weak manager] mode in
             guard let manager else { return }

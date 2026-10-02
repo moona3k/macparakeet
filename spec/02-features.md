@@ -175,7 +175,8 @@ keyboards. Within either pair, assigning the same trigger enables hold/double-ta
 behavior; distinct triggers use hold and single-tap respectively. Additional
 slots default to disabled and never migrate or replace the primary pair. During
 hands-free recording either ordinary hands-free shortcut can stop the take;
-hold-to-talk remains owned by the trigger that started it. See
+hold-to-talk remains owned by the trigger that started it, and pressing another
+dictation shortcut during a hold does not interrupt it. See
 [dictation shortcuts contract](contracts/dictation-shortcuts.md).
 
 | Mode | Gesture | Behavior |

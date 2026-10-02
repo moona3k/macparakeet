@@ -1,3 +1,4 @@
+import IOKit.hidsystem
 import XCTest
 import MacParakeetCore
 import MacParakeetViewModels
@@ -792,9 +793,11 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         plan: AppHotkeyCoordinator.DictationHotkeyPlan
     ) -> [HotkeyManager] {
         let managers = plan.specs.map { spec -> HotkeyManager in
-            let manager = coordinator.makeDictationHotkeyManager(spec: spec)
+            let manager = coordinator.makeDictationHotkeyManager(spec: spec, in: plan)
             manager.setPhysicalKeyStateProviderForTesting { _ in false }
             manager.setPhysicalFlagsProviderForTesting { [] }
+            // Coordinator-built managers read the host's Escape preference.
+            manager.shouldCancelOnEscape = { true }
             return manager
         }
         coordinator.setDictationHotkeyEntriesForTesting(
@@ -864,31 +867,6 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             [.startRecording(mode: .persistent)])
     }
 
-    func testHeldTakeIgnoresTheOtherShortcutThroughCoordinatorStart() {
-        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
-            handsFree: .control, pushToTalk: .control, alternateHandsFree: .option, alternatePushToTalk: .option)
-        let flags: [CGEventFlags] = [.maskControl, .maskAlternate]
-        for ownerIndex in [0, 1] {
-            let coordinator = makeCoordinator(settingsViewModel: makeViewModel(), onHotkeyConflict: { _, _ in })
-            let managers = installDictationManagers(in: coordinator, plan: plan)
-            let owner = managers[ownerIndex]
-            let peer = managers[1 - ownerIndex]
-            startProvisionalTake(on: owner, flags: flags[ownerIndex])
-
-            // The other keyboard's shortcut is pressed and released mid-hold.
-            XCTAssertEqual(
-                peer.modifierFlagsChangedOutputsForTesting(flags: flags[1 - ownerIndex], timestampMs: 1_600), [],
-                "owner: \(ownerIndex)")
-            XCTAssertEqual(
-                peer.modifierFlagsChangedOutputsForTesting(flags: [], timestampMs: 1_700), [],
-                "owner: \(ownerIndex)")
-
-            let release = owner.modifierFlagsChangedOutputsForTesting(flags: [], timestampMs: 2_000)
-            XCTAssertFalse(release.isEmpty, "The owning shortcut must still end its own hold (owner: \(ownerIndex))")
-            XCTAssertFalse(release.contains { if case .discardRecording = $0 { true } else { false } })
-        }
-    }
-
     func testHandsFreeTakeStopsOnceFromEitherShortcutThroughCoordinatorStart() {
         let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
             handsFree: .control, pushToTalk: .control, alternateHandsFree: .option, alternatePushToTalk: .option)
@@ -948,6 +926,481 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         coordinator.configureEscapeHandling(managers, preferred: dispatcher)
         let outputs = managers.flatMap { $0.modifierKeyDownOutputsForTesting(keyCode: 53, timestampMs: 1000) }
         XCTAssertEqual(outputs.filter { $0 == .cancelRecording }.count, 1)
+    }
+
+    // MARK: - Peer shortcut input during a held take
+
+    /// What the dictation flow would see from the managers' callbacks.
+    private final class FlowRecorder {
+        var starts = 0
+        var pendingStops = 0
+        var cancels = 0
+        var discards = 0
+        var killedTakes: Int { cancels + discards }
+    }
+
+    /// One physical event as every event tap receives it: combined global flags.
+    private struct PhysicalEvent {
+        let type: CGEventType
+        let keyCode: UInt16
+        let flags: CGEventFlags
+
+        static func modifier(_ keyCode: UInt16, _ flags: CGEventFlags) -> PhysicalEvent {
+            PhysicalEvent(type: .flagsChanged, keyCode: keyCode, flags: flags)
+        }
+
+        static func down(_ keyCode: UInt16, _ flags: CGEventFlags = []) -> PhysicalEvent {
+            PhysicalEvent(type: .keyDown, keyCode: keyCode, flags: flags)
+        }
+
+        static func up(_ keyCode: UInt16, _ flags: CGEventFlags = []) -> PhysicalEvent {
+            PhysicalEvent(type: .keyUp, keyCode: keyCode, flags: flags)
+        }
+    }
+
+    private static func device(_ mask: Int32) -> CGEventFlags {
+        CGEventFlags(rawValue: UInt64(mask))
+    }
+
+    private static let ctrl: CGEventFlags = .maskControl
+    private static let opt: CGEventFlags = .maskAlternate
+    private static let shift: CGEventFlags = .maskShift
+    private static let fn: CGEventFlags = .maskSecondaryFn
+    private static let ctrlOpt: CGEventFlags = [.maskControl, .maskAlternate]
+    private static let leftControl = device(NX_DEVICELCTLKEYMASK)
+    private static let leftOption = device(NX_DEVICELALTKEYMASK)
+    private static let rightOption = device(NX_DEVICERALTKEYMASK)
+    private static let rightCommand = device(NX_DEVICERCMDKEYMASK)
+
+    private static let rightOptionTrigger = HotkeyTrigger(
+        kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
+    private static let rightCommandTrigger = HotkeyTrigger(
+        kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
+
+    /// A shortcut pair where `owner` holds a take and the user then presses and
+    /// releases the `peer` shortcut, as the taps see it.
+    private struct PeerScenario {
+        let name: String
+        let owner: HotkeyTrigger
+        let peer: HotkeyTrigger
+        let ownerPress: [PhysicalEvent]
+        let peerInput: [PhysicalEvent]
+        let ownerRelease: [PhysicalEvent]
+        /// AI polish is a third accepted shortcut, so it is a peer too.
+        var aiPolish: HotkeyTrigger = .disabled
+    }
+
+    private enum TakeVariant: CaseIterable {
+        /// Shared hold/double-tap shortcut, held less than the tap threshold.
+        case provisional
+        /// Shared hold/double-tap shortcut, held past the tap threshold.
+        case confirmed
+        /// Push-to-talk only shortcut.
+        case pushToTalkOnly
+    }
+
+    private static let peerScenarios: [PeerScenario] = [
+        PeerScenario(
+            name: "Control owner, Option peer",
+            owner: .control, peer: .option,
+            ownerPress: [.modifier(59, ctrl)],
+            peerInput: [.modifier(58, ctrlOpt), .modifier(58, ctrl)],
+            ownerRelease: [.modifier(59, [])]),
+        PeerScenario(
+            name: "Option owner, Control peer",
+            owner: .option, peer: .control,
+            ownerPress: [.modifier(58, opt)],
+            peerInput: [.modifier(59, ctrlOpt), .modifier(59, opt)],
+            ownerRelease: [.modifier(58, [])]),
+        PeerScenario(
+            name: "Owner released while the peer is still held",
+            owner: .control, peer: .option,
+            ownerPress: [.modifier(59, ctrl)],
+            peerInput: [.modifier(58, ctrlOpt)],
+            ownerRelease: [.modifier(59, opt), .modifier(58, [])]),
+        PeerScenario(
+            name: "Fn owner, standalone key peer",
+            owner: .fn, peer: .fromKeyCode(117),
+            ownerPress: [.modifier(63, fn)],
+            peerInput: [.down(117, fn), .down(117, fn), .up(117, fn)],
+            ownerRelease: [.modifier(63, [])]),
+        PeerScenario(
+            name: "Fn owner, modifier-first peer chord released modifier first",
+            owner: .fn, peer: .chord(modifiers: ["option"], keyCode: 119),
+            ownerPress: [.modifier(63, fn)],
+            peerInput: [
+                .modifier(58, [fn, opt]), .down(119, [fn, opt]), .modifier(58, fn), .up(119, fn),
+            ],
+            ownerRelease: [.modifier(63, [])]),
+        PeerScenario(
+            name: "Control owner, modifier-first peer chord released key first",
+            owner: .control, peer: .chord(modifiers: ["option"], keyCode: 119),
+            ownerPress: [.modifier(59, ctrl)],
+            peerInput: [
+                .modifier(58, ctrlOpt), .down(119, ctrlOpt), .up(119, ctrlOpt), .modifier(58, ctrl),
+            ],
+            ownerRelease: [.modifier(59, [])]),
+        PeerScenario(
+            name: "Control owner, peer chord keyUp after its modifier released",
+            owner: .control, peer: .chord(modifiers: ["option"], keyCode: 119),
+            ownerPress: [.modifier(59, ctrl)],
+            peerInput: [
+                .modifier(58, ctrlOpt), .down(119, ctrlOpt), .modifier(58, ctrl), .up(119, ctrl),
+            ],
+            ownerRelease: [.modifier(59, [])]),
+        PeerScenario(
+            name: "Modifier-chord owner, Option peer",
+            owner: .modifierChord(modifiers: ["control", "shift"]), peer: .option,
+            ownerPress: [.modifier(59, ctrl), .modifier(56, [ctrl, shift])],
+            peerInput: [.modifier(58, [ctrl, shift, opt]), .modifier(58, [ctrl, shift])],
+            ownerRelease: [.modifier(56, ctrl), .modifier(59, [])]),
+        PeerScenario(
+            name: "Modifier-chord owner, standalone key peer",
+            owner: .modifierChord(modifiers: ["control", "shift"]), peer: .fromKeyCode(105),
+            ownerPress: [.modifier(59, ctrl), .modifier(56, [ctrl, shift])],
+            peerInput: [.down(105, [ctrl, shift]), .up(105, [ctrl, shift])],
+            ownerRelease: [.modifier(56, ctrl), .modifier(59, [])]),
+        PeerScenario(
+            name: "Control owner, AI-polish peer",
+            owner: .control, peer: .fromKeyCode(117),
+            ownerPress: [.modifier(59, ctrl)],
+            peerInput: [.modifier(56, [ctrl, shift]), .modifier(56, ctrl)],
+            ownerRelease: [.modifier(59, [])],
+            aiPolish: .shift),
+        PeerScenario(
+            name: "Control owner, side-specific peer",
+            owner: .control, peer: rightOptionTrigger,
+            ownerPress: [.modifier(59, [ctrl, leftControl])],
+            peerInput: [
+                .modifier(61, [ctrl, leftControl, opt, rightOption]),
+                .modifier(61, [ctrl, leftControl]),
+            ],
+            ownerRelease: [.modifier(59, [])]),
+        PeerScenario(
+            name: "Side-specific owner, Option peer",
+            owner: rightCommandTrigger, peer: .option,
+            ownerPress: [.modifier(54, [.maskCommand, rightCommand])],
+            peerInput: [
+                .modifier(58, [.maskCommand, rightCommand, opt, leftOption]),
+                .modifier(58, [.maskCommand, rightCommand]),
+            ],
+            ownerRelease: [.modifier(54, [])]),
+        PeerScenario(
+            name: "Key owner, standalone key peer",
+            owner: .fromKeyCode(105), peer: .fromKeyCode(117),
+            ownerPress: [.down(105)],
+            peerInput: [.down(117), .up(117)],
+            ownerRelease: [.up(105)]),
+        PeerScenario(
+            name: "Key owner, Fn peer",
+            owner: .fromKeyCode(105), peer: .fn,
+            ownerPress: [.down(105)],
+            peerInput: [.modifier(63, fn), .modifier(63, []), .down(179)],
+            ownerRelease: [.up(105)]),
+        PeerScenario(
+            name: "Chord owner, standalone key peer",
+            owner: .chord(modifiers: ["control", "option"], keyCode: 20), peer: .fromKeyCode(105),
+            ownerPress: [.modifier(59, ctrl), .modifier(58, ctrlOpt), .down(20, ctrlOpt)],
+            peerInput: [.down(105, ctrlOpt), .up(105, ctrlOpt)],
+            ownerRelease: [.up(20, ctrlOpt)]),
+    ]
+
+    @MainActor
+    private final class PeerRig {
+        /// Managers hold their coordinator weakly.
+        let coordinator: AppHotkeyCoordinator
+        let recorder: FlowRecorder
+        let managers: [HotkeyManager]
+        let owner: HotkeyManager
+        let scenario: PeerScenario
+        let variant: TakeVariant
+        let reverse: Bool
+        private var clockMs: UInt64 = 1_000
+
+        init(
+            coordinator: AppHotkeyCoordinator,
+            recorder: FlowRecorder,
+            managers: [HotkeyManager],
+            owner: HotkeyManager,
+            scenario: PeerScenario,
+            variant: TakeVariant,
+            reverse: Bool
+        ) {
+            self.coordinator = coordinator
+            self.recorder = recorder
+            self.managers = managers
+            self.owner = owner
+            self.scenario = scenario
+            self.variant = variant
+            self.reverse = reverse
+        }
+
+        var label: String { "\(scenario.name) [\(variant), reverse: \(reverse)]" }
+
+        /// Delivers each event to every manager, as separate taps would.
+        func send(_ events: [PhysicalEvent]) {
+            for event in events {
+                clockMs += 25
+                for manager in reverse ? managers.reversed() : managers {
+                    manager.processForTesting(
+                        type: event.type, keyCode: event.keyCode, flags: event.flags, timestampMs: clockMs)
+                }
+            }
+        }
+
+        /// Presses the owner and lets its startup debounce elapse.
+        func startHeldTake() {
+            send(scenario.ownerPress)
+            let started = owner.startupDebounceElapsedForTesting()
+            XCTAssertEqual(started, [.startRecording(mode: .holdToTalk)], label)
+            owner.onStartRecording?(.holdToTalk)
+            if variant == .confirmed { _ = owner.holdWindowElapsedForTesting() }
+        }
+
+        func releaseOwnerAfterTapThreshold() {
+            clockMs += 500
+            send(scenario.ownerRelease)
+        }
+    }
+
+    private func makePeerRig(
+        viewModel: SettingsViewModel,
+        scenario: PeerScenario,
+        ownerIsPrimary: Bool,
+        variant: TakeVariant,
+        reverse: Bool
+    ) -> PeerRig {
+        let recorder = FlowRecorder()
+        let coordinator = AppHotkeyCoordinator(
+            settingsViewModel: viewModel,
+            onStartDictation: { _, _ in
+                recorder.starts += 1
+                return true
+            },
+            onStopDictation: {},
+            onStopDictationPending: { recorder.pendingStops += 1 },
+            onCancelDictation: { recorder.cancels += 1 },
+            onDiscardRecording: { _ in recorder.discards += 1 },
+            onReadyForSecondTap: {},
+            onEscapeWhileIdle: {},
+            onToggleMeetingRecording: {},
+            onTriggerFileTranscription: {},
+            onTriggerYouTubeTranscription: {},
+            onDictationHotkeyManagersChanged: { _ in },
+            onAnyHotkeyEnabled: {},
+            onHotkeyUnavailable: {},
+            onHotkeyConflict: { _, _ in }
+        )
+        let ownerHandsFree: HotkeyTrigger = variant == .pushToTalkOnly ? .disabled : scenario.owner
+        let plan =
+            ownerIsPrimary
+            ? AppHotkeyCoordinator.dictationHotkeyPlan(
+                handsFree: ownerHandsFree, pushToTalk: scenario.owner, aiPolish: scenario.aiPolish,
+                alternateHandsFree: scenario.peer, alternatePushToTalk: scenario.peer)
+            : AppHotkeyCoordinator.dictationHotkeyPlan(
+                handsFree: scenario.peer, pushToTalk: scenario.peer, aiPolish: scenario.aiPolish,
+                alternateHandsFree: ownerHandsFree, alternatePushToTalk: scenario.owner)
+        XCTAssertNil(plan.conflict, scenario.name)
+        XCTAssertEqual(plan.specs.count, scenario.aiPolish.isDisabled ? 2 : 3, scenario.name)
+        let managers = installDictationManagers(in: coordinator, plan: plan)
+        let ownerIndex = plan.specs.firstIndex { $0.trigger == scenario.owner } ?? 0
+        return PeerRig(
+            coordinator: coordinator, recorder: recorder, managers: managers, owner: managers[ownerIndex],
+            scenario: scenario, variant: variant, reverse: reverse)
+    }
+
+    /// Runs `body` for every pair position, delivery order and take variant.
+    private func forEachPeerRig(
+        _ scenarios: [PeerScenario],
+        variants: [TakeVariant] = TakeVariant.allCases,
+        body: (PeerRig) -> Void
+    ) {
+        let viewModel = makeViewModel()
+        for scenario in scenarios {
+            for variant in variants {
+                for ownerIsPrimary in [true, false] {
+                    for reverse in [false, true] {
+                        body(
+                            makePeerRig(
+                                viewModel: viewModel, scenario: scenario, ownerIsPrimary: ownerIsPrimary,
+                                variant: variant, reverse: reverse))
+                    }
+                }
+            }
+        }
+    }
+
+    func testPeerShortcutInputNeverInterruptsAHeldTakeAndTheOwnerStillStopsOnce() {
+        forEachPeerRig(Self.peerScenarios) { rig in
+            rig.startHeldTake()
+            XCTAssertEqual(rig.recorder.starts, 1, rig.label)
+
+            rig.send(rig.scenario.peerInput)
+            XCTAssertEqual(rig.recorder.killedTakes, 0, "Peer input killed the take: \(rig.label)")
+            XCTAssertEqual(rig.recorder.pendingStops, 0, rig.label)
+            for peer in rig.managers where peer !== rig.owner {
+                XCTAssertEqual(peer.startupDebounceElapsedForTesting(), [], "Peer must stay suppressed: \(rig.label)")
+            }
+
+            rig.releaseOwnerAfterTapThreshold()
+            XCTAssertEqual(rig.recorder.starts, 1, rig.label)
+            XCTAssertEqual(rig.recorder.pendingStops, 1, "Owner release must stop once: \(rig.label)")
+            XCTAssertEqual(rig.recorder.killedTakes, 0, rig.label)
+        }
+    }
+
+    func testInputThatIsNotAConfiguredPeerStillInterruptsAHeldTake() {
+        let optionEnd = HotkeyTrigger.chord(modifiers: ["option"], keyCode: 119)
+        func scenario(
+            _ name: String,
+            owner: HotkeyTrigger = .control,
+            peer: HotkeyTrigger,
+            ownerPress: [PhysicalEvent] = [.modifier(59, Self.ctrl)],
+            interference: [PhysicalEvent]
+        ) -> PeerScenario {
+            PeerScenario(
+                name: name, owner: owner, peer: peer, ownerPress: ownerPress, peerInput: interference,
+                ownerRelease: [.modifier(59, [])])
+        }
+        func releasedPeerKey(
+            _ name: String, owner: HotkeyTrigger, held: CGEventFlags, press: [PhysicalEvent]
+        ) -> PeerScenario {
+            let withOption = held.union(Self.opt)
+            return scenario(
+                "\(name), peer chord key typed again after its release", owner: owner, peer: optionEnd,
+                ownerPress: press,
+                interference: [
+                    .modifier(58, withOption), .down(119, withOption), .up(119, withOption),
+                    .modifier(58, held), .down(119, held),
+                ])
+        }
+        let scenarios = [
+            scenario("Ordinary typing", peer: .option, interference: [.down(0, Self.ctrl)]),
+            scenario("Unconfigured modifier", peer: .option, interference: [.modifier(56, [Self.ctrl, Self.shift])]),
+            scenario(
+                "Peer modifier first, then typing", peer: .option,
+                interference: [
+                    .modifier(58, Self.ctrlOpt), .down(0, Self.ctrlOpt),
+                ]),
+            scenario(
+                "Peer chord terminal key without its modifiers", peer: optionEnd,
+                interference: [
+                    .down(119, Self.ctrl)
+                ]),
+            scenario(
+                "Wrong key under the peer chord's modifiers", peer: optionEnd,
+                interference: [
+                    .modifier(58, Self.ctrlOpt), .down(0, Self.ctrlOpt),
+                ]),
+            scenario(
+                "Opposite side of a side-specific peer", peer: Self.rightOptionTrigger,
+                interference: [
+                    .modifier(58, [Self.ctrl, Self.leftControl, Self.opt, Self.leftOption])
+                ]),
+            scenario(
+                "Both sides held for a side-specific peer", peer: Self.rightOptionTrigger,
+                interference: [
+                    .modifier(61, [Self.ctrl, Self.leftControl, Self.opt, Self.rightOption, Self.leftOption])
+                ]),
+            scenario(
+                "Fn owner, unclaimed key", owner: .fn, peer: .fromKeyCode(117),
+                ownerPress: [.modifier(63, Self.fn)], interference: [.down(0, Self.fn)]),
+            scenario(
+                "Fn owner, key after a claimed key", owner: .fn, peer: .fromKeyCode(117),
+                ownerPress: [.modifier(63, Self.fn)], interference: [.down(117, Self.fn), .down(0, Self.fn)]),
+            scenario(
+                "Modifier-chord owner, unconfigured modifier",
+                owner: .modifierChord(modifiers: ["control", "shift"]), peer: .option,
+                ownerPress: [.modifier(59, Self.ctrl), .modifier(56, [Self.ctrl, Self.shift])],
+                interference: [.modifier(55, [Self.ctrl, Self.shift, .maskCommand])]),
+            scenario(
+                "Modifier-chord owner, ordinary typing",
+                owner: .modifierChord(modifiers: ["control", "shift"]), peer: .option,
+                ownerPress: [.modifier(59, Self.ctrl), .modifier(56, [Self.ctrl, Self.shift])],
+                interference: [.down(0, [Self.ctrl, Self.shift])]),
+            scenario(
+                "Side-specific owner, unconfigured modifier",
+                owner: Self.rightCommandTrigger, peer: .option,
+                ownerPress: [.modifier(54, [.maskCommand, Self.rightCommand])],
+                interference: [.modifier(56, [.maskCommand, Self.rightCommand, Self.shift])]),
+            scenario(
+                "Key owner, ordinary typing", owner: .fromKeyCode(105), peer: .fromKeyCode(117),
+                ownerPress: [.down(105)], interference: [.down(0)]),
+            scenario(
+                "Key owner, unconfigured Fn", owner: .fromKeyCode(105), peer: .fromKeyCode(117),
+                ownerPress: [.down(105)], interference: [.down(179)]),
+            // The claim ends at the key's release, so the same key is typing again.
+            releasedPeerKey("Control owner", owner: .control, held: Self.ctrl, press: [.modifier(59, Self.ctrl)]),
+            releasedPeerKey("Fn owner", owner: .fn, held: Self.fn, press: [.modifier(63, Self.fn)]),
+            releasedPeerKey(
+                "Modifier-chord owner", owner: .modifierChord(modifiers: ["control", "shift"]),
+                held: [Self.ctrl, Self.shift],
+                press: [.modifier(59, Self.ctrl), .modifier(56, [Self.ctrl, Self.shift])]),
+            releasedPeerKey("Key owner", owner: .fromKeyCode(105), held: [], press: [.down(105)]),
+            scenario(
+                "Chord owner, ordinary typing",
+                owner: .chord(modifiers: ["control", "option"], keyCode: 20), peer: .fromKeyCode(105),
+                ownerPress: [.modifier(59, Self.ctrl), .modifier(58, Self.ctrlOpt), .down(20, Self.ctrlOpt)],
+                interference: [.down(0, Self.ctrlOpt)]),
+        ]
+        forEachPeerRig(scenarios) { rig in
+            rig.startHeldTake()
+            rig.send(rig.scenario.peerInput)
+            XCTAssertEqual(rig.recorder.killedTakes, 1, "Interference must end the take once: \(rig.label)")
+
+            rig.releaseOwnerAfterTapThreshold()
+            XCTAssertEqual(rig.recorder.pendingStops, 0, "A killed take must not also stop: \(rig.label)")
+            XCTAssertEqual(rig.recorder.killedTakes, 1, rig.label)
+        }
+    }
+
+    func testPeerInputBeforeCaptureStillInterruptsThePendingPress() {
+        let scenario = Self.peerScenarios[0]
+        forEachPeerRig([scenario], variants: [.provisional]) { rig in
+            rig.send(scenario.ownerPress)
+            rig.send(scenario.peerInput)
+            XCTAssertEqual(
+                rig.owner.startupDebounceElapsedForTesting(), [],
+                "No take is owned yet, so the peer press clears the pending one: \(rig.label)")
+            XCTAssertEqual(rig.recorder.starts, 0, rig.label)
+        }
+    }
+
+    func testEscapeStillCancelsOnceWhilePeerInputIsHeld() {
+        let scenario = Self.peerScenarios[0]
+        forEachPeerRig([scenario]) { rig in
+            rig.startHeldTake()
+            rig.send([.modifier(58, Self.ctrlOpt)])
+            rig.send([.down(53, Self.ctrlOpt)])
+            XCTAssertEqual(rig.recorder.cancels, 1, "One Escape cancels the take once: \(rig.label)")
+            XCTAssertEqual(rig.recorder.discards, 0, rig.label)
+        }
+    }
+
+    func testClaimedPeerKeyDoesNotOutliveTheTakeThatAbsorbedIt() {
+        let optionEnd = HotkeyTrigger.chord(modifiers: ["option"], keyCode: 119)
+        let scenario = PeerScenario(
+            name: "Peer chord key never released", owner: .control, peer: optionEnd,
+            ownerPress: [.modifier(59, Self.ctrl)],
+            peerInput: [.modifier(58, Self.ctrlOpt), .down(119, Self.ctrlOpt)],
+            ownerRelease: [.modifier(59, [])])
+        forEachPeerRig([scenario], variants: [.confirmed]) { rig in
+            rig.startHeldTake()
+            rig.send(scenario.peerInput)
+            XCTAssertEqual(rig.recorder.killedTakes, 0, rig.label)
+            rig.releaseOwnerAfterTapThreshold()
+            XCTAssertEqual(rig.recorder.pendingStops, 1, rig.label)
+
+            // The next take sees the same key without the chord's modifier: typing.
+            rig.send([.modifier(58, [])])
+            rig.send(scenario.ownerPress)
+            let restarted = rig.owner.startupDebounceElapsedForTesting()
+            guard restarted == [.startRecording(mode: .holdToTalk)] else {
+                return XCTFail("The owner should be able to start a second take: \(rig.label) \(restarted)")
+            }
+            rig.send([.down(119, Self.ctrl)])
+            XCTAssertEqual(rig.recorder.killedTakes, 1, "A stale claim absorbed typing: \(rig.label)")
+        }
     }
 
 }

@@ -1119,8 +1119,8 @@ struct SettingsView: View {
                                 handsFree: viewModel.alternateHandsFreeHotkeyTrigger,
                                 pushToTalk: viewModel.alternatePushToTalkHotkeyTrigger
                             )
-                                ? "Double-tap to start; tap either hands-free shortcut to stop."
-                                : "Tap to start; tap either hands-free shortcut to stop.",
+                                ? "Double-tap to start; tap a configured hands-free shortcut to stop."
+                                : "Tap to start; tap a configured hands-free shortcut to stop.",
                             surface: .alternateHandsFree,
                             trigger: $viewModel.alternateHandsFreeHotkeyTrigger
                         )

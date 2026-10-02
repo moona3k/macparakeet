@@ -419,7 +419,7 @@ final class HotkeyConflictPolicyTests: XCTestCase {
         for surface: HotkeyConflictPolicy.Surface in [.alternateHandsFree, .alternatePushToTalk] {
             XCTAssertEqual(
                 HotkeyConflictPolicy.settingsValidation(candidate: key, surface: surface, snapshot: settings), .allowed)
-}
+        }
     }
 
     func testAdditionalShortcutsConflictInBothDirectionsWithEveryOtherSurface() {
