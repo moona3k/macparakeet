@@ -529,8 +529,9 @@ not guaranteed provider behavior. Linked pages are not fetched.
 Advanced custom templates retain case-sensitive `{{userNotes}}` substitution
 regardless of the checkbox. If the token is present, no automatic block is
 appended; if notes are empty, enabling the checkbox changes no prompt bytes.
-`PromptResult.userNotesSnapshot` stores the exact effective notes value used,
-while `includeMeetingNotesSnapshot` records the captured preference. Retry
+`PromptResult.userNotesSnapshot` stores the normalized, capped notes value used
+in prompt assembly, before any provider context trimming, while
+`includeMeetingNotesSnapshot` records the captured preference. Retry
 reuses the queued values; regenerate reuses the Boolean receipt with current
 committed notes. Regeneration reuses the saved model only when its provider receipt
 matches the current analysis provider; after a provider change or when provider

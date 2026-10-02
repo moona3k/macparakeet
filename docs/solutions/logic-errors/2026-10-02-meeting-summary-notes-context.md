@@ -78,8 +78,9 @@ that commit and the investigation base `f43f4bed2` shows the same exclusion rule
 - Provider context limiting reserves transcript space before bounding oversized
   system context. Otherwise, long automatic notes can consume LM Studio's
   entire 8,000-character input budget and leave almost none of the transcript.
-  Short transcripts keep their full text; long transcripts retain their head
-  and tail. Empty transcripts do not reserve space from system-only requests.
+  Transcripts up to half the input budget keep their full text; longer ones
+  retain their head and tail. Empty transcripts do not reserve space from
+  system-only requests.
   Notes snapshots record assembly input before this provider-specific trimming.
 
 ## Verification

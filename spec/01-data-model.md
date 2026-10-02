@@ -379,8 +379,8 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
 - `isTranscriptEdited` marks the legacy whole-transcript replacement path. Its text has no safe mapping to the automatic words and therefore has `untimed` alignment. Timed line corrections do not set this flag; they are journal commands projected through `transcriptSegments`. Added in v0.7.7.
 - `userNotes` stores the canonical free-form meeting notes. Live capture writes
   it at finalize; the saved-meeting Notes tab autosaves to the same field. Prompt
-  generation snapshots the exact effective notes sent
-  to assembly on `summaries.userNotesSnapshot`. Added in v0.8.
+  generation snapshots the effective notes supplied to prompt assembly on
+  `summaries.userNotesSnapshot`. Added in v0.8.
 - `engine` / `engineVariant` record the STT engine attribution for Parakeet, Nemotron Beta, Cohere, and optional WhisperKit paths. Added in v0.8; legacy rows keep `NULL`.
 - `calendarEventSnapshot` is a JSON blob for meeting rows only. It stores `confidence` (`confirmed` for calendar auto-start, `probable` for manual starts matched against the current poll cache), EventKit `eventIdentifier`, optional `externalId`, event title, scheduled start/end, attendee names/emails, organizer name/email, meeting URL/service, and capture timestamp. This is local user data and must not be sent in telemetry, including attendee counts. Added in v0.25.
 - `titleOverride` stores a user-authored display title for file transcriptions and durable explicit-title intent for meetings. File titles do not rename or move the external source or replace its original `fileName`. Meetings still display `fileName`; a meeting rename or explicit import title also sets the normalized override, preventing automatic title generation from replacing it on completion or Retry. Default/generated meeting names leave the override `NULL`. Blank overrides normalize to `NULL`. Added in v0.26; meeting intent applies with external import.
