@@ -1,0 +1,35 @@
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_8e18011eb8697e::t_52a823f6c5ec38 371-381
+  s_b1f069d970c546::t_c3563c0ce0e1bd 370
+Sources/MacParakeetCore/AppRuntimePreferences.swift
+  s_8e18011eb8697e::t_cb2f639a14d815 564-566,573-575
+Sources/MacParakeet/AppDelegate.swift
+  s_8e18011eb8697e::t_d385b9efc687b3 44
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_8e18011eb8697e::t_2d3a7e9281462c 293-304
+  s_8e18011eb8697e::t_27ba5409d33b94 439
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ced602a21ac64d6a39510a4a65c0393b5f043d9f",
+  "prompts": {},
+  "sessions": {
+    "s_8e18011eb8697e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0beb1e6a-a944-4c92-9387-3e392ead3c20",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_b1f069d970c546": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fb40-d74a-7111-9570-c5cf18aa166b",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

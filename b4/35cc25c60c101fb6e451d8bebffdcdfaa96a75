@@ -1,0 +1,45 @@
+Sources/CLI/CHANGELOG.md
+  s_dde2a4545fb121::t_8328e0f8c29601 109-116
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_0a66a5a5a87cf2::t_f602712a016db2 113-116,118,2476,2501-2507
+Sources/MacParakeetCore/Models/Prompt.swift
+  s_dde2a4545fb121::t_26e97e8915c177 219,234,305
+Tests/MacParakeetTests/Database/DatabaseManagerTests.swift
+  s_dde2a4545fb121::t_f1788895df18d0 961-963,965,967
+Tests/MacParakeetTests/Database/PromptRepositoryTests.swift
+  s_dde2a4545fb121::t_688b900ec4da96 526-543,556,560
+Tests/MacParakeetTests/ViewModels/PromptResultsViewModelTests.swift
+  s_0a66a5a5a87cf2::t_7ac774bb0f9016 2617-2618
+docs/solutions/logic-errors/2026-10-02-meeting-summary-notes-context.md
+  s_dde2a4545fb121::t_eaf61f04ea81f5 16-29,68-69
+spec/01-data-model.md
+  s_0a66a5a5a87cf2::t_276cbdb3ddd16b 46-51
+spec/adr/020-live-meeting-notepad-and-memo-summaries.md
+  s_dde2a4545fb121::t_992a9a21c6cfb0 8,10-22,64-66
+spec/contracts/cli-json-v1.md
+  s_dde2a4545fb121::t_84f18ca3463931 134-137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b435cc25c60c101fb6e451d8bebffdcdfaa96a75",
+  "prompts": {},
+  "sessions": {
+    "s_0a66a5a5a87cf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fe52-9982-73c0-a4f3-e2914337aa43",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_dde2a4545fb121": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f4d6-65fb-7f82-954d-1ba34b7911ce",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

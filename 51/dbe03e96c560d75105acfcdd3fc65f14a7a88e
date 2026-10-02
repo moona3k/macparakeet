@@ -1,0 +1,39 @@
+Sources/MacParakeet/Views/Transcription/PromptLibraryView.swift
+  s_dde2a4545fb121::t_bac5f65cb04819 976-977
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_65894c53f6dcee::t_3e74d07629771a 3615-3642,3844-3854
+Sources/MacParakeetCore/Models/PromptSystemPromptAssembler.swift
+  s_dde2a4545fb121::t_eab9f128636d48 97-102
+Tests/MacParakeetTests/Models/PromptTemplateRendererTests.swift
+  s_dde2a4545fb121::t_7030c38df5ce2a 88-93
+Tests/MacParakeetTests/ViewModels/PromptResultsViewModelTests.swift
+  s_65894c53f6dcee::t_8190c800d76a92 2605-2655
+docs/solutions/logic-errors/2026-10-02-meeting-summary-notes-context.md
+  s_dde2a4545fb121::t_127bae84a75446 1-78
+spec/adr/020-live-meeting-notepad-and-memo-summaries.md
+  s_dde2a4545fb121::t_43236197510210 8-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "51dbe03e96c560d75105acfcdd3fc65f14a7a88e",
+  "prompts": {},
+  "sessions": {
+    "s_65894c53f6dcee": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fe54-50b9-7660-a88b-314c8e4f76cc",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_dde2a4545fb121": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f4d6-65fb-7f82-954d-1ba34b7911ce",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
