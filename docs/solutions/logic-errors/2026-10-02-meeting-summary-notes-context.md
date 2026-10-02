@@ -60,12 +60,15 @@ that commit and the investigation base `f43f4bed2` shows the same exclusion rule
 
 - The meeting generation popover states whether notes context is enabled.
 - Saved results expose their recorded notes snapshot, or explain the disabled
-  setting and how to generate a new result after changing it.
+  setting and how to generate a new result after changing it. Imported or
+  unlinked results without a notes receipt say the notes context was not
+  recorded instead of claiming a disabled setting.
 - Prompt Library copy describes the provider boundary and regeneration rule.
 - Automatic context now permits explicit spelling corrections when the referent
   is clear and asks for relevant URLs to be preserved exactly. Names/links alone
   cannot establish attendance, speaker identity, decisions, or commitments.
-- Summary's new-install default is enabled. Existing choices, replay behavior,
+- Summary's new-install default is enabled. Existing choices, including a saved
+  opt-out on a legacy built-in row replaced by its canonical identity, replay behavior,
   notes persistence, the 8,000-word
   cap, custom template framing, and URL-fetch behavior remain unchanged.
 - Historical snapshots are labeled neutrally: older versions stored full notes

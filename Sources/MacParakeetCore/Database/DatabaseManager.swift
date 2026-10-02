@@ -2588,10 +2588,11 @@ public final class DatabaseManager: Sendable {
                     continue
                 }
 
-                if let legacyPromptID = try String.fetchOne(
+                var legacyIncludeMeetingNotes: Bool?
+                if let legacyPrompt = try Row.fetchOne(
                     db,
                     sql: """
-                        SELECT id
+                        SELECT id, includeMeetingNotes
                         FROM prompts
                         WHERE name = ? COLLATE NOCASE
                           AND isBuiltIn = 1
@@ -2601,10 +2602,14 @@ public final class DatabaseManager: Sendable {
                 ) {
                     // Preserve the legacy row and its history, but retire it so
                     // the stable canonical identity can be inserted safely.
+                    let legacyPromptID: DatabaseValue = legacyPrompt["id"]
                     try db.execute(
                         sql: "UPDATE prompts SET deletedAt = ?, updatedAt = ? WHERE id = ?",
                         arguments: [prompt.updatedAt, prompt.updatedAt, legacyPromptID]
                     )
+                    if !initializeMeetingNotesDefaults {
+                        legacyIncludeMeetingNotes = legacyPrompt["includeMeetingNotes"]
+                    }
                 }
 
                 // A custom prompt already owns this name. Preserve the user's prompt and
@@ -2633,6 +2638,9 @@ public final class DatabaseManager: Sendable {
                 var promptToInsert = prompt
                 if promptToInsert.isAutoRun && !userHasAnyAutoRunPrompt {
                     promptToInsert.isAutoRun = false
+                }
+                if let legacyIncludeMeetingNotes {
+                    promptToInsert.includeMeetingNotes = legacyIncludeMeetingNotes
                 }
                 try Self.insertCanonicalPrompt(promptToInsert, db: db)
             }

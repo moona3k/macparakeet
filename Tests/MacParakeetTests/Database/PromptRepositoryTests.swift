@@ -560,6 +560,57 @@ final class PromptRepositoryTests: XCTestCase {
         XCTAssertEqual(try secondRepo.fetch(id: summary.id)?.includeMeetingNotes, false)
     }
 
+    func testReconcilerCarriesSavedMeetingNotesPreferenceToReplacedLegacyBuiltIn() throws {
+        for savedPreference in [false, true] {
+            let tmpDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent("reconciler-legacy-notes-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: tmpDir) }
+            let dbPath = tmpDir.appendingPathComponent("macparakeet.db").path
+
+            let canonicalSummaryID = Prompt.classicSummaryPrompt().id
+            let legacySummaryID = UUID()
+            do {
+                let first = try DatabaseManager(path: dbPath)
+                try first.dbQueue.write { db in
+                    try db.execute(sql: "DELETE FROM prompts WHERE id = ?", arguments: [canonicalSummaryID])
+                    let legacyVersionID = UUID()
+                    try db.execute(
+                        sql: """
+                            INSERT INTO prompts (
+                                id, name, category, isBuiltIn, isVisible, isAutoRun,
+                                sortOrder, createdAt, updatedAt, includeMeetingNotes,
+                                activeVersionId
+                            ) VALUES (?, 'Summary', ?, 1, 1, 1, 0, ?, ?, ?, ?)
+                            """,
+                        arguments: [
+                            legacySummaryID, Prompt.Category.result.rawValue, Date(), Date(),
+                            savedPreference, legacyVersionID,
+                        ]
+                    )
+                    try db.execute(
+                        sql: """
+                            INSERT INTO prompt_versions (
+                                id, promptId, versionNumber, content, origin, createdAt
+                            ) VALUES (?, ?, 1, 'Legacy summary body.', ?, ?)
+                            """,
+                        arguments: [
+                            legacyVersionID, legacySummaryID,
+                            PromptVersion.Origin.`import`.rawValue, Date(),
+                        ]
+                    )
+                }
+            }
+
+            let reopened = try DatabaseManager(path: dbPath)
+            let reopenedRepo = PromptRepository(dbQueue: reopened.dbQueue)
+            let summary = try XCTUnwrap(try reopenedRepo.fetch(id: canonicalSummaryID))
+            XCTAssertEqual(summary.includeMeetingNotes, savedPreference)
+            XCTAssertNil(try reopenedRepo.fetch(id: legacySummaryID))
+            XCTAssertEqual(try reopenedRepo.fetchAll().filter { $0.name == "Summary" }.count, 1)
+        }
+    }
+
     func testReconcilerPreservesLegacyPartialAppliesToSources() throws {
         let tmpDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("reconciler-legacy-applies-\(UUID().uuidString)")

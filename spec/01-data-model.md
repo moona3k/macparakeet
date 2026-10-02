@@ -729,7 +729,10 @@ CREATE UNIQUE INDEX idx_prompts_name ON prompts(name COLLATE NOCASE);
   JSON decoding and repository writes independently reject invalid numeric
   values with the settings validation error. Current Transform execution also uses its active version settings.
 - `includeMeetingNotes` is a result-prompt-only Boolean, defaulting to false
-  for migrated, built-in and new prompts. When enabled, non-empty meeting notes
+  for migrated, built-in and new prompts, except that the built-in Summary is
+  seeded true when the prompt library is first created. Existing libraries keep
+  their saved value, including when a legacy built-in row is replaced by its
+  canonical identity. When enabled, non-empty meeting notes
   are appended as context unless explicitly placed with `{{userNotes}}`.
   Transform rows remain false. Migration `v0.33-prompt-meeting-notes-context`
   adds this column and `summaries.includeMeetingNotesSnapshot`.

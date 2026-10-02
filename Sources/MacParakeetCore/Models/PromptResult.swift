@@ -124,7 +124,8 @@ public struct PromptResult: Codable, Identifiable, Sendable {
 /// What a saved result can truthfully say about meeting notes. Presentation
 /// only; it never changes what regeneration replays.
 public enum PromptResultMeetingNotesStatus: Equatable, Sendable {
-    /// Exact effective notes supplied to the model.
+    /// The notes saved as this result's snapshot. Legacy snapshots can be
+    /// uncapped, so this is not a byte-exact record of what was sent.
     case sent(String)
     /// Notes were enabled for this result, but none existed when it ran.
     case enabledWithoutNotes
