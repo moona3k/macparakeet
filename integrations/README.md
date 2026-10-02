@@ -52,8 +52,9 @@ testing.
   from the microphone.
 - **Live meeting UI** -- the Notes / Transcript / Ask three-tab live panel,
   the floating meeting pill, live recording controls, and in-flight
-  post-stop transcription abort/delete confirmation are GUI-only. The CLI
-  inspects meeting artifacts after the fact.
+  post-stop transcription abort/delete confirmation belong to the GUI. The CLI
+  inspects meeting artifacts after the fact. The app also offers the opt-in
+  [meeting URL controls](#meeting-url-controls) below.
 - **Onboarding, settings UI, library grids, sounds, overlays** -- none of these
   have automation analogues; they remain in the .app.
 
@@ -1068,3 +1069,29 @@ Configure source auto-run separately, for example
 `prompts set PROMPT --source meeting --auto-run`. Label availability still
 limits which transcriptions qualify. Editing prompt text or inference settings
 in the app preserves existing policies unless the label selection is changed.
+
+## Meeting URL controls
+
+Development adds opt-in GUI recording control for Shortcuts, launchers, and
+shell scripts ([contract](../spec/contracts/meeting-url-control-v1.md), #1198).
+Enable **Allow recording control from links** under Settings → Capture →
+Meetings. This permits any app or website to send recording commands, so only
+enable it for automations you trust. macOS audio permissions still apply.
+
+```sh
+open 'macparakeet://meeting/start?title=Weekly%20Planning'
+open 'macparakeet://meeting/pause'
+open 'macparakeet://meeting/resume'
+open 'macparakeet://meeting/stop'
+```
+
+Omit `title` to use the normal date-based title. Percent-encode title text;
+for example, `R&D` is `R%26D`. Repeated commands are safe: `start` never toggles
+or renames an active recording, and `pause`/`resume` set an explicit state.
+Pause/resume require capture to have started. Stop saves through the normal
+meeting workflow. `open` does not return recording status or wait for saving.
+The app may launch to receive the URL; controls are ignored while disabled or
+during onboarding. Use `macparakeet-dev://` for development bundles.
+
+This controls the GUI app, which owns audio capture. It does not change the
+headless CLI contract or promise support in previously released binaries.

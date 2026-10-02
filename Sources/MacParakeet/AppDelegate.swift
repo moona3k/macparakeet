@@ -40,6 +40,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkeyCoordinator: AppHotkeyCoordinator?
     private var dictationFlowCoordinator: DictationFlowCoordinator?
     private var meetingRecordingFlowCoordinator: MeetingRecordingFlowCoordinator?
+    private lazy var meetingURLCommandRouter = MeetingURLCommandRouter(
+        scheme: Bundle.main.bundleIdentifier == "com.macparakeet.dev" ? "macparakeet-dev" : "macparakeet",
+        isEnabled: { UserDefaultsAppRuntimePreferences.meetingURLControlEnabled() },
+        execute: { [weak self] command in
+            guard let self, !self.onboardingWindowController.isVisible,
+                  !self.isPresentingQuitAlert, self.meetingQuitTask == nil else { return }
+            self.meetingRecordingFlowCoordinator?.handleURLCommand(command)
+        }
+    )
     private var meetingAutoStartCoordinator: MeetingAutoStartCoordinator?
     private var meetingAutoStopCoordinator: MeetingAutoStopCoordinator?
     /// Productized Transforms coordinator (ADR-022). Owns the process-wide
@@ -390,6 +399,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - App Lifecycle
 
+    func application(_ application: NSApplication, open urls: [URL]) {
+        meetingURLCommandRouter.open(urls)
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Process boot marker for the audio diagnostics log. The dev app and
         // `swift test` write into the same on-disk file
@@ -554,6 +567,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } catch is CancellationError {
                 return
             } catch {
+                meetingURLCommandRouter.discardPending()
                 presentEnvironmentSetupError(error)
             }
         }
@@ -764,6 +778,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBarCoordinator.refreshMeetingHotkeyShortcut()
         menuBarCoordinator.refreshTranscriptionHotkeyShortcuts()
         onboardingCoordinator.maybeShow(environment: env)
+        meetingURLCommandRouter.finishLaunching()
         scheduleDeferredSpeechPreWarm(environment: env)
         let recoveryTask = meetingRecoveryCoordinator.scheduleLaunchRecoveryScanIfReady(environment: env)
         meetingAudioRetentionSweepCoordinator.scheduleLaunchSweep(environment: env, after: recoveryTask)

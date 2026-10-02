@@ -1371,6 +1371,14 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
+                    title: "Allow recording control from links",
+                    detail: "Let links start, stop, pause, or resume meetings. Any app or website can send these links while enabled. Only enable this for automations you trust.",
+                    isOn: $viewModel.meetingURLControlEnabled
+                )
+
+                Divider()
+
+                settingsToggleRow(
                     title: "Start meetings muted",
                     detail: "Begin recording with your microphone off. Unmute from the meeting panel when you want to speak. System-audio-only capture ignores this. Changes apply to your next recording.",
                     isOn: $viewModel.startMeetingsMuted

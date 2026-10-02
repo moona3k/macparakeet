@@ -564,6 +564,12 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     /// Start microphone-capturing meetings muted (default off) until this
     /// setting is turned off. Unmute from the live panel; system-only
     /// capture ignores this.
+    public static let meetingURLControlEnabledKey = "meetingURLControlEnabled"
+
+    public static func meetingURLControlEnabled(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: meetingURLControlEnabledKey) as? Bool ?? false
+    }
+
     public static let startMeetingsMutedKey = "startMeetingsMuted"
     public static let meetingAutoStopEnabledKey = "meetingAutoStopEnabled"
     public static let pauseMediaDuringDictationKey = "pauseMediaDuringDictation"

@@ -35,6 +35,8 @@ Each contract document should include:
 
 ## Current Contracts
 
+- [Meeting URL control v1](meeting-url-control-v1.md) — opt-in GUI recording commands and creation titles
+
 Planned contracts are listed separately below; they do not describe available payloads.
 
 - [Voice Control](voice-control.md) — gated shared speech, consent, foreground ownership and revocable execution
