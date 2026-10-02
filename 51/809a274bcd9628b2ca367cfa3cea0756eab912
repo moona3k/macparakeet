@@ -1,0 +1,26 @@
+spec/contracts/README.md
+  s_14e4a4ebf55a17::t_d63e1dcc421913 40
+docs/distribution.md
+  s_14e4a4ebf55a17::t_c6b2384deb33eb 712
+spec/02-features.md
+  s_14e4a4ebf55a17::t_9f377331a417b5 2084-2087
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_14e4a4ebf55a17::t_31a7d88701e212 289-298
+  s_14e4a4ebf55a17::t_cba09e7a3a86fe 518-522
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "51809a274bcd9628b2ca367cfa3cea0756eab912",
+  "prompts": {},
+  "sessions": {
+    "s_14e4a4ebf55a17": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "718ffd5d-4a6b-47a5-b3c1-5df54707245f",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
