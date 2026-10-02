@@ -338,6 +338,24 @@ final class AppHotkeyCoordinator {
     ) -> HotkeyManager? {
         guard !spec.trigger.isDisabled else { return nil }
 
+        let manager = makeDictationHotkeyManager(spec: spec)
+        if let resumeMode {
+            manager.resumeRecording(mode: resumeMode)
+        }
+
+        if manager.start() {
+            if suppressUntilReset {
+                manager.suppressUntilReset()
+            }
+            onAnyHotkeyEnabled()
+            return manager
+        } else {
+            onHotkeyUnavailable()
+            return nil
+        }
+    }
+
+    func makeDictationHotkeyManager(spec: DictationHotkeyPlan.Spec) -> HotkeyManager {
         let manager = HotkeyManager(
             trigger: spec.trigger,
             gestureMode: spec.gestureMode,
@@ -364,9 +382,13 @@ final class AppHotkeyCoordinator {
             self?.activeDictationHotkey = nil
             self?.onCancelDictation()
         }
-        manager.onDiscardRecording = { [weak self] showReadyPill in
-            self?.activeDictationHotkey = nil
-            self?.onDiscardRecording(showReadyPill)
+        manager.onDiscardRecording = { [weak self, weak manager] showReadyPill in
+            guard let self else { return }
+            self.activeDictationHotkey = nil
+            if let manager {
+                self.releaseOtherDictationHotkeys(owner: manager)
+            }
+            self.onDiscardRecording(showReadyPill)
         }
         manager.onReadyForSecondTap = { [weak self] in
             self?.onReadyForSecondTap()
@@ -377,20 +399,7 @@ final class AppHotkeyCoordinator {
         manager.shouldCancelOnEscape = {
             UserDefaultsAppRuntimePreferences.escapeCancelsDictation()
         }
-        if let resumeMode {
-            manager.resumeRecording(mode: resumeMode)
-        }
-
-        if manager.start() {
-            if suppressUntilReset {
-                manager.suppressUntilReset()
-            }
-            onAnyHotkeyEnabled()
-            return manager
-        } else {
-            onHotkeyUnavailable()
-            return nil
-        }
+        return manager
     }
 
     func handleDictationHotkeyStart(
@@ -426,6 +435,12 @@ final class AppHotkeyCoordinator {
     private func suppressOtherDictationHotkeys(activeManager: HotkeyManager) {
         for entry in dictationHotkeyEntries where entry.manager !== activeManager {
             entry.manager.suppressUntilReset()
+        }
+    }
+
+    private func releaseOtherDictationHotkeys(owner: HotkeyManager) {
+        for entry in dictationHotkeyEntries where entry.manager !== owner {
+            entry.manager.resetToIdle()
         }
     }
 
@@ -668,6 +683,12 @@ final class AppHotkeyCoordinator {
     /// Test-only inspection. Exists so the suspend/resume refcount can be
     /// asserted without exposing the storage to production callers.
     var suspendCountForTesting: Int { suspendCount }
+
+    func setDictationHotkeyEntriesForTesting(
+        _ entries: [(spec: DictationHotkeyPlan.Spec, manager: HotkeyManager)]
+    ) {
+        dictationHotkeyEntries = entries
+    }
 
     func stopAll() {
         stopDictationHotkeys()

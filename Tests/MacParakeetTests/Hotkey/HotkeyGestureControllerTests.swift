@@ -2,6 +2,8 @@ import XCTest
 @testable import MacParakeetCore
 
 final class HotkeyGestureControllerTests: XCTestCase {
+    private typealias Mode = HotkeyGestureController.Mode
+
     func testFirstPressSchedulesStartupAndHoldTimers() {
         let controller = HotkeyGestureController()
 
@@ -338,6 +340,62 @@ final class HotkeyGestureControllerTests: XCTestCase {
             controller.triggerPressed(timestampMs: 1_200),
             [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs)]
         )
+    }
+
+    func testEscapeWithoutOwnershipKeepsCancelWindowBlockedInEveryMode() {
+        for mode in [Mode.doubleTapAndHold, .doubleTapOnly, .holdOnly, .singleTapToggle] {
+            let controller = HotkeyGestureController(mode: mode)
+            controller.notifyCancelledByUI()
+
+            XCTAssertEqual(controller.escapePressedWithoutOwnership(), [], "\(mode)")
+            XCTAssertEqual(controller.triggerPressed(timestampMs: 1_000), [], "\(mode)")
+            XCTAssertEqual(controller.startupDebounceElapsed(), [], "\(mode)")
+        }
+    }
+
+    func testEscapeWithoutOwnershipKeepsLiveTakeStoppable() {
+        let cases: [(Mode, FnKeyStateMachine.RecordingMode)] = [
+            (.doubleTapAndHold, .persistent),
+            (.doubleTapOnly, .persistent),
+            (.singleTapToggle, .persistent),
+            (.doubleTapAndHold, .holdToTalk),
+            (.holdOnly, .holdToTalk),
+        ]
+        for (mode, recordingMode) in cases {
+            let controller = HotkeyGestureController(mode: mode)
+            controller.resumeRecording(mode: recordingMode)
+
+            XCTAssertEqual(controller.escapePressedWithoutOwnership(), [], "\(mode) \(recordingMode)")
+
+            let outputs =
+                recordingMode == .persistent
+                ? controller.triggerPressed(timestampMs: 1_000)
+                : controller.triggerReleased(timestampMs: 1_000)
+            XCTAssertTrue(outputs.contains(.stopRecording), "\(mode) \(recordingMode)")
+        }
+    }
+
+    func testEscapeWithoutOwnershipClearsPendingFirstPress() {
+        for mode in [Mode.doubleTapAndHold, .doubleTapOnly, .holdOnly] {
+            let controller = HotkeyGestureController(mode: mode)
+            _ = controller.triggerPressed(timestampMs: 1_000)
+
+            XCTAssertEqual(
+                controller.escapePressedWithoutOwnership(),
+                [.cancelStartupDebounce, .cancelHoldWindow],
+                "\(mode)"
+            )
+            XCTAssertEqual(controller.startupDebounceElapsed(), [], "\(mode)")
+            XCTAssertEqual(controller.holdWindowElapsed(), [], "\(mode)")
+        }
+    }
+
+    func testEscapeWithoutOwnershipIgnoresIdleControllerWithoutIdleEscape() {
+        for mode in [Mode.doubleTapAndHold, .doubleTapOnly, .holdOnly, .singleTapToggle] {
+            let controller = HotkeyGestureController(mode: mode)
+
+            XCTAssertEqual(controller.escapePressedWithoutOwnership(), [], "\(mode)")
+        }
     }
 
     func testSuppressedControllerIgnoresGesturesUntilReset() {

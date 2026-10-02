@@ -828,16 +828,11 @@ public final class HotkeyManager {
         // still clears it. A live take keeps `activeRecordingMode` set, so
         // Escape stays ignored when the setting is off.
         if shouldCancelOnEscape() || activeRecordingMode == nil {
-            let outputs = gestureController.escapePressed()
-            if shouldDispatchEscape() { return outputs }
-            // Still clear this manager's pending gesture/timers. Never dispatch
-            // a second cancellation or idle dismissal for the same physical key.
-            return outputs.filter {
-                switch $0 {
-                case .cancelStartupDebounce, .cancelHoldWindow: return true
-                default: return false
-                }
-            }
+            // Every manager sees the same physical Escape. Only the dispatcher
+            // may cancel the take or move through the cancel window.
+            return shouldDispatchEscape()
+                ? gestureController.escapePressed()
+                : gestureController.escapePressedWithoutOwnership()
         }
         return []
     }

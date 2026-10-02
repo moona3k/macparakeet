@@ -657,6 +657,10 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             let owner = HotkeyManager(trigger: .control, gestureMode: .doubleTapAndHold)
             let peer = HotkeyManager(trigger: .option, gestureMode: .doubleTapAndHold)
             let managers = reverse ? [peer, owner] : [owner, peer]
+            for manager in managers {
+                manager.setPhysicalKeyStateProviderForTesting { _ in false }
+                manager.setPhysicalFlagsProviderForTesting { [] }
+            }
             coordinator.configureEscapeHandling(managers, preferred: owner)
             owner.resumeRecording(mode: .persistent)
             peer.resumeRecording(mode: .persistent)
@@ -675,8 +679,95 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
                     XCTAssertFalse(outputs.contains(.escapeWhileIdle))
                 }
                 XCTAssertEqual(cancellationCount, press, "One press must not skip the Undo window")
+                guard press == 1 else { continue }
+                for (manager, flag) in [(owner, CGEventFlags.maskControl), (peer, .maskAlternate)] {
+                    XCTAssertEqual(
+                        manager.modifierFlagsChangedOutputsForTesting(flags: flag, timestampMs: 1_100), [],
+                        "A trigger pressed during the Undo window must stay blocked (reverse: \(reverse))")
+                    XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [])
+                    XCTAssertFalse(
+                        manager.modifierFlagsChangedOutputsForTesting(flags: [], timestampMs: 1_200)
+                            .contains(.startRecording(mode: .holdToTalk)))
+                }
             }
         }
+    }
+
+    private func installDictationManagers(
+        in coordinator: AppHotkeyCoordinator,
+        plan: AppHotkeyCoordinator.DictationHotkeyPlan
+    ) -> [HotkeyManager] {
+        let managers = plan.specs.map { spec -> HotkeyManager in
+            let manager = coordinator.makeDictationHotkeyManager(spec: spec)
+            manager.setPhysicalKeyStateProviderForTesting { _ in false }
+            manager.setPhysicalFlagsProviderForTesting { [] }
+            return manager
+        }
+        coordinator.setDictationHotkeyEntriesForTesting(
+            zip(plan.specs, managers).map { (spec: $0, manager: $1) })
+        coordinator.configureEscapeHandling(managers)
+        return managers
+    }
+
+    private func deliver(_ outputs: [HotkeyGestureController.Output], to manager: HotkeyManager) {
+        for output in outputs {
+            switch output {
+            case .startRecording(let mode): manager.onStartRecording?(mode)
+            case .discardRecording(let showReadyPill): manager.onDiscardRecording?(showReadyPill)
+            default: break
+            }
+        }
+    }
+
+    private func startProvisionalTake(on manager: HotkeyManager, flags: CGEventFlags) {
+        _ = manager.modifierFlagsChangedOutputsForTesting(flags: flags, timestampMs: 1_000)
+        let started = manager.startupDebounceElapsedForTesting()
+        XCTAssertEqual(started, [.startRecording(mode: .holdToTalk)])
+        deliver(started, to: manager)
+    }
+
+    func testDiscardedProvisionalTakeLeavesTheOtherShortcutAbleToStart() {
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .control, pushToTalk: .control, alternateHandsFree: .option, alternatePushToTalk: .option)
+        let flags: [CGEventFlags] = [.maskControl, .maskAlternate]
+        for tappedIndex in [0, 1] {
+            for typingInterrupts in [false, true] {
+                let coordinator = makeCoordinator(settingsViewModel: makeViewModel(), onHotkeyConflict: { _, _ in })
+                let managers = installDictationManagers(in: coordinator, plan: plan)
+                let tapped = managers[tappedIndex]
+                let other = managers[1 - tappedIndex]
+                startProvisionalTake(on: tapped, flags: flags[tappedIndex])
+
+                let discard =
+                    typingInterrupts
+                    ? tapped.modifierKeyDownOutputsForTesting(keyCode: 0, timestampMs: 1_150)
+                    : tapped.modifierFlagsChangedOutputsForTesting(flags: [], timestampMs: 1_150)
+                XCTAssertTrue(
+                    discard.contains { if case .discardRecording = $0 { true } else { false } },
+                    "typingInterrupts: \(typingInterrupts)")
+                deliver(discard, to: tapped)
+
+                let pressed = other.modifierFlagsChangedOutputsForTesting(
+                    flags: flags[1 - tappedIndex], timestampMs: 3_000)
+                XCTAssertFalse(pressed.isEmpty, "tapped: \(tappedIndex) typingInterrupts: \(typingInterrupts)")
+                XCTAssertEqual(
+                    other.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)],
+                    "tapped: \(tappedIndex) typingInterrupts: \(typingInterrupts)")
+            }
+        }
+    }
+
+    func testDiscardedProvisionalTakeKeepsTheOwnersSecondTapWindow() {
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .control, pushToTalk: .control, alternateHandsFree: .option, alternatePushToTalk: .option)
+        let coordinator = makeCoordinator(settingsViewModel: makeViewModel(), onHotkeyConflict: { _, _ in })
+        let managers = installDictationManagers(in: coordinator, plan: plan)
+        startProvisionalTake(on: managers[0], flags: .maskControl)
+        deliver(managers[0].modifierFlagsChangedOutputsForTesting(flags: [], timestampMs: 1_150), to: managers[0])
+
+        XCTAssertEqual(
+            managers[0].modifierFlagsChangedOutputsForTesting(flags: .maskControl, timestampMs: 1_300),
+            [.startRecording(mode: .persistent)])
     }
 
     func testHoldOwnershipSurvivesChangingSharedTriggerToHoldOnly() {

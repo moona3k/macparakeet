@@ -29,7 +29,11 @@ changes to audio, transcription, formatting, paste, or privacy behavior.
   persistent recordings can stop through either ordinary hands-free shortcut.
   AI-polish recordings remain separate from ordinary dictation shortcuts.
 - One manager dispatches Escape effects across all dictation taps, preserving the
-  cancellation Undo window. Other managers still clear pending gesture timers.
+  cancellation Undo window. Other managers clear a pending first press and its
+  timers but never leave a live-take or cancel-window state on Escape.
+- Discarding a provisional hold take (quick tap or interrupting key) releases
+  the other taps that the start suppressed; the discarding tap keeps its
+  second-tap window.
 - Shortcut recording suspends all production taps. Resume re-reads settings.
   The optional slots participate in onboarding edit/reset conflict checks but
   onboarding continues to teach and rehearse the primary pair only.
