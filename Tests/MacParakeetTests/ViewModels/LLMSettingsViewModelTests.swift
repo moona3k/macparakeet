@@ -159,6 +159,91 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(try store.loadAPIKey(for: .openai), "saved-key")
     }
 
+    func testTaskOnlyValidationDoesNotReadSavedCredentialsDuringRendering() throws {
+        let credentials = InMemoryKeyValueStore()
+        let store = LLMConfigStore(
+            preferencesDomain: defaultsSuiteName, lockURL: routeLockURL, keychain: credentials)
+        try store.saveTaskOverride(.openai(apiKey: "saved-key"), for: .analysis)
+        viewModel.configure(configStore: store, llmClient: mockClient)
+        let readsAfterSetup = credentials.readCount
+        for _ in 0..<3 {
+            XCTAssertNil(viewModel.validationMessage)
+            XCTAssertTrue(viewModel.canSave)
+        }
+        XCTAssertEqual(credentials.readCount, readsAfterSetup)
+    }
+
+    func testBrowsingKeylessDraftDoesNotHideSavedCredentialFailure() throws {
+        let credentials = InMemoryKeyValueStore()
+        let store = LLMConfigStore(
+            preferencesDomain: defaultsSuiteName, lockURL: routeLockURL, keychain: credentials)
+        try store.saveConfig(.openai(apiKey: "saved-key"))
+        credentials.getError = KeyValueStoreError.unsupported
+        viewModel.configure(configStore: store, llmClient: mockClient)
+        viewModel.selectedProviderID = .ollama
+        XCTAssertNotNil(viewModel.credentialAccessError)
+        XCTAssertTrue(viewModel.canSave)
+        guard case .cannotConnect(let displayName, _) = viewModel.setupStatus else {
+            return XCTFail("Saved blocked route must remain unavailable while browsing a draft")
+        }
+        XCTAssertEqual(displayName, "OpenAI")
+        viewModel.saveConfiguration()
+        XCTAssertEqual(viewModel.saveState, .saved)
+        XCTAssertNil(viewModel.credentialAccessError)
+        XCTAssertEqual(viewModel.setupStatus, .ready(displayName: "Ollama"))
+    }
+
+    func testBlockedDraftCredentialDoesNotMarkSavedKeylessProviderUnavailable() throws {
+        let credentials = InMemoryKeyValueStore()
+        let store = LLMConfigStore(
+            preferencesDomain: defaultsSuiteName, lockURL: routeLockURL, keychain: credentials)
+        try store.saveConfig(.openai(apiKey: "saved-key"))
+        try store.saveConfig(.ollama(model: "saved-local-model"))
+        credentials.getError = KeyValueStoreError.unsupported
+        viewModel.configure(configStore: store, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        XCTAssertNotNil(viewModel.credentialAccessError)
+        XCTAssertFalse(viewModel.canSave)
+        XCTAssertEqual(viewModel.setupStatus, .ready(displayName: "Ollama"))
+    }
+
+    func testSavingNewKeyKeepsTaskOnlyValidationAvailable() throws {
+        let store = LLMConfigStore(
+            preferencesDomain: defaultsSuiteName, lockURL: routeLockURL, keychain: InMemoryKeyValueStore())
+        viewModel.configure(configStore: store, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "new-key"
+        viewModel.analysisOverrideProviderID = .openai
+        viewModel.saveConfiguration()
+        XCTAssertEqual(viewModel.saveState, .saved)
+
+        viewModel.selectedProviderID = nil
+
+        XCTAssertNil(viewModel.validationMessage)
+        XCTAssertTrue(viewModel.canSave)
+        viewModel.saveConfiguration()
+        XCTAssertEqual(viewModel.saveState, .saved)
+        XCTAssertNil(try store.loadConfigMetadata())
+        XCTAssertEqual(try store.loadConfig(for: .analysis)?.apiKey, "new-key")
+    }
+
+    func testRemovingSavedKeyInvalidatesUnsavedTaskKeyPresence() throws {
+        let store = LLMConfigStore(
+            preferencesDomain: defaultsSuiteName, lockURL: routeLockURL, keychain: InMemoryKeyValueStore())
+        try store.saveConfig(.openai(apiKey: "saved-key"))
+        try store.deleteConfig()
+        viewModel.configure(configStore: store, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        viewModel.analysisOverrideProviderID = .openai
+        XCTAssertTrue(viewModel.canRemoveSavedAPIKey)
+        viewModel.removeSavedAPIKey()
+        viewModel.selectedProviderID = nil
+
+        XCTAssertFalse(viewModel.canSave)
+        XCTAssertEqual(
+            viewModel.validationMessage, LLMSettingsDraft.ValidationError.taskOverrideUnavailable.localizedDescription)
+    }
+
     // MARK: - Defaults
 
     func testDefaultValuesAfterInit() {
@@ -249,6 +334,7 @@ final class LLMSettingsViewModelTests: XCTestCase {
 
         try store.saveConfig(.openai(apiKey: "saved-key"))
         try store.deleteConfig()
+        viewModel.retrySavedCredentialAccess()
         XCTAssertTrue(viewModel.canSave)
         XCTAssertNil(viewModel.validationMessage)
         viewModel.saveConfiguration()

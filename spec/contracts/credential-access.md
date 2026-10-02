@@ -21,8 +21,10 @@ AI settings show credential access errors with an explicit Open Keychain Access
 action and Retry access action. The user can grant the current app access to the
 `com.macparakeet.llm` item in Keychain Access. Retry is noninteractive and keeps
 unsaved model and key edits, including task-only routes; it does not save,
-rotate, or remove a key. If the
-key field has not been edited, a successful retry restores the saved value.
+rotate, or remove a key. If the key field has not been edited, a successful
+retry restores the saved value. Task-only validation uses cached key presence
+from setup, route selection, or Retry; Save still reads current credentials.
+Saved-provider health stays separate from unsaved provider errors.
 Authorization changes occur only in the system Keychain Access app.
 
 Existing save transactions must still stop on credential errors before changing

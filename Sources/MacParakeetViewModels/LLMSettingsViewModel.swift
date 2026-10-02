@@ -163,8 +163,13 @@ public final class LLMSettingsViewModel {
     private var draftStoredAPIKey = ""
     private var draftCredentialAccessError: String?
     private var taskCredentialAccessError: String?
-    public var credentialAccessError: String? {
+    private var committedCredentialAccessError: String?
+    private var taskProvidersWithSavedKeys: Set<LLMProviderID> = []
+    private var draftCredentialError: String? {
         draftCredentialAccessError ?? taskCredentialAccessError
+    }
+    public var credentialAccessError: String? {
+        draftCredentialError ?? committedCredentialAccessError
     }
 
     /// Retry only when requested, preserving any key or model edits in the draft.
@@ -186,6 +191,7 @@ public final class LLMSettingsViewModel {
             }
         }
         refreshTaskCredentialAccess()
+        refreshCommittedCredentialAccess()
         if credentialAccessError == nil {
             onConfigurationChanged?()
         }
@@ -194,10 +200,29 @@ public final class LLMSettingsViewModel {
     /// Cache failures on route changes, never while rendering status text.
     private func refreshTaskCredentialAccess() {
         taskCredentialAccessError = nil
+        taskProvidersWithSavedKeys = []
         let providers = Set([cleanupOverrideProviderID, analysisOverrideProviderID].compactMap { $0 })
         for provider in providers where provider.supportsAPIKey {
-            do { _ = try configStore?.loadAPIKey(for: provider) } catch {
+            do {
+                if try configStore?.loadAPIKey(for: provider)?.isEmpty == false {
+                    taskProvidersWithSavedKeys.insert(provider)
+                }
+            } catch {
                 taskCredentialAccessError = error.localizedDescription
+                return
+            }
+        }
+    }
+
+    private func refreshCommittedCredentialAccess() {
+        committedCredentialAccessError = nil
+        let providers = Set(
+            LLMTaskGroup.allCases.compactMap {
+                try? configStore?.loadRouteMetadata(for: $0)?.config.id
+            })
+        for provider in providers where provider.supportsAPIKey {
+            do { _ = try configStore?.loadAPIKey(for: provider) } catch {
+                committedCredentialAccessError = error.localizedDescription
                 return
             }
         }
@@ -264,6 +289,7 @@ public final class LLMSettingsViewModel {
             return
         }
         unsavedAPIKeyInputs.removeValue(forKey: providerID)
+        taskProvidersWithSavedKeys.remove(providerID)
         draftStoredAPIKey = ""
         apiKeyInput = ""
     }
@@ -368,7 +394,7 @@ public final class LLMSettingsViewModel {
     }
 
     public var setupStatus: AISetupStatus {
-        if isConfigured, let credentialAccessError {
+        if isConfigured, let credentialAccessError = committedCredentialAccessError {
             return .cannotConnect(
                 displayName: savedAIOptionDisplayName ?? draftAIOptionDisplayName ?? "AI",
                 message: credentialAccessError)
@@ -456,7 +482,7 @@ public final class LLMSettingsViewModel {
     }
 
     public var canSave: Bool {
-        guard credentialAccessError == nil else { return false }
+        guard draftCredentialError == nil else { return false }
         if draft.providerID == nil {
             return (isConfigured || cleanupOverrideProviderID != nil || analysisOverrideProviderID != nil)
                 && validationMessage == nil
@@ -536,12 +562,10 @@ public final class LLMSettingsViewModel {
     public var validationMessage: String? {
         guard draft.providerID == nil else { return draft.validationError?.localizedDescription }
         do {
-            _ = try preparedOverride(
-                providerID: cleanupOverrideProviderID, modelName: cleanupModelName,
-                task: .cleanup, defaultConfig: nil, stagedCLIConfig: nil)
-            _ = try preparedOverride(
-                providerID: analysisOverrideProviderID, modelName: analysisModelName,
-                task: .analysis, defaultConfig: nil, stagedCLIConfig: nil)
+            try validateTaskOverride(
+                providerID: cleanupOverrideProviderID, modelName: cleanupModelName, task: .cleanup)
+            try validateTaskOverride(
+                providerID: analysisOverrideProviderID, modelName: analysisModelName, task: .analysis)
             return nil
         } catch {
             return error.localizedDescription
@@ -867,8 +891,8 @@ public final class LLMSettingsViewModel {
 
     public func saveConfiguration() {
         guard let configStore else { return }
-        if let credentialAccessError {
-            saveState = .error(credentialAccessError)
+        if let error = draftCredentialError {
+            saveState = .error(error)
             return
         }
         guard draft.providerID != nil || cleanupOverrideProviderID != nil || analysisOverrideProviderID != nil else {
@@ -916,6 +940,11 @@ public final class LLMSettingsViewModel {
                     analysisOverride: analysisOverride
                 )
             }
+            taskProvidersWithSavedKeys = Set(
+                [cleanupOverride, analysisOverride].compactMap { config in
+                    guard let config, config.apiKey?.isEmpty == false else { return nil }
+                    return config.id
+                })
             savedCleanupOverrideProviderID = cleanupOverrideProviderID
             savedCleanupModelName = cleanupModelName
             savedAnalysisOverrideProviderID = analysisOverrideProviderID
@@ -929,6 +958,7 @@ public final class LLMSettingsViewModel {
             }
 
             draftCredentialAccessError = nil
+            committedCredentialAccessError = nil
             saveState = .saved
             inProcessModelManager.refreshSelectionState()
             onConfigurationChanged?()
@@ -1501,6 +1531,31 @@ public final class LLMSettingsViewModel {
         savedAnalysisOverrideProviderID = analysisOverrideProviderID
         savedAnalysisModelName = analysisModelName
         refreshTaskCredentialAccess()
+        committedCredentialAccessError = isConfigured ? draftCredentialError : nil
+    }
+
+    /// Render-time validation uses metadata and the last explicit credential check.
+    private func validateTaskOverride(providerID: LLMProviderID?, modelName: String, task: LLMTaskGroup) throws {
+        guard let configStore, let providerID else { return }
+        if providerID == .localCLI {
+            guard cliConfigStore?.load() != nil else {
+                throw LLMSettingsDraft.ValidationError.taskOverrideUnavailable
+            }
+            return
+        }
+        let trimmed = modelName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !(trimmed.isEmpty ? providerID.defaultModelName : trimmed).isEmpty else {
+            throw LLMSettingsDraft.ValidationError.missingCustomModel
+        }
+        if providerID.requiresAPIKey, !taskProvidersWithSavedKeys.contains(providerID) {
+            throw LLMSettingsDraft.ValidationError.taskOverrideUnavailable
+        }
+        if try configStore.loadTaskOverrideMetadata(task)?.id == providerID { return }
+        guard !providerID.requiresCustomEndpoint, !providerID.defaultBaseURL.isEmpty,
+            URL(string: providerID.defaultBaseURL) != nil
+        else {
+            throw LLMSettingsDraft.ValidationError.taskOverrideUnavailable
+        }
     }
 
     private func preparedOverride(
