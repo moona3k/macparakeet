@@ -1,0 +1,75 @@
+Sources/CLI/CHANGELOG.md
+  s_66f980d373a808::t_d73feae60f8b05 99-104
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_8e18011eb8697e::t_7f214cf201030f 343
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_8e18011eb8697e::t_bf371521d956e7 117,227,635,643
+Sources/MacParakeet/AppDelegate.swift
+  s_31c99a8fc84603::t_8a1817bfb5c2af 690,702
+Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
+  s_dde2a4545fb121::t_bb092887863d93 59-86
+Sources/MacParakeetCore/Licensing/KeychainKeyValueStore.swift
+  s_66f980d373a808::t_3335eaa203865a 3,7-27,34-43,45-51,55-57,59-66,68-71,73-82,87-98,110-112
+Sources/MacParakeetCore/Licensing/README.md
+  s_dde2a4545fb121::t_9ecd30dc60ee56 22,63-68
+Sources/MacParakeetCore/Services/LLM/LLMConfigStore.swift
+  s_8e18011eb8697e::t_0eb90aeedea160 260-261
+Sources/MacParakeetViewModels/LLMSettingsViewModel.swift
+  s_dde2a4545fb121::t_82b7dbc30de187 164-213,225,233,353,357,365,371-375,459,750,756-758,870-873,931,981,999,1415,1431,1454-1462,1491,1495,1503,1700,1705
+Sources/MacParakeetViewModels/PromptResultsViewModel.swift
+  s_dde2a4545fb121::t_cb93e9fcc974e3 233,1149
+Tests/MacParakeetTests/Licensing/KeychainInteractionTests.swift
+  s_66f980d373a808::t_11506ade0b021e 1-79
+Tests/MacParakeetTests/Licensing/TestLicensingHelpers.swift
+  s_66f980d373a808::t_211b0212355478 6-7,12-14,40-41
+Tests/MacParakeetTests/Services/LLM/LLMConfigStoreTests.swift
+  s_66f980d373a808::t_8fbbf00a55de92 189-196,200,203
+Tests/MacParakeetTests/ViewModels/LLMSettingsViewModelTests.swift
+  s_dde2a4545fb121::t_9a032bc5d5c874 34-161
+Tests/MacParakeetTests/ViewModels/PromptResultsViewModelTests.swift
+  s_dde2a4545fb121::t_fe47df4c956f83 717-740
+spec/contracts/README.md
+  s_dde2a4545fb121::t_7aa97283ef764e 40
+spec/contracts/credential-access.md
+  s_dde2a4545fb121::t_38a3e1943fc958 1-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e3ecfcde640bee8a2a765f109e3627741fd6dd01",
+  "prompts": {},
+  "sessions": {
+    "s_31c99a8fc84603": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ed832c40-8548-4922-b3d1-05d5bd35e969",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_66f980d373a808": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fe55-dc5b-7661-beed-2b11c96ad9e9",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_8e18011eb8697e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0beb1e6a-a944-4c92-9387-3e392ead3c20",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_dde2a4545fb121": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f4d6-65fb-7f82-954d-1ba34b7911ce",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
