@@ -170,7 +170,8 @@ final class AppHotkeyCoordinator {
         var plan = primaryDictationHotkeyPlan(handsFree: handsFree, pushToTalk: pushToTalk, aiPolish: aiPolish)
         let alternate = primaryDictationHotkeyPlan(handsFree: alternateHandsFree, pushToTalk: alternatePushToTalk)
         for spec in alternate.specs { plan = appending(spec, to: plan) }
-        return DictationHotkeyPlan(specs: plan.specs, conflict: plan.conflict ?? alternate.conflict)
+        return holdingBareFnForChords(
+            DictationHotkeyPlan(specs: plan.specs, conflict: plan.conflict ?? alternate.conflict))
     }
 
     private static func primaryDictationHotkeyPlan(
@@ -224,10 +225,6 @@ final class AppHotkeyCoordinator {
                         DictationHotkeyPlan.Spec(
                             trigger: pushToTalkTrigger,
                             gestureMode: .holdOnly,
-                            startupDebounceMs: pushToTalkStartupDebounceMs(
-                                handsFree: handsFreeTrigger,
-                                pushToTalk: pushToTalkTrigger
-                            ),
                             holdToTalkStopTailMs: holdToTalkStopTailMs
                         )
                     )
@@ -269,18 +266,28 @@ final class AppHotkeyCoordinator {
         return DictationHotkeyPlan(specs: specs, conflict: plan.conflict)
     }
 
-    private static func pushToTalkStartupDebounceMs(
-        handsFree handsFreeTrigger: HotkeyTrigger,
-        pushToTalk pushToTalkTrigger: HotkeyTrigger
-    ) -> Int {
-        guard pushToTalkTrigger.kind == .modifier,
-            pushToTalkTrigger.modifierName == "fn",
-            handsFreeTrigger.kind == .chord,
-            handsFreeTrigger.chordModifiers?.contains("fn") == true
-        else {
-            return FnKeyStateMachine.defaultStartupDebounceMs
+    /// Bare Fn is also the first key of every Fn chord, so a held Fn take must
+    /// outwait the tap threshold before starting or it suppresses the chord.
+    /// Check every accepted shortcut: the primary and additional pairs, and AI
+    /// polish, run as separate managers that cannot see each other.
+    private static func holdingBareFnForChords(_ plan: DictationHotkeyPlan) -> DictationHotkeyPlan {
+        let hasFnChord = plan.specs.contains {
+            $0.trigger.kind == .chord && $0.trigger.chordModifiers?.contains("fn") == true
         }
-        return FnKeyStateMachine.defaultTapThresholdMs
+        guard hasFnChord else { return plan }
+        let specs = plan.specs.map { spec -> DictationHotkeyPlan.Spec in
+            guard spec.trigger.kind == .modifier, spec.trigger.modifierName == "fn",
+                spec.gestureMode == .holdOnly || spec.gestureMode == .doubleTapAndHold
+            else { return spec }
+            return DictationHotkeyPlan.Spec(
+                trigger: spec.trigger,
+                gestureMode: spec.gestureMode,
+                startupDebounceMs: FnKeyStateMachine.defaultTapThresholdMs,
+                holdToTalkStopTailMs: spec.holdToTalkStopTailMs,
+                aiFormatterEnabled: spec.aiFormatterEnabled
+            )
+        }
+        return DictationHotkeyPlan(specs: specs, conflict: plan.conflict)
     }
 
     func setupDictationHotkeys() {

@@ -24,6 +24,10 @@ changes to audio, transcription, formatting, paste, or privacy behavior.
 - Runtime plans keep primary and AI-polish bindings ahead of conflicting
   additional bindings imported outside Settings. Rejected bindings report a
   conflict rather than installing competing taps.
+- Bare Fn is not an overlap with an Fn chord such as Fn+Space, so both may be
+  accepted across pairs. Whenever any accepted shortcut is an Fn chord, every
+  bare-Fn hold or double-tap shortcut waits out the tap threshold before it
+  starts a held take, so the chord is not suppressed by an earlier Fn start.
 - A hold-to-talk recording can only resume its owning shortcut after mode sync
   or listener refresh; another trigger's release must not stop it. Ordinary
   persistent recordings can stop through either ordinary hands-free shortcut.

@@ -252,6 +252,100 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         )
     }
 
+    func testBareFnWaitsOutTheTapThresholdWhenAnyAcceptedShortcutIsAnFnChord() {
+        let fnPolish = HotkeyTrigger.chord(modifiers: ["fn"], keyCode: 35)
+        let cases: [(name: String, plan: AppHotkeyCoordinator.DictationHotkeyPlan, mode: HotkeyGestureController.Mode)] = [
+            (
+                "shared Fn primary, Fn chord additional",
+                AppHotkeyCoordinator.dictationHotkeyPlan(
+                    handsFree: .fn, pushToTalk: .fn, alternateHandsFree: .fnSpace),
+                .doubleTapAndHold
+            ),
+            (
+                "Fn chord primary, shared Fn additional",
+                AppHotkeyCoordinator.dictationHotkeyPlan(
+                    handsFree: .fnSpace, pushToTalk: .disabled, alternateHandsFree: .fn, alternatePushToTalk: .fn),
+                .doubleTapAndHold
+            ),
+            (
+                "Fn push-to-talk primary, Fn chord additional",
+                AppHotkeyCoordinator.dictationHotkeyPlan(
+                    handsFree: .disabled, pushToTalk: .fn, alternateHandsFree: .fnSpace),
+                .holdOnly
+            ),
+            (
+                "Fn chord primary, Fn push-to-talk additional",
+                AppHotkeyCoordinator.dictationHotkeyPlan(
+                    handsFree: .fnSpace, pushToTalk: .disabled, alternatePushToTalk: .fn),
+                .holdOnly
+            ),
+            (
+                "Fn chord and Fn push-to-talk in the same additional pair",
+                AppHotkeyCoordinator.dictationHotkeyPlan(
+                    handsFree: .control, pushToTalk: .control, alternateHandsFree: .fnSpace, alternatePushToTalk: .fn),
+                .holdOnly
+            ),
+            (
+                "shared Fn primary, Fn chord AI polish",
+                AppHotkeyCoordinator.dictationHotkeyPlan(handsFree: .fn, pushToTalk: .fn, aiPolish: fnPolish),
+                .doubleTapAndHold
+            ),
+        ]
+
+        for testCase in cases {
+            let fnSpecs = testCase.plan.specs.filter { $0.trigger == .fn }
+            XCTAssertEqual(fnSpecs.count, 1, testCase.name)
+            XCTAssertEqual(fnSpecs.first?.gestureMode, testCase.mode, testCase.name)
+            XCTAssertEqual(
+                fnSpecs.first?.startupDebounceMs, FnKeyStateMachine.defaultTapThresholdMs, testCase.name)
+            XCTAssertTrue(
+                testCase.plan.specs.contains { $0.trigger == .fnSpace || $0.trigger.chordModifiers == ["fn"] },
+                "The Fn chord must be an accepted shortcut: \(testCase.name)")
+            XCTAssertNil(testCase.plan.conflict, testCase.name)
+        }
+    }
+
+    func testBareFnKeepsStandardDebounceWithoutAnAcceptedFnChord() {
+        let plans = [
+            AppHotkeyCoordinator.dictationHotkeyPlan(
+                handsFree: .fn, pushToTalk: .fn, alternateHandsFree: .chord(modifiers: ["control"], keyCode: 49)),
+            AppHotkeyCoordinator.dictationHotkeyPlan(handsFree: .control, pushToTalk: .fn, alternateHandsFree: .option),
+            // Bare Fn that only toggles on release cannot beat a chord to the start.
+            AppHotkeyCoordinator.dictationHotkeyPlan(
+                handsFree: .fn, pushToTalk: .disabled, alternateHandsFree: .fnSpace),
+        ]
+        for plan in plans {
+            for spec in plan.specs where spec.trigger == .fn {
+                XCTAssertEqual(spec.startupDebounceMs, FnKeyStateMachine.defaultStartupDebounceMs)
+            }
+        }
+    }
+
+    func testBareFnDoesNotStartBeforeAnFnChordOnTheOtherPair() {
+        let plans = [
+            AppHotkeyCoordinator.dictationHotkeyPlan(
+                handsFree: .fn, pushToTalk: .fn, alternateHandsFree: .fnSpace),
+            AppHotkeyCoordinator.dictationHotkeyPlan(
+                handsFree: .disabled, pushToTalk: .fn, alternateHandsFree: .fnSpace),
+            AppHotkeyCoordinator.dictationHotkeyPlan(
+                handsFree: .fnSpace, pushToTalk: .disabled, alternateHandsFree: .fn, alternatePushToTalk: .fn),
+        ]
+        for plan in plans {
+            let coordinator = makeCoordinator(settingsViewModel: makeViewModel(), onHotkeyConflict: { _, _ in })
+            let managers = installDictationManagers(in: coordinator, plan: plan)
+            let fnManager = managers[plan.specs.firstIndex { $0.trigger == .fn }!]
+
+            let pressed = fnManager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn], timestampMs: 1_000)
+            XCTAssertTrue(
+                pressed.contains(.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultTapThresholdMs)),
+                "\(pressed)")
+            // The Space half of Fn+Space arrives well inside the old 100 ms debounce.
+            let interrupted = fnManager.modifierKeyDownOutputsForTesting(keyCode: 49, timestampMs: 1_200)
+            XCTAssertTrue(interrupted.contains(.cancelStartupDebounce), "\(interrupted)")
+            XCTAssertEqual(fnManager.startupDebounceElapsedForTesting(), [])
+        }
+    }
+
     func testDictationHotkeyPlanKeepsHandsFreeOnlyWhenTriggersOverlapButDiffer() {
         let pushToTalk = HotkeyTrigger.modifierChord(modifiers: ["control", "option"])
         let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
@@ -768,6 +862,61 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         XCTAssertEqual(
             managers[0].modifierFlagsChangedOutputsForTesting(flags: .maskControl, timestampMs: 1_300),
             [.startRecording(mode: .persistent)])
+    }
+
+    func testHeldTakeIgnoresTheOtherShortcutThroughCoordinatorStart() {
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .control, pushToTalk: .control, alternateHandsFree: .option, alternatePushToTalk: .option)
+        let flags: [CGEventFlags] = [.maskControl, .maskAlternate]
+        for ownerIndex in [0, 1] {
+            let coordinator = makeCoordinator(settingsViewModel: makeViewModel(), onHotkeyConflict: { _, _ in })
+            let managers = installDictationManagers(in: coordinator, plan: plan)
+            let owner = managers[ownerIndex]
+            let peer = managers[1 - ownerIndex]
+            startProvisionalTake(on: owner, flags: flags[ownerIndex])
+
+            // The other keyboard's shortcut is pressed and released mid-hold.
+            XCTAssertEqual(
+                peer.modifierFlagsChangedOutputsForTesting(flags: flags[1 - ownerIndex], timestampMs: 1_600), [],
+                "owner: \(ownerIndex)")
+            XCTAssertEqual(
+                peer.modifierFlagsChangedOutputsForTesting(flags: [], timestampMs: 1_700), [],
+                "owner: \(ownerIndex)")
+
+            let release = owner.modifierFlagsChangedOutputsForTesting(flags: [], timestampMs: 2_000)
+            XCTAssertFalse(release.isEmpty, "The owning shortcut must still end its own hold (owner: \(ownerIndex))")
+            XCTAssertFalse(release.contains { if case .discardRecording = $0 { true } else { false } })
+        }
+    }
+
+    func testHandsFreeTakeStopsOnceFromEitherShortcutThroughCoordinatorStart() {
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .control, pushToTalk: .control, alternateHandsFree: .option, alternatePushToTalk: .option)
+        let flags: [CGEventFlags] = [.maskControl, .maskAlternate]
+        for starterIndex in [0, 1] {
+            for stopperIndex in [0, 1] {
+                let coordinator = makeCoordinator(settingsViewModel: makeViewModel(), onHotkeyConflict: { _, _ in })
+                let managers = installDictationManagers(in: coordinator, plan: plan)
+                let starter = managers[starterIndex]
+                let stopper = managers[stopperIndex]
+
+                _ = starter.modifierFlagsChangedOutputsForTesting(flags: flags[starterIndex], timestampMs: 1_000)
+                _ = starter.modifierFlagsChangedOutputsForTesting(flags: [], timestampMs: 1_050)
+                let started = starter.modifierFlagsChangedOutputsForTesting(
+                    flags: flags[starterIndex], timestampMs: 1_200)
+                XCTAssertEqual(started, [.startRecording(mode: .persistent)])
+                deliver(started, to: starter)
+                // The flow reports the persistent take back to the coordinator.
+                coordinator.syncDictationHotkeyRecordingMode(.persistent)
+                _ = starter.modifierFlagsChangedOutputsForTesting(flags: [], timestampMs: 1_250)
+
+                let down = stopper.modifierFlagsChangedOutputsForTesting(flags: flags[stopperIndex], timestampMs: 5_000)
+                let up = stopper.modifierFlagsChangedOutputsForTesting(flags: [], timestampMs: 5_050)
+                XCTAssertEqual(
+                    (down + up).filter { $0 == .stopRecording }.count, 1,
+                    "starter: \(starterIndex) stopper: \(stopperIndex)")
+            }
+        }
     }
 
     func testHoldOwnershipSurvivesChangingSharedTriggerToHoldOnly() {
