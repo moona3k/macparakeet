@@ -1,0 +1,27 @@
+Sources/CLI/CHANGELOG.md
+  s_78872c520d1d30::t_00141ff5506e8c 97-108
+Sources/CLI/Commands/RetranscribeCommand.swift
+  s_78872c520d1d30::t_e3f206dfc4a7cb 428-429,438-441,473,483-484,487-501,510-512,515,525-526,529-543,563-564
+Tests/CLITests/RetranscribeCommandTests.swift
+  s_78872c520d1d30::t_0f52aa68716462 196-253
+Tests/CLITests/RetranscribePersistenceTests.swift
+  s_78872c520d1d30::t_1a48959f3d5b59 1-195
+spec/contracts/cli-json-v1.md
+  s_78872c520d1d30::t_b9a4e75e5fa309 76-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "77eb0e52b5c484e14720fabe11e3943e4dc5c0a8",
+  "prompts": {},
+  "sessions": {
+    "s_78872c520d1d30": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fdfa-3264-7ea2-8c67-35821c108110",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
