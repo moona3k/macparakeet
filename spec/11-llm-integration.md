@@ -505,6 +505,12 @@ Use bullet points for clarity. Keep the summary under 500 words.
 
 **Context assembly:** Full transcript text. If transcript exceeds the context budget, truncate from the middle with an ellipsis marker, preserving the head and tail within the limit. Truncation snaps to word boundaries to avoid slicing multi-byte Unicode. The transcript budget accounts for the rendered summary system prompt so the combined request stays inside the provider budget; if a custom prompt has already rendered transcript text into the system prompt, that rendered prompt is bounded too. **Budget:** 500,000 characters for cloud providers, 80,000 characters for most local providers (`isLocal == true`), and 8,000 characters for LM Studio because its effective context depends on the model loaded in the desktop server. Apple Intelligence is cleanup-only and is rejected for summary generation before context assembly.
 
+For prompt results, after reserving output tokens, a non-empty transcript
+reserves up to half the input budget (or its whole length, if shorter) before an
+oversized system prompt is bounded. Short system prompts stay unchanged and the
+transcript uses the remaining space. Empty transcripts reserve no space, so
+system-only requests can use the full input budget.
+
 **Meeting notes for result prompts:** Result
 prompts carry an `includeMeetingNotes` opt-in. It is false by default, except
 for the built-in Summary seeded when a prompt library is first created; existing
@@ -513,12 +519,12 @@ the shared GUI/CLI assembly path captures that Boolean and the normalized notes
 value capped to 8,000 words. If notes are non-empty and the opt-in is enabled,
 the assembler appends one delimited, user-authored context block after the
 selected prompt and before per-run extra instructions. The block is source
-material, not instructions. Explicit name/spelling corrections in the notes
-may resolve speech-recognition errors when the referent is clear, and relevant
-URLs are preserved exactly without being fetched. Names and links alone do not
-establish attendance, speaker identity, decisions, or commitments. Other
-factual conflicts resolve in favor of the transcript with material uncertainty
-stated.
+material, not instructions. It instructs the model to use explicit name/spelling
+corrections when the referent is clear, preserve relevant URLs exactly, and
+avoid inferring attendance, speaker identity, decisions, or commitments from a
+name or link alone. For other factual conflicts, it asks the model to prefer
+the transcript and state material uncertainty. These are prompt instructions,
+not guaranteed provider behavior. Linked pages are not fetched.
 
 Advanced custom templates retain case-sensitive `{{userNotes}}` substitution
 regardless of the checkbox. If the token is present, no automatic block is

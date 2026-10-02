@@ -1985,8 +1985,8 @@ ordinary Retry. See [ADR-030](adr/030-external-meeting-import.md) and the
 > Status: **IMPLEMENTED AND LOCALLY VERIFIED (2026-09-05)** — release
 > availability follows the normal channel process.
 
-The replacement does not restore a dedicated memo-steered built-in or enable
-notes automatically. Every saved meeting exposes a dedicated, always-editable
+The replacement uses a per-prompt notes setting, with the Summary default
+described below. Every saved meeting exposes a dedicated, always-editable
 `Notes` tab after `Transcript`. Changes auto-save after a 500 ms idle debounce,
 with Saving/Saved/Error feedback and Retry. This keeps the user-authored
 editorial layer separate from the factual transcript. Notes are backed by
@@ -2003,16 +2003,16 @@ through the CLI, its pending draft no longer blocks quit. Database read errors
 keep the draft and continue to block quit. A still-open deleted meeting keeps
 the draft readable for copying and labels it as unsaved to the deleted meeting.
 Every result prompt, including read-only built-ins, exposes an
-**Include meeting notes as context** checkbox. It defaults off for existing
-prompts, custom prompts, and built-ins other than Summary. The built-in Summary
+**Include meeting notes as context** checkbox. It defaults off for custom
+prompts and built-ins other than Summary. The built-in Summary
 is seeded with it on when the prompt library is first created; existing
 libraries keep their saved choice, including an explicit opt-out. It is not
 available for Transforms.
 
 When enabled, non-empty notes are added once as a delimited context block.
-Explicit name/spelling corrections in the notes can resolve speech-recognition
-errors when the referent is clear, relevant URLs are preserved without being
-fetched, and other factual conflicts still favor the transcript. Advanced custom prompts
+The block instructs the model to use explicit name/spelling corrections when
+the referent is clear, preserve relevant URLs exactly, and prefer the transcript
+for other factual conflicts. Linked pages are not fetched. Advanced custom prompts
 may continue to place notes explicitly with case-sensitive `{{userNotes}}`,
 even when the checkbox is off; enabling the checkbox cannot duplicate that
 content. Empty notes preserve the previous assembled prompt byte-for-byte.
@@ -2033,7 +2033,7 @@ fields.
 - [x] Saved meetings expose an always-editable Notes tab with debounced
   autosave, flush-before-LLM behavior, Retry, and separate artifact warnings.
 - [x] Rapid saves leave derived artifacts at the newest committed DB value.
-- [x] Prompt checkbox works independently for built-in and custom result prompts; existing prompts stay opted out.
+- [x] Prompt checkbox works independently for built-in and custom result prompts; existing prompts keep their saved preferences.
 - [x] The shared GUI/CLI assembler follows the empty/off/token/no-duplication decision table from ADR-020.
 - [x] Queue, retry, regenerate, and saved-result snapshots remain reproducible.
 - [x] Focused tests pass.

@@ -75,6 +75,12 @@ that commit and the investigation base `f43f4bed2` shows the same exclusion rule
   cap, custom template framing, and URL-fetch behavior remain unchanged.
 - Historical snapshots are labeled neutrally: older versions stored full notes
   even when the request was capped, so they are not always exact sent receipts.
+- Provider context limiting reserves transcript space before bounding oversized
+  system context. Otherwise, long automatic notes can consume LM Studio's
+  entire 8,000-character input budget and leave almost none of the transcript.
+  Short transcripts keep their full text; long transcripts retain their head
+  and tail. Empty transcripts do not reserve space from system-only requests.
+  Notes snapshots record assembly input before this provider-specific trimming.
 
 ## Verification
 
@@ -84,6 +90,16 @@ opt-in inclusion, current notes with saved regeneration policy, fresh generation
 with the updated policy, automatic completion, and CLI prompt generation.
 A generation-ID assertion distinguishes a newly saved result from the mock
 repository's save call made during replacement.
+
+Fresh-eye review of PR #1209 found the context-budget case above. A regression
+with 2,000 repetitions of `agenda ` reproduced it through both detailed and
+streaming provider interfaces: a complete short transcript was reduced to
+`The boar`. The two tests failed before the composer fix. After the fix, 223
+focused LLM, assembly, generation and result-status tests passed, including
+output reservations, useful long-transcript head/tail, inline templates and
+system-only requests. A separate replay of 376 persistence/CLI/generation tests
+passed on the preceding PR head. Full CI on that preceding head was green;
+the final follow-up CI is separate evidence.
 
 Independent correctness and maintainability reviews were performed. The
 historical-snapshot wording finding was addressed. Native visual interaction

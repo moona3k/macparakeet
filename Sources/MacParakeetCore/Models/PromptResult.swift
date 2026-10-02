@@ -13,9 +13,10 @@ public struct PromptResult: Codable, Identifiable, Sendable {
     public var promptContent: String
     public var extraInstructions: String?
     public var content: String
-    /// Exact effective notes supplied to the LLM for this result, after blank
-    /// normalization and the prompt-context word cap. Nil means no notes were
-    /// sent. Editing canonical meeting notes never changes this receipt.
+    /// Notes used in prompt assembly after blank normalization and the word
+    /// cap. Provider context limits can trim the assembled prompt further, and
+    /// legacy snapshots can be uncapped. Nil means no notes were used in assembly.
+    /// Editing canonical meeting notes never changes this receipt.
     public var userNotesSnapshot: String?
     /// Snapshot of the per-prompt automatic meeting-notes preference used for
     /// this generation. This remains meaningful when no notes existed, so a
@@ -124,8 +125,8 @@ public struct PromptResult: Codable, Identifiable, Sendable {
 /// What a saved result can truthfully say about meeting notes. Presentation
 /// only; it never changes what regeneration replays.
 public enum PromptResultMeetingNotesStatus: Equatable, Sendable {
-    /// The notes saved as this result's snapshot. Legacy snapshots can be
-    /// uncapped, so this is not a byte-exact record of what was sent.
+    /// The notes saved as this result's assembly snapshot, before provider
+    /// context trimming. Legacy snapshots can be uncapped.
     case sent(String)
     /// Notes were enabled for this result, but none existed when it ran.
     case enabledWithoutNotes

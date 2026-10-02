@@ -30,12 +30,12 @@ setting. A library-prompt result with notes disabled directs users to generate
 a **new** result after changing the preference: **Regenerate** replays the original result's setting,
 even when the library prompt has since changed.
 
-The automatically appended notes block allows explicit name/spelling
-corrections to resolve speech-recognition errors when the referent is clear.
-Relevant URLs are preserved exactly as supplied context; no URL fetch is added.
-Names and links alone do not establish attendance, speaker identity, decisions,
-or commitments. Other factual conflicts still favor transcript evidence, with
-material uncertainty stated. Explicit `{{userNotes}}` templates continue to own
+The automatically appended notes block instructs the model to use explicit
+name/spelling corrections when the referent is clear, preserve relevant URLs
+exactly, and avoid inferring attendance, speaker identity, decisions, or
+commitments from a name or link alone. It asks the model to prefer transcript
+evidence for other factual conflicts and state material uncertainty. No URL
+fetch is added. Explicit `{{userNotes}}` templates continue to own
 their own framing and are not given a duplicate automatic block.
 
 This amendment corrects the earlier blanket instruction that all factual

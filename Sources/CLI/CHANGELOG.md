@@ -113,6 +113,8 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   defaults, and saved result snapshots are preserved. Disable notes with
   `prompts set Summary --no-include-meeting-notes`; `prompts restore-defaults`
   continues to preserve notes preferences. No JSON schema changes (#1204).
+- Prompt-result context limiting reserves transcript space before bounding
+  oversized notes or system context, including LM Studio's smaller limit.
 
 ## [5.0.0] — 2026-09-27 (bundled with MacParakeet 0.8.9)
 

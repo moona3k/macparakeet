@@ -324,11 +324,11 @@ Transforms cannot enable it. Assembly follows this decision table:
 | Present | On | Yes | Substitute at token; do not append |
 
 The automatic block labels notes as user-authored source material rather than
-instructions. It lets explicit name/spelling corrections resolve speech-recognition
-errors when the referent is clear, preserves relevant URLs exactly without
-fetching them, does not infer attendance, speaker identity, decisions, or
-commitments from a name or link alone, and otherwise prefers the transcript for
-factual conflicts. Retry reuses
+instructions. It instructs the model to use explicit name/spelling corrections
+when the referent is clear, preserve relevant URLs exactly, avoid inferring
+attendance, speaker identity, decisions, or commitments from a name or link
+alone, and otherwise prefer the transcript for factual conflicts. Provider
+adherence is not guaranteed; linked pages are not fetched. Retry reuses
 the failed queue snapshot. Regenerate reuses the result's checkbox snapshot
 with the meeting's current committed notes. Chat/Ask has a separate existing
 assembly path and remains unchanged.

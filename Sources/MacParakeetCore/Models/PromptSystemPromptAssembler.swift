@@ -5,8 +5,9 @@ public enum PromptSystemPromptAssembler {
 
     public struct Assembly: Sendable, Equatable {
         public let systemPrompt: String
-        /// Exact normalized/capped notes supplied to the model, or nil when
-        /// this prompt does not consume meeting notes.
+        /// Exact normalized/capped notes used in this assembly, or nil when
+        /// this prompt does not consume meeting notes. Provider context limits
+        /// can further trim the assembled prompt before dispatch.
         public let effectiveUserNotes: String?
     }
 

@@ -218,6 +218,8 @@ still apply.
   Nullable `userNotesSnapshot` contains the exact normalized, bounded notes
   value supplied to prompt assembly, not necessarily the full canonical note.
   Results saved by older versions can hold uncapped notes.
+  Provider context limits can further trim the assembled prompt before dispatch;
+  this snapshot records assembly input, not byte-exact network payloads.
 - `meetings results list|add|edit --json` prompt-result objects may include
   `sourceTranscriptHash`, a
   SHA-256 receipt of cue words when timed cues are available on an unedited

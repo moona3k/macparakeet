@@ -773,7 +773,9 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
   value supplied to prompt assembly, not the unbounded canonical DB value, so
   later note edits do not rewrite historical prompt results. Results saved by
   older versions can hold uncapped notes, so a legacy snapshot is not always a
-  byte-exact record of what was sent; the UI labels it as a snapshot only.
+  byte-exact record of what was sent. Provider context limits can also trim the
+  assembled prompt further for current results. The UI labels it as a snapshot
+  of assembly input, not an exact network receipt.
 - `contentEditedAt` (v0.45) is set when the user saves an in-place edit of
   `content`. Prompt snapshots stay the generation receipt. `NULL` means no
   in-place edit is recorded, including on generated, historical, and imported

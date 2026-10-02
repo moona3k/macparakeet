@@ -1484,6 +1484,98 @@ final class LLMServiceTests: XCTestCase {
         )
     }
 
+    func testLMStudioSummaryNotesKeepShortTranscriptInBothPaths() async throws {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+        let prompt = Prompt.classicSummaryPrompt()
+        let systemPrompt = PromptSystemPromptAssembler.assemble(
+            promptContent: prompt.content,
+            extraInstructions: nil,
+            includeMeetingNotes: prompt.includeMeetingNotes,
+            userNotes: String(repeating: "agenda ", count: 2_000)
+        )
+        let transcript = "The board rejected the launch. No budget was approved."
+
+        for maxTokens: Int? in [nil, 1_000] {
+            let settings = maxTokens.map { PromptInferenceSettings(maxTokens: $0) }
+            let inputBudget = LLMService.lmStudioContextBudget - (maxTokens ?? 0) * 7 / 2
+            for streaming in [false, true] {
+                if streaming {
+                    for try await _ in service.generatePromptResultDetailedStream(
+                        transcript: transcript, systemPrompt: systemPrompt, inferenceSettings: settings
+                    ) {}
+                } else {
+                    _ = try await service.generatePromptResultDetailed(
+                        transcript: transcript, systemPrompt: systemPrompt, inferenceSettings: settings
+                    )
+                }
+                XCTAssertEqual(mockClient.capturedMessages.last?.content, transcript)
+                XCTAssertTrue(try XCTUnwrap(mockClient.capturedMessages.first).content.contains("agenda"))
+                XCTAssertLessThanOrEqual(
+                    mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }, inputBudget)
+            }
+        }
+    }
+
+    func testLMStudioSummaryNotesKeepLongTranscriptFactsInBothPaths() async throws {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+        let prompt = Prompt.classicSummaryPrompt()
+        let systemPrompt = PromptSystemPromptAssembler.assemble(
+            promptContent: prompt.content,
+            extraInstructions: nil,
+            includeMeetingNotes: prompt.includeMeetingNotes,
+            userNotes: String(repeating: "agenda ", count: 2_000)
+        )
+        let transcript =
+            "The board rejected the launch. " + String(repeating: "discussion ", count: 2_000)
+            + "No budget was approved."
+
+        for streaming in [false, true] {
+            if streaming {
+                for try await _ in service.generatePromptResultDetailedStream(
+                    transcript: transcript, systemPrompt: systemPrompt, inferenceSettings: nil
+                ) {}
+            } else {
+                _ = try await service.generatePromptResultDetailed(
+                    transcript: transcript, systemPrompt: systemPrompt
+                )
+            }
+            let userMessage = try XCTUnwrap(mockClient.capturedMessages.last)
+            XCTAssertTrue(userMessage.content.hasPrefix("The board rejected the launch."))
+            XCTAssertTrue(userMessage.content.hasSuffix("No budget was approved."))
+            XCTAssertTrue(userMessage.content.contains("[... content truncated ...]"))
+            XCTAssertTrue(try XCTUnwrap(mockClient.capturedMessages.first).content.contains("agenda"))
+            XCTAssertLessThanOrEqual(
+                mockClient.capturedMessages.reduce(0) { $0 + $1.content.count },
+                LLMService.lmStudioContextBudget)
+        }
+    }
+
+    func testLMStudioShortPromptKeepsOriginalMessages() async throws {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+        _ = try await service.generatePromptResultDetailed(
+            transcript: "The board rejected the launch.", systemPrompt: "Summarize faithfully."
+        )
+        XCTAssertEqual(mockClient.capturedMessages.first?.content, "Summarize faithfully.")
+        XCTAssertEqual(mockClient.capturedMessages.last?.content, "The board rejected the launch.")
+    }
+
+    func testLMStudioSystemOnlyRequestKeepsFullInputBudget() async throws {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+        for streaming in [false, true] {
+            if streaming {
+                for try await _ in service.generatePromptResultDetailedStream(
+                    transcript: "", systemPrompt: String(repeating: "x", count: 20_000), inferenceSettings: nil
+                ) {}
+            } else {
+                _ = try await service.generatePromptResultDetailed(
+                    transcript: "", systemPrompt: String(repeating: "x", count: 20_000)
+                )
+            }
+            XCTAssertEqual(mockClient.capturedMessages.first?.content.count, LLMService.lmStudioContextBudget)
+            XCTAssertEqual(mockClient.capturedMessages.last?.content, "")
+        }
+    }
+
     func testOllamaPromptResultsUseConfiguredContextWindowInBothPaths() async throws {
         mockConfigStore.config = .ollama(model: "qwen3")
         let transcript = String(repeating: "x", count: 80_000)
@@ -1577,7 +1669,7 @@ final class LLMServiceTests: XCTestCase {
     func testLMStudioPromptResultBoundsRenderedSystemPromptContainingTranscript() async throws {
         mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
 
-        let transcript = String(repeating: "word ", count: 3_000)
+        let transcript = "Opening fact. " + String(repeating: "word ", count: 3_000) + "Closing fact."
         _ = try await service.generatePromptResultDetailed(
             transcript: transcript,
             systemPrompt: "Read this inline transcript:\n\(transcript)"
@@ -1590,7 +1682,8 @@ final class LLMServiceTests: XCTestCase {
             LLMService.lmStudioContextBudget
         )
         XCTAssertTrue(systemMessage.content.contains("[... content truncated ...]"))
-        XCTAssertEqual(userMessage.content, "")
+        XCTAssertTrue(userMessage.content.hasPrefix("Opening fact."))
+        XCTAssertTrue(userMessage.content.hasSuffix("Closing fact."))
     }
 
     func testLMStudioStreamingPromptResultUsesConservativeBudgetIncludingSystemPrompt() async throws {
