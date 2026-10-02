@@ -19,6 +19,15 @@ overlaps its heading and crowds its buttons against the footer. After the fix,
 and controls after scrolling. The two dictation-phase renders provide a
 control for the same failure content after key confirmation.
 
+This is a manual inspection capture aid: the archived probe uses timed
+settling around native rendering and scrolling. Its passing XCTest result
+alone does not assert that a final layout is ready or that pixels are correct.
+The reported layout finding comes from inspecting the retained images. On
+reproduction, inspect every image and recapture if it shows an intermediate
+state; do not promote this archive into a deterministic CI layout test without
+observable layout/state readiness and appropriate geometry assertions. The
+archive is retained as the exact capture code used for the dated evidence.
+
 The audit-only probe is archived as `OnboardingAuditRenderTests.swift.txt`,
 rather than leaving a skipped audit test in the permanent suite. To reproduce
 in a dedicated checkout, temporarily copy it to

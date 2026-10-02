@@ -8,7 +8,9 @@
 - Website fix: `30743ed31f1b02176f9e8a9ea4098c81b477a041`,
   [PR #102](https://github.com/moona3k/macparakeet-website/pull/102).
 - App stable release when inspected: v0.8.9; this main-branch audit includes
-  later development. No merge, deployment or release is part of delivery.
+  later development. Initial audit delivery opened PRs without merging or
+  deploying. The later owner-authorized landing is tracked in
+  [follow-through](follow-through.md); deployment and release remain separate.
 
 Both repositories were fetched and reviewed in isolated worktrees. The
 original dirty checkouts, existing model assets and unrelated open PRs were
@@ -49,6 +51,23 @@ red run; it is not counted as a discovered product bug. The real-model E2E's
 initial SwiftPM invocation hit macOS nested-sandbox rejection before tests;
 direct invocation of the prebuilt XCTest bundle under the same network-deny
 sandbox then passed. These setup failures are retained in local logs.
+
+## Landing review follow-up
+
+After the owner authorized merge, review identified a main-actor read in the
+new Library replacement refresh. Five thread-ownership regression assertions
+failed before the refinement. The corrected loader reuses the existing
+asynchronous path; all 74 focused Library cases pass, including stale
+result/error and refresh-failure coverage. No second full local suite was run.
+Exact revised-head hosted CI is required before merge.
+
+Website PR #102 was merged after rerunning all 146 telemetry tests and the
+86-page build. An actual local browser probe also exercised the built stats
+page with legacy and current snapshots. Legacy hover text reports step events;
+current hover text reports sessions. Both had zero page errors. The sanitized
+[browser receipt](evidence/onboarding-dashboard-browser.json) records the
+source tree and script hash. This is runtime rendering evidence with injected
+public-data fixtures, not deployed receiver proof.
 
 ## Reproduction entrypoints
 

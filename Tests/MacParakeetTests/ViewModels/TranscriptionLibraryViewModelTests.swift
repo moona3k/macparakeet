@@ -1,5 +1,6 @@
 import XCTest
 import GRDB
+import Observation
 @testable import MacParakeetCore
 @testable import MacParakeetViewModels
 
@@ -19,6 +20,18 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
 
     private func load(_ viewModel: TranscriptionLibraryViewModel? = nil) async {
         await (viewModel ?? vm).loadTranscriptions().value
+    }
+
+    private func waitForPendingLoad(_ viewModel: TranscriptionLibraryViewModel) async {
+        guard viewModel.isLoading else { return }
+        let finished = expectation(description: "Pending Library query finished")
+        withObservationTracking {
+            _ = viewModel.isLoading
+        } onChange: {
+            finished.fulfill()
+        }
+        await fulfillment(of: [finished], timeout: 2)
+        XCTAssertFalse(viewModel.isLoading)
     }
 
     // MARK: - Load
@@ -390,6 +403,63 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isLoading)
         XCTAssertEqual(Set(viewModel.filteredTranscriptions.map(\.id)), [podcast.id, local.id])
         XCTAssertEqual(viewModel.displayedSourceLabelStyle, .visible)
+    }
+
+    func testSupersededLoadCannotPublishWhileNewFilterIsPending() async {
+        await assertSupersededLoadCannotPublish(failing: false)
+    }
+
+    func testSupersededLoadFailureCannotClearRowsWhileNewFilterIsPending() async {
+        await assertSupersededLoadCannotPublish(failing: true)
+    }
+
+    private func assertSupersededLoadCannotPublish(failing: Bool) async {
+        let mockRepo = MockTranscriptionRepository()
+        let podcast = Transcription(fileName: "episode.mp3", status: .completed, sourceType: .podcast)
+        let local = Transcription(fileName: "recording.m4a", status: .completed, sourceType: .file)
+        mockRepo.transcriptions = [podcast, local]
+        let viewModel = TranscriptionLibraryViewModel()
+        viewModel.configure(transcriptionRepo: mockRepo)
+        await viewModel.loadTranscriptions().value
+
+        let oldGate = StaleFetchGate()
+        let newGate = StaleFetchGate()
+        defer {
+            oldGate.allowFirstFetchToFinish()
+            newGate.allowFirstFetchToFinish()
+        }
+        mockRepo.fetchAllHandler = { _ in
+            if oldGate.nextCallNumber() == 1 {
+                oldGate.blockFirstFetchUntilAllowed()
+                if failing { throw LibraryRenameTestError.reloadFailed }
+                // A distinct obsolete result makes an incorrect publish observable.
+                return [podcast]
+            }
+            newGate.blockFirstFetchUntilAllowed()
+            return [podcast, local]
+        }
+
+        let oldLoad = viewModel.loadTranscriptions()
+        let oldStarted = await Task.detached { oldGate.waitForFirstFetchStarted() }.value
+        XCTAssertTrue(oldStarted)
+        guard oldStarted else { return }
+        viewModel.filter = .local
+        let newStarted = await Task.detached { newGate.waitForFirstFetchStarted() }.value
+        XCTAssertTrue(newStarted)
+        guard newStarted else { return }
+
+        oldGate.allowFirstFetchToFinish()
+        await oldLoad.value
+        XCTAssertTrue(viewModel.isLoading, "An obsolete request must not finish the current request")
+        XCTAssertEqual(Set(viewModel.transcriptions.map(\.id)), [podcast.id, local.id])
+        XCTAssertEqual(viewModel.displayedSourceLabelStyle, .visible)
+        XCTAssertNil(viewModel.errorMessage)
+
+        newGate.allowFirstFetchToFinish()
+        await waitForPendingLoad(viewModel)
+        XCTAssertEqual(viewModel.transcriptions.map(\.id), [local.id])
+        XCTAssertEqual(viewModel.displayedSourceLabelStyle, .hidden)
+        XCTAssertNil(viewModel.errorMessage)
     }
 
     func testFilterLocal() async throws {
@@ -1072,6 +1142,51 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         try await assertMutationRejectsStaleSnapshot(loadMore: false, mutation: .deleteAudio)
     }
 
+    func testMutationRefreshFailurePreservesSavedFavoriteAndVisibleRows() async throws {
+        let mockRepo = MockTranscriptionRepository()
+        let target = Transcription(createdAt: Date(timeIntervalSince1970: 3), fileName: "Latest", status: .completed)
+        let second = Transcription(createdAt: Date(timeIntervalSince1970: 2), fileName: "Second", status: .completed)
+        let third = Transcription(createdAt: Date(timeIntervalSince1970: 1), fileName: "Third", status: .completed)
+        mockRepo.transcriptions = [target, second, third]
+        let viewModel = TranscriptionLibraryViewModel()
+        viewModel.pageSize = 2
+        viewModel.configure(transcriptionRepo: mockRepo)
+        await viewModel.loadTranscriptions().value
+        viewModel.beginBulkSelection(startingWith: target)
+
+        let gate = StaleFetchGate()
+        defer { gate.allowFirstFetchToFinish() }
+        mockRepo.fetchAllHandler = { _ in
+            XCTAssertFalse(Thread.isMainThread)
+            if gate.nextCallNumber() == 1 {
+                gate.blockFirstFetchUntilAllowed()
+                return [target, second, third]
+            }
+            throw LibraryRenameTestError.reloadFailed
+        }
+        let staleLoad = viewModel.loadTranscriptions()
+        let started = await Task.detached { gate.waitForFirstFetchStarted() }.value
+        XCTAssertTrue(started)
+        guard started else { return }
+
+        viewModel.toggleFavorite(target)
+        XCTAssertTrue(try XCTUnwrap(viewModel.transcriptions.first).isFavorite)
+        XCTAssertTrue(try XCTUnwrap(mockRepo.fetch(id: target.id)).isFavorite)
+        XCTAssertNil(viewModel.errorMessage)
+        await waitForPendingLoad(viewModel)
+        gate.allowFirstFetchToFinish()
+        await staleLoad.value
+
+        XCTAssertEqual(viewModel.transcriptions.map(\.id), [target.id, second.id])
+        XCTAssertTrue(try XCTUnwrap(viewModel.transcriptions.first).isFavorite)
+        XCTAssertTrue(try XCTUnwrap(mockRepo.fetch(id: target.id)).isFavorite)
+        XCTAssertTrue(viewModel.hasMore)
+        XCTAssertEqual(viewModel.selectedTranscriptionIDs, [target.id])
+        XCTAssertEqual(viewModel.displayedSourceLabelStyle, .visible)
+        XCTAssertTrue(try XCTUnwrap(viewModel.errorMessage).hasPrefix("Updated Library, but failed to refresh:"))
+        XCTAssertFalse(viewModel.isLoading)
+    }
+
     private enum SnapshotMutation {
         case favorite, delete, deleteAudio
     }
@@ -1096,7 +1211,11 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         let gate = StaleFetchGate()
         mockRepo.fetchAllHandler = { [mockRepo, gate] limit in
             let snapshot = mockRepo.transcriptions.sorted { $0.createdAt > $1.createdAt }
-            if gate.nextCallNumber() == 1 { gate.blockFirstFetchUntilAllowed() }
+            if gate.nextCallNumber() == 1 {
+                gate.blockFirstFetchUntilAllowed()
+            } else {
+                XCTAssertFalse(Thread.isMainThread, "The replacement query must not block the main thread")
+            }
             return limit.map { Array(snapshot.prefix($0)) } ?? snapshot
         }
         let staleLoad =
@@ -1111,8 +1230,17 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         case .deleteAudio: viewModel.deleteMeetingAudio(target)
         }
         XCTAssertNil(viewModel.errorMessage)
+        switch mutation {
+        case .favorite:
+            XCTAssertTrue(try XCTUnwrap(viewModel.transcriptions.first { $0.id == target.id }).isFavorite)
+        case .delete:
+            XCTAssertFalse(viewModel.transcriptions.contains { $0.id == target.id })
+        case .deleteAudio:
+            XCTAssertNil(try XCTUnwrap(viewModel.transcriptions.first { $0.id == target.id }).filePath)
+        }
         gate.allowFirstFetchToFinish()
         await staleLoad.value
+        await waitForPendingLoad(viewModel)
 
         switch mutation {
         case .favorite:

@@ -78,6 +78,14 @@
     {
       "path": ".build/audit-evidence/changed-files-format.log",
       "sha256": "6b804b40965d2153dc5bb6385cc05fa5ecac2363e2a5aca0b1bd4bf1cb70c034"
+    },
+    {
+      "path": ".build/audit-evidence/library-async-refresh-red.log",
+      "sha256": "c6bcbad45919e6a35ff845997e43eb77cd464926dcb3c60949dd8a54d5165ec8"
+    },
+    {
+      "path": ".build/audit-evidence/library-async-refresh-green.log",
+      "sha256": "3f8607aca12001aa4c38e99092429d6133ad93d52d0733d5f342c5bb89c236a5"
     }
   ],
   "limits": [
@@ -85,5 +93,15 @@
     "No second local full suite",
     "No physical microphone, TCC, Bluetooth or real provider qualification",
     "No production ingestion, deployment, signed release or merge"
-  ]
+  ],
+  "scope": "Original audit validation at codeCommit. Landing refinements and delivery are recorded separately in follow-through.md.",
+  "landingRefinement": {
+    "basedOn": "a71b70d6ed8bb5ab9124558e82a8b05e9d2baa73",
+    "libraryCases": 74,
+    "failed": 0,
+    "redCasesFailing": 5,
+    "newTests": 3,
+    "fullSuiteRerun": false,
+    "browserReceipt": "onboarding-dashboard-browser.json"
+  }
 }

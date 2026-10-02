@@ -250,7 +250,16 @@ a matched conversion cohort: steps can be skipped or resumed and sessions
 reset on process launch. Legacy cached snapshots without the discriminator
 remain event counts and must be labeled as such. This contract describes the
 reviewed receiver change; deployment is separately verified, not implied by
-the app source or a fresh snapshot.
+the app source or a fresh snapshot. The correction and real SQLite-backed
+aggregation regression live in the separate receiver repository:
+[website PR #102](https://github.com/moona3k/macparakeet-website/pull/102),
+merged as `1390491ea7b2c9dc09d443d1eae766ed87ce3322`. Its
+`tests/telemetry-handlers.test.mjs` exercises repeated actions, current steps
+and retained legacy steps against the actual route. A separate
+[local browser replay](../../docs/audits/2026-10-02-app-audit/evidence/onboarding-dashboard-browser.json)
+verified legacy/current captions and chart tooltip units in the built stats
+page. App-side source-string assertions are not a substitute for executing
+these boundaries.
 
 ## Local diagnostic evidence
 

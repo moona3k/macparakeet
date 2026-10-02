@@ -1,0 +1,80 @@
+{
+  "status": "passed",
+  "browser": "154.0.8037.98",
+  "url": "localhost /stats/ (ephemeral port)",
+  "sourceFixture": "previously fetched public /api/stats response",
+  "fixtureBoundary": "only onboarding aggregates and freshness are replaced; no receiver or deployment claim",
+  "cases": [
+    {
+      "mode": "legacy",
+      "passed": true,
+      "fixtureRequests": 1,
+      "caption": "Recorded step events (24h, legacy snapshot). Repeated actions may count more than once.",
+      "datasetLabel": "Step events",
+      "labels": [
+        "Welcome",
+        "Microphone",
+        "Accessibility",
+        "Ready"
+      ],
+      "values": [
+        9,
+        7,
+        5,
+        3
+      ],
+      "hover": {
+        "x": 1016.8385028839111,
+        "y": 512.625
+      },
+      "canvasSize": {
+        "width": 490,
+        "height": 260
+      },
+      "tooltip": [
+        " 9 step events"
+      ],
+      "pageErrors": [],
+      "screenshot": "legacy.png"
+    },
+    {
+      "mode": "current",
+      "passed": true,
+      "fixtureRequests": 1,
+      "caption": "Sessions reaching current setup steps (24h). Steps may be skipped or resumed; this is not a conversion funnel.",
+      "datasetLabel": "Sessions reaching step",
+      "labels": [
+        "Welcome",
+        "Permissions",
+        "Practice",
+        "Ready"
+      ],
+      "values": [
+        9,
+        7,
+        5,
+        3
+      ],
+      "hover": {
+        "x": 1015.8006481170654,
+        "y": 512.625
+      },
+      "canvasSize": {
+        "width": 490,
+        "height": 260
+      },
+      "tooltip": [
+        " 9 sessions"
+      ],
+      "pageErrors": [],
+      "screenshot": "current.png"
+    }
+  ],
+  "localHead": "30743ed31f1b02176f9e8a9ea4098c81b477a041",
+  "localTree": "0365560478766c7b07817e274f3ea81da7dc5699",
+  "builtStatsScriptHashes": {
+    "stats.astro_astro_type_script_index_0_lang.DVRQdKtb.js": "b3aba6c58af9f4f18034b34400f3de7e6980dfa8fbdeb8d9c2d2d1fe8b284421"
+  },
+  "screenshotsInspected": true,
+  "cleanup": "Owned browser contexts, browser process and ephemeral localhost server closed in finally block."
+}

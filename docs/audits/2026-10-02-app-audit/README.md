@@ -14,6 +14,10 @@ what passed from unexecuted hardware, production and release checks and
 records the PRs. The [visual overview](overview.html) is a standalone offline
 report with a before/after onboarding comparison.
 
+The owner subsequently authorized landing the fixes and proceeding with the
+recommendations. Current delivery and execution order are recorded in
+[follow-through](follow-through.md).
+
 ## Read the reports
 
 | Report | Main questions answered |

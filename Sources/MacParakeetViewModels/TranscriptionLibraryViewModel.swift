@@ -793,16 +793,7 @@ public final class TranscriptionLibraryViewModel {
     /// when a deletion shifts the offset of an in-flight next page.
     private func refreshPendingLoadAfterMutation() {
         guard isLoading else { return }
-        let windowSize = requestedWindowSize
-        cancelActiveLoad()
-        do {
-            try reloadLoadedWindow(limit: windowSize)
-        } catch {
-            logger.error(
-                "Updated Library but failed to refresh pending query: \(error.localizedDescription, privacy: .private)"
-            )
-            errorMessage = "Updated Library, but failed to refresh: \(error.localizedDescription)"
-        }
+        loadPage(offset: 0, append: false, limit: requestedWindowSize, preservingMutationOnFailure: true)
     }
 
     private func debounceSearchReload() {
@@ -820,7 +811,12 @@ public final class TranscriptionLibraryViewModel {
     }
 
     @discardableResult
-    private func loadPage(offset: Int, append: Bool) -> Task<Void, Never> {
+    private func loadPage(
+        offset: Int,
+        append: Bool,
+        limit: Int? = nil,
+        preservingMutationOnFailure: Bool = false
+    ) -> Task<Void, Never> {
         loadTask?.cancel()
         loadGeneration += 1
         let generation = loadGeneration
@@ -831,10 +827,13 @@ public final class TranscriptionLibraryViewModel {
             publishLoadedItems([], hasMore: false, filter: requestedFilter)
             return Task {}
         }
-        guard let query = makeQuery(offset: offset) else {
+        guard var query = makeQuery(offset: offset) else {
             isLoading = false
             publishLoadedItems([], hasMore: false, filter: requestedFilter)
             return Task {}
+        }
+        if let limit {
+            query.limit = limit
         }
 
         requestedWindowSize = query.offset + query.limit
@@ -859,10 +858,17 @@ public final class TranscriptionLibraryViewModel {
                 self.isLoading = false
             } catch {
                 guard let self, !Task.isCancelled, self.loadGeneration == generation else { return }
-                self.logger.error("Failed to load transcriptions: \(error.localizedDescription, privacy: .private)")
-                self.publishLoadedItems([], hasMore: false, filter: requestedFilter)
+                if preservingMutationOnFailure {
+                    self.logger.error(
+                        "Updated Library but failed to refresh pending query: \(error.localizedDescription, privacy: .private)"
+                    )
+                    self.errorMessage = "Updated Library, but failed to refresh: \(error.localizedDescription)"
+                } else {
+                    self.logger.error("Failed to load transcriptions: \(error.localizedDescription, privacy: .private)")
+                    self.publishLoadedItems([], hasMore: false, filter: requestedFilter)
+                    self.errorMessage = "Failed to load transcriptions: \(error.localizedDescription)"
+                }
                 self.isLoading = false
-                self.errorMessage = "Failed to load transcriptions: \(error.localizedDescription)"
             }
         }
         loadTask = task

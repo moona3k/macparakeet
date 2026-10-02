@@ -214,11 +214,14 @@ when its rows publish.
 
 While a Library refresh or Load More query is pending, a successful single-item
 favorite change, recording deletion, or meeting-audio deletion invalidates that
-query's older snapshot. The refreshed result keeps the requested page window
-and current filters, so deleted rows/audio affordances cannot reappear and a
-deletion cannot shift pagination past an unseen recording. If the mutation
-succeeds but the refresh fails, report the refresh failure separately; do not
-claim the saved mutation failed.
+query's older snapshot. Publish the successful mutation immediately and run
+the replacement database read off the main actor through the normal cancellable
+page loader. The refreshed result keeps the requested page window and current
+filters, so deleted rows/audio affordances cannot reappear and a deletion cannot
+shift pagination past an unseen recording. A subsequent filter or query change
+supersedes this replacement. If the mutation succeeds but the refresh fails,
+retain the updated rows, selection, pagination and displayed source attribution;
+report the refresh failure separately, without claiming the saved mutation failed.
 
 `Video` has narrowed the source to one family but not to one platform, so it
 shows the platform's own brand mark from `Resources/BrandGlyphs` without the
