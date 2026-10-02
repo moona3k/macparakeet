@@ -10,6 +10,6 @@
   "patch": {
     "pathRelativeToAppAuditWorktree": ".build/audit-evidence/library-stale-error-adjudication.patch",
     "sha256": "acb59cfbfbba4183de1c927dfb1a4d58ebe729850095fb8de1b8592fb36e30a9",
-    "retention": "local; patch not compiled or published"
+    "retention": "local; temporary assertions applied, compiled and tested, then reverted; not committed or published"
   }
 }
