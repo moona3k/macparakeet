@@ -1,0 +1,44 @@
+Sources/MacParakeetCore/Models/PromptSystemPromptAssembler.swift
+  s_0a66a5a5a87cf2::t_ab5c1f7315f0f2 8-10
+spec/11-llm-integration.md
+  s_0a66a5a5a87cf2::t_ab5c1f7315f0f2 508-513,522-527
+spec/12-processing-layer.md
+  s_0a66a5a5a87cf2::t_ab5c1f7315f0f2 327-331
+spec/contracts/cli-json-v1.md
+  s_0a66a5a5a87cf2::t_ab5c1f7315f0f2 221-222
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_0a66a5a5a87cf2::t_4ae3aac410550f 1571-1575,1578
+Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
+  s_0a66a5a5a87cf2::t_464a27732ddafc 1535,1567
+  s_0a66a5a5a87cf2::t_4ae3aac410550f 1672,1685-1686
+  s_0a66a5a5a87cf2::t_1e1bc6607f8216 1487-1534,1536-1566,1568-1578
+Sources/CLI/CHANGELOG.md
+  s_0a66a5a5a87cf2::t_ab5c1f7315f0f2 116-117
+spec/adr/020-live-meeting-notepad-and-memo-summaries.md
+  s_0a66a5a5a87cf2::t_ab5c1f7315f0f2 33-38
+Sources/MacParakeetCore/Models/PromptResult.swift
+  s_0a66a5a5a87cf2::t_3ea819f2be6bb4 16-19,128-129
+spec/01-data-model.md
+  s_0a66a5a5a87cf2::t_3ea819f2be6bb4 776-778
+docs/solutions/logic-errors/2026-10-02-meeting-summary-notes-context.md
+  s_0a66a5a5a87cf2::t_3ea819f2be6bb4 78-83,94-102
+  s_0a66a5a5a87cf2::t_09fccff1b6b8bd 103
+spec/02-features.md
+  s_0a66a5a5a87cf2::t_ab5c1f7315f0f2 1988-1989,2006-2007,2013-2015,2036
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a32d4dc0298f9665f6b59d0d33e8c5666764a997",
+  "prompts": {},
+  "sessions": {
+    "s_0a66a5a5a87cf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fe52-9982-73c0-a4f3-e2914337aa43",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
