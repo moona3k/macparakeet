@@ -425,7 +425,8 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
 
     /// A failed take kept for recovery completes like History Retry:
     /// atomically (a concurrent delete wins), then its recording is dropped
-    /// unless Save audio recordings is on. Other rows save as before.
+    /// unless Save audio recordings is on. Other takes must still exist with
+    /// their original status, so deletion or a status transition wins as well.
     static func persistRetranscribedDictation(
         _ updated: Dictation,
         original: Dictation,
@@ -434,7 +435,10 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
         dictationRepo: DictationRepositoryProtocol
     ) throws -> Dictation {
         guard original.status == .error else {
-            try dictationRepo.save(updated)
+            guard try dictationRepo.saveIfCurrentStatus(updated, is: original.status) else {
+                throw CLILookupError.notFound(
+                    "Dictation \(original.id.uuidString) was deleted or changed during retranscription")
+            }
             return updated
         }
         // Like History Retry: an empty result leaves the failed take and its
@@ -466,7 +470,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
         return updated
     }
 
-    private func retranscribeTranscription(
+    func retranscribeTranscription(
         _ original: Transcription,
         speechEngine: SpeechEngineSelection,
         transcriptionRepo: TranscriptionRepository,
@@ -476,22 +480,25 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
         customWordRepo: CustomWordRepository,
         snippetRepo: TextSnippetRepository,
         defaults: UserDefaults,
-        sttTranscriber: STTTranscribing
+        sttTranscriber: STTTranscribing,
+        service suppliedService: TranscriptionService? = nil
     ) async throws -> RetranscribeResult {
         let sourceURL = try Self.retainedAudioURL(path: original.filePath, kind: "transcription", id: original.id)
-        let service = makeTranscriptionService(
-            sttTranscriber: sttTranscriber,
-            transcriptionRepo: transcriptionRepo,
-            segmentRepo: segmentRepo,
-            knowledgeLayerMutator: knowledgeLayerMutator,
-            promptResultRepo: promptResultRepo,
-            customWordRepo: customWordRepo,
-            snippetRepo: snippetRepo,
-            defaults: defaults,
-            storedSpeakerDetection: defaults.object(
-                forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey
-            ) as? Bool
-        )
+        let service =
+            suppliedService
+            ?? makeTranscriptionService(
+                sttTranscriber: sttTranscriber,
+                transcriptionRepo: transcriptionRepo,
+                segmentRepo: segmentRepo,
+                knowledgeLayerMutator: knowledgeLayerMutator,
+                promptResultRepo: promptResultRepo,
+                customWordRepo: customWordRepo,
+                snippetRepo: snippetRepo,
+                defaults: defaults,
+                storedSpeakerDetection: defaults.object(
+                    forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey
+                ) as? Bool
+            )
         printErr("Retranscribing \(original.fileName) with \(speechEngine.engine.rawValue)...")
         let updated = try await service.retranscribe(
             existing: original,
@@ -500,12 +507,12 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
             speechEngineOverride: speechEngine,
             onProgress: Self.progressHandler(prefix: "Retranscribing").transcriptionProgress
         )
-        let preserved = Self.preserveOriginalTranscriptionMetadata(updated, original: original)
-        try transcriptionRepo.save(preserved)
-        return RetranscribeResult(kind: .transcription, sourcePath: sourceURL.path, transcription: preserved)
+        // Core already committed the row while merging current user metadata.
+        // A second save here would undo concurrent edits or resurrect deletion.
+        return RetranscribeResult(kind: .transcription, sourcePath: sourceURL.path, transcription: updated)
     }
 
-    private func retranscribeMeeting(
+    func retranscribeMeeting(
         _ original: Transcription,
         speechEngine: SpeechEngineSelection,
         transcriptionRepo: TranscriptionRepository,
@@ -515,22 +522,25 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
         customWordRepo: CustomWordRepository,
         snippetRepo: TextSnippetRepository,
         defaults: UserDefaults,
-        sttTranscriber: STTTranscribing
+        sttTranscriber: STTTranscribing,
+        service suppliedService: TranscriptionService? = nil
     ) async throws -> RetranscribeResult {
         let mixedAudioURL = try Self.retainedAudioURL(path: original.filePath, kind: "meeting", id: original.id)
-        let service = makeTranscriptionService(
-            sttTranscriber: sttTranscriber,
-            transcriptionRepo: transcriptionRepo,
-            segmentRepo: segmentRepo,
-            knowledgeLayerMutator: knowledgeLayerMutator,
-            promptResultRepo: promptResultRepo,
-            customWordRepo: customWordRepo,
-            snippetRepo: snippetRepo,
-            defaults: defaults,
-            storedSpeakerDetection: defaults.object(
-                forKey: UserDefaultsAppRuntimePreferences.meetingSpeakerDiarizationKey
-            ) as? Bool
-        )
+        let service =
+            suppliedService
+            ?? makeTranscriptionService(
+                sttTranscriber: sttTranscriber,
+                transcriptionRepo: transcriptionRepo,
+                segmentRepo: segmentRepo,
+                knowledgeLayerMutator: knowledgeLayerMutator,
+                promptResultRepo: promptResultRepo,
+                customWordRepo: customWordRepo,
+                snippetRepo: snippetRepo,
+                defaults: defaults,
+                storedSpeakerDetection: defaults.object(
+                    forKey: UserDefaultsAppRuntimePreferences.meetingSpeakerDiarizationKey
+                ) as? Bool
+            )
         printErr("Retranscribing meeting \(original.fileName) with \(speechEngine.engine.rawValue)...")
         let progress = Self.progressHandler(prefix: "Retranscribing meeting")
         let updated: Transcription
@@ -550,9 +560,8 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
                 onProgress: progress.transcriptionProgress
             )
         }
-        let preserved = Self.preserveOriginalTranscriptionMetadata(updated, original: original)
-        try transcriptionRepo.save(preserved)
-        return RetranscribeResult(kind: .meeting, sourcePath: mixedAudioURL.path, transcription: preserved)
+        // Keep the shared completion transaction authoritative for both paths.
+        return RetranscribeResult(kind: .meeting, sourcePath: mixedAudioURL.path, transcription: updated)
     }
 
     private func makeTranscriptionService(
@@ -675,28 +684,6 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
             throw CLIRetranscribeError.missingAudio(path: url.path)
         }
         return url
-    }
-
-    static func preserveOriginalTranscriptionMetadata(
-        _ result: Transcription,
-        original: Transcription
-    ) -> Transcription {
-        var updated = result
-        updated.id = original.id
-        updated.createdAt = original.createdAt
-        updated.fileName = original.fileName
-        updated.filePath = original.filePath
-        updated.meetingArtifactFolderPath = original.meetingArtifactFolderPath
-        updated.sourceURL = original.sourceURL
-        updated.thumbnailURL = original.thumbnailURL
-        updated.channelName = original.channelName
-        updated.videoDescription = original.videoDescription
-        updated.isFavorite = original.isFavorite
-        updated.sourceType = original.sourceType
-        updated.recoveredFromCrash = original.recoveredFromCrash
-        updated.userNotes = original.userNotes ?? result.userNotes
-        updated.chatMessages = original.chatMessages ?? result.chatMessages
-        return updated
     }
 
     private static func telemetrySource(for sourceType: Transcription.SourceType) -> TelemetryTranscriptionSource {

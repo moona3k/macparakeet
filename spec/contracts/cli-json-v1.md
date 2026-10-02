@@ -73,6 +73,16 @@ still apply.
   `Transcription` object. It is zero-based and non-null only when a local-file
   audio stream was selected explicitly; this additive field does not change
   stdout/stderr or envelope shapes.
+- `retranscribe --update` returns the completed row already committed by the
+  shared transcription service for saved transcriptions and meetings. Concurrent
+  notes/chat edits or clears, renames, favorites and audio metadata changes
+  merged by that service remain authoritative. The CLI performs no second save
+  after completion, including when the row is deleted before output is emitted.
+  A recording deleted before the completion transaction cannot be recreated.
+  Dictation reruns require the row still to exist with its original status;
+  deletion or a status change yields the existing `lookup` error with exit `1`.
+  That status check is not a general revision check for same-status dictation
+  edits. These rules do not change JSON fields or exit-code meanings.
 - Transcription-shaped JSON payloads include nullable `splitProvenance`. It is
   non-null only for a saved child created by Split and transcribe, with
   `operationId`, `sourceId`, the snapshotted `sourceTitle`, approved

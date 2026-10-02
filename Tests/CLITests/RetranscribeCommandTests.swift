@@ -193,6 +193,64 @@ final class RetranscribeCommandTests: XCTestCase {
         )
     }
 
+    func testRetranscribingDeletedNonfailedDictationDoesNotRecreateItOrRecountStats() throws {
+        for status in [Dictation.DictationStatus.completed, .cancelled] {
+            let repo = DictationRepository(dbQueue: try DatabaseManager().dbQueue)
+            let original = Dictation(
+                durationMs: 1_000, rawTranscript: "Original words", status: status, wordCount: 2
+            )
+            try repo.save(original)
+            let count = try repo.stats().totalCount
+            XCTAssertTrue(try repo.delete(id: original.id))
+            var updated = original
+            updated.rawTranscript = "Replacement words"
+            XCTAssertThrowsError(
+                try RetranscribeCommand.persistRetranscribedDictation(
+                    updated, original: original, sourceURL: URL(fileURLWithPath: "/unused.wav"),
+                    keepAudio: true, dictationRepo: repo
+                )
+            ) { error in
+                XCTAssertTrue(error is CLILookupError, "\(error)")
+            }
+            XCTAssertNil(try repo.fetch(id: original.id))
+            XCTAssertEqual(try repo.stats().totalCount, count)
+        }
+    }
+
+    func testRetranscribingNonfailedDictationRejectsChangedStatus() throws {
+        let repo = DictationRepository(dbQueue: try DatabaseManager().dbQueue)
+        let original = Dictation(durationMs: 1_000, rawTranscript: "Original", status: .cancelled)
+        try repo.save(original)
+        var current = original
+        current.status = .completed
+        current.rawTranscript = "Completed elsewhere"
+        try repo.save(current)
+        XCTAssertThrowsError(
+            try RetranscribeCommand.persistRetranscribedDictation(
+                original, original: original, sourceURL: URL(fileURLWithPath: "/unused.wav"),
+                keepAudio: true, dictationRepo: repo
+            ))
+        XCTAssertEqual(try repo.fetch(id: original.id)?.rawTranscript, "Completed elsewhere")
+        XCTAssertEqual(try repo.fetch(id: original.id)?.status, .completed)
+    }
+
+    func testRetranscribingCompletedDictationUpdatesWithoutIncrementingLifetimeCount() throws {
+        let repo = DictationRepository(dbQueue: try DatabaseManager().dbQueue)
+        let original = Dictation(durationMs: 1_000, rawTranscript: "Original", wordCount: 1)
+        try repo.save(original)
+        var updated = original
+        updated.rawTranscript = "Updated transcript"
+        updated.wordCount = 2
+        let saved = try RetranscribeCommand.persistRetranscribedDictation(
+            updated, original: original, sourceURL: URL(fileURLWithPath: "/unused.wav"),
+            keepAudio: true, dictationRepo: repo
+        )
+        XCTAssertEqual(saved.rawTranscript, "Updated transcript")
+        XCTAssertEqual(try repo.fetch(id: original.id)?.rawTranscript, "Updated transcript")
+        XCTAssertEqual(try repo.stats().totalCount, 1)
+        XCTAssertEqual(try repo.stats().totalWords, 2)
+    }
+
     func testRetranscribingFailedDictationFollowsHistoryRetryRules() throws {
         let repo = DictationRepository(dbQueue: try DatabaseManager().dbQueue)
         let audio = FileManager.default.temporaryDirectory
@@ -282,91 +340,6 @@ final class RetranscribeCommandTests: XCTestCase {
         )
         XCTAssertEqual(saved.audioPath, audio.path)
         XCTAssertTrue(FileManager.default.fileExists(atPath: audio.path))
-    }
-
-    func testPreservesOriginalTranscriptionMetadataWhileKeepingNewTranscriptFields() {
-        let id = UUID(uuidString: "F6666666-6666-6666-6666-666666666666")!
-        let createdAt = Date(timeIntervalSince1970: 1_000)
-        let original = Transcription(
-            id: id,
-            createdAt: createdAt,
-            fileName: "Original Title",
-            filePath: "/tmp/original.m4a",
-            meetingArtifactFolderPath: "/tmp/artifact",
-            rawTranscript: "old",
-            chatMessages: [ChatMessage(role: .user, content: "keep chat")],
-            status: .completed,
-            sourceURL: "https://example.com/source",
-            thumbnailURL: "https://example.com/thumb.jpg",
-            channelName: "Channel",
-            videoDescription: "Description",
-            isFavorite: true,
-            sourceType: .meeting,
-            recoveredFromCrash: true,
-            userNotes: "keep notes",
-            engine: "parakeet"
-        )
-        let result = Transcription(
-            id: UUID(),
-            createdAt: Date(),
-            fileName: "Generated Title",
-            filePath: "/tmp/new.m4a",
-            durationMs: 2_000,
-            rawTranscript: "new raw",
-            cleanTranscript: "new clean",
-            chatMessages: [ChatMessage(role: .assistant, content: "new chat")],
-            status: .completed,
-            sourceType: .file,
-            userNotes: "recovered notes",
-            engine: "cohere",
-            engineVariant: "ane",
-            derivedTitle: "New",
-            derivedSnippet: "Snippet"
-        )
-
-        let preserved = RetranscribeCommand.preserveOriginalTranscriptionMetadata(result, original: original)
-
-        XCTAssertEqual(preserved.id, id)
-        XCTAssertEqual(preserved.createdAt, createdAt)
-        XCTAssertEqual(preserved.fileName, "Original Title")
-        XCTAssertEqual(preserved.filePath, "/tmp/original.m4a")
-        XCTAssertEqual(preserved.meetingArtifactFolderPath, "/tmp/artifact")
-        XCTAssertEqual(preserved.sourceURL, "https://example.com/source")
-        XCTAssertEqual(preserved.thumbnailURL, "https://example.com/thumb.jpg")
-        XCTAssertEqual(preserved.channelName, "Channel")
-        XCTAssertEqual(preserved.videoDescription, "Description")
-        XCTAssertTrue(preserved.isFavorite)
-        XCTAssertEqual(preserved.sourceType, .meeting)
-        XCTAssertTrue(preserved.recoveredFromCrash)
-        XCTAssertEqual(preserved.userNotes, "keep notes")
-        XCTAssertEqual(preserved.chatMessages, [ChatMessage(role: .user, content: "keep chat")])
-        XCTAssertEqual(preserved.rawTranscript, "new raw")
-        XCTAssertEqual(preserved.cleanTranscript, "new clean")
-        XCTAssertEqual(preserved.engine, "cohere")
-        XCTAssertEqual(preserved.engineVariant, "ane")
-    }
-
-    func testPreservesRecoveredMeetingNotesWhenOriginalRowHasNoUserData() {
-        let original = Transcription(
-            fileName: "Meeting",
-            filePath: "/tmp/meeting-playback.m4a",
-            rawTranscript: "old",
-            status: .completed,
-            sourceType: .meeting
-        )
-        let result = Transcription(
-            fileName: "Generated",
-            filePath: "/tmp/generated.m4a",
-            rawTranscript: "new raw",
-            chatMessages: [ChatMessage(role: .assistant, content: "recovered chat")],
-            status: .completed,
-            userNotes: "recovered notes"
-        )
-
-        let preserved = RetranscribeCommand.preserveOriginalTranscriptionMetadata(result, original: original)
-
-        XCTAssertEqual(preserved.userNotes, "recovered notes")
-        XCTAssertEqual(preserved.chatMessages, [ChatMessage(role: .assistant, content: "recovered chat")])
     }
 
     func testClearsDictationFormatterAttributionForLocalRerun() {
