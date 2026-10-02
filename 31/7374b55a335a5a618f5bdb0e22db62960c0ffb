@@ -1,0 +1,63 @@
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_78872c520d1d30::t_6d1c50a7c03fb6 1085-1089
+Tests/MacParakeetTests/ViewModels/TranscriptionLibraryViewModelTests.swift
+  s_78872c520d1d30::t_041d4b10784489 1145-1164,1211,1251-1256,1262,1264,1275,1278,1286
+  s_78872c520d1d30::t_536cf83037f0c6 1772-1812
+Tests/MacParakeetTests/ViewModels/GUIRetranscriptionPersistenceTests.swift
+  s_78872c520d1d30::t_74b2ec51c40212 1-150
+Sources/MacParakeetViewModels/TranscriptionLibraryViewModel.swift
+  s_78872c520d1d30::t_536cf83037f0c6 583,604,865-868
+  s_78872c520d1d30::t_8829096f5b2259 586,607
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_78872c520d1d30::t_6d1c50a7c03fb6 146
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  s_78872c520d1d30::t_6d1c50a7c03fb6 485-489,762-763,773-774,787-788,800-807,810-822,825-829
+  s_78872c520d1d30::t_a6b1017730b225 732,735-753,808-809,823-824
+  s_dde2a4545fb121::t_a984ed49a0ce20 731,733-734
+docs/audits/2026-10-02-app-audit/README.md
+  s_78872c520d1d30::t_18f1e0c954a7f0 43-44
+docs/audits/2026-10-02-app-audit/evidence/baseline-ci-summary.json
+  s_78872c520d1d30::t_bb00d3e362fbd7 206-213
+docs/audits/2026-10-02-app-audit/evidence/gui-onboarding/README.md
+  s_78872c520d1d30::t_f50a908eaff213 30-33
+docs/audits/2026-10-02-app-audit/evidence/onboarding-dashboard-browser.json
+  s_78872c520d1d30::t_6917c2661b0e7f 38-39,71-72,81-82
+docs/audits/2026-10-02-app-audit/evidence/validation-receipt.json
+  s_78872c520d1d30::t_1c79f8bb08fbe3 89-100,118-136
+docs/audits/2026-10-02-app-audit/follow-through.md
+  s_78872c520d1d30::t_269ce19648daa4 20-31,38-39,47-49
+docs/audits/2026-10-02-app-audit/gui-onboarding.md
+  s_78872c520d1d30::t_50a21a9cde2f8c 28-51
+docs/audits/2026-10-02-app-audit/telemetry-observability.md
+  s_78872c520d1d30::t_414780c84aa036 43,134-135
+docs/audits/2026-10-02-app-audit/validation.md
+  s_78872c520d1d30::t_e155bfbe696352 27,64-72
+spec/04-ui-patterns.md
+  s_78872c520d1d30::t_bba6a75d711ce7 217-220
+spec/contracts/cli-json-v1.md
+  s_78872c520d1d30::t_5bea588db7c7d0 83-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "317374b55a335a5a618f5bdb0e22db62960c0ffb",
+  "prompts": {},
+  "sessions": {
+    "s_78872c520d1d30": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fdfa-3264-7ea2-8c67-35821c108110",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_dde2a4545fb121": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f4d6-65fb-7f82-954d-1ba34b7911ce",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
