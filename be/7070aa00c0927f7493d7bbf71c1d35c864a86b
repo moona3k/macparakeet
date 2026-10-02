@@ -1,0 +1,42 @@
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_ae9c6922f176af::t_2417b2e811671a 3616-3617,3628-3633,3635-3636
+  s_ae9c6922f176af::t_be189640e9ef00 3849-3852
+  s_ae9c6922f176af::t_992d6ee9c360b5 3677-3683
+Sources/MacParakeetCore/Models/PromptResult.swift
+  s_ae9c6922f176af::t_7d68ba03cde4b2 124-151
+spec/01-data-model.md
+  s_ae9c6922f176af::t_67990127edd8f8 781-783,1436
+spec/adr/020-live-meeting-notepad-and-memo-summaries.md
+  s_ae9c6922f176af::t_67990127edd8f8 25-30
+spec/04-ui-patterns.md
+  s_ae9c6922f176af::t_eadeae800d1989 389-405
+spec/11-llm-integration.md
+  s_ae9c6922f176af::t_67990127edd8f8 509-511,516-521
+Sources/MacParakeetCore/Models/PromptSystemPromptAssembler.swift
+  s_ae9c6922f176af::t_951890c88962b6 57-65,72
+Tests/MacParakeetTests/Models/PromptResultMeetingNotesStatusTests.swift
+  s_ae9c6922f176af::t_7404d6ce2207ea 1-68
+Tests/MacParakeetTests/Models/PromptTemplateRendererTests.swift
+  s_ae9c6922f176af::t_4adc1a1bd1bd97 132-159
+spec/02-features.md
+  s_ae9c6922f176af::t_67990127edd8f8 2006-2015,2024-2025
+spec/12-processing-layer.md
+  s_ae9c6922f176af::t_c8b5d43d0544ff 327-331
+  s_ae9c6922f176af::t_d3a74ffa5428ec 164,284,312-315
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "be7070aa00c0927f7493d7bbf71c1d35c864a86b",
+  "prompts": {},
+  "sessions": {
+    "s_ae9c6922f176af": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b87092-5dde-4aca-a80c-aaba1884cce1",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
