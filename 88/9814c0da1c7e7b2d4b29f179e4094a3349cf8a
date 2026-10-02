@@ -1,0 +1,80 @@
+Sources/CLI/CHANGELOG.md
+  s_65894c53f6dcee::t_b4e5d7b4cc5018 111-113
+  s_d00d7699ce5bd8::t_97c94a861b4d56 109-110
+Sources/CLI/Commands/TransformsCommand.swift
+  s_dde2a4545fb121::t_27579d0c6b99c2 1118-1129
+Sources/MacParakeet/App/AppHotkeyCoordinator.swift
+  s_0a66a5a5a87cf2::t_88aa508b00a2b8 28,82-84,129-131,133-137,164-176,290-292,319-324,411-423,446-447,464-465,482-483,567-569,574,578-580,583,588-589,593,598
+Sources/MacParakeet/AppDelegate.swift
+  s_65894c53f6dcee::t_4279a5d431329e 751-752,952-957,1033-1035
+Sources/MacParakeet/Hotkey/HotkeyManager.swift
+  s_0a66a5a5a87cf2::t_1a6cc3f9e6b2c8 30-31,831-840
+Sources/MacParakeet/Views/MainWindowView.swift
+  s_0a66a5a5a87cf2::t_9ce9c7f81e6247 440-445
+Sources/MacParakeet/Views/Onboarding/OnboardingPracticeStepView.swift
+  s_0a66a5a5a87cf2::t_79e43d643d3573 562-563,579-580
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_0a66a5a5a87cf2::t_6e6e1441a0ddb7 1103-1134,1757-1758,4111-4122
+Sources/MacParakeetCore/Hotkey/HotkeyConflictPolicy.swift
+  s_0a66a5a5a87cf2::t_e28bea9ae00136 66-67,116-117,133-134,138-139,205-212,214-251,411-420
+Sources/MacParakeetCore/STT/HotkeyTrigger.swift
+  s_0a66a5a5a87cf2::t_9ca4fa68f9b4cc 689-690
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_0a66a5a5a87cf2::t_48851193604564 199-211,1080-1085
+Tests/CLITests/TransformsCommandTests.swift
+  s_0a66a5a5a87cf2::t_fa076282689771 483-494
+Tests/MacParakeetTests/App/AppHotkeyCoordinatorTests.swift
+  s_dde2a4545fb121::t_4c426fbb58c211 57,585-712
+Tests/MacParakeetTests/Hotkey/HotkeyConflictPolicyTests.swift
+  s_0a66a5a5a87cf2::t_5eef47516a495b 26-27,38-39,416-480
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_65894c53f6dcee::t_7b3c168337d1c5 1396-1421
+Tests/MacParakeetTests/Views/Onboarding/OnboardingShortcutEditorTests.swift
+  s_0a66a5a5a87cf2::t_73a35fd5a9a134 9-10,20-21,41-47
+spec/02-features.md
+  s_dde2a4545fb121::t_f5443656e8039e 172-181
+spec/adr/009-custom-hotkey.md
+  s_dde2a4545fb121::t_55bf5a625762e7 120-133
+spec/contracts/dictation-shortcuts.md
+  s_65894c53f6dcee::t_e2efa8ad41d7a8 1-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "889814c0da1c7e7b2d4b29f179e4094a3349cf8a",
+  "prompts": {},
+  "sessions": {
+    "s_0a66a5a5a87cf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fe52-9982-73c0-a4f3-e2914337aa43",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_65894c53f6dcee": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fe54-50b9-7660-a88b-314c8e4f76cc",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_d00d7699ce5bd8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac89b71d-f480-4e90-9550-b2289f565617",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_dde2a4545fb121": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f4d6-65fb-7f82-954d-1ba34b7911ce",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
