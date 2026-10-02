@@ -1,5 +1,6 @@
 Sources/CLI/CHANGELOG.md
   s_65894c53f6dcee::t_b4e5d7b4cc5018 111-113
+  s_d00d7699ce5bd8::t_97c94a861b4d56 109-110
 Sources/CLI/Commands/TransformsCommand.swift
   s_dde2a4545fb121::t_27579d0c6b99c2 1118-1129
 Sources/MacParakeet/App/AppHotkeyCoordinator.swift
@@ -56,6 +57,14 @@ spec/contracts/dictation-shortcuts.md
         "tool": "codex",
         "id": "01a0fe54-50b9-7660-a88b-314c8e4f76cc",
         "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_d00d7699ce5bd8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac89b71d-f480-4e90-9550-b2289f565617",
+        "model": "claude-sonnet-5-5"
       },
       "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
     },
