@@ -1,0 +1,207 @@
+{
+  "run": 37041613709,
+  "sha": "f43f4bed2ba7d4afdb005369759afc3d6cc44d34",
+  "jobs": [
+    {
+      "job": "Tests and Swift 6",
+      "seconds": 1721,
+      "steps": [
+        {
+          "name": "Set up job",
+          "seconds": 1
+        },
+        {
+          "name": "Checkout",
+          "seconds": 21
+        },
+        {
+          "name": "Select Xcode",
+          "seconds": 1
+        },
+        {
+          "name": "Install FFmpeg",
+          "seconds": 7
+        },
+        {
+          "name": "Runner and Toolchain Evidence",
+          "seconds": 3
+        },
+        {
+          "name": "Check Subsystem README References",
+          "seconds": 0
+        },
+        {
+          "name": "Check Telemetry Allowlist",
+          "seconds": 0
+        },
+        {
+          "name": "CI Helper Tests",
+          "seconds": 13
+        },
+        {
+          "name": "SwiftPM Build Reuse Contract",
+          "seconds": 9
+        },
+        {
+          "name": "Swift Format Lint (informational)",
+          "seconds": 18
+        },
+        {
+          "name": "SwiftPM Cache Identity",
+          "seconds": 1
+        },
+        {
+          "name": "Cache SwiftPM Build State",
+          "seconds": 0
+        },
+        {
+          "name": "Swift Test Build (Concurrency Diagnostics)",
+          "seconds": 588
+        },
+        {
+          "name": "Ask Pi Helper",
+          "seconds": 11
+        },
+        {
+          "name": "Swift Test",
+          "seconds": 571
+        },
+        {
+          "name": "Test Summary",
+          "seconds": 1
+        },
+        {
+          "name": "Ask CLI Qualification",
+          "seconds": 64
+        },
+        {
+          "name": "CLI Persistence Smoke",
+          "seconds": 0
+        },
+        {
+          "name": "Meeting Process Recovery",
+          "seconds": 32
+        },
+        {
+          "name": "Swift 6 Language Mode",
+          "seconds": 307
+        },
+        {
+          "name": "Upload Test Evidence",
+          "seconds": 2
+        },
+        {
+          "name": "Post Cache SwiftPM Build State",
+          "seconds": 68
+        },
+        {
+          "name": "Post Checkout",
+          "seconds": 0
+        },
+        {
+          "name": "Complete job",
+          "seconds": 1
+        }
+      ]
+    },
+    {
+      "job": "Release and Bundle",
+      "seconds": 2086,
+      "steps": [
+        {
+          "name": "Set up job",
+          "seconds": 1
+        },
+        {
+          "name": "Checkout",
+          "seconds": 5
+        },
+        {
+          "name": "Select Xcode",
+          "seconds": 0
+        },
+        {
+          "name": "Runner and Toolchain Evidence",
+          "seconds": 7
+        },
+        {
+          "name": "Distribution Policy Fixtures",
+          "seconds": 15
+        },
+        {
+          "name": "SwiftPM Cache Identity",
+          "seconds": 1
+        },
+        {
+          "name": "Cache SwiftPM Build State",
+          "seconds": 0
+        },
+        {
+          "name": "Xcode Cache Identity",
+          "seconds": 1
+        },
+        {
+          "name": "Cache Xcode Build State",
+          "seconds": 49
+        },
+        {
+          "name": "Swift Build (Release)",
+          "seconds": 1127
+        },
+        {
+          "name": "Ask Release Gate",
+          "seconds": 2
+        },
+        {
+          "name": "Release Bundle Smoke",
+          "seconds": 789
+        },
+        {
+          "name": "CLI Contract Smoke",
+          "seconds": 1
+        },
+        {
+          "name": "Upload Distribution Evidence",
+          "seconds": 2
+        },
+        {
+          "name": "Post Cache Xcode Build State",
+          "seconds": 45
+        },
+        {
+          "name": "Post Cache SwiftPM Build State",
+          "seconds": 31
+        },
+        {
+          "name": "Post Checkout",
+          "seconds": 1
+        },
+        {
+          "name": "Complete job",
+          "seconds": 2
+        }
+      ]
+    },
+    {
+      "job": "swift-test",
+      "seconds": 4,
+      "steps": [
+        {
+          "name": "Set up job",
+          "seconds": 0
+        },
+        {
+          "name": "Require Every CI Lane",
+          "seconds": 0
+        },
+        {
+          "name": "Complete job",
+          "seconds": 0
+        }
+      ]
+    }
+  ],
+  "cases_xml": 7908,
+  "swift_testing_cases": 30,
+  "telemetry_guard": "SKIPPED"
+}

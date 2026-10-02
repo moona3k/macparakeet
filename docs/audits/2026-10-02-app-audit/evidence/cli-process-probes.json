@@ -1,0 +1,190 @@
+{
+  "baseline": "f43f4bed2",
+  "telemetry": "disabled",
+  "scope": "synthetic temporary database only",
+  "probes": [
+    {
+      "arguments": [
+        "--version"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 852,
+      "stdoutBytes": 6,
+      "stderrBytes": 0,
+      "jsonType": null
+    },
+    {
+      "arguments": [
+        "spec",
+        "--json"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 18,
+      "stdoutBytes": 157612,
+      "stderrBytes": 0,
+      "jsonType": "dict",
+      "jsonKeys": [
+        "cliVersion",
+        "commandName",
+        "commands",
+        "configKeys",
+        "conventions",
+        "schema",
+        "schemaVersion"
+      ]
+    },
+    {
+      "arguments": [
+        "health",
+        "--json"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 150,
+      "stdoutBytes": 1785,
+      "stderrBytes": 0,
+      "jsonType": "dict",
+      "jsonKeys": [
+        "audioInput",
+        "calendar",
+        "database",
+        "directoriesError",
+        "directoriesOK",
+        "ffmpeg",
+        "paths",
+        "speechStack",
+        "ytDlp"
+      ],
+      "databaseStatus": "missing",
+      "stateDirectoryCreated": false
+    },
+    {
+      "arguments": [
+        "history",
+        "--json",
+        "--database",
+        "<temporary-root>/probe.sqlite"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 116,
+      "stdoutBytes": 5,
+      "stderrBytes": 0,
+      "jsonType": "list"
+    },
+    {
+      "arguments": [
+        "transcript",
+        "missing",
+        "--json",
+        "--database",
+        "<temporary-root>/probe.sqlite"
+      ],
+      "exitCode": 1,
+      "elapsedMs": 28,
+      "stdoutBytes": 320,
+      "stderrBytes": 0,
+      "jsonType": "dict",
+      "jsonKeys": [
+        "error",
+        "errorType",
+        "fix",
+        "meta",
+        "ok"
+      ],
+      "errorType": "lookup"
+    },
+    {
+      "arguments": [
+        "meetings",
+        "export",
+        "missing",
+        "--stdout",
+        "--format",
+        "json",
+        "--database",
+        "<temporary-root>/probe.sqlite"
+      ],
+      "exitCode": 1,
+      "elapsedMs": 30,
+      "stdoutBytes": 314,
+      "stderrBytes": 0,
+      "jsonType": "dict",
+      "jsonKeys": [
+        "error",
+        "errorType",
+        "fix",
+        "meta",
+        "ok"
+      ],
+      "errorType": "lookup"
+    },
+    {
+      "arguments": [
+        "search",
+        "x",
+        "--limit",
+        "-1",
+        "--json",
+        "--database",
+        "<temporary-root>/probe.sqlite"
+      ],
+      "exitCode": 2,
+      "elapsedMs": 20,
+      "stdoutBytes": 0,
+      "stderrBytes": 339,
+      "jsonType": null
+    },
+    {
+      "arguments": [
+        "history",
+        "--limit",
+        "-1",
+        "--json",
+        "--database",
+        "<temporary-root>/probe.sqlite"
+      ],
+      "exitCode": 2,
+      "elapsedMs": 18,
+      "stdoutBytes": 0,
+      "stderrBytes": 259,
+      "jsonType": null
+    },
+    {
+      "arguments": [
+        "transcript",
+        "missing",
+        "--around",
+        "9223372036854775807",
+        "--json",
+        "--database",
+        "<temporary-root>/probe.sqlite"
+      ],
+      "exitCode": 1,
+      "elapsedMs": 26,
+      "stdoutBytes": 320,
+      "stderrBytes": 0,
+      "jsonType": "dict",
+      "jsonKeys": [
+        "error",
+        "errorType",
+        "fix",
+        "meta",
+        "ok"
+      ],
+      "errorType": "lookup"
+    },
+    {
+      "arguments": [
+        "retranscribe",
+        "missing",
+        "--json",
+        "--database",
+        "<temporary-root>/probe.sqlite"
+      ],
+      "exitCode": 2,
+      "elapsedMs": 22,
+      "stdoutBytes": 0,
+      "stderrBytes": 213,
+      "jsonType": null
+    }
+  ]
+}

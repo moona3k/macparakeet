@@ -53,6 +53,44 @@ Nemotron licensing note is superseded by the final model's OpenMDW-1.1 license;
 attribution and its full license accompany the app. FluidAudio itself uses
 Apache-2.0. No new runtime or cloud speech service is introduced.
 
+### Implementation qualification (2026-10-02 audit)
+
+The [October audit](../../docs/audits/2026-10-02-app-audit/diarization.md)
+re-executed both current backends on the public `wibky` and `ouvtt` regression
+fixtures with network access denied and cloned, hash-verified model caches.
+Nemotron returned one and three speakers against one and two reference
+speakers; Community-1 returned two and four. The audit records DER components,
+the exact scoring region and Debug-runtime limits. VoxConverse is in
+Nemotron's disclosed training data, so these are regression checks, not
+held-out generalization evidence or a replacement for the matched evaluation.
+
+The same audit passed the real-ASR meeting/file persistence and silence-reset
+test on a 180-second public crop with a separate microphone fixture. In its
+fixed-ASR diagnostic, Nemotron's 491 eligible word midpoints agreed with the
+reference speaker 487 times before smoothing and 486 afterwards. This is a
+narrow diagnostic excluding overlap and ASR errors, not cpWER. The meeting
+also retained a source-only `Others` word alongside two detected remote
+identities; today's roster count includes that fallback bucket as an entry.
+Neither result supports presenting roster size as a verified number of people.
+
+Three implementation boundaries remain material:
+
+- The existing word merger can replace a real one-word reply with the
+  surrounding speaker and fill unknown gaps. This is deliberate smoothing,
+  tested as current behavior, not a guarantee of correct word attribution.
+  A policy change needs final-word evaluation, not only better acoustic DER.
+- A diarization failure preserves successful ASR, but the nonblocking warning
+  specified below is not yet implemented as a durable per-run GUI/CLI outcome.
+  Current completion telemetry also omits the actual backend and fallback
+  result; `speaker_prior` describes the requested policy and may be unapplied
+  when advisory fallback fails. Preserve the warning requirement rather than
+  presenting it as already shipped.
+- Files retain raw acoustic `diarizationSegments`; captured meetings rebuild
+  them from recognized words, and manual reassignment can also rebuild them.
+  They are therefore not a uniform acoustic-activity timeline. The separate
+  [audio speaker timeline contract](../contracts/audio-speaker-timeline-v1.md)
+  remains the intended boundary for preserving that evidence.
+
 ## Context (original decision)
 
 MacParakeet v0.4 adds speaker diarization to file transcription (F13). Users who transcribe interviews, podcasts, and meetings need to know "who said what" — not just the raw text.

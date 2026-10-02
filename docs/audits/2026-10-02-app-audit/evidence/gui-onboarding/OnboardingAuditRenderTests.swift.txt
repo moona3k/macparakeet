@@ -1,0 +1,136 @@
+// Temporary native-render probe for the 2026-10-02 independent audit.
+// No app coordinator, real permissions, capture, downloads, keychain, or user data.
+import AppKit
+import SwiftUI
+import XCTest
+@testable import MacParakeet
+@testable import MacParakeetCore
+@testable import MacParakeetViewModels
+
+@MainActor
+final class OnboardingAuditRenderTests: XCTestCase {
+    func testRenderSyntheticOnboardingStates() async throws {
+        guard let capturePath = ProcessInfo.processInfo.environment["MACPARAKEET_AUDIT_RENDER_DIR"] else {
+            throw XCTSkip("Audit-only probe requires MACPARAKEET_AUDIT_RENDER_DIR")
+        }
+        Telemetry.configure(NoOpTelemetryService())
+        _ = NSApplication.shared
+        let folder = URL(fileURLWithPath: capturePath, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+
+        let ready = makeModel(networkAvailable: true, microphone: .granted, accessibility: true)
+        defer { ready.stopObservingWarmUp() }
+        ready.startEngineWarmUp()
+        try await waitUntil { ready.isEngineReady }
+        try await capture(ready, name: "01-welcome", folder: folder)
+
+        let denied = makeModel(networkAvailable: true, microphone: .denied, accessibility: false)
+        defer { denied.stopObservingWarmUp() }
+        denied.jump(to: .permissions)
+        denied.startEngineWarmUp()
+        try await waitUntil { denied.isEngineReady && denied.micStatus == .denied }
+        try await capture(denied, name: "02-permissions-denied", folder: folder)
+
+        let offline = makeModel(networkAvailable: false, microphone: .granted, accessibility: true)
+        defer { offline.stopObservingWarmUp() }
+        offline.jump(to: .practice)
+        offline.startEngineWarmUp()
+        try await waitUntil { if case .failed = offline.engineState { return true }; return false }
+        try await capture(offline, name: "03-offline-hotkey-phase", folder: folder)
+        try await capture(offline, name: "03b-offline-hotkey-phase-scrolled", folder: folder, scrollToBottom: true)
+        offline.hotkeyRehearsalChanged(.pushToTalk)
+        offline.goNext()
+        try await capture(offline, name: "04-offline-dictation-phase", folder: folder)
+        offline.skipPractice()
+        try await capture(offline, name: "05-skipped-offline-ready", folder: folder)
+
+        ready.jump(to: .practice)
+        try await capture(ready, name: "06-ready-hotkey-phase", folder: folder)
+        ready.hotkeyRehearsalChanged(.pushToTalk)
+        ready.goNext()
+        try await capture(ready, name: "07-ready-click-to-start", folder: folder)
+        ready.armPracticeBox()
+        ready.practiceDictationDelivered("This is a synthetic audit example.")
+        try await waitUntil { ready.hasPracticeResult }
+        try await capture(ready, name: "08-synthetic-practice-result", folder: folder)
+    }
+
+    private func makeModel(networkAvailable: Bool, microphone: PermissionStatus, accessibility: Bool)
+        -> OnboardingViewModel
+    {
+        let permissions = MockPermissionService()
+        permissions.microphonePermission = microphone
+        permissions.accessibilityPermission = accessibility
+        return OnboardingViewModel(
+            permissionService: permissions,
+            sttClient: MockSTTClient(),
+            isRuntimeSupported: { true },
+            availableDiskBytes: { 20 * 1_024 * 1_024 * 1_024 },
+            isNetworkReachable: { networkAvailable },
+            isSpeechModelCached: { false },
+            isWhisperModelDownloaded: { true },
+            downloadWhisperModel: { _, _ in },
+            preferredLanguages: { ["en-US"] },
+            defaults: UserDefaults(suiteName: makeIsolatedDefaultsSuite("com.macparakeet.audit-render."))!,
+            practicePasteGrace: .zero
+        )
+    }
+
+    private func waitUntil(_ predicate: @MainActor () -> Bool) async throws {
+        for _ in 0..<100 {
+            if predicate() { return }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTFail("Synthetic onboarding state did not settle")
+        throw CancellationError()
+    }
+
+    private func capture(
+        _ model: OnboardingViewModel, name: String, folder: URL, scrollToBottom: Bool = false
+    ) async throws {
+        let view = OnboardingFlowView(viewModel: model, onFinish: {}, onOpenSettings: {})
+            .environment(\.colorScheme, .light)
+            .transaction { $0.animation = nil }
+        let host = NSHostingView(rootView: view)
+        host.appearance = NSAppearance(named: .aqua)
+        let size = OnboardingWindowController.windowSize
+        let window = NSWindow(
+            contentRect: CGRect(origin: .zero, size: size), styleMask: .borderless,
+            backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer {
+            model.stopObservingWarmUp()
+            window.contentView = nil
+            window.close()
+        }
+        window.contentView = host
+        host.setFrameSize(size)
+        host.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(350))
+        host.layoutSubtreeIfNeeded()
+        if scrollToBottom {
+            let scroll = try XCTUnwrap(firstScrollView(in: host))
+            let document = try XCTUnwrap(scroll.documentView)
+            let previousOrigin = scroll.documentVisibleRect.origin
+            let y = document.isFlipped ? max(0, document.bounds.height - scroll.contentView.bounds.height) : 0
+            scroll.contentView.scroll(to: NSPoint(x: 0, y: y))
+            scroll.reflectScrolledClipView(scroll.contentView)
+            try await Task.sleep(for: .milliseconds(150))
+            host.layoutSubtreeIfNeeded()
+            XCTAssertNotEqual(scroll.documentVisibleRect.origin, previousOrigin, "The failed step must scroll")
+        }
+        let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        let data = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+        try data.write(to: folder.appendingPathComponent(name + ".png"))
+        XCTAssertEqual(host.bounds.size, size)
+    }
+
+    private func firstScrollView(in view: NSView) -> NSScrollView? {
+        if let scroll = view as? NSScrollView { return scroll }
+        for child in view.subviews {
+            if let scroll = firstScrollView(in: child) { return scroll }
+        }
+        return nil
+    }
+}

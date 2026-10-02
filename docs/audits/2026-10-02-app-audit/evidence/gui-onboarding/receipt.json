@@ -1,0 +1,127 @@
+{
+  "baseline": "f43f4bed2",
+  "captureKind": "actual SwiftUI views in offscreen NSHostingView; synthetic dependencies",
+  "pointSize": [
+    760,
+    600
+  ],
+  "baselineMutationTests": {
+    "run": 5,
+    "testsFailed": 4,
+    "failedAssertions": 6,
+    "passingControl": "favorite pagination"
+  },
+  "fixedLibraryTests": {
+    "run": 71,
+    "failed": 0
+  },
+  "finalFocusedBatchTests": {
+    "run": 22,
+    "failed": 0,
+    "includes": "CLI regressions and onboarding render with native scroll assertion"
+  },
+  "images": [
+    {
+      "path": "before/01-welcome.png",
+      "sha256": "4bcd9385618d3220a2ed61e59eb6b0230dc00b1d80359387b30724d01512f375",
+      "pixelWidth": 1520,
+      "pixelHeight": 1200
+    },
+    {
+      "path": "before/02-permissions-denied.png",
+      "sha256": "e2fa44de4ef5b0908e7feb2f28dad4a05ff7df50891de0a04e9f201e8d48e92f",
+      "pixelWidth": 1520,
+      "pixelHeight": 1200
+    },
+    {
+      "path": "before/03-offline-hotkey-phase.png",
+      "sha256": "40f844a368b327217d327bb5ed11fbfcf5f04073c17d60401b9369bb051e3a7e",
+      "pixelWidth": 1520,
+      "pixelHeight": 1200
+    },
+    {
+      "path": "before/04-offline-dictation-phase.png",
+      "sha256": "0be21ecb9cc0e525a8bb40ac6ebc71f77af7f9a0ee1b430b8f096d2b883c05cf",
+      "pixelWidth": 1520,
+      "pixelHeight": 1200
+    },
+    {
+      "path": "before/05-skipped-offline-ready.png",
+      "sha256": "3ab5471dc3fb0e380a92cec8556bf5dc12b89e62c7e2607df756f638a744a26b",
+      "pixelWidth": 1520,
+      "pixelHeight": 1200
+    },
+    {
+      "path": "before/06-ready-hotkey-phase.png",
+      "sha256": "14a7564382a179538c54ce185018cfd65858bd1f97b091f42078cebbb979da15",
+      "pixelWidth": 1520,
+      "pixelHeight": 1200
+    },
+    {
+      "path": "before/07-ready-click-to-start.png",
+      "sha256": "47e9d553f357c3fb34b0f5deeae0f36928ce33ad7e784820d8e7ce774e9f166a",
+      "pixelWidth": 1520,
+      "pixelHeight": 1200
+    },
+    {
+      "path": "before/08-synthetic-practice-result.png",
+      "sha256": "f3ecbf9dc606ee00cfa64eb2338503e80957249170e00691c6353a936e01dc8c",
+      "pixelWidth": 1520,
+      "pixelHeight": 1200
+    },
+    {
+      "path": "after/01-welcome.png",
+      "sha256": "49d52ed821e6deed008a1ed5df3d8ec26e2b0d209021b0b6c4594e8d723b19e0",
+      "pixelWidth": 1520,
+      "pixelHeight": 1200
+    },
+    {
+      "path": "after/02-permissions-denied.png",
+      "sha256": "e2fa44de4ef5b0908e7feb2f28dad4a05ff7df50891de0a04e9f201e8d48e92f",
+      "pixelWidth": 1520,
+      "pixelHeight": 1200
+    },
+    {
+      "path": "after/03-offline-hotkey-phase.png",
+      "sha256": "5479ed978bd0d3725a42666adff3524dab6dae2f00c532d5c08e762c8a0efee0",
+      "pixelWidth": 1520,
+      "pixelHeight": 1200
+    },
+    {
+      "path": "after/03b-offline-hotkey-phase-scrolled.png",
+      "sha256": "2bfd80f0135858f30e9b655ce34877ffad049c6e03bef78e7f272a9c8c121b5b",
+      "pixelWidth": 1520,
+      "pixelHeight": 1200
+    },
+    {
+      "path": "after/04-offline-dictation-phase.png",
+      "sha256": "f63ebada39cedeb6d95369388973f0149474fbe4d6fdd4fa6888a2f292bd5e82",
+      "pixelWidth": 1520,
+      "pixelHeight": 1200
+    },
+    {
+      "path": "after/05-skipped-offline-ready.png",
+      "sha256": "04d06455cd39cb29711b129cf677a39960bae14ffc65dc6f6c8b57336c810a7f",
+      "pixelWidth": 1520,
+      "pixelHeight": 1200
+    },
+    {
+      "path": "after/06-ready-hotkey-phase.png",
+      "sha256": "14a7564382a179538c54ce185018cfd65858bd1f97b091f42078cebbb979da15",
+      "pixelWidth": 1520,
+      "pixelHeight": 1200
+    },
+    {
+      "path": "after/07-ready-click-to-start.png",
+      "sha256": "47e9d553f357c3fb34b0f5deeae0f36928ce33ad7e784820d8e7ce774e9f166a",
+      "pixelWidth": 1520,
+      "pixelHeight": 1200
+    },
+    {
+      "path": "after/08-synthetic-practice-result.png",
+      "sha256": "f3ecbf9dc606ee00cfa64eb2338503e80957249170e00691c6353a936e01dc8c",
+      "pixelWidth": 1520,
+      "pixelHeight": 1200
+    }
+  ]
+}

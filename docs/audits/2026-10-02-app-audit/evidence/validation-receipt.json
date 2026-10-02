@@ -1,0 +1,89 @@
+{
+  "auditDate": "2026-10-02",
+  "appBaseline": "f43f4bed2ba7d4afdb005369759afc3d6cc44d34",
+  "codeCommit": "bab48ccea149f7b87891f77ecf97bb9981973fd1",
+  "websiteFix": "30743ed31f1b02176f9e8a9ea4098c81b477a041",
+  "fullSuite": {
+    "invocations": 1,
+    "xunitCases": 7918,
+    "failedCases": 6,
+    "swiftTestingPassed": 30,
+    "exitCode": 1,
+    "wallSeconds": 164.58,
+    "cause": "Audit set MACPARAKEET_DEBUG_APP_STATE_DIR globally; five default-path assertions plus opt-in fixture safety guard rejected this environment. No other failing cases."
+  },
+  "correctedFocusedRun": {
+    "cases": 216,
+    "skipped": 2,
+    "failed": 0,
+    "exitCode": 0,
+    "skipReasons": [
+      "real SIGINT opt-in prerequisite absent",
+      "manual Split QA fixture seeding intentionally not requested"
+    ],
+    "scope": "six affected cases plus changed CLI/Library areas; no global app-state override"
+  },
+  "nativeRenders": {
+    "before": 8,
+    "after": 9,
+    "temporaryProbeArchivedOutsideTests": true
+  },
+  "websiteTests": {
+    "passed": 146,
+    "skipped": 0,
+    "nodeVersion": "26.8.2",
+    "buildPages": 86
+  },
+  "logs": [
+    {
+      "path": ".build/audit-evidence/build-tests.log",
+      "sha256": "5fcea5031f9cf2af33dfdd830ec13ce4c22e9ebf7080922d594c87d44db098d5"
+    },
+    {
+      "path": ".build/audit-evidence/focused-baseline.log",
+      "sha256": "5bdbb69a31fe64d7d9a6e7853a8312eee93be2c26e1680796c509504d627d1a4"
+    },
+    {
+      "path": ".build/audit-evidence/regressions-red-and-renders.log",
+      "sha256": "c8459767d139b4609bdcb5ff2b56210f2ed9ea6f2ab665717f7de65685af246e"
+    },
+    {
+      "path": ".build/audit-evidence/cli-red-gui-green.log",
+      "sha256": "50946888f55124455a80934225f57b59c37a2d14d6c6d525b213418f930a0296"
+    },
+    {
+      "path": ".build/audit-evidence/fixes-focused-green.log",
+      "sha256": "1b0d7f47294605b385d38f3641302f95b96903bff7926b9ebe50cb5c6ee1743e"
+    },
+    {
+      "path": ".build/audit-evidence/final-swift-test.log",
+      "sha256": "511fd73832686d30d03c717e06be66861b80cf871c4da916a316e5d966f701f5"
+    },
+    {
+      "path": ".build/audit-evidence/final-swift-tests.xml",
+      "sha256": "9a94aa3e487c82ef4a23d32a8c7807b363d088384d6f80de910a36c2ec6f6bcf"
+    },
+    {
+      "path": ".build/audit-evidence/final-environment-corrected-focused.log",
+      "sha256": "c43a5fe4e29b06e01b73434e21a2e654dff5f227f6b6c30cc1070050a3a3761d"
+    },
+    {
+      "path": ".build/audit-evidence/cli-persistence-smoke.log",
+      "sha256": "9d7f7108750a3026ce8320384d25b49e66fc99a19c2b6b4f569a7c5f8751a0d0"
+    },
+    {
+      "path": ".build/audit-evidence/ask-helper-tests.log",
+      "sha256": "dcdebaa2e28afa6f9cb255766e897850b1e9e0156797f030689b7382b8a2652c"
+    },
+    {
+      "path": ".build/audit-evidence/changed-files-format.log",
+      "sha256": "6b804b40965d2153dc5bb6385cc05fa5ecac2363e2a5aca0b1bd4bf1cb70c034"
+    }
+  ],
+  "limits": [
+    "XML skip counts do not prove opt-in tests executed",
+    "No second local full suite",
+    "No physical microphone, TCC, Bluetooth or real provider qualification",
+    "No production ingestion, deployment, signed release or merge"
+  ]
+}

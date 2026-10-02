@@ -5,6 +5,13 @@ Date: 2026-09-25. Related: [#1046](https://github.com/moona3k/macparakeet/issues
 [Omarchy review](../../docs/research/2026-09-25-omarchy-meeting-recorder-diarization-review.md),
 [implementation decision](../../spec/adr/010-speaker-diarization.md#nemotron-default-decision-2026-09-25).
 
+Follow-up: the [2026-10-02 audit](../../docs/audits/2026-10-02-app-audit/diarization.md)
+contains new current-code regression executions and product qualification.
+The measurements below remain the September 25 experiment; the audit did not
+rerun all AMI/AliMeeting signals. Its two VoxConverse fixtures confirm the
+residual over-split on `ouvtt`, but are training-exposed regressions and must
+not be pooled with the held-out meeting results below.
+
 ## Decision
 
 Adopt Nemotron 3 `fast128` for automatic diarization through FluidAudio 0.17.4,

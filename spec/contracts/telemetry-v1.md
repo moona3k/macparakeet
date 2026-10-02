@@ -215,8 +215,10 @@ upload; an old writer that ignores leases remains a migration limitation.
 
 The website's `/api/stats` keeps its existing aggregate fields. Additive
 `freshness` metadata reports snapshot generation, expiry, serving time, age and
-`fresh`/`stale` status. A stale fallback is `200` with usable historical data,
-`reason=refresh_failed` and `Cache-Control: no-store`; it is not live health.
+`fresh`/`stale` status. A stale fallback is `200` with usable historical data
+and `Cache-Control: no-store`; it is not live health. `reason=refreshing` means
+a refresh was attempted or is pending, not that it succeeded;
+`reason=refresh_failed` identifies a failed-refresh fallback.
 Public failure rows retain `error_detail: null` for compatibility and merge
 historical detail groups into error-category counts. No free-form error text
 should be added back to the public response.
@@ -237,6 +239,18 @@ fields have unknown aggregate duration and dual-capture coverage.
 Telemetry is best effort: opt-outs, offline events, queue limits, process death
 and crashes without a later launch prevent complete population accounting. A
 fresh stats snapshot proves a successful read/aggregation, not ingestion health.
+
+Onboarding emits the current `welcome`, `permissions`, `practice`, and `ready`
+steps, with separate navigation, engine and practice actions. The paired
+receiver correction prepared in the October 2 audit reports distinct launch
+sessions reaching each step, with `onboarding_metric=distinct_sessions`, and
+retains observed older version-specific steps under `onboarding_legacy`.
+Repeated actions within a step must not inflate session reach. This is not
+a matched conversion cohort: steps can be skipped or resumed and sessions
+reset on process launch. Legacy cached snapshots without the discriminator
+remain event counts and must be labeled as such. This contract describes the
+reviewed receiver change; deployment is separately verified, not implied by
+the app source or a fresh snapshot.
 
 ## Local diagnostic evidence
 

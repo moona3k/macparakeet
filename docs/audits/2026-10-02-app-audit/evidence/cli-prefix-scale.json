@@ -1,0 +1,32 @@
+{
+  "rows": 10000,
+  "rawTranscriptBytesPerRow": 4320,
+  "scope": "synthetic dictations only; telemetry off; recognition never starts",
+  "samples": [
+    {
+      "lookup": "exact-id",
+      "samplesMs": [
+        405.8,
+        153.96,
+        146.19,
+        148.56,
+        156.21
+      ],
+      "medianMs": 153.96,
+      "expectedFailure": "missing retained audio"
+    },
+    {
+      "lookup": "ambiguous-prefix",
+      "samplesMs": [
+        156.92,
+        158.06,
+        147.89,
+        148.83,
+        148.04
+      ],
+      "medianMs": 148.83,
+      "expectedFailure": "ambiguous prefix"
+    }
+  ],
+  "limitations": "different terminal validation errors; warm file cache; no production percentile claim"
+}

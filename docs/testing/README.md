@@ -12,14 +12,29 @@ Additional guides and runners merged in
 Their PR checks passed, including actual dedicated synthetic process recovery.
 The [combined-main CI run](https://github.com/moona3k/macparakeet/actions/runs/36247644540)
 at `529e23ad` also passed, including explicit process-recovery execution.
-No actual native GUI, real-model inference, or physical microphone/device
-qualification has been demonstrated by the recorded checks.
+Those CI checks did not demonstrate native GUI, real-model inference or
+physical microphone/device qualification. Later evidence is scoped below.
 
 The later [CI follow-up #1175](https://github.com/moona3k/macparakeet/pull/1175)
 also runs the older raw-container crash test explicitly and requires real signal
 termination. Its [cache qualification](../research/2026-09-26-ci-optimization.md#correctness-evidence)
 proves changed app source/resources reach a rebuilt package after restoring build
 state; it does not launch the app or extend the physical/model qualification boundary.
+
+The [October 2 independent audit](../audits/2026-10-02-app-audit/README.md)
+adds current local evidence at `f43f4bed2`: four network-denied acoustic
+diarization runs and one real Parakeet/Nemotron product test covering synthetic
+source offsets, temporary persistence/reopen, artifacts, file transcription and
+silence reset. It used copied model assets and public audio. This is a Debug
+test-host journey, not the packaged CLI qualification wrapper. The public
+diarization slice overlaps disclosed model training data, so it is regression
+evidence rather than held-out quality qualification.
+
+The same audit rendered eight production onboarding SwiftUI states with
+injected services and synthetic data, exposing a clipped failure/retry layout.
+These captures do not exercise TCC, full app launch, focus, hotkeys, real
+downloads or physical audio. The disposable-account native Library journey and
+signed hardware journeys remain separate, unexecuted gates in this audit.
 
 
 | Boundary | Entry point | Execution and limits |

@@ -166,13 +166,22 @@ The process test uses `MACPARAKEET_CLI_TEST_EXECUTABLE` when provided; otherwise
 
 | Skip | Reason | Alternative |
 |------|--------|-------------|
-| SwiftUI view tests | Brittle, slow, low value | Test ViewModels and state logic |
-| Audio capture tests | Hardware-dependent | Test processing logic with fixture data |
+| Broad pixel-perfect golden suites | Brittle across OS/font/rendering changes | Keep targeted native layout, accessibility and interaction tests where they catch concrete regressions; test state in ViewModels |
+| Unattended physical audio-route qualification | Hardware, permissions and console-session dependent | Run deterministic capture/lifecycle tests and real writer/process-recovery fixtures in CI; qualify actual devices separately |
 | Third-party internals | Trust GRDB, FluidAudio, ArgumentParser | Test our integration layer |
-| Visual snapshot tests | Maintenance burden exceeds value | Manual QA for UI changes |
+| Treating synthetic render captures as full GUI E2E | Rendering does not exercise TCC, focus, hotkeys or app lifecycle | Use synthetic captures for visual inspection, then the dedicated native journey for those boundaries |
 | Flaky tests | Any test that fails intermittently | Fix or delete -- no `@retry` hacks |
 
 ## Running Tests
+
+Keep `MACPARAKEET_DEBUG_APP_STATE_DIR` scoped to the specific runtime/model or
+fixture command that needs it. Do not export it across the full test suite:
+default-path tests intentionally assert ordinary path/preference resolution,
+and the manual Split QA fixture treats its presence as an explicit seeding
+request with a fresh-temporary-directory guard. Normal tests inject isolated
+databases/defaults as needed. The October audit documents the resulting
+environment-induced failures and corrected focused run in its
+[validation record](../docs/audits/2026-10-02-app-audit/validation.md).
 
 ```bash
 # Full suite: final gate, at most once per task (see AGENTS.md)
@@ -207,8 +216,10 @@ the same feature-branch update:
 The existing `docs/**` and `plans/**` exclusions still apply to push and PR
 path filtering. GitHub does not apply path filters to tag pushes. PR updates
 cancel superseded runs for that PR. The `swift-test` check is an aggregate
-verdict: both the behavior and distribution jobs must succeed. Failed, skipped,
-or cancelled jobs cannot produce a green aggregate. See GitHub's
+verdict: both the behavior and distribution jobs must succeed, and an explicitly
+requested cache-qualification job must also succeed. That optional job may be
+skipped only when not requested. Failed, skipped, or cancelled required jobs
+cannot produce a green aggregate. See GitHub's
 [branch and tag filter semantics](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore).
 
 For a branch that needs hosted validation before a PR exists, select it under
@@ -227,7 +238,8 @@ Release packaging:
 |---|---|
 | Tests and Swift 6 | README/telemetry guards, CI helper tests, informational formatting, one debug test build with concurrency warnings, full parallel test execution, real CLI persistence smoke, opt-in meeting process recovery journey, separate Swift 6 compatibility build |
 | Release and Bundle | Distribution policy fixtures (packaging, privacy surface, release version), full SwiftPM Release build, Xcode app bundle and Markdown resources, bundled CLI help/spec contract |
-| `swift-test` | Requires both jobs to succeed; preserves the existing overall check name |
+| Build Cache Invalidation | Manual opt-in; restores exact distribution caches and proves changed app source/resources reach the rebuilt package |
+| `swift-test` | Requires both standard jobs and any requested cache qualification to succeed; preserves the existing overall check name |
 
 `swift build --build-tests -Xswiftc -warn-concurrency` compiles the normal
 application/dependency graph and test targets. `swift test --skip-build
@@ -271,14 +283,26 @@ pre-test build stages consuming 77.5% of aggregate job time. In three inspected
 logs, XCTest execution occupied about 7–8 minutes. These are measurements of the
 previous sequential workflow, not a speedup claim for this revision.
 
-The first change keeps the complete test suite, full Release product build,
-Xcode resource probe, and Swift 6 compatibility check. It changes scheduling,
-combines debug compilation, repairs artifacts, and adds inexpensive executable
-coverage. Dependency caches still contain sources/downloads rather than compiled
-products. Compare both end-to-end latency and summed runner-minutes in new hosted
-runs before adding compiled caches, narrowing Release products, changing worker
-counts, moving DSP measurements, or splitting more jobs. Include queue time and
-cancelled runs when interpreting developer wait time.
+The current workflow retains the complete test suite, full Release product build,
+Xcode resource probe and Swift 6 compatibility check. It caches compiled SwiftPM
+state separately for behavior and distribution, plus a separate Xcode
+DerivedData cache. Keys include toolchain/SDK/OS/architecture, package graph and
+workflow identity. Restored state is always rebuilt before `--skip-build` tests;
+cache restoration alone is not correctness evidence.
+
+The [October 2 audit](../docs/audits/2026-10-02-app-audit/README.md) records exact
+baseline run `37041613709`: 35m02s total workflow elapsed, 28m41s behavior and
+34m46s distribution job time. SwiftPM caches missed while Xcode restored; this
+is an observed run, not a controlled warm-cache benchmark. Compare elapsed time,
+summed runner-minutes, cache availability and source invalidation before further
+parallelization or narrowing gates. Include queue time and cancelled runs when
+interpreting developer wait time.
+
+The same run's telemetry allowlist step **skipped** because the private receiver
+contract was unavailable. Its zero exit status is not compatibility evidence.
+The audit independently checked the fetched current receiver (all 104 emitted
+event names accepted); release qualification still needs receiver revision and
+property-contract/deployment evidence.
 
 ## AI Agent Testing Loop
 

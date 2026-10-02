@@ -1,0 +1,100 @@
+{
+  "startedUTC": "2026-10-02T19:19:39.260147+00:00",
+  "exitCode": 0,
+  "wallSeconds": 33.70218729100088,
+  "buildConfiguration": "debug",
+  "networkDisabled": true,
+  "isolatedAppState": true,
+  "runner": "direct xctest on prebuilt SwiftPM bundle; avoids nested SwiftPM sandbox",
+  "fixture": "first180s ouvtt plus LibriSpeech 1089-134686-0000",
+  "swiftVersion": "swift-driver version: 1.148.6 Apple Swift version 6.3.1 (swiftlang-6.3.1.1.2 clang-2100.0.123.102)\nTarget: arm64-apple-macosx26.0",
+  "passedTests": 1,
+  "maximumResidentBytes": 741228544,
+  "peakMemoryFootprintBytes": 813090136,
+  "parakeetOriginalAndCopiedHashesUnchanged": true,
+  "systemFixtureSHA256": "433821b44ddeb4acdf2f31a30bf67e8069a9e08b22d7f7dd9a94e6244c6fe2d7",
+  "testSourceSHA256": "9c3ea0bc73ef07b2423b8621fa7277ca97599f414b798aa6c4ae678220fc9316",
+  "rawReportSHA256": "dca927c0cf8dcffb0858973b9e3ce0df2bc09e1fac264b161a651089923df142",
+  "modelRevision": "1b0b133f6f8820292010afd776d8f9fbc9fca17e",
+  "meetingRuntimeSeconds": 25.853702902793884,
+  "fileRuntimeSeconds": 2.2544280290603638,
+  "microphoneWordCount": 28,
+  "systemWordCount": 552,
+  "unattributedSystemWordCount": 1,
+  "systemOffsetMs": 500,
+  "silenceSpeakerCountAfterMeeting": 0,
+  "meetingRoster": [
+    {
+      "id": "microphone",
+      "label": "Me"
+    },
+    {
+      "id": "system",
+      "label": "Others"
+    },
+    {
+      "id": "system:S1",
+      "label": "Others 1"
+    },
+    {
+      "id": "system:S2",
+      "label": "Others 2"
+    }
+  ],
+  "meetingSpeakerCount": 4,
+  "fileSpeakerCount": 2,
+  "fixedASRProjections": [
+    {
+      "backend": "fluidaudio-0.17.4-community-1",
+      "recognizedWords": 552,
+      "acousticSpeakerCount": 3,
+      "unassignedBeforeSmoothing": 1,
+      "unassignedAfterSmoothing": 0,
+      "nonNilSingletonChanges": 0,
+      "fixedAcousticMapping": {
+        "S1": "spk00",
+        "S2": "spk01"
+      },
+      "conditionalWordDiagnostic": {
+        "eligibleWords": 491,
+        "excludedNoSpeechMidpoint": 27,
+        "excludedOverlapMidpoint": 34,
+        "correctBefore": 467,
+        "correctAfter": 467,
+        "wrongToCorrect": 0,
+        "correctToWrong": 0
+      }
+    },
+    {
+      "backend": "fluidaudio-0.17.4-nemotron-fast128",
+      "recognizedWords": 552,
+      "acousticSpeakerCount": 2,
+      "unassignedBeforeSmoothing": 5,
+      "unassignedAfterSmoothing": 1,
+      "nonNilSingletonChanges": 2,
+      "fixedAcousticMapping": {
+        "S1": "spk00",
+        "S2": "spk01"
+      },
+      "conditionalWordDiagnostic": {
+        "eligibleWords": 491,
+        "excludedNoSpeechMidpoint": 27,
+        "excludedOverlapMidpoint": 34,
+        "correctBefore": 487,
+        "correctAfter": 486,
+        "wrongToCorrect": 0,
+        "correctToWrong": 1
+      }
+    }
+  ],
+  "diagnosticLimitation": "Recognized-word midpoint agreement only when exactly one RTTM speaker is active, with fixed NIST mapping from each backend acoustic result; excludes overlap and no-reference midpoints. Not cpWER, reference-word alignment, or corpus speaker-aware word accuracy. First180s public VoxConverse crop is training-exposed. No physical capture or GUI.",
+  "baselineHead": "f43f4bed2ba7d4afdb005369759afc3d6cc44d34",
+  "buildTreeNote": "Freshly built audit working tree with unrelated audit changes; diarization/ASR implementation unchanged from baseline. Test executable hash was not captured before the coordinating build resumed.",
+  "productionSourceSHA256": {
+    "Sources/MacParakeetCore/Services/Diarization/SpeakerMerger.swift": "8e7d0adf4be502a78adf6cd23d6ddd026009ddec42ca6fa857a3e7cc567340f1",
+    "Sources/MacParakeetCore/Services/Diarization/NemotronDiarizationService.swift": "5156940232370f582a524c6ae1cd1cb41c50497c394417acf0d1b260ea4f2ee6",
+    "Sources/MacParakeetCore/Services/Diarization/DiarizationService.swift": "17925bb5e5036044bea49352bf4bc93ac135cffff15ca1d03b061acfe819e956",
+    "Sources/MacParakeetCore/Services/TranscriptionService.swift": "15fb2edfedac3ae2a8096e3d6c32c4448c3e8f0f04988fcc78fe2d9d46ec3ce4",
+    "Sources/MacParakeetCore/Services/MeetingRecording/MeetingTranscriptFinalizer.swift": "6ec901c9bd041300a615e12c85b4252469f5c0858920b529c37539347af48c56"
+  }
+}
