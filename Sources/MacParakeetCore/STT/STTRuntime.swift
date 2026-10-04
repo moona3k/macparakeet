@@ -265,6 +265,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     /// (no live dictation / preview path).
     private var cohereEngine: CohereTranscribeEngine?
     private var cloudEngine: CloudTranscribeEngine?
+    private var realtimeEngine: RealtimeTranscribeEngine?
     private let defaults: UserDefaults
     private let physicalMemoryBytes: @Sendable () -> UInt64
     private var speechEngineActivity = SpeechEngineActivity()
@@ -464,8 +465,11 @@ public actor STTRuntime: STTRuntimeProtocol {
             // Batch engine — no native live-partial path.
             throw STTLiveDictationTranscriptionError.unsupportedEngine(.cohere)
         case .cloud:
-            // Request/response API — no native live-partial path.
-            throw STTLiveDictationTranscriptionError.unsupportedEngine(.cloud)
+            // Live partials come from a realtime session, available only when
+            // the user saved a realtime model; `isReady()` below rejects it
+            // otherwise and dictation falls back to transcribe-after-stop.
+            engine = ensureRealtimeEngine()
+            language = nil
         }
         guard await engine.isReady() else {
             throw STTLiveDictationTranscriptionError.modelNotReady
@@ -646,6 +650,15 @@ public actor STTRuntime: STTRuntimeProtocol {
         }
         let engine = CloudTranscribeEngine(configStore: CloudSTTConfigStore(defaults: defaults))
         cloudEngine = engine
+        return engine
+    }
+
+    private func ensureRealtimeEngine() -> RealtimeTranscribeEngine {
+        if let realtimeEngine {
+            return realtimeEngine
+        }
+        let engine = RealtimeTranscribeEngine(configStore: CloudSTTConfigStore(defaults: defaults))
+        realtimeEngine = engine
         return engine
     }
 

@@ -374,8 +374,11 @@ final class AppEnvironment {
         llmClient = RoutingLLMClient()
         #endif
         self.llmConfigStore = llmConfigStore
+        // Count every completed AI request for the Usage panel.
+        UsageLedger.shared.configure(repository: UsageEventRepository(dbQueue: databaseManager.dbQueue))
+        let usageRecordingClient = UsageRecordingLLMClient(base: llmClient)
         llmService = LLMService(
-            client: llmClient,
+            client: usageRecordingClient,
             contextResolver: StoredLLMExecutionContextResolver(
                 configStore: llmConfigStore,
                 cliConfigStore: LocalCLIConfigStore()
@@ -384,7 +387,7 @@ final class AppEnvironment {
         if AppFeatures.isAskWorkspaceAvailable() {
             askWorkspaceService = AskWorkspaceService(
                 databaseManager: databaseManager,
-                client: llmClient,
+                client: usageRecordingClient,
                 contextResolver: StoredLLMExecutionContextResolver(
                     configStore: llmConfigStore,
                     cliConfigStore: LocalCLIConfigStore()

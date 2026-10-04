@@ -7,13 +7,16 @@ struct CloudSpeechServiceCard: View {
     @State private var baseURL = ""
     @State private var model = ""
     @State private var apiKey = ""
+    @State private var realtimeModel = ""
     @State private var savedMessage: String?
     @State private var errorMessage: String?
+    @State private var hasSavedKey = false
+    @State private var isTesting = false
 
     private let store = CloudSTTConfigStore()
 
     private var draft: CloudSTTConfig {
-        CloudSTTConfig(baseURL: baseURL, model: model, apiKey: apiKey)
+        CloudSTTConfig(baseURL: baseURL, model: model, apiKey: apiKey, realtimeModel: realtimeModel)
     }
 
     var body: some View {
@@ -44,9 +47,24 @@ struct CloudSpeechServiceCard: View {
                         .textFieldStyle(.roundedBorder)
                         .autocorrectionDisabled()
                 }
-                field("API key") {
-                    SecureField("Stored in your Keychain", text: $apiKey)
+                field("Realtime model (optional)") {
+                    TextField("For example gpt-realtime-whisper", text: $realtimeModel)
                         .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled()
+                }
+                Text(
+                    "With a realtime model, dictation shows text while you speak by streaming the microphone to the service. The final text still comes from the model above, so both are billed. Leave empty to transcribe only after you stop."
+                )
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+                field("API key") {
+                    SecureField(
+                        hasSavedKey ? "A key is saved — leave empty to keep it" : "Stored in your Keychain",
+                        text: $apiKey
+                    )
+                    .textFieldStyle(.roundedBorder)
                 }
 
                 Text(
@@ -59,7 +77,13 @@ struct CloudSpeechServiceCard: View {
                 HStack(spacing: DesignSystem.Spacing.md) {
                     Button("Save") { save() }
                         .parakeetAction(.primary)
-                        .disabled(!draft.isUsable)
+                        .disabled(!draft.isUsable || isTesting)
+                    Button(isTesting ? "Testing…" : "Save & Test") { saveAndTest() }
+                        .parakeetAction(.secondary)
+                        .disabled(!draft.isUsable || isTesting)
+                        .help(
+                            "Saves, then sends one second of silence to the service to check the address, model, and key."
+                        )
                     if let savedMessage {
                         Label(savedMessage, systemImage: "checkmark")
                             .font(DesignSystem.Typography.caption)
@@ -69,6 +93,8 @@ struct CloudSpeechServiceCard: View {
                         Text(errorMessage)
                             .font(DesignSystem.Typography.caption)
                             .foregroundStyle(DesignSystem.Colors.errorRed)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
                     }
                 }
             }
@@ -89,9 +115,34 @@ struct CloudSpeechServiceCard: View {
         let metadata = store.loadMetadata()
         baseURL = metadata.baseURL
         model = metadata.model
+        realtimeModel = metadata.realtimeModel
         // The saved key is not read back into the field; leaving the field
         // empty on save keeps whatever is already stored.
         apiKey = ""
+        hasSavedKey = store.hasAPIKey
+    }
+
+    /// Saves, then sends one second of silence so the service itself reports
+    /// whether the address, model, and key work.
+    private func saveAndTest() {
+        save()
+        guard errorMessage == nil else { return }
+        savedMessage = nil
+        isTesting = true
+        Task {
+            let engine = CloudTranscribeEngine(
+                configStore: store,
+                loadSamples: { _ in [Float](repeating: 0, count: 16_000) }
+            )
+            do {
+                _ = try await engine.transcribe(
+                    audioURL: URL(fileURLWithPath: "/dev/null"), job: .fileTranscription, language: nil)
+                savedMessage = "Saved — the service accepted the request"
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isTesting = false
+        }
     }
 
     private func save() {
@@ -104,7 +155,8 @@ struct CloudSpeechServiceCard: View {
             }
             try store.save(config)
             apiKey = ""
-            savedMessage = "Saved"
+            hasSavedKey = store.hasAPIKey
+            savedMessage = hasSavedKey ? "Saved — key stored in Keychain" : "Saved (no API key)"
         } catch {
             errorMessage = "Could not save: \(error.localizedDescription)"
         }

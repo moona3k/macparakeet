@@ -74,7 +74,10 @@ product's identity, not a temporary posture.
 > untouched): dictation records first and transcribes after stop; meeting
 > preview chunks and final jobs are uploaded as submitted. Word timings come
 > from the service when the model provides them (Whisper-family); otherwise
-> the transcript is plain text. Upstream's decision stands for upstream.
+> the transcript is plain text. With an optional realtime model saved,
+> `RealtimeTranscribeEngine` also streams live dictation audio over a
+> Realtime transcription WebSocket for partial text; the final text still
+> comes from the batch request. Upstream's decision stands for upstream.
 
 ### 2. Two runtimes, and only two
 

@@ -2341,8 +2341,18 @@ An optional "Online" speech engine transcribes through any OpenAI-compatible `au
 - Settings → Speech → Online Speech Service holds the server address, model, and API key (Keychain). The Online tile cannot be selected until a server and model are saved, and switching to it asks for confirmation.
 - It can be the engine for everything, or only for recordings and files through the existing Final Transcription override.
 - Batch only: dictation records first and transcribes after stop. Meeting live preview uploads each preview chunk and needs a model that returns word timings (Whisper-family); other models produce a plain-text transcript without speaker labels.
+- Optional realtime model (for example `gpt-realtime-whisper`): when one is saved, dictation streams the microphone over a Realtime transcription session and shows text while the user speaks. The final dictation text still comes from the recorded audio through the file model, so both are billed. Meeting live preview is unchanged (chunk uploads through the file model).
 - Long audio is split into uploads of at most ten minutes at quiet points.
 - Transcripts record `engine = cloud` and the model name as the variant, shown as "Online · <model>".
+
+### F35: Usage & Cost (fork)
+Settings → AI → Usage & Cost totals, for the last 7 days, 30 days, or all time:
+
+- AI models: requests and input/output tokens per provider and model, for every AI feature. Token counts the provider did not report are estimated and marked.
+- Online speech service: uploads and audio minutes per model, including realtime dictation sessions.
+- Local speech engines: recordings and audio minutes, shown as free.
+
+Cost is an estimate from a built-in price list that the user can correct per model; models with no known price are listed as not included rather than guessed. Counting starts when this version first runs. History can be cleared; only counts are stored (`usage_events`).
 
 ### F32: API / Shortcuts Integration
 Expose transcription as a macOS Shortcut action. Enable automation: "When I receive a voice memo, transcribe it."

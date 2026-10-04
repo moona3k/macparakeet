@@ -637,6 +637,7 @@ struct SettingsView: View {
     private var aiTabContent: some View {
         scrollableTabBody {
             aiProviderCard.id("ai.provider")
+            UsageCard().id("ai.usage")
         }
     }
 

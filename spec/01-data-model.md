@@ -837,6 +837,34 @@ CREATE UNIQUE INDEX idx_transcript_translations_transcription_language
 
 ---
 
+### `usage_events` (v0.51, Swift model: `UsageEvent`)
+
+Local ledger behind the Usage & Cost panel (F35). One row per completed AI request or online-speech upload. Metadata only: no prompt, transcript, or audio content. No foreign keys, so usage totals survive deletion of the recordings they came from.
+
+```sql
+CREATE TABLE usage_events (
+    id               TEXT PRIMARY KEY,                 -- UUID string
+    kind             TEXT NOT NULL,                    -- "llm" | "cloud_speech"
+    provider         TEXT NOT NULL,                    -- LLM provider id, or speech service host
+    model            TEXT NOT NULL,
+    isLocal          BOOLEAN NOT NULL DEFAULT 0,       -- local providers are free
+    promptTokens     INTEGER NOT NULL DEFAULT 0,
+    completionTokens INTEGER NOT NULL DEFAULT 0,
+    tokensEstimated  BOOLEAN NOT NULL DEFAULT 0,       -- provider reported no counts (~4 chars/token)
+    audioMs          INTEGER NOT NULL DEFAULT 0,       -- uploaded audio, cloud_speech only
+    createdAt        DATETIME NOT NULL
+);
+
+CREATE INDEX idx_usage_events_created_at ON usage_events(createdAt);
+```
+
+**Notes:**
+- Written by `UsageRecordingLLMClient` (wraps the app's AI client, so every feature is counted) and by the online speech engines, through `UsageLedger`. Failed and cancelled requests are not recorded. The CLI does not record.
+- Cost is never stored. It is computed at display time from `UsagePriceBook` (built-in list prices plus user overrides in preferences), so correcting a price re-prices history.
+- Local speech-engine totals are not in this table; they are derived from `transcriptions` and `dictations`.
+
+---
+
 ### `quick_prompts` (v0.10 migration; v0.6 product feature)
 
 Stores user-customizable live meeting Ask tab shortcut pills. These are separate from `prompts`: prompt library rows generate persistent transcript results, while quick prompts are lightweight chat shortcuts with a visible chip label and a richer LLM instruction body.
@@ -1900,6 +1928,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `dictations.wordCount` | v0.5 | Cached word count for voice stats |
 | `chat_conversations` | v0.5 | Multi-conversation chat per transcription (FK → transcriptions) |
 | `ask_conversations` | v0.49-ask-conversations | Independent Ask conversations; bounded Codable payload, revision and run lease; no source foreign key |
+| `usage_events` | v0.51-usage-events | Local usage ledger: one row per completed AI request or online-speech upload (provider, model, tokens, audio ms); metadata only |
 | `transcript_translations` | v0.50-transcript-translations | Saved transcript translation per transcript and language (FK → transcriptions, cascade) |
 | `transcriptions.thumbnailURL` | v0.5 | YouTube video thumbnail URL |
 | `transcriptions.channelName` | v0.5 | YouTube channel name |

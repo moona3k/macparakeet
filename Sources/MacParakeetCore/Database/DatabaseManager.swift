@@ -2469,6 +2469,24 @@ public final class DatabaseManager: Sendable {
             )
         }
 
+        // Local usage ledger for the Usage panel: one row per completed AI
+        // request or online-speech upload. Metadata only, no content.
+        migrator.registerMigration("v0.51-usage-events") { db in
+            try db.create(table: "usage_events") { t in
+                t.column("id", .text).primaryKey()
+                t.column("kind", .text).notNull()
+                t.column("provider", .text).notNull()
+                t.column("model", .text).notNull()
+                t.column("isLocal", .boolean).notNull().defaults(to: false)
+                t.column("promptTokens", .integer).notNull().defaults(to: 0)
+                t.column("completionTokens", .integer).notNull().defaults(to: 0)
+                t.column("tokensEstimated", .boolean).notNull().defaults(to: false)
+                t.column("audioMs", .integer).notNull().defaults(to: 0)
+                t.column("createdAt", .datetime).notNull()
+            }
+            try db.create(index: "idx_usage_events_created_at", on: "usage_events", columns: ["createdAt"])
+        }
+
         return migrator
     }
 

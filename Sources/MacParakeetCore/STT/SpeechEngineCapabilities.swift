@@ -355,14 +355,16 @@ public enum SpeechEngineCapabilityRegistry {
         }
     }
 
-    /// Online engine (OpenAI-compatible API). Batch requests only: dictation
-    /// transcribes after stop. Whisper-family models return word timings, so
+    /// Online engine (OpenAI-compatible API). Final text always comes from a
+    /// batch request. Live dictation partials are available when the user has
+    /// saved a realtime model (`RealtimeTranscribeEngine`); without one the
+    /// live session is declined and dictation transcribes after stop. Whisper-family models return word timings, so
     /// meeting preview chunks and speaker-labeled finals work; models that
     /// return text only degrade to a plain-text transcript.
     private static func cloudRow() -> SpeechEngineCapabilities {
         SpeechEngineCapabilities(
             key: .cloud,
-            supportsNativeLiveDictation: false,
+            supportsNativeLiveDictation: true,
             supportsTailPreview: false,
             providesWordTimestamps: true,
             supportedLanguages: .automatic(),

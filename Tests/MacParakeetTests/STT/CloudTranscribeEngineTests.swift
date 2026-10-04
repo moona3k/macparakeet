@@ -236,7 +236,7 @@ final class CloudTranscribeEngineTests: XCTestCase {
 
     func testCapabilitiesDescribeABatchEngineWithWordTimings() {
         let capabilities = SpeechEngineCapabilityRegistry.capabilities(for: .cloud)
-        XCTAssertFalse(capabilities.supportsNativeLiveDictation)
+        XCTAssertTrue(capabilities.supportsNativeLiveDictation, "Offered; declined at start unless a realtime model is saved")
         XCTAssertTrue(capabilities.supportsMeetingLivePreview)
         XCTAssertNil(capabilities.modelLifecycle.minimumMemoryBytes)
         XCTAssertFalse(capabilities.modelLifecycle.isUserDeletable)

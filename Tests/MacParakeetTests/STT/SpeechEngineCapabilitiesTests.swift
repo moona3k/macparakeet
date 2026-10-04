@@ -27,6 +27,9 @@ final class SpeechEngineCapabilitiesTests: XCTestCase {
             .parakeet(.unified),
             .nemotron(.multilingual1120),
             .nemotron(.english1120),
+            // Online engine: live partials via a realtime session when the
+            // user saved a realtime model; declined at session start otherwise.
+            .cloud,
         ]))
     }
 

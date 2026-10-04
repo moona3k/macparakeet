@@ -11,11 +11,44 @@ public struct CloudSTTConfig: Equatable, Sendable {
     public var baseURL: String
     public var model: String
     public var apiKey: String?
+    /// Optional streaming model (for example `gpt-realtime-whisper`). When
+    /// set, dictation shows text while you speak over a realtime connection;
+    /// empty turns that off. Files and finished recordings always use `model`.
+    public var realtimeModel: String
 
-    public init(baseURL: String = defaultBaseURL, model: String = defaultModel, apiKey: String? = nil) {
+    public init(
+        baseURL: String = defaultBaseURL,
+        model: String = defaultModel,
+        apiKey: String? = nil,
+        realtimeModel: String = ""
+    ) {
         self.baseURL = baseURL
         self.model = model
         self.apiKey = apiKey
+        self.realtimeModel = realtimeModel
+    }
+
+    /// WebSocket address for a realtime transcription session, derived from
+    /// the same server address (`https` → `wss`).
+    public var realtimeURL: URL? {
+        let trimmed = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard var components = URLComponents(string: trimmed), let scheme = components.scheme?.lowercased(),
+            components.host?.isEmpty == false
+        else { return nil }
+        switch scheme {
+        case "https": components.scheme = "wss"
+        case "http": components.scheme = "ws"
+        default: return nil
+        }
+        components.path =
+            (components.path.hasSuffix("/") ? String(components.path.dropLast()) : components.path)
+            + "/realtime"
+        components.queryItems = [URLQueryItem(name: "intent", value: "transcription")]
+        return components.url
+    }
+
+    public var hasRealtimeModel: Bool {
+        !realtimeModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     /// The endpoint requests are posted to, or `nil` when the base URL is not
@@ -38,6 +71,7 @@ public struct CloudSTTConfig: Equatable, Sendable {
 public final class CloudSTTConfigStore: @unchecked Sendable {
     public static let baseURLKey = "cloudSTTBaseURL"
     public static let modelKey = "cloudSTTModel"
+    public static let realtimeModelKey = "cloudSTTRealtimeModel"
     static let apiKeyKeychainKey = "cloud_stt_api_key"
 
     private let defaults: UserDefaults
@@ -55,7 +89,8 @@ public final class CloudSTTConfigStore: @unchecked Sendable {
     public func loadMetadata() -> CloudSTTConfig {
         CloudSTTConfig(
             baseURL: defaults.string(forKey: Self.baseURLKey) ?? CloudSTTConfig.defaultBaseURL,
-            model: defaults.string(forKey: Self.modelKey) ?? CloudSTTConfig.defaultModel
+            model: defaults.string(forKey: Self.modelKey) ?? CloudSTTConfig.defaultModel,
+            realtimeModel: defaults.string(forKey: Self.realtimeModelKey) ?? ""
         )
     }
 
@@ -68,6 +103,8 @@ public final class CloudSTTConfigStore: @unchecked Sendable {
     public func save(_ config: CloudSTTConfig) throws {
         defaults.set(config.baseURL.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Self.baseURLKey)
         defaults.set(config.model.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Self.modelKey)
+        defaults.set(
+            config.realtimeModel.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Self.realtimeModelKey)
         let key = config.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if key.isEmpty {
             try keychain.delete(Self.apiKeyKeychainKey)
@@ -104,6 +141,13 @@ public enum CloudSTTError: Error, LocalizedError, Equatable {
             return "The online speech engine is not set up. Add its server address and model in Settings → Speech."
         case .unauthorized:
             return "The online speech service rejected the API key. Check it in Settings → Speech."
+        case .server(let status, let message) where status == 404:
+            // Services answer 404 both for a wrong address and for a model
+            // that is not served on the transcription endpoint (for example a
+            // realtime-only model), so name both.
+            let detail = message.map { ": \($0)" } ?? ""
+            return
+                "The online speech service returned an error (404)\(detail). Check the server address, and that the model is one for file transcription such as whisper-1 or gpt-4o-transcribe. Realtime-only models do not work here."
         case .server(let status, let message):
             if let message, !message.isEmpty {
                 return "The online speech service returned an error (\(status)): \(message)"
@@ -209,6 +253,13 @@ public actor CloudTranscribeEngine: STTTranscribing {
             let wav = Self.wavData(from: samples[range])
             let response = try await requestTranscription(
                 wav: wav, endpoint: endpoint, config: config, language: language)
+            UsageLedger.shared.record(
+                UsageEvent(
+                    kind: .cloudSpeech,
+                    provider: endpoint.host ?? "online",
+                    model: config.model.trimmingCharacters(in: .whitespacesAndNewlines),
+                    audioMs: range.count * 1000 / Self.sampleRate
+                ))
             let offsetMs = range.lowerBound * 1000 / Self.sampleRate
             let text = response.text.trimmingCharacters(in: .whitespacesAndNewlines)
             if !text.isEmpty { texts.append(text) }
