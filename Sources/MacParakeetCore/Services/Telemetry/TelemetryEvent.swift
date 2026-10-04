@@ -215,6 +215,7 @@ public enum TelemetryModelKind: String, Sendable, Equatable {
     case nemotronSTT = "nemotron_stt"
     case whisperSTT = "whisper_stt"
     case cohereSTT = "cohere_stt"
+    case cloudSTT = "cloud_stt"
     case speakerDiarization = "speaker_diarization"
     case localSpeechStack = "local_speech_stack"
 }

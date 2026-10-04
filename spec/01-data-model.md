@@ -194,6 +194,7 @@ privacy behavior.
 │  transcriptions  │◄──FK──│   chat_conversations    │  v0.5 — Multi-conversation chat
 │                  │◄──FK──│      summaries          │  v0.7 — Prompt results per transcript
 │                  │◄──FK──│        cards            │  v0.28 — Derived knowledge cards
+│                  │◄──FK──│ transcript_translations │  v0.50 — Saved transcript translations
 │                  │◄──FK──│ speaker_corrections     │  v0.32 — Speaker correction log
 │                  │◄──FK──│speaker_correction_states│  v0.32 — Undo/Redo cursor
 └──────────────────┘       └─────────────────────────┘
@@ -230,8 +231,8 @@ privacy behavior.
 ```
 
 Tables are self-contained domains except for derived or child records:
-`chat_conversations`, `summaries`, and `cards` have foreign keys to
-`transcriptions` with cascading delete, while `llm_runs` has nullable
+`chat_conversations`, `summaries`, `cards`, and `transcript_translations` have
+foreign keys to `transcriptions` with cascading delete, while `llm_runs` has nullable
 foreign-key columns back to the feature-owned source rows that triggered each
 LLM call. At least one `llm_runs` source link is required. The Swift model for
 `summaries` is `PromptResult`; the table name is retained for migration
@@ -803,6 +804,36 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
   rather than consulting an edited prompt; provider/model configuration is
   resolved again when execution begins.
 - Migration from existing data: legacy `transcriptions.summary` values migrate into `summaries` with classic "Summary" prompt metadata, then the legacy column is dropped by `v0.7.6-drop-legacy-transcription-summary`.
+
+---
+
+### `transcript_translations` (v0.50, Swift model: `TranscriptTranslation`)
+
+Stores one LLM-generated translation per transcript and target language (F31). Derived state: a row can always be regenerated from its transcript, and it never replaces the canonical transcript.
+
+```sql
+CREATE TABLE transcript_translations (
+    id                TEXT PRIMARY KEY,                    -- UUID string
+    transcriptionId   TEXT NOT NULL                        -- FK to transcriptions
+        REFERENCES transcriptions(id) ON DELETE CASCADE,
+    languageCode      TEXT NOT NULL,                       -- Target language: "fa", "en", "de"
+    segments          TEXT NOT NULL,                       -- JSON [TranslatedSegment]
+    sourceHash        TEXT NOT NULL,                       -- SHA-256 of the source segment texts
+    modelName         TEXT,                                -- Model that produced the translation
+    createdAt         TEXT NOT NULL,                       -- ISO 8601 timestamp
+    updatedAt         TEXT NOT NULL                        -- ISO 8601 timestamp
+);
+
+CREATE UNIQUE INDEX idx_transcript_translations_transcription_language
+    ON transcript_translations(transcriptionId, languageCode);
+```
+
+**Notes:**
+- `segments` is a JSON array of `{startMs?, endMs?, speakerId?, text}`. Source segments come from the effective transcript projection (ADR-031): corrected segment text when timed text was edited, sentence-level segments from word timings otherwise, and untimed paragraphs for whole-transcript edits and engines without word timestamps. Timing and speaker are copied through, so translated lines stay seekable and can be shown as video subtitles or exported as SRT.
+- One row per `(transcriptionId, languageCode)`; saving a new translation for a language replaces the previous one.
+- `sourceHash` fingerprints the transcript text the translation was made from. When it no longer matches (correction, edit, or retranscription), the UI marks the translation as out of date and offers Re-translate; the row is not deleted automatically.
+- `transcriptionId` has a cascading delete — deleting a transcription removes its translations.
+- Live meeting translation is in-memory only and never writes to this table.
 
 ---
 
@@ -1869,6 +1900,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `dictations.wordCount` | v0.5 | Cached word count for voice stats |
 | `chat_conversations` | v0.5 | Multi-conversation chat per transcription (FK → transcriptions) |
 | `ask_conversations` | v0.49-ask-conversations | Independent Ask conversations; bounded Codable payload, revision and run lease; no source foreign key |
+| `transcript_translations` | v0.50-transcript-translations | Saved transcript translation per transcript and language (FK → transcriptions, cascade) |
 | `transcriptions.thumbnailURL` | v0.5 | YouTube video thumbnail URL |
 | `transcriptions.channelName` | v0.5 | YouTube channel name |
 | `transcriptions.videoDescription` | v0.5 | YouTube video description |

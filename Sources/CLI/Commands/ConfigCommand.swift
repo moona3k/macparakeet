@@ -653,7 +653,9 @@ struct ConfigCommand: ParsableCommand {
 
     static func parseSpeechEngine(_ value: String) throws -> SpeechEnginePreference {
         let raw = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard let engine = SpeechEnginePreference(rawValue: raw) else {
+        // The online service uploads audio, so it is selected only in the
+        // app, where the switch is confirmed. The CLI never opts into it.
+        guard let engine = SpeechEnginePreference(rawValue: raw), engine != .cloud else {
             throw ValidationError("Invalid value for speech-engine: '\(value)'. Use parakeet, nemotron, whisper, or cohere.")
         }
         return engine

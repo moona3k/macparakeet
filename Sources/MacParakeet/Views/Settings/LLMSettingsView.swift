@@ -12,6 +12,10 @@ private struct AIFormatterInstalledApp: Identifiable, Sendable {
 }
 
 struct LLMSettingsView: View {
+    @AppStorage(UserDefaultsAppRuntimePreferences.autoTranslateTranscriptsKey)
+    private var autoTranslateSubtitles = false
+    @AppStorage(UserDefaultsAppRuntimePreferences.transcriptTranslationLanguageKey)
+    private var subtitleTranslationLanguageCode = TranslationLanguage.persian.rawValue
     @Bindable var viewModel: LLMSettingsViewModel
 
     @State private var showAdvanced = false
@@ -207,6 +211,10 @@ struct LLMSettingsView: View {
             Divider()
 
             meetingAIOutputLanguageSection
+
+            Divider()
+
+            subtitleTranslationSection
 
             Divider()
 
@@ -875,6 +883,35 @@ struct LLMSettingsView: View {
             .font(DesignSystem.Typography.caption)
         }
         .id("ai.meetingLanguage")
+    }
+
+    private var subtitleTranslationSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            Toggle(isOn: $autoTranslateSubtitles) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Translate video subtitles automatically")
+                        .font(DesignSystem.Typography.body.weight(.semibold))
+                    Text(
+                        """
+                        When you open a video transcript, its subtitles are translated with your default AI \
+                        and saved with the transcript. A cloud provider receives the transcript text. You can \
+                        also translate any transcript on demand from the globe menu in its tab bar.
+                        """
+                    )
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Picker("Subtitle language", selection: $subtitleTranslationLanguageCode) {
+                ForEach(TranslationLanguage.allCases) { language in
+                    Text("\(language.displayName) · \(language.nativeName)").tag(language.rawValue)
+                }
+            }
+            .frame(maxWidth: 320)
+            .disabled(!autoTranslateSubtitles)
+        }
+        .id("ai.subtitleTranslation")
     }
 
     private var aiResultLanguageSelection: Binding<String> {

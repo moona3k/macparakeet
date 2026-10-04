@@ -79,6 +79,15 @@ meeting preview warm-up and inference without changing capture or final STT.
   Cohere and downloading its model through the shared capability-registry
   memory floor (`SpeechEngineCapabilityRegistry`, 16 GB); Core runtime and CLI
   entry points enforce the same gate before constructing or selecting Cohere.
+- `CloudTranscribeEngine.swift` — opt-in online engine (fork amendment to
+  ADR-026). Uploads 16 kHz mono WAV to a user-configured OpenAI-compatible
+  `audio/transcriptions` server; **the only engine that sends audio off the
+  device**. Holds no model: "ready" means a server address and model are
+  saved (`CloudSTTConfigStore`; API key in the Keychain). Batch-only like
+  Cohere. Audio longer than ten minutes is split at quiet points and word
+  times are re-offset. Requests `verbose_json` word timings and retries as
+  plain `json` for models that reject it. Never selected by default and
+  never used as a fallback for a local engine.
 - `NativeLiveDictating.swift` — internal protocol the native streaming engines
   conform to so `STTRuntime` can route a live dictation session to the active
   Nemotron or Parakeet Unified build without knowing the concrete engine type.

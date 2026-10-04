@@ -719,6 +719,11 @@ struct TranscriptResultView: View {
             .onChange(of: transcriptText) {
                 if findBarVisible { rebuildFindBlocks() }
             }
+            .onChange(of: translationSourceHash) {
+                // Corrections, edits, and retranscription change what a saved
+                // translation was made from; re-fingerprint to flag it stale.
+                viewModel.translationViewModel.load(transcription: activeTranscription)
+            }
             .onChange(of: viewModel.currentTranscriptionRevision) {
                 guard viewModel.currentTranscription?.id == transcription.id else {
                     richContextLoader.invalidate()
@@ -859,6 +864,7 @@ struct TranscriptResultView: View {
         viewModel.loadPersistedContent()
         promptResultsViewModel.loadVisiblePrompts()
         promptResultsViewModel.loadPromptResults(transcriptionId: transcription.id)
+        viewModel.translationViewModel.load(transcription: activeTranscription)
         if transcription.sourceType == .meeting {
             meetingClassificationViewModel?.loadOptions()
             meetingClassificationViewModel?.loadClassification(for: transcription.id)
@@ -937,6 +943,7 @@ struct TranscriptResultView: View {
             applyEmptySegmentCache()
         }
         promptResultsViewModel.loadPromptResults(transcriptionId: transcription.id)
+        viewModel.translationViewModel.load(transcription: activeTranscription)
         if transcription.sourceType == .meeting {
             meetingClassificationViewModel?.loadClassification(for: transcription.id)
         }
@@ -980,7 +987,8 @@ struct TranscriptResultView: View {
 
             TranscriptionVideoPanel(
                 transcription: transcription,
-                playerViewModel: playerViewModel
+                playerViewModel: playerViewModel,
+                translationViewModel: viewModel.translationViewModel
             )
 
             Spacer(minLength: 0)
@@ -1549,6 +1557,10 @@ struct TranscriptResultView: View {
         return current
     }
 
+    private var translationSourceHash: String {
+        TranscriptTranslationSource.hash(of: TranscriptTranslationSource.segments(for: activeTranscription))
+    }
+
     private var transcriptText: String {
         activeTranscription.cleanTranscript ?? activeTranscription.rawTranscript ?? ""
     }
@@ -1674,6 +1686,11 @@ struct TranscriptResultView: View {
             return "Whisper \(SpeechEnginePreference.friendlyVariantName(variant))"
         case .cohere:
             return "Cohere Transcribe"
+        case .cloud:
+            guard let model = activeTranscription.engineVariant, !model.isEmpty else {
+                return "Online"
+            }
+            return "Online · \(model)"
         }
     }
 
@@ -2062,6 +2079,21 @@ struct TranscriptResultView: View {
                 case .generation(let id):
                     if promptResultsViewModel.pendingGeneration(id: id) != nil {
                         pendingGenerationPane(generationID: id)
+                    } else {
+                        transcriptPane
+                            .onAppear { viewModel.selectedTab = .transcript }
+                    }
+                case .translation(let language):
+                    if viewModel.translationViewModel.tabLanguages.contains(language) {
+                        TranscriptTranslationPane(
+                            language: language,
+                            transcription: activeTranscription,
+                            viewModel: viewModel.translationViewModel,
+                            onSeek: playerViewModel.playbackMode == .none
+                                ? nil
+                                : { playerViewModel.seek(toMs: $0) },
+                            onExport: { exportTranslationToDownloads($0, format: $1) }
+                        )
                     } else {
                         transcriptPane
                             .onAppear { viewModel.selectedTab = .transcript }
@@ -3249,6 +3281,7 @@ struct TranscriptResultView: View {
     private var orderedTabs: [TranscriptionViewModel.TranscriptTab] {
         var tabs = TranscriptResultTabOrdering.leadingTabs(for: activeTranscription.sourceType)
         tabs += promptResultsViewModel.resultTabs(for: transcription.id)
+        tabs += viewModel.translationViewModel.tabLanguages.map { .translation($0) }
         tabs.append(.chat)
         return tabs
     }
@@ -3261,6 +3294,12 @@ struct TranscriptResultView: View {
                 }
 
                 generateTabButton
+
+                TranscriptTranslateMenu(
+                    viewModel: viewModel.translationViewModel,
+                    onSelect: { viewModel.selectedTab = .translation($0) },
+                    onSetUpAI: onSetUpAI
+                )
 
                 Spacer()
             }
@@ -3279,6 +3318,9 @@ struct TranscriptResultView: View {
                 let generation = promptResultsViewModel.pendingGeneration(id: id)
             {
                 return generation.state == .streaming
+            }
+            if case .translation(let language) = tab {
+                return viewModel.translationViewModel.isTranslating(language)
             }
             return false
         }()
@@ -3358,6 +3400,13 @@ struct TranscriptResultView: View {
                     cancelGenerationAndRestoreResult(id: id)
                 }
             }
+            if case .translation(let language) = tab,
+                viewModel.translationViewModel.isTranslating(language)
+            {
+                Button("Cancel Translation", role: .destructive) {
+                    viewModel.translationViewModel.cancel(language)
+                }
+            }
         }
         .onHover { hovering in
             if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
@@ -3429,6 +3478,8 @@ struct TranscriptResultView: View {
             default:
                 return "sparkles"
             }
+        case .translation:
+            return "globe"
         case .chat:
             return "bubble.left.and.text.bubble.right"
         }
@@ -3448,6 +3499,8 @@ struct TranscriptResultView: View {
         case .generation(let id):
             guard let gen = promptResultsViewModel.pendingGeneration(id: id) else { return "Result" }
             return label(for: gen.promptName, extraInstructions: gen.extraInstructions)
+        case .translation(let language):
+            return language.displayName
         case .chat:
             return "Chat"
         }
@@ -3531,6 +3584,8 @@ struct TranscriptResultView: View {
                                 || !promptResultsViewModel.canEditPromptResult(promptResult)
                                 || transcriptText.isEmpty
                         )
+
+                        resultTranslateMenu(for: promptResult)
 
                         let isCopied = copiedButtonResultID == promptResultID
                         Button {
@@ -3631,6 +3686,13 @@ struct TranscriptResultView: View {
                         .accessibilityLabel("Edit \(promptResult.promptName)")
                 } else {
                     ScrollView {
+                        if let message = promptResultsViewModel.promptResultTranslationErrors[promptResult.id] {
+                            Label("Translation failed: \(message)", systemImage: "exclamationmark.triangle.fill")
+                                .font(DesignSystem.Typography.caption)
+                                .foregroundStyle(DesignSystem.Colors.errorRed)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
                         MarkdownContentView(promptResult.content, font: DesignSystem.Typography.bodyLarge)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -6210,6 +6272,67 @@ struct TranscriptResultView: View {
         .frame(minWidth: 220)
     }
 
+    /// Translates this result's text into a new result tab; the original stays.
+    @ViewBuilder
+    private func resultTranslateMenu(for promptResult: PromptResult) -> some View {
+        let isTranslating = promptResultsViewModel.translatingPromptResultIDs.contains(promptResult.id)
+        Menu {
+            ForEach(TranslationLanguage.allCases) { language in
+                Button("\(language.displayName) · \(language.nativeName)") {
+                    promptResultsViewModel.translatePromptResult(promptResult, to: language)
+                }
+            }
+        } label: {
+            HStack(spacing: DesignSystem.Spacing.xs) {
+                if isTranslating {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Image(systemName: "globe")
+                }
+                Text(isTranslating ? "Translating…" : "Translate")
+            }
+            .font(DesignSystem.Typography.caption)
+        }
+        .menuStyle(.borderedButton)
+        .tint(DesignSystem.Colors.tintNeutral)
+        .controlSize(.small)
+        .fixedSize()
+        .disabled(isTranslating || !promptResultsViewModel.canTranslatePromptResults)
+        .help(
+            promptResultsViewModel.canTranslatePromptResults
+                ? "Translate this result into a new tab. The original is kept."
+                : "Set up an AI provider in Settings to translate"
+        )
+    }
+
+    private func exportTranslationToDownloads(_ translation: TranscriptTranslation, format: TranscriptExportFormat) {
+        do {
+            let fileURL = try TranscriptResultActions.exportTranslationToDownloads(
+                translation: translation,
+                source: activeTranscription,
+                format: format
+            )
+            exportErrorMessage = nil
+            SoundManager.shared.play(.transcriptionComplete)
+            dismissTask?.cancel()
+            exportConfirmation = ExportConfirmation(
+                url: fileURL,
+                title: "Exported \(format.displayName)"
+            )
+            dismissTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(5.0))
+                guard !Task.isCancelled else { return }
+                exportConfirmation = nil
+            }
+        } catch let cocoaError as CocoaError where cocoaError.code == .fileNoSuchFile {
+            exportErrorMessage = "Your Downloads folder could not be found."
+            SoundManager.shared.play(.errorSoft)
+        } catch {
+            exportErrorMessage = error.localizedDescription
+            SoundManager.shared.play(.errorSoft)
+        }
+    }
+
     private func exportGenerationToDownloads(promptResult: PromptResult, format: TranscriptExportFormat) {
         let source = activeTranscription
         do {
@@ -6345,6 +6468,7 @@ private struct EngineOptionCard: View {
         case .nemotron: "sparkles"
         case .whisper: "globe"
         case .cohere: "waveform"
+        case .cloud: "cloud"
         }
     }
 
@@ -6365,6 +6489,8 @@ private struct EngineOptionCard: View {
             "Broad-language fallback • files and saved audio"
         case .cohere:
             "Batch plain text • no timestamps or speaker labels"
+        case .cloud:
+            "Online service • audio is uploaded"
         }
     }
 

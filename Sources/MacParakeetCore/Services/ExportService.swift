@@ -341,6 +341,54 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         return lines.joined(separator: "\n")
     }
 
+    /// Format a saved translation as SRT. Segments without timing are skipped.
+    public func formatSRT(translation: TranscriptTranslation, speakers: [SpeakerInfo]? = nil) -> String {
+        var lines: [String] = []
+        var index = 0
+        for segment in translation.segments {
+            guard let startMs = segment.startMs, let endMs = segment.endMs else { continue }
+            index += 1
+            lines.append("\(index)")
+            lines.append("\(srtTimestamp(ms: startMs)) --> \(srtTimestamp(ms: endMs))")
+            if let label = speakerLabel(for: segment.speakerId, in: speakers) {
+                lines.append("\(label): \(segment.text)")
+            } else {
+                lines.append(segment.text)
+            }
+            lines.append("")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// Format a saved translation as plain text: one paragraph per speaker
+    /// turn, labeled when the transcript has speakers.
+    public func formatPlainText(translation: TranscriptTranslation, speakers: [SpeakerInfo]? = nil) -> String {
+        var paragraphs: [String] = []
+        var currentSpeaker: String?
+        var currentTexts: [String] = []
+
+        func flush() {
+            guard !currentTexts.isEmpty else { return }
+            let body = currentTexts.joined(separator: " ")
+            if let label = speakerLabel(for: currentSpeaker, in: speakers) {
+                paragraphs.append("\(label): \(body)")
+            } else {
+                paragraphs.append(body)
+            }
+            currentTexts = []
+        }
+
+        for segment in translation.segments {
+            if segment.speakerId != currentSpeaker {
+                flush()
+                currentSpeaker = segment.speakerId
+            }
+            currentTexts.append(segment.text)
+        }
+        flush()
+        return paragraphs.joined(separator: "\n\n")
+    }
+
     /// Format word timestamps as WebVTT subtitle string
     public func formatVTT(words: [WordTimestamp], speakers: [SpeakerInfo]? = nil) -> String {
         formatVTT(cues: buildSubtitleCues(from: words), speakers: speakers)

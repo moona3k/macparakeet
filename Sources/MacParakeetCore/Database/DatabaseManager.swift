@@ -2445,6 +2445,30 @@ public final class DatabaseManager: Sendable {
             )
         }
 
+        // Saved transcript translations (F31), one per transcript and
+        // language. Derived state: rows cascade with their transcript and can
+        // be regenerated at any time.
+        migrator.registerMigration("v0.50-transcript-translations") { db in
+            try db.create(table: "transcript_translations") { t in
+                t.column("id", .text).primaryKey()
+                t.column("transcriptionId", .text)
+                    .notNull()
+                    .references("transcriptions", onDelete: .cascade)
+                t.column("languageCode", .text).notNull()
+                t.column("segments", .text).notNull()
+                t.column("sourceHash", .text).notNull()
+                t.column("modelName", .text)
+                t.column("createdAt", .text).notNull()
+                t.column("updatedAt", .text).notNull()
+            }
+            try db.create(
+                index: "idx_transcript_translations_transcription_language",
+                on: "transcript_translations",
+                columns: ["transcriptionId", "languageCode"],
+                unique: true
+            )
+        }
+
         return migrator
     }
 

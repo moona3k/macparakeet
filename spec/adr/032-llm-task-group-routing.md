@@ -46,8 +46,10 @@ Claude/Ollama list.
 
 ## Decision
 
-The general-LLM task routes in this decision are implemented. Specialist
-recipes and translation remain future work; this ADR does not schedule them.
+The general-LLM task routes in this decision are implemented, including a
+general-LLM `translate` task that inherits the default route (F31).
+Specialist recipes, a translate override, and a translation recipe remain
+future work; this ADR does not schedule them.
 
 **Product model:** define a few tasks, then a selector on each task.
 Inherit the default, pick a general LLM route, or — where the task
@@ -64,7 +66,7 @@ small set of inherited groups:
 | `cleanup` | Formatter for dictation and file/URL/meeting transcription | Inherit the default AI route |
 | `analysis` | Prompt results / summaries, transcript chat, live Ask, knowledge cards | Inherit the default AI route |
 | `transform` | System-wide Transforms | Inherit the default AI route; no required Settings row |
-| `translate` | Transcript translation (spec F31) | Only if that product ships; not a current Settings row |
+| `translate` | Transcript and live-meeting translation (spec F31) | Inherit the default AI route; no Settings row, override, or recipe yet |
 
 Summary and Ask share `analysis`. Dictation format and file format share
 `cleanup`; they already have independent on/off toggles. Transforms
@@ -233,7 +235,12 @@ groups at different general providers or models.
   it. Inline CLI commands that pass a full provider context are
   independent configs.
 - Per-surface formatter enablement and the transcription length cap.
-- No specialist recipes and no translation product.
+- Translation (F31) runs as the `translate` task on the default route with
+  a general LLM: `LLMService.translateDetailed` resolves
+  `LLMTaskGroup.translate`, which has no override, so cleanup and analysis
+  overrides never apply to it. Apple Intelligence cannot serve it.
+- No specialist recipes, including no translation recipe (Hy-MT2 remains a
+  candidate under §5).
 
 ## Consequences
 

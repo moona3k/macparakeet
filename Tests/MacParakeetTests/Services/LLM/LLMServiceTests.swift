@@ -376,6 +376,39 @@ final class LLMServiceTests: XCTestCase {
 
         _ = try await service.transformDetailed(text: "hello", prompt: "Uppercase")
         XCTAssertEqual(mockClient.capturedContext?.providerConfig.id, .openai)
+
+        // Translation is its own task and inherits the default route; it
+        // must not ride the analysis or cleanup overrides (ADR-032).
+        _ = try await service.translateDetailed(text: "[1] hello", instructions: "Translate into German.")
+        XCTAssertEqual(mockClient.capturedContext?.providerConfig.id, .openai)
+    }
+
+    func testTranslateSendsInstructionsAndTextUnmodified() async throws {
+        _ = try await service.translateDetailed(text: "[1] hello\n[2] world", instructions: "Translate into German.")
+
+        XCTAssertEqual(mockClient.capturedMessages.map(\.role), [.system, .user])
+        XCTAssertEqual(mockClient.capturedMessages.first?.content, "Translate into German.")
+        XCTAssertEqual(mockClient.capturedMessages.last?.content, "[1] hello\n[2] world")
+    }
+
+    func testTranslateRejectsRequestsThatWouldBeTruncated() async {
+        mockConfigStore.config = .lmstudio(model: "local")
+        let oversized = String(repeating: "a", count: LLMService.lmStudioContextBudget + 1)
+
+        do {
+            _ = try await service.translateDetailed(text: oversized, instructions: "Translate.")
+            XCTFail("Expected contextTooLong")
+        } catch let error as LLMError {
+            guard case .contextTooLong = error else { return XCTFail("Expected contextTooLong, got \(error)") }
+            XCTAssertTrue(mockClient.capturedMessages.isEmpty, "An over-budget batch must not be sent truncated")
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testTranslateRouteIsNotOverridable() {
+        XCTAssertFalse(LLMTaskGroup.translate.allowsOverride)
+        XCTAssertFalse(LLMProviderID.appleIntelligence.canServe(.translate))
     }
 
     // MARK: - Not Configured

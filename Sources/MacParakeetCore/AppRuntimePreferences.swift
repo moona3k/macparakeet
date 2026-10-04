@@ -557,6 +557,11 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     /// turned off individually (default empty).
     public static let aiFormatterDisabledSmartDefaultCategoriesKey = "aiFormatterDisabledSmartDefaultCategories"
     public static let transcriptAIContextModeKey = "transcriptAIContextMode"
+    public static let autoTranslateTranscriptsKey = "autoTranslateTranscripts"
+    public static let transcriptTranslationLanguageKey = "transcriptTranslationLanguage"
+    public static let liveMeetingTranslationLanguageKey = "liveMeetingTranslationLanguage"
+    public static let liveMeetingTranslationDisplayModeKey = "liveMeetingTranslationDisplayMode"
+    public static let liveMeetingTranslationSpeedKey = "liveMeetingTranslationSpeed"
     public static let meetingAIOutputLanguagePolicyKey = "meetingAIOutputLanguagePolicy"
     public static let transcriptFontScaleKey = "com.macparakeet.transcriptFontScale"
     public static let selectedMicrophoneDeviceUIDKey = "selectedMicrophoneDeviceUID"

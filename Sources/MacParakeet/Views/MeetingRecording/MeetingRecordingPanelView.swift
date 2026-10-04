@@ -331,7 +331,7 @@ struct MeetingRecordingPanelView: View {
             // Native NSTextView — full drag selection, performant
             if hasContent {
                 TranscriptTextView(
-                    lines: viewModel.previewLines,
+                    lines: viewModel.displayLines,
                     autoScroll: autoScroll
                 )
             }
@@ -355,6 +355,18 @@ struct MeetingRecordingPanelView: View {
                 copyTranscript()
             }
 
+            liveTranslationMenu
+
+            if let error = viewModel.liveTranslation.errorMessage {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 11))
+                    .foregroundStyle(DesignSystem.Colors.warningAmber)
+                    .help("Live translation paused: \(error)")
+            } else if viewModel.liveTranslation.isTranslating {
+                ProgressView()
+                    .controlSize(.mini)
+            }
+
             Spacer()
 
             FooterIconButton(
@@ -366,6 +378,71 @@ struct MeetingRecordingPanelView: View {
             }
         }
         .padding(DesignSystem.Spacing.md)
+    }
+
+    /// Live translation target for the transcript tab. Uses the configured AI
+    /// provider, so it is unavailable until one is set up.
+    private var liveTranslationMenu: some View {
+        let translation = viewModel.liveTranslation
+        return Menu {
+            Button {
+                translation.language = nil
+            } label: {
+                translationMenuItem("Off", isSelected: translation.language == nil)
+            }
+            Divider()
+            ForEach(TranslationLanguage.allCases) { language in
+                Button {
+                    translation.language = language
+                } label: {
+                    translationMenuItem(
+                        "\(language.displayName) · \(language.nativeName)",
+                        isSelected: translation.language == language
+                    )
+                }
+                .disabled(!translation.isAvailable)
+            }
+            Divider()
+            Picker("Show", selection: Binding(get: { translation.displayMode }, set: { translation.displayMode = $0 })) {
+                ForEach(LiveTranslationViewModel.DisplayMode.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            Picker("Speed", selection: Binding(get: { translation.speed }, set: { translation.speed = $0 })) {
+                ForEach(LiveTranslationViewModel.Speed.allCases) { speed in
+                    Text(speed.title).tag(speed)
+                }
+            }
+            if translation.errorMessage != nil {
+                Divider()
+                Button("Retry Translation") { translation.retry() }
+            }
+            if !translation.isAvailable {
+                Divider()
+                Text("Set up an AI provider in Settings to translate")
+            }
+        } label: {
+            Label(translation.language?.displayName ?? "Translate", systemImage: "globe")
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(
+                    translation.isActive
+                        ? DesignSystem.Colors.accent
+                        : DesignSystem.Colors.textTertiary
+                )
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Translate the live transcript")
+    }
+
+    @ViewBuilder
+    private func translationMenuItem(_ title: String, isSelected: Bool) -> some View {
+        if isSelected {
+            Label(title, systemImage: "checkmark")
+        } else {
+            Text(title)
+        }
     }
 
     private func copyTranscript() {

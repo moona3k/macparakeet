@@ -449,6 +449,10 @@ public protocol LLMServiceProtocol: Sendable {
     ) async throws -> LLMResult
     func transformDetailed(text: String, prompt: String) async throws -> LLMResult
 
+    /// One translation request on the `translate` task route (ADR-032, F31).
+    /// Rejects input that would exceed the round-trip budget instead of truncating it.
+    func translateDetailed(text: String, instructions: String) async throws -> LLMResult
+
     /// Streaming variants
     func generatePromptResultStream(
         transcript: String,

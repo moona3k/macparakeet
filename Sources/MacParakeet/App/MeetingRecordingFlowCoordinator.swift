@@ -96,6 +96,7 @@ final class MeetingRecordingFlowCoordinator {
     private let frontmostApplicationProvider: any FrontmostApplicationProviding
     private let probableCalendarSnapshotProvider: @MainActor @Sendable () -> MeetingCalendarSnapshot?
     private var llmService: LLMServiceProtocol?
+    private var translator: TranscriptTranslating?
     private let onMenuBarIconUpdate: (BreathWaveIcon.MenuBarState) -> Void
     private let onTranscriptionReady: (Transcription) -> Void
     private let onQueuedTranscriptionReady: (Transcription, Bool) -> Void
@@ -239,6 +240,13 @@ final class MeetingRecordingFlowCoordinator {
     func updateLLMService(_ service: LLMServiceProtocol?) {
         self.llmService = service
         panelViewModel?.chatViewModel.updateLLMService(service)
+    }
+
+    /// Translator for the live transcript; `nil` when the translate route is
+    /// unconfigured.
+    func updateTranslator(_ translator: TranscriptTranslating?) {
+        self.translator = translator
+        panelViewModel?.liveTranslation.updateTranslator(translator)
     }
 
     /// Trigger source for the *next* `.startRequested` event. Reset to nil
@@ -652,6 +660,7 @@ final class MeetingRecordingFlowCoordinator {
                 cliConfigStore: cliConfigStore
             )
             panelVM.quickPromptsViewModel.configure(repo: quickPromptRepo)
+            panelVM.liveTranslation.updateTranslator(translator)
             // Wire the notepad's debounced persistence target through the
             // recording service. The service serializes lock-file writes and
             // carries the latest notes into MeetingRecordingOutput.userNotes,

@@ -264,6 +264,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     /// created on first use; sibling of the other speech engines. Batch-only
     /// (no live dictation / preview path).
     private var cohereEngine: CohereTranscribeEngine?
+    private var cloudEngine: CloudTranscribeEngine?
     private let defaults: UserDefaults
     private let physicalMemoryBytes: @Sendable () -> UInt64
     private var speechEngineActivity = SpeechEngineActivity()
@@ -378,6 +379,13 @@ public actor STTRuntime: STTRuntimeProtocol {
                 language: selection.language,
                 onProgress: onProgress
             )
+        case .cloud:
+            return try await ensureCloudEngine().transcribe(
+                audioURL: URL(fileURLWithPath: audioPath),
+                job: job,
+                language: selection.language,
+                onProgress: onProgress
+            )
         }
     }
 
@@ -404,7 +412,7 @@ public actor STTRuntime: STTRuntimeProtocol {
             return try await transcribeWhisperPreview(samples: samples, language: selection.language)
         case .nemotron:
             throw tailPreviewUnsupportedError(for: capabilities.key)
-        case .cohere:
+        case .cohere, .cloud:
             throw tailPreviewUnsupportedError(for: capabilities.key)
         }
     }
@@ -455,6 +463,9 @@ public actor STTRuntime: STTRuntimeProtocol {
         case .cohere:
             // Batch engine — no native live-partial path.
             throw STTLiveDictationTranscriptionError.unsupportedEngine(.cohere)
+        case .cloud:
+            // Request/response API — no native live-partial path.
+            throw STTLiveDictationTranscriptionError.unsupportedEngine(.cloud)
         }
         guard await engine.isReady() else {
             throw STTLiveDictationTranscriptionError.modelNotReady
@@ -625,6 +636,25 @@ public actor STTRuntime: STTRuntimeProtocol {
         )
         cohereEngine = engine
         return engine
+    }
+
+    /// The online engine holds no model; it reads its connection settings on
+    /// every request, so one instance serves the whole process lifetime.
+    private func ensureCloudEngine() -> CloudTranscribeEngine {
+        if let cloudEngine {
+            return cloudEngine
+        }
+        let engine = CloudTranscribeEngine(configStore: CloudSTTConfigStore(defaults: defaults))
+        cloudEngine = engine
+        return engine
+    }
+
+    /// There is nothing to download or load; "preparing" the online engine
+    /// only confirms that a server address and model are configured.
+    private func prepareCloudEngine() async throws {
+        guard await ensureCloudEngine().isReady() else {
+            throw STTError.engineStartFailed(CloudSTTError.notConfigured.localizedDescription)
+        }
     }
 
     private func transcribeWithParakeet(
@@ -1320,6 +1350,8 @@ public actor STTRuntime: STTRuntimeProtocol {
             case .cohere:
                 let engine = try ensureCohereEngine()
                 try await engine.prepare(onProgress: onProgress)
+            case .cloud:
+                try await prepareCloudEngine()
             }
 
             let elapsed = start.duration(to: .now)
@@ -1465,6 +1497,8 @@ public actor STTRuntime: STTRuntimeProtocol {
             return await whisperEngine?.isReady() ?? false
         case .cohere:
             return await cohereEngine?.isReady() ?? false
+        case .cloud:
+            return await ensureCloudEngine().isReady()
         case .parakeet(let variant):
             // Parakeet engine: Unified reports through its own engine actor.
             if variant.usesUnifiedEngine {
@@ -1644,6 +1678,8 @@ public actor STTRuntime: STTRuntimeProtocol {
         case .cohere:
             let engine = try ensureCohereEngine()
             try await engine.prepare(onProgress: onProgress)
+        case .cloud:
+            try await prepareCloudEngine()
         }
 
         // Prepare is not cancellable (Core ML / `aned`). If Settings already
@@ -2520,6 +2556,8 @@ public actor STTRuntime: STTRuntimeProtocol {
             SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults)
         case .cohere:
             SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults)
+        case .cloud:
+            nil
         }
     }
 
@@ -2565,6 +2603,8 @@ public actor STTRuntime: STTRuntimeProtocol {
             .whisper(WhisperModelVariant.normalize(whisperModelVariant) ?? .largeV3Turbo632MB)
         case .cohere:
             .cohere
+        case .cloud:
+            .cloud
         }
     }
 
@@ -2580,6 +2620,8 @@ public actor STTRuntime: STTRuntimeProtocol {
             STTError.transcriptionFailed("Whisper supports display-preview transcription.")
         case .cohere:
             STTError.transcriptionFailed("Cohere uses record-then-transcribe dictation and does not support display-preview transcription.")
+        case .cloud:
+            STTError.transcriptionFailed("The online speech service uses record-then-transcribe dictation and does not support display-preview transcription.")
         }
     }
 

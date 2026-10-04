@@ -38,6 +38,7 @@ final class AppEnvironment {
     let promptCollectionRepo: PromptCollectionRepository
     let promptEditingService: PromptEditingService
     let promptResultRepo: PromptResultRepository
+    let transcriptTranslationRepo: TranscriptTranslationRepository
     let meetingArtifactStore: MeetingArtifactStore
     let meetingSplitRepo: MeetingSplitRepository
     let meetingSplitService: MeetingSplitService
@@ -125,6 +126,7 @@ final class AppEnvironment {
         promptCollectionRepo = PromptCollectionRepository(dbQueue: databaseManager.dbQueue)
         promptEditingService = PromptEditingService(dbQueue: databaseManager.dbQueue)
         promptResultRepo = PromptResultRepository(dbQueue: databaseManager.dbQueue)
+        transcriptTranslationRepo = TranscriptTranslationRepository(dbQueue: databaseManager.dbQueue)
         meetingSplitRepo = MeetingSplitRepository(dbQueue: databaseManager.dbQueue)
         meetingArtifactStore = MeetingArtifactStore(
             speakerAttributionReader: speakerAttributionReader,
