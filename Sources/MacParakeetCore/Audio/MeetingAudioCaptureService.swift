@@ -148,6 +148,10 @@ public actor MeetingAudioCaptureService {
     private var activeMicrophoneRecoveryID: Int?
     private var nextMicrophoneRecoveryID = 0
     private var microphoneRecoveryTask: Task<Void, Never>?
+    /// Retry attempts spent on the microphone in this meeting. A stalled retry
+    /// starts a new recovery loop, so the count lives here to keep the backoff
+    /// growing instead of restarting at 1 s. Reset when the meeting starts and
+    /// stops.
     private var microphoneRecoveryAttempts = 0
 
     /// A native microphone call may outlive its meeting. Retain the one shared

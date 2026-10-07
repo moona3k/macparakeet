@@ -624,17 +624,17 @@ deliver value without later ones.
    only after a real replacement buffer. Recovering and terminal source states
    surface gentle, non-blocking warnings even while routine health decoration
    remains flag-hidden. Amplitude-inferred health remains detection-only.
-   Extended 2026-10-07 (#1223): a combined meeting retries a failed initial
-   microphone start for the rest of the session; the production floating pill
-   renders the actionable warning badge; and a combined meeting that keeps
-   recording while a selected source stays unavailable or interrupted for 10 s
-   of active recording posts one local notification per recording ("This
-   meeting may be missing your side"). The notification is posted only while
-   MacParakeet is in the background and the live panel is not open, because
-   the system does not display a banner for the frontmost app; until then it
-   waits and the once-per-recording budget stays unspent. Calendar auto-start
-   opens no panel, so the pill and this notification are the only signals
-   during the meeting. Confirmed source
+   Extended 2026-10-07 (#1223): a combined meeting retries a failed or
+   stalled initial microphone start for the rest of the session; the
+   production floating pill renders the actionable warning badge; and a
+   combined meeting that keeps recording while a selected source stays
+   unavailable or interrupted for 10 s of active recording posts one local
+   notification per recording saying the meeting may be missing a side. The
+   notification is posted only while MacParakeet is in the background and the
+   live panel is not open, because the system does not display a banner for
+   the frontmost app; until then it waits and the once-per-recording budget
+   stays unspent. Calendar auto-start opens no panel, so the pill and this
+   notification are the only signals during the meeting. Confirmed source
    loss is the only trigger; amplitude-inferred signatures stay in-meeting
    only.
 3. **Phase C — Coverage-based selective repair.** Pure
