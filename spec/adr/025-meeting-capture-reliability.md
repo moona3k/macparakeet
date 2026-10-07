@@ -634,8 +634,9 @@ deliver value without later ones.
    notification is posted only while MacParakeet is in the background and the
    live panel is not open, because the system does not display a banner for
    the frontmost app; until then it waits and the once-per-recording budget
-   stays unspent. Calendar auto-start opens no panel, so the pill and this
-   notification are the only signals during the meeting. Confirmed source
+   stays unspent. Calendar auto-start opens no panel, so the pill (which users
+   can hide in Settings) and this notification are the live warning channels
+   during the meeting. Confirmed source
    loss is the only trigger; amplitude-inferred signatures stay in-meeting
    only.
 3. **Phase C — Coverage-based selective repair.** Pure
