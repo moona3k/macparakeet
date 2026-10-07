@@ -82,7 +82,7 @@ final class MeetingRecordingTileTests: XCTestCase {
             ["System audio interrupted"]
         )
         XCTAssertEqual(
-            MeetingRecordingPillView(viewModel: pillViewModel).visibleSourceHealthWarning?.label,
+            MeetingRecordingAppKitPillView(viewModel: pillViewModel, onTap: {}).displayedSourceHealthWarning?.label,
             "System audio interrupted"
         )
         XCTAssertEqual(
@@ -105,8 +105,36 @@ final class MeetingRecordingTileTests: XCTestCase {
         pillViewModel.captureHealth = captureHealth
 
         XCTAssertTrue(MeetingRecordingPanelView(viewModel: panelViewModel).visibleSourceHealthChips.isEmpty)
-        XCTAssertNil(MeetingRecordingPillView(viewModel: pillViewModel).visibleSourceHealthWarning)
+        XCTAssertNil(MeetingRecordingAppKitPillView(viewModel: pillViewModel, onTap: {}).displayedSourceHealthWarning)
         XCTAssertNil(MeetingRecordingTile(viewModel: pillViewModel, onTap: {}).visibleSourceHealthWarning)
+    }
+
+    func testProductionPillShowsUnavailableMicrophoneAndUpdatesWithoutStateChange() {
+        // Issue #1223: the floating pill is the only surface of a calendar
+        // auto-started meeting, so a failed microphone must show there.
+        let pillViewModel = MeetingRecordingPillViewModel()
+        pillViewModel.state = .recording
+        pillViewModel.captureHealth = MeetingCaptureHealthSummary(
+            sourceMode: .microphoneAndSystem,
+            microphone: MeetingSourceHealth(source: .microphone, status: .live, level: 0.5),
+            system: MeetingSourceHealth(source: .system, status: .live, level: 0.5)
+        )
+        let pill = MeetingRecordingAppKitPillView(viewModel: pillViewModel, onTap: {})
+        XCTAssertNil(pill.displayedSourceHealthWarning)
+        XCTAssertNil(pill.toolTip)
+
+        pillViewModel.captureHealth = MeetingCaptureHealthSummary(
+            sourceMode: .microphoneAndSystem,
+            microphone: MeetingSourceHealth(source: .microphone, status: .unavailable),
+            system: MeetingSourceHealth(source: .system, status: .live, level: 0.5)
+        )
+        pill.refresh()
+
+        let warning = pill.displayedSourceHealthWarning
+        XCTAssertEqual(warning?.source, .microphone)
+        XCTAssertEqual(warning?.status, .unavailable)
+        XCTAssertEqual(pill.toolTip, warning?.label)
+        XCTAssertEqual(pill.accessibilityLabel(), "Recording meeting, \(warning?.label ?? "")")
     }
 
     func testMicrophoneMuteButtonAccessibilityLabelReflectsAction() {

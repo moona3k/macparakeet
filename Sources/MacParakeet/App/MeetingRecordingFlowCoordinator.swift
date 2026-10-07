@@ -101,6 +101,8 @@ final class MeetingRecordingFlowCoordinator {
     private let onQueuedTranscriptionReady: (Transcription, Bool) -> Void
     private let onQueuedTranscriptionFailed: (UUID, TranscriptionCompletionNotifier.Content) -> Void
     private let onRecordingBegan: () -> Void
+    private let onSourceLossNotice: (MeetingSourceLossNotice) -> Void
+    private var sourceLossNoticePolicy: MeetingSourceLossNoticePolicy
     private let onRecordingStopping: () -> Void
     private let onFlowReturnedToIdle: () -> Void
     private let meetingTranscriptionQueue: MeetingTranscriptionQueue
@@ -182,6 +184,10 @@ final class MeetingRecordingFlowCoordinator {
         onQueuedTranscriptionReady: ((Transcription, Bool) -> Void)? = nil,
         onQueuedTranscriptionFailed: ((UUID, TranscriptionCompletionNotifier.Content) -> Void)? = nil,
         onRecordingBegan: @escaping () -> Void = {},
+        sourceLossNoticeThreshold: TimeInterval = MeetingSourceLossNoticePolicy.defaultThreshold,
+        onSourceLossNotice: @escaping (MeetingSourceLossNotice) -> Void = { notice in
+            MeetingSourceLossNoticePresenter.present(notice)
+        },
         onRecordingStopping: @escaping () -> Void = {},
         onFlowReturnedToIdle: @escaping () -> Void = {}
     ) {
@@ -224,6 +230,8 @@ final class MeetingRecordingFlowCoordinator {
                 TranscriptionCompletionPresenter.presentNotification(content)
             }
         self.onRecordingBegan = onRecordingBegan
+        self.sourceLossNoticePolicy = MeetingSourceLossNoticePolicy(threshold: sourceLossNoticeThreshold)
+        self.onSourceLossNotice = onSourceLossNotice
         self.onRecordingStopping = onRecordingStopping
         self.onFlowReturnedToIdle = onFlowReturnedToIdle
         self.meetingTranscriptionQueue.onStateChanged = { [weak self] snapshot in
@@ -1314,6 +1322,7 @@ final class MeetingRecordingFlowCoordinator {
 
     private func startPillPolling() {
         pillPollingTask?.cancel()
+        sourceLossNoticePolicy.reset()
         pillPollingTask = Task { @MainActor [weak self] in
             guard let self else { return }
             while !Task.isCancelled {
@@ -1371,6 +1380,17 @@ final class MeetingRecordingFlowCoordinator {
             if panelViewModel.captureHealth != captureHealth {
                 panelViewModel.captureHealth = captureHealth
             }
+        }
+        if let notice = sourceLossNoticePolicy.evaluate(
+            health: captureHealth,
+            isActivelyRecording: stateMachine.state == .recording && captureMode == .full,
+            isPanelVisible: panelController?.isVisible == true,
+            now: Date()
+        ) {
+            AudioCaptureDiagnostics.append(
+                "meeting_source_loss_notice source=\(notice.source.rawValue)"
+            )
+            onSourceLossNotice(notice)
         }
         // A confirmed toggle may have published while these service reads
         // suspended. Keep its newer pause state, while still updating health

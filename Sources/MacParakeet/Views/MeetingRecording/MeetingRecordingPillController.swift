@@ -380,7 +380,7 @@ final class MeetingRecordingPillController {
     }
 }
 
-private final class MeetingRecordingAppKitPillView: NSView {
+final class MeetingRecordingAppKitPillView: NSView {
     private let viewModel: MeetingRecordingPillViewModel
     private let onTap: () -> Void
     private let iconView = MerkabaPillIconView()
@@ -393,6 +393,14 @@ private final class MeetingRecordingAppKitPillView: NSView {
     private let timeDotLayer = CAShapeLayer()
     private let timeTextLayer = CATextLayer()
     private let badgeFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
+    // Confirmed source problems (for example "Mic unavailable") show as a small
+    // severity badge on the capsule's bottom-trailing edge, even while routine
+    // source-health decoration stays behind its product flag (#1223).
+    private let healthBadgeLayer = CAShapeLayer()
+    private let healthSymbolLayer = CALayer()
+    private let healthSymbolMaskLayer = CALayer()
+    private let healthBadgeSize: CGFloat = 18
+    private(set) var displayedSourceHealthWarning: MeetingSourceHealthChip?
     /// 1 s ticker for the elapsed-time badge. A `@MainActor` `Task` rather than a
     /// `Timer` so (a) its body runs in-isolation (no nonisolated `@Sendable`
     /// hop to call `updateFromViewModel`) and (b) `Task` is `Sendable`, so the
@@ -534,6 +542,19 @@ private final class MeetingRecordingAppKitPillView: NSView {
         layer.addSublayer(pauseLayer)
 
         setupTimeBadge(in: layer)
+        setupHealthBadge(in: layer)
+    }
+
+    private func setupHealthBadge(in root: CALayer) {
+        healthBadgeLayer.fillColor = NSColor.black.withAlphaComponent(0.9).cgColor
+        healthBadgeLayer.lineWidth = 1
+        healthBadgeLayer.isHidden = true
+        // Monochrome symbol as a mask over the tint keeps cutouts (the "!" in
+        // the warning triangle) transparent, matching the SwiftUI glyphs.
+        healthSymbolMaskLayer.contentsGravity = .center
+        healthSymbolLayer.mask = healthSymbolMaskLayer
+        healthBadgeLayer.addSublayer(healthSymbolLayer)
+        root.addSublayer(healthBadgeLayer)
     }
 
     private func setupTimeBadge(in root: CALayer) {
@@ -587,6 +608,93 @@ private final class MeetingRecordingAppKitPillView: NSView {
             iconView.frame = CGRect(x: tallRect.midX - 15, y: tallRect.midY - 37, width: 30, height: 74)
         }
         pauseLayer.frame = CGRect(x: tallRect.midX - 5, y: tallRect.midY - 5.5, width: 10, height: 11)
+        let badgeRect = CGRect(
+            x: tallRect.maxX - healthBadgeSize + 4,
+            y: tallRect.maxY - healthBadgeSize + 4,
+            width: healthBadgeSize,
+            height: healthBadgeSize
+        )
+        healthBadgeLayer.frame = badgeRect
+        healthBadgeLayer.path = CGPath(
+            ellipseIn: CGRect(x: 0, y: 0, width: healthBadgeSize, height: healthBadgeSize).insetBy(dx: 0.5, dy: 0.5),
+            transform: nil
+        )
+        healthSymbolLayer.frame = CGRect(x: 0, y: 0, width: healthBadgeSize, height: healthBadgeSize)
+        healthSymbolMaskLayer.frame = healthSymbolLayer.bounds
+    }
+
+    /// Mirrors the panel and tile: only actionable states (unavailable,
+    /// interrupted, stalled, reconnecting) reach the pill while the routine
+    /// health UI flag is off.
+    private func updateHealthBadge() {
+        let warning = viewModel.mirroredVisibleSourceHealthWarning
+        guard warning != displayedSourceHealthWarning else { return }
+        displayedSourceHealthWarning = warning
+        toolTip = warning?.label
+        updateAccessibilityLabel()
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+        guard let warning else {
+            healthBadgeLayer.isHidden = true
+            healthSymbolMaskLayer.contents = nil
+            return
+        }
+        let tint = Self.healthTint(for: warning.severity)
+        healthBadgeLayer.strokeColor = tint.withAlphaComponent(0.7).cgColor
+        let scale = window?.backingScaleFactor ?? 2
+        healthSymbolLayer.backgroundColor = tint.cgColor
+        healthSymbolMaskLayer.contentsScale = scale
+        let configuration = NSImage.SymbolConfiguration(pointSize: 9, weight: .bold)
+        let symbol = NSImage(systemSymbolName: warning.symbolName, accessibilityDescription: warning.label)?
+            .withSymbolConfiguration(configuration)
+        var proposedRect = CGRect(origin: .zero, size: symbol?.size ?? .zero)
+        healthSymbolMaskLayer.contents = symbol?.cgImage(
+            forProposedRect: &proposedRect,
+            context: nil,
+            hints: [.ctm: AffineTransform(scale: scale)]
+        )
+        healthBadgeLayer.isHidden = false
+    }
+
+    private static func healthTint(for severity: MeetingSourceHealthSeverity) -> NSColor {
+        // The pill surface is always dark, so resolve the dark variant.
+        let color: Color
+        switch severity {
+        case .critical:
+            color = DesignSystem.Colors.errorRed
+        case .warning:
+            color = DesignSystem.Colors.warningAmber
+        case .good:
+            color = DesignSystem.Colors.successGreen
+        case .neutral:
+            color = DesignSystem.Colors.textTertiary
+        }
+        var resolved = NSColor(color)
+        NSAppearance(named: .darkAqua)?.performAsCurrentDrawingAppearance {
+            resolved = NSColor(cgColor: NSColor(color).cgColor) ?? resolved
+        }
+        return resolved
+    }
+
+    private func updateAccessibilityLabel() {
+        let base: String?
+        switch viewModel.state {
+        case .starting:
+            base = "Starting meeting audio capture"
+        case .recording:
+            base = "Recording meeting"
+        case .paused:
+            base = "Meeting recording paused"
+        default:
+            base = nil
+        }
+        guard let base else {
+            setAccessibilityLabel(nil)
+            return
+        }
+        setAccessibilityLabel(displayedSourceHealthWarning.map { "\(base), \($0.label)" } ?? base)
     }
 
     /// The capsule rect for a given state. Both shapes share the same top edge
@@ -725,7 +833,9 @@ private final class MeetingRecordingAppKitPillView: NSView {
 
         // The elapsed time ticks every second even when state is unchanged
         // (e.g. silence), so refresh the hover badge before the render-skip.
+        // Source health also changes without a state transition.
         updateTimeBadge()
+        updateHealthBadge()
 
         if renderedState == state, renderedReduceMotion == reduceMotion {
             updateBackgroundIfNeeded()
@@ -734,7 +844,7 @@ private final class MeetingRecordingAppKitPillView: NSView {
 
         renderedState = state
         renderedReduceMotion = reduceMotion
-        setAccessibilityLabel(state == .starting ? "Starting meeting audio capture" : nil)
+        updateAccessibilityLabel()
 
         switch state {
         case .starting:

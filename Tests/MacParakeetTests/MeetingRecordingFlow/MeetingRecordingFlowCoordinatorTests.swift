@@ -700,6 +700,41 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertTrue(panel.isPaused)
     }
 
+    func testUnavailableMicrophonePostsOneSourceLossNoticePerRecording() async throws {
+        let service = MeetingRecordingServiceSpy(output: makeRecordingOutput())
+        await service.setCaptureHealth(
+            MeetingCaptureHealthSummary(
+                sourceMode: .microphoneAndSystem,
+                microphone: MeetingSourceHealth(source: .microphone, status: .unavailable),
+                system: MeetingSourceHealth(source: .system, status: .live, level: 0.5)
+            ))
+        var notices: [MeetingSourceLossNotice] = []
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: service,
+            transcriptionService: MockTranscriptionService(),
+            permissionService: MockPermissionService(),
+            transcriptionRepo: MockTranscriptionRepository(),
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            llmService: nil,
+            pillViewModel: MeetingRecordingPillViewModel(),
+            meetingRecordingSettlement: makeSettlement(),
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in },
+            sourceLossNoticeThreshold: 0,
+            onSourceLossNotice: { notices.append($0) }
+        )
+        coordinator.testHook_enterRecording()
+        let panel = MeetingRecordingPanelViewModel()
+
+        await coordinator.testHook_refreshPillState(panel: panel)
+        await coordinator.testHook_refreshPillState(panel: panel)
+
+        XCTAssertEqual(notices.map(\.source), [.microphone])
+        XCTAssertEqual(notices.first?.title, "This meeting may be missing your side")
+    }
+
     func testStaleGenerationCaptureFailureSignalIsIgnored() async throws {
         let recordingService = MeetingRecordingServiceSpy(output: makeRecordingOutput())
         let coordinator = MeetingRecordingFlowCoordinator(
@@ -1693,6 +1728,11 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
     private var startObservationContinuations: [CheckedContinuation<Void, Never>] = []
     private var captureHealthReadReached: XCTestExpectation?
     private var captureHealthReadContinuation: CheckedContinuation<Void, Never>?
+    private var stubbedCaptureHealth: MeetingCaptureHealthSummary = .notRecording
+
+    func setCaptureHealth(_ health: MeetingCaptureHealthSummary) {
+        stubbedCaptureHealth = health
+    }
 
     func blockNextCaptureHealthRead(reached: XCTestExpectation) {
         captureHealthReadReached = reached
@@ -1713,7 +1753,7 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
                     reached.fulfill()
                 }
             }
-            return .notRecording
+            return stubbedCaptureHealth
         }
     }
 
