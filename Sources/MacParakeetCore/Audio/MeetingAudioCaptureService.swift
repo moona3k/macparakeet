@@ -74,12 +74,42 @@ public actor MeetingAudioCaptureService {
         .seconds(8),
     ]
 
+    /// A combined meeting whose microphone fails to start keeps saving system
+    /// audio and retries the microphone in the background for the rest of the
+    /// session (#1223). Early retries cover a Bluetooth profile switch; the
+    /// steady cadence and input-route changes cover a device that settles or
+    /// arrives later.
+    struct MicrophoneRecoverySchedule: Sendable {
+        /// Backoff before each early attempt.
+        var delays: [Duration]
+        /// Wait before every later attempt. `nil` ends recovery after `delays`.
+        var steadyInterval: Duration?
+        /// Route changes are ignored this long after an attempt ends, so the
+        /// configuration churn an attempt causes cannot drive a retry storm.
+        var routeChangeQuietPeriod: Duration
+        /// Lets a new input route settle before the triggered attempt.
+        var routeChangeDebounce: Duration
+
+        static let production = MicrophoneRecoverySchedule(
+            delays: [.seconds(1), .seconds(2), .seconds(4), .seconds(8), .seconds(15)],
+            steadyInterval: .seconds(30),
+            routeChangeQuietPeriod: .seconds(2),
+            routeChangeDebounce: .milliseconds(750)
+        )
+
+        func delay(beforeAttempt attempt: Int) -> Duration? {
+            attempt <= delays.count ? delays[attempt - 1] : steadyInterval
+        }
+    }
+
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "MeetingAudioCaptureService")
     private let microphoneCapture: any MeetingMicrophoneCapturing
     private let systemAudioCaptureFactory: @Sendable () throws -> any MeetingSystemAudioCapturing
     private let micProcessingMode: MeetingMicProcessingMode
     private let sourceModeProvider: @Sendable () -> MeetingAudioSourceMode
     private let systemAudioRecoveryDelays: [Duration]
+    private let microphoneRecoverySchedule: MicrophoneRecoverySchedule
+    private let microphoneRouteChanges: @Sendable () -> AsyncStream<Void>
     private let startupTimeout: Duration
     private let diagnosticSink: DiagnosticSink
     private let micHealthObserver: MeetingMicHealthTelemetryObserver
@@ -115,6 +145,9 @@ public actor MeetingAudioCaptureService {
     private var activeEventTarget: (attemptID: Int, target: EventSink)?
     private var startupSignal: MeetingCaptureStartupSignal?
     private var microphoneLease: MicrophoneLease?
+    private var activeMicrophoneRecoveryID: Int?
+    private var nextMicrophoneRecoveryID = 0
+    private var microphoneRecoveryTask: Task<Void, Never>?
 
     /// A native microphone call may outlive its meeting. Retain the one shared
     /// consumer until start AND cleanup settle; replacement meetings can still
@@ -140,6 +173,9 @@ public actor MeetingAudioCaptureService {
     /// that restart capture observe this boundary instead of racing it.
     var isMicrophoneLeaseHeld: Bool { microphoneLease != nil }
 
+    /// True while a failed microphone start is being retried in the background.
+    var isMicrophoneRecoveryActive: Bool { activeMicrophoneRecoveryID != nil }
+
     public init(
         micProcessingMode: MeetingMicProcessingMode = .raw,
         sourceModeProvider: @escaping @Sendable () -> MeetingAudioSourceMode = { .microphoneAndSystem },
@@ -149,6 +185,8 @@ public actor MeetingAudioCaptureService {
         self.micProcessingMode = micProcessingMode
         self.sourceModeProvider = sourceModeProvider
         self.systemAudioRecoveryDelays = Self.productionSystemAudioRecoveryDelays
+        self.microphoneRecoverySchedule = .production
+        self.microphoneRouteChanges = { Self.microphoneRouteChangeNotifications() }
         self.startupTimeout = .seconds(12)
         self.diagnosticSink = { AudioCaptureDiagnostics.append($0) }
         self.micHealthObserver = MeetingMicHealthTelemetryObserver()
@@ -169,6 +207,10 @@ public actor MeetingAudioCaptureService {
         micHealthNowProvider: @escaping @Sendable () -> Date = { Date() },
         micHealthFeatureEnabled: Bool = AppFeatures.meetingCaptureReliabilityEnabled,
         systemAudioRecoveryDelays: [Duration]? = nil,
+        microphoneRecoverySchedule: MicrophoneRecoverySchedule = .production,
+        microphoneRouteChanges: @escaping @Sendable () -> AsyncStream<Void> = {
+            MeetingAudioCaptureService.microphoneRouteChangeNotifications()
+        },
         startupTimeout: Duration = .seconds(12),
         diagnosticSink: @escaping DiagnosticSink = { AudioCaptureDiagnostics.append($0) }
     ) {
@@ -180,6 +222,8 @@ public actor MeetingAudioCaptureService {
         self.systemAudioRecoveryDelays =
             systemAudioRecoveryDelays
             ?? Self.productionSystemAudioRecoveryDelays
+        self.microphoneRecoverySchedule = microphoneRecoverySchedule
+        self.microphoneRouteChanges = microphoneRouteChanges
         self.diagnosticSink = diagnosticSink
         self.micHealthObserver = MeetingMicHealthTelemetryObserver(
             config: micHealthConfig,
@@ -197,6 +241,10 @@ public actor MeetingAudioCaptureService {
         micHealthNowProvider: @escaping @Sendable () -> Date = { Date() },
         micHealthFeatureEnabled: Bool = AppFeatures.meetingCaptureReliabilityEnabled,
         systemAudioRecoveryDelays: [Duration]? = nil,
+        microphoneRecoverySchedule: MicrophoneRecoverySchedule = .production,
+        microphoneRouteChanges: @escaping @Sendable () -> AsyncStream<Void> = {
+            MeetingAudioCaptureService.microphoneRouteChangeNotifications()
+        },
         startupTimeout: Duration = .seconds(12),
         diagnosticSink: @escaping DiagnosticSink = { AudioCaptureDiagnostics.append($0) }
     ) {
@@ -208,6 +256,8 @@ public actor MeetingAudioCaptureService {
         self.systemAudioRecoveryDelays =
             systemAudioRecoveryDelays
             ?? Self.productionSystemAudioRecoveryDelays
+        self.microphoneRecoverySchedule = microphoneRecoverySchedule
+        self.microphoneRouteChanges = microphoneRouteChanges
         self.diagnosticSink = diagnosticSink
         self.micHealthObserver = MeetingMicHealthTelemetryObserver(
             config: micHealthConfig,
@@ -293,6 +343,13 @@ public actor MeetingAudioCaptureService {
                 microphoneLease?.startTask = task
             } else {
                 signal.recordFailure(source: .microphone, error: .microphoneCleanupPending)
+                scheduleMicrophoneRecoveryIfEligible(
+                    attemptID: attemptID,
+                    sourceMode: sourceMode,
+                    eventTarget: eventTarget,
+                    signal: signal,
+                    error: .microphoneCleanupPending
+                )
             }
         }
         if sourceMode.capturesSystemAudio {
@@ -349,25 +406,14 @@ public actor MeetingAudioCaptureService {
             releaseMicrophoneLeaseIfSettled(attemptID: attemptID)
             return
         }
-        let healthObserver = micHealthObserver
         do {
             let report = try await microphoneCapture.start(
                 processingMode: micProcessingMode,
-                handler: { buffer, time in
-                    guard eventTarget.isAcceptingEvents, signal.acceptsBuffers(from: .microphone) else { return }
-                    guard Self.hasUsableFrames(buffer) else { return }
-                    guard let copy = Self.deepCopyBuffer(buffer) else {
-                        let error = MeetingAudioError.captureRuntimeFailure("microphone buffer copy failed")
-                        signal.recordFailure(source: .microphone, error: error)
-                        return
-                    }
-                    let healthEvents = healthObserver.observeMicrophoneBuffer(copy, attemptID: attemptID)
-                    signal.deliverBuffer(
-                        source: .microphone,
-                        event: .microphoneBuffer(copy, time),
-                        healthEvents: healthEvents
-                    )
-                },
+                handler: makeMicrophoneBufferHandler(
+                    attemptID: attemptID,
+                    eventTarget: eventTarget,
+                    signal: signal
+                ),
                 onStall: { error in
                     signal.recordFailure(source: .microphone, error: error)
                 }
@@ -385,11 +431,294 @@ public actor MeetingAudioCaptureService {
             guard microphoneLease?.attemptID == attemptID else { return }
             microphoneLease?.startSettled = true
             if isCaptureAttemptActive(attemptID), microphoneLease?.retired == false {
-                signal.recordFailure(source: .microphone, error: Self.captureError(error))
+                let captureError = Self.captureError(error)
+                signal.recordFailure(source: .microphone, error: captureError)
                 requestMicrophoneStop(attemptID: attemptID)
+                scheduleMicrophoneRecoveryIfEligible(
+                    attemptID: attemptID,
+                    sourceMode: sourceMode,
+                    eventTarget: eventTarget,
+                    signal: signal,
+                    error: captureError
+                )
             }
         }
         releaseMicrophoneLeaseIfSettled(attemptID: attemptID)
+    }
+
+    /// Recovery attempts pass `promotion`: their buffers stay out of the
+    /// meeting until the actor confirms the attempt is still current.
+    private func makeMicrophoneBufferHandler(
+        attemptID: Int,
+        eventTarget: EventSink,
+        signal: MeetingCaptureStartupSignal,
+        promotion: MicrophoneRecoveryPromotion? = nil
+    ) -> MeetingMicrophoneCapturing.AudioBufferHandler {
+        let healthObserver = micHealthObserver
+        return { buffer, time in
+            guard promotion?.isPromoted != false else { return }
+            guard eventTarget.isAcceptingEvents, signal.acceptsBuffers(from: .microphone) else { return }
+            guard Self.hasUsableFrames(buffer) else { return }
+            guard let copy = Self.deepCopyBuffer(buffer) else {
+                let error = MeetingAudioError.captureRuntimeFailure("microphone buffer copy failed")
+                signal.recordFailure(source: .microphone, error: error)
+                return
+            }
+            let healthEvents = healthObserver.observeMicrophoneBuffer(copy, attemptID: attemptID)
+            signal.deliverBuffer(
+                source: .microphone,
+                event: .microphoneBuffer(copy, time),
+                healthEvents: healthEvents
+            )
+        }
+    }
+
+    // MARK: - Microphone recovery after a failed start
+
+    private enum MicrophoneRetryTrigger: String {
+        case scheduled
+        case routeChange = "route_change"
+    }
+
+    private enum MicrophoneRecoveryAttemptOutcome {
+        case recovered
+        case failed(MeetingAudioError)
+        case leasePending
+        case cancelled
+    }
+
+    /// Only combined meetings retry: the system source keeps the session alive
+    /// while the microphone is absent. A microphone-only start without audio
+    /// still fails within the startup window, and permission or required-VPIO
+    /// failures cannot be fixed by retrying.
+    private func scheduleMicrophoneRecoveryIfEligible(
+        attemptID: Int,
+        sourceMode: MeetingAudioSourceMode,
+        eventTarget: EventSink,
+        signal: MeetingCaptureStartupSignal,
+        error: MeetingAudioError
+    ) {
+        guard sourceMode.capturesMicrophone, sourceMode.capturesSystemAudio,
+            isCaptureAttemptActive(attemptID),
+            activeMicrophoneRecoveryID == nil
+        else { return }
+        guard Self.isRetryableMicrophoneStartFailure(error) else {
+            diagnosticSink(
+                "meeting_mic_recovery_skipped reason=not_retryable \(AudioCaptureDiagnostics.errorFields(error))"
+            )
+            return
+        }
+        nextMicrophoneRecoveryID += 1
+        let recoveryID = nextMicrophoneRecoveryID
+        activeMicrophoneRecoveryID = recoveryID
+        microphoneRecoveryTask = Task { [weak self] in
+            await self?.runMicrophoneRecovery(
+                recoveryID: recoveryID,
+                attemptID: attemptID,
+                eventTarget: eventTarget,
+                signal: signal,
+                originalError: error
+            )
+        }
+    }
+
+    private static func isRetryableMicrophoneStartFailure(_ error: MeetingAudioError) -> Bool {
+        switch error {
+        case .audioEngineStartFailed, .noMicrophoneAvailable, .captureRuntimeFailure, .microphoneCleanupPending:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// The microphone stays `.unavailable` while retries run, so losing the
+    /// system source still ends capture exactly as before. A successful retry
+    /// marks the microphone ready and it joins the live session like a late
+    /// first start. Stop cancels without awaiting: a native start may outlive
+    /// the meeting, and the shared lease cleans up such a late success.
+    private func runMicrophoneRecovery(
+        recoveryID: Int,
+        attemptID: Int,
+        eventTarget: EventSink,
+        signal: MeetingCaptureStartupSignal,
+        originalError: MeetingAudioError
+    ) async {
+        defer { finishMicrophoneRecoveryIfOwned(recoveryID: recoveryID) }
+        let clock = ContinuousClock()
+        let startedAt = clock.now
+        logger.warning("meeting_mic_recovery_started recovery_id=\(recoveryID, privacy: .public)")
+        diagnosticSink(
+            "meeting_mic_recovery_started recovery_id=\(recoveryID) \(AudioCaptureDiagnostics.errorFields(originalError))"
+        )
+
+        var attempt = 0
+        while true {
+            attempt += 1
+            guard let delay = microphoneRecoverySchedule.delay(beforeAttempt: attempt) else {
+                guard isMicrophoneRecoveryCurrent(recoveryID: recoveryID, attemptID: attemptID) else { return }
+                logger.error("meeting_mic_recovery_exhausted recovery_id=\(recoveryID, privacy: .public)")
+                diagnosticSink("meeting_mic_recovery_exhausted recovery_id=\(recoveryID) attempts=\(attempt - 1)")
+                return
+            }
+            guard let trigger = await waitForMicrophoneRetry(delay: delay),
+                isMicrophoneRecoveryCurrent(recoveryID: recoveryID, attemptID: attemptID)
+            else {
+                diagnosticSink("meeting_mic_recovery_cancelled recovery_id=\(recoveryID) attempt=\(attempt)")
+                return
+            }
+            diagnosticSink(
+                "meeting_mic_recovery_attempt_started recovery_id=\(recoveryID) attempt=\(attempt) trigger=\(trigger.rawValue)"
+            )
+
+            switch await attemptMicrophoneRecovery(
+                recoveryID: recoveryID,
+                attemptID: attemptID,
+                eventTarget: eventTarget,
+                signal: signal
+            ) {
+            case .recovered:
+                let elapsed = clock.now - startedAt
+                let elapsedMs = elapsed.components.seconds * 1_000 + elapsed.components.attoseconds / 1_000_000_000_000_000
+                logger.info(
+                    "meeting_mic_recovery_succeeded recovery_id=\(recoveryID, privacy: .public) attempt=\(attempt, privacy: .public)"
+                )
+                diagnosticSink(
+                    "meeting_mic_recovery_succeeded recovery_id=\(recoveryID) attempt=\(attempt) elapsed_ms=\(elapsedMs)"
+                )
+                return
+            case .failed(let error):
+                diagnosticSink(
+                    "meeting_mic_recovery_attempt_failed recovery_id=\(recoveryID) attempt=\(attempt) \(AudioCaptureDiagnostics.errorFields(error))"
+                )
+                guard Self.isRetryableMicrophoneStartFailure(error) else {
+                    diagnosticSink(
+                        "meeting_mic_recovery_abandoned recovery_id=\(recoveryID) attempt=\(attempt) reason=not_retryable"
+                    )
+                    return
+                }
+            case .leasePending:
+                diagnosticSink(
+                    "meeting_mic_recovery_attempt_deferred recovery_id=\(recoveryID) attempt=\(attempt) reason=microphone_cleanup_pending"
+                )
+            case .cancelled:
+                diagnosticSink("meeting_mic_recovery_cancelled recovery_id=\(recoveryID) attempt=\(attempt)")
+                return
+            }
+        }
+    }
+
+    /// One recovery start through the single shared microphone object. It owns
+    /// a fresh lease for the meeting attempt, so Stop retires it exactly like
+    /// the first start and a late success is stopped again.
+    private func attemptMicrophoneRecovery(
+        recoveryID: Int,
+        attemptID: Int,
+        eventTarget: EventSink,
+        signal: MeetingCaptureStartupSignal
+    ) async -> MicrophoneRecoveryAttemptOutcome {
+        // The failed start's native stop, or an earlier meeting's pending
+        // call, still holds the microphone. Try again at the next retry.
+        guard microphoneLease == nil else { return .leasePending }
+        microphoneLease = MicrophoneLease(attemptID: attemptID)
+        let promotion = MicrophoneRecoveryPromotion()
+        let outcome: MicrophoneRecoveryAttemptOutcome
+        do {
+            let report = try await microphoneCapture.start(
+                processingMode: micProcessingMode,
+                handler: makeMicrophoneBufferHandler(
+                    attemptID: attemptID,
+                    eventTarget: eventTarget,
+                    signal: signal,
+                    promotion: promotion
+                ),
+                onStall: { error in
+                    signal.recordFailure(source: .microphone, error: error)
+                }
+            )
+            guard microphoneLease?.attemptID == attemptID else { return .cancelled }
+            microphoneLease?.startSettled = true
+            if isMicrophoneRecoveryCurrent(recoveryID: recoveryID, attemptID: attemptID),
+                microphoneLease?.retired == false
+            {
+                signal.recordRecoveredSource(.microphone, deliveredAudio: false)
+                promotion.promote()
+                signal.recordMicrophoneReport(report)
+                outcome = .recovered
+            } else {
+                requestMicrophoneStop(attemptID: attemptID, repeatCleanup: true)
+                outcome = .cancelled
+            }
+        } catch {
+            guard microphoneLease?.attemptID == attemptID else { return .cancelled }
+            microphoneLease?.startSettled = true
+            requestMicrophoneStop(attemptID: attemptID)
+            outcome =
+                isMicrophoneRecoveryCurrent(recoveryID: recoveryID, attemptID: attemptID)
+                ? .failed(Self.captureError(error))
+                : .cancelled
+        }
+        releaseMicrophoneLeaseIfSettled(attemptID: attemptID)
+        return outcome
+    }
+
+    /// Waits for the scheduled delay, or for an input-route change after the
+    /// quiet period, whichever comes first. Returns `nil` when cancelled.
+    private func waitForMicrophoneRetry(delay: Duration) async -> MicrophoneRetryTrigger? {
+        let schedule = microphoneRecoverySchedule
+        let routeChanges = microphoneRouteChanges
+        return await withTaskGroup(of: MicrophoneRetryTrigger?.self) { group in
+            group.addTask {
+                do {
+                    try await Task.sleep(for: delay)
+                    return .scheduled
+                } catch {
+                    return nil
+                }
+            }
+            group.addTask {
+                do {
+                    try await Task.sleep(for: schedule.routeChangeQuietPeriod)
+                    for await _ in routeChanges() {
+                        try await Task.sleep(for: schedule.routeChangeDebounce)
+                        return .routeChange
+                    }
+                } catch {}
+                return nil
+            }
+            for await trigger in group {
+                if let trigger {
+                    group.cancelAll()
+                    return trigger
+                }
+            }
+            return nil
+        }
+    }
+
+    private func isMicrophoneRecoveryCurrent(recoveryID: Int, attemptID: Int) -> Bool {
+        activeMicrophoneRecoveryID == recoveryID && isCaptureAttemptActive(attemptID) && !Task.isCancelled
+    }
+
+    private func finishMicrophoneRecoveryIfOwned(recoveryID: Int) {
+        guard activeMicrophoneRecoveryID == recoveryID else { return }
+        activeMicrophoneRecoveryID = nil
+        microphoneRecoveryTask = nil
+    }
+
+    static func microphoneRouteChangeNotifications() -> AsyncStream<Void> {
+        AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
+            let observer = NotificationCenter.default.addObserver(
+                forName: .macParakeetMicrophoneSelectionDidChange,
+                object: nil,
+                queue: nil
+            ) { _ in
+                continuation.yield()
+            }
+            let registration = NotificationObserverRegistration(observer)
+            continuation.onTermination = { _ in
+                NotificationCenter.default.removeObserver(registration.observer)
+            }
+        }
     }
 
     private func runSystemAudioStart(
@@ -499,6 +828,9 @@ public actor MeetingAudioCaptureService {
         startupSignal = nil
         let recoveryTask = systemAudioRecoveryTask
         recoveryTask?.cancel()
+        // Cancel without awaiting: a microphone retry can be inside a native
+        // start that outlives the meeting. Its lease is retired below.
+        microphoneRecoveryTask?.cancel()
         let systemCapture = takeSystemAudioCapture()
         let systemCleanup = initialSystemCleanup?.task
         requestMicrophoneStop(attemptID: attemptID)
@@ -1000,6 +1332,8 @@ public actor MeetingAudioCaptureService {
         systemAudioCaptureGeneration = nil
         activeSystemAudioRecoveryID = nil
         systemAudioRecoveryTask = nil
+        activeMicrophoneRecoveryID = nil
+        microphoneRecoveryTask = nil
         finishEventStream()
         retireEventTargetIfOwned(attemptID: attemptID)
         micHealthObserver.stop(attemptID: attemptID)
@@ -1207,11 +1541,13 @@ private final class MeetingCaptureStartupSignal: @unchecked Sendable {
         }
     }
 
-    func recordRecoveredSource(_ source: AudioSource) {
+    /// `deliveredAudio` is false for a recovered microphone start: it joins
+    /// like a late first start, and its own buffers mark it delivered.
+    func recordRecoveredSource(_ source: AudioSource, deliveredAudio: Bool = true) {
         lock.withLock {
             guard !retired else { return }
             failedSources.remove(source)
-            deliveredSources.insert(source)
+            if deliveredAudio { deliveredSources.insert(source) }
             states[source] = .ready
             eventTarget.emit(.sourceStartupState(source: source, state: .ready))
         }
@@ -1288,6 +1624,26 @@ private final class MeetingCaptureStartupSignal: @unchecked Sendable {
         } onCancel: {
             self.retire()
         }
+    }
+}
+
+/// Holds a recovery attempt's buffers back until the actor promotes it.
+private final class MicrophoneRecoveryPromotion: @unchecked Sendable {
+    private let lock = NSLock()
+    private var promoted = false
+
+    var isPromoted: Bool { lock.withLock { promoted } }
+
+    func promote() {
+        lock.withLock { promoted = true }
+    }
+}
+
+private final class NotificationObserverRegistration: @unchecked Sendable {
+    let observer: NSObjectProtocol
+
+    init(_ observer: NSObjectProtocol) {
+        self.observer = observer
     }
 }
 
