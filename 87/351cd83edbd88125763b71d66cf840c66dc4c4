@@ -1,0 +1,31 @@
+Sources/MacParakeet/App/MeetingSourceLossNoticePresenter.swift
+  s_056dafcc7d5147::t_cdea121ff21cc8 1-33
+Sources/MacParakeetViewModels/MeetingSourceLossNotice.swift
+  s_056dafcc7d5147::t_6b6e7692cfcee6 1-94
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_056dafcc7d5147::t_fb39630885e595 104-105,187-190,233-234,1325,1384-1394
+Sources/MacParakeet/Views/MeetingRecording/MeetingRecordingPillController.swift
+  s_056dafcc7d5147::t_86450c478436d3 383,396-403,545-557,611-697,836,838,847
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_056dafcc7d5147::t_80718a8846f4f4 703-737,1731-1735,1756
+Tests/MacParakeetTests/ViewModels/MeetingSourceLossNoticePolicyTests.swift
+  s_056dafcc7d5147::t_8b535742ef765b 1,3-18,21-22,24-31,33-35,37-39,42-44,46-49,52-61,64-67,71-73,75-77,80-87,90-98,101-113
+Tests/MacParakeetTests/Views/MeetingRecordingTileTests.swift
+  s_056dafcc7d5147::t_1e73f28a0bcb19 85,108,112-139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "87351cd83edbd88125763b71d66cf840c66dc4c4",
+  "prompts": {},
+  "sessions": {
+    "s_056dafcc7d5147": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8915b50c-37f6-4f26-8b56-e09082d97e74",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
