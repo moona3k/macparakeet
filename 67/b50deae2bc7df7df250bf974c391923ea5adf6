@@ -1,0 +1,30 @@
+Sources/MacParakeetCore/Audio/MeetingAudioCaptureService.swift
+  s_056dafcc7d5147::t_8d5546301b2c78 434-435,437-443,449-722,1546,1630-1631,1637-1638,1643-1644,1648
+  s_056dafcc7d5147::t_2a73b0f7feee0e 77-104,111-112
+  s_056dafcc7d5147::t_fa39d89fce5041 176-178
+  s_056dafcc7d5147::t_3a9bb8271d2e8a 346-352
+  s_056dafcc7d5147::t_8a6e1e93e15b35 148-150
+  s_056dafcc7d5147::t_6bf42d2ef0acfe 412-416
+  s_056dafcc7d5147::t_5208ac2ade56e7 188-189,210-213,225-226,244-247,259-260,723,831-833,1335-1336,1544-1545,1550,1632-1636,1639-1642,1645-1647,1649
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_056dafcc7d5147::t_007c84677915b5 72-116
+Tests/MacParakeetTests/Audio/MeetingMicrophoneStartRecoveryTests.swift
+  s_056dafcc7d5147::t_d00c49c4e0f4a0 1-385,390
+  s_056dafcc7d5147::t_996f78c9cf4cec 386-389
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "67b50deae2bc7df7df250bf974c391923ea5adf6",
+  "prompts": {},
+  "sessions": {
+    "s_056dafcc7d5147": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8915b50c-37f6-4f26-8b56-e09082d97e74",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
