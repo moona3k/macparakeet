@@ -1,0 +1,43 @@
+Tests/MacParakeetTests/ViewModels/MeetingSourceLossNoticePolicyTests.swift
+  s_79a76608dcf587::t_9f492179baea84 17
+spec/05-audio-pipeline.md
+  s_79a76608dcf587::t_a2895e3deac7c0 194-196
+Sources/MacParakeetViewModels/MeetingSourceLossNotice.swift
+  s_79a76608dcf587::t_9f492179baea84 19
+Tests/MacParakeetTests/Audio/MeetingMicrophoneStartRecoveryTests.swift
+  s_79a76608dcf587::t_f7aae8b103f884 357,372-373,376
+  s_79a76608dcf587::t_6f222d0612f060 60-62,66-69,71,73-115,117-118,127,146,232,257,301-302,308,332-336,354,377-378,427-431
+  s_79a76608dcf587::t_fffb1b9e6de243 432
+Sources/MacParakeetCore/Audio/README.md
+  s_79a76608dcf587::t_a2895e3deac7c0 91-92
+  s_79a76608dcf587::t_851c6de0b7f2e3 93-98
+spec/contracts/meeting-artifacts-v1.md
+  s_79a76608dcf587::t_851c6de0b7f2e3 76-80
+  s_79a76608dcf587::t_a2895e3deac7c0 75
+Sources/MacParakeetCore/Audio/MeetingAudioCaptureService.swift
+  s_79a76608dcf587::t_bd06f6acbca817 100
+  s_79a76608dcf587::t_a2352e4e55cfca 85-86
+  s_79a76608dcf587::t_6ade1aa0fba0fa 572,591,621,662,1557-1560
+  s_79a76608dcf587::t_8012454c7347ff 607
+  s_79a76608dcf587::t_b46fba450ce562 417-422
+  s_79a76608dcf587::t_5333d8d7bf6829 521,529-538,540-571
+  s_79a76608dcf587::t_c1188f1066f224 539
+  s_79a76608dcf587::t_4fa7b3e61c727b 681-686
+  s_79a76608dcf587::t_0c2192ddd92471 573
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "db69e5504d15795297b37d30721692582a5bcdbf",
+  "prompts": {},
+  "sessions": {
+    "s_79a76608dcf587": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d50bf32b-b744-49bc-a3b0-8e175c11a6a5",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

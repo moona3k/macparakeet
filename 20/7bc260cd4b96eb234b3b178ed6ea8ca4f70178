@@ -1,0 +1,44 @@
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_79a76608dcf587::t_4d83b139bcde96 725,739-778,1727-1733
+  s_79a76608dcf587::t_eedab7bf15f6f2 1734-1735
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_79a76608dcf587::t_38ac019cd95e50 1390
+  s_79a76608dcf587::t_d098dbe6ece2c7 104,188,236
+spec/02-features.md
+  s_79a76608dcf587::t_7df114fe8899cf 2188
+Sources/MacParakeet/App/MeetingSourceLossNoticePresenter.swift
+  s_79a76608dcf587::t_38ac019cd95e50 6-7
+  s_79a76608dcf587::t_12528278ba0441 8
+Tests/MacParakeetTests/Audio/MeetingMicrophoneStartRecoveryTests.swift
+  s_79a76608dcf587::t_f53be5dfa6ca18 99-125,337,352,382
+Sources/MacParakeetCore/Audio/MeetingAudioCaptureService.swift
+  s_79a76608dcf587::t_38ac019cd95e50 151,319,607-608,878
+Sources/MacParakeetViewModels/MeetingSourceLossNotice.swift
+  s_79a76608dcf587::t_38ac019cd95e50 41-43,63,87
+Tests/MacParakeetTests/ViewModels/MeetingSourceLossNoticePolicyTests.swift
+  s_79a76608dcf587::t_12528278ba0441 33,37-41,108,113
+spec/adr/025-meeting-capture-reliability.md
+  s_79a76608dcf587::t_7df114fe8899cf 632-637
+  s_79a76608dcf587::t_45e002d926f921 665-667
+Sources/MacParakeetCore/Audio/README.md
+  s_79a76608dcf587::t_7df114fe8899cf 93
+  s_79a76608dcf587::t_55bd5f84e0df1d 94-98
+spec/05-audio-pipeline.md
+  s_79a76608dcf587::t_7df114fe8899cf 195-197
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "207bc260cd4b96eb234b3b178ed6ea8ca4f70178",
+  "prompts": {},
+  "sessions": {
+    "s_79a76608dcf587": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d50bf32b-b744-49bc-a3b0-8e175c11a6a5",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

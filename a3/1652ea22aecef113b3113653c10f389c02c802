@@ -1,0 +1,21 @@
+spec/adr/025-meeting-capture-reliability.md
+  s_4ff1e7815e97de::t_035017eca2694d 627-637
+Sources/MacParakeetCore/Audio/MeetingAudioCaptureService.swift
+  s_4ff1e7815e97de::t_cef9d5f5d237d9 151-154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a31652ea22aecef113b3113653c10f389c02c802",
+  "prompts": {},
+  "sessions": {
+    "s_4ff1e7815e97de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "019ee50f-2417-469b-b136-92a01e4920d3",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
