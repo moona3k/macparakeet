@@ -488,6 +488,9 @@ final class MeetingRecordingAppKitPillView: NSView {
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
         timeTextLayer.contentsScale = window?.backingScaleFactor ?? 2
+        // The badge symbol is rasterized for one scale; redraw it for the new one.
+        displayedSourceHealthWarning = nil
+        updateHealthBadge()
     }
 
     override func updateTrackingAreas() {

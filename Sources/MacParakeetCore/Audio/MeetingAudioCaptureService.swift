@@ -629,8 +629,7 @@ public actor MeetingAudioCaptureService {
                 signal: signal
             ) {
             case .recovered:
-                let elapsed = clock.now - startedAt
-                let elapsedMs = elapsed.components.seconds * 1_000 + elapsed.components.attoseconds / 1_000_000_000_000_000
+                let elapsedMs = Int((clock.now - startedAt) / .milliseconds(1))
                 logger.info(
                     "meeting_mic_recovery_succeeded recovery_id=\(recoveryID, privacy: .public) attempt=\(attempt, privacy: .public)"
                 )
@@ -696,7 +695,7 @@ public actor MeetingAudioCaptureService {
             if isMicrophoneRecoveryCurrent(recoveryID: recoveryID, attemptID: attemptID),
                 microphoneLease?.retired == false
             {
-                signal.recordRecoveredSource(.microphone, deliveredAudio: false)
+                signal.rearmFailedSource(.microphone)
                 promotion.promote()
                 signal.recordMicrophoneReport(report)
                 outcome = .recovered
@@ -1563,6 +1562,15 @@ private final class MeetingCaptureStartupSignal: @unchecked Sendable {
         lock.withLock { !retired && states[source] != .notSelected && !failedSources.contains(source) }
     }
 
+    /// A restarted source joins like a late first start: it stays unavailable
+    /// until its first buffer marks it ready and delivered.
+    func rearmFailedSource(_ source: AudioSource) {
+        lock.withLock {
+            guard !retired else { return }
+            failedSources.remove(source)
+        }
+    }
+
     func hasDeliveredAudio(from source: AudioSource) -> Bool {
         lock.withLock { deliveredSources.contains(source) }
     }
@@ -1602,13 +1610,11 @@ private final class MeetingCaptureStartupSignal: @unchecked Sendable {
         }
     }
 
-    /// `deliveredAudio` is false for a recovered microphone start: it joins
-    /// like a late first start, and its own buffers mark it delivered.
-    func recordRecoveredSource(_ source: AudioSource, deliveredAudio: Bool = true) {
+    func recordRecoveredSource(_ source: AudioSource) {
         lock.withLock {
             guard !retired else { return }
             failedSources.remove(source)
-            if deliveredAudio { deliveredSources.insert(source) }
+            deliveredSources.insert(source)
             states[source] = .ready
             eventTarget.emit(.sourceStartupState(source: source, state: .ready))
         }

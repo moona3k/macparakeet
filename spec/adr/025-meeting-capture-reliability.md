@@ -624,8 +624,9 @@ deliver value without later ones.
    only after a real replacement buffer. Recovering and terminal source states
    surface gentle, non-blocking warnings even while routine health decoration
    remains flag-hidden. Amplitude-inferred health remains detection-only.
-   Extended 2026-10-07 (#1223): a combined meeting retries a failed or
-   stalled initial microphone start for the rest of the session; the
+   Extended 2026-10-07 (#1223): a combined meeting retries a retryable failed
+   or stalled initial microphone start for the rest of the session, excluding
+   permission denial and required-VPIO failures; the
    production floating pill renders the actionable warning badge; and a
    combined meeting that keeps recording while a selected source stays
    unavailable or interrupted for 10 s of active recording posts one local

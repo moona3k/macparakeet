@@ -86,14 +86,15 @@ owned by `AppEnvironment`.
   callback generations retire before teardown is awaited or a terminal event
   is published. A source failure racing the initial async start is retained
   until the start-to-running handoff, so a dead stream cannot be promoted.
-  In a combined meeting, a failed microphone start (or an occupied lease) is
-  retried in the background for the whole session through the same microphone
-  object and a fresh lease per attempt (#1223). A start that returns but stalls
+  In a combined meeting, a retryable failed microphone start (or an occupied
+  lease) is retried in the background for the whole session through the same
+  microphone object and a fresh lease per attempt (#1223); permission denial
+  and required-VPIO failures are not retried. A start that returns but stalls
   before delivering any audio is stopped through its lease and retried the same
   way, continuing the same backoff position for the meeting; a stall after audio
   has flowed stays an interrupted source. The microphone stays `.unavailable`
-  while retrying, so system loss still ends capture; buffers from a retry are
-  held until the actor promotes it. Stop cancels the retry without awaiting a
+  while retrying and becomes ready with its first buffer, so system loss still
+  ends capture; buffers from a retry are held until the actor promotes it. Stop cancels the retry without awaiting a
   native start; a late success is stopped again through the lease.
   `meeting_mic_recovery_*` diagnostic lines record each attempt.
 - `MeetingAudioStorageWriter.swift` — fragmented MP4 writer for

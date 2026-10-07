@@ -102,7 +102,7 @@ final class MeetingRecordingFlowCoordinator {
     private let onQueuedTranscriptionFailed: (UUID, TranscriptionCompletionNotifier.Content) -> Void
     private let onRecordingBegan: () -> Void
     private let isApplicationActive: @MainActor @Sendable () -> Bool
-    private let onSourceLossNotice: (MeetingSourceLossNotice) -> Void
+    private let onSourceLossNotice: (MeetingSourceLossNotice, @escaping @MainActor @Sendable () -> Bool) -> Void
     private var sourceLossNoticePolicy: MeetingSourceLossNoticePolicy
     private let onRecordingStopping: () -> Void
     private let onFlowReturnedToIdle: () -> Void
@@ -187,8 +187,9 @@ final class MeetingRecordingFlowCoordinator {
         onRecordingBegan: @escaping () -> Void = {},
         isApplicationActive: @escaping @MainActor @Sendable () -> Bool = { NSApp.isActive },
         sourceLossNoticeThreshold: TimeInterval = MeetingSourceLossNoticePolicy.defaultThreshold,
-        onSourceLossNotice: @escaping (MeetingSourceLossNotice) -> Void = { notice in
-            MeetingSourceLossNoticePresenter.present(notice)
+        onSourceLossNotice: @escaping (MeetingSourceLossNotice, @escaping @MainActor @Sendable () -> Bool) -> Void = {
+            notice, isStillRelevant in
+            MeetingSourceLossNoticePresenter.present(notice, isStillRelevant: isStillRelevant)
         },
         onRecordingStopping: @escaping () -> Void = {},
         onFlowReturnedToIdle: @escaping () -> Void = {}
@@ -1393,7 +1394,9 @@ final class MeetingRecordingFlowCoordinator {
             AudioCaptureDiagnostics.append(
                 "meeting_source_loss_notice source=\(notice.source.rawValue)"
             )
-            onSourceLossNotice(notice)
+            onSourceLossNotice(notice) { [weak self, generation = stateMachine.generation] in
+                self?.isSourceLossStillCurrent(notice.source, generation: generation) ?? false
+            }
         }
         // A confirmed toggle may have published while these service reads
         // suspended. Keep its newer pause state, while still updating health
@@ -1406,6 +1409,14 @@ final class MeetingRecordingFlowCoordinator {
             pillViewModel.state = .recording
         }
         panelViewModel?.isPaused = serviceIsPaused
+    }
+
+    /// The same recording is still live and the source is still lost.
+    private func isSourceLossStillCurrent(_ source: MeetingSourceHealth.Source, generation: Int) -> Bool {
+        guard stateMachine.generation == generation, stateMachine.state == .recording else { return false }
+        let health = pillViewModel.captureHealth
+        let status = source == .microphone ? health.microphone.status : health.system.status
+        return MeetingSourceLossNoticePolicy.isLost(status)
     }
 
     private static func displayLevel(_ level: Float) -> Float {

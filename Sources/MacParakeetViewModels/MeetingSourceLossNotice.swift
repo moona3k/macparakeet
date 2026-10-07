@@ -89,7 +89,7 @@ public struct MeetingSourceLossNoticePolicy: Sendable {
         return notice
     }
 
-    private static func isLost(_ status: MeetingSourceHealth.Status) -> Bool {
+    public static func isLost(_ status: MeetingSourceHealth.Status) -> Bool {
         status == .unavailable || status == .interrupted
     }
 }

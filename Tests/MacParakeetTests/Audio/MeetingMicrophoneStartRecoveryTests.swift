@@ -15,13 +15,15 @@ final class MeetingMicrophoneStartRecoveryTests: XCTestCase {
         XCTAssertEqual(report.microphoneState, .unavailable)
         XCTAssertEqual(report.systemState, .ready)
         try await waitUntil { events.microphoneReports == 1 }
-        XCTAssertEqual(events.lastMicrophoneStartupState, .ready)
+        // A restarted microphone is ready only once its first buffer arrives.
+        XCTAssertEqual(events.lastMicrophoneStartupState, .unavailable)
         XCTAssertEqual(microphone.startCount, 2)
         let recoveryActive = await service.isMicrophoneRecoveryActive
         XCTAssertFalse(recoveryActive)
 
         microphone.emitBuffer()
         try await waitUntil { events.microphoneBuffers == 1 }
+        XCTAssertEqual(events.lastMicrophoneStartupState, .ready)
         try await containmentBeforeDeadline { await service.stop() }
     }
 
@@ -71,9 +73,9 @@ final class MeetingMicrophoneStartRecoveryTests: XCTestCase {
         try await waitUntil { events.microphoneReports == 2 }
         XCTAssertEqual(microphone.startCount, 3)
         XCTAssertGreaterThan(microphone.stopCount, stopsBeforeStall)
-        XCTAssertEqual(events.lastMicrophoneStartupState, .ready)
         microphone.emitBuffer()
         try await waitUntil { events.microphoneBuffers == 1 }
+        XCTAssertEqual(events.lastMicrophoneStartupState, .ready)
         try await containmentBeforeDeadline { await service.stop() }
     }
 

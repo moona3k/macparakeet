@@ -709,6 +709,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
                 system: MeetingSourceHealth(source: .system, status: .live, level: 0.5)
             ))
         var notices: [MeetingSourceLossNotice] = []
+        var isStillRelevant: (@MainActor @Sendable () -> Bool)?
         let coordinator = MeetingRecordingFlowCoordinator(
             meetingRecordingService: service,
             transcriptionService: MockTranscriptionService(),
@@ -724,7 +725,10 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             onTranscriptionReady: { _ in },
             isApplicationActive: { false },
             sourceLossNoticeThreshold: 0,
-            onSourceLossNotice: { notices.append($0) }
+            onSourceLossNotice: { notice, relevance in
+                notices.append(notice)
+                isStillRelevant = relevance
+            }
         )
         coordinator.testHook_enterRecording()
         let panel = MeetingRecordingPanelViewModel()
@@ -734,6 +738,18 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(notices.map(\.source), [.microphone])
         XCTAssertEqual(notices.first?.title, "This meeting may be missing your side")
+        XCTAssertEqual(isStillRelevant?(), true)
+
+        // A notice still waiting on authorization must not post after the
+        // microphone recovers.
+        await service.setCaptureHealth(
+            MeetingCaptureHealthSummary(
+                sourceMode: .microphoneAndSystem,
+                microphone: MeetingSourceHealth(source: .microphone, status: .live, level: 0.5),
+                system: MeetingSourceHealth(source: .system, status: .live, level: 0.5)
+            ))
+        await coordinator.testHook_refreshPillState(panel: panel)
+        XCTAssertEqual(isStillRelevant?(), false)
     }
 
     func testSourceLossNoticeWaitsWhileApplicationIsActiveThenPostsOnce() async throws {
@@ -761,7 +777,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             onTranscriptionReady: { _ in },
             isApplicationActive: { activity.isActive },
             sourceLossNoticeThreshold: 0,
-            onSourceLossNotice: { notices.append($0) }
+            onSourceLossNotice: { notice, _ in notices.append(notice) }
         )
         coordinator.testHook_enterRecording()
         let panel = MeetingRecordingPanelViewModel()

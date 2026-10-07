@@ -186,12 +186,13 @@ unavailable (they may join later); with no source delivering, startup fails.
 This bounds the meeting's readiness decision, not native microphone execution.
 
 A combined meeting whose microphone start fails keeps recording system audio
-and retries the microphone through the same shared microphone object and lease
-(#1223): 1, 2, 4, 8 and 15 s backoff, then every 30 s until Stop. An input-route
+and retries the microphone through the same shared microphone object, taking a
+fresh lease once the previous one settles (#1223): 1, 2, 4, 8 and 15 s backoff, then every 30 s until Stop. An input-route
 change (`.macParakeetMicrophoneSelectionDidChange`) after a 2 s quiet period
 triggers an earlier attempt after a 750 ms debounce. The microphone stays
 unavailable while retrying, so the all-sources-lost rule below is unchanged; a
-successful retry joins like a late first start. A start that returns but stalls
+successful retry joins like a late first start and becomes ready with its first
+buffer. A start that returns but stalls
 before delivering any audio counts as failed: it is stopped and retried, and the
 backoff position carries across such retries within the meeting, while a stall
 after audio has flowed is a mid-session loss. Microphone-only meetings,
