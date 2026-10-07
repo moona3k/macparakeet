@@ -82,8 +82,8 @@ public actor MeetingAudioCaptureService {
     struct MicrophoneRecoverySchedule: Sendable {
         /// Backoff before each early attempt.
         var delays: [Duration]
-        /// Wait before every later attempt. `nil` ends recovery after `delays`.
-        var steadyInterval: Duration?
+        /// Wait before every later attempt, until Stop.
+        var steadyInterval: Duration
         /// Route changes are ignored this long after an attempt ends, so the
         /// configuration churn an attempt causes cannot drive a retry storm.
         var routeChangeQuietPeriod: Duration
@@ -97,7 +97,7 @@ public actor MeetingAudioCaptureService {
             routeChangeDebounce: .milliseconds(750)
         )
 
-        func delay(beforeAttempt attempt: Int) -> Duration? {
+        func delay(beforeAttempt attempt: Int) -> Duration {
             attempt <= delays.count ? delays[attempt - 1] : steadyInterval
         }
     }
@@ -414,9 +414,12 @@ public actor MeetingAudioCaptureService {
                     eventTarget: eventTarget,
                     signal: signal
                 ),
-                onStall: { error in
-                    signal.recordFailure(source: .microphone, error: error)
-                }
+                onStall: makeMicrophoneStallObserver(
+                    attemptID: attemptID,
+                    sourceMode: sourceMode,
+                    eventTarget: eventTarget,
+                    signal: signal
+                )
             )
             guard microphoneLease?.attemptID == attemptID else { return }
             microphoneLease?.startSettled = true
@@ -515,11 +518,57 @@ public actor MeetingAudioCaptureService {
             await self?.runMicrophoneRecovery(
                 recoveryID: recoveryID,
                 attemptID: attemptID,
+                sourceMode: sourceMode,
                 eventTarget: eventTarget,
                 signal: signal,
                 originalError: error
             )
         }
+    }
+
+    /// A microphone that starts but never delivers audio reports a stall. Before
+    /// its first buffer that is a failed start, so the stalled capture is
+    /// stopped and retried. After audio has flowed, the stall keeps the
+    /// interrupted semantics of any mid-session loss.
+    private func makeMicrophoneStallObserver(
+        attemptID: Int,
+        sourceMode: MeetingAudioSourceMode,
+        eventTarget: EventSink,
+        signal: MeetingCaptureStartupSignal
+    ) -> MeetingMicrophoneCapturing.StallObserver {
+        return { [weak self] error in
+            signal.recordFailure(source: .microphone, error: error)
+            guard !signal.hasDeliveredAudio(from: .microphone) else { return }
+            Task { [weak self] in
+                await self?.retryStalledMicrophone(
+                    attemptID: attemptID,
+                    sourceMode: sourceMode,
+                    eventTarget: eventTarget,
+                    signal: signal,
+                    error: error
+                )
+            }
+        }
+    }
+
+    private func retryStalledMicrophone(
+        attemptID: Int,
+        sourceMode: MeetingAudioSourceMode,
+        eventTarget: EventSink,
+        signal: MeetingCaptureStartupSignal,
+        error: MeetingAudioError
+    ) {
+        guard microphoneLease?.attemptID == attemptID, microphoneLease?.retired == false,
+            activeMicrophoneRecoveryID == nil
+        else { return }
+        requestMicrophoneStop(attemptID: attemptID)
+        scheduleMicrophoneRecoveryIfEligible(
+            attemptID: attemptID,
+            sourceMode: sourceMode,
+            eventTarget: eventTarget,
+            signal: signal,
+            error: error
+        )
     }
 
     private static func isRetryableMicrophoneStartFailure(_ error: MeetingAudioError) -> Bool {
@@ -539,6 +588,7 @@ public actor MeetingAudioCaptureService {
     private func runMicrophoneRecovery(
         recoveryID: Int,
         attemptID: Int,
+        sourceMode: MeetingAudioSourceMode,
         eventTarget: EventSink,
         signal: MeetingCaptureStartupSignal,
         originalError: MeetingAudioError
@@ -554,12 +604,7 @@ public actor MeetingAudioCaptureService {
         var attempt = 0
         while true {
             attempt += 1
-            guard let delay = microphoneRecoverySchedule.delay(beforeAttempt: attempt) else {
-                guard isMicrophoneRecoveryCurrent(recoveryID: recoveryID, attemptID: attemptID) else { return }
-                logger.error("meeting_mic_recovery_exhausted recovery_id=\(recoveryID, privacy: .public)")
-                diagnosticSink("meeting_mic_recovery_exhausted recovery_id=\(recoveryID) attempts=\(attempt - 1)")
-                return
-            }
+            let delay = microphoneRecoverySchedule.delay(beforeAttempt: attempt)
             guard let trigger = await waitForMicrophoneRetry(delay: delay),
                 isMicrophoneRecoveryCurrent(recoveryID: recoveryID, attemptID: attemptID)
             else {
@@ -573,6 +618,7 @@ public actor MeetingAudioCaptureService {
             switch await attemptMicrophoneRecovery(
                 recoveryID: recoveryID,
                 attemptID: attemptID,
+                sourceMode: sourceMode,
                 eventTarget: eventTarget,
                 signal: signal
             ) {
@@ -613,6 +659,7 @@ public actor MeetingAudioCaptureService {
     private func attemptMicrophoneRecovery(
         recoveryID: Int,
         attemptID: Int,
+        sourceMode: MeetingAudioSourceMode,
         eventTarget: EventSink,
         signal: MeetingCaptureStartupSignal
     ) async -> MicrophoneRecoveryAttemptOutcome {
@@ -631,9 +678,12 @@ public actor MeetingAudioCaptureService {
                     signal: signal,
                     promotion: promotion
                 ),
-                onStall: { error in
-                    signal.recordFailure(source: .microphone, error: error)
-                }
+                onStall: makeMicrophoneStallObserver(
+                    attemptID: attemptID,
+                    sourceMode: sourceMode,
+                    eventTarget: eventTarget,
+                    signal: signal
+                )
             )
             guard microphoneLease?.attemptID == attemptID else { return .cancelled }
             microphoneLease?.startSettled = true
@@ -1504,6 +1554,10 @@ private final class MeetingCaptureStartupSignal: @unchecked Sendable {
 
     func acceptsBuffers(from source: AudioSource) -> Bool {
         lock.withLock { !retired && states[source] != .notSelected && !failedSources.contains(source) }
+    }
+
+    func hasDeliveredAudio(from source: AudioSource) -> Bool {
+        lock.withLock { deliveredSources.contains(source) }
     }
 
     func deliverBuffer(

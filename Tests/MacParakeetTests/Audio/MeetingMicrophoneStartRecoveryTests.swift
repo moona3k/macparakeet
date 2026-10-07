@@ -57,20 +57,65 @@ final class MeetingMicrophoneStartRecoveryTests: XCTestCase {
         try await containmentBeforeDeadline { await service.stop() }
     }
 
-    func testExhaustedScheduleLeavesMicrophoneUnavailable() async throws {
-        let microphone = ScriptedMicrophone(repeating: .fail(.audioEngineStartFailed("-10868")))
-        let service = makeService(
-            microphone: microphone,
-            schedule: schedule(delays: [.milliseconds(5), .milliseconds(5)], steadyInterval: nil)
-        )
+    func testRecoveryStartThatStallsBeforeDeliveringAudioIsStoppedAndRetried() async throws {
+        let microphone = ScriptedMicrophone([.fail(.audioEngineStartFailed("-10868")), .succeed])
+        let service = makeService(microphone: microphone)
         let events = RecoveryEvents()
 
         _ = try await containmentBeforeDeadline { try await service.start { events.append($0) } }
+        try await waitUntil { events.microphoneReports == 1 }
+        let stopsBeforeStall = microphone.stopCount
 
-        try await waitUntilAsync { await !service.isMicrophoneRecoveryActive }
+        microphone.emitStall()
+
+        try await waitUntil { events.microphoneReports == 2 }
         XCTAssertEqual(microphone.startCount, 3)
-        XCTAssertEqual(events.microphoneReports, 0)
+        XCTAssertGreaterThan(microphone.stopCount, stopsBeforeStall)
+        XCTAssertEqual(events.lastMicrophoneStartupState, .ready)
+        microphone.emitBuffer()
+        try await waitUntil { events.microphoneBuffers == 1 }
+        try await containmentBeforeDeadline { await service.stop() }
+    }
+
+    func testFirstStartThatStallsBeforeDeliveringAudioIsStoppedAndRetried() async throws {
+        let microphone = ScriptedMicrophone([.succeedWithoutAudio, .succeed])
+        let service = makeService(microphone: microphone)
+        let events = RecoveryEvents()
+
+        _ = try await containmentBeforeDeadline { try await service.start { events.append($0) } }
+        try await waitUntil { events.microphoneReports == 1 }
+        let stopsBeforeStall = microphone.stopCount
+
+        microphone.emitStall()
+
+        try await waitUntil { events.microphoneReports == 2 }
+        XCTAssertEqual(microphone.startCount, 2)
+        XCTAssertGreaterThan(microphone.stopCount, stopsBeforeStall)
+        microphone.emitBuffer()
+        try await waitUntil { events.microphoneBuffers == 1 }
+        try await containmentBeforeDeadline { await service.stop() }
+    }
+
+    func testStallAfterDeliveredAudioIsNotRetried() async throws {
+        let microphone = ScriptedMicrophone([.fail(.audioEngineStartFailed("-10868")), .succeed])
+        let service = makeService(microphone: microphone)
+        let events = RecoveryEvents()
+
+        _ = try await containmentBeforeDeadline { try await service.start { events.append($0) } }
+        try await waitUntil { events.microphoneReports == 1 }
+        microphone.emitBuffer()
+        try await waitUntil { events.microphoneBuffers == 1 }
+        let stopsBeforeStall = microphone.stopCount
+
+        microphone.emitStall()
+
+        try await waitUntil { events.microphoneInterruptions == 1 }
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(microphone.startCount, 2)
+        XCTAssertEqual(microphone.stopCount, stopsBeforeStall)
         XCTAssertEqual(events.lastMicrophoneStartupState, .unavailable)
+        let recoveryActive = await service.isMicrophoneRecoveryActive
+        XCTAssertFalse(recoveryActive)
         try await containmentBeforeDeadline { await service.stop() }
     }
 
@@ -79,7 +124,7 @@ final class MeetingMicrophoneStartRecoveryTests: XCTestCase {
         let routes = RouteChangeSource()
         let service = makeService(
             microphone: microphone,
-            schedule: schedule(delays: [.seconds(60)], steadyInterval: nil),
+            schedule: schedule(delays: [.seconds(60)], steadyInterval: .seconds(60)),
             routeChanges: routes
         )
         let events = RecoveryEvents()
@@ -98,7 +143,7 @@ final class MeetingMicrophoneStartRecoveryTests: XCTestCase {
         let microphone = ScriptedMicrophone([.fail(.audioEngineStartFailed("-10868")), .succeed])
         let service = makeService(
             microphone: microphone,
-            schedule: schedule(delays: [.milliseconds(300)], steadyInterval: nil)
+            schedule: schedule(delays: [.milliseconds(300)], steadyInterval: .seconds(60))
         )
 
         _ = try await containmentBeforeDeadline { try await service.start() }
@@ -184,7 +229,7 @@ final class MeetingMicrophoneStartRecoveryTests: XCTestCase {
             microphoneCapture: microphone,
             systemAudioCaptureFactory: { system },
             systemAudioRecoveryDelays: [],
-            microphoneRecoverySchedule: schedule(delays: [.seconds(60)], steadyInterval: nil),
+            microphoneRecoverySchedule: schedule(delays: [.seconds(60)], steadyInterval: .seconds(60)),
             microphoneRouteChanges: { AsyncStream { _ in } },
             startupTimeout: .milliseconds(150)
         )
@@ -209,7 +254,7 @@ final class MeetingMicrophoneStartRecoveryTests: XCTestCase {
 
     private func schedule(
         delays: [Duration] = [.milliseconds(5)],
-        steadyInterval: Duration? = .milliseconds(5)
+        steadyInterval: Duration = .milliseconds(5)
     ) -> MeetingAudioCaptureService.MicrophoneRecoverySchedule {
         MeetingAudioCaptureService.MicrophoneRecoverySchedule(
             delays: delays,
@@ -253,11 +298,14 @@ private final class ScriptedMicrophone: MeetingMicrophoneCapturing, @unchecked S
         case fail(MeetingAudioError)
         /// Waits for `releaseHeldStart()`, then succeeds, even after Stop.
         case hold
+        /// Succeeds without the buffer `.succeed` emits before returning.
+        case succeedWithoutAudio
     }
 
     private let lock = NSLock()
     private var steps: [Step]
     private var handler: AudioBufferHandler?
+    private var stallObserver: StallObserver?
     private var starts = 0
     private var stops = 0
     private var running = false
@@ -281,6 +329,11 @@ private final class ScriptedMicrophone: MeetingMicrophoneCapturing, @unchecked S
         callback?(recoveryTestBuffer(), AVAudioTime(hostTime: 1))
     }
 
+    func emitStall() {
+        let observer = lock.withLock { stallObserver }
+        observer?(.captureRuntimeFailure("microphone capture started but delivered no buffers within 2 seconds"))
+    }
+
     func releaseHeldStart() {
         let continuation = lock.withLock { () -> CheckedContinuation<Void, Never>? in
             holdReleased = true
@@ -298,8 +351,10 @@ private final class ScriptedMicrophone: MeetingMicrophoneCapturing, @unchecked S
         let step = lock.withLock { () -> Step in
             starts += 1
             self.handler = handler
+            stallObserver = onStall
             return steps.count > 1 ? steps.removeFirst() : steps[0]
         }
+        var emitsBuffer = true
         switch step {
         case .fail(let error):
             throw error
@@ -314,9 +369,13 @@ private final class ScriptedMicrophone: MeetingMicrophoneCapturing, @unchecked S
             }
         case .succeed:
             break
+        case .succeedWithoutAudio:
+            emitsBuffer = false
         }
         lock.withLock { running = true }
-        handler(recoveryTestBuffer(), AVAudioTime(hostTime: 1))
+        if emitsBuffer {
+            handler(recoveryTestBuffer(), AVAudioTime(hostTime: 1))
+        }
         return MeetingMicrophoneCaptureStartReport(requestedMode: processingMode, effectiveMode: .raw)
     }
 
@@ -363,6 +422,12 @@ private final class RecoveryEvents: @unchecked Sendable {
 
     var microphoneBuffers: Int {
         lock.withLock { events.filter { if case .microphoneBuffer = $0 { true } else { false } }.count }
+    }
+
+    var microphoneInterruptions: Int {
+        lock.withLock {
+            events.filter { if case .sourceInterrupted(.microphone, _) = $0 { true } else { false } }.count
+        }
     }
 
     var systemInterruptions: Int {

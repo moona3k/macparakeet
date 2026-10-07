@@ -191,7 +191,9 @@ and retries the microphone through the same shared microphone object and lease
 change (`.macParakeetMicrophoneSelectionDidChange`) after a 2 s quiet period
 triggers an earlier attempt after a 750 ms debounce. The microphone stays
 unavailable while retrying, so the all-sources-lost rule below is unchanged; a
-successful retry joins like a late first start. Microphone-only meetings,
+successful retry joins like a late first start. A start that returns but stalls
+before delivering any audio counts as failed: it is stopped and retried, while a
+stall after audio has flowed is a mid-session loss. Microphone-only meetings,
 permission denial and required-VPIO failures are not retried. Mid-session
 microphone loss keeps the platform's bounded engine recovery.
 

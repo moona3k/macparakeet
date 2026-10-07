@@ -72,11 +72,12 @@ A late source retains its actual offset rather than moving meeting time zero.
 The first usable buffer establishes capture, including valid silence. After
 12 seconds, a selected source with no callbacks is shown as unavailable; it may
 join the same live session later. In a combined meeting, a microphone whose
-start failed is retried in the background for the rest of the session (#1223)
-and joins with its actual offset when a retry succeeds; it stays unavailable
-until then, so losing the system source still stops capture. With neither
-source delivering, startup fails and retires that session. Native microphone execution itself is not cancelled
-by this deadline. Existing bounded system teardown is additional settlement
+start failed, or stalled before delivering audio, is retried in the background
+for the rest of the session (#1223) and joins with its actual offset when a
+retry succeeds; it stays unavailable until then, so losing the system source
+still stops capture. With neither source delivering, startup fails and retires
+that session. Native microphone execution itself is not cancelled by this
+deadline. Existing bounded system teardown is additional settlement
 work. No deadline permits deleting captured audio: failed-start cleanup removes
 only proven-empty, finalized attempts; otherwise media and the recovery lock
 remain. Explicit user discard retains its existing deletion authority.

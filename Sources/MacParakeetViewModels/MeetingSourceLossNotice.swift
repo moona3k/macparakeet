@@ -16,7 +16,7 @@ public struct MeetingSourceLossNotice: Equatable, Sendable {
                 source: source,
                 title: "This meeting may be missing your side",
                 body:
-                    "Your microphone isn't being recorded. MacParakeet is still saving system audio and will keep trying your microphone."
+                    "Your microphone isn't being recorded. MacParakeet is still saving system audio and will add your microphone if it reconnects."
             )
         case (.microphone, _):
             return Self(

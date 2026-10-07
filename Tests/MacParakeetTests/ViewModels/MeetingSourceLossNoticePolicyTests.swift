@@ -14,7 +14,7 @@ final class MeetingSourceLossNoticePolicyTests: XCTestCase {
         let notice = evaluate(&policy, health, at: 10)
         XCTAssertEqual(notice?.source, .microphone)
         XCTAssertEqual(notice?.title, "This meeting may be missing your side")
-        XCTAssertTrue(notice?.body.contains("will keep trying your microphone") == true)
+        XCTAssertTrue(notice?.body.contains("will add your microphone if it reconnects") == true)
         XCTAssertNil(evaluate(&policy, health, at: 30))
     }
 
