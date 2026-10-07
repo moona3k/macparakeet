@@ -629,9 +629,12 @@ deliver value without later ones.
    renders the actionable warning badge; and a combined meeting that keeps
    recording while a selected source stays unavailable or interrupted for 10 s
    of active recording posts one local notification per recording ("This
-   meeting may be missing your side"). The notification waits while the live
-   panel is open. Calendar auto-start opens no panel, so the pill and this
-   notification are the only signals during the meeting. Confirmed source
+   meeting may be missing your side"). The notification is posted only while
+   MacParakeet is in the background and the live panel is not open, because
+   the system does not display a banner for the frontmost app; until then it
+   waits and the once-per-recording budget stays unspent. Calendar auto-start
+   opens no panel, so the pill and this notification are the only signals
+   during the meeting. Confirmed source
    loss is the only trigger; amplitude-inferred signatures stay in-meeting
    only.
 3. **Phase C — Coverage-based selective repair.** Pure
@@ -659,9 +662,9 @@ deliver value without later ones.
   re-transcription, loosen on data.
 - **Where does the warning live?** Resolved 2026-10-07 (#1223): both the
   panel and the pill, plus a one-time notification for confirmed source loss
-  when no panel is open. The original pill warning shipped only on an unused
-  SwiftUI view, so tests for user-visible warnings must target the production
-  view.
+  while MacParakeet is in the background and no panel is open. The original
+  pill warning shipped only on an unused SwiftUI view, so tests for
+  user-visible warnings must target the production view.
 - **Signal-inferred recovery scope.** Raw callback cessation already uses the
   shared source's bounded fresh-engine recovery. If amplitude-only evidence
   later justifies recovery, should it use that same path or require additional

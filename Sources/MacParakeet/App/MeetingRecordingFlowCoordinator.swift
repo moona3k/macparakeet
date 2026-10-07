@@ -101,6 +101,7 @@ final class MeetingRecordingFlowCoordinator {
     private let onQueuedTranscriptionReady: (Transcription, Bool) -> Void
     private let onQueuedTranscriptionFailed: (UUID, TranscriptionCompletionNotifier.Content) -> Void
     private let onRecordingBegan: () -> Void
+    private let isApplicationActive: @MainActor @Sendable () -> Bool
     private let onSourceLossNotice: (MeetingSourceLossNotice) -> Void
     private var sourceLossNoticePolicy: MeetingSourceLossNoticePolicy
     private let onRecordingStopping: () -> Void
@@ -184,6 +185,7 @@ final class MeetingRecordingFlowCoordinator {
         onQueuedTranscriptionReady: ((Transcription, Bool) -> Void)? = nil,
         onQueuedTranscriptionFailed: ((UUID, TranscriptionCompletionNotifier.Content) -> Void)? = nil,
         onRecordingBegan: @escaping () -> Void = {},
+        isApplicationActive: @escaping @MainActor @Sendable () -> Bool = { NSApp.isActive },
         sourceLossNoticeThreshold: TimeInterval = MeetingSourceLossNoticePolicy.defaultThreshold,
         onSourceLossNotice: @escaping (MeetingSourceLossNotice) -> Void = { notice in
             MeetingSourceLossNoticePresenter.present(notice)
@@ -231,6 +233,7 @@ final class MeetingRecordingFlowCoordinator {
             }
         self.onRecordingBegan = onRecordingBegan
         self.sourceLossNoticePolicy = MeetingSourceLossNoticePolicy(threshold: sourceLossNoticeThreshold)
+        self.isApplicationActive = isApplicationActive
         self.onSourceLossNotice = onSourceLossNotice
         self.onRecordingStopping = onRecordingStopping
         self.onFlowReturnedToIdle = onFlowReturnedToIdle
@@ -1384,7 +1387,7 @@ final class MeetingRecordingFlowCoordinator {
         if let notice = sourceLossNoticePolicy.evaluate(
             health: captureHealth,
             isActivelyRecording: stateMachine.state == .recording && captureMode == .full,
-            isPanelVisible: panelController?.isVisible == true,
+            canDeliverBanner: panelController?.isVisible != true && !isApplicationActive(),
             now: Date()
         ) {
             AudioCaptureDiagnostics.append(

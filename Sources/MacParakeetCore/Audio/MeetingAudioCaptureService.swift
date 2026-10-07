@@ -148,6 +148,7 @@ public actor MeetingAudioCaptureService {
     private var activeMicrophoneRecoveryID: Int?
     private var nextMicrophoneRecoveryID = 0
     private var microphoneRecoveryTask: Task<Void, Never>?
+    private var microphoneRecoveryAttempts = 0
 
     /// A native microphone call may outlive its meeting. Retain the one shared
     /// consumer until start AND cleanup settle; replacement meetings can still
@@ -315,6 +316,7 @@ public actor MeetingAudioCaptureService {
         nextAttemptID += 1
         let attemptID = nextAttemptID
         lifecycleState = .starting(attemptID)
+        microphoneRecoveryAttempts = 0
         let eventTarget = EventSink(handler: handler)
         activeEventTarget = (attemptID, eventTarget)
         let sourceMode = sourceModeOverride ?? sourceModeProvider()
@@ -601,9 +603,9 @@ public actor MeetingAudioCaptureService {
             "meeting_mic_recovery_started recovery_id=\(recoveryID) \(AudioCaptureDiagnostics.errorFields(originalError))"
         )
 
-        var attempt = 0
         while true {
-            attempt += 1
+            microphoneRecoveryAttempts += 1
+            let attempt = microphoneRecoveryAttempts
             let delay = microphoneRecoverySchedule.delay(beforeAttempt: attempt)
             guard let trigger = await waitForMicrophoneRetry(delay: delay),
                 isMicrophoneRecoveryCurrent(recoveryID: recoveryID, attemptID: attemptID)
@@ -873,6 +875,7 @@ public actor MeetingAudioCaptureService {
         }
 
         lifecycleState = .stopping(attemptID)
+        microphoneRecoveryAttempts = 0
         retireEventTargetIfOwned(attemptID: attemptID)
         startupSignal?.retire()
         startupSignal = nil

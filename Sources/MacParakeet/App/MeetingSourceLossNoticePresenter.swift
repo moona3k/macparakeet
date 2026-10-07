@@ -3,9 +3,9 @@ import MacParakeetViewModels
 import OSLog
 import UserNotifications
 
-/// Posts the one-time "this meeting may be missing a side" banner. It is
-/// delivered even while MacParakeet is frontmost: the live panel, the only
-/// in-app surface with full source detail, may be closed.
+/// Posts the one-time "this meeting may be missing a side" banner. The caller
+/// posts it only while MacParakeet is in the background and the live panel is
+/// closed; the system does not display a banner for a frontmost app.
 enum MeetingSourceLossNoticePresenter {
     private static let logger = Logger(subsystem: "com.macparakeet", category: "MeetingSourceLossNotice")
 

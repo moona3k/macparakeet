@@ -30,13 +30,15 @@ final class MeetingSourceLossNoticePolicyTests: XCTestCase {
         XCTAssertTrue(notice?.body.contains("stopped recording") == true)
     }
 
-    func testVisiblePanelDefersTheNoticeUntilItCloses() {
+    func testUndeliverableBannerKeepsTheOnceBudgetUntilItCanBeShown() {
         var policy = MeetingSourceLossNoticePolicy(threshold: 10)
         let health = summary(microphone: .unavailable)
 
-        XCTAssertNil(evaluate(&policy, health, at: 0, panelVisible: true))
-        XCTAssertNil(evaluate(&policy, health, at: 15, panelVisible: true))
-        XCTAssertEqual(evaluate(&policy, health, at: 16, panelVisible: false)?.source, .microphone)
+        XCTAssertNil(evaluate(&policy, health, at: 0, canDeliverBanner: false))
+        XCTAssertNil(evaluate(&policy, health, at: 15, canDeliverBanner: false))
+        XCTAssertNil(evaluate(&policy, health, at: 40, canDeliverBanner: false))
+        XCTAssertEqual(evaluate(&policy, health, at: 41, canDeliverBanner: true)?.source, .microphone)
+        XCTAssertNil(evaluate(&policy, health, at: 42, canDeliverBanner: true))
     }
 
     func testPausedRecordingDoesNotAccumulateLossTime() {
@@ -103,12 +105,12 @@ final class MeetingSourceLossNoticePolicyTests: XCTestCase {
         _ health: MeetingCaptureHealthSummary,
         at seconds: TimeInterval,
         activelyRecording: Bool = true,
-        panelVisible: Bool = false
+        canDeliverBanner: Bool = true
     ) -> MeetingSourceLossNotice? {
         policy.evaluate(
             health: health,
             isActivelyRecording: activelyRecording,
-            isPanelVisible: panelVisible,
+            canDeliverBanner: canDeliverBanner,
             now: start.addingTimeInterval(seconds)
         )
     }

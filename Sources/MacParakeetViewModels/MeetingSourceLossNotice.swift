@@ -38,8 +38,9 @@ public struct MeetingSourceLossNotice: Equatable, Sendable {
 /// Decides when a live meeting deserves a source-loss banner. A selected
 /// source must stay unavailable or interrupted for `threshold` seconds of
 /// active recording, so brief startup or route-change gaps stay quiet. The
-/// visible live panel already shows the warning, so the banner waits while it
-/// is open. At most one banner per recording.
+/// banner is only consumed when it can be seen: while the live panel is open or
+/// MacParakeet is frontmost it waits, keeping its loss timers. At most one
+/// banner per recording.
 public struct MeetingSourceLossNoticePolicy: Sendable {
     public static let defaultThreshold: TimeInterval = 10
 
@@ -59,7 +60,7 @@ public struct MeetingSourceLossNoticePolicy: Sendable {
     public mutating func evaluate(
         health: MeetingCaptureHealthSummary,
         isActivelyRecording: Bool,
-        isPanelVisible: Bool,
+        canDeliverBanner: Bool,
         now: Date
     ) -> MeetingSourceLossNotice? {
         guard !hasNotified else { return nil }
@@ -83,7 +84,7 @@ public struct MeetingSourceLossNoticePolicy: Sendable {
             }
         }
 
-        guard let notice, !isPanelVisible else { return nil }
+        guard let notice, canDeliverBanner else { return nil }
         hasNotified = true
         return notice
     }

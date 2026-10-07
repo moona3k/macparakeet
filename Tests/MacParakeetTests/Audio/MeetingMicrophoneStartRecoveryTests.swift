@@ -96,6 +96,33 @@ final class MeetingMicrophoneStartRecoveryTests: XCTestCase {
         try await containmentBeforeDeadline { await service.stop() }
     }
 
+    func testConsecutiveStallsContinueTheRetryBackoff() async throws {
+        let microphone = ScriptedMicrophone([.fail(.audioEngineStartFailed("-10868")), .succeed])
+        let service = makeService(
+            microphone: microphone,
+            schedule: schedule(
+                delays: [.milliseconds(20), .milliseconds(150)],
+                steadyInterval: .milliseconds(300)
+            )
+        )
+        let events = RecoveryEvents()
+        let clock = ContinuousClock()
+
+        _ = try await containmentBeforeDeadline { try await service.start { events.append($0) } }
+        try await waitUntil { events.microphoneReports == 1 }
+
+        var stalledAt = clock.now
+        microphone.emitStall()
+        try await waitUntil { events.microphoneReports == 2 }
+        XCTAssertGreaterThanOrEqual(microphone.startInstants[2] - stalledAt, .milliseconds(150))
+
+        stalledAt = clock.now
+        microphone.emitStall()
+        try await waitUntil { events.microphoneReports == 3 }
+        XCTAssertGreaterThanOrEqual(microphone.startInstants[3] - stalledAt, .milliseconds(300))
+        try await containmentBeforeDeadline { await service.stop() }
+    }
+
     func testStallAfterDeliveredAudioIsNotRetried() async throws {
         let microphone = ScriptedMicrophone([.fail(.audioEngineStartFailed("-10868")), .succeed])
         let service = makeService(microphone: microphone)
@@ -307,6 +334,7 @@ private final class ScriptedMicrophone: MeetingMicrophoneCapturing, @unchecked S
     private var handler: AudioBufferHandler?
     private var stallObserver: StallObserver?
     private var starts = 0
+    private var startTimes: [ContinuousClock.Instant] = []
     private var stops = 0
     private var running = false
     private var heldStart: CheckedContinuation<Void, Never>?
@@ -321,6 +349,7 @@ private final class ScriptedMicrophone: MeetingMicrophoneCapturing, @unchecked S
     }
 
     var startCount: Int { lock.withLock { starts } }
+    var startInstants: [ContinuousClock.Instant] { lock.withLock { startTimes } }
     var stopCount: Int { lock.withLock { stops } }
     var isRunning: Bool { lock.withLock { running } }
 
@@ -350,6 +379,7 @@ private final class ScriptedMicrophone: MeetingMicrophoneCapturing, @unchecked S
     ) async throws -> MeetingMicrophoneCaptureStartReport {
         let step = lock.withLock { () -> Step in
             starts += 1
+            startTimes.append(ContinuousClock.now)
             self.handler = handler
             stallObserver = onStall
             return steps.count > 1 ? steps.removeFirst() : steps[0]

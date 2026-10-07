@@ -722,6 +722,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             meetingRecordingSettlement: makeSettlement(),
             onMenuBarIconUpdate: { _ in },
             onTranscriptionReady: { _ in },
+            isApplicationActive: { false },
             sourceLossNoticeThreshold: 0,
             onSourceLossNotice: { notices.append($0) }
         )
@@ -733,6 +734,46 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(notices.map(\.source), [.microphone])
         XCTAssertEqual(notices.first?.title, "This meeting may be missing your side")
+    }
+
+    func testSourceLossNoticeWaitsWhileApplicationIsActiveThenPostsOnce() async throws {
+        let service = MeetingRecordingServiceSpy(output: makeRecordingOutput())
+        await service.setCaptureHealth(
+            MeetingCaptureHealthSummary(
+                sourceMode: .microphoneAndSystem,
+                microphone: MeetingSourceHealth(source: .microphone, status: .unavailable),
+                system: MeetingSourceHealth(source: .system, status: .live, level: 0.5)
+            ))
+        let activity = ApplicationActivityProbe(isActive: true)
+        var notices: [MeetingSourceLossNotice] = []
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: service,
+            transcriptionService: MockTranscriptionService(),
+            permissionService: MockPermissionService(),
+            transcriptionRepo: MockTranscriptionRepository(),
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            llmService: nil,
+            pillViewModel: MeetingRecordingPillViewModel(),
+            meetingRecordingSettlement: makeSettlement(),
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in },
+            isApplicationActive: { activity.isActive },
+            sourceLossNoticeThreshold: 0,
+            onSourceLossNotice: { notices.append($0) }
+        )
+        coordinator.testHook_enterRecording()
+        let panel = MeetingRecordingPanelViewModel()
+
+        await coordinator.testHook_refreshPillState(panel: panel)
+        await coordinator.testHook_refreshPillState(panel: panel)
+        XCTAssertTrue(notices.isEmpty)
+
+        activity.isActive = false
+        await coordinator.testHook_refreshPillState(panel: panel)
+        await coordinator.testHook_refreshPillState(panel: panel)
+        XCTAssertEqual(notices.map(\.source), [.microphone])
     }
 
     func testStaleGenerationCaptureFailureSignalIsIgnored() async throws {
@@ -1680,6 +1721,15 @@ private final class FloatingPillVisibilityProbe {
 
     init(shouldShow: Bool) {
         self.shouldShow = shouldShow
+    }
+}
+
+@MainActor
+private final class ApplicationActivityProbe {
+    var isActive: Bool
+
+    init(isActive: Bool) {
+        self.isActive = isActive
     }
 }
 
