@@ -86,6 +86,13 @@ owned by `AppEnvironment`.
   callback generations retire before teardown is awaited or a terminal event
   is published. A source failure racing the initial async start is retained
   until the start-to-running handoff, so a dead stream cannot be promoted.
+  In a combined meeting, a failed microphone start (or an occupied lease) is
+  retried in the background for the whole session through the same microphone
+  object and a fresh lease per attempt (#1223). The microphone stays
+  `.unavailable` while retrying, so system loss still ends capture; buffers
+  from a retry are held until the actor promotes it. Stop cancels the retry
+  without awaiting a native start; a late success is stopped again through the
+  lease. `meeting_mic_recovery_*` diagnostic lines record each attempt.
 - `MeetingAudioStorageWriter.swift` — fragmented MP4 writer for
   meeting source files (ADR-019 crash recovery). Finalization waits at most five
   seconds for per-source AVFoundation callbacks and marks a timed-out source

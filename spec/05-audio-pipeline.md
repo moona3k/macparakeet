@@ -185,6 +185,16 @@ accepted. A 12-second initial readiness window marks sources with no buffers
 unavailable (they may join later); with no source delivering, startup fails.
 This bounds the meeting's readiness decision, not native microphone execution.
 
+A combined meeting whose microphone start fails keeps recording system audio
+and retries the microphone through the same shared microphone object and lease
+(#1223): 1, 2, 4, 8 and 15 s backoff, then every 30 s until Stop. An input-route
+change (`.macParakeetMicrophoneSelectionDidChange`) after a 2 s quiet period
+triggers an earlier attempt after a 750 ms debounce. The microphone stays
+unavailable while retrying, so the all-sources-lost rule below is unchanged; a
+successful retry joins like a late first start. Microphone-only meetings,
+permission denial and required-VPIO failures are not retried. Mid-session
+microphone loss keeps the platform's bounded engine recovery.
+
 Stop retires session callbacks and settles available source files without
 waiting for native microphone startup/unsubscription. The microphone remains
 leased until both calls settle; another system-only meeting can proceed, but

@@ -624,6 +624,16 @@ deliver value without later ones.
    only after a real replacement buffer. Recovering and terminal source states
    surface gentle, non-blocking warnings even while routine health decoration
    remains flag-hidden. Amplitude-inferred health remains detection-only.
+   Extended 2026-10-07 (#1223): a combined meeting retries a failed initial
+   microphone start for the rest of the session; the production floating pill
+   renders the actionable warning badge; and a combined meeting that keeps
+   recording while a selected source stays unavailable or interrupted for 10 s
+   of active recording posts one local notification per recording ("This
+   meeting may be missing your side"). The notification waits while the live
+   panel is open. Calendar auto-start opens no panel, so the pill and this
+   notification are the only signals during the meeting. Confirmed source
+   loss is the only trigger; amplitude-inferred signatures stay in-meeting
+   only.
 3. **Phase C — Coverage-based selective repair.** Pure
    `MeetingTranscriptCoverageRepair` planner + table tests; offline
    `MeetingVADService` wiring in the post-stop path; selective re-
@@ -647,9 +657,11 @@ deliver value without later ones.
   per-region coverage threshold need a labeled corpus or replayed field
   audio to tune. Start conservative (favor Accept) to avoid spurious
   re-transcription, loosen on data.
-- **Where does the warning live?** Panel only, pill only, or both?
-  Both keep the existing `micLevel`/`systemLevel` surfaces in sync; the
-  warning should follow whichever surface the user is looking at.
+- **Where does the warning live?** Resolved 2026-10-07 (#1223): both the
+  panel and the pill, plus a one-time notification for confirmed source loss
+  when no panel is open. The original pill warning shipped only on an unused
+  SwiftUI view, so tests for user-visible warnings must target the production
+  view.
 - **Signal-inferred recovery scope.** Raw callback cessation already uses the
   shared source's bounded fresh-engine recovery. If amplitude-only evidence
   later justifies recovery, should it use that same path or require additional
