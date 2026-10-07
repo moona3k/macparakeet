@@ -137,6 +137,28 @@ final class MeetingRecordingTileTests: XCTestCase {
         XCTAssertEqual(pill.accessibilityLabel(), "Recording meeting, \(warning?.label ?? "")")
     }
 
+    func testPillBackingScaleChangeClearsARecoveredWarning() {
+        let pillViewModel = MeetingRecordingPillViewModel()
+        pillViewModel.state = .recording
+        pillViewModel.captureHealth = MeetingCaptureHealthSummary(
+            sourceMode: .microphoneAndSystem,
+            microphone: MeetingSourceHealth(source: .microphone, status: .unavailable),
+            system: MeetingSourceHealth(source: .system, status: .live, level: 0.5)
+        )
+        let pill = MeetingRecordingAppKitPillView(viewModel: pillViewModel, onTap: {})
+        XCTAssertNotNil(pill.displayedSourceHealthWarning)
+
+        pillViewModel.captureHealth = MeetingCaptureHealthSummary(
+            sourceMode: .microphoneAndSystem,
+            microphone: MeetingSourceHealth(source: .microphone, status: .live, level: 0.5),
+            system: MeetingSourceHealth(source: .system, status: .live, level: 0.5)
+        )
+        pill.viewDidChangeBackingProperties()
+
+        XCTAssertNil(pill.displayedSourceHealthWarning)
+        XCTAssertNil(pill.toolTip)
+    }
+
     func testMicrophoneMuteButtonAccessibilityLabelReflectsAction() {
         XCTAssertEqual(
             MeetingMicrophoneMuteButton(isMuted: false, onToggle: {}).accessibilityLabelText,

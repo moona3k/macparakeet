@@ -489,8 +489,7 @@ final class MeetingRecordingAppKitPillView: NSView {
         super.viewDidChangeBackingProperties()
         timeTextLayer.contentsScale = window?.backingScaleFactor ?? 2
         // The badge symbol is rasterized for one scale; redraw it for the new one.
-        displayedSourceHealthWarning = nil
-        updateHealthBadge()
+        updateHealthBadge(force: true)
     }
 
     override func updateTrackingAreas() {
@@ -629,9 +628,9 @@ final class MeetingRecordingAppKitPillView: NSView {
     /// Mirrors the panel and tile: only actionable states (unavailable,
     /// interrupted, stalled, reconnecting) reach the pill while the routine
     /// health UI flag is off.
-    private func updateHealthBadge() {
+    private func updateHealthBadge(force: Bool = false) {
         let warning = viewModel.mirroredVisibleSourceHealthWarning
-        guard warning != displayedSourceHealthWarning else { return }
+        guard force || warning != displayedSourceHealthWarning else { return }
         displayedSourceHealthWarning = warning
         toolTip = warning?.label
         updateAccessibilityLabel()
