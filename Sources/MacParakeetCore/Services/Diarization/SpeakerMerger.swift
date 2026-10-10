@@ -57,16 +57,16 @@ public enum SpeakerMerger {
             }
         }
 
-        return smoothIsolatedAssignments(result)
+        return fillUnassignedGaps(result)
     }
 
-    /// Collapse one-word speaker flips and nil gaps when both neighbors agree.
+    /// Gives unassigned words the speaker of both neighboring runs when they agree.
     ///
-    /// Over-split clustering and `minSegmentDurationSeconds = 0` produce
-    /// singleton IDs that `TranscriptSegmenter` then renders as their own
-    /// bubble. A word between two different speakers is left alone: that is
-    /// the two-talker short, not a bubble.
-    private static func smoothIsolatedAssignments(_ words: [WordTimestamp]) -> [WordTimestamp] {
+    /// A one-word run of another speaker is kept. On AMI with the app's ASR
+    /// words, merging it into its neighbors got 8 of the 81 Nemotron words it
+    /// changed right, against 73 when kept (Community-1: 14 against 39 of 67)
+    /// (#1046). A gap between two different speakers stays unassigned.
+    private static func fillUnassignedGaps(_ words: [WordTimestamp]) -> [WordTimestamp] {
         guard words.count >= 3 else { return words }
 
         var result = words
@@ -80,21 +80,7 @@ public enum SpeakerMerger {
 
             let previous = index > 0 ? words[index - 1].speakerId : nil
             let next = end < words.count ? words[end].speakerId : nil
-            let runLength = end - index
-            let fill: String?
-            if let previous, previous == next {
-                if runID == nil {
-                    fill = previous
-                } else if runLength == 1, runID != previous {
-                    fill = previous
-                } else {
-                    fill = nil
-                }
-            } else {
-                fill = nil
-            }
-
-            if let fill {
+            if runID == nil, let fill = previous, previous == next {
                 for wordIndex in index..<end {
                     result[wordIndex].speakerId = fill
                 }

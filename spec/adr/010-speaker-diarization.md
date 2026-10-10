@@ -75,10 +75,14 @@ Neither result supports presenting roster size as a verified number of people.
 
 Three implementation boundaries remain material:
 
-- The existing word merger can replace a real one-word reply with the
-  surrounding speaker and fill unknown gaps. This is deliberate smoothing,
-  tested as current behavior, not a guarantee of correct word attribution.
-  A policy change needs final-word evaluation, not only better acoustic DER.
+- The word merger fills unknown gaps between two runs of the same speaker.
+  Since 2026-10-05 it no longer merges a one-word turn into the surrounding
+  speaker. The final-word evaluation (the word attribution scorer added in
+  [#1217](https://github.com/moona3k/macparakeet/pull/1217), 16 AMI
+  mixed-headset test meetings, app Parakeet words) showed that merge got 8 of
+  the 81 Nemotron words it changed right, against 73 when kept, and 14 against
+  39 of 67 for Community-1. Accuracy on one-word turns rises from 76% to 93%
+  for Nemotron, at about 0.2 more spurious switches per 1,000 words.
 - A diarization failure preserves successful ASR, but the nonblocking warning
   specified below is not yet implemented as a durable per-run GUI/CLI outcome.
   Current completion telemetry also omits the actual backend and fallback
