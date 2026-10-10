@@ -355,72 +355,46 @@ public enum VoiceControlConsequencePolicy {
         return .unknown
     }
 
-    /// A short label commits only when a floor word reads as an imperative: the
-    /// whole label (`Send`), its lead (`Buy now`, `Delete file`, `Order tickets`),
-    /// after a lead-in (`Yes, delete`, `Permanently delete`, `Schedule send`),
-    /// after a commitment verb (`Place order`, `Move to Trash`) or after `and`,
-    /// `&` or `+` (`Save and send`, `Save & Send`). Order, booking, payment,
-    /// purchase and checkout read as nouns only before a noun such as `history`
-    /// or `details` (`Order history`, `Booking details`, `Payment methods`), or
-    /// after another word (`Sort order`). `Share` opens a sheet; it commits only
-    /// as `Share to …` / `with …` / `now`.
+    /// Fails closed. A short label holding a pay/delete/send word confirms,
+    /// unless that word reads as a noun or as a step toward another page:
+    /// before a noun (`Order history`, `Booking details`, `Payment methods`,
+    /// `Checkout page`), after `new` or a sorting word (`New post`, `Sort order`), as a destination
+    /// (`Proceed to checkout`, `Continue to payment`, `Secure checkout`), or a
+    /// `Share` that only opens a sheet (`Share`, `Share options`). Everything
+    /// else confirms: `Bulk delete`, `Save & Purchase`, `Process payment`,
+    /// `Click to share`. `pay` always confirms (`Apple Pay`).
     static func floorConsequence(label: String) -> VoiceControlConsequence? {
-        func split(_ text: String) -> [String] {
-            text.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
-        }
-        // The cap counts the label's own words, not the `and` read into `&` / `+`.
-        guard !split(label.lowercased()).isEmpty, split(label.lowercased()).count <= 5 else { return nil }
-        let words = split(label.lowercased().replacingOccurrences(of: "&", with: " and ")
-            .replacingOccurrences(of: "+", with: " and "))
+        let words = label.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
+        guard !words.isEmpty, words.count <= 5 else { return nil }
         let floors: [(VoiceControlConsequence, Set<String>)] = [
             (.payment, ["pay", "purchase", "checkout", "buy", "payment", "subscribe", "order", "booking", "donate"]),
             (.destructive, ["delete", "erase", "trash", "destroy", "discard", "uninstall"]),
             (.externalCommitment, ["send", "publish", "post", "transfer", "invite", "share"]),
         ]
-        // These read as nouns when a noun follows them (`Payment methods`).
         let nouns: Set<String> = ["order", "booking", "payment", "purchase", "checkout"]
         let nounContext: Set<String> = [
             "history", "details", "detail", "summary", "methods", "method", "status", "number", "id",
-            "confirmation", "list", "settings", "options", "info", "information",
+            "confirmation", "list", "settings", "options", "info", "information", "page", "view", "screen",
         ]
-        // Words that can come before an imperative without changing it.
-        let leadIns: Set<String> = [
-            "yes", "ok", "okay", "permanently", "schedule", "now", "also", "then", "just", "really", "quickly",
-            // Modifiers that keep a verb a verb: `Pre-order now`, `Quick buy`, `1-Click Buy`.
-            "pre", "quick", "instant", "express", "1", "one", "click",
-        ]
-        // `Click to delete`, `Tap to send`: the word after an infinitive `to`.
-        let gestures: Set<String> = ["click", "tap", "press", "swipe", "slide"]
-        let commitments: Set<String> = [
-            "place", "complete", "confirm", "submit", "finalize", "finish", "make", "empty", "move", "request",
-        ]
-        func imperative(_ index: Int) -> Bool {
+        let destinations: Set<String> = ["proceed", "continue", "go", "return", "back"]
+        func exempt(_ index: Int) -> Bool {
             let word = words[index]
             let next = words.indices.contains(index + 1) ? words[index + 1] : nil
-            // Bare `Share` opens a sheet, as do `Share options`, `Share menu` and
-            // `Share sheet`. Share with a recipient, an object, or after the same
-            // lead-ins, `and` or commitment verbs as other floor words commits
-            // (`Share to …`, `Share file with Alice`, `Yes, share my location`,
-            // `Save & Share`, `Confirm and share`).
+            let previous = index > 0 ? words[index - 1] : nil
             if word == "share" {
-                if let next, ["to", "with", "now"].contains(next) { return true }
-                if let next, nounContext.contains(next) || ["menu", "sheet"].contains(next) { return false }
-                if index == 0 { return next != nil }
-                if words[..<index].contains(where: commitments.contains) { return true }
-                return words[..<index].allSatisfy(leadIns.contains) || words[index - 1] == "and"
+                guard index == 0 else { return false }
+                return next.map { nounContext.contains($0) || ["menu", "sheet"].contains($0) } ?? true
             }
-            if word == "pay" { return true }  // `Apple Pay`, `Shop Pay` pay wherever the word sits.
-            if words.count == 1 { return true }
-            if words[..<index].contains(where: commitments.contains) { return true }
-            if index >= 2, words[index - 1] == "to", gestures.contains(words[index - 2]) { return true }
-            if index == 0 || words[..<index].allSatisfy(leadIns.contains) {
-                guard nouns.contains(word) else { return true }
-                return !(next.map(nounContext.contains) ?? false)
-            }
-            return words[index - 1] == "and" && !nouns.contains(word)
+            // `New post`, `New order`: opens a blank one to fill in.
+            if previous == "new" { return true }
+            guard nouns.contains(word) else { return false }
+            if let next, nounContext.contains(next) { return true }
+            if previous == "sort" { return true }
+            if previous == "secure", word == "checkout" { return true }
+            return previous == "to" && index >= 2 && destinations.contains(words[index - 2])
         }
         for (consequence, floor) in floors
-        where words.indices.contains(where: { floor.contains(words[$0]) && imperative($0) }) {
+        where words.indices.contains(where: { floor.contains(words[$0]) && !exempt($0) }) {
             return consequence
         }
         return nil

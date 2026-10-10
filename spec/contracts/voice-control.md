@@ -299,17 +299,16 @@ to its exact action, snapshot and authority.
 Confirmation is consequence-based. Ordinary navigation, selection, form edits,
 scrolling and search proceed within the requested task. Payment commitments,
 destructive actions and external commitments require confirmation. The label
-keyword floor counts a pay/delete/send word only as an imperative: the whole
-label, its first word (`Buy now`, `Delete file`, `Order tickets`, `Purchase
-subscription`), after lead-ins and modifiers (`yes`, `ok`, `okay`, `permanently`, `schedule`,
-`now`, `also`, `then`, `just`, `really`, `quickly`, `pre`, `quick`, `instant`,
-`express`, `1-click`: `Yes, delete`, `Pre-order now`, `1-Click Buy`), after a
-gesture infinitive (`Click to delete`, `Tap to send`), after a commitment verb (`Place order`, `Move to Trash`) or after `and`,
-`&` or `+` (`Save and send`, `Save & Send`). `Order` / `Booking` / `Payment` /
-`Purchase` / `Checkout` read as nouns before `history`, `details`, `methods`,
-`status` and similar words, or after another word, so `Sort order`, `Order
-history`, `Booking details` and `Payment methods` stay ordinary, as do steps toward a payment page (`Proceed to checkout`, `Secure checkout`, `Continue to payment`) because the pay control there confirms; `Request payment` commits; bare `Share` opens a sheet and is ordinary,
-`Share options`, `Share menu` and `Share sheet` also only open UI, while `Share to …` / `Share with …` / `Share now`, `Share <something> …` (`Share file with Alice`) and Share after the same lead-ins, `and` or commitment verbs (`Yes, share my location`, `Save & Share`) commit. Known target
+keyword floor fails closed: a label of five words or fewer that holds a
+pay/delete/send word confirms (`Order tickets`, `Bulk delete`, `Save & Purchase`,
+`Process payment`, `Click to share`; `pay` always, so `Apple Pay` too), unless
+that word reads as a noun or a step toward another page. Exempt: before a noun
+such as `history`, `details`, `methods`, `status`, `page` or `view` (`Order
+history`, `Booking details`, `Payment methods`, `Checkout page`); after `new`
+or `sort` (`New post`, `Sort order`); as a destination (`Proceed to checkout`,
+`Continue to payment`, `Secure checkout`), because the pay control on that page
+still confirms; and a leading `Share` that only opens a sheet (`Share`, `Share
+options`, `Share menu`, `Share sheet`). Known target
 metadata for those risks cannot be downgraded by a model's ordinary label. An
 unknown model label does not by itself confirm an ordinary press. An explicitly
 unknown consequence on a non-navigation press does ask. Generated replacements

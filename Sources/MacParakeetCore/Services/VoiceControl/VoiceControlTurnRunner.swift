@@ -165,7 +165,8 @@ public actor VoiceControlTurnRunner {
         if !alternativeLabels.isEmpty || !alternativeIDs.isEmpty {
             let count = max(alternativeLabels.count, alternativeIDs.count)
             // The same reading the classifier used: `select 2`, `click Open`, `Select All.`
-            let said = VoiceControlSessionGrammar.normalize(answer)
+            var said = VoiceControlSessionGrammar.normalize(answer)
+            if said.hasPrefix("please ") { said = String(said.dropFirst(7)) }
             let spoken = VoiceControlUtteranceIntent.withoutPickVerb(said)
             if let index = VoiceControlSpokenPick.index(in: spoken, count: count) {
                 if alternativeLabels.indices.contains(index) { chosenAlternative = alternativeLabels[index] }

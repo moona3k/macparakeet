@@ -49,7 +49,9 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
                     !label.isEmpty && !lastLabel.isEmpty
                     ? lastLabel.caseInsensitiveCompare(label) == .orderedSame
                     : history.last?.targetID == action.targetID
-                guard let last = history.last, last.operation == action.operation, last.value == action.value, same
+                // A failed effect is not done: the correction repeating it is a retry.
+                guard let last = history.last, last.operation == action.operation, last.value == action.value, same,
+                    last.receiptStatus != .failed
                 else { return .action(action) }
                 return last.receiptStatus == .verified
                     ? .directCompleted("Done. The requested change was verified.") : .finished
@@ -229,8 +231,10 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
     static func commandSegment(of goal: String) -> String? {
         let segments = VoiceControlGoalText.kindedSegments(goal)
         guard segments.count > 1, let newest = segments.last, newest.kind != .original else { return nil }
-        let text = (newest.kind == .correction ? VoiceControlGoalText.withoutLeadingFiller(newest.text) : newest.text)
+        var text = (newest.kind == .correction ? VoiceControlGoalText.withoutLeadingFiller(newest.text) : newest.text)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        // The local routes match a bare command: `please open Safari` is `open Safari`.
+        if text.lowercased().hasPrefix("please ") { text = String(text.dropFirst(7)) }
         let lower = text.lowercased()
         guard !text.contains("\n"), VoiceControlUtteranceIntent.isCommandShaped(text), typePayload(in: text) == nil,
             !["replace ", "rewrite ", "make this ", "translate this ", "summarize this"]

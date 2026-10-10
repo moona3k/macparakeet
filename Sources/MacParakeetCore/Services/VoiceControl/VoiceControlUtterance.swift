@@ -109,6 +109,6 @@ public enum VoiceControlUtteranceIntent: String, Sendable, Equatable, CaseIterab
     private static let commandVerbs: Set<String> = ["open", "click", "press", "tap", "select", "type", "scroll", "undo"]
     private static let commandPhrases: Set<String> = [
         "go to", "switch to", "new message", "new email", "new tab", "new window", "new note", "new folder",
-        "new document",
+        "new document", "close window", "close tab", "close this",
     ]
 }
