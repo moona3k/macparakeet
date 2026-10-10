@@ -713,8 +713,8 @@ draft writes its cached configuration, including routes and provider keys.
 The GUI model picker rejects a stale selection if a concurrent CLI change has
 replaced or reset the displayed route. Route metadata updates are coordinated
 across processes; credentials remain separate, shared per-provider Keychain values.
-Competing changes fail busy before mutation, including while another operation
-awaits Keychain authorization. An unconfirmed-save error means publication could
+Competing changes fail busy before mutation, including while another credential
+operation is in progress. An unconfirmed-save error means publication could
 not be confirmed after mutation; inspect the current routes before retrying.
 
 ### Other meeting commands

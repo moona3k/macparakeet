@@ -3,11 +3,15 @@ import Foundation
 
 final class InMemoryKeyValueStore: KeyValueStore, @unchecked Sendable {
     private var values: [String: String] = [:]
+    var getError: Error?
+    var readCount = 0
     var setError: Error?
     var deleteError: Error?
 
     func getString(_ key: String) throws -> String? {
-        values[key]
+        readCount += 1
+        if let getError { throw getError }
+        return values[key]
     }
 
     func setString(_ value: String, forKey key: String) throws {
@@ -33,7 +37,8 @@ struct StubLicenseAPI: LicenseAPI {
 
     func activate(licenseKey: String, instanceName: String) async throws -> LicenseActivation {
         if shouldThrow { throw EntitlementsError.network("offline") }
-        return LicenseActivation(licenseKey: licenseKey, instanceID: activateResult.instanceID, variantID: activateResult.variantID)
+        return LicenseActivation(
+            licenseKey: licenseKey, instanceID: activateResult.instanceID, variantID: activateResult.variantID)
     }
 
     func validate(licenseKey: String, instanceID: String?) async throws -> LicenseValidation {
@@ -45,4 +50,3 @@ struct StubLicenseAPI: LicenseAPI {
         if shouldThrow { throw EntitlementsError.network("offline") }
     }
 }
-

@@ -230,7 +230,7 @@ public final class PromptResultsViewModel {
 
     public var selectedPromptInferenceCompatibilityMessage: String? {
         guard let prompt = selectedPrompt,
-              let config = try? configStore?.loadConfig(for: .analysis)
+              let config = try? configStore?.loadRouteMetadata(for: .analysis)?.config
         else { return nil }
         return PromptsViewModel.inferenceCompatibilityMessage(
             settings: prompt.inferenceSettings,
@@ -688,7 +688,7 @@ public final class PromptResultsViewModel {
             errorMessage = "This result is already regenerating."
             return nil
         }
-        let config = try? configStore?.loadConfig(for: .analysis)
+        let config = try? configStore?.loadRouteMetadata(for: .analysis)?.config
         let sameProvider = config.map { promptResult.providerSnapshot == $0.id.rawValue } ?? false
         let reuseModel = sameProvider && config?.id != .localCLI && config?.id != .appleIntelligence
         let prompt = Prompt(
@@ -1146,7 +1146,7 @@ public final class PromptResultsViewModel {
         }
         // Local CLI selects its model in the command template rather than the
         // provider config. Its terminal receipt remains authoritative.
-        guard let config = try? configStore?.loadConfig(for: .analysis), config.id != .localCLI else { return nil }
+        guard let config = try? configStore?.loadRouteMetadata(for: .analysis)?.config, config.id != .localCLI else { return nil }
         let current = config.modelName.trimmingCharacters(in: .whitespacesAndNewlines)
         return current.isEmpty ? nil : current
     }

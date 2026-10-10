@@ -56,7 +56,7 @@ The owner credential is random application state, not a machine fingerprint.
 It uses a sharing-specific generic-password item that is non-synchronizing and accessible only on the device after first unlock, matching the existing Keychain pattern without requesting Touch ID, user presence, or an application password.
 
 Normal signed-app operation should not add an onboarding permission step.
-macOS can still show a Keychain authorization dialog in unusual cases such as signing-identity or access-control changes, so product copy must not promise that a system dialog is impossible.
+Keychain access disables system interaction, so a signing-identity or access-control change surfaces as an error instead of an authorization dialog. See [credential access](../spec/contracts/credential-access.md).
 
 Uninstall or Keychain loss may remove local management and content keys.
 A saved recovery code restores remote management and future publication, not decryption or replacement of pre-recovery content and not lost complete URLs; without it, mandatory expiry is the final bound.

@@ -995,6 +995,66 @@ final class PromptsViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.generationSettingsPresentation(draft: .init(), modelOverride: ""))
     }
 
+    func testBlockedCredentialsKeepGenerationContextForAnalysisAndTransformRoutes() async throws {
+        let credentials = InMemoryKeyValueStore()
+        let store = makeCredentialStore(credentials)
+        try store.saveConfig(.anthropic(apiKey: "default-key", model: "claude-haiku-4-5"))
+        try store.saveTaskOverride(.gemini(apiKey: "analysis-key", model: "gemini-3.5-flash"), for: .analysis)
+        credentials.getError = KeyValueStoreError.unsupported
+        let client = MockLLMClient()
+        client.modelsList = ["discovered-model"]
+        viewModel.configure(repo: repo, configStore: store, llmClient: client)
+
+        try await waitUntil { self.viewModel.generationProviderID == .gemini }
+        XCTAssertEqual(viewModel.generationModelName, "gemini-3.5-flash")
+        XCTAssertTrue(viewModel.generationAvailableModels.contains("gemini-3.5-flash"))
+        XCTAssertEqual(
+            viewModel.generationSettingsPresentation(draft: .init(), modelOverride: "claude-sonnet-5")?
+                .modelOverrideStatus,
+            .invalid(reason: "the model identifier does not match this provider.")
+        )
+
+        viewModel.newPromptCategory = .transform
+        try await waitUntil { self.viewModel.generationProviderID == .anthropic }
+        XCTAssertEqual(viewModel.generationModelName, "claude-haiku-4-5")
+        viewModel.newName = "Blocked transform"
+        viewModel.newContent = "Rewrite."
+        viewModel.newInferenceSettings.temperature = "1.5"
+        viewModel.addPrompt()
+        XCTAssertFalse(viewModel.prompts.contains { $0.name == "Blocked transform" })
+        XCTAssertEqual(viewModel.newInferenceValidationErrors[.temperature], "Enter a number from 0 to 1.")
+        XCTAssertEqual(client.listModelsCallCount, 0)
+    }
+
+    func testGenerationDiscoveryUsesCurrentCredentialsOnceAccessReturns() async throws {
+        let credentials = InMemoryKeyValueStore()
+        let store = makeCredentialStore(credentials)
+        try store.saveConfig(.openai(apiKey: "saved-key", model: "gpt-5.5"))
+        credentials.getError = KeyValueStoreError.unsupported
+        let client = MockLLMClient()
+        client.modelsList = ["gpt-discovered"]
+        viewModel.configure(repo: repo, configStore: store, llmClient: client)
+        try await waitUntil { self.viewModel.generationProviderID == .openai }
+        XCTAssertEqual(client.listModelsCallCount, 0)
+
+        credentials.getError = nil
+        viewModel.refreshGenerationSettingsContext()
+        try await waitUntil(timeout: .seconds(2)) {
+            self.viewModel.generationAvailableModels.contains("gpt-discovered")
+        }
+        XCTAssertEqual(client.capturedContext?.providerConfig.apiKey, "saved-key")
+        XCTAssertEqual(viewModel.generationProviderID, .openai)
+        XCTAssertEqual(viewModel.generationModelName, "gpt-5.5")
+    }
+
+    private func makeCredentialStore(_ credentials: InMemoryKeyValueStore) -> LLMConfigStore {
+        let domain = makeIsolatedDefaultsSuite("test.prompts-credential-display.")
+        let lockURL = FileManager.default.temporaryDirectory.appendingPathComponent(domain)
+            .appendingPathComponent("routes.lock")
+        addTeardownBlock { try? FileManager.default.removeItem(at: lockURL.deletingLastPathComponent()) }
+        return LLMConfigStore(preferencesDomain: domain, lockURL: lockURL, keychain: credentials)
+    }
+
     private func loadGenerationConfig(_ config: LLMProviderConfig) async throws {
         let store = MockLLMConfigStore()
         store.config = config

@@ -103,7 +103,7 @@ public final class InProcessModelManagerViewModel {
     public private(set) var isLocalAISelected = false
 
     public func refreshSelectionState() {
-        let config = try? configStore?.loadConfig()
+        let config = try? configStore?.loadConfigMetadata()
         isLocalAISelected = config?.id == .inProcessLocal
     }
 
