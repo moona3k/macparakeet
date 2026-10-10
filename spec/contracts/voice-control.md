@@ -309,7 +309,7 @@ gesture infinitive (`Click to delete`, `Tap to send`), after a commitment verb (
 `Purchase` / `Checkout` read as nouns before `history`, `details`, `methods`,
 `status` and similar words, or after another word, so `Sort order`, `Order
 history`, `Booking details` and `Payment methods` stay ordinary; bare `Share` opens a sheet and is ordinary,
-while `Share to …` / `Share with …` / `Share now` and `Share <something> …` (`Share file with Alice`) commit. Known target
+`Share options`, `Share menu` and `Share sheet` also only open UI, while `Share to …` / `Share with …` / `Share now`, `Share <something> …` (`Share file with Alice`) and Share after the same lead-ins, `and` or commitment verbs (`Yes, share my location`, `Save & Share`) commit. Known target
 metadata for those risks cannot be downgraded by a model's ordinary label. An
 unknown model label does not by itself confirm an ordinary press. An explicitly
 unknown consequence on a non-navigation press does ask. Generated replacements

@@ -118,10 +118,12 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
             }
             return result(VoiceControlAction(operation: .key, targetID: target.id, value: key))
         }
-        if VoiceControlLocalTools.alreadyVerifiedNamedPress(command: local, history: history) {
+        if VoiceControlLocalTools.alreadyVerifiedNamedPress(command: local, history: history, exact: segment != nil) {
             return .directCompleted("Done. The requested change was verified.")
         }
-        if VoiceControlLocalTools.alreadyPressedByName(command: local, history: history) { return .finished }
+        if VoiceControlLocalTools.alreadyPressedByName(command: local, history: history, exact: segment != nil) {
+            return .finished
+        }
         if let destination = VoiceControlWebDestination.matchingGoal(lower),
             snapshot.targets.contains(where: { $0.id == destination.id }),
             !VoiceControlWebDestination.pageMatches(snapshot, destination: destination),

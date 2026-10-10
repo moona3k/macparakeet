@@ -397,12 +397,17 @@ public enum VoiceControlConsequencePolicy {
         func imperative(_ index: Int) -> Bool {
             let word = words[index]
             let next = words.indices.contains(index + 1) ? words[index + 1] : nil
-            // Bare `Share` opens a sheet. Leading with an object (`Share file with
-            // Alice`) or a recipient (`Share to …`) commits; `Share options` does not.
+            // Bare `Share` opens a sheet, as do `Share options`, `Share menu` and
+            // `Share sheet`. Share with a recipient, an object, or after the same
+            // lead-ins, `and` or commitment verbs as other floor words commits
+            // (`Share to …`, `Share file with Alice`, `Yes, share my location`,
+            // `Save & Share`, `Confirm and share`).
             if word == "share" {
-                guard let next else { return false }
-                if ["to", "with", "now"].contains(next) { return true }
-                return index == 0 && !nounContext.contains(next) && !["menu", "sheet"].contains(next)
+                if let next, ["to", "with", "now"].contains(next) { return true }
+                if let next, nounContext.contains(next) || ["menu", "sheet"].contains(next) { return false }
+                if index == 0 { return next != nil }
+                if words[..<index].contains(where: commitments.contains) { return true }
+                return words[..<index].allSatisfy(leadIns.contains) || words[index - 1] == "and"
             }
             if word == "pay" { return true }  // `Apple Pay`, `Shop Pay` pay wherever the word sits.
             if words.count == 1 { return true }

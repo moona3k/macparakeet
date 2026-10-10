@@ -38,6 +38,35 @@ final class VoiceControlReviewFixTests: XCTestCase {
         for label in ["Proceed to checkout", "Share", "Share options", "Sort order"] { XCTAssertNil(floor(label), label) }
     }
 
+    func testShareFollowsTheSameRulesAsOtherFloorWords() {
+        for label in ["Yes, share my location", "Save & Share", "Confirm and share", "Schedule share", "Share now"] {
+            XCTAssertEqual(floor(label), .externalCommitment, label)
+        }
+        for label in ["Share", "Share options", "Share menu", "Share sheet"] { XCTAssertNil(floor(label), label) }
+    }
+
+    func testACorrectionIsNotDoneByAPrefixOfThePressedLabel() async throws {
+        let snapshot = VoiceControlSnapshot(
+            contextID: "s", applicationName: "Editor",
+            targets: [
+                VoiceControlTarget(id: "t1", label: "Save", role: "AXButton", operations: [.press]),
+                VoiceControlTarget(id: "t2", label: "Save As", role: "AXButton", operations: [.press]),
+            ])
+        let pressed = VoiceControlAction(operation: .press, targetID: "t2", targetLabel: "Save As", receiptStatus: .verified)
+        let goal = VoiceControlGoalText.header + "click Save As\n" + VoiceControlGoalText.correction + "actually click Save"
+        let decision = try await VoiceControlCommandRouter(fallback: Unused()).decide(
+            goal: goal, snapshot: snapshot, history: [pressed])
+        guard case .action(let action) = decision else { return XCTFail("expected the Save press, got \(decision)") }
+        XCTAssertEqual(action.targetID, "t1")
+    }
+
+    func testSayingAnOfferedLabelThatStartsWithAVerbAnswers() {
+        let state = VoiceControlUtteranceIntent.State(
+            awaitingClarification: true, hasOpenTask: true, offeredLabels: ["Select All", "Select None"])
+        XCTAssertEqual(VoiceControlUtteranceIntent.classify("Select All", state: state), .answer)
+        XCTAssertEqual(VoiceControlUtteranceIntent.classify("click Select None", state: state), .answer)
+    }
+
     func testIntermediateNameIsTriedBeforeTheBareWord() async throws {
         let snapshot = VoiceControlSnapshot(
             contextID: "b", applicationName: "Safari",

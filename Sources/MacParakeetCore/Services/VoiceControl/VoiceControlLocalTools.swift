@@ -60,15 +60,17 @@ enum VoiceControlLocalTools {
         return existing.localizedStandardCompare(value) == .orderedSame
     }
 
-    static func alreadyVerifiedNamedPress(command: String, history: [VoiceControlAction]) -> Bool {
-        alreadyPressedByName(command: command, history: history, statuses: [.verified])
+    static func alreadyVerifiedNamedPress(command: String, history: [VoiceControlAction], exact: Bool = false) -> Bool {
+        alreadyPressedByName(command: command, history: history, statuses: [.verified], exact: exact)
     }
 
     /// `click Save` pressed Save and the interface moved. The single command is
     /// done; the next screen is not a reason to ask the model for another step.
+    /// `exact` (a correction's command) needs the pressed label itself: after
+    /// `click Save As`, `actually click Save` is not done.
     static func alreadyPressedByName(
         command: String, history: [VoiceControlAction],
-        statuses: Set<VoiceControlReceipt.Status> = [.verified, .transitionObserved]
+        statuses: Set<VoiceControlReceipt.Status> = [.verified, .transitionObserved], exact: Bool = false
     ) -> Bool {
         guard let phrases = spokenControlNames(command),
             let last = history.last, let status = last.receiptStatus, statuses.contains(status),
@@ -78,7 +80,7 @@ enum VoiceControlLocalTools {
         return phrases.contains { phrase in
             VoiceControlSessionGrammar.normalize(label) == phrase
                 || label.localizedStandardCompare(phrase) == .orderedSame
-                || (hasClickPrefix(command) && labelHasPhrasePrefix(label, phrase: phrase))
+                || (!exact && hasClickPrefix(command) && labelHasPhrasePrefix(label, phrase: phrase))
         }
     }
 

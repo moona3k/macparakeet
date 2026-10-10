@@ -51,8 +51,9 @@ public enum VoiceControlUtteranceIntent: String, Sendable, Equatable, CaseIterab
             return .answer
         }
         if state.awaitingClarification {
+            // Said as offered (`Select All`) or after a pick verb (`click Select All`).
             let named = withoutPickVerb(n)
-            if state.offeredLabels.contains(where: { VoiceControlSessionGrammar.normalize($0) == named }) {
+            if state.offeredLabels.contains(where: { [n, named].contains(VoiceControlSessionGrammar.normalize($0)) }) {
                 return .answer
             }
             if VoiceControlSpokenPick.index(in: named, count: 10) != nil { return .answer }
