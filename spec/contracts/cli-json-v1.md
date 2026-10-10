@@ -131,7 +131,10 @@ still apply.
   that every field is supported by the provider selected for a later run.
 - The same prompt JSON objects include additive Boolean
   `includeMeetingNotes`, the result prompt's automatic meeting-notes context
-  preference. Its default is `false`. The `--include-meeting-notes` flag on
+  preference. Its generic default is `false`; newly seeded built-in Summary
+  prompts set it to `true`. Existing saved settings and historical result
+  snapshots are preserved. `prompts restore-defaults` preserves this preference.
+  The `--include-meeting-notes` flag on
   `prompts set <prompt>` enables it and `--no-include-meeting-notes` disables
   it; the flags are mutually exclusive and rejected for Transform prompts.
   Explicit `{{userNotes}}` custom-template substitution remains
@@ -214,6 +217,9 @@ still apply.
   that generation. `false` covers migrated and externally imported results.
   Nullable `userNotesSnapshot` contains the exact normalized, bounded notes
   value supplied to prompt assembly, not necessarily the full canonical note.
+  Results saved by older versions can hold uncapped notes.
+  Provider context limits can further trim the assembled prompt before dispatch;
+  this snapshot records assembly input, not byte-exact network payloads.
 - `meetings results list|add|edit --json` prompt-result objects may include
   `sourceTranscriptHash`, a
   SHA-256 receipt of cue words when timed cues are available on an unedited

@@ -216,6 +216,7 @@ public struct Prompt: Codable, Identifiable, Sendable {
         name: String,
         content: String,
         isAutoRun: Bool = false,
+        includeMeetingNotes: Bool = false,
         sortOrder: Int,
         now: Date
     ) -> Prompt {
@@ -230,6 +231,7 @@ public struct Prompt: Codable, Identifiable, Sendable {
             sortOrder: sortOrder,
             createdAt: now,
             updatedAt: now,
+            includeMeetingNotes: includeMeetingNotes,
             canonicalKey: promptID.uuidString.lowercased(),
             lastAppliedCanonicalRevision: 1
         )
@@ -300,6 +302,7 @@ public struct Prompt: Codable, Identifiable, Sendable {
                     Be direct. Prefer specifics over generalizations — names, numbers, and concrete details beat vague summaries. If the transcript is short or straightforward, keep the output proportionally brief. Don't pad.
                     """.replacingOccurrences(of: "                    ", with: ""),
                 isAutoRun: true,
+                includeMeetingNotes: true,
                 sortOrder: 0,
                 now: now
             ),

@@ -1568,10 +1568,14 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     ) -> MessageAssembly {
         let budget = inputBudget ?? contextBudget(for: config)
         let resolvedPrompt = resolveSummaryPrompt(systemPrompt)
-        let promptWasTruncated = resolvedPrompt.count > budget
+        // Long notes or custom context must leave room for the spoken source.
+        let reservedTranscriptBudget =
+            budget > 0 && !transcript.isEmpty ? min(transcript.count, max(1, budget / 2)) : 0
+        let systemPromptBudget = budget - reservedTranscriptBudget
+        let promptWasTruncated = resolvedPrompt.count > systemPromptBudget
         let boundedPrompt =
             promptWasTruncated
-            ? Self.truncateMiddle(resolvedPrompt, limit: budget)
+            ? Self.truncateMiddle(resolvedPrompt, limit: systemPromptBudget)
             : resolvedPrompt
         let transcriptBudget = transcriptBudget(totalBudget: budget, systemPrompt: boundedPrompt)
         let truncated = Self.truncateMiddle(transcript, limit: transcriptBudget)
