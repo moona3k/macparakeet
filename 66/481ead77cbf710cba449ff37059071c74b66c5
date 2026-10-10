@@ -1,0 +1,37 @@
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlCommandRouter.swift
+  s_860a41e9fb91d3::t_775e6bc336bf3b 45-52,263,268
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlDiagnostics.swift
+  s_860a41e9fb91d3::t_409b33767a0ce9 359-366,368-370,377,379-384,395-398
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlUtterance.swift
+  s_860a41e9fb91d3::t_89c8fb36ded2e9 65-69,102-105
+Tests/MacParakeetTests/VoiceControl/VoiceControlReviewFixTests.swift
+  s_860a41e9fb91d3::t_248de99e911121 1-62
+Tests/MacParakeetTests/VoiceControl/VoiceControlUtteranceIntentTests.swift
+  s_860a41e9fb91d3::t_d621eddb79086e 17-19,32-33
+spec/contracts/voice-control.md
+  s_6fb95bdb4ea3db::t_0c701467e710d9 217-222,303-309
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "66481ead77cbf710cba449ff37059071c74b66c5",
+  "prompts": {},
+  "sessions": {
+    "s_6fb95bdb4ea3db": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1213f-c827-7ba0-8f4f-0217e59e74ab",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_860a41e9fb91d3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d7a6ec4-929b-4af8-aea8-07fa032dc081",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
