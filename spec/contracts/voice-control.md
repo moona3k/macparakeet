@@ -243,9 +243,12 @@ and “No, the other one” revise the current task rather than discard the orig
 goal. Unrelated instructions start a new task; clarification answers retain their
 pending response. `VoiceControlUtteranceIntent.classify` decides which: while a
 clarification is open, an offered label or a spoken pick (`2`, `the second one`)
-answers, a correction opener revises, command-shaped text (a leading command
-verb such as `open` / `click` / `type` / `scroll` / `go to`, a reserved key, or
-help) starts a new task, and anything else answers. Corrections revise only an
+answers, a correction opener revises, command-shaped text (a leading
+unambiguous verb `open` / `click` / `press` / `tap` / `select` / `scroll` /
+`type` / `undo` / `go to` / `switch to`, a `new message` / `new tab`-style
+phrase, or help) starts a new task, and anything else answers. Words that also
+open ordinary answers (`New York trip`, `Find a time to meet`, `Close`, a bare
+`down`) answer the question. Corrections revise only an
 open (running, paused or awaiting) task; after completion, failure or
 cancellation every utterance is a new instruction. `undo` is a command, never a
 correction. Ambiguous references require clarification. A replacement
@@ -332,11 +335,16 @@ Confirmation is consequence-based. Ordinary navigation, selection, form edits,
 scrolling and search proceed within the requested task. Payment commitments,
 destructive actions and external commitments require confirmation. The label
 keyword floor counts a pay/delete/send word only as an imperative: the whole
-label, its first word (`Buy now`, `Delete file`; noun-like `Order` / `Booking` /
-`Payment` lead only with `now`), after a commitment verb (`Place order`, `Move
-to Trash`) or after `and` (`Save and send`). `Sort order`, `Order history` and
-`Booking details` stay ordinary; bare `Share` opens a sheet and is ordinary,
-while `Share to …` / `Share with …` / `Share now` commit. Known target
+label, its first word (`Buy now`, `Delete file`, `Order tickets`, `Purchase
+subscription`), after lead-ins and modifiers (`yes`, `permanently`, `schedule`,
+`now`, `also`, `then`, `just`, `really`, `quickly`, `pre`, `quick`, `instant`,
+`express`, `1-click`: `Yes, delete`, `Pre-order now`, `1-Click Buy`), after a
+gesture infinitive (`Click to delete`, `Tap to send`), after a commitment verb (`Place order`, `Move to Trash`) or after `and`,
+`&` or `+` (`Save and send`, `Save & Send`). `Order` / `Booking` / `Payment` /
+`Purchase` / `Checkout` read as nouns before `history`, `details`, `methods`,
+`status` and similar words, or after another word, so `Sort order`, `Order
+history`, `Booking details` and `Payment methods` stay ordinary; bare `Share` opens a sheet and is ordinary,
+`Share options`, `Share menu` and `Share sheet` also only open UI, while `Share to …` / `Share with …` / `Share now`, `Share <something> …` (`Share file with Alice`) and Share after the same lead-ins, `and` or commitment verbs (`Yes, share my location`, `Save & Share`) commit. Known target
 metadata for those risks cannot be downgraded by a model's ordinary label. An
 unknown model label does not by itself confirm an ordinary press. An explicitly
 unknown consequence on a non-navigation press does ask. Generated replacements

@@ -14,6 +14,9 @@ final class VoiceControlUtteranceIntentTests: XCTestCase {
         for text in [
             "2", "two", "the second one", "number 3", "option two", "select the second one", "pick 2",
             "Rome, Italy", "the blue one", "Inbox", "London Heathrow", "no",
+            // Words that also open ordinary answers are not commands.
+            "New York trip", "Find a time to meet", "Show details", "Close", "down", "escape", "return",
+            "search for cats",
         ] {
             XCTAssertEqual(Intent.classify(text, state: clarifying), .answer, text)
         }
@@ -26,9 +29,8 @@ final class VoiceControlUtteranceIntentTests: XCTestCase {
     func testCommandsDuringAClarificationStartANewTask() {
         for text in [
             "open Safari", "click Save", "press return", "tap Done", "type hello", "scroll down", "go to Gmail",
-            "search for cats", "play jazz on YouTube", "show commands", "close the window", "new message", "help",
-            "escape", "return", "undo", "Undo that", "switch to Mail", "find flights to Paris", "Please open Notes",
-            "What can I say?",
+            "show commands", "new message", "new tab", "help", "undo", "Undo that", "switch to Mail",
+            "Please open Notes", "What can I say?", "select the Inbox row",
         ] {
             XCTAssertEqual(Intent.classify(text, state: clarifying), .newInstruction, text)
         }

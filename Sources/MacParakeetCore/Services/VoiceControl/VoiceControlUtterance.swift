@@ -51,8 +51,9 @@ public enum VoiceControlUtteranceIntent: String, Sendable, Equatable, CaseIterab
             return .answer
         }
         if state.awaitingClarification {
+            // Said as offered (`Select All`) or after a pick verb (`click Select All`).
             let named = withoutPickVerb(n)
-            if state.offeredLabels.contains(where: { VoiceControlSessionGrammar.normalize($0) == named }) {
+            if state.offeredLabels.contains(where: { [n, named].contains(VoiceControlSessionGrammar.normalize($0)) }) {
                 return .answer
             }
             if VoiceControlSpokenPick.index(in: named, count: 10) != nil { return .answer }
@@ -62,14 +63,17 @@ public enum VoiceControlUtteranceIntent: String, Sendable, Equatable, CaseIterab
         return .newInstruction
     }
 
-    /// Leads with a command verb, is a reserved key, or asks for help.
+    /// Leads with an unambiguous interface verb (`open`, `click`, `press`, `tap`,
+    /// `select`, `scroll`, `type`, `undo`, `go to`, `switch to`), names a new item
+    /// (`new message`, `new tab`), or asks for help. Words that also open
+    /// ordinary answers (`New York trip`, `Find a time to meet`, `Close`, `down`)
+    /// are not commands, so they can answer a clarification.
     /// Shared with the router, which routes an amended goal's newest segment
     /// locally only when that segment is itself a command.
     public static func isCommandShaped(_ text: String) -> Bool {
         var n = VoiceControlSessionGrammar.normalize(text)
         if n.hasPrefix("please ") { n = String(n.dropFirst(7)) }
         guard !n.isEmpty, !isSpokenPick(n) else { return false }
-        if VoiceControlLocalTools.reservedKey(in: n) != nil { return true }
         if ["help", "show commands", "what can i say", "what can i say here"].contains(n) { return true }
         let words = n.split(separator: " ")
         if let first = words.first, commandVerbs.contains(String(first)) { return true }
@@ -96,9 +100,9 @@ public enum VoiceControlUtteranceIntent: String, Sendable, Equatable, CaseIterab
         return n.hasSuffix(" instead")
     }
 
-    private static let commandVerbs: Set<String> = [
-        "open", "click", "press", "tap", "select", "type", "scroll", "search", "find", "play", "show",
-        "close", "new", "help", "undo", "redo", "replace", "rewrite", "translate", "summarize", "launch", "quit",
+    private static let commandVerbs: Set<String> = ["open", "click", "press", "tap", "select", "type", "scroll", "undo"]
+    private static let commandPhrases: Set<String> = [
+        "go to", "switch to", "new message", "new email", "new tab", "new window", "new note", "new folder",
+        "new document",
     ]
-    private static let commandPhrases: Set<String> = ["go to", "switch to", "look up", "make this"]
 }

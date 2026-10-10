@@ -50,9 +50,14 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
             // History predates the amendment, so only this exact effect finishes it.
             if segment != nil {
                 let label = action.targetLabel ?? snapshot.targets.first { $0.id == action.targetID }?.label ?? ""
-                guard let last = history.last, last.operation == action.operation, last.value == action.value,
-                    last.targetID == action.targetID
-                        || (!label.isEmpty && last.targetLabel?.caseInsensitiveCompare(label) == .orderedSame)
+                // An older walk-position id can name a different control now, so a
+                // known label must match; the id decides only when a label is missing.
+                let lastLabel = history.last?.targetLabel ?? ""
+                let same =
+                    !label.isEmpty && !lastLabel.isEmpty
+                    ? lastLabel.caseInsensitiveCompare(label) == .orderedSame
+                    : history.last?.targetID == action.targetID
+                guard let last = history.last, last.operation == action.operation, last.value == action.value, same
                 else { return .action(action) }
                 return last.receiptStatus == .verified
                     ? .directCompleted("Done. The requested change was verified.") : .finished
@@ -121,10 +126,12 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
             }
             return result(VoiceControlAction(operation: .key, targetID: target.id, value: key))
         }
-        if VoiceControlLocalTools.alreadyVerifiedNamedPress(command: local, history: history) {
+        if VoiceControlLocalTools.alreadyVerifiedNamedPress(command: local, history: history, exact: segment != nil) {
             return .directCompleted("Done. The requested change was verified.")
         }
-        if VoiceControlLocalTools.alreadyPressedByName(command: local, history: history) { return .finished }
+        if VoiceControlLocalTools.alreadyPressedByName(command: local, history: history, exact: segment != nil) {
+            return .finished
+        }
         if let destination = VoiceControlWebDestination.matchingGoal(lower),
             snapshot.targets.contains(where: { $0.id == destination.id }),
             !VoiceControlWebDestination.pageMatches(snapshot, destination: destination),
@@ -285,12 +292,12 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
         // ("Original goal: …\nUser correction: …") is multi-line and must not be
         // mistaken for "now type <everything after the first 'type '>".
         guard !command.contains("\n") else { return nil }
-        let joiners: Set<String> = ["now", "then", "and", "please", "just", "also"]
+        let joiners: Set<String> = ["now", "then", "and", "please"]
         var from = command.startIndex
         while let match = command.range(of: " type ", options: .caseInsensitive, range: from..<command.endIndex) {
             let before = command[..<match.lowerBound]
             let word = before.split(whereSeparator: \.isWhitespace).last.map { $0.lowercased() } ?? ""
-            if let last = before.last, ",.;:!?".contains(last) || joiners.contains(word) {
+            if let last = before.last, ",.".contains(last) || joiners.contains(word) {
                 var rest = command[match.upperBound...]
                 for lead in ["the words ", "literally "]
                 where rest.range(of: lead, options: [.caseInsensitive, .anchored]) != nil {

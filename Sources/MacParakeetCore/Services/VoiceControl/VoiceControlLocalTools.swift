@@ -60,15 +60,17 @@ enum VoiceControlLocalTools {
         return existing.localizedStandardCompare(value) == .orderedSame
     }
 
-    static func alreadyVerifiedNamedPress(command: String, history: [VoiceControlAction]) -> Bool {
-        alreadyPressedByName(command: command, history: history, statuses: [.verified])
+    static func alreadyVerifiedNamedPress(command: String, history: [VoiceControlAction], exact: Bool = false) -> Bool {
+        alreadyPressedByName(command: command, history: history, statuses: [.verified], exact: exact)
     }
 
     /// `click Save` pressed Save and the interface moved. The single command is
     /// done; the next screen is not a reason to ask the model for another step.
+    /// `exact` (a correction's command) needs the pressed label itself: after
+    /// `click Save As`, `actually click Save` is not done.
     static func alreadyPressedByName(
         command: String, history: [VoiceControlAction],
-        statuses: Set<VoiceControlReceipt.Status> = [.verified, .transitionObserved]
+        statuses: Set<VoiceControlReceipt.Status> = [.verified, .transitionObserved], exact: Bool = false
     ) -> Bool {
         guard let phrases = spokenControlNames(command),
             let last = history.last, let status = last.receiptStatus, statuses.contains(status),
@@ -78,12 +80,13 @@ enum VoiceControlLocalTools {
         return phrases.contains { phrase in
             VoiceControlSessionGrammar.normalize(label) == phrase
                 || label.localizedStandardCompare(phrase) == .orderedSame
-                || (hasClickPrefix(command) && labelHasPhrasePrefix(label, phrase: phrase))
+                || (!exact && hasClickPrefix(command) && labelHasPhrasePrefix(label, phrase: phrase))
         }
     }
 
-    /// The spoken name as said, then without a trailing role word: `click new
-    /// tab` names `New Tab` before it names `New`.
+    /// The spoken name as said, then each shorter form as trailing role words
+    /// come off: `click the new tab button` names `New Tab Button`, then
+    /// `New Tab`, then `New`.
     private static func spokenControlNames(_ command: String) -> [String]? {
         var n = VoiceControlSessionGrammar.normalize(command)
         guard !n.isEmpty else { return nil }
@@ -94,13 +97,14 @@ enum VoiceControlLocalTools {
         }
         if n.hasPrefix("the ") { n = String(n.dropFirst(4)) }
         if n.hasSuffix(" please") { n = String(n.dropLast(7)) }
-        let whole = n
-        for suffix in [" button", " link", " tab", " menu"] where n.hasSuffix(suffix) {
+        var names = [n]
+        while let suffix = [" button", " link", " tab", " menu"].first(where: { n.hasSuffix($0) && n.count > $0.count }) {
             n = String(n.dropLast(suffix.count))
+            names.append(n)
         }
         guard !n.isEmpty, n.split(separator: " ").count <= 8 else { return nil }
-        if blockedBarePhrases.contains(n) || blockedBarePhrases.contains(whole) { return nil }
-        return whole == n ? [n] : [whole, n]
+        if names.contains(where: blockedBarePhrases.contains) { return nil }
+        return names
     }
 
     private static func hasClickPrefix(_ command: String) -> Bool {
