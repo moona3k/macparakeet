@@ -156,6 +156,21 @@ final class VoiceControlReviewFixTests: XCTestCase {
         XCTAssertEqual(decision, .clarify("fallback"), "no New Tab on screen: never press New")
     }
 
+    func testTheFirstFloorWordDecidesAMixedLabel() {
+        XCTAssertEqual(floor("Delete order"), .destructive)
+        XCTAssertEqual(floor("Send payment"), .externalCommitment)
+        XCTAssertEqual(floor("Pay and send"), .payment)
+    }
+
+    func testPoliteAndClosePhrasesReadTheSameInTheClassifier() {
+        let state = VoiceControlUtteranceIntent.State(
+            awaitingClarification: true, hasOpenTask: true, offeredLabels: ["Please Save", "Save"])
+        XCTAssertEqual(VoiceControlUtteranceIntent.classify("please select 2", state: state), .answer)
+        XCTAssertEqual(VoiceControlUtteranceIntent.classify("Please Save", state: state), .answer)
+        let open = VoiceControlUtteranceIntent.State(awaitingClarification: true, hasOpenTask: true)
+        XCTAssertEqual(VoiceControlUtteranceIntent.classify("close the tab", state: open), .newInstruction)
+    }
+
     func testTrailingTypeClauseNeedsACommaPeriodOrJoiningWord() {
         XCTAssertEqual(VoiceControlCommandRouter.typePayload(in: "ok, type hello"), "hello")
         XCTAssertEqual(VoiceControlCommandRouter.typePayload(in: "then type hello"), "hello")

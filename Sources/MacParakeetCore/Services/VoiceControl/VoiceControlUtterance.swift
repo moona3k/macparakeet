@@ -51,9 +51,11 @@ public enum VoiceControlUtteranceIntent: String, Sendable, Equatable, CaseIterab
             return .answer
         }
         if state.awaitingClarification {
-            // Said as offered (`Select All`) or after a pick verb (`click Select All`).
-            let named = withoutPickVerb(n)
-            if state.offeredLabels.contains(where: { [n, named].contains(VoiceControlSessionGrammar.normalize($0)) }) {
+            // Said as offered (`Select All`, `Please Save`), politely, or after a
+            // pick verb (`click Select All`) — read exactly as runner.clarify reads it.
+            let polite = n.hasPrefix("please ") ? String(n.dropFirst(7)) : n
+            let named = withoutPickVerb(polite)
+            if state.offeredLabels.contains(where: { [n, polite, named].contains(VoiceControlSessionGrammar.normalize($0)) }) {
                 return .answer
             }
             if VoiceControlSpokenPick.index(in: named, count: 10) != nil { return .answer }
@@ -109,6 +111,6 @@ public enum VoiceControlUtteranceIntent: String, Sendable, Equatable, CaseIterab
     private static let commandVerbs: Set<String> = ["open", "click", "press", "tap", "select", "type", "scroll", "undo"]
     private static let commandPhrases: Set<String> = [
         "go to", "switch to", "new message", "new email", "new tab", "new window", "new note", "new folder",
-        "new document", "close window", "close tab", "close this",
+        "new document", "close window", "close tab", "close this", "close the",
     ]
 }
