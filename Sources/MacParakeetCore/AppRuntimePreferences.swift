@@ -561,6 +561,15 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let transcriptFontScaleKey = "com.macparakeet.transcriptFontScale"
     public static let selectedMicrophoneDeviceUIDKey = "selectedMicrophoneDeviceUID"
     public static let meetingAudioSourceModeKey = "meetingAudioSourceMode"
+    /// Consent for `macparakeet://meeting/...` links to start, stop, pause,
+    /// or resume meeting recording (default off). While on, any app or
+    /// website can send those links.
+    public static let meetingURLControlEnabledKey = "meetingURLControlEnabled"
+
+    public static func meetingURLControlEnabled(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: meetingURLControlEnabledKey) as? Bool ?? false
+    }
+
     /// Start microphone-capturing meetings muted (default off) until this
     /// setting is turned off. Unmute from the live panel; system-only
     /// capture ignores this.

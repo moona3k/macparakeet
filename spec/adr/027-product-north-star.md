@@ -76,6 +76,12 @@ first-class automation does not require mirroring live recording controls,
 hotkeys, overlays, or every GUI affordance. Reuse the CLI before adding a
 service or protocol.
 
+**Demand-driven extension (#1198):** The app exposes a default-off
+[meeting URL control contract](../contracts/meeting-url-control-v1.md) for
+explicit start/stop/pause/resume and a creation title. This reuses the GUI
+recording flow, requires user opt-in, and adds no headless capture service or
+ambient recording. The CLI's saved-artifact scope remains unchanged.
+
 ### 4. Ambient capture is parked, not rejected
 
 Unlike cloud STT — which [ADR-002](002-local-only.md) and the

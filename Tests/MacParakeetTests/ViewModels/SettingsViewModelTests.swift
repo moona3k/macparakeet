@@ -48,6 +48,15 @@ final class SettingsViewModelTests: XCTestCase {
     var youtubeDownloadsTestDir: URL!
     var meetingRecordingsTestDir: URL!
 
+    func testMeetingURLControlRequiresExplicitOptInAndPersists() {
+        XCTAssertFalse(viewModel.meetingURLControlEnabled)
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences.meetingURLControlEnabled(defaults: testDefaults))
+        viewModel.meetingURLControlEnabled = true
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences.meetingURLControlEnabled(defaults: testDefaults))
+        viewModel.meetingURLControlEnabled = false
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences.meetingURLControlEnabled(defaults: testDefaults))
+    }
+
     private func waitUntil(
         timeout: Duration = .seconds(1),
         pollInterval: Duration = .milliseconds(10),

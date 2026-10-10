@@ -2075,6 +2075,17 @@ fields.
 - [x] `statusMessage` for `.error` reads `<technical detail>\n\nIf any audio was captured it's in your Library, where you can retry transcription or export the audio.`
 - [x] Empty/whitespace-only error strings fall back to "An unexpected error occurred." instead of producing a leading newline
 
+### Meeting recording links (#1198)
+
+The GUI app accepts opt-in `macparakeet://meeting/start`, `stop`, `pause`, and
+`resume` commands. Start optionally accepts a percent-encoded `title` query.
+The default-off **Allow recording control from links** switch is in Capture
+settings. Any app or website can send these links once enabled; existing audio
+permissions and recording settings remain in force. The
+[URL control contract](contracts/meeting-url-control-v1.md) defines validation,
+startup delivery, idempotency, busy-start behavior, and development-scheme
+isolation.
+
 ### F42: Meeting Recording Pause / Resume
 
 > Status: **IMPLEMENTED**
