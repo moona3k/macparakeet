@@ -304,8 +304,7 @@ public actor NativeVoiceControlAdapter: VoiceControlAdapter {
             isComplete: complete,
             metrics: VoiceControlObservationMetrics(
                 nodesVisited: walk.visited, capped: !walk.complete,
-                walkMilliseconds: Int(walkStarted.duration(to: .now).components.seconds) * 1000
-                    + Int(walkStarted.duration(to: .now).components.attoseconds / 1_000_000_000_000_000)))
+                walkMilliseconds: Self.milliseconds(walkStarted.duration(to: .now))))
         current = snapshot
         return snapshot
     }
@@ -341,6 +340,8 @@ public actor NativeVoiceControlAdapter: VoiceControlAdapter {
                 throw NativeVoiceControlError.unsupported
             }
             current = nil
+            let browser = AXUIElementCreateApplication(expectedPID)
+            let titleBefore = Self.focusedOrMainWindow(browser).map { Self.string($0, kAXTitleAttribute) }
             let opened = try await MainActor.run {
                 try authority.perform {
                     guard NSWorkspace.shared.frontmostApplication?.processIdentifier == expectedPID else {
@@ -350,7 +351,17 @@ public actor NativeVoiceControlAdapter: VoiceControlAdapter {
                 }
             }
             guard opened else { return VoiceControlReceipt(status: .failed, message: "Couldn’t open that website.") }
-            try await Task.sleep(for: .milliseconds(1_800))
+            // The page announces itself by retitling the window; a fast load
+            // should not wait out the old fixed 1.8 s.
+            let deadline = ContinuousClock.now.advanced(by: .milliseconds(2_000))
+            while ContinuousClock.now < deadline {
+                try await Task.sleep(for: .milliseconds(150))
+                let title = Self.focusedOrMainWindow(browser).map { Self.string($0, kAXTitleAttribute) }
+                if title != titleBefore, title?.isEmpty == false {
+                    try await Task.sleep(for: .milliseconds(250))
+                    break
+                }
+            }
             return VoiceControlReceipt(
                 status: .transitionObserved, message: "Opened the requested website.")
         }
@@ -698,7 +709,10 @@ public actor NativeVoiceControlAdapter: VoiceControlAdapter {
                 [
                     kAXTextFieldRole, kAXComboBoxRole, kAXPopUpButtonRole, kAXMenuRole, kAXMenuItemRole,
                     kAXButtonRole, kAXCheckBoxRole, kAXRadioButtonRole, kAXStaticTextRole, "AXWebArea", "AXLink",
-                ].contains(role)
+                ].contains(role),
+                // A clock, a video timestamp or a progress figure changes on its
+                // own; it is not evidence that the press did anything.
+                role != kAXStaticTextRole || !Self.isVolatileText(Self.label(node) + Self.string(node, kAXValueAttribute))
             {
                 evidence.insert(
                     role + "|" + Self.label(node) + "|" + Self.string(node, kAXValueAttribute)
@@ -709,6 +723,16 @@ public actor NativeVoiceControlAdapter: VoiceControlAdapter {
             }
         }
         return evidence
+    }
+
+    static func milliseconds(_ duration: Duration) -> Int {
+        Int(duration.components.seconds) * 1000 + Int(duration.components.attoseconds / 1_000_000_000_000_000)
+    }
+
+    /// Text with no letters: times, counters, percentages, `12 / 340`.
+    static func isVolatileText(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty && !trimmed.unicodeScalars.contains { CharacterSet.letters.contains($0) }
     }
 
     private func validateContext() throws {
