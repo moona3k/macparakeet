@@ -385,14 +385,14 @@ public enum VoiceControlConsequencePolicy {
         ]
         // Words that can come before an imperative without changing it.
         let leadIns: Set<String> = [
-            "yes", "permanently", "schedule", "now", "also", "then", "just", "really", "quickly",
+            "yes", "ok", "okay", "permanently", "schedule", "now", "also", "then", "just", "really", "quickly",
             // Modifiers that keep a verb a verb: `Pre-order now`, `Quick buy`, `1-Click Buy`.
             "pre", "quick", "instant", "express", "1", "one", "click",
         ]
         // `Click to delete`, `Tap to send`: the word after an infinitive `to`.
         let gestures: Set<String> = ["click", "tap", "press", "swipe", "slide"]
         let commitments: Set<String> = [
-            "place", "complete", "confirm", "submit", "finalize", "finish", "make", "empty", "move",
+            "place", "complete", "confirm", "submit", "finalize", "finish", "make", "empty", "move", "request",
         ]
         func imperative(_ index: Int) -> Bool {
             let word = words[index]

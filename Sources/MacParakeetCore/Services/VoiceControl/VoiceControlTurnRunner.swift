@@ -164,12 +164,16 @@ public actor VoiceControlTurnRunner {
         ingressAuthority = submissionAuthority
         if !alternativeLabels.isEmpty || !alternativeIDs.isEmpty {
             let count = max(alternativeLabels.count, alternativeIDs.count)
-            if let index = VoiceControlSpokenPick.index(in: answer, count: count) {
+            // The same reading the classifier used: `select 2`, `click Open`, `Select All.`
+            let said = VoiceControlSessionGrammar.normalize(answer)
+            let spoken = VoiceControlUtteranceIntent.withoutPickVerb(said)
+            if let index = VoiceControlSpokenPick.index(in: spoken, count: count) {
                 if alternativeLabels.indices.contains(index) { chosenAlternative = alternativeLabels[index] }
                 if alternativeIDs.indices.contains(index) { chosenTargetID = alternativeIDs[index] }
             } else {
                 let matches = alternativeLabels.filter {
-                    $0.caseInsensitiveCompare(answer.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
+                    let label = VoiceControlSessionGrammar.normalize($0)
+                    return label == said || label == spoken
                 }
                 guard matches.count == 1, let match = matches.first,
                     let index = alternativeLabels.firstIndex(of: match)

@@ -76,6 +76,19 @@ final class VoiceControlRecoveryTests: XCTestCase {
         XCTAssertEqual(effects.map(\.targetID), ["alpha", "gamma"])
     }
 
+    func testPickAcceptsAVerbOrTrailingPunctuationLikeTheClassifier() async {
+        for answer in ["select 2", "Beta."] {
+            let adapter = RecoveryAdapter()
+            let engine = RecoveryEngine([.action(.init(operation: .press, targetID: "alpha")), .finished, .finished])
+            let runner = VoiceControlTurnRunner(adapter: adapter, engine: engine)
+            await runner.submit("Open Alpha")
+            await runner.revise("No, the other one")
+            await runner.clarify(answer)
+            let effects = await adapter.effects
+            XCTAssertEqual(effects.count, 2, "\(answer) resolves the pick instead of asking again")
+        }
+    }
+
     func testRevisingLiteralTaskCannotTriggerOldLocalCompletion() async {
         let adapter = RecoveryAdapter()
         let fallback = RecoveryEngine([.action(.init(operation: .setValue, targetID: "destination", value: "London")), .finished])
