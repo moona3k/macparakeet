@@ -1,0 +1,29 @@
+Sources/MacParakeet/App/VoiceControlCoordinator.swift
+  s_6fb95bdb4ea3db::t_0e539b597d9fcc 31-32,305,611
+Sources/MacParakeet/Views/VoiceControl/VoiceControlOverlay.swift
+  s_860a41e9fb91d3::t_b6b96667b0dcff 12,71,79,85-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fb370d67e5ea0acff8280c827a4b1ebc7ab7b69c",
+  "prompts": {},
+  "sessions": {
+    "s_6fb95bdb4ea3db": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1213f-c827-7ba0-8f4f-0217e59e74ab",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_860a41e9fb91d3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d7a6ec4-929b-4af8-aea8-07fa032dc081",
+        "model": "unknown"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
