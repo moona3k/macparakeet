@@ -1,0 +1,21 @@
+docs/research/2026-10-09-jev-voice-control-refresh/code-review.md
+  s_860a41e9fb91d3::t_0634126442830d 3-4
+docs/research/2026-10-09-jev-voice-control-refresh/evaluation.md
+  s_860a41e9fb91d3::t_301057b014802d 13-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "85a06efb70612e5137309792b7f65c56cb72cad9",
+  "prompts": {},
+  "sessions": {
+    "s_860a41e9fb91d3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d7a6ec4-929b-4af8-aea8-07fa032dc081",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
