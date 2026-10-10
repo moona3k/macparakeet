@@ -164,12 +164,19 @@ public actor VoiceControlTurnRunner {
         ingressAuthority = submissionAuthority
         if !alternativeLabels.isEmpty || !alternativeIDs.isEmpty {
             let count = max(alternativeLabels.count, alternativeIDs.count)
-            if let index = VoiceControlSpokenPick.index(in: answer, count: count) {
+            // The same reading the classifier used: `select 2`, `click Open`, `Select All.`
+            let exact = VoiceControlSessionGrammar.normalize(answer)
+            // An offered `Please Save` is matched before the politeness is dropped.
+            let said = alternativeLabels.contains { VoiceControlSessionGrammar.normalize($0) == exact }
+                ? exact : (exact.hasPrefix("please ") ? String(exact.dropFirst(7)) : exact)
+            let spoken = VoiceControlUtteranceIntent.withoutPickVerb(said)
+            if let index = VoiceControlSpokenPick.index(in: spoken, count: count) {
                 if alternativeLabels.indices.contains(index) { chosenAlternative = alternativeLabels[index] }
                 if alternativeIDs.indices.contains(index) { chosenTargetID = alternativeIDs[index] }
             } else {
                 let matches = alternativeLabels.filter {
-                    $0.caseInsensitiveCompare(answer.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
+                    let label = VoiceControlSessionGrammar.normalize($0)
+                    return label == said || label == spoken
                 }
                 guard matches.count == 1, let match = matches.first,
                     let index = alternativeLabels.firstIndex(of: match)
