@@ -394,9 +394,9 @@ public enum VoiceControlConsequencePolicy {
             if previous == "secure", word == "checkout" { return true }
             return previous == "to" && index >= 2 && destinations.contains(words[index - 2])
         }
-        for (consequence, floor) in floors
-        where words.indices.contains(where: { floor.contains(words[$0]) && !exempt($0) }) {
-            return consequence
+        // The first floor word the label leads with decides: `Delete order` deletes.
+        for index in words.indices where !exempt(index) {
+            if let match = floors.first(where: { $0.1.contains(words[index]) }) { return match.0 }
         }
         return nil
     }

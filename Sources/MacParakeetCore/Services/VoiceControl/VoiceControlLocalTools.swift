@@ -107,7 +107,7 @@ enum VoiceControlLocalTools {
         var names = [n]
         // `new tab` names a command, not a tab called `New`.
         if let suffix = [" button", " link", " tab", " menu"].first(where: { n.hasSuffix($0) && n.count > $0.count }),
-            !(suffix == " tab" && n == "new tab")
+            !(suffix == " tab" && ["new tab", "close tab"].contains(n))
         {
             n = String(n.dropLast(suffix.count))
             names.append(n)
