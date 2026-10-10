@@ -1546,7 +1546,7 @@ are unaffected.
 **Technical notes:**
 - Speaker detection runs locally after recording, separately from ASR (ADR-010).
 - Automatic detection uses Nemotron 3 `fast128`, with up to eight speakers per analyzed source. Explicit speaker-count constraints and experimental voice profiles retain Community-1 (pyannote segmentation, WeSpeaker v2 embeddings and VBx clustering).
-- Current source pins FluidAudio 0.17.4. The matched evaluation records improved speaker identity/counts alongside worse results on some distant-microphone recordings; it is not a universal accuracy improvement (ADR-010).
+- Current source pins FluidAudio 0.17.7, whose Community-1 fixes stop digital silence from splitting speakers (ADR-010 2026-10-08). The matched evaluation records improved speaker identity/counts alongside worse results on some distant-microphone recordings; it is not a universal accuracy improvement (ADR-010).
 - Setup prepares both the ~199 MB Nemotron model and ~130 MB Community-1 assets for offline use. Upgrading an old, unmarked Community-1 cache requires one connected setup to obtain the revision-pinned assets.
 - Runs after ASR completes and merges speaker segments with word-level timestamps by time overlap. Isolated one-word flips and unlabeled gaps inherit a speaker only when both neighboring runs agree (ADR-010 2026-09-15).
 - Diarization is non-fatal — if it fails, ASR result is still persisted without speaker data

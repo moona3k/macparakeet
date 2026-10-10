@@ -38,7 +38,7 @@ model caches, and large prediction files stay outside Git.
 - `manifests/alimeeting-test.json`: all 20 official AliMeeting Test sessions,
   far channel one and a fixed arithmetic mean of every participant headset.
 - `Baseline/`: isolated SDK 0.15.7 executable; reads existing models offline
-  and records model/audio hashes. The app executable uses SDK 0.17.4.
+  and records model/audio hashes. The app executable uses SDK 0.17.7.
 - `scripts/run_comparison.py`: sequential matched runs, alternating backend
   order, checking audio identity, retaining failures and per-recording logs.
 - `scripts/score_diarization.py`: pinned dscore/NIST engine, explicit coverage

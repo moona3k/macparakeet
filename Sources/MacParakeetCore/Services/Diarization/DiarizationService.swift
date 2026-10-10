@@ -499,7 +499,7 @@ public actor DiarizationService: DiarizationServiceProtocol {
 
     /// Bump on any FluidAudio upgrade that could move the clustering centroid,
     /// even when the embedding model is untouched.
-    private nonisolated static let pipelineRevision = "fluidaudio-0.17.4"
+    private nonisolated static let pipelineRevision = "fluidaudio-0.17.7"
 
     /// Identity of the representation the shipping configuration produces.
     public nonisolated static var defaultModelIdentity: SpeakerModelIdentity {

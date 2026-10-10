@@ -94,6 +94,13 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Changed
+
+- FluidAudio 0.17.7. Explicit `--speaker-count`, `--speaker-min` and
+  `--speaker-max` runs (Community-1) no longer over-split audio that contains
+  digital silence, such as a muted call track. Automatic speaker detection
+  (Nemotron), ASR, JSON fields and exit codes are unchanged.
+
 ### Fixed
 
 - `retranscribe --update` for saved transcriptions and meetings returns the row

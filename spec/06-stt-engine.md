@@ -214,7 +214,7 @@ small user vocabularies rather than full dictionaries.
 | Capability | Model | Details |
 |-----------|-------|---------|
 | Streaming ASR | Parakeet EOU 1.1B | Real-time with end-of-utterance detection, 160ms-1600ms chunks |
-| Speaker diarization (automatic, after ASR) | Nemotron 3, `fast128`, through FluidAudio 0.17.4 | ~199 MB pinned assets; eight-speaker limit per source; overlapping activity retained. See ADR-010 and the matched evaluation in `benchmarks/diarization/2026-09-25-nemotron-evaluation.md`. |
+| Speaker diarization (automatic, after ASR) | Nemotron 3, `fast128`, through FluidAudio 0.17.7 | ~199 MB pinned assets; eight-speaker limit per source; overlapping activity retained. See ADR-010 and the matched evaluation in `benchmarks/diarization/2026-09-25-nemotron-evaluation.md`. |
 | Speaker diarization (explicit count / experimental voice profiles) | Pyannote community-1 + WeSpeaker v2 + VBx clustering | Existing high-accuracy configuration and speaker-count constraints; no fixed eight-speaker cap. Also handles a calendar bound violated by Nemotron. |
 | Speaker diarization (streaming) | Sortformer (NVIDIA) | ~32% DER, 4 speaker max. Not used — see ADR-010 for rationale. |
 | Voice activity detection | Silero | 96% accuracy, 1220x RTF |
@@ -682,7 +682,7 @@ smoothed at word assignment (`SpeakerMerger`) only when both neighboring runs
 agree ([issue #1046](https://github.com/moona3k/macparakeet/issues/1046)). This
 does not change diarizer output, and it can erase a brief reply.
 
-The app pins FluidAudio 0.17.4. Older Community-1 measurements under 0.15.x are not current app accuracy or throughput guarantees. Asset sizes above also do not measure peak process memory. See ADR-010's 2026-09-25 Nemotron amendment and its earlier amendments for provenance and the remaining DER gap.
+The app pins FluidAudio 0.17.7 (ADR-010 2026-10-08 amendment). Older Community-1 measurements under 0.15.x are not current app accuracy or throughput guarantees. Asset sizes above also do not measure peak process memory. See ADR-010's 2026-09-25 Nemotron amendment and its earlier amendments for provenance and the remaining DER gap.
 
 ### What's NOT included
 

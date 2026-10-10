@@ -184,7 +184,7 @@ final class NemotronDiarizationE2ETests: XCTestCase {
         XCTAssertEqual(allCalls.count, 2)
 
         // Freeze ASR words/timings and the converted WAV, varying only acoustic
-        // diarization. This baseline runs on 0.17.4, not the old SDK runtime.
+        // diarization. This baseline runs on 0.17.7, not the old SDK runtime.
         let candidateCall = try XCTUnwrap(allCalls.last)
         let comparisonWAV = try await audio.convert(fileURL: recording.systemAudioURL)
         defer { try? FileManager.default.removeItem(at: comparisonWAV) }
@@ -197,13 +197,13 @@ final class NemotronDiarizationE2ETests: XCTestCase {
         }
         let projections = [
             wordProjection(
-                backend: "fluidaudio-0.17.4-community-1", words: fixedWords,
+                backend: "fluidaudio-0.17.7-community-1", words: fixedWords,
                 segments: baseline.segments.map {
                     .init(speakerId: $0.speakerId, startMs: $0.startMs, endMs: $0.endMs)
                 }
             ),
             wordProjection(
-                backend: "fluidaudio-0.17.4-nemotron-fast128", words: fixedWords, segments: candidateCall.segments),
+                backend: "fluidaudio-0.17.7-nemotron-fast128", words: fixedWords, segments: candidateCall.segments),
         ]
 
         let report = Report(
