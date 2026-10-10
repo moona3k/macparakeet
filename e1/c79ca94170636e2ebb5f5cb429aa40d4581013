@@ -1,0 +1,49 @@
+docs/research/2026-10-09-jev-voice-control-refresh/README.md
+  s_860a41e9fb91d3::t_e1ddf67c432924 1-43
+docs/research/2026-10-09-jev-voice-control-refresh/evaluation.md
+  s_860a41e9fb91d3::t_dd91a375af569c 1-130
+Sources/MacParakeetCore/Services/VoiceControl/README.md
+  s_860a41e9fb91d3::t_c0e74baedd0c75 23-25
+docs/research/2026-09-19-jev-voice-control/README.md
+  s_860a41e9fb91d3::t_7f57619c9568fb 18
+docs/research/2026-10-09-jev-voice-control-refresh/code-review.md
+  s_b493cfb67a924f::t_aa8fbd020f60b4 1-708
+docs/research/2026-10-09-jev-voice-control-refresh/ecosystem.md
+  s_6fb95bdb4ea3db::t_69c946f40c3de6 1-416
+docs/research/2026-10-09-jev-voice-control-refresh/landscape.md
+  s_6fb95bdb4ea3db::t_c8ff66a376e445 1-425
+spec/contracts/voice-control.md
+  s_860a41e9fb91d3::t_12809a5733ae55 126-145,197-200,204-209,254-261,393-394,397-409
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e1c79ca94170636e2ebb5f5cb429aa40d4581013",
+  "prompts": {},
+  "sessions": {
+    "s_6fb95bdb4ea3db": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1213f-c827-7ba0-8f4f-0217e59e74ab",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_860a41e9fb91d3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d7a6ec4-929b-4af8-aea8-07fa032dc081",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_b493cfb67a924f": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "237b3627-7dda-4a5c-8fe1-49ca96f8335f",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
