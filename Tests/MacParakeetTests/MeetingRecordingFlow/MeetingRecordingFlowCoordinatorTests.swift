@@ -700,6 +700,98 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertTrue(panel.isPaused)
     }
 
+    func testUnavailableMicrophonePostsOneSourceLossNoticePerRecording() async throws {
+        let service = MeetingRecordingServiceSpy(output: makeRecordingOutput())
+        await service.setCaptureHealth(
+            MeetingCaptureHealthSummary(
+                sourceMode: .microphoneAndSystem,
+                microphone: MeetingSourceHealth(source: .microphone, status: .unavailable),
+                system: MeetingSourceHealth(source: .system, status: .live, level: 0.5)
+            ))
+        var notices: [MeetingSourceLossNotice] = []
+        var isStillRelevant: (@MainActor @Sendable () -> Bool)?
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: service,
+            transcriptionService: MockTranscriptionService(),
+            permissionService: MockPermissionService(),
+            transcriptionRepo: MockTranscriptionRepository(),
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            llmService: nil,
+            pillViewModel: MeetingRecordingPillViewModel(),
+            meetingRecordingSettlement: makeSettlement(),
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in },
+            isApplicationActive: { false },
+            sourceLossNoticeThreshold: 0,
+            onSourceLossNotice: { notice, relevance in
+                notices.append(notice)
+                isStillRelevant = relevance
+            }
+        )
+        coordinator.testHook_enterRecording()
+        let panel = MeetingRecordingPanelViewModel()
+
+        await coordinator.testHook_refreshPillState(panel: panel)
+        await coordinator.testHook_refreshPillState(panel: panel)
+
+        XCTAssertEqual(notices.map(\.source), [.microphone])
+        XCTAssertEqual(notices.first?.title, "This meeting may be missing your side")
+        XCTAssertEqual(isStillRelevant?(), true)
+
+        // A notice still waiting on authorization must not post after the
+        // microphone recovers.
+        await service.setCaptureHealth(
+            MeetingCaptureHealthSummary(
+                sourceMode: .microphoneAndSystem,
+                microphone: MeetingSourceHealth(source: .microphone, status: .live, level: 0.5),
+                system: MeetingSourceHealth(source: .system, status: .live, level: 0.5)
+            ))
+        await coordinator.testHook_refreshPillState(panel: panel)
+        XCTAssertEqual(isStillRelevant?(), false)
+    }
+
+    func testSourceLossNoticeWaitsWhileApplicationIsActiveThenPostsOnce() async throws {
+        let service = MeetingRecordingServiceSpy(output: makeRecordingOutput())
+        await service.setCaptureHealth(
+            MeetingCaptureHealthSummary(
+                sourceMode: .microphoneAndSystem,
+                microphone: MeetingSourceHealth(source: .microphone, status: .unavailable),
+                system: MeetingSourceHealth(source: .system, status: .live, level: 0.5)
+            ))
+        let activity = ApplicationActivityProbe(isActive: true)
+        var notices: [MeetingSourceLossNotice] = []
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: service,
+            transcriptionService: MockTranscriptionService(),
+            permissionService: MockPermissionService(),
+            transcriptionRepo: MockTranscriptionRepository(),
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            llmService: nil,
+            pillViewModel: MeetingRecordingPillViewModel(),
+            meetingRecordingSettlement: makeSettlement(),
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in },
+            isApplicationActive: { activity.isActive },
+            sourceLossNoticeThreshold: 0,
+            onSourceLossNotice: { notice, _ in notices.append(notice) }
+        )
+        coordinator.testHook_enterRecording()
+        let panel = MeetingRecordingPanelViewModel()
+
+        await coordinator.testHook_refreshPillState(panel: panel)
+        await coordinator.testHook_refreshPillState(panel: panel)
+        XCTAssertTrue(notices.isEmpty)
+
+        activity.isActive = false
+        await coordinator.testHook_refreshPillState(panel: panel)
+        await coordinator.testHook_refreshPillState(panel: panel)
+        XCTAssertEqual(notices.map(\.source), [.microphone])
+    }
+
     func testStaleGenerationCaptureFailureSignalIsIgnored() async throws {
         let recordingService = MeetingRecordingServiceSpy(output: makeRecordingOutput())
         let coordinator = MeetingRecordingFlowCoordinator(
@@ -1648,6 +1740,15 @@ private final class FloatingPillVisibilityProbe {
     }
 }
 
+@MainActor
+private final class ApplicationActivityProbe {
+    var isActive: Bool
+
+    init(isActive: Bool) {
+        self.isActive = isActive
+    }
+}
+
 private struct StaticFrontmostApplicationProvider: FrontmostApplicationProviding {
     private let frontmostApplication: MeetingStartContext.FrontmostApplication?
 
@@ -1693,6 +1794,11 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
     private var startObservationContinuations: [CheckedContinuation<Void, Never>] = []
     private var captureHealthReadReached: XCTestExpectation?
     private var captureHealthReadContinuation: CheckedContinuation<Void, Never>?
+    private var stubbedCaptureHealth: MeetingCaptureHealthSummary = .notRecording
+
+    func setCaptureHealth(_ health: MeetingCaptureHealthSummary) {
+        stubbedCaptureHealth = health
+    }
 
     func blockNextCaptureHealthRead(reached: XCTestExpectation) {
         captureHealthReadReached = reached
@@ -1713,7 +1819,7 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
                     reached.fulfill()
                 }
             }
-            return .notRecording
+            return stubbedCaptureHealth
         }
     }
 

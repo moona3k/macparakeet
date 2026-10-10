@@ -69,6 +69,51 @@ final class MeetingRecordingServiceTests: XCTestCase {
         }
     }
 
+    func testMicrophoneRecoveredAfterFailedStartJoinsLiveSessionWithOffset() async throws {
+        // Issue #1223: the capture service retries a failed microphone start and
+        // reports the recovered source as ready mid-session.
+        let capture = MockMeetingAudioCaptureService(
+            startReport: .init(
+                sourceMode: .microphoneAndSystem, microphoneState: .unavailable, systemState: .ready
+            ))
+        let service = MeetingRecordingService(
+            audioCaptureService: capture,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            micConditionerFactory: { PassthroughMicConditioner() }
+        )
+        try await service.startRecording()
+        let systemBuffer = try XCTUnwrap(
+            makeMonoFloatBuffer(frameCount: 48_000, sampleValue: 0.25, sampleRate: 48_000))
+        await capture.yield(.sourceStartupState(source: .microphone, state: .unavailable))
+        await capture.yield(.systemBuffer(systemBuffer, AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100))))
+        for _ in 0..<100 {
+            if await service.systemLevel > 0 { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let healthBeforeRecovery = await service.captureHealth
+        XCTAssertEqual(healthBeforeRecovery.microphone.status, .unavailable)
+
+        await capture.yield(.sourceStartupState(source: .microphone, state: .ready))
+        await capture.yield(.microphoneStarted(report: .init(requestedMode: .raw, effectiveMode: .raw)))
+        let micBuffer = try XCTUnwrap(
+            makeMonoFloatBuffer(frameCount: 48_000, sampleValue: 0.25, sampleRate: 48_000))
+        await capture.yield(.microphoneBuffer(micBuffer, AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 103))))
+        for _ in 0..<100 {
+            if await service.captureHealth.microphone.status == .live { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let healthAfterRecovery = await service.captureHealth
+        XCTAssertEqual(healthAfterRecovery.microphone.status, .live)
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+        let microphoneTrack = try XCTUnwrap(output.sourceAlignment.microphone)
+        XCTAssertGreaterThanOrEqual(microphoneTrack.startOffsetMs, 2_900)
+        let microphoneReport = try XCTUnwrap(output.captureReport?.sources.first { $0.source == .microphone })
+        XCTAssertNotEqual(microphoneReport.status, .unavailable)
+    }
+
     func testRealCaptureSavesTwoSystemMeetingsWithoutSettlingOldMicrophone() async throws {
         let microphone = ContainmentMicrophone(holdStart: true)
         defer { microphone.releaseStart() }

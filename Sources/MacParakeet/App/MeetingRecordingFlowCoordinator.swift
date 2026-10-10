@@ -101,6 +101,9 @@ final class MeetingRecordingFlowCoordinator {
     private let onQueuedTranscriptionReady: (Transcription, Bool) -> Void
     private let onQueuedTranscriptionFailed: (UUID, TranscriptionCompletionNotifier.Content) -> Void
     private let onRecordingBegan: () -> Void
+    private let isApplicationActive: @MainActor @Sendable () -> Bool
+    private let onSourceLossNotice: (MeetingSourceLossNotice, @escaping @MainActor @Sendable () -> Bool) -> Void
+    private var sourceLossNoticePolicy: MeetingSourceLossNoticePolicy
     private let onRecordingStopping: () -> Void
     private let onFlowReturnedToIdle: () -> Void
     private let meetingTranscriptionQueue: MeetingTranscriptionQueue
@@ -182,6 +185,14 @@ final class MeetingRecordingFlowCoordinator {
         onQueuedTranscriptionReady: ((Transcription, Bool) -> Void)? = nil,
         onQueuedTranscriptionFailed: ((UUID, TranscriptionCompletionNotifier.Content) -> Void)? = nil,
         onRecordingBegan: @escaping () -> Void = {},
+        // `NSApp` is nil in hosts without an NSApplication, such as parallel
+        // xctest workers; count that as active so no banner is posted there.
+        isApplicationActive: @escaping @MainActor @Sendable () -> Bool = { NSApp?.isActive ?? true },
+        sourceLossNoticeThreshold: TimeInterval = MeetingSourceLossNoticePolicy.defaultThreshold,
+        onSourceLossNotice: @escaping (MeetingSourceLossNotice, @escaping @MainActor @Sendable () -> Bool) -> Void = {
+            notice, isStillRelevant in
+            MeetingSourceLossNoticePresenter.present(notice, isStillRelevant: isStillRelevant)
+        },
         onRecordingStopping: @escaping () -> Void = {},
         onFlowReturnedToIdle: @escaping () -> Void = {}
     ) {
@@ -224,6 +235,9 @@ final class MeetingRecordingFlowCoordinator {
                 TranscriptionCompletionPresenter.presentNotification(content)
             }
         self.onRecordingBegan = onRecordingBegan
+        self.sourceLossNoticePolicy = MeetingSourceLossNoticePolicy(threshold: sourceLossNoticeThreshold)
+        self.isApplicationActive = isApplicationActive
+        self.onSourceLossNotice = onSourceLossNotice
         self.onRecordingStopping = onRecordingStopping
         self.onFlowReturnedToIdle = onFlowReturnedToIdle
         self.meetingTranscriptionQueue.onStateChanged = { [weak self] snapshot in
@@ -1314,6 +1328,7 @@ final class MeetingRecordingFlowCoordinator {
 
     private func startPillPolling() {
         pillPollingTask?.cancel()
+        sourceLossNoticePolicy.reset()
         pillPollingTask = Task { @MainActor [weak self] in
             guard let self else { return }
             while !Task.isCancelled {
@@ -1372,6 +1387,19 @@ final class MeetingRecordingFlowCoordinator {
                 panelViewModel.captureHealth = captureHealth
             }
         }
+        if let notice = sourceLossNoticePolicy.evaluate(
+            health: captureHealth,
+            isActivelyRecording: stateMachine.state == .recording && captureMode == .full,
+            canDeliverBanner: panelController?.isVisible != true && !isApplicationActive(),
+            now: Date()
+        ) {
+            AudioCaptureDiagnostics.append(
+                "meeting_source_loss_notice source=\(notice.source.rawValue)"
+            )
+            onSourceLossNotice(notice) { [weak self, generation = stateMachine.generation] in
+                self?.isSourceLossStillCurrent(notice.source, generation: generation) ?? false
+            }
+        }
         // A confirmed toggle may have published while these service reads
         // suspended. Keep its newer pause state, while still updating health
         // and levels above. Polling only reconciles recording/paused states.
@@ -1383,6 +1411,14 @@ final class MeetingRecordingFlowCoordinator {
             pillViewModel.state = .recording
         }
         panelViewModel?.isPaused = serviceIsPaused
+    }
+
+    /// The same recording is still live and the source is still lost.
+    private func isSourceLossStillCurrent(_ source: MeetingSourceHealth.Source, generation: Int) -> Bool {
+        guard stateMachine.generation == generation, stateMachine.state == .recording else { return false }
+        let health = pillViewModel.captureHealth
+        let status = source == .microphone ? health.microphone.status : health.system.status
+        return MeetingSourceLossNoticePolicy.isLost(status)
     }
 
     private static func displayLevel(_ level: Float) -> Float {
