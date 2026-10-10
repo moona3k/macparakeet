@@ -185,7 +185,9 @@ final class MeetingRecordingFlowCoordinator {
         onQueuedTranscriptionReady: ((Transcription, Bool) -> Void)? = nil,
         onQueuedTranscriptionFailed: ((UUID, TranscriptionCompletionNotifier.Content) -> Void)? = nil,
         onRecordingBegan: @escaping () -> Void = {},
-        isApplicationActive: @escaping @MainActor @Sendable () -> Bool = { NSApp.isActive },
+        // `NSApp` is nil in hosts without an NSApplication, such as parallel
+        // xctest workers; count that as active so no banner is posted there.
+        isApplicationActive: @escaping @MainActor @Sendable () -> Bool = { NSApp?.isActive ?? true },
         sourceLossNoticeThreshold: TimeInterval = MeetingSourceLossNoticePolicy.defaultThreshold,
         onSourceLossNotice: @escaping (MeetingSourceLossNotice, @escaping @MainActor @Sendable () -> Bool) -> Void = {
             notice, isStillRelevant in
