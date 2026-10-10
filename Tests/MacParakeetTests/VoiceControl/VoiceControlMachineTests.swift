@@ -221,12 +221,12 @@ final class VoiceControlMachineTests: XCTestCase {
         XCTAssertNil(questions?["key"])
         let kinds = questions?["kind"]?["criteria"] as? [String: String]
         XCTAssertFalse((kinds ?? [:]).keys.contains("key"))
-        let targetCriteria = questions?["target"]?["criteria"] as? [String: String]
+        let targetCriteria = questions?["target"]?["criteria"] as? [String: Any]
         XCTAssertFalse(
             (targetCriteria ?? [:]).keys.contains("search"), "Search is illegal while the picker is open")
         let observation = (json?["state"] as? [String: Any])?["observation"] as? [String: Any]
-        let targets = observation?["targets"] as? [[String: Any]]
-        XCTAssertEqual((targets ?? []).compactMap { $0["id"] as? String }.sorted(), ["c0", "else"])
+        let targets = observation?["targets"] as? [String]
+        XCTAssertEqual((targets ?? []).compactMap { $0.components(separatedBy: ": ").first }.sorted(), ["c0", "else"])
     }
 
     func testCompetingPickerRowsAreOutcomeLandingsWithoutAFlightsParse() async throws {

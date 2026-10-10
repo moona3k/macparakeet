@@ -224,11 +224,17 @@ extension VoiceControlSpeechTests {
 
 extension VoiceControlSpeechTests {
     func testContextualCorrectionPhrasesDoNotTreatUnrelatedGoalsAsRevisions() {
-        for phrase in ["Actually London", "No, the other one", "Change that to tomorrow", "Undo that"] {
-            XCTAssertTrue(VoiceControlConversationState.isCorrection(phrase))
+        let open = VoiceControlUtteranceIntent.State(hasOpenTask: true)
+        for phrase in ["Actually London", "No, the other one", "Change that to tomorrow"] {
+            XCTAssertEqual(VoiceControlUtteranceIntent.classify(phrase, state: open), .correction)
         }
-        XCTAssertFalse(VoiceControlConversationState.isCorrection("Find flights to London"))
-        XCTAssertFalse(VoiceControlConversationState.isCorrection("Type hello"))
+        XCTAssertEqual(VoiceControlUtteranceIntent.classify("Undo that", state: open), .newInstruction)
+        XCTAssertEqual(VoiceControlUtteranceIntent.classify("Find flights to London", state: open), .newInstruction)
+        XCTAssertEqual(VoiceControlUtteranceIntent.classify("Type hello", state: open), .newInstruction)
+        let closed = VoiceControlUtteranceIntent.State(hasOpenTask: true, taskClosed: true)
+        XCTAssertEqual(
+            VoiceControlUtteranceIntent.classify("Actually London", state: closed), .newInstruction,
+            "a finished task is never revised")
     }
 
     @MainActor func testActivityPreservesPendingConfirmationAndDoesNotClaimAttemptsSucceeded() {

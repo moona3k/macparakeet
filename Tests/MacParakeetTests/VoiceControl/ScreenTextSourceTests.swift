@@ -124,3 +124,17 @@ final class ScreenTextSourceTests: XCTestCase {
         XCTAssertNil(ScreenTextCapturePlan.resolve(window: .infinite, processID: 42, windows: [owner]))
     }
 }
+
+extension ScreenTextSourceTests {
+    func testOnlyThisAppsCaptureExcludedWindowCountsAsTheOverlay() {
+        let me = NSNumber(value: ProcessInfo.processInfo.processIdentifier)
+        let other = NSNumber(value: Int32(1))
+        let none = NSNumber(value: 0), readOnly = NSNumber(value: 1)
+        func window(_ pid: NSNumber, _ sharing: NSNumber) -> [String: Any] {
+            [kCGWindowOwnerPID as String: pid, kCGWindowSharingState as String: sharing]
+        }
+        XCTAssertTrue(ScreenTextMerge.isOwnOverlay(window(me, none)))
+        XCTAssertFalse(ScreenTextMerge.isOwnOverlay(window(me, readOnly)), "the panel still hides its own text")
+        XCTAssertFalse(ScreenTextMerge.isOwnOverlay(window(other, none)), "another app's window still occludes")
+    }
+}
