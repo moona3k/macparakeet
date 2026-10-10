@@ -1,0 +1,35 @@
+Sources/MacParakeetCore/Services/VoiceControl/README.md
+  s_860a41e9fb91d3::t_d3179f1d0144e2 41
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlCommandRouter.swift
+  s_860a41e9fb91d3::t_de5814178358a6 52-54,234,236-237
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlDiagnostics.swift
+  s_860a41e9fb91d3::t_497a6e89f08d24 358-365,367-368,377,379-380,383,385-386,388-394,397
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlLocalTools.swift
+  s_860a41e9fb91d3::t_0b3c3ce8b5f0d5 75-80,84,105-106,108
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTurnRunner.swift
+  s_860a41e9fb91d3::t_03d25ad1eab6f5 168-169
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlUtterance.swift
+  s_860a41e9fb91d3::t_c88ea38a7dde3f 112
+Tests/MacParakeetTests/VoiceControl/VoiceControlRecoveryTests.swift
+  s_860a41e9fb91d3::t_2067fd0db577b0 80,88
+Tests/MacParakeetTests/VoiceControl/VoiceControlReviewFixTests.swift
+  s_860a41e9fb91d3::t_5053f0fd33a59e 89-97,110-148
+spec/contracts/voice-control.md
+  s_860a41e9fb91d3::t_4c740da987f67b 302-311
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7e04338ee5f7ef2fe74555d6caaad4fb0dc92e6f",
+  "prompts": {},
+  "sessions": {
+    "s_860a41e9fb91d3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d7a6ec4-929b-4af8-aea8-07fa032dc081",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
