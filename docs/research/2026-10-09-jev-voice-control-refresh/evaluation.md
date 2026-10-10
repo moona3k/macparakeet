@@ -10,8 +10,10 @@ and `jev-preview` both point at it), how, and what shipped because of it.
   `~/Library/Application Support/MacParakeet-Dev/logs/voice-control/sessions/`.
   Goals are paraphrases, so the local router falls through to Jev: 34
   single-action presses or fills, 1 already-finished view, 3 requests nothing on
-  screen can do, and 10 multi-step goals (48 in all; the first 40 were run
-  before the multi-step cases were added) (labeled `scope: multi`). Labels are
+  screen can do, and 10 multi-step goals (labeled `scope: multi`), 48 in all. The
+  first runs used 40 of them: every case except the 8 multi-step goals added
+  later; two of those 40 (the search goals) were relabeled multi-step when
+  scope was measured. Labels are
   acceptable target ids. The corpus holds personal interface text and stays out
   of git; only these aggregates are recorded.
 - **Harness.** `scripts/dev/voice_control_jev_eval.py`. The router decides first

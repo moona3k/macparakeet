@@ -1,7 +1,7 @@
 # Voice Control and Jev: refresh code review
 
-Date: 2026-10-09. Read-only review of the clean worktree
-a clean worktree on `feat/voice-control-jev-upgrade`
+Date: 2026-10-09. Read-only review of a clean worktree on
+`feat/voice-control-jev-upgrade`
 (`edc5df07a`, identical to `origin/main`). The fixes from the
 [2026-09-25 deep review](../2026-09-25-voice-control-jev-deep-review.md) are
 merged here (anchored web routes, `VoiceControlGoalText`, tail-first spans,
