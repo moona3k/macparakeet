@@ -356,20 +356,32 @@ public enum VoiceControlConsequencePolicy {
     }
 
     /// A short label commits only when a floor word reads as an imperative: the
-    /// whole label (`Send`), its lead (`Buy now`, `Delete file`), after a commitment
-    /// verb (`Place order`, `Move to Trash`) or after `and` (`Save and send`).
-    /// Nouns stay ordinary (`Sort order`, `Order history`, `Booking details`).
-    /// `Share` opens a sheet; it commits only as `Share to …` / `with …` / `now`.
+    /// whole label (`Send`), its lead (`Buy now`, `Delete file`, `Order tickets`),
+    /// after a lead-in (`Yes, delete`, `Permanently delete`, `Schedule send`),
+    /// after a commitment verb (`Place order`, `Move to Trash`) or after `and`,
+    /// `&` or `+` (`Save and send`, `Save & Send`). Order, booking, payment,
+    /// purchase and checkout read as nouns only before a noun such as `history`
+    /// or `details` (`Order history`, `Booking details`, `Payment methods`), or
+    /// after another word (`Sort order`). `Share` opens a sheet; it commits only
+    /// as `Share to …` / `with …` / `now`.
     static func floorConsequence(label: String) -> VoiceControlConsequence? {
-        let words = label.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
+        let spoken = label.lowercased().replacingOccurrences(of: "&", with: " and ")
+            .replacingOccurrences(of: "+", with: " and ")
+        let words = spoken.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
         guard !words.isEmpty, words.count <= 5 else { return nil }
         let floors: [(VoiceControlConsequence, Set<String>)] = [
             (.payment, ["pay", "purchase", "checkout", "buy", "payment", "subscribe", "order", "booking", "donate"]),
             (.destructive, ["delete", "erase", "trash", "destroy", "discard", "uninstall"]),
             (.externalCommitment, ["send", "publish", "post", "transfer", "invite", "share"]),
         ]
-        // These read as nouns when they lead (`Payment methods`); as a lead they need `now`.
+        // These read as nouns when a noun follows them (`Payment methods`).
         let nouns: Set<String> = ["order", "booking", "payment", "purchase", "checkout"]
+        let nounContext: Set<String> = [
+            "history", "details", "detail", "summary", "methods", "method", "status", "number", "id",
+            "confirmation", "list", "settings", "options", "info", "information",
+        ]
+        // Words that can come before an imperative without changing it.
+        let leadIns: Set<String> = ["yes", "permanently", "schedule", "now", "also", "then", "just", "really", "quickly"]
         let commitments: Set<String> = [
             "place", "complete", "confirm", "submit", "finalize", "finish", "make", "empty", "move",
         ]
@@ -380,7 +392,10 @@ public enum VoiceControlConsequencePolicy {
             if word == "pay" { return true }  // `Apple Pay`, `Shop Pay` pay wherever the word sits.
             if words.count == 1 { return true }
             if words[..<index].contains(where: commitments.contains) { return true }
-            if index == 0 { return !nouns.contains(word) || next == "now" }
+            if index == 0 || words[..<index].allSatisfy(leadIns.contains) {
+                guard nouns.contains(word) else { return true }
+                return !(next.map(nounContext.contains) ?? false)
+            }
             return words[index - 1] == "and" && !nouns.contains(word)
         }
         for (consequence, floor) in floors
