@@ -134,9 +134,9 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
             return .action(VoiceControlAction(operation: .activateApp, targetID: browser.id))
         }
         if let requested = Self.requestedApplication(lower) {
-            let current = snapshot.applicationName.lowercased()
-            let alreadyFront = current == requested || current.contains(requested) || requested.contains(current)
-            if alreadyFront {
+            // Only a request that names the front app is a no-op: `open the first
+            // email` in Mail names an email, not Mail.
+            if Self.application(named: snapshot.applicationName, matches: requested) {
                 return .information("\(snapshot.applicationName) is already in front.")
             }
             let apps = snapshot.targets.filter {
@@ -211,6 +211,9 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
     }
 
     /// Leading `type ` and a trailing clause (`now type hello`) both insert locally.
+    /// Mid-sentence `type` is a noun (`what type of file`, `click the file type
+    /// menu`): a clause starts only after `,` / `.` or a joining word. The first
+    /// such clause wins, so everything after it is literal text.
     static func typePayload(in command: String) -> String? {
         let lower = command.lowercased()
         let prefixes = ["type the words ", "type literally ", "type "]
@@ -221,18 +224,22 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
         // ("Original goal: …\nUser correction: …") is multi-line and must not be
         // mistaken for "now type <everything after the first 'type '>".
         guard !command.contains("\n") else { return nil }
-        var found: (offset: Int, prefix: String)?
-        for prefix in prefixes {
-            let needle = " " + prefix
-            guard let range = lower.range(of: needle, options: .backwards) else { continue }
-            let offset = lower.distance(from: lower.startIndex, to: range.lowerBound) + 1
-            if found.map({ offset > $0.offset }) ?? true {
-                found = (offset, prefix)
+        let joiners: Set<String> = ["now", "then", "and", "please", "just", "also"]
+        var from = command.startIndex
+        while let match = command.range(of: " type ", options: .caseInsensitive, range: from..<command.endIndex) {
+            let before = command[..<match.lowerBound]
+            let word = before.split(whereSeparator: \.isWhitespace).last.map { $0.lowercased() } ?? ""
+            if let last = before.last, ",.;:!?".contains(last) || joiners.contains(word) {
+                var rest = command[match.upperBound...]
+                for lead in ["the words ", "literally "]
+                where rest.range(of: lead, options: [.caseInsensitive, .anchored]) != nil {
+                    rest = rest.dropFirst(lead.count); break
+                }
+                return String(rest)
             }
+            from = command.index(after: match.lowerBound)
         }
-        guard let found else { return nil }
-        let start = command.index(command.startIndex, offsetBy: found.offset + found.prefix.count)
-        return String(command[start...])
+        return nil
     }
 
     /// Spoken filler after the words to type. Keep `, please` when that is the text.
@@ -254,11 +261,27 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
         if name.hasPrefix("the ") { name = String(name.dropFirst(4)) }
         return name.isEmpty || name.split(separator: " ").count > 4 ? nil : name
     }
+    /// Whole names only, never substrings: `search results` is not Arc and
+    /// `source code` is not Code. A name also answers without its vendor
+    /// (`Chrome`, `Word`) or by a known alias (`VS Code`).
     static func application(named label: String, matches requested: String) -> Bool {
-        let app = label.lowercased()
-        return app == requested || app.contains(requested) || requested.contains(app)
-            || (requested == "chrome" && app.contains("chrome"))
+        let request = VoiceControlSessionGrammar.normalize(requested)
+        return !request.isEmpty && applicationNames(label).contains(request)
     }
+    static func applicationNames(_ label: String) -> Set<String> {
+        let name = VoiceControlSessionGrammar.normalize(label)
+        var names: Set<String> = [name]
+        let words = name.split(separator: " ")
+        if words.count > 1, ["google", "microsoft", "adobe", "apple", "mozilla"].contains(String(words[0])) {
+            names.insert(words.dropFirst().joined(separator: " "))
+        }
+        if words.contains("chrome") { names.insert("chrome") }
+        names.formUnion(applicationAliases[name] ?? [])
+        return names
+    }
+    private static let applicationAliases: [String: Set<String>] = [
+        "visual studio code": ["vs code", "vscode", "code"], "iterm2": ["iterm"],
+    ]
     /// Web tasks should start in a browser, not the terminal or IDE that issued the command.
     static func browserForWebGoal(_ lower: String, snapshot: VoiceControlSnapshot) -> VoiceControlTarget? {
         guard !isBrowserName(snapshot.applicationName) else { return nil }
@@ -277,9 +300,10 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
         if let chrome = browsers.first(where: { $0.label.lowercased().contains("chrome") }) { return chrome }
         return browsers.count == 1 ? browsers[0] : nil
     }
+    /// Word match: `Archive Utility` and `Research` are not Arc.
     static func isBrowserName(_ name: String) -> Bool {
-        let lower = name.lowercased()
-        return ["chrome", "safari", "firefox", "edge", "brave", "arc"].contains { lower.contains($0) }
+        let words = Set(VoiceControlSessionGrammar.normalize(name).split(separator: " ").map(String.init))
+        return !words.isDisjoint(with: ["chrome", "safari", "firefox", "edge", "brave", "arc"])
     }
     private func contextualHelp(_ snapshot: VoiceControlSnapshot) -> String {
         var lines = ["Commands available in \(snapshot.applicationName):"]

@@ -28,14 +28,15 @@ enum VoiceControlLocalTools {
         if !hasClickPrefix(command), VoiceControlSituation.classify(snapshot) != .plain {
             return nil
         }
-        guard let phrase = spokenControlName(command) else { return nil }
-        let matches = matchingControls(phrase: phrase, in: snapshot, prefixMatch: hasClickPrefix(command))
+        guard let phrases = spokenControlNames(command) else { return nil }
+        let matches = matchingControls(phrases: phrases, in: snapshot, prefixMatch: hasClickPrefix(command))
         if matches.count == 1 {
             let target = matches[0]
             if target.operations.contains(.activateApp) {
-                let current = snapshot.applicationName.lowercased()
-                let label = target.label.lowercased()
-                if current == label || current.contains(label) || label.contains(current) {
+                // Whole names: `Xcode` is not already in front because `Code` is.
+                if VoiceControlCommandRouter.application(named: snapshot.applicationName, matches: target.label)
+                    || VoiceControlCommandRouter.application(named: target.label, matches: snapshot.applicationName)
+                {
                     return .information("\(snapshot.applicationName) is already in front.")
                 }
                 return .action(VoiceControlAction(operation: .activateApp, targetID: target.id))
@@ -69,17 +70,21 @@ enum VoiceControlLocalTools {
         command: String, history: [VoiceControlAction],
         statuses: Set<VoiceControlReceipt.Status> = [.verified, .transitionObserved]
     ) -> Bool {
-        guard let phrase = spokenControlName(command),
+        guard let phrases = spokenControlNames(command),
             let last = history.last, let status = last.receiptStatus, statuses.contains(status),
-            [.press, .activateApp].contains(last.operation),
-            VoiceControlSessionGrammar.normalize(last.targetLabel ?? "") == phrase
-                || last.targetLabel?.localizedStandardCompare(phrase) == .orderedSame
-                || (hasClickPrefix(command) && labelHasPhrasePrefix(last.targetLabel ?? "", phrase: phrase))
+            [.press, .activateApp].contains(last.operation)
         else { return false }
-        return true
+        let label = last.targetLabel ?? ""
+        return phrases.contains { phrase in
+            VoiceControlSessionGrammar.normalize(label) == phrase
+                || label.localizedStandardCompare(phrase) == .orderedSame
+                || (hasClickPrefix(command) && labelHasPhrasePrefix(label, phrase: phrase))
+        }
     }
 
-    private static func spokenControlName(_ command: String) -> String? {
+    /// The spoken name as said, then without a trailing role word: `click new
+    /// tab` names `New Tab` before it names `New`.
+    private static func spokenControlNames(_ command: String) -> [String]? {
         var n = VoiceControlSessionGrammar.normalize(command)
         guard !n.isEmpty else { return nil }
         if reservedKey(in: command) != nil { return nil }
@@ -88,12 +93,14 @@ enum VoiceControlLocalTools {
             break
         }
         if n.hasPrefix("the ") { n = String(n.dropFirst(4)) }
-        for suffix in [" please", " button", " link", " tab", " menu"] where n.hasSuffix(suffix) {
+        if n.hasSuffix(" please") { n = String(n.dropLast(7)) }
+        let whole = n
+        for suffix in [" button", " link", " tab", " menu"] where n.hasSuffix(suffix) {
             n = String(n.dropLast(suffix.count))
         }
         guard !n.isEmpty, n.split(separator: " ").count <= 8 else { return nil }
-        if blockedBarePhrases.contains(n) { return nil }
-        return n
+        if blockedBarePhrases.contains(n) || blockedBarePhrases.contains(whole) { return nil }
+        return whole == n ? [n] : [whole, n]
     }
 
     private static func hasClickPrefix(_ command: String) -> Bool {
@@ -101,20 +108,27 @@ enum VoiceControlLocalTools {
         return ["click ", "press ", "open "].contains { n.hasPrefix($0) }
     }
 
-    private static func matchingControls(phrase: String, in snapshot: VoiceControlSnapshot, prefixMatch: Bool)
+    /// Exact names in phrase order, then label prefixes in phrase order.
+    private static func matchingControls(phrases: [String], in snapshot: VoiceControlSnapshot, prefixMatch: Bool)
         -> [VoiceControlTarget]
     {
         let candidates = snapshot.targets.filter {
             !$0.label.isEmpty && $0.role != "url"
                 && ($0.operations.contains(.press) || $0.operations.contains(.activateApp))
         }
-        let exact = candidates.filter {
-            VoiceControlSessionGrammar.normalize($0.label) == phrase
-                || $0.label.localizedStandardCompare(phrase) == .orderedSame
+        for phrase in phrases {
+            let exact = candidates.filter {
+                VoiceControlSessionGrammar.normalize($0.label) == phrase
+                    || $0.label.localizedStandardCompare(phrase) == .orderedSame
+            }
+            if !exact.isEmpty { return exact }
         }
-        if !exact.isEmpty { return exact }
         guard prefixMatch else { return [] }
-        return candidates.filter { labelHasPhrasePrefix($0.label, phrase: phrase) }
+        for phrase in phrases {
+            let prefixed = candidates.filter { labelHasPhrasePrefix($0.label, phrase: phrase) }
+            if !prefixed.isEmpty { return prefixed }
+        }
+        return []
     }
 
     /// `click Search` can bind the unique `Search flights`. `research` does not match `search`.
