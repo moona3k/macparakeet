@@ -1,0 +1,24 @@
+Tests/MacParakeetTests/VoiceControl/VoiceControlCommandRouterTests.swift
+  s_860a41e9fb91d3::t_3c48529054dcdb 917-944
+  s_860a41e9fb91d3::t_4f8319a4f1a5c1 945-1010
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlCommandRouter.swift
+  s_860a41e9fb91d3::t_1b2166046e397f 137-139,214-216,227-238,240,242,264-266,268-280,282-284,303,305-306
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlLocalTools.swift
+  s_860a41e9fb91d3::t_1d0611faa35e5a 31-32,36-39,73,75,77-82,85-87,96-98,102-103,111-112,119-124,127-131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ce7edbc9df89c49d0253145e073c0150adad68a9",
+  "prompts": {},
+  "sessions": {
+    "s_860a41e9fb91d3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d7a6ec4-929b-4af8-aea8-07fa032dc081",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
