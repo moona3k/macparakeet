@@ -78,8 +78,8 @@ final class VoiceControlCoreTests: XCTestCase {
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
         let state = try XCTUnwrap(json["state"] as? [String: Any])
         let observation = try XCTUnwrap(state["observation"] as? [String: Any])
-        let targets = try XCTUnwrap(observation["targets"] as? [[String: Any]])
-        XCTAssertNil(targets.first?["selectedText"])
+        let targets = try XCTUnwrap(observation["targets"] as? [String])
+        XCTAssertEqual(targets, ["text: field 'Message' (value 'visible')"], "visible value, never the selection")
         XCTAssertFalse(String(decoding: body, as: UTF8.self).contains(selected))
         XCTAssertEqual(snapshot.targets[0].selectedText, selected)
         let questions = try XCTUnwrap(json["questions"] as? [String: [String: Any]])
@@ -87,7 +87,7 @@ final class VoiceControlCoreTests: XCTestCase {
         XCTAssertNil(questions["direction"], "no scrollable target, so no direction head")
         let kinds = try XCTUnwrap(questions["kind"]?["criteria"] as? [String: String])
         XCTAssertEqual(Set(kinds.keys), ["fill", "finished", "none"], "one disjoint kind set; keys and consequence never join it")
-        XCTAssertEqual(Set(questions.keys), ["kind", "target", "consequence"], "the field is not focused, so there is no value head")
+        XCTAssertEqual(Set(questions.keys), ["kind", "target", "consequence", "scope"], "the field is not focused, so there is no value head")
     }
 
     func testJevRequestOmitsAppSwitchingWhenPageControlsExist() async throws {
@@ -120,12 +120,11 @@ final class VoiceControlCoreTests: XCTestCase {
         XCTAssertFalse(encoded.contains("Google Flights"))
         XCTAssertFalse(encoded.contains("web:google-flights"))
         let questions = try XCTUnwrap(json["questions"] as? [String: [String: Any]])
-        let targetCriteria = try XCTUnwrap(questions["target"]?["criteria"] as? [String: String])
+        let targetCriteria = try XCTUnwrap(questions["target"]?["criteria"] as? [String: Any])
         XCTAssertEqual(Set(targetCriteria.keys), ["from", "none"])
-        XCTAssertEqual(targetCriteria["from"], "combo field 'Where from?' (empty)")
         let observation = try XCTUnwrap((json["state"] as? [String: Any])?["observation"] as? [String: Any])
-        let targets = try XCTUnwrap(observation["targets"] as? [[String: Any]])
-        XCTAssertEqual(targets.map { $0["id"] as? String }, ["from"])
+        let targets = try XCTUnwrap(observation["targets"] as? [String])
+        XCTAssertEqual(targets, ["from: combo field 'Where from?' (empty)"])
     }
 
     func testJevRequestOmitsURLDestinationsEvenWhenThePageHasNoControls() async throws {

@@ -75,7 +75,7 @@ final class VoiceControlObservabilityTests: XCTestCase {
                 let questions = body?["questions"] as? [String: [String: Any]] ?? [:]
                 var answers: [String: Any] = [:]
                 for (name, question) in questions {
-                    let keys = Array((question["criteria"] as? [String: String] ?? [:]).keys).sorted()
+                    let keys = Array((question["criteria"] as? [String: Any] ?? [:]).keys).sorted()
                     // Pick a low-confidence "none"/first option so the client clarifies.
                     let choice = keys.contains("none") ? "none" : keys[0]
                     let share = 1.0 / Double(keys.count)
@@ -100,7 +100,7 @@ final class VoiceControlObservabilityTests: XCTestCase {
         XCTAssertEqual(trace.kind, "unconstrained")
         XCTAssertEqual(trace.resolution, "clarify")
         XCTAssertEqual(trace.situation, "plain")
-        XCTAssertEqual(Set(trace.heads.keys), ["kind", "target", "consequence"])
+        XCTAssertEqual(Set(trace.heads.keys), ["kind", "target", "consequence", "scope"])
     }
 
     // MARK: Trace store

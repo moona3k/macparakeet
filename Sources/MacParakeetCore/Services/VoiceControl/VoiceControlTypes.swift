@@ -116,16 +116,29 @@ public struct VoiceControlAction: Codable, Sendable, Equatable {
     public let modelID: String?
     public let decisionConfidence: Double?
     public let postcondition: VoiceControlPostcondition
+    /// Jev judged, on the task's first decision, that this one action completes
+    /// the whole request. Once it verifies or moves the interface the task ends
+    /// instead of asking again, which costs a round trip and can repeat a press
+    /// (`go to the next page`). `nil` when nobody judged it.
+    public let completesRequest: Bool?
     public init(
         operation: VoiceControlOperation, targetID: String, value: String? = nil, targetLabel: String? = nil,
         requiresConfirmation: Bool = false, receiptStatus: VoiceControlReceipt.Status? = nil,
         consequence: VoiceControlConsequence? = nil, modelID: String? = nil, decisionConfidence: Double? = nil,
-        postcondition: VoiceControlPostcondition = .unknown
+        postcondition: VoiceControlPostcondition = .unknown, completesRequest: Bool? = nil
     ) {
         self.operation = operation; self.targetID = targetID; self.value = value; self.targetLabel = targetLabel;
         self.requiresConfirmation = requiresConfirmation; self.receiptStatus = receiptStatus;
         self.consequence = consequence; self.modelID = modelID; self.decisionConfidence = decisionConfidence
-        self.postcondition = postcondition
+        self.postcondition = postcondition; self.completesRequest = completesRequest
+    }
+
+    func completingRequest() -> VoiceControlAction {
+        VoiceControlAction(
+            operation: operation, targetID: targetID, value: value, targetLabel: targetLabel,
+            requiresConfirmation: requiresConfirmation, receiptStatus: receiptStatus, consequence: consequence,
+            modelID: modelID, decisionConfidence: decisionConfidence, postcondition: postcondition,
+            completesRequest: true)
     }
 
     func referring(to target: VoiceControlTarget) -> Bool {

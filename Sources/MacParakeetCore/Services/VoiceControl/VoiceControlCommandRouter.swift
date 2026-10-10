@@ -25,6 +25,14 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
             return .information(contextualHelp(snapshot))
         }
         let focused = snapshot.targets.filter { $0.isFocused && $0.operations.contains(.insertText) }
+        // Jev judged the request to be this one action; it has landed. An amended
+        // goal is a different request, so it never inherits the judgment.
+        if history.count == 1, let only = history.first, only.completesRequest == true,
+            VoiceControlGoalText.userSegments(goal).count == 1
+        {
+            if only.receiptStatus == .verified { return .directCompleted("Done. The requested change was verified.") }
+            if only.receiptStatus == .transitionObserved { return .finished }
+        }
         if history.last?.receiptStatus == .verified, Self.isDirectCommand(lower) {
             return .directCompleted("Done. The requested change was verified.")
         }

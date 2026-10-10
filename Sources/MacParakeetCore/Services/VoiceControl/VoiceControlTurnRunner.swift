@@ -352,6 +352,8 @@ public actor VoiceControlTurnRunner {
             } else {
                 record("decision", outcome: authority.isValid ? "failed" : "cancelled", started: start)
             }
+            // Whatever the engine threw, a revoked authority means Stop won.
+            if !authority.isValid { throw CancellationError() }
             throw error
         }
     }
@@ -655,7 +657,8 @@ public actor VoiceControlTurnRunner {
         VoiceControlAction(operation: action.operation, targetID: action.targetID, value: action.value,
             targetLabel: snapshot.targets.first(where: { $0.id == action.targetID })?.label ?? action.targetLabel,
             receiptStatus: status, consequence: action.consequence, modelID: action.modelID,
-            decisionConfidence: action.decisionConfidence, postcondition: action.postcondition)
+            decisionConfidence: action.decisionConfidence, postcondition: action.postcondition,
+            completesRequest: action.completesRequest)
     }
     private func reconcilePostcondition(in snapshot: VoiceControlSnapshot) {
         guard let last = history.last, last.postcondition != .unknown,
@@ -666,7 +669,8 @@ public actor VoiceControlTurnRunner {
             operation: last.operation, targetID: last.targetID, value: last.value,
             targetLabel: last.targetLabel, requiresConfirmation: last.requiresConfirmation,
             receiptStatus: .verified, consequence: last.consequence, modelID: last.modelID,
-            decisionConfidence: last.decisionConfidence, postcondition: last.postcondition)
+            decisionConfidence: last.decisionConfidence, postcondition: last.postcondition,
+            completesRequest: last.completesRequest)
         record(
             "verification", operation: last.operation, outcome: "postcondition_holds",
             observation: snapshot, action: last)
@@ -689,7 +693,7 @@ public actor VoiceControlTurnRunner {
             targetLabel: target.label, requiresConfirmation: action.requiresConfirmation,
             receiptStatus: action.receiptStatus, consequence: action.consequence,
             modelID: action.modelID, decisionConfidence: action.decisionConfidence,
-            postcondition: action.postcondition)
+            postcondition: action.postcondition, completesRequest: action.completesRequest)
     }
     private func isRepeated(_ action: VoiceControlAction, snapshot: VoiceControlSnapshot) -> Bool {
         if uncertainEffects.contains(effectIdentity(action, snapshot: snapshot)) {

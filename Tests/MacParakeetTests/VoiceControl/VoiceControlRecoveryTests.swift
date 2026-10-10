@@ -150,7 +150,7 @@ final class VoiceControlRecoveryTests: XCTestCase {
             let questions = root["questions"] as! [String: [String: Any]]
             var answers: [String: Any] = [:]
             for (id, question) in questions {
-                let options = question["criteria"] as! [String: String]
+                let options = question["criteria"] as! [String: Any]
                 let choice = id == "kind" ? "none" : options.keys.sorted()[0]
                 let probabilities = Dictionary(uniqueKeysWithValues: options.keys.map { ($0, $0 == choice ? 1.0 : 0.0) })
                 answers[id] = ["type": "choice", "choice": choice, "probabilities": probabilities, "confidence": 1.0]
