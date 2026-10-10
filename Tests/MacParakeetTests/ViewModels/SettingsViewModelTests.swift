@@ -771,7 +771,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(platform.stopEngineCount, 1)
     }
 
-    func testSelectedMicrophoneLeavesPreparationToWarmHoldWhenInstantDictationIsOn() async throws {
+    func testSelectedMicrophoneSkipsIdleRebuildWhenInstantDictationIsOn() async throws {
         let platform = PrepareCountingMicrophonePlatform()
         let stream = SharedMicrophoneStream(
             platform: platform,

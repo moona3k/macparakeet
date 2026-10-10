@@ -333,7 +333,8 @@ does not convert System Default into a `CurrentDevice` write.
 #1227).** A configuration change that invalidates the prepared route tears it
 down, and the next capture pays the full cold path. Preparation is rebuilt only
 at launch, after microphone permission is granted, after an explicit microphone
-selection in Settings, and when the last capture leaves. Core Audio route
+selection in Settings while Instant Dictation is off (the warm hold refreshes
+itself when it is on), and when the last capture leaves. Core Audio route
 notifications (a headset connecting or disconnecting) must not trigger it.
 Acquiring a device while macOS is still switching the default input can block
 inside `kAudioOutputUnitProperty_CurrentDevice` or the input-format query until
