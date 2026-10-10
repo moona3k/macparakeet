@@ -72,11 +72,16 @@ enum VoiceControlLocalTools {
         command: String, history: [VoiceControlAction],
         statuses: Set<VoiceControlReceipt.Status> = [.verified, .transitionObserved], exact: Bool = false
     ) -> Bool {
-        guard let phrases = spokenControlNames(command),
-            let last = history.last, let status = last.receiptStatus, statuses.contains(status),
+        // A correction's command needs its full spoken name on a verified press:
+        // `actually click New Tab` after `New` is not done, and an unverified
+        // `Send` is not a finished send.
+        guard let names = spokenControlNames(command), let spoken = names.first,
+            let last = history.last, let status = last.receiptStatus,
+            statuses.contains(status) && (!exact || status == .verified),
             [.press, .activateApp].contains(last.operation)
         else { return false }
         let label = last.targetLabel ?? ""
+        let phrases = exact ? [spoken] : names
         return phrases.contains { phrase in
             VoiceControlSessionGrammar.normalize(label) == phrase
                 || label.localizedStandardCompare(phrase) == .orderedSame
@@ -97,8 +102,10 @@ enum VoiceControlLocalTools {
         }
         if n.hasPrefix("the ") { n = String(n.dropFirst(4)) }
         if n.hasSuffix(" please") { n = String(n.dropLast(7)) }
+        // At most one role word comes off: `the new tab button` is `New Tab`,
+        // never a bare `New` when no `New Tab` is on screen.
         var names = [n]
-        while let suffix = [" button", " link", " tab", " menu"].first(where: { n.hasSuffix($0) && n.count > $0.count }) {
+        if let suffix = [" button", " link", " tab", " menu"].first(where: { n.hasSuffix($0) && n.count > $0.count }) {
             n = String(n.dropLast(suffix.count))
             names.append(n)
         }

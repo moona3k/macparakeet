@@ -77,7 +77,7 @@ final class VoiceControlRecoveryTests: XCTestCase {
     }
 
     func testPickAcceptsAVerbOrTrailingPunctuationLikeTheClassifier() async {
-        for answer in ["select 2", "Beta."] {
+        for (answer, expected) in [("select 2", "gamma"), ("Beta.", "beta"), ("please select 2", "gamma")] {
             let adapter = RecoveryAdapter()
             let engine = RecoveryEngine([.action(.init(operation: .press, targetID: "alpha")), .finished, .finished])
             let runner = VoiceControlTurnRunner(adapter: adapter, engine: engine)
@@ -85,7 +85,7 @@ final class VoiceControlRecoveryTests: XCTestCase {
             await runner.revise("No, the other one")
             await runner.clarify(answer)
             let effects = await adapter.effects
-            XCTAssertEqual(effects.count, 2, "\(answer) resolves the pick instead of asking again")
+            XCTAssertEqual(effects.map(\.targetID), ["alpha", expected], "\(answer) resolves the pick")
         }
     }
 

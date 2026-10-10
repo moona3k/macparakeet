@@ -86,6 +86,15 @@ final class VoiceControlReviewFixTests: XCTestCase {
         }
     }
 
+    func testTheFloorFailsClosedOnUnlistedModifiersAndConjunctions() {
+        for label in ["Bulk delete", "Force Delete", "Batch delete", "Archive and permanently delete"] {
+            XCTAssertEqual(floor(label), .destructive, label)
+        }
+        for label in ["Save & Purchase", "Save and order", "Process payment"] { XCTAssertEqual(floor(label), .payment, label) }
+        XCTAssertEqual(floor("Click to share"), .externalCommitment)
+        for label in ["Checkout page", "Payment page", "Order view"] { XCTAssertNil(floor(label), label) }
+    }
+
     func testIntermediateNameIsTriedBeforeTheBareWord() async throws {
         let snapshot = VoiceControlSnapshot(
             contextID: "b", applicationName: "Safari",
@@ -96,6 +105,45 @@ final class VoiceControlReviewFixTests: XCTestCase {
             goal: "click the new tab button", snapshot: snapshot, history: [])
         guard case .action(let action) = decision else { return XCTFail("expected New Tab, got \(decision)") }
         XCTAssertEqual(action.targetID, "n:0")
+    }
+
+    func testAMissingNamedControlIsNotReplacedByAShorterOne() async throws {
+        let snapshot = VoiceControlSnapshot(
+            contextID: "m", applicationName: "Safari",
+            targets: [VoiceControlTarget(id: "n:0", label: "New", role: "AXButton", operations: [.press])])
+        let decision = try await VoiceControlCommandRouter(fallback: Unused()).decide(
+            goal: "click the new tab button", snapshot: snapshot, history: [])
+        XCTAssertEqual(decision, .clarify("fallback"), "no New Tab on screen: ask, never press New")
+    }
+
+    func testACorrectionIsDoneOnlyByItsFullNameOnAVerifiedPress() async throws {
+        let snapshot = VoiceControlSnapshot(
+            contextID: "e", applicationName: "Safari",
+            targets: [
+                VoiceControlTarget(id: "n:0", label: "New", role: "AXButton", operations: [.press]),
+                VoiceControlTarget(id: "n:1", label: "New Tab", role: "AXButton", operations: [.press]),
+            ])
+        let router = VoiceControlCommandRouter(fallback: Unused())
+        let pressedNew = VoiceControlAction(operation: .press, targetID: "n:0", targetLabel: "New", receiptStatus: .verified)
+        let goal = VoiceControlGoalText.header + "click New\n" + VoiceControlGoalText.correction + "actually click New Tab"
+        let decision = try await router.decide(goal: goal, snapshot: snapshot, history: [pressedNew])
+        guard case .action(let action) = decision else { return XCTFail("expected New Tab, got \(decision)") }
+        XCTAssertEqual(action.targetID, "n:1")
+    }
+
+    func testPleaseAndFailuresDoNotBlockACorrectionsLocalRoute() async throws {
+        let snapshot = VoiceControlSnapshot(
+            contextID: "p", applicationName: "Editor",
+            targets: [VoiceControlTarget(id: "n:0", label: "Save", role: "AXButton", operations: [.press])])
+        let router = VoiceControlCommandRouter(fallback: Unused())
+        let polite = VoiceControlGoalText.header + "open the file\n" + VoiceControlGoalText.correction + "please click Save"
+        let first = try await router.decide(goal: polite, snapshot: snapshot, history: [])
+        guard case .action(let action) = first else { return XCTFail("expected Save, got \(first)") }
+        XCTAssertEqual(action.targetID, "n:0")
+        let failed = VoiceControlAction(operation: .press, targetID: "n:0", targetLabel: "Save", receiptStatus: .failed)
+        let retry = VoiceControlGoalText.header + "click Save\n" + VoiceControlGoalText.correction + "actually click Save"
+        let again = try await router.decide(goal: retry, snapshot: snapshot, history: [failed])
+        guard case .action = again else { return XCTFail("a failed press is retried, got \(again)") }
     }
 
     func testTrailingTypeClauseNeedsACommaPeriodOrJoiningWord() {
