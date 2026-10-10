@@ -402,8 +402,8 @@ request is one disjoint question set — `kind` (`press` / `fill` / `scroll` /
 a `value` head only for a focused editable control (each target line carries a
 nine-cell region hint such as `top-left` so identically labelled controls
 read apart), an advisory `consequence`
-head, `direction` only when something scrolls, and on a task's first decision a
-`scope` head (`multi` / `single`) — gated on `min(kind,
+head, `direction` only when something scrolls, and on a task's first decision
+of an unamended goal a `scope` head (`multi` / `single`) — gated on `min(kind,
 target)` when a target is named, `kind` alone for `none`, and 0.6 for
 `finished`. Offered controls are the legality-filtered set minus static text
 that repeats or begins the name of a non-text control (a link and its own

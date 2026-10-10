@@ -107,7 +107,9 @@ struct VoiceControlPanelView: View {
                                 }
                                 .buttonStyle(.plain)
                                 .padding(.vertical, 4).padding(.horizontal, 6)
-                                .accessibilityLabel("Choose \(choice.number ?? index + 1): \(choice.label)")
+                                .accessibilityLabel(
+                                    "Choose \(choice.number ?? index + 1): \(choice.label)"
+                                        + (choice.frame == nil ? ", not on screen" : ""))
                             }
                             Text("Say the number or click a row.").font(.caption).foregroundStyle(.secondary)
                         }

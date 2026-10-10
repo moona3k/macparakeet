@@ -353,6 +353,15 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
                 hints.append("value '\(shown)'" + (target.valueIsComplete ? "" : " (partial)"))
             }
         }
+        // A toggle's state decides whether `turn on …` is already done.
+        if ["AXCheckBox", "AXRadioButton", "AXSwitch", "AXToggle"].contains(target.role), let value = target.value {
+            switch value.trimmingCharacters(in: .whitespaces) {
+            case "1": hints.append(target.role == "AXRadioButton" ? "selected" : "checked")
+            case "0": hints.append(target.role == "AXRadioButton" ? "not selected" : "unchecked")
+            case "2": hints.append("mixed")
+            default: break
+            }
+        }
         if let consequence = target.consequence, consequence != .ordinary, consequence != .unknown {
             hints.append(consequence.rawValue)
         }
@@ -377,8 +386,10 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
             guard isText(target) else { return true }
             let label = key(target.label)
             guard !label.isEmpty else { return true }
-            if names.contains(label) { return false }
-            return target.role != "AXStaticText" || !names.contains { $0.hasPrefix(label + " ") }
+            // A twin shares its control's place; same-named text elsewhere is its own target.
+            let twins = targets.filter { !isText($0) && $0.region == target.region }.map { key($0.label) }
+            if twins.contains(label) { return false }
+            return target.role != "AXStaticText" || !twins.contains { $0.hasPrefix(label + " ") }
         }
     }
 
@@ -497,7 +508,10 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
     static func numberedPick(_ answer: Answer, targets: [VoiceControlTarget]) -> VoiceControlDecision? {
         let byID = Dictionary(targets.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let ranked = answer.probabilities
-            .filter { $0.key != "none" && byID[$0.key].map { $0.operations.contains(.press) } == true }
+            .filter { key, _ in
+                key != "none"
+                    && byID[key].map { $0.operations.contains(.press) || $0.operations.contains(.select) } == true
+            }
             .sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
         var picked: [VoiceControlTarget] = []
         var mass = 0.0
@@ -518,7 +532,8 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
     /// higher. The chosen spelling is kept.
     static func valueSupport(_ answer: Answer, values: [String: String]) -> Double {
         guard let chosen = values[answer.choice] else { return answer.confidence }
-        let punctuation = CharacterSet(charactersIn: ".,!?;:\"'“”‘’")
+        // `?` and `!` carry meaning (`Hi?` is a question), so only pauses and quotes group.
+        let punctuation = CharacterSet(charactersIn: ".,;:\"'“”‘’")
         let key = chosen.trimmingCharacters(in: punctuation)
         let grouped = answer.probabilities.reduce(0.0) { sum, entry in
             guard let span = values[entry.key], span.trimmingCharacters(in: punctuation) == key else { return sum }

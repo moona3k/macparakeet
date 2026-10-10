@@ -88,7 +88,7 @@ Implications for MacParakeet:
 
 ## 2. Open-source macOS computer use and voice projects
 
-Repository facts from `gh api` on 2026-10-09 [P].
+Repository facts from `gh api` on 2026-10-09, Pacific time (some pushes read 10-10 in UTC) [P].
 
 | Project | Stars / last push | What it is | Notable technique |
 |---|---|---|---|

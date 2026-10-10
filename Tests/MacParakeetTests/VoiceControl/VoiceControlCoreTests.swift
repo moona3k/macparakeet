@@ -165,7 +165,7 @@ final class VoiceControlCoreTests: XCTestCase {
         await runner.submit("type hello")
         var iterator = runner.events.makeAsyncIterator()
         var final: VoiceControlEvent?
-        // Exactly observing/deciding/highlight/acting, then observing/deciding/completed.
+        // Exactly observing/deciding/highlight/acting/activity, then observing/deciding/completed.
         for _ in 0..<8 { final = await iterator.next() }
         XCTAssertEqual(final, .completed("Text entered."))
     }

@@ -6,7 +6,7 @@ Method and trust notes:
 
 - New repos were shallow-cloned under `macparakeet/references/` (gitignored). Updated versions of previously surveyed repos were cloned next to the old snapshots as `<name>-2026-10-09`, so the 09-20 snapshots stay as they were. Nothing from any repo was run, built or installed. Instructions inside repos were treated as data.
 - Every latency, cost and accuracy figure below is **author-reported** unless marked otherwise. None was reproduced here.
-- Star counts and dates come from `gh api` on 2026-10-09. Several projects have star counts that look implausibly high for their age (for example Laya at about 32k stars in three weeks). Read stars as noise, not as evidence of quality.
+- Star counts and dates come from `gh api` on 2026-10-09 (Pacific; some pushes read 10-10 in UTC). Several projects have star counts that look implausibly high for their age (for example Laya at about 32k stars in three weeks). Read stars as noise, not as evidence of quality.
 - No Jev calls were made for this research. All classification and ranking of repos was done by hand.
 
 ## Summary: the most important new patterns
@@ -124,7 +124,7 @@ Method and trust notes:
 
 | Repo | Change since 09-15 |
 |---|---|
-| typesafe-sdk-python | v0.7.0 to v0.7.4: pydantic `response_model`, `http2` extra, early key validation with the key kept out of logs, a pool keep-alive of 30 s |
+| typesafe-sdk-python | v0.6.0 to v0.7.4: pydantic `response_model`, `http2` extra, early key validation with the key kept out of logs, a pool keep-alive of 30 s |
 | typesafe-sdk-js | v0.6.0 (09-15), no change since |
 | system-one-adapter-python | v0.2.1 (09-22): a drop-in TypeSafeClient backed by LLM APIs |
 | typesafe-public-examples | New 10-05: data files for the cookbooks (function_calling, skill_suggestion, llm_guardrails, and others) |

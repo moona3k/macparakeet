@@ -356,15 +356,19 @@ public actor NativeVoiceControlAdapter: VoiceControlAdapter {
             // or "Loading" first, so the new title must hold for two polls.
             let deadline = ContinuousClock.now.advanced(by: .milliseconds(2_000))
             var candidate: String?
+            var retitled = false
             while ContinuousClock.now < deadline {
                 try await Task.sleep(for: .milliseconds(150))
                 let title = Self.focusedOrMainWindow(browser).map { Self.string($0, kAXTitleAttribute) }
                 guard let title, title != titleBefore, !title.isEmpty else { candidate = nil; continue }
+                retitled = true
                 if title == candidate { break }
                 candidate = title
             }
+            // No retitle at all in 2 s is no evidence the page opened.
             return VoiceControlReceipt(
-                status: .transitionObserved, message: "Opened the requested website.")
+                status: retitled ? .transitionObserved : .unknown,
+                message: retitled ? "Opened the requested website." : "The website did not appear to load.")
         }
         guard let bound = handles[action.targetID], bound.target.operations.contains(action.operation) else {
             throw NativeVoiceControlError.unsupported
@@ -713,7 +717,7 @@ public actor NativeVoiceControlAdapter: VoiceControlAdapter {
                 ].contains(role),
                 // A clock, a video timestamp or a progress figure changes on its
                 // own; it is not evidence that the press did anything.
-                role != kAXStaticTextRole || !Self.isVolatileText(Self.label(node) + Self.string(node, kAXValueAttribute))
+                role != kAXStaticTextRole || !Self.isVolatileText(Self.string(node, kAXValueAttribute))
             {
                 evidence.insert(
                     role + "|" + Self.label(node) + "|" + Self.string(node, kAXValueAttribute)

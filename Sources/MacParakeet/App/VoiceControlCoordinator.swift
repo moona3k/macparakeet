@@ -310,11 +310,11 @@ final class VoiceControlCoordinator {
                 self.model.apply(event)
                 if self.proposing {
                     // A proposal's question opens no conversation, and its choices are not clickable.
-                    if case .clarification = event { self.model.conversation.cancel() }
+                    if case .clarification = event { self.model.conversation.cancel(); self.taskClosed = true }
                     self.model.choices = []
                 }
                 switch event {
-                case .completed, .failed, .cancelled: self.taskClosed = true
+                case .completed, .failed, .cancelled, .paused where self.proposing: self.taskClosed = true
                 default: break
                 }
                 switch event {
@@ -602,7 +602,8 @@ final class VoiceControlCoordinator {
             dryRun || asLiteralPayload
             ? .newInstruction
             : asRevision
-                ? .correction
+                // An inbox revision of a finished task is a new instruction.
+                ? (taskClosed ? .newInstruction : .correction)
                 : VoiceControlUtteranceIntent.classify(
                     text,
                     state: .init(
@@ -706,6 +707,7 @@ final class VoiceControlCoordinator {
         }
     }
     private func resume() {
+        overlaySuppressed = false
         guard ensureSession(), let runner else { return }
         let submission = submissions.begin()
         execution = Task { [weak self] in

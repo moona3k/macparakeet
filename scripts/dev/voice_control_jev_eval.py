@@ -15,8 +15,9 @@ ids prefixed `id:`. `kind` is the expected kind (press / fill / scroll /
 finished / none). For `finished` / `none`, `expect` may be empty.
 
 The router decides first through `macparakeet-cli voice-control replay --json`
-(no Jev call). Cases the router resolves locally are reported as `local` and
-not sent. For the rest, the harness rebuilds the unconstrained request from the
+(no Jev call). Cases the router resolves locally, or sends as an `outcome`
+Choice, are reported and not compared. The CLI's offered set already drops text
+twins, so `_dedup` variants only matter for observations saved before that. For the rest, the harness rebuilds the unconstrained request from the
 saved observation and the exact offered option ids, then sends each variant.
 
 Usage:
@@ -42,6 +43,7 @@ import urllib.request
 ENDPOINT = "https://api.typesafe.ai/v1/systemone"
 MODEL = "jev-1.13.0"
 GATE = 0.5
+FINISHED_GATE = 0.6  # production's bar for `finished`
 
 KIND_TEXT = {
     "press": "Click, press or select one offered control: a button, link, menu, row, option or tab.",
@@ -160,7 +162,9 @@ def choice_json(instructions: str, options: list[tuple[str, object]]) -> str:
 def build_body(variant: str, case: dict, targets: list[dict], summary: str, rng: random.Random,
                extras: tuple[str, ...] = ()) -> tuple[str, dict]:
     """Returns (body, meta). meta maps question ids to their role."""
-    kinds = ["press"]
+    kinds = []
+    if any({"press", "select"} & set(t.get("operations", [])) for t in targets):
+        kinds.append("press")
     if any(editable(t) for t in targets):
         kinds.append("fill")
     if any("scroll" in t.get("operations", []) for t in targets):
@@ -174,7 +178,7 @@ def build_body(variant: str, case: dict, targets: list[dict], summary: str, rng:
     observation: dict = {
         "applicationName": case.get("_app", ""),
         "summary": summary,
-        "isComplete": True,
+        "isComplete": case.get("_complete", True),
     }
     if compact:
         observation["targets"] = [compact_target(t) for t in targets]
@@ -304,7 +308,7 @@ def score(case: dict, targets: list[dict], kind: str, kconf: float, target: str,
     target_ok = (target != "none") and (
         label.lower() in expect or f"id:{target}".lower() in expect)
     if kind in ("finished", "none"):
-        acted = kconf >= GATE
+        acted = kconf >= (FINISHED_GATE if kind == "finished" else GATE)
         correct = kind == want_kind
         resolution = kind if acted else "clarify"
     else:
@@ -344,10 +348,13 @@ def main() -> None:
         view = router_view(args.cli, case)
         request = view.get("jevRequest")
         if not request or request.get("kind") != "unconstrained":
-            prepared.append((index, case, None, None, view["decision"].get("kind")))
+            # `outcome` is a Jev request of another shape, not a local route.
+            label = request["kind"] + " request (not compared)" if request else view["decision"].get("kind")
+            prepared.append((index, case, None, None, label))
             continue
         observation = load_observation(case)
         case["_app"] = observation.get("applicationName", "")
+        case["_complete"] = bool(observation.get("complete", True))
         by_id = {t["id"]: t for t in observation["targets"]}
         offered = [by_id[o["id"]] for o in request["options"] if o["id"] in by_id]
         prepared.append((index, case, offered, observation.get("summary", ""), None))

@@ -289,6 +289,41 @@ final class JevRequestShapeTests: XCTestCase {
         XCTAssertEqual(decision, .clarify("Which control should I use? Please say its full label."))
     }
 
+    func testToggleStateReachesTheWire() {
+        let on = VoiceControlTarget(id: "n:0", label: "Wi-Fi", role: "AXCheckBox", value: "1", operations: [.press])
+        let off = VoiceControlTarget(id: "n:1", label: "Bluetooth", role: "AXCheckBox", value: "0", operations: [.press])
+        let radio = VoiceControlTarget(id: "n:2", label: "Dark", role: "AXRadioButton", value: "1", operations: [.press])
+        XCTAssertEqual(JevDecisionClient.targetLine(on), "n:0: checkbox 'Wi-Fi' (checked)")
+        XCTAssertEqual(JevDecisionClient.targetLine(off), "n:1: checkbox 'Bluetooth' (unchecked)")
+        XCTAssertEqual(JevDecisionClient.targetLine(radio), "n:2: radio 'Dark' (selected)")
+    }
+
+    func testSameNamedTextElsewhereIsItsOwnTarget() {
+        let link = VoiceControlTarget(id: "n:0", label: "Sent", role: "AXLink", operations: [.press], region: "top-left")
+        let twin = VoiceControlTarget(id: "n:1", label: "Sent", role: "AXStaticText", operations: [.press], region: "top-left")
+        let elsewhere = VoiceControlTarget(
+            id: "n:2", label: "Sent", role: "AXStaticText", operations: [.press], region: "bottom-right")
+        XCTAssertEqual(JevDecisionClient.withoutTextTwins([link, twin, elsewhere]).map(\.id), ["n:0", "n:2"])
+    }
+
+    func testAPickCanOfferSelectOnlyOptions() {
+        let one = VoiceControlTarget(id: "o:1", label: "One way", role: "AXMenuItem", operations: [.select])
+        let two = VoiceControlTarget(id: "o:2", label: "Round trip", role: "AXMenuItem", operations: [.select])
+        let answer = JevDecisionClient.Answer(
+            type: "choice", choice: "o:1", probabilities: ["o:1": 0.45, "o:2": 0.45, "none": 0.1], confidence: 0.18)
+        guard case .pick(_, _, let ids) = JevDecisionClient.numberedPick(answer, targets: [one, two]) else {
+            return XCTFail("expected a pick over select-only options")
+        }
+        XCTAssertEqual(Set(ids), ["o:1", "o:2"])
+    }
+
+    func testAQuestionMarkIsNotGroupedWithThePlainSpan() {
+        let values = ["v0": "Hi?", "v1": "Hi"]
+        let answer = JevDecisionClient.Answer(
+            type: "choice", choice: "v1", probabilities: ["v0": 0.45, "v1": 0.45, "none": 0.1], confidence: 0.18)
+        XCTAssertEqual(JevDecisionClient.valueSupport(answer, values: values), 0.45, accuracy: 0.0001)
+    }
+
     func testBoundaryPunctuationVariantsShareTheirSupport() {
         let values = ["v0": "London.", "v1": "London", "v2": "to London"]
         let answer = JevDecisionClient.Answer(

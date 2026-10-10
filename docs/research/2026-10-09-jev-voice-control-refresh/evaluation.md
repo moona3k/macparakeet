@@ -8,9 +8,10 @@ and `jev-preview` both point at it), how, and what shipped because of it.
 - **Corpus.** 48 labeled cases over 7 saved observations from real apps on this
   Mac (Finder, Gmail and Google in Chrome, Notes, YouTube, GitHub), taken from
   `~/Library/Application Support/MacParakeet-Dev/logs/voice-control/sessions/`.
-  Goals are paraphrases, so the local router falls through to Jev: 37
+  Goals are paraphrases, so the local router falls through to Jev: 34
   single-action presses or fills, 1 already-finished view, 3 requests nothing on
-  screen can do, and 10 multi-step goals (labeled `scope: multi`). Labels are
+  screen can do, and 10 multi-step goals (48 in all; the first 40 were run
+  before the multi-step cases were added) (labeled `scope: multi`). Labels are
   acceptable target ids. The corpus holds personal interface text and stays out
   of git; only these aggregates are recorded.
 - **Harness.** `scripts/dev/voice_control_jev_eval.py`. The router decides first
@@ -22,6 +23,9 @@ and `jev-preview` both point at it), how, and what shipped because of it.
   the gate. Repeats measure order sensitivity (production variant) or service
   noise (fixed variants).
 - Cost of everything below: well under $1 of Jev usage.
+
+Runs predate the text-twin filter moving into the CLI's offered set; the
+`_dedup` variants were measured against the pre-filter option list.
 
 ## Finding 1: option order was random per launch
 
