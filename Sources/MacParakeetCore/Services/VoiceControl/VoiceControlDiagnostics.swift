@@ -365,10 +365,13 @@ public enum VoiceControlConsequencePolicy {
     /// after another word (`Sort order`). `Share` opens a sheet; it commits only
     /// as `Share to …` / `with …` / `now`.
     static func floorConsequence(label: String) -> VoiceControlConsequence? {
-        let spoken = label.lowercased().replacingOccurrences(of: "&", with: " and ")
-            .replacingOccurrences(of: "+", with: " and ")
-        let words = spoken.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
-        guard !words.isEmpty, words.count <= 5 else { return nil }
+        func split(_ text: String) -> [String] {
+            text.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
+        }
+        // The cap counts the label's own words, not the `and` read into `&` / `+`.
+        guard !split(label.lowercased()).isEmpty, split(label.lowercased()).count <= 5 else { return nil }
+        let words = split(label.lowercased().replacingOccurrences(of: "&", with: " and ")
+            .replacingOccurrences(of: "+", with: " and "))
         let floors: [(VoiceControlConsequence, Set<String>)] = [
             (.payment, ["pay", "purchase", "checkout", "buy", "payment", "subscribe", "order", "booking", "donate"]),
             (.destructive, ["delete", "erase", "trash", "destroy", "discard", "uninstall"]),
@@ -381,17 +384,30 @@ public enum VoiceControlConsequencePolicy {
             "confirmation", "list", "settings", "options", "info", "information",
         ]
         // Words that can come before an imperative without changing it.
-        let leadIns: Set<String> = ["yes", "permanently", "schedule", "now", "also", "then", "just", "really", "quickly"]
+        let leadIns: Set<String> = [
+            "yes", "permanently", "schedule", "now", "also", "then", "just", "really", "quickly",
+            // Modifiers that keep a verb a verb: `Pre-order now`, `Quick buy`, `1-Click Buy`.
+            "pre", "quick", "instant", "express", "1", "one", "click",
+        ]
+        // `Click to delete`, `Tap to send`: the word after an infinitive `to`.
+        let gestures: Set<String> = ["click", "tap", "press", "swipe", "slide"]
         let commitments: Set<String> = [
             "place", "complete", "confirm", "submit", "finalize", "finish", "make", "empty", "move",
         ]
         func imperative(_ index: Int) -> Bool {
             let word = words[index]
             let next = words.indices.contains(index + 1) ? words[index + 1] : nil
-            if word == "share" { return ["to", "with", "now"].contains(next ?? "") }
+            // Bare `Share` opens a sheet. Leading with an object (`Share file with
+            // Alice`) or a recipient (`Share to …`) commits; `Share options` does not.
+            if word == "share" {
+                guard let next else { return false }
+                if ["to", "with", "now"].contains(next) { return true }
+                return index == 0 && !nounContext.contains(next) && !["menu", "sheet"].contains(next)
+            }
             if word == "pay" { return true }  // `Apple Pay`, `Shop Pay` pay wherever the word sits.
             if words.count == 1 { return true }
             if words[..<index].contains(where: commitments.contains) { return true }
+            if index >= 2, words[index - 1] == "to", gestures.contains(words[index - 2]) { return true }
             if index == 0 || words[..<index].allSatisfy(leadIns.contains) {
                 guard nouns.contains(word) else { return true }
                 return !(next.map(nounContext.contains) ?? false)

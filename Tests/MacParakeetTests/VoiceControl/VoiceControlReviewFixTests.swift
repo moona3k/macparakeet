@@ -26,6 +26,30 @@ final class VoiceControlReviewFixTests: XCTestCase {
         }
     }
 
+    func testCapCountsTheLabelsOwnWords() {
+        XCTAssertEqual(floor("Place order & pay $24.99"), .payment)
+    }
+
+    func testGestureInfinitivesModifiersAndSharedObjectsConfirm() {
+        for label in ["Pre-order now", "Quick buy", "1-Click Buy"] { XCTAssertEqual(floor(label), .payment, label) }
+        XCTAssertEqual(floor("Click to delete"), .destructive)
+        XCTAssertEqual(floor("Tap to send"), .externalCommitment)
+        XCTAssertEqual(floor("Share file with Alice"), .externalCommitment)
+        for label in ["Proceed to checkout", "Share", "Share options", "Sort order"] { XCTAssertNil(floor(label), label) }
+    }
+
+    func testIntermediateNameIsTriedBeforeTheBareWord() async throws {
+        let snapshot = VoiceControlSnapshot(
+            contextID: "b", applicationName: "Safari",
+            targets: ["New Tab", "New Window", "New Private Window"].enumerated().map {
+                VoiceControlTarget(id: "n:\($0.offset)", label: $0.element, role: "AXMenuItem", operations: [.press])
+            })
+        let decision = try await VoiceControlCommandRouter(fallback: Unused()).decide(
+            goal: "click the new tab button", snapshot: snapshot, history: [])
+        guard case .action(let action) = decision else { return XCTFail("expected New Tab, got \(decision)") }
+        XCTAssertEqual(action.targetID, "n:0")
+    }
+
     func testTrailingTypeClauseNeedsACommaPeriodOrJoiningWord() {
         XCTAssertEqual(VoiceControlCommandRouter.typePayload(in: "ok, type hello"), "hello")
         XCTAssertEqual(VoiceControlCommandRouter.typePayload(in: "then type hello"), "hello")
