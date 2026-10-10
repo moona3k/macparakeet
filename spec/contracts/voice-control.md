@@ -123,6 +123,26 @@ backoff (a `Retry-After` of at most 2 s wins; a longer one fails the decision
 without retry); consent is rechecked before each
 retry, Stop cancels the wait, and every other error fails the decision without
 retry. A decision request has no effect, so a retry cannot duplicate one.
+Stop during a request (`URLError.cancelled`) pauses the task; it is never
+reported as Jev being unavailable. A `401`/`403` is a rejected key, and Jev's
+`400 max_tokens_exceeded` is "too large"; the response body is matched for
+that one token and never surfaced. Each attempt times out after 8 s.
+
+Wire format. Every Choice is sent with its options in a deliberate order:
+controls in traversal order, value spans in priority order, outcome events in
+host order, and escape options (`none`, `insufficient_evidence`, `clarify`)
+last. The request body is written by `JevDecisionClient.requestBody`, not a
+Swift dictionary, so one observation and instruction always serialize to the
+same bytes (`jev-1.13` leans toward the first-listed option, and dictionary
+order changed per launch). The observation is `{application, summary,
+complete, targets}`, where each target is one line such as
+`n:4: field 'Search mail' (focused, value 'invoices', top-left)`; the `target`
+question's options are those ids with `null` criteria. A field's visible value
+(at most 160 characters) appears in its line; screen frames never reach Jev.
+
+Starting a session's microphone capture may send one content-free
+`GET /v1/models` with the key to open the connection early, only with this
+consent, at most once a minute.
 
 ## Speech lifecycle and commitment
 
@@ -174,9 +194,18 @@ preparation cannot renew execution authority. Cancel also revokes pending speech
 so a late final transcript cannot silently restart the cancelled task.
 
 Physical Stop/Escape and manual keyboard, mouse or scroll input outside the Voice
-Control panel revoke future effects. Marked synthetic insertion events and the
+Control panel revoke future effects while a task has live work or a
+confirmation is pending. With nothing running, a click, key or scroll (focusing a
+field during hands-free listening) is not a takeover and does not discard the
+utterance being spoken. Marked synthetic insertion events and the
 configured Voice Control shortcut are excluded from manual-takeover detection.
 An effect already dispatched may finish; the UI must not claim it was undone.
+
+A committed utterance is classified before it is dispatched
+(`VoiceControlUtteranceIntent`): an answer to the open clarification or
+confirmation, a correction of an open task, or a new instruction. A command said
+while a clarification is open starts a new task. A completed, failed or cancelled
+task is never revised. A dry run's question opens no conversation.
 
 Speech has an independent synchronous revocation fence. Queued speech-start,
 preview and final events carry capture/utterance identity and cannot revive a
@@ -222,8 +251,14 @@ cancellation every utterance is a new instruction. `undo` is a command, never a
 correction. Ambiguous references require clarification. A replacement
 utterance that supersedes unfinished recognition is identified in task activity.
 
-The panel displays the original goal, current instruction, stopping reason and an
-expandable activity list bounded to 100 entries. Attempting an action is not a
+The panel displays what was heard, the effect being performed in words (`Clicking
+‘Sent’…`, `Typing into ‘Search mail’…`), a state label, the original goal, the
+stopping reason and an expandable activity list bounded to 100 entries. Numbered
+choices are clickable rows; clicking one is the same as saying its number. A
+click-through overlay outlines the control as it is acted on, holds an outline on
+the control a confirmation is about, and draws number badges on pick choices. It
+uses frames from the current observation only, is excluded from screen capture,
+and clears on Stop, End, the next observation or the end of the task. Attempting an action is not a
 success receipt. Verified effects, observed transitions and unknown effects remain
 distinct. Activity is ephemeral and clears on End. No audio, screenshot, field
 value, selected text, credential or remote body is persisted or uploaded.
@@ -355,12 +390,23 @@ enabled events for one Jev Choice; Return is not enabled while a suggestion
 or date picker is open. Jev is never offered `role=url`
 destinations. When no local route or enabled event applies, the open-ended
 request is one disjoint question set — `kind` (`press` / `fill` / `scroll` /
-`finished` / `none`), one `target` head over every legality-filtered control,
-a `value` head only for a focused editable control (target criteria carry a
+`finished` / `none`), one `target` head over every offered control,
+a `value` head only for a focused editable control (each target line carries a
 nine-cell region hint such as `top-left` so identically labelled controls
 read apart), an advisory `consequence`
-head, and `direction` only when something scrolls — gated on `min(kind,
-target)` when a target is named. Filling an unfocused field costs one more
+head, `direction` only when something scrolls, and on a task's first decision a
+`scope` head (`multi` / `single`) — gated on `min(kind,
+target)` when a target is named, `kind` alone for `none`, and 0.6 for
+`finished`. Offered controls are the legality-filtered set minus static text
+that repeats or begins the name of a non-text control (a link and its own
+label). When the press target falls below the gate but two or three controls
+hold at least 0.8 of the probability, the answer is a numbered pick over them.
+A value's support is its confidence or the summed probability of spans that
+differ only by boundary punctuation, whichever is higher. When `scope` is
+confidently `single`, the action is marked as completing the request: once it
+verifies the task is done, once it moves the interface the task appears
+complete, and no second decision is requested. An amended goal never inherits
+that mark. Filling an unfocused field costs one more
 single-head `value` request. Pages over 200 legal controls are truncated by
 priority (focused, editable, then traversal order) and the trace records how
 many were dropped; the turn does not fail. Consequence confidence never blocks
