@@ -1,0 +1,29 @@
+Sources/MacParakeetCore/Services/VoiceControl/README.md
+  s_860a41e9fb91d3::t_61f0d1aad64482 43
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlDiagnostics.swift
+  s_860a41e9fb91d3::t_877533698cc409 397-399
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlLocalTools.swift
+  s_860a41e9fb91d3::t_7b37dd26275d38 110
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTurnRunner.swift
+  s_860a41e9fb91d3::t_54a8ad6a5a0367 168-171
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlUtterance.swift
+  s_860a41e9fb91d3::t_cae78953ca4d7e 54-58,114
+Tests/MacParakeetTests/VoiceControl/VoiceControlReviewFixTests.swift
+  s_860a41e9fb91d3::t_4b8cfbb48ee95e 159-173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "090c37be7b6af412e2ce20e1d22483feeee549c0",
+  "prompts": {},
+  "sessions": {
+    "s_860a41e9fb91d3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d7a6ec4-929b-4af8-aea8-07fa032dc081",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
