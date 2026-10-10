@@ -9,7 +9,7 @@ import SwiftUI
 @MainActor
 final class VoiceControlOverlayController {
     private var windows: [NSWindow] = []
-    private let model = OverlayModel()
+    private let model = VoiceControlOverlayModel()
     private var fade: Task<Void, Never>?
 
     func show(_ highlight: VoiceControlHighlight) {
@@ -68,7 +68,7 @@ final class VoiceControlOverlayController {
             window.isReleasedWhenClosed = false
             // AX frames are global with a top-left origin on the primary display.
             let origin = CGPoint(x: screen.frame.minX, y: primaryHeight - screen.frame.maxY)
-            window.contentView = NSHostingView(rootView: OverlayView(model: model, origin: origin))
+            window.contentView = NSHostingView(rootView: VoiceControlOverlayView(model: model, origin: origin))
             window.setFrame(screen.frame, display: false)
             return window
         }
@@ -76,14 +76,14 @@ final class VoiceControlOverlayController {
 }
 
 @MainActor @Observable
-private final class OverlayModel {
+final class VoiceControlOverlayModel {
     var style: VoiceControlHighlight.Style = .acting
     var marks: [VoiceControlHighlight.Mark] = []
     var visible = false
 }
 
-private struct OverlayView: View {
-    let model: OverlayModel
+struct VoiceControlOverlayView: View {
+    let model: VoiceControlOverlayModel
     /// This display's top-left corner in global top-left coordinates.
     let origin: CGPoint
 

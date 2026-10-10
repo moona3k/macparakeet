@@ -28,6 +28,8 @@ final class VoiceControlCoordinator {
     private var jev: JevDecisionClient?
     /// The last task completed, failed or was cancelled: nothing is revisable.
     private var taskClosed = true
+    /// The running turn is a dry-run proposal: its question opens no conversation.
+    private var proposing = false
     private var panel: VoiceControlPanelController?
     private let overlay = VoiceControlOverlayController()
     private var hotkey: HotkeyManager?
@@ -300,6 +302,7 @@ final class VoiceControlCoordinator {
             for await event in runner.events {
                 guard !Task.isCancelled, let self, self.acceptingEvents else { return }
                 self.model.apply(event)
+                if self.proposing, case .clarification = event { self.model.conversation.cancel() }
                 switch event {
                 case .completed, .failed, .cancelled: self.taskClosed = true
                 default: break
@@ -605,6 +608,7 @@ final class VoiceControlCoordinator {
             overlay.clear()
         }
         taskClosed = false
+        proposing = dryRun
         model.transcript = text
         if !correction {
             model.appendActivity((answering ? "Clarification: " : "Request: ") + text)
