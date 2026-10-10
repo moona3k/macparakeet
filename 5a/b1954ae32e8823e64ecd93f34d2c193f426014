@@ -1,0 +1,21 @@
+Tests/MacParakeetTests/VoiceControl/VoiceControlRecoveryTests.swift
+  s_860a41e9fb91d3::t_0064937d4c648d 295-326
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlDiagnostics.swift
+  s_860a41e9fb91d3::t_e9f79bc5a44c40 336,357-391
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5ab1954ae32e8823e64ecd93f34d2c193f426014",
+  "prompts": {},
+  "sessions": {
+    "s_860a41e9fb91d3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d7a6ec4-929b-4af8-aea8-07fa032dc081",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
