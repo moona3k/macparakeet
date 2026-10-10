@@ -53,8 +53,12 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
                 guard let last = history.last, last.operation == action.operation, last.value == action.value, same,
                     last.receiptStatus != .failed
                 else { return .action(action) }
-                return last.receiptStatus == .verified
-                    ? .directCompleted("Done. The requested change was verified.") : .finished
+                switch last.receiptStatus {
+                case .verified: return .directCompleted("Done. The requested change was verified.")
+                case .transitionObserved: return .finished
+                // Unknown is not done; the runner's uncertain-effect guard decides.
+                default: return .action(action)
+                }
             }
             if let last = history.last, last.receiptStatus == .verified,
                 last.targetID == action.targetID
