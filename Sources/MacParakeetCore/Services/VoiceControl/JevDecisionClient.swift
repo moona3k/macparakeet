@@ -111,23 +111,27 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
         let canScroll = available.contains { $0.operations.contains(.scroll) }
         var kinds: [(String, String)] = []
         if canPress {
-            kinds.append(("press", "Click, press or select one offered control: a button, link, menu, row, option or tab."))
+            kinds.append(
+                ("press", "Click, press or select one offered control: a button, link, menu, row, option or tab."))
         }
         if canFill {
-            kinds.append((
-                "fill",
-                "Enter text into one offered field: a city, date, search query or other form value. Prefer this over clicking when the goal supplies a value the field still lacks."
-            ))
+            kinds.append(
+                (
+                    "fill",
+                    "Enter text into one offered field: a city, date, search query or other form value. Prefer this over clicking when the goal supplies a value the field still lacks."
+                ))
         }
         if canScroll { kinds.append(("scroll", "Scroll an offered area to reveal more controls or content.")) }
-        kinds.append((
-            "finished",
-            "The screen already shows exactly what the user asked for: the requested folder, page, item or setting is open or set. A similar view, or a control that could do it, does not count."
-        ))
-        kinds.append((
-            "none",
-            "Nothing offered can progress the goal; the user must be asked. Do not choose this merely because several ordinary fields remain."
-        ))
+        kinds.append(
+            (
+                "finished",
+                "The screen already shows exactly what the user asked for: the requested folder, page, item or setting is open or set. A similar view, or a control that could do it, does not count."
+            ))
+        kinds.append(
+            (
+                "none",
+                "Nothing offered can progress the goal; the user must be asked. Do not choose this merely because several ordinary fields remain."
+            ))
         var questions: [(String, Question)] = [
             (
                 "kind",
@@ -158,28 +162,30 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
             ),
         ]
         if canScroll {
-            questions.append((
-                "direction",
-                Question(
-                    instructions:
-                        "If the next action scrolls, which direction did the user ask for? Default down when continuing a goal.",
-                    options: [("down", "Scroll downward"), ("up", "Scroll upward")])
-            ))
+            questions.append(
+                (
+                    "direction",
+                    Question(
+                        instructions:
+                            "If the next action scrolls, which direction did the user ask for? Default down when continuing a goal.",
+                        options: [("down", "Scroll downward"), ("up", "Scroll upward")])
+                ))
         }
         // Asked once, on a task's first decision. `multi` is listed first so any
         // first-option lean errs toward asking again rather than stopping early.
         let asksScope = history.isEmpty && VoiceControlGoalText.userSegments(goal).count == 1
         if asksScope {
-            questions.append((
-                "scope",
-                Question(
-                    instructions:
-                        "Will one action on this screen complete the user's whole request, or does it need more than one action? A search, a form, a message to write and send, or two requests joined by 'and' or 'then' need several. One click, one press, one toggle or opening one item is a single action.",
-                    options: [
-                        ("multi", "The request needs more than one action, or more steps after the next one."),
-                        ("single", "Exactly one action completes the whole request."),
-                    ])
-            ))
+            questions.append(
+                (
+                    "scope",
+                    Question(
+                        instructions:
+                            "Will one action on this screen complete the user's whole request, or does it need more than one action? A search, a form, a message to write and send, or two requests joined by 'and' or 'then' need several. One click, one press, one toggle or opening one item is a single action.",
+                        options: [
+                            ("multi", "The request needs more than one action, or more steps after the next one."),
+                            ("single", "Exactly one action completes the whole request."),
+                        ])
+                ))
         }
         let spans = Self.sourceSpans(goal)
         let valueOptions: [(String, String?)] =
@@ -215,7 +221,9 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
         if case .fillNeedsValue(let target, let confidence, let consequence) = decision {
             let sent = try await send(
                 state: state,
-                questions: [("value", Question(instructions: Self.valueInstructions(for: target), options: valueOptions))])
+                questions: [
+                    ("value", Question(instructions: Self.valueInstructions(for: target), options: valueOptions))
+                ])
             followUp = sent
             if let selected = sent.answers["value"], selected.choice != "none",
                 Self.valueSupport(selected, values: values) >= Self.gate, let span = values[selected.choice]

@@ -65,7 +65,8 @@ final class JevRequestShapeTests: XCTestCase {
     private let page = VoiceControlSnapshot(
         contextID: "ax:1", applicationName: "Google Chrome",
         targets: [
-            VoiceControlTarget(id: "n:0", label: "Search mail", role: "AXTextField", value: "", operations: [.setValue]),
+            VoiceControlTarget(
+                id: "n:0", label: "Search mail", role: "AXTextField", value: "", operations: [.setValue]),
             VoiceControlTarget(id: "n:1", label: "Compose", role: "AXButton", operations: [.press]),
             VoiceControlTarget(id: "n:2", label: "Sent", role: "AXLink", operations: [.press]),
             VoiceControlTarget(id: "n:3", label: "Sent", role: "AXStaticText", operations: [.press]),
@@ -127,8 +128,10 @@ final class JevRequestShapeTests: XCTestCase {
                     isFocused: true)
             ])
         let goal = "reply saying I'll be ten minutes late"
-        _ = try await client(bodies: bodies, answer: { name, _ in name == "kind" ? ("finished", ["finished": 1]) : nil })
-            .decide(goal: goal, snapshot: focused, history: [])
+        _ = try await client(
+            bodies: bodies, answer: { name, _ in name == "kind" ? ("finished", ["finished": 1]) : nil }
+        )
+        .decide(goal: goal, snapshot: focused, history: [])
         let all = await bodies.raw
         let raw = try XCTUnwrap(all.first)
         let order = try wireOrder(raw, question: "value")
@@ -152,8 +155,10 @@ final class JevRequestShapeTests: XCTestCase {
 
     func testTargetsAreDescribedOnceInStateWithNullCriteria() async throws {
         let bodies = Bodies()
-        _ = try await client(bodies: bodies, answer: { name, _ in name == "kind" ? ("finished", ["finished": 1]) : nil })
-            .decide(goal: "show my sent mail", snapshot: page, history: [])
+        _ = try await client(
+            bodies: bodies, answer: { name, _ in name == "kind" ? ("finished", ["finished": 1]) : nil }
+        )
+        .decide(goal: "show my sent mail", snapshot: page, history: [])
         let all = await bodies.json
         let body = try XCTUnwrap(all.first)
         let criteria = try XCTUnwrap(
@@ -222,9 +227,12 @@ final class JevRequestShapeTests: XCTestCase {
         XCTAssertNil(action.completesRequest)
 
         let bodies = Bodies()
-        let pressed = VoiceControlAction(operation: .press, targetID: "n:1", targetLabel: "Compose", receiptStatus: .verified)
-        _ = try await client(bodies: bodies, answer: { name, _ in name == "kind" ? ("finished", ["finished": 1]) : nil })
-            .decide(goal: "write an email to Sam", snapshot: page, history: [pressed])
+        let pressed = VoiceControlAction(
+            operation: .press, targetID: "n:1", targetLabel: "Compose", receiptStatus: .verified)
+        _ = try await client(
+            bodies: bodies, answer: { name, _ in name == "kind" ? ("finished", ["finished": 1]) : nil }
+        )
+        .decide(goal: "write an email to Sam", snapshot: page, history: [pressed])
         let sent = await bodies.json
         let later = try XCTUnwrap(sent.first?["questions"] as? [String: Any])
         XCTAssertNil(later["scope"], "scope is judged once, on the first decision")
@@ -290,8 +298,10 @@ final class JevRequestShapeTests: XCTestCase {
             XCTFail("expected an error")
         } catch { XCTAssertEqual(error as? JevDecisionError, .unauthorized) }
         do {
-            _ = try await client(status: 400, responseBody: Data(#"{"detail":{"error_type":"max_tokens_exceeded"}}"#.utf8))
-                .decide(goal: "show my sent mail", snapshot: page, history: [])
+            _ = try await client(
+                status: 400, responseBody: Data(#"{"detail":{"error_type":"max_tokens_exceeded"}}"#.utf8)
+            )
+            .decide(goal: "show my sent mail", snapshot: page, history: [])
             XCTFail("expected an error")
         } catch { XCTAssertEqual(error as? JevDecisionError, .contextTooLarge) }
         do {
@@ -334,7 +344,9 @@ final class JevRequestShapeTests: XCTestCase {
 final class JevWarmTests: XCTestCase {
     private actor Requests {
         private(set) var urls: [String] = []
-        func record(_ request: URLRequest) { urls.append((request.httpMethod ?? "GET") + " " + (request.url?.path ?? "")) }
+        func record(_ request: URLRequest) {
+            urls.append((request.httpMethod ?? "GET") + " " + (request.url?.path ?? ""))
+        }
     }
 
     func testWarmSendsNoContentAndOnlyWithConsentAtMostOncePerMinute() async {
@@ -345,7 +357,9 @@ final class JevWarmTests: XCTestCase {
             transport: { request in
                 await requests.record(request)
                 XCTAssertNil(request.httpBody, "warm-up carries no command or screen content")
-                return (Data(), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+                return (
+                    Data(), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                )
             })
         await client.warm()
         let none = await requests.urls
@@ -379,7 +393,8 @@ final class VoiceControlScrollAreaTests: XCTestCase {
             id: "n:2", label: "Inbox", role: "AXRow", operations: [.press], isFocused: true,
             frame: CGRect(x: 10, y: 100, width: 180, height: 20))
         let router = VoiceControlCommandRouter(fallback: Unused())
-        let inSidebar = VoiceControlSnapshot(contextID: "a", applicationName: "Mail", targets: [sidebar, content, focusedRow])
+        let inSidebar = VoiceControlSnapshot(
+            contextID: "a", applicationName: "Mail", targets: [sidebar, content, focusedRow])
         let first = try await router.decide(goal: "scroll down", snapshot: inSidebar, history: [])
         guard case .action(let a) = first else { return XCTFail("expected an action, got \(first)") }
         XCTAssertEqual(a.targetID, "n:0", "the list you are in")
@@ -389,14 +404,18 @@ final class VoiceControlScrollAreaTests: XCTestCase {
         XCTAssertEqual(b.targetID, "n:1"); XCTAssertEqual(b.value, "up")
         let twins = VoiceControlSnapshot(
             contextID: "c", applicationName: "Finder",
-            targets: [area("n:0", CGRect(x: 0, y: 0, width: 500, height: 800)), area("n:1", CGRect(x: 500, y: 0, width: 600, height: 800))])
+            targets: [
+                area("n:0", CGRect(x: 0, y: 0, width: 500, height: 800)),
+                area("n:1", CGRect(x: 500, y: 0, width: 600, height: 800)),
+            ])
         let third = try await router.decide(goal: "scroll down", snapshot: twins, history: [])
         XCTAssertEqual(third, .clarify("Which part of the window should I scroll?"))
     }
 
     private struct Unused: VoiceControlDecisionEngine {
         func decide(goal: String, snapshot: VoiceControlSnapshot, history: [VoiceControlAction]) async throws
-            -> VoiceControlDecision { .finished }
+            -> VoiceControlDecision
+        { .finished }
         func decide(
             goal: String, snapshot: VoiceControlSnapshot, history: [VoiceControlAction],
             events: [VoiceControlEnabledEvent]
