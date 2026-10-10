@@ -84,7 +84,9 @@ public enum VoiceControlUtteranceIntent: String, Sendable, Equatable, CaseIterab
     static func isSpokenPick(_ normalized: String) -> Bool {
         VoiceControlSpokenPick.index(in: withoutPickVerb(normalized), count: 10) != nil
     }
-    private static func withoutPickVerb(_ normalized: String) -> String {
+    /// `select 2` → `2`, `click Select All` → `select all`. Shared with the
+    /// runner, so whatever the classifier calls an answer also resolves the pick.
+    static func withoutPickVerb(_ normalized: String) -> String {
         for verb in ["select ", "choose ", "pick ", "click ", "press ", "tap "] where normalized.hasPrefix(verb) {
             return String(normalized.dropFirst(verb.count))
         }
@@ -94,6 +96,10 @@ public enum VoiceControlUtteranceIntent: String, Sendable, Equatable, CaseIterab
     /// Correction openers, minus `undo`, which is its own command.
     static func isCorrection(_ normalized: String) -> Bool {
         let n = normalized
+        // `not sure` and `no preference` answer a question; they correct nothing.
+        if ["not sure", "no preference", "no idea", "not really", "no thanks"].contains(where: n.hasPrefix) {
+            return false
+        }
         let openers = ["actually ", "no ", "instead ", "rather ", "change that", "change the ", "make it ", "not "]
         if openers.contains(where: n.hasPrefix) || ["actually", "instead", "change that"].contains(n) { return true }
         if n.hasPrefix("the other") || n.hasPrefix("other one") { return true }

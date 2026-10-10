@@ -318,7 +318,9 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
         return names
     }
     private static let applicationAliases: [String: Set<String>] = [
-        "visual studio code": ["vs code", "vscode", "code"], "iterm2": ["iterm"],
+        // VS Code's process is named "Code".
+        "visual studio code": ["vs code", "vscode", "code"], "code": ["vs code", "vscode", "visual studio code"],
+        "iterm2": ["iterm"],
     ]
     /// Web tasks should start in a browser, not the terminal or IDE that issued the command.
     static func browserForWebGoal(_ lower: String, snapshot: VoiceControlSnapshot) -> VoiceControlTarget? {

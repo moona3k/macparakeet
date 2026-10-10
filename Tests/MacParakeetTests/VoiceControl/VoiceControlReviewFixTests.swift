@@ -67,6 +67,25 @@ final class VoiceControlReviewFixTests: XCTestCase {
         XCTAssertEqual(VoiceControlUtteranceIntent.classify("click Select None", state: state), .answer)
     }
 
+    func testConsentLeadInsAndRequestsConfirmWhileStepsTowardCheckoutDoNot() {
+        XCTAssertEqual(floor("OK, delete"), .destructive)
+        XCTAssertEqual(floor("Request payment"), .payment)
+        // These open the checkout or payment page; the pay control there confirms.
+        for label in ["Secure checkout", "Continue to payment", "Proceed to checkout"] { XCTAssertNil(floor(label), label) }
+    }
+
+    func testVSCodeAnswersToItsProcessName() {
+        XCTAssertTrue(VoiceControlCommandRouter.application(named: "Code", matches: "vs code"))
+        XCTAssertTrue(VoiceControlCommandRouter.application(named: "Code", matches: "vscode"))
+    }
+
+    func testUncertainAnswersAreNotCorrections() {
+        let state = VoiceControlUtteranceIntent.State(awaitingClarification: true, hasOpenTask: true)
+        for text in ["not sure", "no preference", "no idea"] {
+            XCTAssertEqual(VoiceControlUtteranceIntent.classify(text, state: state), .answer, text)
+        }
+    }
+
     func testIntermediateNameIsTriedBeforeTheBareWord() async throws {
         let snapshot = VoiceControlSnapshot(
             contextID: "b", applicationName: "Safari",

@@ -301,14 +301,14 @@ scrolling and search proceed within the requested task. Payment commitments,
 destructive actions and external commitments require confirmation. The label
 keyword floor counts a pay/delete/send word only as an imperative: the whole
 label, its first word (`Buy now`, `Delete file`, `Order tickets`, `Purchase
-subscription`), after lead-ins and modifiers (`yes`, `permanently`, `schedule`,
+subscription`), after lead-ins and modifiers (`yes`, `ok`, `okay`, `permanently`, `schedule`,
 `now`, `also`, `then`, `just`, `really`, `quickly`, `pre`, `quick`, `instant`,
 `express`, `1-click`: `Yes, delete`, `Pre-order now`, `1-Click Buy`), after a
 gesture infinitive (`Click to delete`, `Tap to send`), after a commitment verb (`Place order`, `Move to Trash`) or after `and`,
 `&` or `+` (`Save and send`, `Save & Send`). `Order` / `Booking` / `Payment` /
 `Purchase` / `Checkout` read as nouns before `history`, `details`, `methods`,
 `status` and similar words, or after another word, so `Sort order`, `Order
-history`, `Booking details` and `Payment methods` stay ordinary; bare `Share` opens a sheet and is ordinary,
+history`, `Booking details` and `Payment methods` stay ordinary, as do steps toward a payment page (`Proceed to checkout`, `Secure checkout`, `Continue to payment`) because the pay control there confirms; `Request payment` commits; bare `Share` opens a sheet and is ordinary,
 `Share options`, `Share menu` and `Share sheet` also only open UI, while `Share to …` / `Share with …` / `Share now`, `Share <something> …` (`Share file with Alice`) and Share after the same lead-ins, `and` or commitment verbs (`Yes, share my location`, `Save & Share`) commit. Known target
 metadata for those risks cannot be downgraded by a model's ordinary label. An
 unknown model label does not by itself confirm an ordinary press. An explicitly
