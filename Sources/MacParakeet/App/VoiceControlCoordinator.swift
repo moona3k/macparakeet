@@ -26,6 +26,7 @@ final class VoiceControlCoordinator {
     private let onShortcutChanged: () -> Void
     private var runner: VoiceControlTurnRunner?
     private var panel: VoiceControlPanelController?
+    private let overlay = VoiceControlOverlayController()
     private var hotkey: HotkeyManager?
     private var speechEvents: Task<Void, Never>?
     private var runnerEvents: Task<Void, Never>?
@@ -91,6 +92,7 @@ final class VoiceControlCoordinator {
         model.onConfirm = { [weak self] in self?.confirm() }
         model.onResume = { [weak self] in self?.resume() }
         model.onSubmit = { [weak self] in self?.submit($0) }
+        model.onChoose = { [weak self] number in self?.submit("\(number)") }
         model.onSaveSetup = { [weak self] in self?.saveSetup() }
         model.onRevokeConsent = { [weak self] in
             guard let self else { return }
@@ -108,7 +110,7 @@ final class VoiceControlCoordinator {
                 _ = VisionScreenTextReader.requestScreenRecordingAccess()
             }
             // The adapter is built once at launch; a new one picks up the setting.
-            self?.model.message = "Restart Voice Control (End, then Start) to apply."
+            self?.model.message = "Quit and reopen MacParakeet to apply."
         }
         model.onDisable = { [weak self] in
             guard let self else { return }
@@ -191,6 +193,10 @@ final class VoiceControlCoordinator {
             }
             return
         }
+        // Hands-free listening holds the lease for the whole session. Clicking
+        // into a field to focus it, or scrolling, with nothing running is not a
+        // takeover: it must not discard the sentence being spoken.
+        guard runner?.hasLiveWork == true || model.conversation.expectedResponse == .confirmation else { return }
         submissions.invalidate()
         runner?.pauseForManualInput()
         speech.revokePendingTranscripts()
@@ -290,6 +296,11 @@ final class VoiceControlCoordinator {
             for await event in runner.events {
                 guard !Task.isCancelled, let self, self.acceptingEvents else { return }
                 self.model.apply(event)
+                switch event {
+                case .highlight(let highlight): self.overlay.show(highlight)
+                case .observing, .completed, .failed, .paused, .cancelled: self.overlay.dismissPersistent()
+                default: break
+                }
                 let phase = "\(self.model.phase)"
                 let message = self.model.message
                 Task { await self.traces.noteStatus(phase: phase, message: message) }
@@ -601,6 +612,7 @@ final class VoiceControlCoordinator {
     }
     private func stop() {
         submissions.invalidate()
+        overlay.clear()
         guard interactionLease != nil else { return }
         runner?.stop()
         speech.revokePendingTranscripts()
@@ -729,6 +741,7 @@ final class VoiceControlCoordinator {
 
     private func end(hide: Bool = true, preservePresentation: Bool = false) {
         submissions.invalidate()
+        overlay.clear()
         guard cleanup == nil else { return }
         runner?.stop()
         speech.revokePendingTranscripts()

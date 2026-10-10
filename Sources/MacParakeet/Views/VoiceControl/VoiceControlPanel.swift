@@ -10,10 +10,19 @@ struct VoiceControlPanelView: View {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
                     Image(systemName: model.microphoneOn ? "mic.fill" : "mic.slash")
+                        .foregroundStyle(model.microphoneOn ? DesignSystem.Colors.accent : .secondary)
                         .accessibilityLabel(model.microphoneOn ? "Microphone on" : "Microphone off")
                     Text(model.literalMode ? "Voice Control · Literal" : "Voice Control").font(.headline)
                     Spacer()
-                    Text(model.microphoneOn ? "Listening" : "Mic off").font(.caption).foregroundStyle(.secondary)
+                    if !model.needsSetup {
+                        let state = Self.state(model)
+                        Text(state.text)
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .foregroundStyle(state.color)
+                            .background(Capsule().fill(state.color.opacity(0.14)))
+                            .accessibilityLabel("State: " + state.text)
+                    }
                     Button("Close", systemImage: "xmark", action: { model.onEnd?() })
                         .labelStyle(.iconOnly).parakeetAction(.subtle)
                 }
@@ -55,20 +64,57 @@ struct VoiceControlPanelView: View {
                     Text("Your API key is stored in macOS Keychain. No microphone opens until you start listening.")
                         .font(.caption).foregroundStyle(.secondary)
                 } else {
-                    if !model.partialTranscript.isEmpty {
-                        Text(model.partialTranscript).foregroundStyle(.secondary).lineLimit(3)
-                            .accessibilityLabel("Speech preview: " + model.partialTranscript)
+                    VStack(alignment: .leading, spacing: 6) {
+                        if !model.partialTranscript.isEmpty {
+                            Text("“" + model.partialTranscript + "”")
+                                .font(.callout).italic().foregroundStyle(.secondary).lineLimit(3)
+                                .accessibilityLabel("Speech preview: " + model.partialTranscript)
+                        } else if !model.transcript.isEmpty {
+                            Text("“" + model.transcript + "”")
+                                .font(.callout).foregroundStyle(.secondary).lineLimit(3)
+                                .accessibilityLabel("Heard: " + model.transcript)
+                        }
+                        Text(model.message)
+                            .font(.title3.weight(.semibold))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("voice-control-status")
+                        if !model.goal.isEmpty, model.goal != model.transcript {
+                            Text("Task: " + model.goal).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                        }
                     }
-                    if !model.goal.isEmpty {
-                        Text("Task: " + model.goal).font(.caption).foregroundStyle(.secondary).lineLimit(3)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(DesignSystem.Colors.surface.opacity(0.7)))
+                    if !model.choices.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(Array(model.choices.enumerated()), id: \.offset) { index, choice in
+                                Button(action: { model.onChoose?(choice.number ?? index + 1) }) {
+                                    HStack(spacing: 10) {
+                                        Text("\(choice.number ?? index + 1)")
+                                            .font(.system(.callout, design: .rounded).weight(.bold))
+                                            .foregroundStyle(DesignSystem.Colors.onAccent)
+                                            .frame(width: 22, height: 22)
+                                            .background(Circle().fill(DesignSystem.Colors.accent))
+                                        Text(choice.label).lineLimit(1)
+                                        Spacer()
+                                        if choice.frame == nil {
+                                            Text("not on screen").font(.caption2).foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .padding(.vertical, 4).padding(.horizontal, 6)
+                                .accessibilityLabel("Choose \(choice.number ?? index + 1): \(choice.label)")
+                            }
+                            Text("Say the number or click a row.").font(.caption).foregroundStyle(.secondary)
+                        }
                     }
-                    if !model.transcript.isEmpty {
-                        Text(model.transcript).font(.body.weight(.medium)).lineLimit(4)
-                    }
-                    Text(model.message).font(.callout).fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("voice-control-status")
                     if model.microphoneOn {
-                        ProgressView(value: Double(model.audioLevel)).accessibilityLabel("Microphone level")
+                        ProgressView(value: Double(model.audioLevel)).tint(DesignSystem.Colors.accent)
+                            .accessibilityLabel("Microphone level")
                     }
                     if model.conversation.expectedResponse == .confirmation {
                         HStack {
@@ -146,9 +192,23 @@ struct VoiceControlPanelView: View {
             }
             .padding(20).frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(width: 470, height: model.needsSetup ? 510 : 470)
+        .frame(width: 440, height: model.needsSetup ? 510 : 440)
         .background(.regularMaterial)
     }
+    static func state(_ model: VoiceControlViewModel) -> (text: String, color: Color) {
+        if model.microphoneOn && model.phase == .listening { return ("Listening", DesignSystem.Colors.accent) }
+        switch model.phase {
+        case .idle: return (model.microphoneOn ? "Listening" : "Ready", .secondary)
+        case .listening: return ("Listening", DesignSystem.Colors.accent)
+        case .transcribing, .working: return ("Working", DesignSystem.Colors.accent)
+        case .confirmation: return ("Confirm", DesignSystem.Colors.warningAmber)
+        case .clarification: return ("Your turn", DesignSystem.Colors.warningAmber)
+        case .paused: return ("Paused", .secondary)
+        case .done: return ("Done", DesignSystem.Colors.successGreen)
+        case .failed: return ("Stopped", DesignSystem.Colors.errorRed)
+        }
+    }
+
     private func submit() {
         let value = model.input
         model.input = ""
@@ -177,10 +237,10 @@ final class VoiceControlPanelController {
         panel.contentView = NSHostingView(rootView: VoiceControlPanelView(model: model))
     }
     func show() {
-        panel.setContentSize(NSSize(width: 470, height: model.needsSetup ? 510 : 470))
+        panel.setContentSize(NSSize(width: 440, height: model.needsSetup ? 510 : 440))
         if !panel.isVisible, let screen = NSScreen.main {
             let frame = screen.visibleFrame
-            panel.setFrameTopLeftPoint(NSPoint(x: frame.maxX - 490, y: frame.maxY - 32))
+            panel.setFrameTopLeftPoint(NSPoint(x: frame.maxX - 460, y: frame.maxY - 32))
         }
         panel.orderFrontRegardless()
     }

@@ -255,7 +255,8 @@ public actor NativeVoiceControlAdapter: VoiceControlAdapter {
                 operations: item.target.operations, isNavigation: item.target.isNavigation,
                 isFocused: item.target.isFocused, selectedText: item.target.selectedText,
                 valueIsComplete: item.target.valueIsComplete, consequence: item.target.consequence,
-                isOffscreen: item.target.isOffscreen, region: item.target.region)
+                isOffscreen: item.target.isOffscreen, region: item.target.region,
+                frame: item.target.isOffscreen ? nil : item.bound.frame)
             handles[id] = BoundTarget(
                 element: item.bound.element, target: target, fingerprint: item.bound.fingerprint,
                 frame: item.bound.frame, pixelPoint: item.bound.pixelPoint)

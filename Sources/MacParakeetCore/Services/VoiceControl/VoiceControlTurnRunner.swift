@@ -537,6 +537,12 @@ public actor VoiceControlTurnRunner {
                         snapshot.targets.first(where: { $0.id == id })?.label
                     }
                     record("policy", outcome: "numbered_pick")
+                    let marks = zip(alternativeLabels, alternativeIDs).enumerated().map { offset, pair in
+                        VoiceControlHighlight.Mark(
+                            label: pair.0, frame: snapshot.targets.first(where: { $0.id == pair.1 })?.frame,
+                            number: offset + 1)
+                    }
+                    continuation.yield(.highlight(VoiceControlHighlight(style: .numbered, marks: marks)))
                     continuation.yield(.clarification(prompt)); return
                 case .action(let action):
                     guard let bound = bind(action, to: snapshot),
@@ -584,6 +590,7 @@ public actor VoiceControlTurnRunner {
             "policy", operation: action.operation, outcome: "confirmation_" + consequence.rawValue,
             observation: snapshot, action: action)
         let prefix = VoiceControlConfirmationCopy.prompt(action: action, target: target, consequence: consequence)
+        continuation.yield(.highlight(VoiceControlHighlight(style: .confirming, marks: [.init(label: target.label, frame: target.frame)])))
         continuation.yield(.confirmation(action, prefix))
         expiryTask?.cancel()
         let seconds = limits.confirmationSeconds
@@ -606,6 +613,9 @@ public actor VoiceControlTurnRunner {
         dispatchedStates.insert(identity); dispatched += 1
         let effect = effectIdentity(action, snapshot: snapshot)
         referenceSnapshot = snapshot; referenceAction = action; referenceTime = Date()
+        if let target = snapshot.targets.first(where: { $0.id == action.targetID }) {
+            continuation.yield(.highlight(VoiceControlHighlight(style: .acting, marks: [.init(label: target.label, frame: target.frame)])))
+        }
         continuation.yield(.acting(action))
         record("dispatch", operation: action.operation, outcome: "started", observation: snapshot, action: action)
         let start = ContinuousClock.now

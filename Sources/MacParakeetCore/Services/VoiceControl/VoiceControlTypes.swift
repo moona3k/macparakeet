@@ -24,16 +24,21 @@ public struct VoiceControlTarget: Codable, Sendable, Equatable, Identifiable {
     /// `bottom-right`). Cheap to compute, and the one thing that tells two
     /// identically labelled controls apart in a criteria string.
     public let region: String?
+    /// Global screen rectangle (top-left origin), for the on-screen highlight
+    /// and number badges only. Kept in memory: it is not encoded, so it never
+    /// reaches Jev or a trace.
+    public let frame: CGRect?
     public init(
         id: String, label: String, role: String, value: String? = nil,
         operations: Set<VoiceControlOperation>, isNavigation: Bool = false,
         isFocused: Bool = false, selectedText: String? = nil, valueIsComplete: Bool = true,
-        consequence: VoiceControlConsequence? = nil, isOffscreen: Bool = false, region: String? = nil
+        consequence: VoiceControlConsequence? = nil, isOffscreen: Bool = false, region: String? = nil,
+        frame: CGRect? = nil
     ) {
         self.id = id; self.label = label; self.role = role; self.value = value
         self.operations = operations; self.isNavigation = isNavigation
         self.isFocused = isFocused; self.selectedText = selectedText; self.valueIsComplete = valueIsComplete
-        self.consequence = consequence; self.isOffscreen = isOffscreen; self.region = region
+        self.consequence = consequence; self.isOffscreen = isOffscreen; self.region = region; self.frame = frame
     }
     private enum CodingKeys: String, CodingKey {
         case id, label, role, value, operations, isNavigation, isFocused, selectedText, valueIsComplete, consequence,
@@ -54,6 +59,7 @@ public struct VoiceControlTarget: Codable, Sendable, Equatable, Identifiable {
         consequence = try container.decodeIfPresent(VoiceControlConsequence.self, forKey: .consequence)
         isOffscreen = try container.decodeIfPresent(Bool.self, forKey: .isOffscreen) ?? false
         region = try container.decodeIfPresent(String.self, forKey: .region)
+        frame = nil
     }
 
     /// Nine-cell grid position of `frame` inside `window`; nil without both.
@@ -212,6 +218,26 @@ public enum VoiceControlEvent: Sendable, Equatable {
     case cancelled
     /// Ephemeral task content for the panel, deliberately excluded from diagnostic traces.
     case activity(String)
+    /// What to outline on screen: the control about to be acted on, the one a
+    /// confirmation is about, or the numbered choices of a pick. Panel and
+    /// overlay only; never traced.
+    case highlight(VoiceControlHighlight)
+}
+
+public struct VoiceControlHighlight: Sendable, Equatable {
+    public enum Style: String, Sendable, Equatable { case acting, confirming, numbered }
+    public struct Mark: Sendable, Equatable {
+        public let label: String
+        /// Nil when the control has no usable on-screen frame; the panel still lists it.
+        public let frame: CGRect?
+        public let number: Int?
+        public init(label: String, frame: CGRect?, number: Int? = nil) {
+            self.label = label; self.frame = frame; self.number = number
+        }
+    }
+    public let style: Style
+    public let marks: [Mark]
+    public init(style: Style, marks: [Mark]) { self.style = style; self.marks = marks }
 }
 
 /// The runner's amended-goal text. Only the user's own words in it are
