@@ -1,0 +1,23 @@
+Sources/MacParakeet/App/VoiceControlCoordinator.swift
+  s_860a41e9fb91d3::t_27caf235b49705 28,287,324,775
+Sources/MacParakeetCore/Services/VoiceControl/JevDecisionClient.swift
+  s_860a41e9fb91d3::t_8980b2724d5055 64-78
+Tests/MacParakeetTests/VoiceControl/JevRequestShapeTests.swift
+  s_860a41e9fb91d3::t_c13a34ec870e51 333-368
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5550cc7829d9c1f93b66c71b2aa14671a16908c2",
+  "prompts": {},
+  "sessions": {
+    "s_860a41e9fb91d3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d7a6ec4-929b-4af8-aea8-07fa032dc081",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
