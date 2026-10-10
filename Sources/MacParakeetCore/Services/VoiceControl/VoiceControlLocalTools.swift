@@ -105,7 +105,10 @@ enum VoiceControlLocalTools {
         // At most one role word comes off: `the new tab button` is `New Tab`,
         // never a bare `New` when no `New Tab` is on screen.
         var names = [n]
-        if let suffix = [" button", " link", " tab", " menu"].first(where: { n.hasSuffix($0) && n.count > $0.count }) {
+        // `new tab` names a command, not a tab called `New`.
+        if let suffix = [" button", " link", " tab", " menu"].first(where: { n.hasSuffix($0) && n.count > $0.count }),
+            !(suffix == " tab" && n == "new tab")
+        {
             n = String(n.dropLast(suffix.count))
             names.append(n)
         }

@@ -146,6 +146,16 @@ final class VoiceControlReviewFixTests: XCTestCase {
         guard case .action = again else { return XCTFail("a failed press is retried, got \(again)") }
     }
 
+    func testAPriceCountsAsOneWordAndNewTabIsNeverNew() async throws {
+        XCTAssertEqual(floor("Buy now for $1,200.00"), .payment)
+        let snapshot = VoiceControlSnapshot(
+            contextID: "t", applicationName: "Safari",
+            targets: [VoiceControlTarget(id: "n:0", label: "New", role: "AXButton", operations: [.press])])
+        let decision = try await VoiceControlCommandRouter(fallback: Unused()).decide(
+            goal: "click new tab", snapshot: snapshot, history: [])
+        XCTAssertEqual(decision, .clarify("fallback"), "no New Tab on screen: never press New")
+    }
+
     func testTrailingTypeClauseNeedsACommaPeriodOrJoiningWord() {
         XCTAssertEqual(VoiceControlCommandRouter.typePayload(in: "ok, type hello"), "hello")
         XCTAssertEqual(VoiceControlCommandRouter.typePayload(in: "then type hello"), "hello")

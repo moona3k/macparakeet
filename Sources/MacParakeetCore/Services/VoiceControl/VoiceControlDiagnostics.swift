@@ -365,7 +365,8 @@ public enum VoiceControlConsequencePolicy {
     /// `Click to share`. `pay` always confirms (`Apple Pay`).
     static func floorConsequence(label: String) -> VoiceControlConsequence? {
         let words = label.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
-        guard !words.isEmpty, words.count <= 5 else { return nil }
+        // The cap counts spoken words, so a price (`Buy now for $1,200.00`) is one.
+        guard !words.isEmpty, label.split(whereSeparator: \.isWhitespace).count <= 5 else { return nil }
         let floors: [(VoiceControlConsequence, Set<String>)] = [
             (.payment, ["pay", "purchase", "checkout", "buy", "payment", "subscribe", "order", "booking", "donate"]),
             (.destructive, ["delete", "erase", "trash", "destroy", "discard", "uninstall"]),
