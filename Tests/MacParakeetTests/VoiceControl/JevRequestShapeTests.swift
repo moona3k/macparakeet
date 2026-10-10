@@ -330,3 +330,39 @@ final class JevRequestShapeTests: XCTestCase {
         }
     }
 }
+
+final class JevWarmTests: XCTestCase {
+    private actor Requests {
+        private(set) var urls: [String] = []
+        func record(_ request: URLRequest) { urls.append((request.httpMethod ?? "GET") + " " + (request.url?.path ?? "")) }
+    }
+
+    func testWarmSendsNoContentAndOnlyWithConsentAtMostOncePerMinute() async {
+        let requests = Requests()
+        let consent = ConsentFlag()
+        let client = JevDecisionClient(
+            apiKey: "test", consent: { consent.value },
+            transport: { request in
+                await requests.record(request)
+                XCTAssertNil(request.httpBody, "warm-up carries no command or screen content")
+                return (Data(), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+            })
+        await client.warm()
+        let none = await requests.urls
+        XCTAssertEqual(none, [], "no consent, no request")
+        consent.value = true
+        await client.warm()
+        await client.warm()
+        let urls = await requests.urls
+        XCTAssertEqual(urls, ["GET /v1/models"])
+    }
+
+    private final class ConsentFlag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var stored = false
+        var value: Bool {
+            get { lock.lock(); defer { lock.unlock() }; return stored }
+            set { lock.lock(); stored = newValue; lock.unlock() }
+        }
+    }
+}

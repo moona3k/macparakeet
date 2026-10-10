@@ -25,6 +25,7 @@ final class VoiceControlCoordinator {
     private let conflictingHotkeys: () -> [HotkeyTrigger]
     private let onShortcutChanged: () -> Void
     private var runner: VoiceControlTurnRunner?
+    private var jev: JevDecisionClient?
     private var panel: VoiceControlPanelController?
     private let overlay = VoiceControlOverlayController()
     private var hotkey: HotkeyManager?
@@ -283,6 +284,7 @@ final class VoiceControlCoordinator {
                 UserDefaults.standard.bool(forKey: "voiceControl.cloudContextConsent.v1")
             },
             onDecision: { decision in await traces.noteDecision(decision) })
+        jev = engine
         let router = VoiceControlCommandRouter(
             fallback: engine, rewrite: rewrite,
             selectionAtInvocation: { [weak self] in
@@ -319,6 +321,7 @@ final class VoiceControlCoordinator {
         if model.conversation.shouldPauseForSpeech { submissions.invalidate(); runner?.stop() }
         wantsCapture = true
         self.handsFree = handsFree
+        if let jev { Task { await jev.warm() } }
         let generation = sessionGeneration
         let captureID = UUID()
         currentCaptureID = captureID
@@ -769,7 +772,7 @@ final class VoiceControlCoordinator {
             await currentRunner?.cancelAndDrain()
             guard let self else { return }
             if let lease { GUIMutationArbiter.shared.release(lease) }
-            self.interactionLease = nil; self.runner = nil; self.cleanup = nil
+            self.interactionLease = nil; self.runner = nil; self.jev = nil; self.cleanup = nil
             self.invocationSnapshot = nil
             if !preservePresentation {
                 self.model.phase = .idle; self.model.transcript = ""; self.model.goal = ""; self.model.steps = []

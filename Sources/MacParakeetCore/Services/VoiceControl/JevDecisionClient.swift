@@ -61,6 +61,21 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
                 retries: sent.reduce(0) { $0 + $1.retries }))
     }
 
+    /// Opens the HTTPS connection while the person is still speaking, so the
+    /// first decision does not pay DNS and TLS. `GET /v1/models` carries no
+    /// command or screen content; it is skipped without consent or a key, at
+    /// most once a minute, and its result is ignored.
+    public func warm() async {
+        guard consent(), !apiKey.isEmpty else { return }
+        if let lastWarm, lastWarm.duration(to: .now) < .seconds(60) { return }
+        lastWarm = .now
+        var request = URLRequest(url: URL(string: "https://api.typesafe.ai/v1/models")!)
+        request.timeoutInterval = 5
+        request.setValue("Bearer " + apiKey, forHTTPHeaderField: "Authorization")
+        _ = try? await transport(request)
+    }
+    private var lastWarm: ContinuousClock.Instant?
+
     public func decide(goal: String, snapshot: VoiceControlSnapshot, history: [VoiceControlAction]) async throws
         -> VoiceControlDecision
     {
