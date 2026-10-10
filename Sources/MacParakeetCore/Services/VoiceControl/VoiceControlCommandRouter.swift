@@ -19,8 +19,14 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
     {
         let command = goal.trimmingCharacters(in: .whitespacesAndNewlines)
         let lower = command.lowercased()
+        // Exact routes read the newest user segment of an amended goal when it is
+        // itself a command (`undo`, `open Safari`), else the whole goal. Web, form
+        // and text-entry routes keep reading the whole goal (`currentRequest`).
+        let segment = Self.commandSegment(of: command)
+        let local = segment ?? command
+        let localLower = local.lowercased()
         if ["help", "show commands", "what can i say", "what can i say here"].contains(
-            lower.trimmingCharacters(in: .punctuationCharacters))
+            localLower.trimmingCharacters(in: .punctuationCharacters))
         {
             return .information(contextualHelp(snapshot))
         }
@@ -33,6 +39,16 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
         // loop for open-ended requests remains delegated to the semantic engine.
         func result(_ action: VoiceControlAction) -> VoiceControlDecision {
             if history.isEmpty { return .action(action) }
+            // History predates the amendment, so only this exact effect finishes it.
+            if segment != nil {
+                let label = action.targetLabel ?? snapshot.targets.first { $0.id == action.targetID }?.label ?? ""
+                guard let last = history.last, last.operation == action.operation, last.value == action.value,
+                    last.targetID == action.targetID
+                        || (!label.isEmpty && last.targetLabel?.caseInsensitiveCompare(label) == .orderedSame)
+                else { return .action(action) }
+                return last.receiptStatus == .verified
+                    ? .directCompleted("Done. The requested change was verified.") : .finished
+            }
             if let last = history.last, last.receiptStatus == .verified,
                 last.targetID == action.targetID
                     || (last.operation == action.operation
@@ -90,17 +106,17 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
             }
             return result(VoiceControlAction(operation: .setValue, targetID: focused[0].id, value: changed))
         }
-        if let key = VoiceControlLocalTools.reservedKey(in: command) {
+        if let key = VoiceControlLocalTools.reservedKey(in: local) {
             guard let target = snapshot.targets.first(where: { $0.isFocused && $0.operations.contains(.key) })
             else {
                 return .clarify("Focus a field that can receive the \(key) key.")
             }
             return result(VoiceControlAction(operation: .key, targetID: target.id, value: key))
         }
-        if VoiceControlLocalTools.alreadyVerifiedNamedPress(command: command, history: history) {
+        if VoiceControlLocalTools.alreadyVerifiedNamedPress(command: local, history: history) {
             return .directCompleted("Done. The requested change was verified.")
         }
-        if VoiceControlLocalTools.alreadyPressedByName(command: command, history: history) { return .finished }
+        if VoiceControlLocalTools.alreadyPressedByName(command: local, history: history) { return .finished }
         if let destination = VoiceControlWebDestination.matchingGoal(lower),
             snapshot.targets.contains(where: { $0.id == destination.id }),
             !VoiceControlWebDestination.pageMatches(snapshot, destination: destination),
@@ -133,7 +149,7 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
         if let browser = Self.browserForWebGoal(lower, snapshot: snapshot) {
             return .action(VoiceControlAction(operation: .activateApp, targetID: browser.id))
         }
-        if let requested = Self.requestedApplication(lower) {
+        if let requested = Self.requestedApplication(localLower) {
             // Only a request that names the front app is a no-op: `open the first
             // email` in Mail names an email, not Mail.
             if Self.application(named: snapshot.applicationName, matches: requested) {
@@ -147,17 +163,17 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
             }
             if apps.count > 1 { return .clarify("Which \(apps[0].label) window should I open?") }
         }
-        if ["undo", "undo that", "undo last edit"].contains(lower),
+        if ["undo", "undo that", "undo last edit"].contains(localLower),
             let target = snapshot.targets.first(where: { $0.role == "undo" })
         {
             return result(VoiceControlAction(operation: .press, targetID: target.id))
         }
-        if ["scroll down", "scroll up"].contains(lower) {
+        if ["scroll down", "scroll up"].contains(localLower) {
             let candidates = snapshot.targets.filter { $0.operations.contains(.scroll) }
             guard candidates.count == 1 else { return .clarify("Which part of the window should I scroll?") }
             return result(
                 VoiceControlAction(
-                    operation: .scroll, targetID: candidates[0].id, value: lower == "scroll up" ? "up" : "down"))
+                    operation: .scroll, targetID: candidates[0].id, value: localLower == "scroll up" ? "up" : "down"))
         }
         if ["rewrite ", "make this ", "translate this ", "summarize this"].contains(where: lower.hasPrefix) {
             guard history.isEmpty else { return .finished }
@@ -188,7 +204,7 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
                     operation: .insertText, targetID: focused[0].id,
                     value: rewritten, targetLabel: focused[0].label, requiresConfirmation: true))
         }
-        if let named = VoiceControlLocalTools.namedPress(command: command, snapshot: snapshot) {
+        if let named = VoiceControlLocalTools.namedPress(command: local, snapshot: snapshot) {
             if case .action(let action) = named { return result(action) }
             return named
         }
@@ -199,6 +215,21 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
                 goal: command, snapshot: snapshot, history: history, events: landings)
         }
         return try await fallback.decide(goal: command, snapshot: snapshot, history: history)
+    }
+    /// The newest correction (fillers removed) or clarification of an amended
+    /// goal, when it is a command. Answers (`2`, `Rome`) are not, and text entry
+    /// (`no, type Rome`) usually revises earlier text, so both stay with the model.
+    static func commandSegment(of goal: String) -> String? {
+        let segments = VoiceControlGoalText.kindedSegments(goal)
+        guard segments.count > 1, let newest = segments.last, newest.kind != .original else { return nil }
+        let text = (newest.kind == .correction ? VoiceControlGoalText.withoutLeadingFiller(newest.text) : newest.text)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = text.lowercased()
+        guard !text.contains("\n"), VoiceControlUtteranceIntent.isCommandShaped(text), typePayload(in: text) == nil,
+            !["replace ", "rewrite ", "make this ", "translate this ", "summarize this"]
+                .contains(where: lower.hasPrefix)
+        else { return nil }
+        return text
     }
     private static func isDirectCommand(_ lower: String) -> Bool {
         // Only routes selected locally should terminate after one verified effect.
