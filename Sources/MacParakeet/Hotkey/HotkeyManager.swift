@@ -27,6 +27,8 @@ public final class HotkeyManager {
     /// overlay still dismisses. Read on the main thread while processing a
     /// forwarded Escape; Escape itself is never consumed.
     public var shouldCancelOnEscape: () -> Bool = { true }
+    /// Multiple taps see the same Escape. Only one may dispatch shared flow effects.
+    var shouldDispatchEscape: () -> Bool = { true }
 
     private let gestureController: HotkeyGestureController
     private let trigger: HotkeyTrigger
@@ -60,7 +62,18 @@ public final class HotkeyManager {
     private var modifierChordRequiredWasPressed = false
     private var modifierChordGestureIsActive = false
     private var modifierChordBlockedUntilRelease = false
-    private var activeRecordingMode: FnKeyStateMachine.RecordingMode?
+    private var activeRecordingMode: FnKeyStateMachine.RecordingMode? {
+        didSet {
+            if activeRecordingMode != .holdToTalk { claimedPeerKeyCodes.removeAll() }
+        }
+    }
+
+    /// The other accepted dictation shortcuts. While this manager owns a held
+    /// take their input is not typing, so it does not interrupt the take.
+    private let peerInput: HotkeyPeerInputPolicy
+    /// Peer-owned keys this held take let through, until their keyUp. A chord's
+    /// modifiers can release before its terminal key does.
+    private var claimedPeerKeyCodes: Set<UInt16> = []
 
     /// Passive ledger for ordinary virtual key codes. The canonical macOS
     /// keyboard range is 0...127; Fn's synthetic 179 is deliberately excluded.
@@ -95,10 +108,12 @@ public final class HotkeyManager {
         gestureMode: HotkeyGestureController.Mode = .doubleTapAndHold,
         tapThresholdMs: Int = FnKeyStateMachine.defaultTapThresholdMs,
         startupDebounceMs: Int = FnKeyStateMachine.defaultStartupDebounceMs,
-        holdToTalkStopTailMs: Int = 0
+        holdToTalkStopTailMs: Int = 0,
+        peerTriggers: [HotkeyTrigger] = []
     ) {
         self.trigger = trigger
         self.gestureMode = gestureMode
+        self.peerInput = HotkeyPeerInputPolicy(peers: peerTriggers)
         self.holdToTalkStopTailMs = max(0, holdToTalkStopTailMs)
         self.gestureController = HotkeyGestureController(
             mode: gestureMode,
@@ -122,11 +137,14 @@ public final class HotkeyManager {
         trigger == .fn ? .listenOnly : .defaultTap
     }
 
-    static func eventMask(for trigger: HotkeyTrigger) -> CGEventMask {
+    static func eventMask(
+        for trigger: HotkeyTrigger,
+        peerInput: HotkeyPeerInputPolicy = .none
+    ) -> CGEventMask {
         var mask: CGEventMask =
             (1 << CGEventType.flagsChanged.rawValue)
             | (1 << CGEventType.keyDown.rawValue)
-        if trigger == .fn || trigger.kind == .keyCode || trigger.kind == .chord {
+        if trigger == .fn || trigger.kind == .keyCode || trigger.kind == .chord || peerInput.claimsKeys {
             mask |= (1 << CGEventType.keyUp.rawValue)
         }
         return mask
@@ -148,7 +166,7 @@ public final class HotkeyManager {
         let relay = HotkeyTapRelay(manager: self, generation: tapGeneration, trigger: trigger)
         guard let tap = BackgroundEventTap.start(
             options: Self.eventTapOptions(for: trigger),
-            eventsOfInterest: Self.eventMask(for: trigger),
+            eventsOfInterest: Self.eventMask(for: trigger, peerInput: peerInput),
             handler: { type, event in relay.handle(type: type, event: event) }
         ) else {
             // Log the trust state so logs distinguish "permission not granted"
@@ -253,6 +271,7 @@ public final class HotkeyManager {
             handleOutputs(
                 modifierKeyDownOutputs(
                     keyCode: event.keyCode,
+                    flags: event.flags,
                     timestampMs: timestampMs
                 )
             )
@@ -321,11 +340,13 @@ public final class HotkeyManager {
             // Prefer side-specific flag transitions, but include the changed
             // modifier keyCode as a fallback when macOS only reports the
             // generic modifier bit.
-            let changedTrackedModifiers = Self.changedTrackedModifierKeyCodes(
-                from: previousModifierFlags,
-                to: flags,
-                changedKeyCode: changedKeyCode
-            ).subtracting([targetKeyCode])
+            let changedTrackedModifiers = unclaimedByPeers(
+                Self.changedTrackedModifierKeyCodes(
+                    from: previousModifierFlags,
+                    to: flags,
+                    changedKeyCode: changedKeyCode
+                ).subtracting([targetKeyCode])
+            )
             if targetModifierGestureIsActive, !changedTrackedModifiers.isEmpty {
                 bareTap = false
                 return gestureMode == .singleTapToggle ? [] : gestureController.interrupted()
@@ -394,11 +415,13 @@ public final class HotkeyManager {
         // physical transition rather than current flags so both press and release
         // cancel an active gesture or an outstanding second-tap window.
         if trigger == .fn {
-            let changedModifiers = Self.changedTrackedModifierKeyCodes(
-                from: previousModifierFlags,
-                to: flags,
-                changedKeyCode: changedKeyCode
-            ).subtracting([HotkeyTrigger.canonicalFnKeyCode])
+            let changedModifiers = unclaimedByPeers(
+                Self.changedTrackedModifierKeyCodes(
+                    from: previousModifierFlags,
+                    to: flags,
+                    changedKeyCode: changedKeyCode
+                ).subtracting([HotkeyTrigger.canonicalFnKeyCode])
+            )
             let capsLockChanged =
                 changedKeyCode == 57
                 && previousModifierFlags.contains(.maskAlphaShift) != flags.contains(.maskAlphaShift)
@@ -413,7 +436,9 @@ public final class HotkeyManager {
 
         guard targetModifierGestureIsActive else { return [] }
         let activeTrackedModifiers = flags.intersection(ModifierKeyMatcher.trackedModifierMasks)
-        let nonTargetTrackedModifiers = activeTrackedModifiers.subtracting(mask)
+        let nonTargetTrackedModifiers = activeTrackedModifiers
+            .subtracting(mask)
+            .subtracting(peerModifierFlags(in: flags, excluding: mask))
         guard !nonTargetTrackedModifiers.isEmpty else { return [] }
 
         bareTap = false
@@ -422,15 +447,17 @@ public final class HotkeyManager {
 
     private func modifierKeyDownOutputs(
         keyCode: Int64,
+        flags: CGEventFlags,
         timestampMs: UInt64
     ) -> [HotkeyGestureController.Output] {
         let physicalKeyCode = UInt16(keyCode)
+        let isPeerKey = claimPeerKeyDown(physicalKeyCode, flags: flags.rawValue)
         if trigger == .fn, Self.isTrackableNonFnKeyCode(physicalKeyCode) {
             releaseObservedKeyCodes.remove(physicalKeyCode)
             guard pressedNonFnKeyCodes.insert(physicalKeyCode).inserted else {
                 return []
             }
-            if targetModifierGestureIsActive {
+            if targetModifierGestureIsActive, !isPeerKey {
                 bareTap = false
             }
         }
@@ -442,6 +469,9 @@ public final class HotkeyManager {
             // with keyCode 179 when Fn is released (for "Change Input Source" or
             // "Show Emoji & Symbols"). Without this guard, that keyDown resets the
             // gesture state machine during modifier-only gestures.
+            //
+            // A peer shortcut's key is not typing, so it leaves the bare tap alone.
+            if isPeerKey { return [] }
             // Non-Escape key pressed — invalidate bare-tap if modifier is held
             if targetModifierGestureIsActive {
                 bareTap = false
@@ -462,6 +492,7 @@ public final class HotkeyManager {
         timestampMs _: UInt64
     ) -> [HotkeyGestureController.Output] {
         let physicalKeyCode = UInt16(keyCode)
+        let wasPeerKey = releasePeerKey(physicalKeyCode)
         guard trigger == .fn,
             Self.isTrackableNonFnKeyCode(physicalKeyCode)
         else {
@@ -469,6 +500,7 @@ public final class HotkeyManager {
         }
         pressedNonFnKeyCodes.remove(physicalKeyCode)
         releaseObservedKeyCodes.insert(physicalKeyCode)
+        if wasPeerKey { return [] }
         guard targetModifierGestureIsActive else {
             return interruptPendingPassiveFnWindow()
         }
@@ -496,9 +528,10 @@ public final class HotkeyManager {
 
     func modifierKeyDownOutputsForTesting(
         keyCode: Int64,
-        timestampMs: UInt64
+        timestampMs: UInt64,
+        flags: CGEventFlags = []
     ) -> [HotkeyGestureController.Output] {
-        let outputs = modifierKeyDownOutputs(keyCode: keyCode, timestampMs: timestampMs)
+        let outputs = modifierKeyDownOutputs(keyCode: keyCode, flags: flags, timestampMs: timestampMs)
         rememberRecordingState(for: outputs)
         return outputs
     }
@@ -510,6 +543,19 @@ public final class HotkeyManager {
         let outputs = modifierKeyUpOutputs(keyCode: keyCode, timestampMs: timestampMs)
         rememberRecordingState(for: outputs)
         return outputs
+    }
+
+    /// Runs one physical event through the same path as a live tap, callbacks
+    /// included. Timers armed by the event are left to the caller's seams.
+    func processForTesting(type: CGEventType, keyCode: UInt16, flags: CGEventFlags, timestampMs: UInt64) {
+        process(
+            KeyEventSnapshot(
+                type: type,
+                keyCode: Int64(keyCode),
+                flags: flags,
+                timestamp: timestampMs * 1_000_000
+            )
+        )
     }
 
     func setPhysicalKeyStateProviderForTesting(
@@ -583,15 +629,17 @@ public final class HotkeyManager {
     func keyCodeEventDecisionForTesting(
         type: CGEventType,
         keyCode: UInt16,
-        timestampMs: UInt64
+        timestampMs: UInt64,
+        flags: UInt64 = 0
     ) -> (outputs: [HotkeyGestureController.Output], shouldSwallow: Bool) {
         guard let triggerCode = trigger.keyCode else {
             return ([], false)
         }
-        let shouldSwallow = testingTapFilter.shouldSwallow(type: type, keyCode: keyCode, flags: 0)
+        let shouldSwallow = testingTapFilter.shouldSwallow(type: type, keyCode: keyCode, flags: flags)
         let outputs = keyCodeEventOutputs(
             type: type,
             keyCode: keyCode,
+            flags: flags,
             triggerCode: triggerCode,
             timestampMs: timestampMs
         )
@@ -610,9 +658,10 @@ public final class HotkeyManager {
 
     func modifierChordKeyDownOutputsForTesting(
         keyCode: Int64,
-        timestampMs: UInt64
+        timestampMs: UInt64,
+        flags: CGEventFlags = []
     ) -> [HotkeyGestureController.Output] {
-        let outputs = modifierChordKeyDownOutputs(keyCode: keyCode, timestampMs: timestampMs)
+        let outputs = modifierChordKeyDownOutputs(keyCode: keyCode, flags: flags, timestampMs: timestampMs)
         rememberRecordingState(for: outputs)
         return outputs
     }
@@ -626,6 +675,7 @@ public final class HotkeyManager {
             keyCodeEventOutputs(
                 type: event.type,
                 keyCode: UInt16(event.keyCode),
+                flags: event.flags.rawValue,
                 triggerCode: triggerCode,
                 timestampMs: UInt64(event.timestamp / 1_000_000)
             )
@@ -635,6 +685,7 @@ public final class HotkeyManager {
     private func keyCodeEventOutputs(
         type: CGEventType,
         keyCode: UInt16,
+        flags: UInt64,
         triggerCode: UInt16,
         timestampMs: UInt64
     ) -> [HotkeyGestureController.Output] {
@@ -647,6 +698,8 @@ public final class HotkeyManager {
                 return gestureController.triggerPressed(timestampMs: timestampMs)
             } else if keyCode == 53 { // Escape
                 return escapeOutputs()
+            } else if claimPeerKeyDown(keyCode, flags: flags) {
+                return []
             } else {
                 // Gesture interruption: a regular key press means the user is typing,
                 // not performing a bare hotkey gesture.
@@ -658,6 +711,7 @@ public final class HotkeyManager {
                 triggerKeyIsPressed = false
                 return gestureController.triggerReleased(timestampMs: timestampMs)
             }
+            releasePeerKey(keyCode)
         }
         // flagsChanged events are ignored for keyCode triggers
 
@@ -700,6 +754,8 @@ public final class HotkeyManager {
                 return gestureController.triggerPressed(timestampMs: timestampMs)
             } else if keyCode == 53 { // Escape
                 return escapeOutputs()
+            } else if claimPeerKeyDown(keyCode, flags: flags) {
+                return []
             } else {
                 // Gesture interruption
                 return gestureController.interrupted()
@@ -709,6 +765,7 @@ public final class HotkeyManager {
                 guard triggerKeyIsPressed else { return [] }
                 return chordTriggerKeyUpOutputs(timestampMs: timestampMs)
             }
+            releasePeerKey(keyCode)
         } else if type == .flagsChanged {
             // Release-any-part: if a required modifier is released while trigger key is held,
             // end dictation and mark that we already sent fnUp.
@@ -740,9 +797,12 @@ public final class HotkeyManager {
             handleOutputs(
                 modifierChordKeyDownOutputs(
                     keyCode: event.keyCode,
+                    flags: event.flags,
                     timestampMs: timestampMs
                 )
             )
+        } else if type == .keyUp {
+            releasePeerKey(UInt16(event.keyCode))
         }
     }
 
@@ -754,7 +814,7 @@ public final class HotkeyManager {
             trigger: trigger,
             flags: flags
         )
-        let exactPressed = ModifierKeyMatcher.modifierChordMatches(trigger: trigger, flags: flags)
+        let exactPressed = modifierChordIsExact(in: flags)
         let wasRequiredPressed = modifierChordRequiredWasPressed
         modifierChordRequiredWasPressed = requiredPressed
 
@@ -805,11 +865,13 @@ public final class HotkeyManager {
 
     private func modifierChordKeyDownOutputs(
         keyCode: Int64,
+        flags: CGEventFlags,
         timestampMs _: UInt64
     ) -> [HotkeyGestureController.Output] {
         if keyCode == 53 {
             return escapeOutputs()
         } else if !HotkeyTrigger.isFnKeyCode(UInt16(keyCode)) {
+            if claimPeerKeyDown(UInt16(keyCode), flags: flags.rawValue) { return [] }
             if modifierChordGestureIsActive {
                 bareTap = false
             }
@@ -821,12 +883,56 @@ public final class HotkeyManager {
         return []
     }
 
+    // MARK: - Peer Shortcuts
+
+    /// A held take, provisional capture included, is the only state a peer
+    /// shortcut's input could break. Idle and pending gestures keep being
+    /// interrupted by any other input.
+    private var ownsHeldTake: Bool { activeRecordingMode == .holdToTalk }
+
+    /// Tracked modifier bits in `flags` held only for peer shortcuts.
+    private func peerModifierFlags(in flags: CGEventFlags, excluding own: CGEventFlags) -> CGEventFlags {
+        ownsHeldTake ? peerInput.claimedModifierFlags(in: flags, excluding: own) : []
+    }
+
+    /// Drops the modifier keys that belong to peer shortcuts.
+    private func unclaimedByPeers(_ keyCodes: Set<UInt16>) -> Set<UInt16> {
+        ownsHeldTake ? keyCodes.filter { !peerInput.claimsModifierKeyCode($0) } : keyCodes
+    }
+
+    /// Modifiers held for a peer shortcut do not make the modifier chord inexact.
+    private func modifierChordIsExact(in flags: CGEventFlags) -> Bool {
+        let peerHeld = peerModifierFlags(
+            in: flags, excluding: CGEventFlags(rawValue: trigger.modifierChordEventFlags))
+        return ModifierKeyMatcher.modifierChordMatches(trigger: trigger, flags: flags.subtracting(peerHeld))
+    }
+
+    /// True when a keyDown belongs to a peer shortcut and must not interrupt
+    /// the held take. The key stays claimed until its keyUp, whatever its chord
+    /// modifiers do meanwhile. Escape is never peer input.
+    private func claimPeerKeyDown(_ keyCode: UInt16, flags: UInt64) -> Bool {
+        guard ownsHeldTake, keyCode != 53,
+            claimedPeerKeyCodes.contains(keyCode) || peerInput.claimsKey(keyCode, flags: flags)
+        else { return false }
+        claimedPeerKeyCodes.insert(keyCode)
+        return true
+    }
+
+    @discardableResult
+    private func releasePeerKey(_ keyCode: UInt16) -> Bool {
+        claimedPeerKeyCodes.remove(keyCode) != nil
+    }
+
     private func escapeOutputs() -> [HotkeyGestureController.Output] {
         // A pending hold or second-tap window has not started a take, so Escape
         // still clears it. A live take keeps `activeRecordingMode` set, so
         // Escape stays ignored when the setting is off.
         if shouldCancelOnEscape() || activeRecordingMode == nil {
-            return gestureController.escapePressed()
+            // Every manager sees the same physical Escape. Only the dispatcher
+            // may cancel the take or move through the cancel window.
+            return shouldDispatchEscape()
+                ? gestureController.escapePressed()
+                : gestureController.escapePressedWithoutOwnership()
         }
         return []
     }
@@ -917,6 +1023,8 @@ public final class HotkeyManager {
     ) -> [HotkeyGestureController.Output] {
         // The tap may have missed events, so trust the key-state snapshot again.
         releaseObservedKeyCodes.removeAll(keepingCapacity: true)
+        // A peer key released while the tap was down no longer excuses typing it.
+        claimedPeerKeyCodes = claimedPeerKeyCodes.filter(physicalKeyStateProvider)
         let triggerPressed = currentPhysicalTriggerIsPressed(
             flags: flags,
             triggerKeyPressed: triggerKeyPressed
@@ -1096,23 +1204,31 @@ public final class HotkeyManager {
         case .modifier:
             guard let mask = targetMask else { return false }
             let activeTrackedModifiers = currentFlags.intersection(ModifierKeyMatcher.trackedModifierMasks)
-            if !activeTrackedModifiers.subtracting(mask).isEmpty {
+            if !activeTrackedModifiers
+                .subtracting(mask)
+                .subtracting(peerModifierFlags(in: currentFlags, excluding: mask))
+                .isEmpty
+            {
                 return true
             }
             if trigger == .fn {
-                if !pressedNonFnKeyCodes.isEmpty {
+                if !pressedNonFnKeyCodes.subtracting(claimedPeerKeyCodes).isEmpty {
                     return true
                 }
             }
             if let targetKeyCode = trigger.modifierKeyCode {
-                return ModifierKeyMatcher.oppositeSideModifierIsPressed(
+                // The opposite side held for a peer shortcut is not contamination.
+                guard let oppositeKeyCode = HotkeyTrigger.oppositeModifierKeyCode(for: targetKeyCode),
+                    !unclaimedByPeers([oppositeKeyCode]).isEmpty
+                else { return false }
+                return ModifierKeyMatcher.sideSpecificModifierIsPressed(
                     flags: currentFlags,
-                    keyCode: targetKeyCode
+                    keyCode: oppositeKeyCode
                 )
             }
             return false
         case .modifierChord:
-            return !ModifierKeyMatcher.modifierChordMatches(trigger: trigger, flags: currentFlags)
+            return !modifierChordIsExact(in: currentFlags)
         default:
             return false
         }
@@ -1141,8 +1257,11 @@ public final class HotkeyManager {
         // Alpha Shift is a latched state, not proof that Caps Lock is held.
         // A physical Caps key is covered by the key ledger; transitions are
         // handled from changedKeyCode in modifierFlagsChangedOutputs.
-        return !activeTrackedModifiers.subtracting(fnMask).isEmpty
-            || !pressedNonFnKeyCodes.isEmpty
+        // Peer input is exempt only for a take already held; admission stays raw.
+        let peerHeld = peerModifierFlags(in: flags, excluding: fnMask)
+        let otherModifiers = activeTrackedModifiers.subtracting(fnMask).subtracting(peerHeld)
+        let otherKeys = pressedNonFnKeyCodes.subtracting(claimedPeerKeyCodes)
+        return !otherModifiers.isEmpty || !otherKeys.isEmpty
     }
 
     private func interruptPendingPassiveFnWindow() -> [HotkeyGestureController.Output] {
@@ -1384,10 +1503,19 @@ struct KeyEventSnapshot: Sendable {
     let timestamp: CGEventTimestamp
 
     init(type: CGEventType, event: CGEvent) {
+        self.init(
+            type: type,
+            keyCode: event.getIntegerValueField(.keyboardEventKeycode),
+            flags: event.flags,
+            timestamp: event.timestamp
+        )
+    }
+
+    init(type: CGEventType, keyCode: Int64, flags: CGEventFlags, timestamp: CGEventTimestamp) {
         self.type = type
-        self.keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-        self.flags = event.flags
-        self.timestamp = event.timestamp
+        self.keyCode = keyCode
+        self.flags = flags
+        self.timestamp = timestamp
     }
 }
 

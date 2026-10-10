@@ -1100,6 +1100,38 @@ struct SettingsView: View {
 
                 Divider()
 
+                DisclosureGroup {
+                    VStack(spacing: DesignSystem.Spacing.md) {
+                        Text("Both shortcuts stay active, so you can switch keyboards without changing settings.")
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        transcriptionHotkeyRow(
+                            title: "Push to talk",
+                            detail: "Hold to dictate, release to stop.",
+                            surface: .alternatePushToTalk,
+                            trigger: $viewModel.alternatePushToTalkHotkeyTrigger
+                        )
+                        Divider()
+                        transcriptionHotkeyRow(
+                            title: "Hands-free mode",
+                            detail: HotkeyTrigger.isSharedDictationGesture(
+                                handsFree: viewModel.alternateHandsFreeHotkeyTrigger,
+                                pushToTalk: viewModel.alternatePushToTalkHotkeyTrigger
+                            )
+                                ? "Double-tap to start; tap a configured hands-free shortcut to stop."
+                                : "Tap to start; tap a configured hands-free shortcut to stop.",
+                            surface: .alternateHandsFree,
+                            trigger: $viewModel.alternateHandsFreeHotkeyTrigger
+                        )
+                    }
+                    .padding(.top, DesignSystem.Spacing.sm)
+                } label: {
+                    rowText(title: "Additional shortcuts", detail: additionalShortcutsDetail)
+                }
+
+                Divider()
+
                 transcriptionHotkeyRow(
                     title: "AI-polished dictation",
                     detail: aiPolishHotkeyDetail,
@@ -1722,6 +1754,8 @@ struct SettingsView: View {
             fileTranscription: viewModel.fileTranscriptionHotkeyTrigger,
             youtubeTranscription: viewModel.youtubeTranscriptionHotkeyTrigger,
             dictationAIPolish: viewModel.dictationAIPolishHotkeyTrigger,
+            alternateHandsFree: viewModel.alternateHandsFreeHotkeyTrigger,
+            alternatePushToTalk: viewModel.alternatePushToTalkHotkeyTrigger,
             transformHotkeys: transformHotkeys,
             meetingRecordingEnabled: AppFeatures.meetingRecordingEnabled
         )
@@ -4072,6 +4106,18 @@ struct SettingsView: View {
             RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
                 .fill(DesignSystem.Colors.surfaceElevated)
         )
+    }
+
+    private var additionalShortcutsDetail: String {
+        let handsFree = viewModel.alternateHandsFreeHotkeyTrigger
+        let pushToTalk = viewModel.alternatePushToTalkHotkeyTrigger
+        var parts: [String] = []
+        if !pushToTalk.isDisabled { parts.append("Hold " + pushToTalk.displayName) }
+        if !handsFree.isDisabled {
+            let shared = HotkeyTrigger.isSharedDictationGesture(handsFree: handsFree, pushToTalk: pushToTalk)
+            parts.append((shared ? "Double-tap " : "Tap ") + handsFree.displayName)
+        }
+        return parts.isEmpty ? "Optional second shortcuts for another keyboard." : parts.joined(separator: " · ")
     }
 
     private var usesSharedDictationGesture: Bool {
