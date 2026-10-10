@@ -1,4 +1,5 @@
 import XCTest
+import AVFoundation
 import CoreAudio
 @testable import MacParakeetCore
 @testable import MacParakeetViewModels
@@ -744,6 +745,53 @@ final class SettingsViewModelTests: XCTestCase {
             return setting
         }
         XCTAssertEqual(settings, [.microphoneSelection, .microphoneSelection])
+    }
+
+    // Issue #1227: Core Audio route notifications no longer rebuild the idle
+    // preparation, so an explicit selection must rebuild it here.
+    func testSelectedMicrophoneRebuildsIdlePreparation() async throws {
+        let platform = PrepareCountingMicrophonePlatform()
+        let stream = SharedMicrophoneStream(
+            platform: platform,
+            autoPrewarmWhenIdle: true,
+            prewarmRefreshDebounce: 0
+        )
+        viewModel.instantDictationEnabled = false
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            sharedMicStream: stream
+        )
+
+        viewModel.selectedMicrophoneDeviceUID = "usb-mic-uid"
+
+        try await waitUntil { platform.prepareCount == 1 }
+        XCTAssertEqual(platform.stopEngineCount, 1)
+    }
+
+    func testSelectedMicrophoneLeavesPreparationToWarmHoldWhenInstantDictationIsOn() async throws {
+        let platform = PrepareCountingMicrophonePlatform()
+        let stream = SharedMicrophoneStream(
+            platform: platform,
+            autoPrewarmWhenIdle: true,
+            prewarmRefreshDebounce: 0
+        )
+        viewModel.instantDictationEnabled = true
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            sharedMicStream: stream
+        )
+
+        viewModel.selectedMicrophoneDeviceUID = "usb-mic-uid"
+        try await Task.sleep(for: .milliseconds(100))
+
+        XCTAssertEqual(platform.prepareCount, 0)
+        XCTAssertEqual(platform.stopEngineCount, 0)
     }
 
     func testRefreshMicrophoneDevicesUsesInjectedDevicesAndMarksDefaultFirst() {
@@ -3857,5 +3905,35 @@ private actor MockSpeechEngineSwitcher: SpeechEngineSwitching {
         } else {
             releaseRequested = true
         }
+    }
+}
+
+private final class PrepareCountingMicrophonePlatform: MicrophoneEnginePlatform, @unchecked Sendable {
+    private let lock = NSLock()
+    private var prepares = 0
+    private var stops = 0
+
+    var prepareCount: Int { lock.withLock { prepares } }
+    var stopEngineCount: Int { lock.withLock { stops } }
+
+    var isEngineRunning: Bool { false }
+    var inputFormat: AVAudioFormat? { nil }
+
+    func configureAndStart(
+        vpioEnabled: Bool,
+        bufferSize: AVAudioFrameCount,
+        tapHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
+    ) throws {}
+
+    func stopEngine() {
+        lock.withLock { stops += 1 }
+    }
+
+    func prepare(
+        vpioEnabled: Bool,
+        bufferSize: AVAudioFrameCount,
+        tapHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
+    ) {
+        lock.withLock { prepares += 1 }
     }
 }

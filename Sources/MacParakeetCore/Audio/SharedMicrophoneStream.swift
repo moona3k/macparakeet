@@ -216,10 +216,12 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
         }
     }
 
-    /// Rebuild an idle preparation after microphone-route notifications settle.
-    /// Bursts are trailing-debounced so Bluetooth profile churn does not cause
-    /// repeated device acquisition. If capture starts meanwhile, its eventual
-    /// unsubscribe performs the normal auto-prewarm against the final route.
+    /// Rebuild an idle preparation after an explicit microphone selection
+    /// change. Bursts are trailing-debounced. If capture starts meanwhile, its
+    /// eventual unsubscribe performs the normal auto-prewarm against the final
+    /// route. Do not call this for Core Audio route notifications: acquiring a
+    /// device while macOS is still switching routes can block the native call
+    /// for hours and keep coreaudiod busy (#1227).
     public func refreshIdlePrewarm() {
         guard autoPrewarmWhenIdle else { return }
         let generation = prewarmRefreshGeneration.withLock { value in

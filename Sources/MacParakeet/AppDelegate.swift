@@ -1007,12 +1007,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.instantDictationPreferenceGeneration == generation
             }
             guard shouldRefresh, !Task.isCancelled else { return }
-            if refreshWarmCapture {
-                if enabled {
-                    await env.audioProcessor.refreshInstantDictationWarmCapture()
-                } else {
-                    env.sharedMicStream.refreshIdlePrewarm()
-                }
+            // System route changes post the same notification as a Settings
+            // selection. They must not rebuild an idle preparation: acquiring
+            // the device while Core Audio is still switching routes can block
+            // for hours and keep coreaudiod busy (#1227). Settings rebuilds the
+            // preparation itself for an explicit selection change.
+            if refreshWarmCapture, enabled {
+                await env.audioProcessor.refreshInstantDictationWarmCapture()
             }
         }
     }

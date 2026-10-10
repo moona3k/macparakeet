@@ -317,8 +317,7 @@ only `audioEngine.start()` (~tens of ms) instead of the full
 device-acquisition + format negotiation. Raw meetings use the same
 non-VPIO stream configuration and can consume the prepared engine too;
 an explicit VPIO request or different buffer size discards it and does
-a full configure. Idle microphone-route changes trailing-debounce a
-fresh preparation before the next capture. Like the warm hold, prepare
+a full configure. Like the warm hold, prepare
 is **suppressed on Bluetooth or unresolved inputs**: pre-acquiring a
 Bluetooth mic would pin HFP/SCO even while stopped, so the platform
 declines and that press pays the full cold
@@ -328,8 +327,20 @@ key-down without holding the mic open.
 Idle preparation preserves the active routing contract below: a named
 microphone stays explicitly pinned, while System Default stays implicit.
 Preparation validates the resolved leading input for Bluetooth safety but
-does not convert System Default into a `CurrentDevice` write. A default-input
-change invalidates and trailing-debounces a new preparation.
+does not convert System Default into a `CurrentDevice` write.
+
+**Route changes discard an idle preparation but never rebuild it (issue
+#1227).** A configuration change that invalidates the prepared route tears it
+down, and the next capture pays the full cold path. Preparation is rebuilt only
+at launch, after microphone permission is granted, after an explicit microphone
+selection in Settings, and when the last capture leaves. Core Audio route
+notifications (a headset connecting or disconnecting) must not trigger it.
+Acquiring a device while macOS is still switching the default input can block
+inside `kAudioOutputUnitProperty_CurrentDevice` or the input-format query until
+the next route change. One field log showed six such calls blocked, the
+longest for 22 hours, each holding the platform queue; during one of them
+`coreaudiod` used 73% CPU. A blocked native call cannot be cancelled, so the
+fix is not to make it in that window.
 
 **The warm hold must never pin a Bluetooth input (issue #481).** An
 idle open Bluetooth microphone forces the headset into HFP/SCO, which
