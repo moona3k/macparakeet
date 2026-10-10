@@ -352,15 +352,16 @@ public actor NativeVoiceControlAdapter: VoiceControlAdapter {
             }
             guard opened else { return VoiceControlReceipt(status: .failed, message: "Couldn’t open that website.") }
             // The page announces itself by retitling the window; a fast load
-            // should not wait out the old fixed 1.8 s.
+            // should not wait out the old fixed 1.8 s. Browsers often show the URL
+            // or "Loading" first, so the new title must hold for two polls.
             let deadline = ContinuousClock.now.advanced(by: .milliseconds(2_000))
+            var candidate: String?
             while ContinuousClock.now < deadline {
                 try await Task.sleep(for: .milliseconds(150))
                 let title = Self.focusedOrMainWindow(browser).map { Self.string($0, kAXTitleAttribute) }
-                if title != titleBefore, title?.isEmpty == false {
-                    try await Task.sleep(for: .milliseconds(250))
-                    break
-                }
+                guard let title, title != titleBefore, !title.isEmpty else { candidate = nil; continue }
+                if title == candidate { break }
+                candidate = title
             }
             return VoiceControlReceipt(
                 status: .transitionObserved, message: "Opened the requested website.")
@@ -729,10 +730,15 @@ public actor NativeVoiceControlAdapter: VoiceControlAdapter {
         Int(duration.components.seconds) * 1000 + Int(duration.components.attoseconds / 1_000_000_000_000_000)
     }
 
-    /// Text with no letters: times, counters, percentages, `12 / 340`.
+    /// Times, percentages and progress figures (`7:42`, `45%`, `12 / 340`):
+    /// they change on their own. A plain number is kept, because a press can be
+    /// what changed it (a calculator display, a quantity stepper).
     static func isVolatileText(_ text: String) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !trimmed.isEmpty && !trimmed.unicodeScalars.contains { CharacterSet.letters.contains($0) }
+        guard !trimmed.isEmpty, !trimmed.unicodeScalars.contains(where: { CharacterSet.letters.contains($0) }),
+            trimmed.contains(where: \.isNumber)
+        else { return false }
+        return trimmed.contains { ":%/".contains($0) }
     }
 
     private func validateContext() throws {
@@ -781,7 +787,7 @@ public actor NativeVoiceControlAdapter: VoiceControlAdapter {
         let pid = ProcessInfo.processInfo.processIdentifier
         let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
         return info.compactMap { window in
-            guard window[kCGWindowOwnerPID as String] as? Int32 == pid,
+            guard window[kCGWindowOwnerPID as String] as? Int32 == pid, !ScreenTextMerge.isOwnOverlay(window),
                 let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
                 let x = bounds["X"], let y = bounds["Y"], let w = bounds["Width"], let h = bounds["Height"], w > 0, h > 0
             else { return nil }

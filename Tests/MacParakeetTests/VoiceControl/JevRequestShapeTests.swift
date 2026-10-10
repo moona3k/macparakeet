@@ -252,6 +252,7 @@ final class JevRequestShapeTests: XCTestCase {
             switch name {
             case "kind": return ("press", ["press": 0.95])
             case "target": return ("n:2", ["n:2": 0.46, "n:4": 0.42, "none": 0.02])
+            case "consequence": return ("ordinary", ["ordinary": 0.9])
             default: return nil
             }
         }).decide(goal: "open that one", snapshot: page, history: [])
@@ -261,6 +262,20 @@ final class JevRequestShapeTests: XCTestCase {
         XCTAssertEqual(ids, ["n:2", "n:4"])
         XCTAssertEqual(labels, ["Sent", "Drafts 131 unread"])
         XCTAssertTrue(prompt.hasPrefix("Which one? Say the number."))
+    }
+
+    func testASplitConsequentialPressAsksInsteadOfOfferingAPick() async throws {
+        // A resolved pick is pressed without Jev's consequence, so a split
+        // "send" must not become a pick that skips the confirmation.
+        let decision = try await client(answer: { name, _ in
+            switch name {
+            case "kind": return ("press", ["press": 0.95])
+            case "target": return ("n:2", ["n:2": 0.46, "n:4": 0.42, "none": 0.02])
+            case "consequence": return ("externalCommitment", ["externalCommitment": 0.9])
+            default: return nil
+            }
+        }).decide(goal: "send that one", snapshot: page, history: [])
+        XCTAssertEqual(decision, .clarify("Which control should I use? Please say its full label."))
     }
 
     func testSpreadTargetStillAsksForTheLabel() async throws {

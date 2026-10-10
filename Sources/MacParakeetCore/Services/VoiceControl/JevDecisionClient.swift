@@ -436,7 +436,9 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
         else { return .decided(.clarify("Which control should I use? Please say its full label.")) }
         let confidence = min(kind.confidence, targetAnswer.confidence)
         guard confidence >= gate else {
-            if kind.choice == "press", kind.confidence >= gate,
+            // A resolved pick is pressed without Jev's consequence, so offer one only
+            // when Jev judged the press ordinary; otherwise ask, as before.
+            if kind.choice == "press", kind.confidence >= gate, consequence == .ordinary,
                 let pick = numberedPick(targetAnswer, targets: targets)
             {
                 return .decided(pick)

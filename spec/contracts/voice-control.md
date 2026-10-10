@@ -260,7 +260,8 @@ stopping reason and an expandable activity list bounded to 100 entries. Numbered
 choices are clickable rows; clicking one is the same as saying its number. A
 click-through overlay outlines the control as it is acted on, holds an outline on
 the control a confirmation is about, and draws number badges on pick choices. It
-uses frames from the current observation only, is excluded from screen capture,
+uses frames from the current observation only, is excluded from screen capture
+(and is neither an occluder nor an own panel for screen-text reading),
 and clears on Stop, End, the next observation or the end of the task. Attempting an action is not a
 success receipt. Verified effects, observed transitions and unknown effects remain
 distinct. Activity is ephemeral and clears on End. No audio, screenshot, field
@@ -408,7 +409,8 @@ target)` when a target is named, `kind` alone for `none`, and 0.6 for
 `finished`. Offered controls are the legality-filtered set minus static text
 that repeats or begins the name of a non-text control (a link and its own
 label). When the press target falls below the gate but two or three controls
-hold at least 0.8 of the probability, the answer is a numbered pick over them.
+hold at least 0.8 of the probability and Jev judged the press ordinary, the
+answer is a numbered pick over them; a consequential split asks instead.
 A value's support is its confidence or the summed probability of spans that
 differ only by boundary punctuation, whichever is higher. When `scope` is
 confidently `single`, the action is marked as completing the request: once it

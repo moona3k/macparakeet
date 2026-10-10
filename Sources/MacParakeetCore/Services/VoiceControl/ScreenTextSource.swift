@@ -27,6 +27,16 @@ struct ScreenTextCaptureWindow: Equatable, Sendable {
     let layer: Int
 }
 
+extension ScreenTextMerge {
+    /// This app's click-through highlight overlay: its own window, excluded from
+    /// capture (sharing state none). It hides nothing from the person, so it is
+    /// neither an occluder nor one of our own panels whose text is dropped.
+    static func isOwnOverlay(_ item: [String: Any]) -> Bool {
+        (item[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == ProcessInfo.processInfo.processIdentifier
+            && (item[kCGWindowSharingState as String] as? NSNumber)?.intValue == 0
+    }
+}
+
 struct ScreenTextCapturePlan: Equatable, Sendable {
     let windowID: CGWindowID
     let exclusions: [CGRect]
@@ -160,6 +170,7 @@ public actor VisionScreenTextReader: ScreenTextReading {
         else { return nil }
         var windows: [ScreenTextCaptureWindow] = []
         for item in list {
+            if ScreenTextMerge.isOwnOverlay(item) { continue }
             if let alpha = item[kCGWindowAlpha as String] as? Double, alpha == 0 { continue }
             if let alpha = item[kCGWindowAlpha as String] as? NSNumber, alpha.doubleValue == 0 { continue }
             guard let id = (item[kCGWindowNumber as String] as? NSNumber)?.uint32Value,

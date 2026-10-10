@@ -30,6 +30,11 @@ final class VoiceControlCoordinator {
     private var taskClosed = true
     /// The running turn is a dry-run proposal: its question opens no conversation.
     private var proposing = false
+    /// A command is between dispatch and the runner's start (observing first).
+    private var dispatching = false
+    private var dispatchGeneration = 0
+    /// After Stop, a highlight still in the event queue must not reappear.
+    private var overlaySuppressed = false
     private var panel: VoiceControlPanelController?
     private let overlay = VoiceControlOverlayController()
     private var hotkey: HotkeyManager?
@@ -201,7 +206,8 @@ final class VoiceControlCoordinator {
         // Hands-free listening holds the lease for the whole session. Clicking
         // into a field to focus it, or scrolling, with nothing running is not a
         // takeover: it must not discard the sentence being spoken.
-        guard runner?.hasLiveWork == true || model.conversation.expectedResponse == .confirmation else { return }
+        guard runner?.hasLiveWork == true || dispatching || model.conversation.expectedResponse == .confirmation
+        else { return }
         submissions.invalidate()
         runner?.pauseForManualInput()
         speech.revokePendingTranscripts()
@@ -302,13 +308,17 @@ final class VoiceControlCoordinator {
             for await event in runner.events {
                 guard !Task.isCancelled, let self, self.acceptingEvents else { return }
                 self.model.apply(event)
-                if self.proposing, case .clarification = event { self.model.conversation.cancel() }
+                if self.proposing {
+                    // A proposal's question opens no conversation, and its choices are not clickable.
+                    if case .clarification = event { self.model.conversation.cancel() }
+                    self.model.choices = []
+                }
                 switch event {
                 case .completed, .failed, .cancelled: self.taskClosed = true
                 default: break
                 }
                 switch event {
-                case .highlight(let highlight): self.overlay.show(highlight)
+                case .highlight(let highlight): if !self.overlaySuppressed { self.overlay.show(highlight) }
                 case .observing, .completed, .failed, .paused, .cancelled: self.overlay.dismissPersistent()
                 default: break
                 }
@@ -609,6 +619,7 @@ final class VoiceControlCoordinator {
         }
         taskClosed = false
         proposing = dryRun
+        overlaySuppressed = false
         model.transcript = text
         if !correction {
             model.appendActivity((answering ? "Clarification: " : "Request: ") + text)
@@ -621,7 +632,11 @@ final class VoiceControlCoordinator {
         let snapshotTask = invocationSnapshotTask
         let speechUtterance = currentUtteranceID
         let generation = sessionGeneration
+        dispatchGeneration += 1
+        let dispatchID = dispatchGeneration
+        dispatching = true
         execution = Task { [weak self] in
+            defer { if self?.dispatchGeneration == dispatchID { self?.dispatching = false } }
             guard let self, self.submissions.accepts(submission) else { return }
             if needsSnapshot {
                 self.invocationSnapshot = try? await self.adapter.observe()
@@ -642,6 +657,7 @@ final class VoiceControlCoordinator {
     }
     private func stop() {
         submissions.invalidate()
+        overlaySuppressed = true
         overlay.clear()
         guard interactionLease != nil else { return }
         runner?.stop()
