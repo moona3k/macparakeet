@@ -292,6 +292,38 @@ final class VoiceControlRecoveryTests: XCTestCase {
             .ordinary)
     }
 
+    /// A floor word confirms as an imperative (leading, the whole label, or
+    /// after a commitment verb), not as a noun. Bare `Share` opens a sheet.
+    func testConsequenceFloorCountsImperativesNotNouns() {
+        func policy(_ label: String) -> VoiceControlConsequence {
+            VoiceControlConsequencePolicy.consequence(
+                of: .init(operation: .press, targetID: "t", consequence: .ordinary),
+                target: .init(id: "t", label: label, role: "AXButton", operations: [.press]))
+        }
+        for label in [
+            "Sort order", "Order history", "Booking details", "Payment methods", "Purchase history", "Share",
+            "Share…", "New post", "Sent", "Proceed to checkout",
+        ] {
+            XCTAssertEqual(policy(label), .ordinary, label)
+        }
+        for (label, expected) in [
+            ("Order now", VoiceControlConsequence.payment), ("Place order", .payment), ("Buy", .payment),
+            ("Checkout", .payment), ("Confirm and pay", .payment), ("Submit payment", .payment),
+            ("Order", .payment), ("Delete", .destructive), ("Move to Trash", .destructive),
+            ("Empty Trash", .destructive), ("Send", .externalCommitment), ("Save and send", .externalCommitment),
+            ("Share to Messages", .externalCommitment), ("Share now", .externalCommitment),
+            ("Post", .externalCommitment), ("Publish", .externalCommitment),
+        ] {
+            XCTAssertEqual(policy(label), expected, label)
+        }
+        let known = VoiceControlTarget(
+            id: "t", label: "Order history", role: "AXButton", operations: [.press], consequence: .payment)
+        XCTAssertEqual(
+            VoiceControlConsequencePolicy.consequence(
+                of: .init(operation: .press, targetID: "t", consequence: .ordinary), target: known),
+            .payment, "known target metadata still wins over a noun reading")
+    }
+
     func testRevokedSubmissionAuthorityDoesNotStartTask() async {
         let engine = RecoveryEngine([.finished])
         let runner = VoiceControlTurnRunner(adapter: RecoveryAdapter(), engine: engine)

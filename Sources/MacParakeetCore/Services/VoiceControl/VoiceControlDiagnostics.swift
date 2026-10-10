@@ -332,23 +332,8 @@ public enum VoiceControlConsequencePolicy {
             // model labels it ordinary. Only focused text editing is exempt.
             return target.isFocused && target.operations.contains(.insertText) ? .ordinary : .destructive
         }
-        let label = target.label.lowercased()
-        let words = Set(label.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init))
-        let shortLabel = words.count <= 5
         // Reviewed local evidence always wins over model-proposed ordinary risk.
-        if shortLabel,
-            !words.isDisjoint(with: [
-                "pay", "purchase", "checkout", "buy", "payment", "subscribe", "order", "booking", "donate",
-            ])
-        {
-            return .payment
-        }
-        if shortLabel, !words.isDisjoint(with: ["delete", "erase", "trash", "destroy", "discard", "uninstall"]) {
-            return .destructive
-        }
-        if shortLabel, !words.isDisjoint(with: ["send", "publish", "post", "transfer", "invite", "share"]) {
-            return .externalCommitment
-        }
+        if let floor = floorConsequence(label: target.label) { return floor }
         // A model's ordinary label cannot downgrade metadata the adapter already set.
         if let known = target.consequence, known != .unknown && known != .ordinary { return known }
         if action.operation == .press, target.consequence == .unknown, !target.isNavigation { return .unknown }
@@ -368,5 +353,40 @@ public enum VoiceControlConsequencePolicy {
         }
         if target.consequence == .ordinary || action.consequence == .ordinary { return .ordinary }
         return .unknown
+    }
+
+    /// A short label commits only when a floor word reads as an imperative: the
+    /// whole label (`Send`), its lead (`Buy now`, `Delete file`), after a commitment
+    /// verb (`Place order`, `Move to Trash`) or after `and` (`Save and send`).
+    /// Nouns stay ordinary (`Sort order`, `Order history`, `Booking details`).
+    /// `Share` opens a sheet; it commits only as `Share to …` / `with …` / `now`.
+    static func floorConsequence(label: String) -> VoiceControlConsequence? {
+        let words = label.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
+        guard !words.isEmpty, words.count <= 5 else { return nil }
+        let floors: [(VoiceControlConsequence, Set<String>)] = [
+            (.payment, ["pay", "purchase", "checkout", "buy", "payment", "subscribe", "order", "booking", "donate"]),
+            (.destructive, ["delete", "erase", "trash", "destroy", "discard", "uninstall"]),
+            (.externalCommitment, ["send", "publish", "post", "transfer", "invite", "share"]),
+        ]
+        // These read as nouns when they lead (`Payment methods`); as a lead they need `now`.
+        let nouns: Set<String> = ["order", "booking", "payment", "purchase", "checkout"]
+        let commitments: Set<String> = [
+            "place", "complete", "confirm", "submit", "finalize", "finish", "make", "empty", "move",
+        ]
+        func imperative(_ index: Int) -> Bool {
+            let word = words[index]
+            let next = words.indices.contains(index + 1) ? words[index + 1] : nil
+            if word == "share" { return ["to", "with", "now"].contains(next ?? "") }
+            if word == "pay" { return true }  // `Apple Pay`, `Shop Pay` pay wherever the word sits.
+            if words.count == 1 { return true }
+            if words[..<index].contains(where: commitments.contains) { return true }
+            if index == 0 { return !nouns.contains(word) || next == "now" }
+            return words[index - 1] == "and" && !nouns.contains(word)
+        }
+        for (consequence, floor) in floors
+        where words.indices.contains(where: { floor.contains(words[$0]) && imperative($0) }) {
+            return consequence
+        }
+        return nil
     }
 }
