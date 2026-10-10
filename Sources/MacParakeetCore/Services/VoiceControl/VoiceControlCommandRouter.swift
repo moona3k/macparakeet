@@ -178,10 +178,12 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
         }
         if ["scroll down", "scroll up"].contains(localLower) {
             let candidates = snapshot.targets.filter { $0.operations.contains(.scroll) }
-            guard candidates.count == 1 else { return .clarify("Which part of the window should I scroll?") }
+            guard let area = Self.scrollArea(candidates, in: snapshot) else {
+                return .clarify("Which part of the window should I scroll?")
+            }
             return result(
                 VoiceControlAction(
-                    operation: .scroll, targetID: candidates[0].id, value: localLower == "scroll up" ? "up" : "down"))
+                    operation: .scroll, targetID: area.id, value: localLower == "scroll up" ? "up" : "down"))
         }
         if ["rewrite ", "make this ", "translate this ", "summarize this"].contains(where: lower.hasPrefix) {
             guard history.isEmpty else { return .finished }
@@ -239,6 +241,26 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
         else { return nil }
         return text
     }
+    /// Which area `scroll down` means. One area is itself. Of several, the one
+    /// holding the focused control (the list you are in), else the clearly
+    /// largest one (the content, not a sidebar). Without frames, or with two
+    /// areas of similar size, nil: ask.
+    static func scrollArea(_ areas: [VoiceControlTarget], in snapshot: VoiceControlSnapshot) -> VoiceControlTarget? {
+        if areas.count <= 1 { return areas.first }
+        let framed = areas.compactMap { area in area.frame.map { (area, $0) } }
+        guard framed.count == areas.count else { return nil }
+        if let focus = snapshot.targets.first(where: { $0.isFocused && !$0.operations.contains(.scroll) })?.frame {
+            let holding = framed.filter { $0.1.contains(CGPoint(x: focus.midX, y: focus.midY)) }
+            if let innermost = holding.min(by: { $0.1.width * $0.1.height < $1.1.width * $1.1.height }) {
+                return innermost.0
+            }
+        }
+        let sorted = framed.sorted { $0.1.width * $0.1.height > $1.1.width * $1.1.height }
+        let largest = sorted[0].1.width * sorted[0].1.height
+        let next = sorted[1].1.width * sorted[1].1.height
+        return largest >= next * 2 ? sorted[0].0 : nil
+    }
+
     private static func isDirectCommand(_ lower: String) -> Bool {
         // Only routes selected locally should terminate after one verified effect.
         // Exact labels that did not match originally may have entered the semantic
@@ -369,7 +391,7 @@ public struct VoiceControlCommandRouter: VoiceControlDecisionEngine {
                 lines.append("• Make this shorter — previews a rewrite of the selected text")
             }
         }
-        if snapshot.targets.filter({ $0.operations.contains(.scroll) }).count == 1 {
+        if Self.scrollArea(snapshot.targets.filter { $0.operations.contains(.scroll) }, in: snapshot) != nil {
             lines.append("• Scroll down or scroll up")
         }
         if let app = snapshot.targets.first(where: {

@@ -15,10 +15,6 @@ public struct VoiceControlConversationState: Sendable {
         default: break
         }
     }
-    public static func isCorrection(_ text: String) -> Bool {
-        let value = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        return ["actually", "no,", "no ", "instead", "change that", "change the", "make it", "not ", "the other", "other one", "undo"].contains { value.hasPrefix($0) }
-    }
     public mutating func cancel() { expectedResponse = nil }
     public mutating func takeConfirmation() -> Bool {
         guard expectedResponse == .confirmation else { return false }

@@ -366,3 +366,40 @@ final class JevWarmTests: XCTestCase {
         }
     }
 }
+
+final class VoiceControlScrollAreaTests: XCTestCase {
+    private func area(_ id: String, _ frame: CGRect?) -> VoiceControlTarget {
+        VoiceControlTarget(id: id, label: "", role: "AXScrollArea", operations: [.scroll], frame: frame)
+    }
+
+    func testScrollPrefersTheAreaHoldingFocusThenTheClearlyLargest() async throws {
+        let sidebar = area("n:0", CGRect(x: 0, y: 0, width: 200, height: 800))
+        let content = area("n:1", CGRect(x: 200, y: 0, width: 1000, height: 800))
+        let focusedRow = VoiceControlTarget(
+            id: "n:2", label: "Inbox", role: "AXRow", operations: [.press], isFocused: true,
+            frame: CGRect(x: 10, y: 100, width: 180, height: 20))
+        let router = VoiceControlCommandRouter(fallback: Unused())
+        let inSidebar = VoiceControlSnapshot(contextID: "a", applicationName: "Mail", targets: [sidebar, content, focusedRow])
+        let first = try await router.decide(goal: "scroll down", snapshot: inSidebar, history: [])
+        guard case .action(let a) = first else { return XCTFail("expected an action, got \(first)") }
+        XCTAssertEqual(a.targetID, "n:0", "the list you are in")
+        let noFocus = VoiceControlSnapshot(contextID: "b", applicationName: "Mail", targets: [sidebar, content])
+        let second = try await router.decide(goal: "scroll up", snapshot: noFocus, history: [])
+        guard case .action(let b) = second else { return XCTFail("expected an action, got \(second)") }
+        XCTAssertEqual(b.targetID, "n:1"); XCTAssertEqual(b.value, "up")
+        let twins = VoiceControlSnapshot(
+            contextID: "c", applicationName: "Finder",
+            targets: [area("n:0", CGRect(x: 0, y: 0, width: 500, height: 800)), area("n:1", CGRect(x: 500, y: 0, width: 600, height: 800))])
+        let third = try await router.decide(goal: "scroll down", snapshot: twins, history: [])
+        XCTAssertEqual(third, .clarify("Which part of the window should I scroll?"))
+    }
+
+    private struct Unused: VoiceControlDecisionEngine {
+        func decide(goal: String, snapshot: VoiceControlSnapshot, history: [VoiceControlAction]) async throws
+            -> VoiceControlDecision { .finished }
+        func decide(
+            goal: String, snapshot: VoiceControlSnapshot, history: [VoiceControlAction],
+            events: [VoiceControlEnabledEvent]
+        ) async throws -> VoiceControlDecision { .finished }
+    }
+}

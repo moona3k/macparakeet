@@ -26,6 +26,8 @@ final class VoiceControlCoordinator {
     private let onShortcutChanged: () -> Void
     private var runner: VoiceControlTurnRunner?
     private var jev: JevDecisionClient?
+    /// The last task completed, failed or was cancelled: nothing is revisable.
+    private var taskClosed = true
     private var panel: VoiceControlPanelController?
     private let overlay = VoiceControlOverlayController()
     private var hotkey: HotkeyManager?
@@ -298,6 +300,10 @@ final class VoiceControlCoordinator {
             for await event in runner.events {
                 guard !Task.isCancelled, let self, self.acceptingEvents else { return }
                 self.model.apply(event)
+                switch event {
+                case .completed, .failed, .cancelled: self.taskClosed = true
+                default: break
+                }
                 switch event {
                 case .highlight(let highlight): self.overlay.show(highlight)
                 case .observing, .completed, .failed, .paused, .cancelled: self.overlay.dismissPersistent()
@@ -575,20 +581,37 @@ final class VoiceControlCoordinator {
         _ text: String, asRevision: Bool = false, asLiteralPayload: Bool = false, dryRun: Bool = false
     ) {
         let submission = submissions.begin()
-        let correction =
-            !dryRun && !asLiteralPayload
-            && (asRevision || (!model.goal.isEmpty && VoiceControlConversationState.isCorrection(text)))
-        if !correction && model.conversation.expectedResponse != .clarification {
-            model.goal = text; model.steps = []
+        // One rule decides what the words are: an answer to the open question,
+        // a correction of the open task, or a new instruction. A command said
+        // while a clarification is open starts a new task; a finished task is
+        // never revised.
+        let intent: VoiceControlUtteranceIntent =
+            dryRun || asLiteralPayload
+            ? .newInstruction
+            : asRevision
+                ? .correction
+                : VoiceControlUtteranceIntent.classify(
+                    text,
+                    state: .init(
+                        awaitingClarification: model.conversation.expectedResponse == .clarification,
+                        awaitingConfirmation: model.conversation.expectedResponse == .confirmation,
+                        hasOpenTask: !model.goal.isEmpty && !taskClosed, taskClosed: taskClosed && !asRevision,
+                        offeredLabels: model.choices.map(\.label)))
+        let correction = intent == .correction
+        let answering = intent == .answer && model.conversation.expectedResponse == .clarification
+        if intent == .newInstruction {
+            model.conversation.cancel()
+            model.goal = text; model.steps = []; model.choices = []
+            overlay.clear()
         }
+        taskClosed = false
         model.transcript = text
         if !correction {
-            model.appendActivity(
-                (model.conversation.expectedResponse == .clarification ? "Clarification: " : "Request: ") + text)
+            model.appendActivity((answering ? "Clarification: " : "Request: ") + text)
         }
         runner?.stop()
         guard let runner else { return }
-        let clarification = !dryRun && !asLiteralPayload && model.conversation.takeClarification()
+        let clarification = answering && model.conversation.takeClarification()
         let needsSnapshot = !speechSubmission && !skipInvocationSnapshot
         skipInvocationSnapshot = false
         let snapshotTask = invocationSnapshotTask
