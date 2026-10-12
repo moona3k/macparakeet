@@ -315,7 +315,12 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     /// Live-preview samples waiting behind the durable writer. The capture
     /// loop must not await preview ingest: that await is what let native PCM
     /// pile up in the unbounded capture stream (#1199).
-    private var previewIngress = MeetingPreviewIngressQueue()
+    private let previewIngressMaxRetainedBytes: Int
+    private var previewIngress: MeetingPreviewIngressQueue
+    /// Test seam. Production leaves this nil so preview ingest has no extra
+    /// suspension point. Tests hold it to prove capture keeps writing while
+    /// one preview batch is in flight.
+    private let previewIngestDelay: (@Sendable () async -> Void)?
     private var previewDrainActive = false
     private var previewDrainTask: Task<Void, Never>?
     private var captureOrchestrator = CaptureOrchestrator()
@@ -435,6 +440,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         sourceAudioFrameCount: @escaping @Sendable (URL) throws -> AVAudioFramePosition = {
             try AVAudioFile(forReading: $0).length
         },
+        previewIngressMaxRetainedBytes: Int = MeetingPreviewIngressQueue.defaultMaxRetainedBytes,
+        previewIngestDelay: (@Sendable () async -> Void)? = nil,
         writerFinalizationReportTransform:
             @escaping @Sendable (
                 MeetingAudioStorageWriter.FinalizationReport
@@ -455,6 +462,11 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         self.audioHostTimeNow = audioHostTimeNow
         self.cleanedMicrophoneReadinessScheduler = cleanedMicrophoneReadinessScheduler
         self.sourceAudioFrameCount = sourceAudioFrameCount
+        self.previewIngressMaxRetainedBytes = previewIngressMaxRetainedBytes
+        self.previewIngress = MeetingPreviewIngressQueue(
+            maxRetainedBytes: previewIngressMaxRetainedBytes
+        )
+        self.previewIngestDelay = previewIngestDelay
         self.writerFinalizationReportTransform = writerFinalizationReportTransform
         self.liveChunkTranscriber = LiveChunkTranscriber(sttTranscriber: sttTranscriber)
         self.speechEngineSessionManager = sttTranscriber as? any SpeechEngineSessionManaging
@@ -1438,7 +1450,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
         await audioCaptureService.stop()
         await drainProcessingTaskAfterCaptureStop()
-        await finishPreviewIngress()
+        await discardPreviewIngress()
         await liveChunkTranscriber.cancelPendingTasks(waitForCancellation: true)
         await liveChunkTranscriber.finishSession()
         let finalizedWriter = writer
@@ -1807,6 +1819,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         hostTime: UInt64?,
         bufferRms: Float
     ) {
+        let droppedBefore = previewIngress.droppedBatchCount
         let admitted = previewIngress.enqueue(
             MeetingPreviewIngressQueue.Batch(
                 source: source,
@@ -1815,15 +1828,30 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 bufferRms: bufferRms
             )
         )
-        if !admitted,
-            previewIngress.droppedBatchCount == 1 || previewIngress.droppedBatchCount.isMultiple(of: 50)
-        {
+        guard admitted else {
+            if previewIngress.droppedBatchCount != droppedBefore {
+                notePreviewIngressDrop(source: source)
+            }
+            return
+        }
+        startPreviewDrainIfNeeded()
+    }
+
+    /// A refused preview copy is already in the source file. Tell the panel
+    /// once per drop streak so a stalled live transcript does not look current.
+    private func notePreviewIngressDrop(source: AudioSource) {
+        if previewIngress.droppedBatchCount == 1 || previewIngress.droppedBatchCount.isMultiple(of: 50) {
             AudioCaptureDiagnostics.append(
                 "meeting_preview_ingress_dropped session=\(currentSession?.id.uuidString ?? "nil") source=\(source.rawValue) dropped_batches=\(previewIngress.droppedBatchCount) dropped_bytes=\(previewIngress.droppedBytes) retained_bytes=\(previewIngress.retainedBytes)"
             )
         }
-        guard admitted else { return }
-        startPreviewDrainIfNeeded()
+        guard currentSession?.supportsLiveChunkTranscription == true else { return }
+        guard !isTranscriptionLagging else { return }
+        isTranscriptionLagging = true
+        yieldTranscriptUpdate(transcriptAssembler.currentUpdate)
+        // The yield publishes the notice and clears the flag. Keep it set so
+        // the next real word still says preview is behind, then clears.
+        isTranscriptionLagging = true
     }
 
     private func startPreviewDrainIfNeeded() {
@@ -1838,6 +1866,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
     private func drainPreviewIngress() async {
         while let batch = previewIngress.dequeue() {
+            if let previewIngestDelay {
+                await previewIngestDelay()
+            }
             switch batch.source {
             case .microphone:
                 updateMicrophoneRms(with: batch.bufferRms)
@@ -1857,9 +1888,33 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         }
     }
 
+    /// Cancel throws the recording away. Pending preview would be transcribed
+    /// and then deleted, so drop it. The batch already in flight has left the
+    /// queue; wait for that one so it cannot touch the next session.
+    private func discardPreviewIngress() async {
+        let droppedBefore = previewIngress.droppedBatchCount
+        previewIngress.discardPending()
+        if previewIngress.droppedBatchCount != droppedBefore {
+            AudioCaptureDiagnostics.append(
+                "meeting_preview_ingress_cancel_discarded session=\(currentSession?.id.uuidString ?? "nil") dropped_batches=\(previewIngress.droppedBatchCount) dropped_bytes=\(previewIngress.droppedBytes)"
+            )
+        }
+        while let previewDrainTask {
+            await previewDrainTask.value
+        }
+    }
+
+    /// Observation seam for tests that hold one preview batch in flight and
+    /// need to see the next batch waiting behind it.
+    func previewIngressRetainedBytes() async -> Int {
+        previewIngress.retainedBytes
+    }
+
     /// After the capture stream has been fully written, finish the preview
     /// tail when it is small. A large backlog is preview-only debt; dropping
-    /// it keeps Stop from replaying that debt through VAD.
+    /// it keeps Stop from replaying that debt through VAD. The byte cap is
+    /// the bound: Stop waits out at most that tail plus the one in-flight
+    /// batch, and it waits so the drain is idle before the next session.
     private func finishPreviewIngress() async {
         if previewIngress.retainedBytes > MeetingPreviewIngressQueue.stopDrainByteLimit {
             let droppedBefore = previewIngress.droppedBatchCount
@@ -2587,7 +2642,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         syncLagWarningActive = false
         lastLoggedSyncLagBucketMs = nil
         transcriptAssembler.reset()
-        previewIngress = MeetingPreviewIngressQueue()
+        previewIngress = MeetingPreviewIngressQueue(
+            maxRetainedBytes: previewIngressMaxRetainedBytes
+        )
         previewDrainActive = false
         previewDrainTask = nil
         isTranscriptionLagging = false

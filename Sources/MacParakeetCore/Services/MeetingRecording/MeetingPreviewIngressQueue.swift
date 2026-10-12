@@ -6,7 +6,7 @@ import Foundation
 /// preview copy. When preview work falls behind, further preview batches are
 /// refused so the capture stream can keep draining. Refused audio is already
 /// in the source file; final transcription reads that file. Live preview is
-/// the only thing skipped.
+/// the only thing skipped, and the catching-up notice covers that gap.
 struct MeetingPreviewIngressQueue: Sendable {
     struct Batch: Sendable, Equatable {
         var source: AudioSource

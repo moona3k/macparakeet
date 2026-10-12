@@ -2601,6 +2601,91 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertNotNil(output.sourceAlignment.microphone)
     }
 
+    func testPreviewBacklogDoesNotBlockCaptureAndMarksLivePreviewLagging() async throws {
+        let hold = PreviewIngestHold()
+        defer { hold.release() }
+        let frames = 100
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            micConditionerFactory: { PassthroughMicConditioner() },
+            previewIngressMaxRetainedBytes: frames * MemoryLayout<Float>.stride,
+            previewIngestDelay: { await hold.enterAndWait() }
+        )
+        let updates = await service.transcriptUpdates
+        let nextUpdate = Task {
+            var iterator = updates.makeAsyncIterator()
+            return await iterator.next()
+        }
+
+        try await service.startRecording()
+        let buffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: frames, sampleValue: 0.25))
+        await captureService.yield(
+            .microphoneBuffer(buffer, AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100)))
+        )
+        await hold.waitUntilEntered()
+        await captureService.yield(
+            .microphoneBuffer(buffer, AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 101)))
+        )
+        await captureService.yield(
+            .microphoneBuffer(buffer, AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 102)))
+        )
+
+        let update = try await containmentBeforeDeadline { await nextUpdate.value }
+        let laggingUpdate = try XCTUnwrap(update)
+        XCTAssertTrue(laggingUpdate.isTranscriptionLagging)
+        XCTAssertEqual(hold.enteredCount, 1)
+
+        hold.release()
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+        // 16 kHz input is stored at 48 kHz, so each buffer contributes 3× its frames.
+        XCTAssertEqual(Double(output.sourceAlignment.microphone?.writtenFrameCount ?? 0), 900, accuracy: 50)
+    }
+
+    func testCancelDiscardsQueuedPreviewInsteadOfReplayingIt() async throws {
+        let hold = PreviewIngestHold()
+        defer { hold.release() }
+        let frames = 100
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            micConditionerFactory: { PassthroughMicConditioner() },
+            previewIngressMaxRetainedBytes: frames * MemoryLayout<Float>.stride,
+            previewIngestDelay: { await hold.enterAndWait() }
+        )
+
+        try await service.startRecording()
+        let buffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: frames, sampleValue: 0.25))
+        await captureService.yield(
+            .microphoneBuffer(buffer, AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100)))
+        )
+        await hold.waitUntilEntered()
+        await captureService.yield(
+            .microphoneBuffer(buffer, AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 101)))
+        )
+        try await containmentBeforeDeadline {
+            while await service.previewIngressRetainedBytes() == 0 {
+                try await Task.sleep(for: .milliseconds(20))
+            }
+        }
+
+        let cancel = Task { await service.cancelRecording() }
+        try await containmentBeforeDeadline {
+            while await service.previewIngressRetainedBytes() > 0 {
+                try await Task.sleep(for: .milliseconds(20))
+            }
+        }
+        XCTAssertEqual(hold.enteredCount, 1, "cancel must not start preview ingest for the queued batch")
+        hold.release()
+        try await containmentBeforeDeadline { await cancel.value }
+        XCTAssertEqual(hold.enteredCount, 1)
+    }
+
     func testLivePreviewEmitsTextOnlyChunkResults() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let audioConverter = MockMeetingAudioFileConverter()
@@ -5556,6 +5641,68 @@ private final class ZeroingMicConditioner: MicConditioning, @unchecked Sendable 
             delayEstimateCount: 2,
             rejectedDelayEstimates: 1
         )
+    }
+}
+
+private final class PreviewIngestHold: @unchecked Sendable {
+    private let lock = NSLock()
+    private var holding = true
+    private var entered = 0
+    private var entryWaiters: [CheckedContinuation<Void, Never>] = []
+    private var releaseWaiters: [CheckedContinuation<Void, Never>] = []
+
+    var enteredCount: Int {
+        lock.withLock { entered }
+    }
+
+    func waitUntilEntered() async {
+        if lock.withLock({ entered > 0 }) { return }
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let resumeNow = lock.withLock { () -> Bool in
+                if entered > 0 { return true }
+                entryWaiters.append(continuation)
+                return false
+            }
+            if resumeNow {
+                continuation.resume()
+            }
+        }
+    }
+
+    func enterAndWait() async {
+        let waiters = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+            entered += 1
+            let pending = entryWaiters
+            entryWaiters.removeAll()
+            return pending
+        }
+        for waiter in waiters {
+            waiter.resume()
+        }
+
+        if lock.withLock({ !holding }) { return }
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let resumeNow = lock.withLock { () -> Bool in
+                if !holding { return true }
+                releaseWaiters.append(continuation)
+                return false
+            }
+            if resumeNow {
+                continuation.resume()
+            }
+        }
+    }
+
+    func release() {
+        let waiters = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+            holding = false
+            let pending = releaseWaiters
+            releaseWaiters.removeAll()
+            return pending
+        }
+        for waiter in waiters {
+            waiter.resume()
+        }
     }
 }
 
