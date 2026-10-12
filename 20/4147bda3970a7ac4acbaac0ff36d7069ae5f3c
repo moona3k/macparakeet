@@ -1,0 +1,227 @@
+Package.resolved
+  s_fc8dc251fcc5a0::t_7a53bb9162036d 26-27
+Package.swift
+  s_fc8dc251fcc5a0::t_01ccd23d64b9b0 33-34,36
+Sources/CLI/CHANGELOG.md
+  s_7f16709dcd80b9::t_179552b58b0d2c 99-102
+Sources/CLI/Commands/VoiceControlCommand.swift
+  s_fc8dc251fcc5a0::t_32a18cc353aacc 232,234
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_fc8dc251fcc5a0::t_35871e28b5cbf4 104-106,188-195,238-240,1331,1390-1402,1416-1423
+Sources/MacParakeet/App/MeetingSourceLossNoticePresenter.swift
+  s_fc8dc251fcc5a0::t_447e380aa848a9 1-42
+Sources/MacParakeet/App/VoiceControlCoordinator.swift
+  s_fc8dc251fcc5a0::t_3268bdf7236e33 28-37,39,105,123,206-210,297,311-324,343,597-619,621-623,626,630,636-638,640,661-662,710,792,820
+Sources/MacParakeet/AppDelegate.swift
+  s_fc8dc251fcc5a0::t_234c135fb42f1a 1018-1024
+Sources/MacParakeet/Views/MeetingRecording/MeetingRecordingPillController.swift
+  s_fc8dc251fcc5a0::t_f861a343ce52b0 383,396-403,491-492,547-559,613-699,838,840,849
+Sources/MacParakeet/Views/VoiceControl/VoiceControlOverlay.swift
+  s_fc8dc251fcc5a0::t_10a9514c158e74 1,5-18,20-33,38-41,44-48,51-73,76,78-83,85-88,90-110,112-114,118-121,124-125
+Sources/MacParakeet/Views/VoiceControl/VoiceControlPanel.swift
+  s_fc8dc251fcc5a0::t_a42af3dc526f1b 13,17-25,67-83,85-115,118-119,197,200-213,242,245
+Sources/MacParakeetCore/Audio/MeetingAudioCaptureService.swift
+  s_fc8dc251fcc5a0::t_a527933ab3dd10 77-104,111-112,148-155,181-183,193-194,215-218,230-231,249-252,264-265,323,352-358,418-428,443-444,446-452,458-778,881,887-889,1391-1392,1565-1577,1697-1716
+Sources/MacParakeetCore/Audio/MicrophoneEnginePlatform.swift
+  s_fc8dc251fcc5a0::t_7d300678e94e42 869-871
+Sources/MacParakeetCore/Audio/README.md
+  s_fc8dc251fcc5a0::t_0e8a5349319e47 89-99,320,330-344
+Sources/MacParakeetCore/Audio/SharedMicrophoneStream.swift
+  s_fc8dc251fcc5a0::t_31256c5d8e1738 219-224
+Sources/MacParakeetCore/Services/AppPaths.swift
+  s_fc8dc251fcc5a0::t_d0e01781da7d0f 232-233
+Sources/MacParakeetCore/Services/Diarization/DiarizationService.swift
+  s_fc8dc251fcc5a0::t_252311e8b031d6 258-263,266,502
+Sources/MacParakeetCore/Services/Diarization/NemotronDiarizationService.swift
+  s_fc8dc251fcc5a0::t_fb912a78050234 115-118,151-153
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_fc8dc251fcc5a0::t_429ae215ac45cb 1755,1763,1821-1824,1981,1986,2009,2180,2206,2220,2255-2258
+Sources/MacParakeetCore/Services/VoiceControl/JevDecisionClient.swift
+  s_fc8dc251fcc5a0::t_f84355b45528f8 4,9,64-78,99,108,112,114-115,118-162,165-188,191-194,199-200,202-204,206,223-226,228-229,242-247,259-270,335-393,400-409,437,450-456,478-480,505-544,561,563,566,575-578,584-587,596-605,610,615,627-658,680-684,686-692,700,820-836,838
+Sources/MacParakeetCore/Services/VoiceControl/NativeVoiceControlAdapter.swift
+  s_fc8dc251fcc5a0::t_923fc44489e622 258-259,307,343-344,354-368,370-371,717-720,733-747,794
+Sources/MacParakeetCore/Services/VoiceControl/README.md
+  s_fc8dc251fcc5a0::t_ec00f584cc574f 21,23-25,41-43
+Sources/MacParakeetCore/Services/VoiceControl/ScreenTextSource.swift
+  s_fc8dc251fcc5a0::t_63e9bb85e447e1 30-39,173
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlCommandRouter.swift
+  s_fc8dc251fcc5a0::t_e50ef1e75e3f6e 22-27,29,34-41,50-70,128,135,138-140,173-176,187,192,194-196,199,230,242-278,290-292,303-314,316,318,340-342,344-356,358-362,381,383-384,411
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlDiagnostics.swift
+  s_fc8dc251fcc5a0::t_98d006264f03a3 336,357-402
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlLocalTools.swift
+  s_fc8dc251fcc5a0::t_e89326414b4145 31-32,36-39,63-64,69-70,73,75-81,83-89,92-95,104-111,113,116-117,125-126,133-138,141-145
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTurnRunner.swift
+  s_fc8dc251fcc5a0::t_08a9452551b4fb 167-173,178-179,362-363,547-552,600,623-625,677-678,689-690,713
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTypes.swift
+  s_fc8dc251fcc5a0::t_dddd4c618d8c72 27-30,35-36,41,62,125-129,134,139-147,221-240
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlUtterance.swift
+  s_fc8dc251fcc5a0::t_be9f38a20f4dff 1-116
+Sources/MacParakeetViewModels/MeetingSourceLossNotice.swift
+  s_fc8dc251fcc5a0::t_44d98bad124cf9 1-95
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_fc8dc251fcc5a0::t_b1c3b11a15ac39 302-307
+Sources/MacParakeetViewModels/TranscriptionLibraryViewModel.swift
+  s_fc8dc251fcc5a0::t_efb48b789e98f0 586,607,794-799
+Sources/MacParakeetViewModels/VoiceControlViewModel.swift
+  s_fc8dc251fcc5a0::t_d22a0632899b65 55-59,90-102,106-109,117-123,132
+Tests/MacParakeetTests/Audio/MeetingMicrophoneStartRecoveryTests.swift
+  s_fc8dc251fcc5a0::t_1e4558676449e5 1-487
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_41720e19be30a9::t_57fd2f372f18de 703-794,1743-1751,1797-1801,1822
+Tests/MacParakeetTests/Services/Diarization/DiarizationServiceTests.swift
+  s_41720e19be30a9::t_b876875fdce468 184-228,440-468,484-511
+Tests/MacParakeetTests/Services/Diarization/NemotronDiarizationE2ETests.swift
+  s_41720e19be30a9::t_2a2748df5cdb9b 187,200,206
+Tests/MacParakeetTests/Services/Diarization/NemotronDiarizationServiceTests.swift
+  s_41720e19be30a9::t_904928056783c7 109-157,336-415
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_41720e19be30a9::t_4dbb3620814071 72-116
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_41720e19be30a9::t_f5472efe9b4d8b 71-178,3624-3811
+Tests/MacParakeetTests/Services/VoiceControl/VoiceControlPresentationTests.swift
+  s_41720e19be30a9::t_edc3d4de3077b2 1-44
+Tests/MacParakeetTests/Services/VoiceControl/VoiceControlSpeechTests.swift
+  s_41720e19be30a9::t_6d7c799ef3027d 227-229,231-237
+Tests/MacParakeetTests/ViewModels/MeetingSourceLossNoticePolicyTests.swift
+  s_41720e19be30a9::t_3edf9fefc85ebf 1-117
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_41720e19be30a9::t_d2b1ad58c9aa63 2,750-796,3936-3965
+Tests/MacParakeetTests/ViewModels/TranscriptionLibraryViewModelTests.swift
+  s_41720e19be30a9::t_72ea093cc62765 1772-1856
+Tests/MacParakeetTests/Views/MeetingRecordingTileTests.swift
+  s_41720e19be30a9::t_1c02aba8a8648f 85,108,112-161
+Tests/MacParakeetTests/VoiceControl/JevClientTransportTests.swift
+  s_41720e19be30a9::t_e84cffef75c92f 34,227-228
+Tests/MacParakeetTests/VoiceControl/JevLeanRequestTests.swift
+  s_41720e19be30a9::t_9486df7461b6c8 29,66,69-80,182,300-301
+Tests/MacParakeetTests/VoiceControl/JevRequestShapeTests.swift
+  s_41720e19be30a9::t_abfc8db327a8b1 1-474
+Tests/MacParakeetTests/VoiceControl/NativeVoiceControlAdapterTests.swift
+  s_41720e19be30a9::t_bf974af406c921 76-88
+Tests/MacParakeetTests/VoiceControl/ScreenTextSourceTests.swift
+  s_41720e19be30a9::t_2bcb5dd1193305 127-140
+Tests/MacParakeetTests/VoiceControl/VoiceControlCommandRouterTests.swift
+  s_41720e19be30a9::t_0e555299375763 917-1010
+Tests/MacParakeetTests/VoiceControl/VoiceControlCoreTests.swift
+  s_41720e19be30a9::t_d0983419a73ba0 81-82,90,123,126-127,168-169
+Tests/MacParakeetTests/VoiceControl/VoiceControlMachineTests.swift
+  s_41720e19be30a9::t_7bf5e6ffd4ef58 224,228-229
+Tests/MacParakeetTests/VoiceControl/VoiceControlObservabilityTests.swift
+  s_41720e19be30a9::t_5ba079dd31d454 78,103
+Tests/MacParakeetTests/VoiceControl/VoiceControlRecoveryTests.swift
+  s_41720e19be30a9::t_1e6d4fce38909b 79-91,166,308-339
+Tests/MacParakeetTests/VoiceControl/VoiceControlReviewFixTests.swift
+  s_41720e19be30a9::t_b9789e46a30bcb 1-207
+Tests/MacParakeetTests/VoiceControl/VoiceControlUtteranceIntentTests.swift
+  s_41720e19be30a9::t_9d12e172e0f4c7 1-155
+benchmarks/diarization/README.md
+  s_41720e19be30a9::t_5d88026d11a9c3 41
+benchmarks/diarization/Sources/DiarizationBenchmark.swift
+  s_41720e19be30a9::t_8c0e9b96061352 68-69
+diagnostics/1791362745755-dictation-audio.log
+  s_41720e19be30a9::t_aef8d356635823 1-924
+docs/audits/2026-10-02-app-audit/README.md
+  s_41720e19be30a9::t_82c15c0d8511b4 10,31-32,47,103-104,139-147
+docs/audits/2026-10-02-app-audit/evidence/integrated-main-tests.json
+  s_41720e19be30a9::t_526ddc7ee48acf 1-23
+docs/audits/2026-10-02-app-audit/evidence/library-bulk-pagination-re-review.json
+  s_41720e19be30a9::t_8fda39db55b64f 1-26
+docs/audits/2026-10-02-app-audit/evidence/library-stale-error-adjudication.json
+  s_41720e19be30a9::t_d7527b61d4d0a8 1-15
+docs/audits/2026-10-02-app-audit/evidence/native-audio.json
+  s_41720e19be30a9::t_869f0b3863c115 1-374
+docs/audits/2026-10-02-app-audit/evidence/pr1205-final-ci.json
+  s_41720e19be30a9::t_638b7e03c6a0cf 1-48
+docs/audits/2026-10-02-app-audit/evidence/pr1205-test-summary.md
+  s_41720e19be30a9::t_41abf0386ff9c7 1-22
+docs/audits/2026-10-02-app-audit/evidence/pr1206-final-ci.json
+  s_41720e19be30a9::t_3eaab8540bb283 1-48
+docs/audits/2026-10-02-app-audit/evidence/pr1206-test-summary.md
+  s_41720e19be30a9::t_128383fa6feb46 1-22
+docs/audits/2026-10-02-app-audit/follow-through.md
+  s_41720e19be30a9::t_4db3856ef78c38 19-55,59-63,72-74
+docs/audits/2026-10-02-app-audit/native-audio.md
+  s_41720e19be30a9::t_d1b80d08ce0172 1-71
+docs/audits/2026-10-02-app-audit/overview.html
+  s_41720e19be30a9::t_99aac4258372a3 74,76
+docs/audits/2026-10-02-app-audit/re-review.md
+  s_41720e19be30a9::t_0925d94d47d290 1-67
+docs/audits/2026-10-02-app-audit/validation.md
+  s_41720e19be30a9::t_5e3033d80ff865 183-222
+docs/audits/2026-10-02-diarization-cancellation-validation.json
+  s_41720e19be30a9::t_8e980b8bbfb9a6 1-92
+docs/audits/2026-10-02-diarization-cancellation.md
+  s_41720e19be30a9::t_fa2fdc6ec63034 1-70
+docs/research/2026-09-19-jev-voice-control/README.md
+  s_41720e19be30a9::t_0fa670f1f2045c 18
+docs/research/2026-10-09-jev-voice-control-refresh/README.md
+  s_41720e19be30a9::t_6b339adfeb4567 1-43
+docs/research/2026-10-09-jev-voice-control-refresh/code-review.md
+  s_41720e19be30a9::t_0400dfcd436840 1-708
+docs/research/2026-10-09-jev-voice-control-refresh/ecosystem.md
+  s_41720e19be30a9::t_c0c90f637e8070 1-416
+docs/research/2026-10-09-jev-voice-control-refresh/evaluation.md
+  s_41720e19be30a9::t_1b710f392e256b 1-136
+docs/research/2026-10-09-jev-voice-control-refresh/landscape.md
+  s_41720e19be30a9::t_10b2b234d4520d 1-425
+plans/README.md
+  s_41720e19be30a9::t_92892833097a55 42
+plans/active/2026-10-02-diarization-outcomes.md
+  s_41720e19be30a9::t_fc5af522c64759 1-414
+scripts/dev/voice_control_jev_eval.py
+  s_41720e19be30a9::t_f19ced43540be6 1-478
+spec/02-features.md
+  s_41720e19be30a9::t_9639887a244204 1559,2198
+spec/03-architecture.md
+  s_41720e19be30a9::t_355fd6f34ce7db 167-174,355
+spec/04-ui-patterns.md
+  s_41720e19be30a9::t_5001bdc35d1a83 217-222
+spec/05-audio-pipeline.md
+  s_41720e19be30a9::t_455ead83e12684 25,188-201
+spec/06-stt-engine.md
+  s_41720e19be30a9::t_8d60ac26b06da6 217,685
+spec/README.md
+  s_41720e19be30a9::t_09b16cc35ff8dc 117
+spec/adr/010-speaker-diarization.md
+  s_41720e19be30a9::t_0c001adeb581be 5,9-10,95-128,634-652
+spec/adr/025-meeting-capture-reliability.md
+  s_41720e19be30a9::t_19ed71fad9e2c4 627-641,665-669
+spec/contracts/meeting-artifacts-v1.md
+  s_41720e19be30a9::t_9ccae78ec40f1c 74-81,89-90
+spec/contracts/speaker-voiceprints.md
+  s_41720e19be30a9::t_a581768c9978ec 36-40
+spec/contracts/voice-control.md
+  s_41720e19be30a9::t_4f9b9bc2c1415f 126-145,197-200,204-209,222,244-254,257-265,337-347,358-361,374-379,401-402,405-418,425
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "204147bda3970a7ac4acbaac0ff36d7069ae5f3c",
+  "prompts": {},
+  "sessions": {
+    "s_41720e19be30a9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b1c0eec-107d-46bc-a80b-e38648749530",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_7f16709dcd80b9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "921e40e7-5a19-42c7-99b8-a91e506ca73e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_fc8dc251fcc5a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad58cb15-5c80-4574-acc4-db1300276f35",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
