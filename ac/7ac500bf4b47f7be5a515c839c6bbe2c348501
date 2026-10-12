@@ -1,0 +1,37 @@
+spec/adr/009-custom-hotkey.md
+  s_612b9d74a5a769::t_9f87e631939378 144
+spec/02-features.md
+  s_612b9d74a5a769::t_0717e469329bf3 216
+Tests/MacParakeetTests/Hotkey/HotkeyManagerTests.swift
+  s_612b9d74a5a769::t_e30d8f481d5b60 1660-1684
+  s_612b9d74a5a769::t_2376d1b94ce01c 1593-1610
+Tests/MacParakeetTests/Hotkey/HotkeyTapFilterTests.swift
+  s_612b9d74a5a769::t_adb8f398717e72 65-66,69-75
+Sources/MacParakeet/Hotkey/HotkeyManager.swift
+  s_612b9d74a5a769::t_5b6ca66fc88e63 1138
+  s_612b9d74a5a769::t_c3a267a803bb80 748-761,763,768
+  s_612b9d74a5a769::t_4b10e91ca25b6e 59-61
+  s_612b9d74a5a769::t_1c1ba365786bc0 203
+  s_612b9d74a5a769::t_b645b1a9e177d0 782
+  s_612b9d74a5a769::t_df7aca26060725 1193
+Sources/MacParakeet/Hotkey/HotkeyTapFilter.swift
+  s_612b9d74a5a769::t_a80fde73a81dc1 67
+  s_612b9d74a5a769::t_890d9d016fe21a 32-46,48,52-55
+  s_612b9d74a5a769::t_af184aa4f35d48 11-13,19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ac7ac500bf4b47f7be5a515c839c6bbe2c348501",
+  "prompts": {},
+  "sessions": {
+    "s_612b9d74a5a769": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "c8ae6c9e-2f73-47e6-bedb-46f330f245e6",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
