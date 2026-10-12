@@ -1,0 +1,45 @@
+Sources/MacParakeetCore/Audio/AudioRecorder.swift
+  s_5900a3cfa832c8::t_8d7f86c0d52465 941-944
+  s_5900a3cfa832c8::t_2fabc338f9cd8d 936-937,939-940
+Tests/MacParakeetTests/Audio/AudioRecorderFormatChangeTests.swift
+  s_5900a3cfa832c8::t_ac9920be6fbec9 255-278
+  s_5900a3cfa832c8::t_92922913af4ac4 428-429
+Sources/MacParakeetCore/Audio/MicrophoneEnginePlatform.swift
+  s_5900a3cfa832c8::t_c00ca14bd824bb 1635
+  s_5900a3cfa832c8::t_8d73bf74f6e80b 1923
+  s_5900a3cfa832c8::t_8878fd9139a27c 1917,1919-1922,1924-1932,1934-1939,1941-1959
+  s_5900a3cfa832c8::t_029c1c7c9186e6 1088
+  s_5900a3cfa832c8::t_e2f4bc13f29bda 527-532
+  s_5900a3cfa832c8::t_887e562dc9ae0d 1308
+  s_5900a3cfa832c8::t_11b422d5ede394 544-551
+  s_5900a3cfa832c8::t_ebb67d7422d0be 703-705
+  s_5900a3cfa832c8::t_e2f73045ebfd0d 750-757
+  s_5900a3cfa832c8::t_cff4dc1b560d5b 721-727
+  s_5900a3cfa832c8::t_7f3005653f4689 1192-1204,1206,1209,1211-1243
+  s_5900a3cfa832c8::t_2d2f7fd0c22cf9 1522
+  s_5900a3cfa832c8::t_ddb3bd195275fc 1307,1521,1634,1768-1772,1916
+Tests/MacParakeetTests/Audio/MicrophoneEnginePlatformStartupReadinessTests.swift
+  s_5900a3cfa832c8::t_682970b359d320 789-800
+  s_5900a3cfa832c8::t_3c7f2e5a03adb9 171,175,189-275,277-304,313-316,319
+Sources/MacParakeetCore/Audio/README.md
+  s_5900a3cfa832c8::t_5746373bcf7394 393-395
+  s_5900a3cfa832c8::t_96ce48283369d8 380-384,386-391
+spec/05-audio-pipeline.md
+  s_5900a3cfa832c8::t_aa1d376b9693ef 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8226252332bd0a2499c990de4dc4c09b55ef30fc",
+  "prompts": {},
+  "sessions": {
+    "s_5900a3cfa832c8": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f3a24166-c0e8-44b0-a4b6-b5a483d7a4fd",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
