@@ -1,0 +1,29 @@
+docs/research/2026-10-11-bounded-meeting-cleanup/run.sh
+  s_5d339cd29bf7dc::t_dba08cf65afa54 3-6
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingDecodedAudio.swift
+  s_5d339cd29bf7dc::t_dba08cf65afa54 12-15,17
+docs/plans/2026-10-11-bounded-meeting-cleanup-memory.md
+  s_5d339cd29bf7dc::t_3288f43d20fe65 36-41
+  s_5d339cd29bf7dc::t_52fa5dc7642573 61-64
+docs/research/2026-10-11-bounded-meeting-cleanup/README.md
+  s_5d339cd29bf7dc::t_3288f43d20fe65 77-78
+  s_5d339cd29bf7dc::t_52fa5dc7642573 50-53
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingDecodedAudioTests.swift
+  s_5d339cd29bf7dc::t_dba08cf65afa54 129,133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "29b77c71349855d7039d4f4adab44f0689625d79",
+  "prompts": {},
+  "sessions": {
+    "s_5d339cd29bf7dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12e55-429e-70a1-b4cc-eb02cae2bf47",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
