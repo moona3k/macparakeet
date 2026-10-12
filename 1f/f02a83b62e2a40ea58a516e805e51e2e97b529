@@ -1,0 +1,21 @@
+spec/contracts/meeting-artifacts-v1.md
+  s_c5a3d782a4f744::t_27ee90eb19df40 115-118
+spec/adr/028-meeting-echo-cancellation.md
+  s_c5a3d782a4f744::t_7c2e3460d324f2 83-89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1ff02a83b62e2a40ea58a516e805e51e2e97b529",
+  "prompts": {},
+  "sessions": {
+    "s_c5a3d782a4f744": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "372b041e-7f13-4bed-99b6-cb57325da54a",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
