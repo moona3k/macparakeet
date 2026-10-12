@@ -1,0 +1,38 @@
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_b6adae681fcc63::t_d57966f6dec652 5357-5360
+  s_5900a3cfa832c8::t_f52acf86b0d833 1638,1647,4951,5048
+Sources/MacParakeet/Views/MeetingRecording/MeetingRowCard.swift
+  s_b6adae681fcc63::t_4964c469ca4811 373
+Sources/MacParakeetCore/Models/Transcription.swift
+  s_b6adae681fcc63::t_0be613deeb8a18 325-326,329-333
+Sources/MacParakeetCore/Services/Diarization/SpeakerAttributionReadService.swift
+  s_b6adae681fcc63::t_bebc9b17531764 50
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_b6adae681fcc63::t_9eb529a580866f 1583-1584
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingTranscriptFinalizerSpeakerTests.swift
+  s_b6adae681fcc63::t_4b59d953d38643 49,70,83,110,116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4cd19b7f0a1f804c5b53bc41b74c19703ea068c4",
+  "prompts": {},
+  "sessions": {
+    "s_5900a3cfa832c8": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f3a24166-c0e8-44b0-a4b6-b5a483d7a4fd",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_b6adae681fcc63": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0d8a631a-2171-4079-96cd-7e1536c121f6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
