@@ -1,0 +1,29 @@
+Sources/MacParakeet/Hotkey/HotkeyManager.swift
+  s_41720e19be30a9::t_e43566b4b46bbd 1042-1047
+Sources/MacParakeet/App/AppHotkeyCoordinator.swift
+  s_41720e19be30a9::t_9615da7a97987d 611-622
+  s_41720e19be30a9::t_a43c08c71c1d36 312-314
+Tests/MacParakeetTests/App/AppHotkeyCoordinatorTests.swift
+  s_41720e19be30a9::t_0d70ef1f1bb39b 940-959
+  s_41720e19be30a9::t_7fe854e05847ce 1539-1556
+spec/adr/009-custom-hotkey.md
+  s_41720e19be30a9::t_2fc5c048278e2b 132
+spec/contracts/dictation-shortcuts.md
+  s_41720e19be30a9::t_6e332816e3c6dd 94-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7a2939fd0d93b5988373a79b4afb510f14e1a5cd",
+  "prompts": {},
+  "sessions": {
+    "s_41720e19be30a9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b1c0eec-107d-46bc-a80b-e38648749530",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
