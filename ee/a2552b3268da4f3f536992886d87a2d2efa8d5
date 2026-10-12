@@ -1,0 +1,21 @@
+Sources/MacParakeet/App/AppHotkeyCoordinator.swift
+  s_41720e19be30a9::t_2752d52a5b205a 311-319,347-349,619-620,627
+Tests/MacParakeetTests/App/AppHotkeyCoordinatorTests.swift
+  s_41720e19be30a9::t_159bd07f55213d 940,942-955,957,959-960,962,964-966
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "eea2552b3268da4f3f536992886d87a2d2efa8d5",
+  "prompts": {},
+  "sessions": {
+    "s_41720e19be30a9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b1c0eec-107d-46bc-a80b-e38648749530",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
