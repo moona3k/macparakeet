@@ -392,7 +392,7 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
 - No FTS on transcriptions in v0.1. Search by filename or scroll the list. Revisit if the list grows large.
 
 **Diarization data (v0.4):**
-- `speakerCount`: Number of detected speakers (e.g., 2). Nil if diarization not run or failed.
+- `speakerCount`: Number of detected speakers (e.g., 2). Nil if diarization not run or failed. A meeting's `Unattributed` system bucket is not counted (#1228).
 - `speakers`: JSON array of `SpeakerInfo` objects mapping stable IDs to display labels (e.g., `[{"id":"S1","label":"Speaker 1"},{"id":"S2","label":"Sarah"}]`). Rename updates the `label` field only — no word rewrite needed.
 - `diarizationSegments`: JSON array of speaker intervals (e.g., `[{"speakerId":"S1","startMs":0,"endMs":5000}]`). File completion stores audio-derived intervals; meeting finalization derives them from timed words, and effective speaker-correction projections can rebuild them from word assignments. This legacy field is not uniformly raw audio evidence. Nil when unavailable.
 - Speaker assignment per word is stored via `speakerId` on each `WordTimestamp` entry using **stable IDs** (`"S1"`, `"S2"`) — not display labels. Display labels are resolved via the `speakers` mapping.

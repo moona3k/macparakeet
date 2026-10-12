@@ -252,6 +252,15 @@ public struct HotkeyTrigger: Sendable {
         return Self.maskSecondaryFn
     }
 
+    /// Exact match of this chord's modifiers among the five relevant bits.
+    /// Function-family chords that do not themselves require fn ignore the
+    /// phantom `NX_SECONDARYFNMASK` bit macOS sets on those key events.
+    public func chordEventMatches(flags: UInt64) -> Bool {
+        guard kind == .chord else { return false }
+        let relevant = flags & Self.relevantModifierBits
+        return relevant & ~ignoredChordEventFlags == chordEventFlags
+    }
+
     public var modifierChordEventFlags: UInt64 {
         Self.eventFlags(for: normalizedModifierChordComponents.map(\.modifierName))
     }

@@ -651,7 +651,7 @@ Audio file
          WordTimestamp entries with speakerId
 ```
 
-Each word's time range is compared against diarization speaker segments. The speaker with the most overlap is assigned to that word, so a word under overlapping Nemotron activity still gets one label. Words in silence gaps get `speakerId = nil`, as do words in overlap zones that Community-1 trims.
+Each word's time range is compared against diarization speaker segments. The speaker with the most overlap is assigned to that word, so a word under overlapping Nemotron activity still gets one label. Words in silence gaps get `speakerId = nil`, as do words in overlap zones that Community-1 trims. In a meeting, system-track words that stay unassigned after the gap fill keep `speakerId = "system"` and appear as `Unattributed` beside the diarized clusters (#1228).
 
 **Diarization is non-fatal.** If diarization fails (`noSpeechDetected`, model error, etc.), the ASR result is still persisted. Speaker fields remain nil and the transcript displays without speaker attribution.
 

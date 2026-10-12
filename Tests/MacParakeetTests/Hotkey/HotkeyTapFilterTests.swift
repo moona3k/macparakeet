@@ -45,9 +45,45 @@ final class HotkeyTapFilterTests: XCTestCase {
 
     func testChordToleratesExtraFlagBits() {
         var filter = HotkeyTapFilter(trigger: .chord(modifiers: ["control"], keyCode: 80))
-        let flags = HotkeyTrigger.chord(modifiers: ["control"], keyCode: 80).chordEventFlags
+        let flags =
+            HotkeyTrigger.chord(modifiers: ["control"], keyCode: 80).chordEventFlags
             | CGEventFlags.maskSecondaryFn.rawValue
         XCTAssertTrue(filter.shouldSwallow(type: .keyDown, keyCode: 80, flags: flags))
+    }
+
+    func testChordDoesNotConsumeExtraRealModifiers() {
+        var filter = HotkeyTapFilter(trigger: .chord(modifiers: ["command"], keyCode: 2))
+        let command = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 2).chordEventFlags
+
+        XCTAssertFalse(
+            filter.shouldSwallow(
+                type: .keyDown,
+                keyCode: 2,
+                flags: command | CGEventFlags.maskShift.rawValue
+            )
+        )
+        // Releasing Shift during the same press must not admit the chord.
+        XCTAssertFalse(filter.shouldSwallow(type: .keyDown, keyCode: 2, flags: command))
+        XCTAssertFalse(filter.shouldSwallow(type: .keyUp, keyCode: 2, flags: 0))
+        XCTAssertTrue(filter.shouldSwallow(type: .keyDown, keyCode: 2, flags: command))
+        XCTAssertTrue(
+            filter.shouldSwallow(
+                type: .keyDown,
+                keyCode: 2,
+                flags: command | CGEventFlags.maskShift.rawValue
+            )
+        )
+        XCTAssertTrue(filter.shouldSwallow(type: .keyUp, keyCode: 2, flags: 0))
+    }
+
+    func testFunctionKeyChordDoesNotConsumeExtraRealModifiers() {
+        var filter = HotkeyTapFilter(trigger: .chord(modifiers: ["control"], keyCode: 80))
+        let flags =
+            HotkeyTrigger.chord(modifiers: ["control"], keyCode: 80).chordEventFlags
+            | CGEventFlags.maskShift.rawValue
+            | CGEventFlags.maskSecondaryFn.rawValue
+        XCTAssertFalse(filter.shouldSwallow(type: .keyDown, keyCode: 80, flags: flags))
+        XCTAssertFalse(filter.shouldSwallow(type: .keyUp, keyCode: 80, flags: 0))
     }
 
     func testTapReenabledResyncsChordKeyUpToPhysicalState() {

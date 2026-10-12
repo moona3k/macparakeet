@@ -3242,7 +3242,7 @@ final class TranscriptionServiceTests: XCTestCase {
         ])
     }
 
-    func testTranscribeMeetingKeepsFallbackSystemSpeakerWhenDiarizationDoesNotCoverEveryWord() async throws {
+    func testTranscribeMeetingLabelsUncoveredSystemWordsUnattributed() async throws {
         let recordingFolder = URL(fileURLWithPath: AppPaths.tempDir)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
@@ -3301,9 +3301,11 @@ final class TranscriptionServiceTests: XCTestCase {
 
         XCTAssertEqual(result.wordTimestamps?.map(\.speakerId), ["system:S1", "system"])
         XCTAssertEqual(result.speakers, [
-            SpeakerInfo(id: "system", label: "Others"),
+            SpeakerInfo(id: "system", label: "Unattributed"),
             SpeakerInfo(id: "system:S1", label: "Others 1"),
         ])
+        // The unattributed bucket is not a detected speaker (#1228).
+        XCTAssertEqual(result.speakerCount, 1)
     }
 
     func testTranscribeMeetingPreservesSingleSourceModelText() async throws {

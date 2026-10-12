@@ -56,6 +56,9 @@ public final class HotkeyManager {
     private var targetModifierGestureIsActive = false
     /// Edge detection for keyCode triggers: true while the trigger key is physically held.
     private var triggerKeyIsPressed = false
+    /// Chord triggers: this physical press already accepted or rejected the chord.
+    /// Auto-repeats keep that decision until key-up.
+    private var chordKeyDownSettled = false
     /// For chord triggers: true after a required modifier was released while the key was still held.
     /// Prevents double fnUp when the key is subsequently released.
     private var chordModifierReleased = false
@@ -197,6 +200,7 @@ public final class HotkeyManager {
         previousModifierFlags = []
         targetModifierGestureIsActive = false
         triggerKeyIsPressed = false
+        chordKeyDownSettled = false
         chordModifierReleased = false
         modifierChordRequiredWasPressed = false
         modifierChordGestureIsActive = false
@@ -741,14 +745,27 @@ public final class HotkeyManager {
 
         if type == .keyDown {
             if keyCode == triggerCode {
-                // Check required modifiers are held
-                guard flags & requiredChordFlags == requiredChordFlags else {
+                // An accepted press keeps its hold through auto-repeat, including
+                // when an extra modifier arrives. Losing a required modifier is
+                // release-any-part, and flagsChanged usually reports it first.
+                if triggerKeyIsPressed {
+                    if flags & requiredChordFlags == requiredChordFlags || chordModifierReleased {
+                        return []
+                    }
+                    chordModifierReleased = true
+                    return gestureController.interrupted()
+                }
+                // A rejected press stays rejected until key-up, so a later
+                // repeat whose modifiers have become exact does not start.
+                guard !chordKeyDownSettled else { return [] }
+
+                guard trigger.chordEventMatches(flags: flags) else {
+                    chordKeyDownSettled = true
                     return gestureController.interrupted()
                 }
 
-                // Edge detection: ignore key-repeat
-                guard !triggerKeyIsPressed else { return [] }
                 triggerKeyIsPressed = true
+                chordKeyDownSettled = true
                 chordModifierReleased = false
 
                 return gestureController.triggerPressed(timestampMs: timestampMs)
@@ -762,6 +779,7 @@ public final class HotkeyManager {
             }
         } else if type == .keyUp {
             if keyCode == triggerCode {
+                chordKeyDownSettled = false
                 guard triggerKeyIsPressed else { return [] }
                 return chordTriggerKeyUpOutputs(timestampMs: timestampMs)
             }
@@ -1117,6 +1135,7 @@ public final class HotkeyManager {
         cancelStartupTimer()
         cancelHoldTimer()
         triggerKeyIsPressed = triggerKeyPressed
+        chordKeyDownSettled = triggerKeyPressed
         chordModifierReleased = false
         targetModifierGestureIsActive = false
         modifierChordGestureIsActive = false
@@ -1171,6 +1190,7 @@ public final class HotkeyManager {
         triggerPressed: Bool
     ) {
         triggerKeyIsPressed = triggerKeyPressed
+        chordKeyDownSettled = triggerKeyPressed
         syncModifierPressedState(flags: flags)
         syncModifierChordPressedState(flags: flags)
 

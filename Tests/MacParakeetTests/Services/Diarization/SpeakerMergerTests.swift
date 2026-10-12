@@ -186,7 +186,7 @@ final class SpeakerMergerTests: XCTestCase {
         XCTAssertEqual(result[0].speakerId, "S1")
     }
 
-    // MARK: - Isolated assignment smoothing
+    // MARK: - One-word turns and unlabeled gaps
 
     func testIsolatedOneWordTurnKeepsItsSpeaker() {
         let words = [

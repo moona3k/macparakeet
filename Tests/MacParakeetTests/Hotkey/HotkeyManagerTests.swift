@@ -1556,10 +1556,10 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testControlFunctionKeyChordToleratesPhantomFnFlagBit() {
-        // Characterization: chord matching is superset-based, so a clean
-        // ⌃F19 trigger fires whether or not the event carries the phantom
-        // NX_SECONDARYFNMASK bit macOS sets on hardware F-key presses.
+        // A clean ⌃F19 trigger fires whether or not the event carries the
+        // phantom NX_SECONDARYFNMASK bit macOS sets on hardware F-key presses.
         // The recorder relies on this to store F-key chords without "fn".
+        // Real extra modifiers are a different case and must not match.
         let trigger = HotkeyTrigger.chord(modifiers: ["control"], keyCode: 80)
 
         for phantomFn in [CGEventFlags.maskSecondaryFn.rawValue, 0] {
@@ -1574,6 +1574,114 @@ final class HotkeyManagerTests: XCTestCase {
             XCTAssertEqual(keyDown.outputs, [.startRecording(mode: .persistent)])
             XCTAssertTrue(keyDown.shouldSwallow)
         }
+    }
+
+    func testCommandDChordDoesNotFireWhenShiftIsAlsoHeld() {
+        // #1237: ⌘D is an exact chord. ⇧⌘D must reach the front app.
+        let trigger = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 2)
+        let manager = makeManager(trigger: trigger, gestureMode: .singleTapToggle)
+
+        let shifted = manager.chordEventDecisionForTesting(
+            type: .keyDown,
+            keyCode: 2,
+            flags: trigger.chordEventFlags | CGEventFlags.maskShift.rawValue,
+            timestampMs: 1_000
+        )
+        XCTAssertEqual(shifted.outputs, [])
+        XCTAssertFalse(shifted.shouldSwallow)
+
+        let repeatAfterShiftReleased = manager.chordEventDecisionForTesting(
+            type: .keyDown,
+            keyCode: 2,
+            flags: trigger.chordEventFlags,
+            timestampMs: 1_050
+        )
+        XCTAssertEqual(repeatAfterShiftReleased.outputs, [])
+        XCTAssertFalse(repeatAfterShiftReleased.shouldSwallow)
+
+        let keyUp = manager.chordEventDecisionForTesting(
+            type: .keyUp,
+            keyCode: 2,
+            flags: trigger.chordEventFlags,
+            timestampMs: 1_080
+        )
+        XCTAssertEqual(keyUp.outputs, [])
+        XCTAssertFalse(keyUp.shouldSwallow)
+
+        let exact = manager.chordEventDecisionForTesting(
+            type: .keyDown,
+            keyCode: 2,
+            flags: trigger.chordEventFlags,
+            timestampMs: 1_100
+        )
+        XCTAssertEqual(exact.outputs, [.startRecording(mode: .persistent)])
+        XCTAssertTrue(exact.shouldSwallow)
+    }
+
+    func testControlFunctionKeyChordDoesNotFireWhenShiftIsAlsoHeld() {
+        let trigger = HotkeyTrigger.chord(modifiers: ["control"], keyCode: 80)
+        let manager = makeManager(trigger: trigger, gestureMode: .singleTapToggle)
+
+        let shifted = manager.chordEventDecisionForTesting(
+            type: .keyDown,
+            keyCode: 80,
+            flags: trigger.chordEventFlags
+                | CGEventFlags.maskShift.rawValue
+                | CGEventFlags.maskSecondaryFn.rawValue,
+            timestampMs: 1_000
+        )
+        XCTAssertEqual(shifted.outputs, [])
+        XCTAssertFalse(shifted.shouldSwallow)
+    }
+
+    func testHoldChordContinuesWhenShiftIsPressedAfterStart() {
+        let trigger = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 2)
+        let manager = makeManager(trigger: trigger, gestureMode: .holdOnly)
+
+        let keyDown = manager.chordEventDecisionForTesting(
+            type: .keyDown,
+            keyCode: 2,
+            flags: trigger.chordEventFlags,
+            timestampMs: 1_000
+        )
+        XCTAssertEqual(
+            keyDown.outputs,
+            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs)]
+        )
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
+
+        let shiftAdded = manager.chordEventDecisionForTesting(
+            type: .flagsChanged,
+            keyCode: 56,
+            flags: trigger.chordEventFlags | CGEventFlags.maskShift.rawValue,
+            timestampMs: 1_200
+        )
+        XCTAssertEqual(shiftAdded.outputs, [])
+
+        let repeated = manager.chordEventDecisionForTesting(
+            type: .keyDown,
+            keyCode: 2,
+            flags: trigger.chordEventFlags | CGEventFlags.maskShift.rawValue,
+            timestampMs: 1_250
+        )
+        XCTAssertEqual(repeated.outputs, [])
+        XCTAssertTrue(repeated.shouldSwallow)
+
+        let keyUp = manager.chordEventDecisionForTesting(
+            type: .keyUp,
+            keyCode: 2,
+            flags: trigger.chordEventFlags | CGEventFlags.maskShift.rawValue,
+            timestampMs: 1_400
+        )
+        XCTAssertEqual(
+            keyUp.outputs,
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+                .stopRecording,
+            ]
+        )
+        XCTAssertTrue(keyUp.shouldSwallow)
     }
 
     func testControlBacktickChordStartsHandsFreeDictation() {
