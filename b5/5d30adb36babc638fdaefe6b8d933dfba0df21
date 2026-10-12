@@ -1,0 +1,21 @@
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_7883d771ce014f::t_28c7f81e5739a6 4011-4060
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelBatchTests.swift
+  s_7883d771ce014f::t_6935319a2cd65d 403-442
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b55d30adb36babc638fdaefe6b8d933dfba0df21",
+  "prompts": {},
+  "sessions": {
+    "s_7883d771ce014f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1f991eb-0eb4-4eae-a47b-45234cb3fd4e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
