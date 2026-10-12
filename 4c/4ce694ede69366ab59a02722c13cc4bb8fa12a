@@ -1,0 +1,33 @@
+spec/adr/010-speaker-diarization.md
+  s_89a4c88892a6a3::t_beb93cef4bed1c 399
+  s_89a4c88892a6a3::t_b213dc90d57867 5
+  s_89a4c88892a6a3::t_3ef4c6447df603 401-403
+  s_89a4c88892a6a3::t_8e2dd4a4700a57 422-437
+Tests/MacParakeetTests/Services/Diarization/SpeakerMergerTests.swift
+  s_89a4c88892a6a3::t_488c87afdb0a6a 189
+plans/README.md
+  s_89a4c88892a6a3::t_b924f027dfd105 85
+spec/02-features.md
+  s_89a4c88892a6a3::t_d9d4b1f5c84870 1562
+plans/active/2026-09-15-issue-1046-speaker-over-split.md
+  s_89a4c88892a6a3::t_e2c94572a0dbe4 11-13
+  s_89a4c88892a6a3::t_622b5d8b7e77a4 47
+  s_89a4c88892a6a3::t_f1777defb4cf49 3
+  s_89a4c88892a6a3::t_42b265eccda2d2 69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4c4ce694ede69366ab59a02722c13cc4bb8fa12a",
+  "prompts": {},
+  "sessions": {
+    "s_89a4c88892a6a3": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7af72f96-b5e2-40ff-b5c2-d22f9e957e27",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
