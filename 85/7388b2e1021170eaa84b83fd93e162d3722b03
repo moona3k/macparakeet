@@ -1,0 +1,38 @@
+Sources/CLI/CHANGELOG.md
+  s_26f57162187426::t_034b6f4c579342 97-103
+Sources/CLI/MacParakeetCLI.swift
+  s_26f57162187426::t_ea83a82ae8e035 11
+docs/releases/0.8.10/sparkle.html
+  s_26f57162187426::t_00ea1967bca29e 1-22
+spec/README.md
+  s_26f57162187426::t_af31dfa1e6a535 106
+  s_26f57162187426::t_c05a5c485fda69 383,385
+  s_26f57162187426::t_f9b5117315ba9d 194
+  s_26f57162187426::t_19505c9a98889c 367,369
+  s_26f57162187426::t_7d78d09f694c84 96-101
+docs/releases/0.8.10/README.md
+  s_26f57162187426::t_3a7570dc5dcd02 1-28
+README.md
+  s_26f57162187426::t_a14f27da33706f 67
+  s_26f57162187426::t_4871d8c49b31d2 58
+docs/releases/0.8.10/github.md
+  s_26f57162187426::t_8007330e039888 1-26
+spec/02-features.md
+  s_26f57162187426::t_368ee85a4ee00b 1606
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "857388b2e1021170eaa84b83fd93e162d3722b03",
+  "prompts": {},
+  "sessions": {
+    "s_26f57162187426": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "a1ae768b-d139-4974-9f51-9fc7627b6bba",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
