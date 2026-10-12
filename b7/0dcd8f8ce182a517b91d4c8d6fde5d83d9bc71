@@ -1,0 +1,27 @@
+Sources/MacParakeet/Views/Transcription/TranscribeView.swift
+  s_7883d771ce014f::t_8bd48d3573a135 704
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_7883d771ce014f::t_b2d45a8ef198c2 505,508-513,832-836
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_7883d771ce014f::t_3260535c1877c2 4085-4086
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_7883d771ce014f::t_d66d05df224665 267-308
+spec/02-features.md
+  s_7883d771ce014f::t_823122d2ed93e6 1503
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b70dcd8f8ce182a517b91d4c8d6fde5d83d9bc71",
+  "prompts": {},
+  "sessions": {
+    "s_7883d771ce014f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1f991eb-0eb4-4eae-a47b-45234cb3fd4e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
