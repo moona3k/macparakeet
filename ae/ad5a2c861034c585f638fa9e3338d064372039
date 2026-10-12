@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/ViewModels/TranscriptionLibraryViewModelTests.swift
+  s_7883d771ce014f::t_be0443fda00e97 123-136,138-141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "aead5a2c861034c585f638fa9e3338d064372039",
+  "prompts": {},
+  "sessions": {
+    "s_7883d771ce014f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1f991eb-0eb4-4eae-a47b-45234cb3fd4e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
