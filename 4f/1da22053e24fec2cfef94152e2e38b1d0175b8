@@ -1,0 +1,21 @@
+docs/research/2026-10-11-bounded-meeting-cleanup/Harness.swift
+  s_9ad2379e1c89dc::t_23884fd519141a 8,39,45-52,59-66,69,76-92
+docs/research/2026-10-11-bounded-meeting-cleanup/README.md
+  s_9ad2379e1c89dc::t_8542c48aac2658 99-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4f1da22053e24fec2cfef94152e2e38b1d0175b8",
+  "prompts": {},
+  "sessions": {
+    "s_9ad2379e1c89dc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c81322ef-b817-4d6d-b01b-b0221743d15c",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
