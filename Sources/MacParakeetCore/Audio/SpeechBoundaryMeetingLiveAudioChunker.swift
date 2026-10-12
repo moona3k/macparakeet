@@ -41,14 +41,13 @@ struct MeetingLiveChunkingDiagnostics: Sendable {
 /// (the `vad.processStreamingChunk` hop), so a *second* concurrent caller would
 /// interleave and corrupt that state. Being an actor does **not** prevent this —
 /// actors are reentrant across `await`. Safety instead comes from there being
-/// exactly one caller in flight: `MeetingRecordingService` drains the capture
-/// stream with a single `for await event in events` task
-/// (`MeetingRecordingService.swift`), so `CaptureOrchestrator.ingest` — and
-/// therefore each chunker's `addSamples`/`flush`/`reset` — is only ever invoked
-/// one at a time. `configureChunkers`/`reset` (start) and `flush*` (stop) run
-/// outside that task's active window. If capture is ever parallelized per source
-/// (e.g. a `TaskGroup` or per-source tasks), this invariant breaks and the
-/// chunker needs its own serialization.
+/// exactly one caller in flight: `MeetingRecordingService` runs preview ingest
+/// on one drain task (`drainPreviewIngress`). The capture-stream reader writes
+/// durable audio and only enqueues preview samples; it does not call
+/// `CaptureOrchestrator.ingest` itself. `configureChunkers`/`reset` (start)
+/// run before that drain task, and Stop waits until the drain task is idle
+/// before the next session. A second concurrent ingest would interleave this
+/// state; do not fan preview out per source.
 ///
 /// This type does not depend on FluidAudio — it round-trips the opaque
 /// `MeetingVADStreamState` through a `MeetingVoiceActivityDetecting`.
@@ -58,10 +57,10 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
     /// passed, so windows must be exactly this size to keep the boundary
     /// timeline aligned.
     private static let vadWindow = 4_096
-    private static let minChunkSamples = 2 * sampleRate          // 2.0s
-    private static let maxChunkSamples = 10 * sampleRate         // 10.0s
-    private static let forceEmitTailOverlap = sampleRate / 4     // 0.25s
-    private static let flushMinSamples = sampleRate / 2          // 0.5s
+    private static let minChunkSamples = 2 * sampleRate  // 2.0s
+    private static let maxChunkSamples = 10 * sampleRate  // 10.0s
+    private static let forceEmitTailOverlap = sampleRate / 4  // 0.25s
+    private static let flushMinSamples = sampleRate / 2  // 0.5s
     /// Degraded-fallback fixed cadence, identical to `AudioChunker`.
     private static let fixedWindow = 5 * sampleRate
     private static let fixedOverlap = 1 * sampleRate

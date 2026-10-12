@@ -367,6 +367,7 @@ is the artifact and sidecar contract.
 | `AudioEngineLifecycleDiagnostics` | Independent, bounded shared-microphone phase observations for the local log and optional telemetry; no capture control or product-operation counting |
 | `MicrophoneCapture` | Meeting mic subscriber with explicit mic-processing policy, effective-mode reporting, awaited teardown, and typed stall propagation |
 | `MeetingAudioCaptureService` | Actor combining the selected source stream(s) into `AsyncStream<MeetingAudioCaptureEvent>`; owns bounded fresh-instance system recovery, coalesces duplicate failures, and lets Stop invalidate every retry generation |
+| `MeetingPreviewIngressQueue` | Bounds resampled samples waiting for live preview. The capture reader writes the source file first and does not wait on preview ingest. A full queue drops further preview copies; it never drops audio that has not been written |
 | `CaptureOrchestrator` | Owns ingest/join/offset/chunk flow for live preview |
 | `MicConditioner` | Meeting-side seam for mic samples; passthrough is the default, and an optional `StreamingMeetingEchoSuppressor` can use paired system reference samples when the runtime/model are available |
 | `MeetingCleanedMicRenderer` | Post-stop offline derivation of `microphone-cleaned.m4a` from the raw mic + system sources through a freshly built suppressor; skips when no echo path/single-source and never throws into finalize |
