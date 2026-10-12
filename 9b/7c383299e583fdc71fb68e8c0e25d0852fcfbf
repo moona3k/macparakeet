@@ -1,0 +1,63 @@
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingDecodedAudio.swift
+  s_5d339cd29bf7dc::t_8468fd040ad226 20-26
+  s_5d339cd29bf7dc::t_2e6c713358c9ab 52,64-68
+  s_5d339cd29bf7dc::t_d50543cd287169 1-19,27-51,53-63,69-79
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingCleanedMicRenderer.swift
+  s_5d339cd29bf7dc::t_bc503113f45654 136-137,140-144,146-150,158,167-180,195-202,205-206,215-216,233,239-241,256-269,276,292-293,325-326,334-335,403,408,416-417,433,437,439-442,444,449,453-460,486-490,492,495,500-564,574-585,587,589-599,615,672-676,704-706,708,716-728,773,775,783,806
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingCleanedMicRendererTests.swift
+  s_5d339cd29bf7dc::t_8dfa119be945f9 237,255,302-345,404-415
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingDecodedAudioTests.swift
+  s_5d339cd29bf7dc::t_968c5a4e002960 1-209
+docs/plans/2026-10-11-bounded-meeting-cleanup-memory.md
+  s_5d339cd29bf7dc::t_106ef49c42bd44 1-53
+docs/research/2026-10-11-bounded-meeting-cleanup/Harness.swift
+  s_5d339cd29bf7dc::t_84b79f92f9a1e0 1-92
+docs/research/2026-10-11-bounded-meeting-cleanup/README.md
+  s_5d339cd29bf7dc::t_ef324206e11278 1-99
+docs/research/2026-10-11-bounded-meeting-cleanup/baseline-60m.txt
+  s_5d339cd29bf7dc::t_00d27bdc16685a 1-20
+docs/research/2026-10-11-bounded-meeting-cleanup/baseline-noecho-60m.txt
+  s_5d339cd29bf7dc::t_2c935c986cd336 1-20
+docs/research/2026-10-11-bounded-meeting-cleanup/baseline-parity.txt
+  s_5d339cd29bf7dc::t_0f7d16f9b8a93a 1-21
+docs/research/2026-10-11-bounded-meeting-cleanup/baseline-repeat-60m.txt
+  s_5d339cd29bf7dc::t_4aff51b3a0c781 1-20
+docs/research/2026-10-11-bounded-meeting-cleanup/measurements.tsv
+  s_5d339cd29bf7dc::t_b180177bcd4d08 1-9
+docs/research/2026-10-11-bounded-meeting-cleanup/run.sh
+  s_5d339cd29bf7dc::t_93a2424840a66f 1-22
+docs/research/2026-10-11-bounded-meeting-cleanup/streaming-120m.txt
+  s_5d339cd29bf7dc::t_78b91ebb00d1b7 1-20
+docs/research/2026-10-11-bounded-meeting-cleanup/streaming-5m.txt
+  s_5d339cd29bf7dc::t_a7fe5ad6b4f674 1-20
+docs/research/2026-10-11-bounded-meeting-cleanup/streaming-60m.txt
+  s_5d339cd29bf7dc::t_7b8ca5e0c31b7c 1-20
+docs/research/2026-10-11-bounded-meeting-cleanup/streaming-noecho-60m.txt
+  s_5d339cd29bf7dc::t_a8b3d9dab69ddb 1-20
+docs/research/2026-10-11-bounded-meeting-cleanup/streaming-parity.txt
+  s_5d339cd29bf7dc::t_614a737be08272 1-21
+docs/research/2026-10-11-bounded-meeting-cleanup/streaming-repeat-60m.txt
+  s_5d339cd29bf7dc::t_6735d17e8df780 1-20
+spec/05-audio-pipeline.md
+  s_5d339cd29bf7dc::t_ba2a6127649c9d 338-345
+spec/adr/028-meeting-echo-cancellation.md
+  s_5d339cd29bf7dc::t_ba54e816c1a704 83-90
+spec/contracts/meeting-artifacts-v1.md
+  s_5d339cd29bf7dc::t_c9ae5cda776832 115-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9b7c383299e583fdc71fb68e8c0e25d0852fcfbf",
+  "prompts": {},
+  "sessions": {
+    "s_5d339cd29bf7dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12e55-429e-70a1-b4cc-eb02cae2bf47",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
