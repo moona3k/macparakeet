@@ -1,0 +1,47 @@
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingPreviewIngressQueue.swift
+  s_edba247e02b55e::t_bf47e6e9ad1ad4 15-17
+  s_edba247e02b55e::t_563cd7824ef074 1-14,18-66,73-93
+  s_edba247e02b55e::t_de730b97f83ec4 67-72
+spec/05-audio-pipeline.md
+  s_edba247e02b55e::t_94e736fafc30b7 370
+Sources/MacParakeetCore/Audio/SpeechBoundaryMeetingLiveAudioChunker.swift
+  s_edba247e02b55e::t_b8a60cc6df27a9 44-50
+  s_edba247e02b55e::t_da5fa93bf21138 60-63
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift
+  s_edba247e02b55e::t_2eb2f0e8fb271f 832
+  s_edba247e02b55e::t_05e5fbb1851555 2590-2592
+  s_edba247e02b55e::t_d77975d94901a0 1572
+  s_edba247e02b55e::t_282c7a4d756e0e 1832-1834
+  s_edba247e02b55e::t_024be7b59bb9b8 1575-1576,1578-1579
+  s_edba247e02b55e::t_f329869e3af342 1573
+  s_edba247e02b55e::t_2274b613a1acf1 315-320
+  s_edba247e02b55e::t_d3fb9fe9cf07b5 1807-1808,1814-1815
+  s_edba247e02b55e::t_15d7671c623c54 941
+  s_edba247e02b55e::t_fc787112cf3fcf 1841-1846
+  s_edba247e02b55e::t_f78f0ce1e4310f 1603
+  s_edba247e02b55e::t_17f4c24fea2363 1606-1607,1609-1610
+  s_edba247e02b55e::t_4d036c6ce53182 1800-1806,1810-1813,1816-1831,1835-1840,1847-1884
+  s_edba247e02b55e::t_f2f5b17b34537f 1809
+  s_edba247e02b55e::t_d1055405d2e102 1441
+  s_edba247e02b55e::t_94481c48c13874 1604
+  s_edba247e02b55e::t_e8dbe168bf3679 2172-2173
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingPreviewIngressQueueTests.swift
+  s_edba247e02b55e::t_50677f5df7af4b 82-87
+  s_edba247e02b55e::t_188af5c3b33ea4 1-81,88-89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "037b8b08814bf61cb021e539b16e6ce4d10d932d",
+  "prompts": {},
+  "sessions": {
+    "s_edba247e02b55e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "171e02a8-2de9-4746-8f6e-86a4a958323c",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
