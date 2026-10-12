@@ -1,0 +1,23 @@
+docs/plans/2026-10-11-bounded-meeting-cleanup-memory.md
+  s_4c7d1b8ca21574::t_ff41cdc7994dd5 54-59
+  s_4c7d1b8ca21574::t_cc8f40b7988388 3
+docs/research/2026-10-11-bounded-meeting-cleanup/README.md
+  s_4c7d1b8ca21574::t_ea439bb7daa128 71-74
+  s_4c7d1b8ca21574::t_3f765111862c7c 75-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b8c8c06e5a895cb13e833020672a5cfee9e1773a",
+  "prompts": {},
+  "sessions": {
+    "s_4c7d1b8ca21574": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fdca4ec2-7939-4085-a594-da47b80663f5",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
