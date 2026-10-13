@@ -1,0 +1,22 @@
+Sources/MacParakeet/Views/Components/MarkdownContentView.swift
+  s_26f57162187426::t_02070353dd3b97 73-111
+  s_26f57162187426::t_23eefdde38b9b5 34-40
+Tests/MacParakeetTests/Views/MarkdownMeasureWidthTests.swift
+  s_26f57162187426::t_1780df3e968ef4 1-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "26144f33f088f3c0796df96290b3cb0885a72c4e",
+  "prompts": {},
+  "sessions": {
+    "s_26f57162187426": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "a1ae768b-d139-4974-9f51-9fc7627b6bba",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
