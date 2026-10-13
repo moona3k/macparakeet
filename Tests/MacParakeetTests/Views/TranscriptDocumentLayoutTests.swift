@@ -116,6 +116,45 @@ final class TranscriptDocumentLayoutTests: XCTestCase {
 
     }
 
+    /// A meeting result sits in a scroll view that asks for an ideal width before
+    /// the column exists. That query must not widen the window, and the paragraph
+    /// view must not lay out at the screen width.
+    func testLongMarkdownStaysInsideNarrowWindow() throws {
+        let paragraph = String(repeating: "Review the next milestone and confirm the owner. ", count: 30)
+        let host = Host(
+            rootView: ScrollView {
+                MarkdownContentView(paragraph, font: DesignSystem.Typography.bodyLarge)
+                    .padding(24)
+            }
+        )
+        let window = NSWindow(
+            contentRect: NSRect(x: -20_000, y: -20_000, width: 500, height: 650),
+            styleMask: [.titled, .resizable], backing: .buffered, defer: false
+        )
+        window.contentView = host
+        window.orderFront(nil)
+        defer { window.orderOut(nil) }
+        let deadline = Date().addingTimeInterval(3)
+        var textViews: [NSTextView] = []
+        while Date() < deadline {
+            host.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            textViews = descendants(host).compactMap { $0 as? NSTextView }.filter {
+                ($0.string as NSString).length > 20
+            }
+            if !textViews.isEmpty { break }
+        }
+        XCTAssertFalse(textViews.isEmpty, "Markdown did not produce a paragraph view")
+        XCTAssertLessThanOrEqual(host.bounds.width, 501)
+        for textView in textViews {
+            XCTAssertLessThanOrEqual(
+                textView.bounds.width, host.bounds.width + 1,
+                "Paragraph laid out at \(textView.bounds.width) inside a \(host.bounds.width) pane"
+            )
+            XCTAssertGreaterThan(textView.bounds.width, 100)
+        }
+    }
+
     private func checkLayout<Content: View>(_ content: Content, width: Double, label: String) throws {
         let watchdog = DispatchWorkItem { fatalError("Document layout exceeded 120 seconds") }
         DispatchQueue.global().asyncAfter(deadline: .now() + 120, execute: watchdog)
