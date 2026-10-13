@@ -31,11 +31,13 @@ struct MarkdownContentView: View {
     }
 
     var body: some View {
-        DocumentView(
-            renderableDocument: renderedDocument,
-            config: renderConfiguration,
-            listener: MarkdownContentInteractionListener.shared
-        )
+        FiniteMarkdownWidth {
+            DocumentView(
+                renderableDocument: renderedDocument,
+                config: renderConfiguration,
+                listener: MarkdownContentInteractionListener.shared
+            )
+        }
         .onAppear {
             streamingSource.send(content)
         }
@@ -64,6 +66,45 @@ struct MarkdownContentView: View {
         MarkdownContentConfiguration.make(
             baseFontSize: baseFontSize,
             isStreaming: isStreaming
+        )
+    }
+}
+
+/// Width offered to the Markdown text view.
+///
+/// The AppKit paragraph view refuses to measure unless the proposal is a
+/// positive finite width, then falls back to the screen width. A meeting
+/// column often asks for a size before that width exists. Measuring at the
+/// screen width makes each sentence one long line and collapses the window.
+enum MarkdownMeasureWidth {
+    /// A normal reading column. Used only until the parent offers its real width.
+    static let unspecifiedFallback: CGFloat = 640
+
+    static func resolve(_ proposed: CGFloat?) -> CGFloat {
+        guard let proposed, proposed > 0, proposed.isFinite else {
+            return unspecifiedFallback
+        }
+        return proposed
+    }
+}
+
+/// Proposes a finite width to Markdown so a missing parent width cannot
+/// expand a paragraph to the screen.
+private struct FiniteMarkdownWidth: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = MarkdownMeasureWidth.resolve(proposal.width)
+        let child = subviews.first?.sizeThatFits(ProposedViewSize(width: width, height: nil)) ?? .zero
+        return CGSize(width: width, height: child.height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let width = bounds.width > 0 && bounds.width.isFinite
+            ? bounds.width
+            : MarkdownMeasureWidth.resolve(proposal.width)
+        subviews.first?.place(
+            at: CGPoint(x: bounds.minX, y: bounds.minY),
+            anchor: .topLeading,
+            proposal: ProposedViewSize(width: width, height: nil)
         )
     }
 }
