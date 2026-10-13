@@ -31,13 +31,11 @@ struct MarkdownContentView: View {
     }
 
     var body: some View {
-        FiniteMarkdownWidth {
-            DocumentView(
-                renderableDocument: renderedDocument,
-                config: renderConfiguration,
-                listener: MarkdownContentInteractionListener.shared
-            )
-        }
+        DocumentView(
+            renderableDocument: renderedDocument,
+            config: renderConfiguration,
+            listener: MarkdownContentInteractionListener.shared
+        )
         .onAppear {
             streamingSource.send(content)
         }
@@ -66,64 +64,6 @@ struct MarkdownContentView: View {
         MarkdownContentConfiguration.make(
             baseFontSize: baseFontSize,
             isStreaming: isStreaming
-        )
-    }
-}
-
-/// Width offered to the Markdown text view.
-///
-/// The AppKit paragraph view only wraps when its proposal is a positive finite
-/// width. Otherwise it measures at the screen width, so a meeting sentence
-/// becomes one line and the window collapses. The fallback width is only for
-/// that measurement. Reporting it as this view's own width makes a narrower
-/// pane grow to fit the fallback.
-enum MarkdownMeasureWidth {
-    /// Used to wrap text until the parent offers its real width.
-    static let unspecifiedFallback: CGFloat = 640
-
-    /// Width passed to the paragraph view so it cannot fall through to the screen.
-    static func resolve(_ proposed: CGFloat?) -> CGFloat {
-        guard let proposed, proposed > 0, proposed.isFinite else {
-            return unspecifiedFallback
-        }
-        return proposed
-    }
-
-    /// Width reported to the parent. A missing offer contributes no minimum width.
-    static func reportedWidth(_ proposed: CGFloat?) -> CGFloat {
-        guard let proposed, proposed > 0, proposed.isFinite else {
-            return 0
-        }
-        return proposed
-    }
-}
-
-/// Proposes a finite width to Markdown so a missing parent width cannot
-/// expand a paragraph to the screen.
-private struct FiniteMarkdownWidth: Layout {
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let child =
-            subviews.first?.sizeThatFits(
-                ProposedViewSize(width: MarkdownMeasureWidth.resolve(proposal.width), height: nil)
-            ) ?? .zero
-        return CGSize(
-            width: MarkdownMeasureWidth.reportedWidth(proposal.width),
-            height: child.height
-        )
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let offered: CGFloat? = bounds.width > 0 && bounds.width.isFinite ? bounds.width : proposal.width
-        // A zero-width placement must not install the reading-width fallback.
-        // That frame overflows the bounds and the pane grows to fit it.
-        let width =
-            MarkdownMeasureWidth.reportedWidth(offered) > 0
-            ? MarkdownMeasureWidth.resolve(offered)
-            : 1
-        subviews.first?.place(
-            at: CGPoint(x: bounds.minX, y: bounds.minY),
-            anchor: .topLeading,
-            proposal: ProposedViewSize(width: width, height: nil)
         )
     }
 }
