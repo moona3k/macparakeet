@@ -1,0 +1,31 @@
+spec/README.md
+  s_26f57162187426::t_11b35d60a5a5c1 385
+  s_26f57162187426::t_82961d138b3e8d 106
+README.md
+  s_26f57162187426::t_fa5c0e9f0573f4 67
+docs/releases/0.8.10/github.md
+  s_26f57162187426::t_9a98a55386dc09 7
+  s_26f57162187426::t_7757cd019f5dc9 10
+  s_26f57162187426::t_9993eef0366373 11
+  s_26f57162187426::t_8615fe8ee5435e 27
+docs/releases/0.8.10/sparkle.html
+  s_26f57162187426::t_ff8db79155396e 5,8-9
+docs/releases/0.8.10/README.md
+  s_26f57162187426::t_662bdbfba2efc3 10-11,14,16-17,19,25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7b6e1a87d6cc7c22d436a58d2c2906f3cfaafc8a",
+  "prompts": {},
+  "sessions": {
+    "s_26f57162187426": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "a1ae768b-d139-4974-9f51-9fc7627b6bba",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
