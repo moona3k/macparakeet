@@ -1,0 +1,30 @@
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_28c185d96b4dc9::t_c31b19deb27d43 3704
+  s_28c185d96b4dc9::t_c05645bbe73391 3697-3700,3705
+Tests/MacParakeetTests/Views/TranscriptDocumentLayoutTests.swift
+  s_28c185d96b4dc9::t_a240ccf9216b01 183
+  s_28c185d96b4dc9::t_8a0bcd7a2b422f 172
+  s_28c185d96b4dc9::t_9230805c7d45fb 141
+  s_28c185d96b4dc9::t_d56311900fe916 119-126,129-139,142-147,149,155-162,165,167-168
+  s_28c185d96b4dc9::t_e3d2eff419a30b 163-164,166,169-171,173-179,187
+  s_28c185d96b4dc9::t_a904240db5cb84 127-128
+  s_28c185d96b4dc9::t_d5a7eef04e046a 180-182,184-185
+Sources/MacParakeet/Views/Components/MarkdownContentView.swift
+  s_28c185d96b4dc9::t_d7913f334d130c 34-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "241ff974786c8b5114e7ffc1ec81c91dd39bb7af",
+  "prompts": {},
+  "sessions": {
+    "s_28c185d96b4dc9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "562545f7-7156-44b5-88ef-17bf9940735f",
+        "model": "composer-2.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
