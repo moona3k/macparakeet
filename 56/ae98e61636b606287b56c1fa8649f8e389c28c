@@ -1,0 +1,14 @@
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  h_2ab1f47fea2ced 137,793-795,1140-1146,1255,2104-2106,2108-2113,2115,2117-2119,2121-2125,2127-2128,2130-2143,2145-2154,2156-2162,2165-2174,2345,2479,3480,3485,3737,4476,4526,4648-4650,4686,5252,5601,5700,5925,5943,5983
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "56ae98e61636b606287b56c1fa8649f8e389c28c",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
