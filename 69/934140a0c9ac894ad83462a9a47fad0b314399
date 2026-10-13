@@ -1,0 +1,25 @@
+Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
+  s_26f57162187426::t_cf406590d1b786 817-818
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_26f57162187426::t_532dc3f8f83f49 3944-3945,3947,3949-3950,3953-3955,3963-3964
+  s_26f57162187426::t_e2aaff7d6b7984 3718-3720,3722-3725,3731-3732,3734-3735,3737-3739,3746-3748,3751
+  s_26f57162187426::t_b4401ea1b71647 3709-3710,3721,3733,3736,3749-3750,3753,3757
+  s_26f57162187426::t_b5da6ef5154dfb 3940-3943,3946,3948,3951-3952,3956-3962
+  s_26f57162187426::t_9b3fdf1097b840 4356,4360
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "69934140a0c9ac894ad83462a9a47fad0b314399",
+  "prompts": {},
+  "sessions": {
+    "s_26f57162187426": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "a1ae768b-d139-4974-9f51-9fc7627b6bba",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
