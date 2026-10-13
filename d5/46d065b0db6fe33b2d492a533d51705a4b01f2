@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_2c059385704dbf::t_c3b4b731f7afc7 1866
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d546d065b0db6fe33b2d492a533d51705a4b01f2",
+  "prompts": {},
+  "sessions": {
+    "s_2c059385704dbf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a71eeb44-797c-4042-b121-77f5434539a3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
