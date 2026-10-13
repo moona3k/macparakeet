@@ -1,0 +1,25 @@
+Tests/MacParakeetTests/Views/MarkdownMeasureWidthTests.swift
+  s_28c185d96b4dc9::t_bf32a4caad49f3 18-25
+Tests/MacParakeetTests/Views/TranscriptDocumentLayoutTests.swift
+  s_28c185d96b4dc9::t_0292ca3b9471be 119-155
+  s_28c185d96b4dc9::t_7b3991bd235c16 117-118
+Sources/MacParakeet/Views/Components/MarkdownContentView.swift
+  s_28c185d96b4dc9::t_3734ba37e4d86f 75-79,81,84,91-98,105-112,116-120
+  s_28c185d96b4dc9::t_e2f412a1037518 121-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4c5b5e0e3f6eaf94c51ca5e59ed86a581271beeb",
+  "prompts": {},
+  "sessions": {
+    "s_28c185d96b4dc9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "562545f7-7156-44b5-88ef-17bf9940735f",
+        "model": "composer-2.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
