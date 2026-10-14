@@ -7,10 +7,12 @@ Preparation record for the 0.8.10 candidate. This is not a publication record. T
 
 ## Candidate
 
-- Code base: the final `origin/main` commit (at least `db8c77c46`, the #1251 merge). Record that exact SHA here before building, and use the CI run for that same SHA as the check for the base. Do not build the DMG from an older `release/0.8.10` commit.
+- Code base: `394e630b4`, the #1255 merge. The app and DMG are built from that commit. Do not build from an older `release/0.8.10` commit.
 - Merged after the preparation commit (`8f6a87e20`):
   - #1247 (`911efb080`) fixes a regression introduced during this cycle. The meeting-notes status caption from #1209 (`d5ad0384f`) used vertical `fixedSize`, so opening a meeting result with notes off or missing grew the window past the screen. 0.8.9 never had the caption, so the user notes do not list it.
   - #1251 (`db8c77c46`) fixes a regression from #1243: Settings → Permissions → Screen & System Audio **Allow** did nothing after a denial. It now opens System Settings. Also not user-facing relative to 0.8.9.
+  - #1254 (`852c45bd1`) lets AI cleanup finish a transcript longer than about seven minutes. Cloud requests wait 300 seconds, and a long transcript is cleaned in sections of at most 12,000 characters. This is in the user notes.
+  - #1255 (`394e630b4`) keeps the result page quiet when the meeting has no notes. A **Notes not included** control appears only when current notes were left out of the result. 0.8.9 never showed the old caption, so the user notes do not list it.
 - Not included: #1248 (AEC reference lookahead for #920) is held for a later release.
 - This preparation commit bumps the bundled CLI from 5.0.0 to 5.1.0 and adds these notes. Fill in the signed commit, build number, DMG size, and SHA-256 at publication. Do not copy the 0.8.9 artifact identity forward.
 
