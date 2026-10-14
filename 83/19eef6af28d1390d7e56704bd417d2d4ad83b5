@@ -1,0 +1,24 @@
+docs/releases/0.8.10/sparkle.html
+  s_28c185d96b4dc9::t_14d7c426589fe7 11
+docs/releases/0.8.10/README.md
+  s_28c185d96b4dc9::t_a3fe6ef910535e 10,14-15
+docs/releases/0.8.10/github.md
+  s_28c185d96b4dc9::t_850626bfca3f70 16
+  s_28c185d96b4dc9::t_2a086d0ace934a 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8319eef6af28d1390d7e56704bd417d2d4ad83b5",
+  "prompts": {},
+  "sessions": {
+    "s_28c185d96b4dc9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "562545f7-7156-44b5-88ef-17bf9940735f",
+        "model": "composer-2.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
