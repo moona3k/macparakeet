@@ -1,0 +1,39 @@
+Tests/MacParakeetTests/Views/TranscriptDocumentLayoutTests.swift
+  s_716860475377b7::t_fd0c0e8ec40d3f 224
+  s_716860475377b7::t_c3cabc046214b2 123,127-132,134-140,144-146,151-163
+  s_716860475377b7::t_873157a23b4dac 119-122,124-126,133,141-143,147-150,164-183,189-190,201-202,223
+Tests/MacParakeetTests/Models/PromptResultMeetingNotesStatusTests.swift
+  s_716860475377b7::t_ecf44341081bc3 59-87
+spec/04-ui-patterns.md
+  s_716860475377b7::t_e4f6eda9173a81 405-415
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_716860475377b7::t_43fb5302e92360 3681-3725
+  s_716860475377b7::t_38ce7a4f4de75e 3626,3629-3636,3638,3640-3641
+  s_716860475377b7::t_9cd0277a2e613c 3485-3492,3495
+  s_716860475377b7::t_73611c307dc371 563
+  s_716860475377b7::t_cfe4e3c6414a4a 3496-3498
+spec/01-data-model.md
+  s_716860475377b7::t_0c90c8fdfa8e53 789-791
+spec/adr/020-live-meeting-notepad-and-memo-summaries.md
+  s_716860475377b7::t_15575ee77079a9 25-34
+Sources/MacParakeetCore/Models/PromptResult.swift
+  s_716860475377b7::t_f949a940c10fe0 152
+  s_716860475377b7::t_72dd592375fdf1 139-151,153-173
+  s_716860475377b7::t_f8f3e228a25d6b 174
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a7460cb6c09fb0685d9c43890e5a66383a0f1eb3",
+  "prompts": {},
+  "sessions": {
+    "s_716860475377b7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "42d90a7f-c3b9-4af5-8bb3-2bd751f80f79",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
