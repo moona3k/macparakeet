@@ -1,0 +1,33 @@
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_1d6c5680ac2ab0::t_41f95c49a324fe 330-331
+  s_1d6c5680ac2ab0::t_328acd9b56953a 334-337,341
+  s_1d6c5680ac2ab0::t_3012ca941fb4e8 1767-1769,1775
+Tests/MacParakeetTests/TextProcessing/TranscriptFormatterTests.swift
+  s_1d6c5680ac2ab0::t_d2d323d4f70395 201,209-217,219
+  s_1d6c5680ac2ab0::t_6d4c69e64cb0d2 221
+Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
+  s_1d6c5680ac2ab0::t_f2372e70bf6798 9
+  s_1d6c5680ac2ab0::t_9d7b34aff16491 1091-1108
+  s_1d6c5680ac2ab0::t_8fc9b36758632c 1496,1500-1513,1515-1518,1522-1523,1527-1528,1530
+  s_1d6c5680ac2ab0::t_5a97a9ee8c81f2 35
+Sources/MacParakeetCore/Services/LLM/LLMHTTPTransport.swift
+  s_1d6c5680ac2ab0::t_b0503f78fef4f7 42-44
+spec/02-features.md
+  s_1d6c5680ac2ab0::t_ad6ffa8b354546 1041
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ea0609b4b3f876bd24a25117f9a386880b949a09",
+  "prompts": {},
+  "sessions": {
+    "s_1d6c5680ac2ab0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "9a337d96-32a3-43c9-baa5-82c76a2ed9b3",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
