@@ -1,0 +1,47 @@
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_1d6c5680ac2ab0::t_02957f5251b2f1 993-996,998-1001,1004-1008,1014-1020,1022,1024-1028,1034-1037,1040-1042,1047,1050-1052,1054
+  s_1d6c5680ac2ab0::t_819bb1588516d9 1056
+  s_1d6c5680ac2ab0::t_411e8e549a26fb 1012
+  s_1d6c5680ac2ab0::t_8472ace8f579a0 1740-1776
+  s_1d6c5680ac2ab0::t_febffcab4d59c6 1048-1049
+  s_1d6c5680ac2ab0::t_a678c763a22224 344-415
+  s_1d6c5680ac2ab0::t_9548f1d8d947e3 1009-1011,1013,1029-1033,1038-1039,1043-1046,1055,1057-1059
+  s_1d6c5680ac2ab0::t_232a0b6b5d4cea 1093,1098-1100,1110
+Tests/MacParakeetTests/TextProcessing/TranscriptFormatterTests.swift
+  s_1d6c5680ac2ab0::t_7a43ce6bd3e263 65,67,69,77-80
+  s_1d6c5680ac2ab0::t_2dbbe52d138ef6 87
+Sources/CLI/CHANGELOG.md
+  s_1d6c5680ac2ab0::t_73508c42bc6ae0 105-106
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_1d6c5680ac2ab0::t_687bb9cc2fd5ee 1293-1294,1301-1302
+  s_1d6c5680ac2ab0::t_79575694fe7022 1295-1298
+  s_1d6c5680ac2ab0::t_9f7710509e18ce 1268,1272,1274,1277
+Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
+  s_1d6c5680ac2ab0::t_92d61e70608d0d 1092
+  s_1d6c5680ac2ab0::t_ec9a79f7fd25b1 1093,1095-1129
+  s_1d6c5680ac2ab0::t_65c0249937481c 1080
+  s_1d6c5680ac2ab0::t_69637e5bda32fd 1094
+spec/11-llm-integration.md
+  s_1d6c5680ac2ab0::t_024b4fb7b2137c 753-755
+spec/02-features.md
+  s_1d6c5680ac2ab0::t_8583d8cb1260ea 1041
+  s_1d6c5680ac2ab0::t_25d0b11b75bfd8 1059
+spec/adr/032-llm-task-group-routing.md
+  s_1d6c5680ac2ab0::t_e602ef2a77d653 235
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a42b1b8dbef84226440d7471697a28580701e1f2",
+  "prompts": {},
+  "sessions": {
+    "s_1d6c5680ac2ab0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "9a337d96-32a3-43c9-baa5-82c76a2ed9b3",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
