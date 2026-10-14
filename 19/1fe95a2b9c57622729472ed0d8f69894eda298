@@ -1,0 +1,20 @@
+scripts/dist/homebrew-tap-scaffold/macparakeet-cli.rb
+  s_047bc9f0a51903::t_3b77354aa9e71b 43
+  s_047bc9f0a51903::t_91feee4eecbc25 19-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "191fe95a2b9c57622729472ed0d8f69894eda298",
+  "prompts": {},
+  "sessions": {
+    "s_047bc9f0a51903": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "dce5f51b-2fc0-4fe0-8e3e-20750462ca55",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
