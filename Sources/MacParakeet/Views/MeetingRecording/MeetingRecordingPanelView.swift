@@ -357,6 +357,15 @@ struct MeetingRecordingPanelView: View {
 
             liveTranslationMenu
 
+            FooterButton(
+                label: "Captions",
+                icon: viewModel.captionsVisible ? "captions.bubble.fill" : "captions.bubble",
+                activeColor: viewModel.captionsVisible ? DesignSystem.Colors.accent : nil
+            ) {
+                viewModel.onToggleCaptions?()
+            }
+            .help("Show the live transcript and translation in a floating window")
+
             if let error = viewModel.liveTranslation.errorMessage {
                 Image(systemName: "exclamationmark.triangle")
                     .font(.system(size: 11))

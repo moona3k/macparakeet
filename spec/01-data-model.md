@@ -1928,6 +1928,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `dictations.wordCount` | v0.5 | Cached word count for voice stats |
 | `chat_conversations` | v0.5 | Multi-conversation chat per transcription (FK → transcriptions) |
 | `ask_conversations` | v0.49-ask-conversations | Independent Ask conversations; bounded Codable payload, revision and run lease; no source foreign key |
+| `dictations.translation`, `translationLanguage`, `translationOutput` | v0.52-dictation-translation | Dictation translation (F37): translated text, target language code, and what was typed (`translation` / `original` / `both`). Transcript columns stay in the spoken language |
 | `usage_events` | v0.51-usage-events | Local usage ledger: one row per completed AI request or online-speech upload (provider, model, tokens, audio ms); metadata only |
 | `transcript_translations` | v0.50-transcript-translations | Saved transcript translation per transcript and language (FK → transcriptions, cascade) |
 | `transcriptions.thumbnailURL` | v0.5 | YouTube video thumbnail URL |

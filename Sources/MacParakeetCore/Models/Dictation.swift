@@ -39,6 +39,14 @@ public struct Dictation: Codable, Identifiable, Sendable {
     public var aiFormatterProfileID: UUID?
     public var aiFormatterProfileName: String?
     public var aiFormatterProfileMatchKind: AIFormatterProfileMatchKind?
+    /// Translation of this dictation, when dictation translation was on.
+    /// `rawTranscript`/`cleanTranscript` always stay in the spoken language.
+    public var translation: String?
+    /// Target language code of `translation` (for example `"fa"`).
+    public var translationLanguage: String?
+    /// What was typed into the target app: `"translation"`, `"original"`,
+    /// or `"both"` (see `DictationTranslationSettings.Output`).
+    public var translationOutput: String?
 
     public enum ProcessingMode: String, Codable, Sendable {
         case raw
@@ -99,7 +107,10 @@ public struct Dictation: Codable, Identifiable, Sendable {
         displayRawTranscript: Bool = false,
         aiFormatterProfileID: UUID? = nil,
         aiFormatterProfileName: String? = nil,
-        aiFormatterProfileMatchKind: AIFormatterProfileMatchKind? = nil
+        aiFormatterProfileMatchKind: AIFormatterProfileMatchKind? = nil,
+        translation: String? = nil,
+        translationLanguage: String? = nil,
+        translationOutput: String? = nil
     ) {
         self.id = id
         self.createdAt = createdAt
@@ -121,6 +132,9 @@ public struct Dictation: Codable, Identifiable, Sendable {
         self.aiFormatterProfileID = aiFormatterProfileID
         self.aiFormatterProfileName = aiFormatterProfileName
         self.aiFormatterProfileMatchKind = aiFormatterProfileMatchKind
+        self.translation = translation
+        self.translationLanguage = translationLanguage
+        self.translationOutput = translationOutput
     }
 
     // MARK: - Codable
@@ -131,6 +145,7 @@ public struct Dictation: Codable, Identifiable, Sendable {
         case updatedAt, hidden, wordCount, engine, engineVariant, language
         case displayRawTranscript
         case aiFormatterProfileID, aiFormatterProfileName, aiFormatterProfileMatchKind
+        case translation, translationLanguage, translationOutput
     }
 
     public init(from decoder: Decoder) throws {
@@ -161,6 +176,9 @@ public struct Dictation: Codable, Identifiable, Sendable {
         } else {
             aiFormatterProfileMatchKind = nil
         }
+        translation = try container.decodeIfPresent(String.self, forKey: .translation)
+        translationLanguage = try container.decodeIfPresent(String.self, forKey: .translationLanguage)
+        translationOutput = try container.decodeIfPresent(String.self, forKey: .translationOutput)
     }
 }
 
@@ -219,5 +237,62 @@ extension Dictation: FetchableRecord, PersistableRecord {
         case hidden, wordCount, engine, engineVariant, language
         case displayRawTranscript
         case aiFormatterProfileID, aiFormatterProfileName, aiFormatterProfileMatchKind
+        case translation, translationLanguage, translationOutput
+    }
+}
+
+/// Dictation translation preference: which language to translate into and
+/// what gets typed into the target app.
+public struct DictationTranslationSettings: Sendable, Equatable {
+    public enum Output: String, CaseIterable, Identifiable, Sendable {
+        case translation
+        case original
+        case both
+
+        public var id: String { rawValue }
+
+        public var title: String {
+            switch self {
+            case .translation: return "The translation"
+            case .original: return "The original (translation shown only)"
+            case .both: return "Both (original, then translation)"
+            }
+        }
+    }
+
+    public var language: TranslationLanguage
+    public var output: Output
+
+    public init(language: TranslationLanguage, output: Output) {
+        self.language = language
+        self.output = output
+    }
+
+    /// `nil` when dictation translation is off.
+    public static func current(defaults: UserDefaults = .standard) -> DictationTranslationSettings? {
+        guard
+            let language = TranslationLanguage.resolve(
+                defaults.string(forKey: UserDefaultsAppRuntimePreferences.dictationTranslationLanguageKey))
+        else { return nil }
+        let output =
+            defaults.string(forKey: UserDefaultsAppRuntimePreferences.dictationTranslationOutputKey)
+            .flatMap(Output.init(rawValue:)) ?? .translation
+        return DictationTranslationSettings(language: language, output: output)
+    }
+}
+
+public extension Dictation {
+    /// Text typed into the target app for this dictation. Without a
+    /// translation this is the usual transcript.
+    var insertionText: String {
+        let base = cleanTranscript ?? rawTranscript
+        guard let translation, !translation.isEmpty,
+            let output = translationOutput.flatMap(DictationTranslationSettings.Output.init(rawValue:))
+        else { return base }
+        switch output {
+        case .translation: return translation
+        case .original: return base
+        case .both: return base + "\n" + translation
+        }
     }
 }

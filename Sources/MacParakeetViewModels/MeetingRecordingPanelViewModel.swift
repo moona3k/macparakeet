@@ -75,6 +75,10 @@ public final class MeetingRecordingPanelViewModel {
     public var onPauseToggle: (() -> Void)?
     public var onMicrophoneMuteToggle: (() -> Void)?
     public var onClose: (() -> Void)?
+    /// Whether the floating caption window is showing. Owned by the flow
+    /// coordinator, which opens and closes the window.
+    public var captionsVisible: Bool = false
+    public var onToggleCaptions: (() -> Void)?
     private var onMeetingTypeChange: ((UUID?) -> Void)?
 
     private var copiedResetTask: Task<Void, Never>?

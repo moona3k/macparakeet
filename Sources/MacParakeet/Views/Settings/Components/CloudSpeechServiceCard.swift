@@ -8,6 +8,9 @@ struct CloudSpeechServiceCard: View {
     @State private var model = ""
     @State private var apiKey = ""
     @State private var realtimeModel = ""
+    @State private var catalog = CloudSTTModelCatalog.fallback
+    @State private var isLoadingModels = false
+    @State private var modelListNote: String?
     @State private var savedMessage: String?
     @State private var errorMessage: String?
     @State private var hasSavedKey = false
@@ -43,14 +46,24 @@ struct CloudSpeechServiceCard: View {
                         .autocorrectionDisabled()
                 }
                 field("Model") {
-                    TextField(CloudSTTConfig.defaultModel, text: $model)
-                        .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
+                    modelPicker(selection: $model, choices: catalog.fileModels, allowsNone: false)
                 }
                 field("Realtime model (optional)") {
-                    TextField("For example gpt-realtime-whisper", text: $realtimeModel)
-                        .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
+                    modelPicker(selection: $realtimeModel, choices: catalog.realtimeModels, allowsNone: true)
+                }
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    Button(isLoadingModels ? "Loading…" : "Load Models from Server") { loadModels() }
+                        .parakeetAction(.secondary)
+                        .controlSize(.small)
+                        .disabled(isLoadingModels)
+                    Text(
+                        modelListNote
+                            ?? (catalog.isFromServer
+                                ? "Showing this server's speech models." : "Showing common models.")
+                    )
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
                 Text(
                     "With a realtime model, dictation shows text while you speak by streaming the microphone to the service. The final text still comes from the model above, so both are billed. Leave empty to transcribe only after you stop."
@@ -111,6 +124,66 @@ struct CloudSpeechServiceCard: View {
         }
     }
 
+    /// A dropdown of known models beside a text field, so any other model name
+    /// can still be typed by hand.
+    private func modelPicker(selection: Binding<String>, choices: [String], allowsNone: Bool) -> some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            TextField(allowsNone ? "None" : CloudSTTConfig.defaultModel, text: selection)
+                .textFieldStyle(.roundedBorder)
+                .autocorrectionDisabled()
+            Menu {
+                if allowsNone {
+                    Button("None") { selection.wrappedValue = "" }
+                    Divider()
+                }
+                ForEach(choices, id: \.self) { choice in
+                    Button {
+                        selection.wrappedValue = choice
+                    } label: {
+                        if selection.wrappedValue == choice {
+                            Label(choice, systemImage: "checkmark")
+                        } else {
+                            Text(choice)
+                        }
+                    }
+                }
+                if choices.isEmpty {
+                    Text("No matching models on this server")
+                }
+            } label: {
+                Text("Choose")
+            }
+            .menuStyle(.borderedButton)
+            .fixedSize()
+        }
+    }
+
+    /// Fetches the server's model list using the key in the field, or the
+    /// saved key when the field is empty. Keeps the current list on failure.
+    private func loadModels() {
+        isLoadingModels = true
+        modelListNote = nil
+        Task {
+            do {
+                var config = draft
+                if apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    config.apiKey = try store.load().apiKey
+                }
+                let loaded = try await CloudSTTModelCatalog.load(config: config)
+                if loaded.fileModels.isEmpty && loaded.realtimeModels.isEmpty {
+                    modelListNote =
+                        "The server listed no speech models. Showing common models; you can also type a name."
+                } else {
+                    catalog = loaded
+                }
+            } catch {
+                modelListNote =
+                    "Could not load the list: \(error.localizedDescription) You can still type a model name."
+            }
+            isLoadingModels = false
+        }
+    }
+
     private func load() {
         let metadata = store.loadMetadata()
         baseURL = metadata.baseURL
@@ -120,6 +193,7 @@ struct CloudSpeechServiceCard: View {
         // empty on save keeps whatever is already stored.
         apiKey = ""
         hasSavedKey = store.hasAPIKey
+        if hasSavedKey, store.isConfigured { loadModels() }
     }
 
     /// Saves, then sends one second of silence so the service itself reports

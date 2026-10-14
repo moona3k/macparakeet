@@ -185,7 +185,7 @@ final class RealtimeTranscribeEngineTests: XCTestCase {
         XCTAssertNil(RealtimeTranscribeEngine.parseEvent("not json"))
         XCTAssertEqual(
             RealtimeTranscribeEngine.parseEvent(#"{"type":"error","error":{"code":"invalid_model","message":"x"}}"#),
-            .error(code: "invalid_model")
+            .error(code: "invalid_model", message: "x")
         )
     }
 

@@ -113,6 +113,7 @@ final class MeetingRecordingFlowCoordinator {
     /// passed in via init. Reset to `.idle` (not nilled) on flow teardown.
     private let pillViewModel: MeetingRecordingPillViewModel
     private var panelController: MeetingRecordingPanelController?
+    private var captionController: MeetingCaptionWindowController?
     private var panelViewModel: MeetingRecordingPanelViewModel?
     private var actionTask: Task<Void, Never>?
     private var pauseToggleTask: Task<Void, Never>?
@@ -700,6 +701,21 @@ final class MeetingRecordingFlowCoordinator {
                 }
                 panelController = controller
             }
+            if captionController == nil {
+                let controller = MeetingCaptionWindowController(viewModel: panelVM)
+                controller.onCloseRequested = { [weak self] in
+                    self?.setCaptionsVisible(false)
+                }
+                captionController = controller
+            }
+            panelVM.onToggleCaptions = { [weak self] in
+                guard let self else { return }
+                self.setCaptionsVisible(!(self.captionController?.isVisible ?? false))
+            }
+            // Reopen captions for this meeting if they were open last time.
+            if UserDefaults.standard.bool(forKey: UserDefaultsAppRuntimePreferences.meetingCaptionWindowVisibleKey) {
+                setCaptionsVisible(true)
+            }
             if pendingLivePanelPresentation {
                 pendingLivePanelPresentation = false
                 showMeetingPanel()
@@ -1274,7 +1290,23 @@ final class MeetingRecordingFlowCoordinator {
     /// Close the expanded meeting panel and release its view model. Safe to call
     /// repeatedly (the saved-completion path tears the panel down before the pill,
     /// then the pill teardown calls this again as a no-op).
+    /// Shows or hides the floating caption window and remembers the choice
+    /// for the next meeting.
+    private func setCaptionsVisible(_ visible: Bool) {
+        if visible {
+            captionController?.show()
+        } else {
+            captionController?.hide()
+        }
+        panelViewModel?.captionsVisible = visible
+        UserDefaults.standard.set(
+            visible, forKey: UserDefaultsAppRuntimePreferences.meetingCaptionWindowVisibleKey)
+    }
+
     private func teardownMeetingPanel() {
+        // Closing with the meeting must not overwrite the remembered choice.
+        captionController?.close()
+        captionController = nil
         panelController?.close()
         panelController = nil
         panelViewModel = nil

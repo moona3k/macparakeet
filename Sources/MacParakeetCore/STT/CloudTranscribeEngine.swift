@@ -199,16 +199,19 @@ public actor CloudTranscribeEngine: STTTranscribing {
     private let configStore: CloudSTTConfigStore
     private let transport: CloudSTTTransport
     private let loadSamples: @Sendable (URL) throws -> [Float]
+    private let retryDelay: Duration
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "CloudTranscribeEngine")
 
     public init(
         configStore: CloudSTTConfigStore = CloudSTTConfigStore(),
         transport: CloudSTTTransport = URLSessionCloudSTTTransport(),
-        loadSamples: @escaping @Sendable (URL) throws -> [Float] = { try AudioConverter().resampleAudioFile($0) }
+        loadSamples: @escaping @Sendable (URL) throws -> [Float] = { try AudioConverter().resampleAudioFile($0) },
+        retryDelay: Duration = .seconds(1)
     ) {
         self.configStore = configStore
         self.transport = transport
         self.loadSamples = loadSamples
+        self.retryDelay = retryDelay
     }
 
     /// Ready means configured; there is no model to load.
@@ -345,19 +348,7 @@ public actor CloudTranscribeEngine: STTTranscribing {
         }
         let body = Self.multipartBody(boundary: boundary, fields: fields, wav: wav)
 
-        let data: Data
-        let response: HTTPURLResponse
-        do {
-            (data, response) = try await transport.send(request, body: body)
-        } catch let error as CloudSTTError {
-            throw error
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch let error as URLError where error.code == .cancelled {
-            throw CancellationError()
-        } catch {
-            throw CloudSTTError.network(error.localizedDescription)
-        }
+        let (data, response) = try await sendWithRetry(request, body: body)
 
         switch response.statusCode {
         case 200..<300:
@@ -369,6 +360,45 @@ public actor CloudTranscribeEngine: STTTranscribing {
             throw CloudSTTError.server(status: response.statusCode, message: Self.errorMessage(from: data))
         }
     }
+
+    /// Sends the request, retrying connection-level failures. A brief drop
+    /// must not fail a whole meeting; server answers (including errors) are
+    /// returned as-is and never retried here.
+    private func sendWithRetry(_ request: URLRequest, body: Data) async throws -> (Data, HTTPURLResponse) {
+        var attempt = 0
+        while true {
+            attempt += 1
+            do {
+                return try await transport.send(request, body: body)
+            } catch let error as CloudSTTError {
+                throw error
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch let error as URLError where error.code == .cancelled {
+                throw CancellationError()
+            } catch {
+                let code = (error as? URLError)?.code
+                // Only the error code is logged; it carries no user content.
+                logger.error(
+                    "cloud_stt_network_error attempt=\(attempt, privacy: .public) code=\(code?.rawValue ?? 0, privacy: .public)"
+                )
+                let canRetry = code.map(Self.transientNetworkCodes.contains) ?? false
+                guard canRetry, attempt < Self.maxNetworkAttempts else {
+                    let detail =
+                        code.map { "\(error.localizedDescription) (code \($0.rawValue))" }
+                        ?? error.localizedDescription
+                    throw CloudSTTError.network(detail)
+                }
+                try await Task.sleep(for: retryDelay * attempt)
+            }
+        }
+    }
+
+    static let maxNetworkAttempts = 3
+    static let transientNetworkCodes: Set<URLError.Code> = [
+        .networkConnectionLost, .timedOut, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed,
+        .secureConnectionFailed, .notConnectedToInternet,
+    ]
 
     // MARK: - Pure helpers
 

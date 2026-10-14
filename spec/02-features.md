@@ -2333,6 +2333,8 @@ Translate a conversation into Persian, English, or German. Translation is the AD
 - The Transcript tab of the live meeting panel has a Translate menu (Off / Persian / English / German). When on, each transcript line shows its translation beneath the original shortly after it is spoken.
 - Lines are translated once they settle (the newest line waits until its text stops changing). After three consecutive provider failures translation pauses until the user retries.
 - The same menu sets what is shown — the original with its translation underneath, or the translation only (a line shows its original text until its translation arrives) — and the speed: Balanced waits 1.5 s for the newest line to settle; Faster waits 0.4 s and sends more AI requests because a growing line is translated again. Both choices are remembered.
+- Floating captions: the Captions button in the Transcript tab opens an always-on-top window that does not take keyboard focus, showing the last lines in two columns (original, translation), with adjustable text size and its own language menu. Persian is laid out right-to-left. Whether it was open is remembered for the next meeting. It always shows both columns; the display-mode setting applies only to the meeting panel.
+- The Online Speech Service card offers model dropdowns filled from the server's `/models` list (speech models only, sorted by name into file and realtime), with a built-in fallback list and free-text entry.
 - Live translations are in-memory only and are not saved; translate the saved meeting transcript for a durable copy. The chosen live language is remembered.
 
 ### F34: Online Speech Engine (fork, opt-in)
@@ -2344,6 +2346,24 @@ An optional "Online" speech engine transcribes through any OpenAI-compatible `au
 - Optional realtime model (for example `gpt-realtime-whisper`): when one is saved, dictation streams the microphone over a Realtime transcription session and shows text while the user speaks. The final dictation text still comes from the recorded audio through the file model, so both are billed. Meeting live preview is unchanged (chunk uploads through the file model).
 - Long audio is split into uploads of at most ten minutes at quiet points.
 - Transcripts record `engine = cloud` and the model name as the variant, shown as "Online · <model>".
+
+### F37: Dictation Translation (fork)
+Settings → AI → Dictation translation: choose a language (Off by default) and what is typed into the target app.
+
+- Typed text is selectable: the translation, the original (translation shown only), or both (original, then translation on the next line).
+- While dictating, the floating overlay shows a live translation under the live transcript. It needs an engine that produces live text, translates only the recent tail of the transcript, and is best-effort.
+- When dictation ends, the finished text is translated once and typed according to the setting. This adds one AI request before typing. If translation fails, the original is typed and nothing is lost.
+- Transcript columns always stay in the spoken language. The translation, its language, and the typed-output choice are stored on the dictation (`translation`, `translationLanguage`, `translationOutput`, migration v0.52) and history shows the translation under the original.
+- Uses the `translate` task route (default AI). A cloud provider receives the dictated text.
+
+### F36: Live Captions (fork)
+Menu bar → Live Captions… opens a floating, always-on-top window that shows speech as text in real time with its translation beside it, without recording a meeting.
+
+- Requires the online speech service with a realtime model; it streams audio to that service (ADR-026 fork amendment) and does nothing until the user presses Start.
+- Source: computer audio (default), microphone, or both. Each source gets its own realtime session so the two are not mixed; lines are labeled by source and ordered by when each phrase was first heard.
+- Two columns (original, translation), adjustable text size, translation language and speed, Copy and Clear. Phrases still being spoken are shown dimmed.
+- Nothing is saved: no audio file, transcript row, or meeting. Closing the window stops the session. Uploaded audio is counted in Usage & Cost.
+- Realtime sessions write connection diagnostics (event types, error codes and messages, close codes; never audio or transcript text) to the audio diagnostics log.
 
 ### F35: Usage & Cost (fork)
 Settings → AI → Usage & Cost totals, for the last 7 days, 30 days, or all time:

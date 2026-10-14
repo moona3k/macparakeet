@@ -7,6 +7,26 @@ public protocol RealtimeSTTSocket: Sendable {
     /// Next text message from the service; throws when the connection ends.
     func receive() async throws -> String
     func close()
+    /// Why the connection ended (close code and reason), when known.
+    var closeDescription: String? { get }
+}
+
+extension RealtimeSTTSocket {
+    public var closeDescription: String? { nil }
+}
+
+/// One phrase of a realtime session, as shown in a live caption view.
+public struct RealtimeCaptionLine: Sendable, Equatable, Identifiable {
+    public let id: String
+    public let text: String
+    /// False while the phrase is still being spoken and its text can change.
+    public let isFinal: Bool
+
+    public init(id: String, text: String, isFinal: Bool) {
+        self.id = id
+        self.text = text
+        self.isFinal = isFinal
+    }
 }
 
 public typealias RealtimeSTTConnect = @Sendable (_ url: URL, _ apiKey: String?) async throws -> RealtimeSTTSocket
@@ -38,6 +58,12 @@ public final class URLSessionRealtimeSTTSocket: RealtimeSTTSocket, @unchecked Se
 
     public func close() {
         task.cancel(with: .normalClosure, reason: nil)
+    }
+
+    public var closeDescription: String? {
+        let reason = task.closeReason.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        let status = (task.response as? HTTPURLResponse).map { " http=\($0.statusCode)" } ?? ""
+        return "close_code=\(task.closeCode.rawValue)\(status) reason=\(reason.prefix(200))"
     }
 }
 
@@ -73,6 +99,11 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
     /// Phrase texts in the order the service first mentioned them.
     private var itemOrder: [String] = []
     private var itemTexts: [String: String] = [:]
+    private var finalItems: Set<String> = []
+    private var onLines: (@Sendable ([RealtimeCaptionLine]) -> Void)?
+    /// Server event types already written to the diagnostics log this session.
+    private var loggedEventTypes: Set<String> = []
+    private var hasLoggedFirstText = false
     private var pendingFinals = 0
 
     private var resampleCarry: Float?
@@ -113,12 +144,29 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
         self.socket = socket
         try await socket.send(Self.sessionUpdate(model: model))
 
+        AudioCaptureDiagnostics.append("realtime_stt_session_started host=\(provider) model=\(model)")
         receiveTask = Task { [weak self] in
             while !Task.isCancelled {
-                guard let message = try? await socket.receive() else { return }
-                await self?.handle(message)
+                do {
+                    let message = try await socket.receive()
+                    await self?.handle(message)
+                } catch {
+                    if !Task.isCancelled {
+                        // No user content: close code, HTTP status, and error type only.
+                        let code = (error as? URLError).map { " url_error=\($0.code.rawValue)" } ?? ""
+                        AudioCaptureDiagnostics.append(
+                            "realtime_stt_socket_closed \(socket.closeDescription ?? "")\(code) error_type=\(type(of: error))"
+                        )
+                    }
+                    return
+                }
             }
         }
+    }
+
+    /// Per-phrase updates for caption views. Dictation uses `onPartial`.
+    func setLineObserver(_ observer: (@Sendable ([RealtimeCaptionLine]) -> Void)?) {
+        onLines = observer
     }
 
     func processLiveDictationSamples(_ samples: [Float]) async throws {
@@ -135,7 +183,28 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
         }
 
         let resampled = Self.resample16kTo24k(samples, carry: &resampleCarry)
-        try await socket.send(Self.appendEvent(samples: resampled))
+        try await send(resampled, to: socket)
+    }
+
+    /// Feeds audio that is already 24 kHz mono (live captions convert capture
+    /// buffers straight to the session rate).
+    func processSamples24k(_ samples: [Float]) async throws {
+        guard let socket, !samples.isEmpty else { return }
+
+        let chunkMs = samples.count * 1000 / Self.outputSampleRate
+        totalAudioMs += chunkMs
+        uncommittedMs += chunkMs
+        if Self.rms(samples) >= Self.speechRMSThreshold {
+            hasSpeechSinceCommit = true
+            silenceMs = 0
+        } else {
+            silenceMs += chunkMs
+        }
+        try await send(samples, to: socket)
+    }
+
+    private func send(_ samples24k: [Float], to socket: RealtimeSTTSocket) async throws {
+        try await socket.send(Self.appendEvent(samples: samples24k))
 
         // The service does no turn detection for transcription sessions, so
         // the client marks the end of each phrase to receive its final text.
@@ -185,6 +254,10 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
         }
         socket = nil
         onPartial = nil
+        onLines = nil
+        finalItems = []
+        loggedEventTypes = []
+        hasLoggedFirstText = false
         itemOrder = []
         itemTexts = [:]
         pendingFinals = 0
@@ -196,21 +269,51 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
     }
 
     private func handle(_ message: String) {
+        logEventTypeOnce(message)
         guard let event = Self.parseEvent(message) else { return }
         switch event {
         case .delta(let itemID, let text):
             noteItem(itemID)
             itemTexts[itemID, default: ""] += text
-            onPartial?(currentText())
+            publish()
         case .completed(let itemID, let transcript):
             noteItem(itemID)
             itemTexts[itemID] = transcript
+            finalItems.insert(itemID)
             pendingFinals = max(0, pendingFinals - 1)
-            onPartial?(currentText())
-        case .error(let code):
-            // Only the service's error code is logged; messages can echo input.
+            publish()
+        case .error(let code, let message):
+            // The service's error text describes the request (for example an
+            // unsupported parameter); it does not echo audio or transcripts.
             logger.error("realtime_stt_error code=\(code, privacy: .public)")
+            AudioCaptureDiagnostics.append("realtime_stt_error code=\(code) message=\(message.prefix(240))")
         }
+    }
+
+    private func publish() {
+        if !hasLoggedFirstText {
+            hasLoggedFirstText = true
+            AudioCaptureDiagnostics.append("realtime_stt_first_text")
+        }
+        onPartial?(currentText())
+        if let onLines {
+            onLines(
+                itemOrder.compactMap { id in
+                    guard let text = itemTexts[id]?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty
+                    else { return nil }
+                    return RealtimeCaptionLine(id: id, text: text, isFinal: finalItems.contains(id))
+                })
+        }
+    }
+
+    /// Records each server event type once per session (type names only), so
+    /// a session that connects but produces no text can be diagnosed.
+    private func logEventTypeOnce(_ message: String) {
+        guard let object = try? JSONSerialization.jsonObject(with: Data(message.utf8)) as? [String: Any],
+            let type = object["type"] as? String, !loggedEventTypes.contains(type), loggedEventTypes.count < 24
+        else { return }
+        loggedEventTypes.insert(type)
+        AudioCaptureDiagnostics.append("realtime_stt_event type=\(type.prefix(80))")
     }
 
     private func noteItem(_ itemID: String) {
@@ -231,7 +334,7 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
     enum ServerEvent: Equatable {
         case delta(itemID: String, text: String)
         case completed(itemID: String, transcript: String)
-        case error(code: String)
+        case error(code: String, message: String)
     }
 
     static func parseEvent(_ message: String) -> ServerEvent? {
@@ -248,7 +351,9 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
             return .completed(itemID: itemID, transcript: transcript)
         case "error":
             let error = object["error"] as? [String: Any]
-            return .error(code: (error?["code"] as? String) ?? (error?["type"] as? String) ?? "unknown")
+            return .error(
+                code: (error?["code"] as? String) ?? (error?["type"] as? String) ?? "unknown",
+                message: (error?["message"] as? String) ?? "")
         default:
             return nil
         }

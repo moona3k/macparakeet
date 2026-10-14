@@ -16,6 +16,10 @@ struct LLMSettingsView: View {
     private var autoTranslateSubtitles = false
     @AppStorage(UserDefaultsAppRuntimePreferences.transcriptTranslationLanguageKey)
     private var subtitleTranslationLanguageCode = TranslationLanguage.persian.rawValue
+    @AppStorage(UserDefaultsAppRuntimePreferences.dictationTranslationLanguageKey)
+    private var dictationTranslationLanguageCode = ""
+    @AppStorage(UserDefaultsAppRuntimePreferences.dictationTranslationOutputKey)
+    private var dictationTranslationOutput = DictationTranslationSettings.Output.translation.rawValue
     @Bindable var viewModel: LLMSettingsViewModel
 
     @State private var showAdvanced = false
@@ -215,6 +219,10 @@ struct LLMSettingsView: View {
             Divider()
 
             subtitleTranslationSection
+
+            Divider()
+
+            dictationTranslationSection
 
             Divider()
 
@@ -883,6 +891,41 @@ struct LLMSettingsView: View {
             .font(DesignSystem.Typography.caption)
         }
         .id("ai.meetingLanguage")
+    }
+
+    private var dictationTranslationSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Dictation translation")
+                    .font(DesignSystem.Typography.body.weight(.semibold))
+                Text(
+                    """
+                    Translate what you dictate. The floating window shows the translation while you speak \
+                    (with engines that give live text), and dictation history keeps the original with its \
+                    translation. It uses your default AI, adds a short wait before the text is typed, and \
+                    a cloud provider receives the dictated text.
+                    """
+                )
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            Picker("Translate dictation into", selection: $dictationTranslationLanguageCode) {
+                Text("Off").tag("")
+                ForEach(TranslationLanguage.allCases) { language in
+                    Text(language.displayName + " · " + language.nativeName).tag(language.rawValue)
+                }
+            }
+            .frame(maxWidth: 360)
+            Picker("Type into the app", selection: $dictationTranslationOutput) {
+                ForEach(DictationTranslationSettings.Output.allCases) { output in
+                    Text(output.title).tag(output.rawValue)
+                }
+            }
+            .frame(maxWidth: 360)
+            .disabled(dictationTranslationLanguageCode.isEmpty)
+        }
+        .id("ai.dictationTranslation")
     }
 
     private var subtitleTranslationSection: some View {

@@ -30,6 +30,32 @@ private final class RecordingCloudTransport: CloudSTTTransport, @unchecked Senda
     }
 }
 
+private final class FlakyCloudTransport: CloudSTTTransport, @unchecked Sendable {
+    private let lock = NSLock()
+    private var remainingFailures: Int
+    private var _attempts = 0
+    private let code: URLError.Code
+
+    init(failures: Int, code: URLError.Code) {
+        remainingFailures = failures
+        self.code = code
+    }
+
+    var attempts: Int { lock.withLock { _attempts } }
+
+    func send(_ request: URLRequest, body: Data) async throws -> (Data, HTTPURLResponse) {
+        let shouldFail = lock.withLock { () -> Bool in
+            _attempts += 1
+            guard remainingFailures > 0 else { return false }
+            remainingFailures -= 1
+            return true
+        }
+        if shouldFail { throw URLError(code) }
+        let http = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+        return (Data(#"{"text":"ok"}"#.utf8), http)
+    }
+}
+
 private final class MemoryKeyValueStore: KeyValueStore, @unchecked Sendable {
     private let lock = NSLock()
     private var values: [String: String] = [:]
@@ -208,6 +234,48 @@ final class CloudTranscribeEngineTests: XCTestCase {
         }
     }
 
+    func testTransientNetworkFailureIsRetriedAndThenSucceeds() async throws {
+        try store.save(CloudSTTConfig(baseURL: "https://example.com/v1", model: "whisper-1", apiKey: "k"))
+        let transport = FlakyCloudTransport(failures: 2, code: .networkConnectionLost)
+        let engine = CloudTranscribeEngine(
+            configStore: store, transport: transport,
+            loadSamples: { _ in [Float](repeating: 0.1, count: 16_000) }, retryDelay: .milliseconds(1))
+
+        let result = try await engine.transcribe(audioURL: audioURL, job: .meetingFinalize, language: nil)
+
+        XCTAssertEqual(result.text, "ok")
+        XCTAssertEqual(transport.attempts, 3)
+    }
+
+    func testPersistentNetworkFailureReportsTheErrorCode() async throws {
+        try store.save(CloudSTTConfig(baseURL: "https://example.com/v1", model: "whisper-1", apiKey: "k"))
+        let transport = FlakyCloudTransport(failures: 99, code: .timedOut)
+        let engine = CloudTranscribeEngine(
+            configStore: store, transport: transport,
+            loadSamples: { _ in [Float](repeating: 0.1, count: 16_000) }, retryDelay: .milliseconds(1))
+
+        do {
+            _ = try await engine.transcribe(audioURL: audioURL, job: .meetingFinalize, language: nil)
+            XCTFail("Expected network error")
+        } catch let CloudSTTError.network(detail) {
+            XCTAssertTrue(detail.contains("-1001"), "The URL error code helps diagnose it: \(detail)")
+        } catch {
+            XCTFail("Unexpected error \(error)")
+        }
+        XCTAssertEqual(transport.attempts, CloudTranscribeEngine.maxNetworkAttempts)
+    }
+
+    func testNonTransientNetworkFailureIsNotRetried() async throws {
+        try store.save(CloudSTTConfig(baseURL: "https://example.com/v1", model: "whisper-1", apiKey: "k"))
+        let transport = FlakyCloudTransport(failures: 99, code: .badServerResponse)
+        let engine = CloudTranscribeEngine(
+            configStore: store, transport: transport,
+            loadSamples: { _ in [Float](repeating: 0.1, count: 16_000) }, retryDelay: .milliseconds(1))
+
+        _ = try? await engine.transcribe(audioURL: audioURL, job: .meetingFinalize, language: nil)
+        XCTAssertEqual(transport.attempts, 1)
+    }
+
     func testUnconfiguredEngineDoesNotSendAudio() async throws {
         try store.save(CloudSTTConfig(baseURL: "", model: "whisper-1", apiKey: "k"))
         let transport = RecordingCloudTransport(responses: [(200, #"{"text":"x"}"#)])
@@ -236,7 +304,8 @@ final class CloudTranscribeEngineTests: XCTestCase {
 
     func testCapabilitiesDescribeABatchEngineWithWordTimings() {
         let capabilities = SpeechEngineCapabilityRegistry.capabilities(for: .cloud)
-        XCTAssertTrue(capabilities.supportsNativeLiveDictation, "Offered; declined at start unless a realtime model is saved")
+        XCTAssertTrue(
+            capabilities.supportsNativeLiveDictation, "Offered; declined at start unless a realtime model is saved")
         XCTAssertTrue(capabilities.supportsMeetingLivePreview)
         XCTAssertNil(capabilities.modelLifecycle.minimumMemoryBytes)
         XCTAssertFalse(capabilities.modelLifecycle.isUserDeletable)

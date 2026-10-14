@@ -2487,6 +2487,17 @@ public final class DatabaseManager: Sendable {
             try db.create(index: "idx_usage_events_created_at", on: "usage_events", columns: ["createdAt"])
         }
 
+        // Dictation translation (fork): the translated text, its language,
+        // and what was typed. Transcript columns stay in the spoken language.
+        migrator.registerMigration("v0.52-dictation-translation") { db in
+            let columns = try db.columns(in: "dictations").map(\.name)
+            try db.alter(table: "dictations") { t in
+                if !columns.contains("translation") { t.add(column: "translation", .text) }
+                if !columns.contains("translationLanguage") { t.add(column: "translationLanguage", .text) }
+                if !columns.contains("translationOutput") { t.add(column: "translationOutput", .text) }
+            }
+        }
+
         return migrator
     }
 

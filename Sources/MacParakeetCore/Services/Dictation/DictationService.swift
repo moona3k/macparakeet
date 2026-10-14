@@ -1834,6 +1834,27 @@ public actor DictationService: DictationServiceProtocol {
         return .cancelled
     }
 
+    /// Translates the finished dictation when dictation translation is on.
+    /// A failed translation never fails the dictation: the original text is
+    /// delivered as usual and the failure is noted in diagnostics.
+    private func translateDictationIfEnabled(
+        _ text: String
+    ) async -> (text: String, settings: DictationTranslationSettings)? {
+        guard let settings = DictationTranslationSettings.current(), let llmService,
+            !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return nil }
+        do {
+            let translated = try await TranscriptTranslationService(llmService: llmService)
+                .translateMarkdown(text, to: settings.language)
+            AudioCaptureDiagnostics.append("dictation_translation_completed language=\(settings.language.rawValue)")
+            return (translated, settings)
+        } catch {
+            // LLM errors can echo dictated text, so only the type is logged.
+            AudioCaptureDiagnostics.append("dictation_translation_failed error_type=\(type(of: error))")
+            return nil
+        }
+    }
+
     private func processCapturedAudio(
         audioURL: URL,
         capturedDurationMs: Int?,
@@ -1962,6 +1983,8 @@ public actor DictationService: DictationServiceProtocol {
         }
         let finalText = formattedTranscript ?? baseText
         let wc = finalText.split(whereSeparator: \.isWhitespace).count
+        let translationResult =
+            completionStatus == .completed ? await translateDictationIfEnabled(finalText) : nil
 
         var dictation = Dictation(
             id: dictationID,
@@ -1974,7 +1997,10 @@ public actor DictationService: DictationServiceProtocol {
             wordCount: wc,
             engine: result.engine.rawValue,
             engineVariant: result.engineVariant,
-            language: SpeechEnginePreference.normalizeKnownLanguage(result.language)
+            language: SpeechEnginePreference.normalizeKnownLanguage(result.language),
+            translation: translationResult?.text,
+            translationLanguage: translationResult?.settings.language.rawValue,
+            translationOutput: translationResult?.settings.output.rawValue
         )
 
         if saveHistory, let resolution = formatterOutcome.resolution {
@@ -2009,6 +2035,7 @@ public actor DictationService: DictationServiceProtocol {
             var privateCopy = dictation
             privateCopy.rawTranscript = ""
             privateCopy.cleanTranscript = nil
+            privateCopy.translation = nil
             try dictationRepo.save(privateCopy)
         }
         if status == .completed, completionStatus == .cancelled {
