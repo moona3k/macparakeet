@@ -1,0 +1,52 @@
+integrations/README.md
+  s_1d6c5680ac2ab0::t_5451fb598f303d 942
+Sources/CLI/Commands/CLIHelpers.swift
+  s_1d6c5680ac2ab0::t_34417fd17adc26 449
+  s_1d6c5680ac2ab0::t_03ffc2782c6cec 478
+Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift
+  s_1d6c5680ac2ab0::t_25c033f46d6321 334,939
+spec/11-llm-integration.md
+  s_1d6c5680ac2ab0::t_5ca40645e210a6 475
+Sources/MacParakeetCore/Services/LLM/AnthropicLLMHTTPAdapter.swift
+  s_1d6c5680ac2ab0::t_4f0794aea53f42 289-293
+Sources/CLI/CHANGELOG.md
+  s_1d6c5680ac2ab0::t_9a80294713d921 81
+  s_1d6c5680ac2ab0::t_97ad55c5d1972d 97-105
+Tests/CLITests/LLMJSONOutputTests.swift
+  s_1d6c5680ac2ab0::t_c486df8bf1b608 198
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_1d6c5680ac2ab0::t_105078ae1b7c5b 1691-1692
+  s_1d6c5680ac2ab0::t_7c5467229b1152 951-958
+  s_1d6c5680ac2ab0::t_cdfa16b3d4af59 325-342
+spec/02-features.md
+  s_1d6c5680ac2ab0::t_e80edd27416861 1041
+Sources/MacParakeetCore/Services/LLM/LLMHTTPTransport.swift
+  s_1d6c5680ac2ab0::t_a2d0d7c7136356 40-51,63,72-96,98
+Sources/MacParakeetCore/Services/LLM/OpenAICompatibleLLMHTTPAdapter.swift
+  s_1d6c5680ac2ab0::t_3e1c99076b5c23 282-284,287,289-290
+Sources/MacParakeetCore/Services/LLM/LLMError.swift
+  s_1d6c5680ac2ab0::t_6caf459dddbe32 28-29
+  s_1d6c5680ac2ab0::t_33f6aa75f21eae 6-8
+Sources/MacParakeetCore/TextProcessing/AIFormatter.swift
+  s_1d6c5680ac2ab0::t_a1583b41714c47 8-13
+Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
+  s_1d6c5680ac2ab0::t_05156b85117d7a 1062-1094
+Tests/MacParakeetTests/Services/LLM/LLMClientTests.swift
+  s_1d6c5680ac2ab0::t_6e4ba2567297e3 1629-1654
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3797947dc3ee3d816f5c362a84e6b2b2699da3df",
+  "prompts": {},
+  "sessions": {
+    "s_1d6c5680ac2ab0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "9a337d96-32a3-43c9-baa5-82c76a2ed9b3",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
