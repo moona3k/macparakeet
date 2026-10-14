@@ -1,0 +1,19 @@
+.github/workflows/upload-0.8.10-dmg.yml
+  s_28c185d96b4dc9::t_f9f9ac3f458904 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "32d920cd79db107fbadb52800f8b596dc86902e3",
+  "prompts": {},
+  "sessions": {
+    "s_28c185d96b4dc9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "562545f7-7156-44b5-88ef-17bf9940735f",
+        "model": "composer-2.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
