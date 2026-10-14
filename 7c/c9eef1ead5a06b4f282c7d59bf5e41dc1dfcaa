@@ -1,0 +1,22 @@
+Tests/MacParakeetTests/Views/TranscriptDocumentLayoutTests.swift
+  s_28c185d96b4dc9::t_f9b4b1b4a78d00 230-233,236
+  s_28c185d96b4dc9::t_a3e8fcd8246382 135
+spec/adr/020-live-meeting-notepad-and-memo-summaries.md
+  s_28c185d96b4dc9::t_5aef4d99df397c 25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7cc9eef1ead5a06b4f282c7d59bf5e41dc1dfcaa",
+  "prompts": {},
+  "sessions": {
+    "s_28c185d96b4dc9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "562545f7-7156-44b5-88ef-17bf9940735f",
+        "model": "composer-2.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
