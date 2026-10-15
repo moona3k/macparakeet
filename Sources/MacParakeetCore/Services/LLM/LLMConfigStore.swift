@@ -186,8 +186,19 @@ public final class LLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
     private func hydrated(_ metadata: LLMProviderConfig?) throws -> LLMProviderConfig? {
         guard let metadata else { return nil }
         return LLMProviderConfig(
-            id: metadata.id, baseURL: metadata.baseURL, apiKey: try loadAPIKey(for: metadata.id),
+            id: metadata.id, baseURL: metadata.baseURL, apiKey: try requestAPIKey(for: metadata),
             modelName: metadata.modelName, isLocal: metadata.isLocal)
+    }
+
+    /// A rebuilt or re-signed app can lose Keychain access to a key saved by
+    /// another build. A provider that works without a key (a local server)
+    /// then runs keyless instead of failing every request.
+    private func requestAPIKey(for metadata: LLMProviderConfig) throws -> String? {
+        do {
+            return try loadAPIKey(for: metadata.id)
+        } catch let error as KeychainError where error.isAccessBlocked && !metadata.id.requiresAPIKey {
+            return nil
+        }
     }
 
     public func loadConfig() throws -> LLMProviderConfig? { try hydrated(loadConfigMetadata()) }

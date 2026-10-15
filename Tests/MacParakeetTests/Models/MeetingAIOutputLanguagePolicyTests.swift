@@ -71,4 +71,18 @@ final class MeetingAIOutputLanguagePolicyTests: XCTestCase {
             .followTranscript
         )
     }
+
+    func testFollowTranscriptNamesDetectedNonEnglishLanguage() {
+        let german = "Wir haben heute im Meeting besprochen, dass das neue Projekt im nächsten Monat beginnen soll und alle Teams mitarbeiten."
+        let instruction = MeetingAIOutputLanguagePolicy.followTranscript.assemblyInstruction(forTranscript: german)
+        XCTAssertTrue(instruction.contains("detected as German"))
+
+        let english = "Today in the meeting we agreed that the new project should start next month and every team will help."
+        XCTAssertEqual(
+            MeetingAIOutputLanguagePolicy.followTranscript.assemblyInstruction(forTranscript: english),
+            MeetingAIOutputLanguagePolicy.followTranscript.assemblyInstruction)
+        XCTAssertEqual(
+            MeetingAIOutputLanguagePolicy.english.assemblyInstruction(forTranscript: german),
+            MeetingAIOutputLanguagePolicy.english.assemblyInstruction)
+    }
 }

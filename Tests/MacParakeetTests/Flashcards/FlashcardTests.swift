@@ -224,4 +224,18 @@ final class FlashcardGenerationParsingTests: XCTestCase {
     func testReturnsEmptyForNonJSON() {
         XCTAssertTrue(FlashcardGenerationService.parse("Sorry, I can't.").isEmpty)
     }
+
+    func testPromptIncludesLevelAndCategoryScope() {
+        let prompt = FlashcardGenerationService.systemPrompt(
+            style: .vocabulary, language: .english, maxCards: 10,
+            focus: FlashcardFocus(level: .b1, category: "Work"))
+        XCTAssertTrue(prompt.contains("CEFR level B1"))
+        XCTAssertTrue(prompt.contains("professional communication"))
+
+        let custom = FlashcardGenerationService.systemPrompt(
+            style: .questions, language: .english, maxCards: 10,
+            focus: FlashcardFocus(level: nil, category: "Cooking"))
+        XCTAssertTrue(custom.contains("'Cooking'"))
+        XCTAssertFalse(custom.contains("CEFR"))
+    }
 }

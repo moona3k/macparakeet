@@ -194,6 +194,25 @@ final class LLMConfigStoreTests: XCTestCase {
         XCTAssertNil(try store.loadAPIKey(for: .appleIntelligence))
     }
 
+    func testBlockedKeychainFallsBackToKeylessOnlyWhenProviderDoesNotRequireKey() throws {
+        try store.saveConfig(
+            .openaiCompatible(apiKey: "saved", model: "local", baseURL: URL(string: "http://127.0.0.1:1234/v1")!))
+        keychain.getError = KeychainError(status: errSecInteractionNotAllowed)
+        let local = try XCTUnwrap(store.loadConfig())
+        XCTAssertEqual(local.modelName, "local")
+        XCTAssertNil(local.apiKey)
+
+        keychain.getError = nil
+        try store.saveConfig(.openai(apiKey: "secret"))
+        keychain.getError = KeychainError(status: errSecInteractionNotAllowed)
+        XCTAssertThrowsError(try store.loadConfig())
+
+        keychain.getError = KeychainError(status: errSecNotAvailable)
+        try? store.saveConfig(
+            .openaiCompatible(model: "local", baseURL: URL(string: "http://127.0.0.1:1234/v1")!))
+        XCTAssertThrowsError(try store.loadConfig(), "only an access block is tolerated")
+    }
+
     func testExecutionHydratesOnlySelectedProviderOutsideMetadataLock() throws {
         try store.saveConfiguration(
             .openai(apiKey: "default-key", model: "old-default"), cleanupOverride: nil,

@@ -276,7 +276,8 @@ public final class FlashcardsViewModel {
         from transcript: String,
         style: FlashcardStyle,
         meaningLanguage: TranslationLanguage,
-        maxCards: Int
+        maxCards: Int,
+        focus: FlashcardFocus = FlashcardFocus()
     ) {
         guard let generator, !isGenerating else { return }
         isGenerating = true
@@ -284,7 +285,8 @@ public final class FlashcardsViewModel {
         generationTask = Task { [weak self] in
             do {
                 let result = try await generator.generate(
-                    from: transcript, style: style, meaningLanguage: meaningLanguage, maxCards: maxCards)
+                    from: transcript, style: style, meaningLanguage: meaningLanguage, maxCards: maxCards,
+                    focus: focus)
                 self?.drafts.append(contentsOf: result)
             } catch is CancellationError {
             } catch {

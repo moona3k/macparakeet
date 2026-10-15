@@ -17,12 +17,56 @@ public enum FlashcardStyle: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// Learner level on the CEFR scale. Vocabulary cards target this level.
+public enum FlashcardLevel: String, CaseIterable, Identifiable, Sendable {
+    case a1 = "A1", a2 = "A2", b1 = "B1", b2 = "B2", c1 = "C1", c2 = "C2"
+
+    public var id: String { rawValue }
+}
+
+/// Topic area the cards should focus on, as in LinguaBrain's categories.
+/// Custom names fall back to a generic scope built from the name.
+public enum FlashcardCategory {
+    public static let presets = ["General", "Work", "Software", "Medical", "Driving"]
+
+    static func scope(for category: String) -> String {
+        switch category.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "", "general":
+            return "common everyday situations, practical communication, home, travel, services, relationships, news and public life"
+        case "work":
+            return "workplaces, professions, tasks, meetings, employment, applications, contracts, schedules, collaboration and professional communication"
+        case "software":
+            return "software development, applications, interfaces, data, debugging, security, deployment, technical documentation and workplace communication"
+        case "medical":
+            return "healthcare, symptoms, anatomy, diagnosis, treatment, medication, appointments, hospitals, emergencies and communication with patients"
+        case "driving":
+            return "driving and road traffic, driving-licence tests, traffic laws, signs and signals, vehicles, hazards, accidents, fines, insurance and licensing"
+        default:
+            return "the topic '\(category)' and its terminology, actors, objects, places, actions, rules, processes, documents and real-world conversations"
+        }
+    }
+}
+
+/// Optional targeting for generated cards.
+public struct FlashcardFocus: Equatable, Sendable {
+    /// Nil means any level.
+    public var level: FlashcardLevel?
+    /// Empty or "General" means everyday language.
+    public var category: String
+
+    public init(level: FlashcardLevel? = nil, category: String = "General") {
+        self.level = level
+        self.category = category
+    }
+}
+
 public protocol FlashcardGenerating: Sendable {
     func generate(
         from transcript: String,
         style: FlashcardStyle,
         meaningLanguage: TranslationLanguage,
-        maxCards: Int
+        maxCards: Int,
+        focus: FlashcardFocus
     ) async throws -> [FlashcardDraft]
 }
 
@@ -53,7 +97,8 @@ public struct FlashcardGenerationService: FlashcardGenerating {
         from transcript: String,
         style: FlashcardStyle,
         meaningLanguage: TranslationLanguage,
-        maxCards: Int
+        maxCards: Int,
+        focus: FlashcardFocus = FlashcardFocus()
     ) async throws -> [FlashcardDraft] {
         let text = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { throw FlashcardGenerationError.emptyTranscript }
@@ -61,19 +106,30 @@ public struct FlashcardGenerationService: FlashcardGenerating {
 
         let response = try await llmService.generatePromptResult(
             transcript: clipped,
-            systemPrompt: Self.systemPrompt(style: style, language: meaningLanguage, maxCards: maxCards)
+            systemPrompt: Self.systemPrompt(style: style, language: meaningLanguage, maxCards: maxCards, focus: focus)
         )
         let drafts = Array(Self.parse(response).prefix(maxCards))
         guard !drafts.isEmpty else { throw FlashcardGenerationError.noCards }
         return drafts
     }
 
-    static func systemPrompt(style: FlashcardStyle, language: TranslationLanguage, maxCards: Int) -> String {
+    static func systemPrompt(
+        style: FlashcardStyle,
+        language: TranslationLanguage,
+        maxCards: Int,
+        focus: FlashcardFocus = FlashcardFocus()
+    ) -> String {
+        let scope = FlashcardCategory.scope(for: focus.category)
+        let levelRule = focus.level.map {
+            "- Choose items suitable for a learner at CEFR level \($0.rawValue): skip what is clearly below that level and what is far above it."
+        } ?? ""
         let task: String
         switch style {
         case .vocabulary:
             task = """
                 Pick up to \(maxCards) words or short phrases from the transcript that are most useful for a language learner to memorize (skip names and trivial words).
+                - Prefer items related to \(scope).
+                \(levelRule)
                 - "front": the word or phrase exactly as used, in the transcript's language (for nouns include the article if the language has one).
                 - "back": its meaning in \(language.displayName) (\(language.nativeName)), short.
                 - "context": the sentence from the transcript where it appears.
@@ -81,6 +137,8 @@ public struct FlashcardGenerationService: FlashcardGenerating {
         case .questions:
             task = """
                 Write up to \(maxCards) flashcards that test the key facts, ideas, and decisions in the transcript.
+                - Focus on what relates to \(scope).
+                \(levelRule.replacingOccurrences(of: "Choose items", with: "Phrase questions"))
                 - "front": a clear, self-contained question in \(language.displayName) (\(language.nativeName)).
                 - "back": a short answer in \(language.displayName).
                 - "context": the transcript sentence that supports the answer.

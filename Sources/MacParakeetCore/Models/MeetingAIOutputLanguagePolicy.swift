@@ -1,4 +1,5 @@
 import Foundation
+import NaturalLanguage
 
 /// Policy for the language of generated AI prompt results (summaries,
 /// chapters, action items, and custom prompts) for any transcript source.
@@ -88,6 +89,31 @@ public enum MeetingAIOutputLanguagePolicy: Equatable, Hashable, Sendable, Identi
     public static func save(_ policy: MeetingAIOutputLanguagePolicy, defaults: UserDefaults = .standard) {
         defaults.set(
             policy.configurationValue, forKey: UserDefaultsAppRuntimePreferences.meetingAIOutputLanguagePolicyKey)
+    }
+
+    /// Instruction for a concrete transcript. With `.followTranscript`, a
+    /// confidently detected non-English language is named explicitly, because
+    /// models given English instructions tend to drift into English.
+    public func assemblyInstruction(forTranscript transcript: String?) -> String {
+        guard case .followTranscript = self, let transcript,
+            let code = Self.detectedLanguageCode(in: transcript), code != "en"
+        else { return assemblyInstruction }
+        let name = Self.displayName(for: code)
+        return assemblyInstruction + " "
+            + "The transcript's predominant language was detected as \(name), so write the result in \(name)."
+    }
+
+    /// On-device language detection; nil when the text is short or ambiguous.
+    static func detectedLanguageCode(in text: String) -> String? {
+        let sample = String(text.prefix(4_000))
+        guard sample.count >= 40 else { return nil }
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(sample)
+        guard let (language, confidence) = recognizer.languageHypotheses(withMaximum: 1).first,
+            confidence >= 0.6
+        else { return nil }
+        let code = String(language.rawValue.prefix(while: { $0 != "-" })).lowercased()
+        return WhisperLanguageCatalog.language(forCode: code) == nil ? nil : code
     }
 
     private static func displayName(for code: String) -> String {

@@ -37,9 +37,12 @@ struct MakeFlashcardsSheet: View {
     @AppStorage("flashcards.style") private var styleRaw = FlashcardStyle.vocabulary.rawValue
     @AppStorage("flashcards.meaningLanguage") private var languageRaw = TranslationLanguage.english.rawValue
     @AppStorage("flashcards.maxCards") private var maxCards = 15
+    @AppStorage("flashcards.level") private var levelRaw = ""
+    @AppStorage("flashcards.category") private var category = "General"
     @State private var deckName = ""
 
     private var style: FlashcardStyle { FlashcardStyle(rawValue: styleRaw) ?? .vocabulary }
+    private var focus: FlashcardFocus { FlashcardFocus(level: FlashcardLevel(rawValue: levelRaw), category: category) }
     private var language: TranslationLanguage { TranslationLanguage(rawValue: languageRaw) ?? .english }
 
     private var transcriptText: String {
@@ -96,7 +99,7 @@ struct MakeFlashcardsSheet: View {
             }
         }
         .padding(DesignSystem.Spacing.lg)
-        .frame(width: 680, height: 600)
+        .frame(width: 820, height: 600)
         .onAppear {
             viewModel.clearDrafts()
             viewModel.reload()
@@ -119,6 +122,25 @@ struct MakeFlashcardsSheet: View {
                 ForEach(TranslationLanguage.allCases) { Text($0.displayName).tag($0.rawValue) }
             }
             .fixedSize()
+            Picker("Level", selection: $levelRaw) {
+                Text("Any").tag("")
+                ForEach(FlashcardLevel.allCases) { Text($0.rawValue).tag($0.rawValue) }
+            }
+            .fixedSize()
+            HStack(spacing: 2) {
+                TextField("Category", text: $category)
+                    .frame(width: 90)
+                Menu {
+                    ForEach(FlashcardCategory.presets, id: \.self) { preset in
+                        Button(preset) { category = preset }
+                    }
+                } label: {
+                    Image(systemName: "chevron.down")
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+            }
+            .help("Topic to focus on, e.g. General, Work, or your own")
             Stepper("Up to \(maxCards)", value: $maxCards, in: 5...50, step: 5)
                 .fixedSize()
             Spacer()
@@ -128,7 +150,7 @@ struct MakeFlashcardsSheet: View {
             } else if viewModel.canGenerate {
                 Button {
                     viewModel.generateDrafts(
-                        from: transcriptText, style: style, meaningLanguage: language, maxCards: maxCards)
+                        from: transcriptText, style: style, meaningLanguage: language, maxCards: maxCards, focus: focus)
                 } label: {
                     Label("Generate with AI", systemImage: "sparkles")
                 }
