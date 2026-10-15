@@ -75,17 +75,30 @@ public final class KeychainKeyValueStore: KeyValueStore {
     }
 
     public func delete(_ key: String) throws {
-        try Self.withoutUserInteraction {
-            let query: [String: Any] = [
-                kSecClass as String: kSecClassGenericPassword,
-                kSecAttrService as String: service,
-                kSecAttrAccount as String: key,
-                    // kSecUseDataProtectionKeychain requires entitlements not available in SPM dev builds
-            ]
-            let status = SecItemDelete(query as CFDictionary)
-            if status == errSecItemNotFound { return }
-            guard status == errSecSuccess else { throw KeychainError(status: status) }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key,
+                // kSecUseDataProtectionKeychain requires entitlements not available in SPM dev builds
+        ]
+        do {
+            try Self.withoutUserInteraction { try Self.deleteItem(query) }
+        } catch let error as KeychainError where error.isAccessBlocked {
+            // An item saved by a differently signed build (every ad-hoc
+            // rebuild) can only be removed after the user approves it. Deletes
+            // are user-initiated, so let macOS show its Keychain prompt once.
+            try interactionLockedDelete(query)
         }
+    }
+
+    private func interactionLockedDelete(_ query: [String: Any]) throws {
+        try Self.interactionLock.withLock { try Self.deleteItem(query) }
+    }
+
+    private static func deleteItem(_ query: [String: Any]) throws {
+        let status = SecItemDelete(query as CFDictionary)
+        if status == errSecItemNotFound { return }
+        guard status == errSecSuccess else { throw KeychainError(status: status) }
     }
 }
 

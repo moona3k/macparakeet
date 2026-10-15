@@ -7,8 +7,13 @@
 # downloaded once into ~/tools/node (nothing is installed system-wide).
 #
 # Signing:
-#   - default: ad hoc. Runs on this Mac (and other Macs after right-click → Open,
-#     or `xattr -dr com.apple.quarantine /Applications/MacParakeet.app`).
+#   - default: the first valid "Apple Development" identity in the keychain,
+#     else ad hoc. A fixed identity keeps the app's signature stable across
+#     rebuilds, so Keychain items (saved AI keys) stay readable; ad hoc changes
+#     it every build. Not notarized: other Macs need right-click → Open, or
+#     `xattr -dr com.apple.quarantine /Applications/MacParakeet.app`.
+#   - SIGN_IDENTITY="<name or SHA-1>" alone: sign with that identity, no notarizing.
+#   - SIGN_IDENTITY=- forces ad hoc.
 #   - SIGN_IDENTITY="Developer ID Application: ..." + NOTARYTOOL_PROFILE=...:
 #     uses scripts/dist/sign_notarize.sh for a notarized DMG that opens on any Mac
 #     without warnings (requires a paid Apple Developer account).
@@ -55,22 +60,32 @@ scripts/dist/build_app_bundle.sh
 
 # 4. Sign.
 if [[ -n "${SIGN_IDENTITY:-}" && -n "${NOTARYTOOL_PROFILE:-}" ]]; then
-  echo "[2/3] Signing and notarizing with $SIGN_IDENTITY…"
+  echo "[2/3] Signing and notarizing with ${SIGN_IDENTITY}…"
   CREATE_DMG=1 scripts/dist/sign_notarize.sh
   echo "Done: $DMG (notarized)"
   exit 0
 fi
 
-echo "[2/3] Signing ad hoc…"
+IDENTITY="${SIGN_IDENTITY:-}"
+if [[ -z "$IDENTITY" ]]; then
+  IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
+    | awk '/"Apple Development:/ { print $2; exit }')"
+fi
+IDENTITY="${IDENTITY:--}"
+if [[ "$IDENTITY" == "-" ]]; then
+  echo "[2/3] Signing ad hoc (saved Keychain keys will need re-approval after each rebuild)…"
+else
+  echo "[2/3] Signing with ${IDENTITY}…"
+fi
 ENTITLEMENTS="$(mktemp -t mp-ent)"
 cp scripts/dist/MacParakeet.entitlements "$ENTITLEMENTS"
 /usr/libexec/PlistBuddy -c "Add :com.apple.security.cs.disable-library-validation bool true" "$ENTITLEMENTS" 2>/dev/null || true
-codesign --force --sign - --options runtime --entitlements "$ENTITLEMENTS" --deep "$APP"
+codesign --force --sign "$IDENTITY" --options runtime --entitlements "$ENTITLEMENTS" --deep "$APP"
 rm -f "$ENTITLEMENTS"
 codesign --verify --deep --strict "$APP"
 
 # 5. DMG with an Applications shortcut to drag onto.
-echo "[3/3] Creating $DMG…"
+echo "[3/3] Creating ${DMG}…"
 STAGE="$(mktemp -d -t mp-dmg)"
 trap 'rm -rf "$STAGE"' EXIT
 cp -R "$APP" "$STAGE/"
