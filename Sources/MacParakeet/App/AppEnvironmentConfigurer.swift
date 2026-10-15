@@ -134,6 +134,10 @@ final class AppEnvironmentConfigurer {
                 (try? llmConfigStore.loadRouteMetadata(for: .translate))?.config.modelName
             }
         )
+        transcriptionViewModel.flashcardsViewModel.configure(
+            repository: env.flashcardRepo,
+            generator: hasLLMConfig ? FlashcardGenerationService(llmService: env.llmService) : nil
+        )
         let dictationService = env.dictationService
         historyViewModel.configure(
             dictationRepo: env.dictationRepo,
@@ -653,6 +657,8 @@ final class AppEnvironmentConfigurer {
         let hasConfig = (try? env.llmConfigStore.loadRouteMetadata(for: .analysis)) != nil
         let service: LLMService? = hasConfig ? env.llmService : nil
         transcriptionViewModel.updateLLMAvailability(hasConfig, llmService: service)
+        transcriptionViewModel.flashcardsViewModel.updateGenerator(
+            service.map { FlashcardGenerationService(llmService: $0) })
         let translator = Self.translator(in: env)
         transcriptionViewModel.translationViewModel.updateTranslator(translator)
         promptResultsViewModel.updateResultTranslator(translator)

@@ -853,6 +853,54 @@ CREATE UNIQUE INDEX idx_transcript_translations_transcription_language
 
 ---
 
+### `flashcard_decks`, `flashcards`, `flashcard_reviews` (v0.53, Swift models: `FlashcardDeck`, `Flashcard`, `FlashcardReview`)
+
+Flashcards (F38). User data, not derived state: cards are created by the user (optionally from AI drafts) or imported from `.apkg`.
+
+```sql
+CREATE TABLE flashcard_decks (
+    id        TEXT PRIMARY KEY,
+    name      TEXT NOT NULL UNIQUE,
+    createdAt DATETIME NOT NULL
+);
+CREATE TABLE flashcards (
+    id                    TEXT PRIMARY KEY,
+    deckId                TEXT NOT NULL REFERENCES flashcard_decks(id) ON DELETE CASCADE,
+    front                 TEXT NOT NULL,
+    back                  TEXT NOT NULL,
+    context               TEXT,            -- Source sentence, when known
+    tags                  TEXT,            -- Space-separated, Anki style
+    sourceTranscriptionId TEXT REFERENCES transcriptions(id) ON DELETE SET NULL,
+    ankiGuid              TEXT NOT NULL UNIQUE, -- Anki note GUID; import dedupe key
+    phase                 TEXT NOT NULL,   -- new | learning | review | relearning
+    stability             DOUBLE NOT NULL, -- FSRS-6 memory state
+    difficulty            DOUBLE NOT NULL,
+    learningStep          INTEGER NOT NULL,
+    lastReviewAt          DATETIME,
+    dueAt                 DATETIME NOT NULL,
+    reps                  INTEGER NOT NULL,
+    lapses                INTEGER NOT NULL,
+    createdAt             DATETIME NOT NULL,
+    updatedAt             DATETIME NOT NULL
+);
+CREATE INDEX idx_flashcards_deck_due ON flashcards(deckId, dueAt);
+CREATE INDEX idx_flashcards_source ON flashcards(sourceTranscriptionId);
+CREATE TABLE flashcard_reviews (
+    id            TEXT PRIMARY KEY,
+    cardId        TEXT NOT NULL REFERENCES flashcards(id) ON DELETE CASCADE,
+    grade         INTEGER NOT NULL,  -- 1 Again, 2 Hard, 3 Good, 4 Easy
+    reviewedAt    DATETIME NOT NULL,
+    scheduledDays DOUBLE NOT NULL
+);
+CREATE INDEX idx_flashcard_reviews_card ON flashcard_reviews(cardId);
+```
+
+**Notes:**
+- Deleting a deck deletes its cards and their review history. Deleting a transcription keeps its cards and clears `sourceTranscriptionId`.
+- `flashcard_reviews` is append-only history; the card row holds the current schedule.
+
+---
+
 ### `usage_events` (v0.51, Swift model: `UsageEvent`)
 
 Local ledger behind the Usage & Cost panel (F35). One row per completed AI request or online-speech upload. Metadata only: no prompt, transcript, or audio content. No foreign keys, so usage totals survive deletion of the recordings they came from.

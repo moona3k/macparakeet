@@ -12,6 +12,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     case meetings = "Meetings"
     case transforms = "Transforms"
     case vocabulary = "Vocabulary"
+    case flashcards = "Flashcards"
     case feedback = "Feedback"
     case settings = "Settings"
     case discover = "Discover"
@@ -28,6 +29,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .dictations: return "clock.arrow.circlepath"
         case .transforms: return "wand.and.stars"
         case .vocabulary: return "book.fill"
+        case .flashcards: return "rectangle.on.rectangle.angled"
         case .feedback: return "bubble.left.and.text.bubble.right"
         case .settings: return "gearshape"
         case .discover: return "sparkles"
@@ -53,7 +55,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     /// Transcript prompts are managed from Library and completed transcripts;
     /// Live Ask questions are managed from Meetings.
     static var configItems: [SidebarItem] {
-        var items: [SidebarItem] = [.vocabulary, .feedback, .settings]
+        var items: [SidebarItem] = [.vocabulary, .flashcards, .feedback, .settings]
         if AppFeatures.transformsEnabled {
             items.insert(.transforms, at: 0)
         }
@@ -323,6 +325,8 @@ struct MainWindowView: View {
                             textSnippetsViewModel: textSnippetsViewModel,
                             backupViewModel: vocabularyBackupViewModel
                         )
+                    case .flashcards:
+                        FlashcardsView(viewModel: transcriptionViewModel.flashcardsViewModel)
                     case .feedback:
                         FeedbackView(viewModel: feedbackViewModel)
                     case .settings:

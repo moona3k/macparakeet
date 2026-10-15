@@ -225,6 +225,9 @@ public final class TranscriptionViewModel {
     public var hasTranslationTabs: Bool = false
     /// Saved translations and translation jobs for the transcript detail view.
     public let translationViewModel = TranscriptTranslationViewModel()
+    /// Flashcard decks and review; shared by the Flashcards page and the
+    /// transcript "Make flashcards" sheet.
+    public let flashcardsViewModel = FlashcardsViewModel()
 
     // LLM state
     public var llmAvailable: Bool = false
