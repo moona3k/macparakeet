@@ -96,8 +96,13 @@ public struct KeychainError: Error, LocalizedError {
         self.status = status
     }
 
+    /// The item exists but this app build may not read it without a prompt.
+    public var isAccessBlocked: Bool {
+        status == errSecInteractionNotAllowed || status == errSecAuthFailed || status == errSecUserCanceled
+    }
+
     public var errorDescription: String? {
-        if status == errSecInteractionNotAllowed || status == errSecAuthFailed || status == errSecUserCanceled {
+        if isAccessBlocked {
             return "Saved credential access is blocked. Allow MacParakeet access in Keychain Access, then retry."
         }
         if let msg = SecCopyErrorMessageString(status, nil) as String? {

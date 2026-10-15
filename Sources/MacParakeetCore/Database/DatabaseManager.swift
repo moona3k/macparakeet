@@ -2502,6 +2502,49 @@ public final class DatabaseManager: Sendable {
             }
         }
 
+        // Flashcards (fork): Anki-compatible decks, cards with FSRS state,
+        // and review history. Cards outlive their source transcript.
+        migrator.registerMigration("v0.53-flashcards") { db in
+            try db.create(table: "flashcard_decks") { t in
+                t.column("id", .text).primaryKey()
+                t.column("name", .text).notNull().unique()
+                t.column("createdAt", .datetime).notNull()
+            }
+            try db.create(table: "flashcards") { t in
+                t.column("id", .text).primaryKey()
+                t.column("deckId", .text).notNull()
+                    .references("flashcard_decks", onDelete: .cascade)
+                t.column("front", .text).notNull()
+                t.column("back", .text).notNull()
+                t.column("context", .text)
+                t.column("tags", .text)
+                t.column("sourceTranscriptionId", .text)
+                    .references("transcriptions", onDelete: .setNull)
+                t.column("ankiGuid", .text).notNull().unique()
+                t.column("phase", .text).notNull()
+                t.column("stability", .double).notNull()
+                t.column("difficulty", .double).notNull()
+                t.column("learningStep", .integer).notNull()
+                t.column("lastReviewAt", .datetime)
+                t.column("dueAt", .datetime).notNull()
+                t.column("reps", .integer).notNull()
+                t.column("lapses", .integer).notNull()
+                t.column("createdAt", .datetime).notNull()
+                t.column("updatedAt", .datetime).notNull()
+            }
+            try db.create(index: "idx_flashcards_deck_due", on: "flashcards", columns: ["deckId", "dueAt"])
+            try db.create(index: "idx_flashcards_source", on: "flashcards", columns: ["sourceTranscriptionId"])
+            try db.create(table: "flashcard_reviews") { t in
+                t.column("id", .text).primaryKey()
+                t.column("cardId", .text).notNull()
+                    .references("flashcards", onDelete: .cascade)
+                t.column("grade", .integer).notNull()
+                t.column("reviewedAt", .datetime).notNull()
+                t.column("scheduledDays", .double).notNull()
+            }
+            try db.create(index: "idx_flashcard_reviews_card", on: "flashcard_reviews", columns: ["cardId"])
+        }
+
         return migrator
     }
 

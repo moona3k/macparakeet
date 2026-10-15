@@ -3304,6 +3304,12 @@ struct TranscriptResultView: View {
                     onSetUpAI: onSetUpAI
                 )
 
+                TranscriptFlashcardsButton(
+                    viewModel: viewModel.flashcardsViewModel,
+                    transcription: activeTranscription,
+                    onSetUpAI: onSetUpAI
+                )
+
                 Spacer()
             }
         }

@@ -2377,6 +2377,16 @@ An optional "Online" speech engine transcribes through any OpenAI-compatible `au
 - Long audio is split into uploads of at most ten minutes at quiet points.
 - Transcripts record `engine = cloud` and the model name as the variant, shown as "Online · <model>".
 
+### F38: Flashcards / Anki (fork)
+A **Flashcards** sidebar page and a **Make flashcards** button on every transcript, ported from LinguaBrain-AI's Anki core.
+
+- Make flashcards: from a transcript, the AI generates editable drafts — *Vocabulary* (word or phrase → meaning in a chosen language, with the transcript sentence as context) or *Questions & answers*. Drafts can be edited, removed, or typed by hand (works without an AI provider), then saved to a new or existing deck. Generation uses the `analysis` route; a cloud provider receives up to the first 24,000 characters of the transcript.
+- Review: due cards first, then new cards; Show Answer, then Again / Hard / Good / Easy (keys 1–4). Each button shows the interval it would schedule. Scheduling is deterministic FSRS-6 with the 21 default parameters and 90% desired retention; short learning steps come back in the same session. Every answer is kept in review history.
+- Decks: create, rename, delete; browse, add, edit, and delete cards.
+- Import `.apkg`: legacy `collection.anki2` / `collection.anki21` packages, plus packages from LinguaBrain-AI's exporter. Packages are treated as untrusted (ZIP path, size, compression-ratio, and encryption checks; collection opened read-only). Text only: HTML is reduced to plain text and media is not imported. Anki's newest format (`collection.anki21b` only) is rejected with a hint to re-export with “Support older Anki versions”. Notes re-imported with the same GUID update the existing card's text and keep its review state.
+- Export `.apkg`: the selected deck or all decks as a standard schema-11 collection with a “MacParakeet Basic” note type (Front, Back, Context). Cards are exported as new; MacParakeet's FSRS state is not carried into Anki.
+- Stored locally in `flashcard_decks`, `flashcards`, `flashcard_reviews` (migration v0.53). Cards survive deletion of their source transcript.
+
 ### F37: Dictation Translation (fork)
 Settings → AI → Dictation translation: choose a language (Off by default) and what is typed into the target app.
 

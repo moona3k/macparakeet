@@ -116,7 +116,7 @@ public enum PromptSystemPromptAssembler {
                 """
         }
 
-        assembledPrompt += "\n\n" + outputLanguagePolicy.assemblyInstruction
+        assembledPrompt += "\n\n" + outputLanguagePolicy.assemblyInstruction(forTranscript: transcript)
 
         let trimmedInstructions = extraInstructions?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let trimmedInstructions, !trimmedInstructions.isEmpty else {

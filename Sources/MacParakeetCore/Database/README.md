@@ -41,6 +41,7 @@ processes own their connections.
   - `AIFormatterProfileRepository.swift` — app/category formatter profiles (normal product exposure remains feature-gated).
   - `LLMRunRepository.swift` — local metadata ledger for persisted LLM runs (provider/model/tokens/latency/status/required source link; no prompt/input/output content).
   - `MeetingSplitRepository.swift` — Split and transcribe's operation receipt: idempotent `begin`, one-transaction `publish` of all child rows, and per-child processing progress. Persistence only; media export, STT and completion automation are owned elsewhere (see `spec/contracts/meeting-splitting.md`).
+  - `../Flashcards/FlashcardRepository.swift` — flashcard decks, cards with FSRS state, review history, due queue, and `.apkg` GUID upserts (fork, F38).
   - `SharePublicationRepository.swift` — local ledger + durable ordered outbox for encrypted share snapshots (`spec/contracts/share-service-v1.md`). Owns a transaction-scoped detach-and-enqueue helper for source deletion; never cascaded from `transcriptions`.
 
 ## Cross-references
