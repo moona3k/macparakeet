@@ -55,6 +55,7 @@ Running a script from inside `scripts/dist` gives
 | Run all tests (once, at the end) | `swift test` | Several minutes |
 | CLI | `swift run macparakeet-cli --help` | |
 | Installable app | `scripts/dist/build_app_bundle.sh` | `dist/MacParakeet.app` (see update guide) |
+| **Drag-and-drop installer** | `scripts/dist/make_local_dmg.sh` | `dist/MacParakeet.dmg`: build + sign + DMG in one step, downloads Node for the build if missing |
 
 The dev app is separate from your installed app:
 
