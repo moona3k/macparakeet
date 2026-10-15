@@ -1,5 +1,8 @@
 # Fork guide: update from upstream, push, and build for your Mac
 
+> Building in Xcode, the Keychain error, troubleshooting, and adding features:
+> see [`fork-developer-guide.md`](./fork-developer-guide.md).
+
 Remotes in this checkout:
 
 - `origin` = upstream project (`moona3k/macparakeet`) - pull updates from here.
