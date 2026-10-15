@@ -480,6 +480,18 @@ final class TransformsCommandTests: XCTestCase {
         XCTAssertEqual(decoded["shortcut"] as? String, KeyboardShortcut.parse("ctrl+opt+1")?.displayString)
     }
 
+    func testAppHotkeyCollisionReservesAdditionalDictationShortcuts() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: makeIsolatedDefaultsSuite("alternate-cli.")))
+        let shortcut = try XCTUnwrap(KeyboardShortcut.parse("ctrl+opt+5"))
+        for key in [HotkeyTrigger.alternateHandsFreeDefaultsKey, HotkeyTrigger.alternatePushToTalkDefaultsKey] {
+            XCTAssertNil(appHotkeyCollision(for: shortcut, defaults: defaults))
+            shortcut.hotkeyTrigger.save(to: defaults, defaultsKey: key)
+            XCTAssertNotNil(appHotkeyCollision(for: shortcut, defaults: defaults))
+            HotkeyTrigger.disabled.save(to: defaults, defaultsKey: key)
+            XCTAssertNil(appHotkeyCollision(for: shortcut, defaults: defaults))
+        }
+    }
+
     func testAppHotkeyCollisionAllowsChordSharingBareModifierDictationHotkey() throws {
         let suiteName = makeIsolatedDefaultsSuite("com.macparakeet.tests.transforms.")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))

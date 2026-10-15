@@ -120,14 +120,27 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
     func testLaterOpenSupersedesAnEarlierOne() async throws {
         let first = timedTranscription(fileName: "first.m4a")
         let second = timedTranscription(fileName: "second.m4a")
-        try repo.save(first)
-        try repo.save(second)
+        // Hold the earlier open inside its fetch so the later open always
+        // starts while it is in flight. Two racing Tasks gave no such order.
+        let earlierFetchStarted = expectation(description: "Earlier open is fetching")
+        let releaseEarlierFetch = DispatchSemaphore(value: 0)
+        let gatedRepo = MockTranscriptionRepository()
+        gatedRepo.fetchHandler = { id in
+            if id == first.id {
+                earlierFetchStarted.fulfill()
+                releaseEarlierFetch.wait()
+            }
+            return [first, second].first { $0.id == id }
+        }
+        let gatedVM = TranscriptionLibraryViewModel()
+        gatedVM.configure(transcriptionRepo: gatedRepo)
 
-        let earlier = Task { await vm.loadForOpening(first) }
-        let later = Task { await vm.loadForOpening(second) }
+        let earlier = Task { await gatedVM.loadForOpening(first) }
+        await fulfillment(of: [earlierFetchStarted], timeout: 2)
+        let laterResult = await gatedVM.loadForOpening(second)
+        releaseEarlierFetch.signal()
 
         let earlierResult = await earlier.value
-        let laterResult = await later.value
         XCTAssertNil(earlierResult)
         XCTAssertEqual(laterResult?.id, second.id)
     }

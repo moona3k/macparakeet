@@ -279,12 +279,15 @@ struct OpenAICompatibleLLMHTTPAdapter: LLMHTTPAdapter {
         try options.validateInferenceSettings(for: config)
         let url = config.baseURL.appendingPathComponent("chat/completions")
 
-        // Local models need longer timeouts for cold starts (model loading from disk)
+        // Local models need longer timeouts for cold starts (model loading from disk).
+        // Cloud non-streaming calls wait for the whole body; streaming resets
+        // the idle timer as tokens arrive.
         let timeout: TimeInterval
         if config.isLocal {
-            timeout = stream ? 600 : 300
+            timeout = stream ? LLMHTTPRequestTimeout.localStreamingIdle : LLMHTTPRequestTimeout.localNonStreaming
         } else {
-            timeout = stream ? 120 : 30
+            timeout =
+                stream ? LLMHTTPRequestTimeout.cloudStreamingIdle : LLMHTTPRequestTimeout.cloudNonStreaming
         }
 
         var request = URLRequest(url: url, timeoutInterval: timeout)

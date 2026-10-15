@@ -67,14 +67,31 @@ public protocol SpeakerConfiguredRetranscriptionService: SpeechEngineOverrideTra
         fileURL: URL,
         source: TelemetryTranscriptionSource,
         speechEngineOverride: SpeechEngineSelection?,
-        speakerSelection: RetranscriptionSpeakerSelection,
+        speakerSelection: SpeakerCountSelection,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription
     func retranscribeMeeting(
         existing transcription: Transcription,
         recording: MeetingRecordingOutput,
         speechEngineOverride: SpeechEngineSelection?,
-        speakerSelection: RetranscriptionSpeakerSelection,
+        speakerSelection: SpeakerCountSelection,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription
+}
+
+/// Additive capability for callers that set a speaker count before a new file
+/// or media-URL transcription. Results persist exactly like the plain calls.
+public protocol SpeakerConfiguredTranscriptionService: Sendable {
+    func transcribe(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        audioTrackOrdinal: Int?,
+        speakerSelection: SpeakerCountSelection,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription
+    func transcribeURL(
+        urlString: String,
+        speakerSelection: SpeakerCountSelection,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription
 }
@@ -228,7 +245,7 @@ extension TranscriptionServiceProtocol {
         fileURL: URL,
         source: TelemetryTranscriptionSource,
         speechEngineOverride: SpeechEngineSelection?,
-        speakerSelection: RetranscriptionSpeakerSelection,
+        speakerSelection: SpeakerCountSelection,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
         guard let routedService = self as? any SpeakerConfiguredRetranscriptionService else {
@@ -250,7 +267,7 @@ extension TranscriptionServiceProtocol {
         existing transcription: Transcription,
         recording: MeetingRecordingOutput,
         speechEngineOverride: SpeechEngineSelection?,
-        speakerSelection: RetranscriptionSpeakerSelection,
+        speakerSelection: SpeakerCountSelection,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
         guard let routedService = self as? any SpeakerConfiguredRetranscriptionService else {
@@ -295,7 +312,11 @@ private struct TranscriptionOperationContext: Sendable {
     }
 }
 
-public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, AudioTrackSelectingTranscriptionService {
+public actor TranscriptionService:
+    SpeakerConfiguredRetranscriptionService,
+    SpeakerConfiguredTranscriptionService,
+    AudioTrackSelectingTranscriptionService
+{
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "TranscriptionService")
     private let audioProcessor: AudioProcessorProtocol
     private let sttTranscriber: STTTranscribing
@@ -538,6 +559,24 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         )
     }
 
+    public func transcribe(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource = .file,
+        audioTrackOrdinal: Int?,
+        speakerSelection: SpeakerCountSelection,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        let runDiarizationService = makeDiarizationService(for: try speakerSelection.validated())
+        return try await transcribe(
+            fileURL: fileURL,
+            source: source,
+            audioTrackOrdinal: audioTrackOrdinal,
+            persistResult: true,
+            diarizationServiceOverride: runDiarizationService,
+            onProgress: onProgress
+        )
+    }
+
     public func audioTracks(in fileURL: URL) async throws -> [AudioTrackDescriptor] {
         try await FFmpegAudioTrackProbe().tracks(in: fileURL)
     }
@@ -547,6 +586,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         source: TelemetryTranscriptionSource,
         audioTrackOrdinal: Int?,
         persistResult: Bool,
+        diarizationServiceOverride: (any DiarizationServiceProtocol)? = nil,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
         let sourceType: Transcription.SourceType = switch source {
@@ -568,6 +608,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
             sourceType: sourceType,
             audioTrackOrdinal: audioTrackOrdinal,
             persistResult: persistResult,
+            diarizationServiceOverride: diarizationServiceOverride,
             onProgress: onProgress
         )
     }
@@ -707,7 +748,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         fileURL: URL,
         source: TelemetryTranscriptionSource,
         speechEngineOverride: SpeechEngineSelection?,
-        speakerSelection: RetranscriptionSpeakerSelection,
+        speakerSelection: SpeakerCountSelection,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
         try await retranscribeFile(
@@ -725,7 +766,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         fileURL: URL,
         source: TelemetryTranscriptionSource,
         speechEngineOverride: SpeechEngineSelection?,
-        speakerSelection: RetranscriptionSpeakerSelection?,
+        speakerSelection: SpeakerCountSelection?,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription {
         let speechEngine = speechEngineOverride ?? fileSpeechEngineSelection()
@@ -797,7 +838,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         existing original: Transcription,
         recording: MeetingRecordingOutput,
         speechEngineOverride: SpeechEngineSelection?,
-        speakerSelection: RetranscriptionSpeakerSelection,
+        speakerSelection: SpeakerCountSelection,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
         try await retranscribeArchivedMeeting(
@@ -813,7 +854,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         existing original: Transcription,
         recording: MeetingRecordingOutput,
         speechEngineOverride: SpeechEngineSelection?,
-        speakerSelection: RetranscriptionSpeakerSelection?,
+        speakerSelection: SpeakerCountSelection?,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription {
         let speechEngine = resolvedMeetingSpeechEngineSelection(
@@ -861,7 +902,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
     }
 
     private func makeDiarizationService(
-        for selection: RetranscriptionSpeakerSelection
+        for selection: SpeakerCountSelection
     ) -> any DiarizationServiceProtocol {
         let constraint = selection.exactCount.map(SpeakerDiarizationConstraint.exact)
         return diarizationServiceFactory.make(speakerConstraint: constraint)
@@ -876,6 +917,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         sourceType: Transcription.SourceType,
         audioTrackOrdinal: Int? = nil,
         persistResult: Bool = true,
+        diarizationServiceOverride: (any DiarizationServiceProtocol)? = nil,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
         let speechEngine = fileSpeechEngineSelection()
@@ -953,6 +995,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
                 tempFiles: [],
                 persistResult: persistResult,
                 speechEngine: speechEngine,
+                diarizationServiceOverride: diarizationServiceOverride,
                 onProgress: onProgress
             )
         }
@@ -974,9 +1017,24 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         )
     }
 
+    public func transcribeURL(
+        urlString: String,
+        speakerSelection: SpeakerCountSelection,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        let runDiarizationService = makeDiarizationService(for: try speakerSelection.validated())
+        return try await transcribeURL(
+            urlString: urlString,
+            persistResult: true,
+            diarizationServiceOverride: runDiarizationService,
+            onProgress: onProgress
+        )
+    }
+
     private func transcribeURL(
         urlString: String,
         persistResult: Bool,
+        diarizationServiceOverride: (any DiarizationServiceProtocol)? = nil,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
         let speechEngine = fileSpeechEngineSelection()
@@ -991,6 +1049,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
                 inputURL,
                 persistResult: persistResult,
                 speechEngine: speechEngine,
+                diarizationServiceOverride: diarizationServiceOverride,
                 onProgress: onProgress
             )
         }
@@ -1023,6 +1082,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
                 operation: operation,
                 persistResult: persistResult,
                 speechEngine: speechEngine,
+                diarizationServiceOverride: diarizationServiceOverride,
                 onProgress: onProgress
             )
         }
@@ -1034,6 +1094,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         _ inputURL: String,
         persistResult: Bool,
         speechEngine: SpeechEngineSelection?,
+        diarizationServiceOverride: (any DiarizationServiceProtocol)? = nil,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
         let operation = Self.podcastOperationContext()
@@ -1067,6 +1128,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
                 operation: operation,
                 persistResult: persistResult,
                 speechEngine: speechEngine,
+                diarizationServiceOverride: diarizationServiceOverride,
                 onProgress: onProgress
             )
         }
@@ -1172,6 +1234,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         operation: TranscriptionOperationContext,
         persistResult: Bool,
         speechEngine: SpeechEngineSelection?,
+        diarizationServiceOverride: (any DiarizationServiceProtocol)? = nil,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
         var unownedDownloadedAudioURL: URL?
@@ -1315,6 +1378,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
             cleanUpDownloadedFiles: !keepDownloadedAudio,
             persistResult: persistResult,
             speechEngine: speechEngine,
+            diarizationServiceOverride: diarizationServiceOverride,
             onProgress: onProgress
         )
 
@@ -1516,7 +1580,8 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
             transcription.meetingCaptureReport = recording.captureReport
                 ?? transcription.meetingCaptureReport
             transcription.speakers = finalized.speakers
-            transcription.speakerCount = finalized.speakers.isEmpty ? nil : finalized.speakers.count
+            let participants = SpeakerInfo.participants(in: finalized.speakers)
+            transcription.speakerCount = participants.isEmpty ? nil : participants.count
             transcription.diarizationSegments = finalized.diarizationSegments.isEmpty ? nil : finalized.diarizationSegments
             let transcriptSegments = TranscriptSegmenter.materializeSegments(
                 words: corrected.words,

@@ -438,6 +438,12 @@ struct MainWindowView: View {
                 conflictMode: .bareModifierDictation
             ),
             TransformShortcutReservedHotkey(
+                name: "additional hands-free shortcut", trigger: settingsViewModel.alternateHandsFreeHotkeyTrigger,
+                conflictMode: .bareModifierDictation),
+            TransformShortcutReservedHotkey(
+                name: "additional push-to-talk shortcut", trigger: settingsViewModel.alternatePushToTalkHotkeyTrigger,
+                conflictMode: .bareModifierDictation),
+            TransformShortcutReservedHotkey(
                 name: "file transcription", trigger: settingsViewModel.fileTranscriptionHotkeyTrigger),
             TransformShortcutReservedHotkey(
                 name: "video URL transcription", trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger),

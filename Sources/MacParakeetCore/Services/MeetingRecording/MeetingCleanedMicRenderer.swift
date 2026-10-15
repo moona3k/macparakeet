@@ -133,19 +133,21 @@ final class MeetingCleanedMicRenderer {
             return .skipped(.missingSystemReference)
         }
 
-        let microphone: [Float]
-        let system: [Float]
+        let microphone: MeetingAudioSamples
+        let system: MeetingAudioSamples
         do {
             try Task.checkCancellation()
-            microphone = try await Self.decodeMonoFloat(
-                url: microphoneURL,
-                sampleRate: Self.renderSampleRate,
-                maxFrames: Self.maxDecodedFrames)
+            microphone = MeetingAudioSamples(
+                try await Self.decodeToScratch(
+                    url: microphoneURL,
+                    sampleRate: Self.renderSampleRate,
+                    maxFrames: Self.maxDecodedFrames))
             try Task.checkCancellation()
-            system = try await Self.decodeMonoFloat(
-                url: systemURL,
-                sampleRate: Self.renderSampleRate,
-                maxFrames: Self.maxDecodedFrames)
+            system = MeetingAudioSamples(
+                try await Self.decodeToScratch(
+                    url: systemURL,
+                    sampleRate: Self.renderSampleRate,
+                    maxFrames: Self.maxDecodedFrames))
         } catch is CancellationError {
             throw CancellationError()
         } catch DecodeLimitExceeded.tooManyFrames(let frameCount, let maxFrames) {
@@ -153,7 +155,7 @@ final class MeetingCleanedMicRenderer {
         } catch {
             return .skipped(.decodeFailed(String(describing: error)))
         }
-        guard !microphone.isEmpty else { return .skipped(.emptyMicrophone) }
+        guard microphone.count > 0 else { return .skipped(.emptyMicrophone) }
         guard max(microphone.count, system.count) <= Self.maxDecodedFrames else {
             return .skipped(
                 .inputTooLong(
@@ -162,13 +164,20 @@ final class MeetingCleanedMicRenderer {
         }
         try Task.checkCancellation()
 
-        let echoProbe = Self.probeEchoPath(
-            microphone: microphone,
-            system: system,
-            microphoneStartOffsetMs: sourceAlignment.microphone?.startOffsetMs ?? 0,
-            systemStartOffsetMs: sourceAlignment.system?.startOffsetMs ?? 0,
-            sampleRate: Self.renderSampleRate
-        )
+        let echoProbe: EchoPathProbeResult
+        do {
+            echoProbe = try Self.probeEchoPath(
+                microphone: microphone,
+                system: system,
+                microphoneStartOffsetMs: sourceAlignment.microphone?.startOffsetMs ?? 0,
+                systemStartOffsetMs: sourceAlignment.system?.startOffsetMs ?? 0,
+                sampleRate: Self.renderSampleRate
+            )
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            return .skipped(.decodeFailed(String(describing: error)))
+        }
         guard echoProbe.shouldRender else {
             return .skipped(.noEchoPath(echoProbe))
         }
@@ -183,26 +192,18 @@ final class MeetingCleanedMicRenderer {
             return .skipped(.conditionerUnavailable)
         }
 
-        let conditioned: ConditionedOutput
-        do {
-            conditioned = try Self.alignAndCondition(
-                microphone: microphone,
-                system: system,
-                microphoneStartOffsetMs: sourceAlignment.microphone?.startOffsetMs ?? 0,
-                systemStartOffsetMs: sourceAlignment.system?.startOffsetMs ?? 0,
-                sampleRate: Self.renderSampleRate,
-                conditioner: conditioner)
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            return .skipped(.renderFailed(String(describing: error)))
-        }
-        try Task.checkCancellation()
-
+        let conditioned = ConditionedStream(
+            microphone: microphone,
+            system: system,
+            microphoneStartOffsetMs: sourceAlignment.microphone?.startOffsetMs ?? 0,
+            systemStartOffsetMs: sourceAlignment.system?.startOffsetMs ?? 0,
+            sampleRate: Self.renderSampleRate,
+            conditioner: conditioner
+        )
         do {
             try await Self.encodeMonoFloat(
-                conditioned.output, sampleRate: Self.renderSampleRate, to: outputURL,
-                fileManager: fileManager)
+                sampleRate: Self.renderSampleRate, to: outputURL,
+                fileManager: fileManager, nextSamples: conditioned.next)
         } catch is CancellationError {
             try? fileManager.removeItem(at: outputURL)
             throw CancellationError()
@@ -211,8 +212,8 @@ final class MeetingCleanedMicRenderer {
             return .skipped(.renderFailed(String(describing: error)))
         }
 
-        let duration = Double(conditioned.output.count) / Double(Self.renderSampleRate)
-        let ratio = Self.rmsRatio(conditioned.output, microphone)
+        let duration = Double(conditioned.emittedCount) / Double(Self.renderSampleRate)
+        let ratio = conditioned.rmsRatio
         let renderDurationMs = max(
             0,
             Int((Date().timeIntervalSince(renderStartedAt) * 1_000).rounded())
@@ -229,15 +230,15 @@ final class MeetingCleanedMicRenderer {
             delayEstimateMs = nil
         }
         Self.logger.info(
-            "meeting_cleaned_mic_rendered duration_s=\(duration, format: .fixed(precision: 1), privacy: .public) render_duration_ms=\(renderDurationMs, privacy: .public) processed_frames=\(conditioned.processedFrames, privacy: .public) raw_fallback_frames=\(conditioned.rawFallbackFrames, privacy: .public) failures=\(conditioned.processingFailures, privacy: .public) rms_ratio=\(ratio, format: .fixed(precision: 2), privacy: .public)"
+            "meeting_cleaned_mic_rendered duration_s=\(duration, format: .fixed(precision: 1), privacy: .public) render_duration_ms=\(renderDurationMs, privacy: .public) processed_frames=\(renderDiagnostics.processedFrames, privacy: .public) raw_fallback_frames=\(renderDiagnostics.rawFallbackFrames, privacy: .public) failures=\(renderDiagnostics.processingFailures, privacy: .public) rms_ratio=\(ratio, format: .fixed(precision: 2), privacy: .public)"
         )
         return .rendered(
             Result(
                 outputURL: outputURL,
                 durationSeconds: duration,
-                processedFrames: conditioned.processedFrames,
-                rawFallbackFrames: conditioned.rawFallbackFrames,
-                processingFailures: conditioned.processingFailures,
+                processedFrames: renderDiagnostics.processedFrames,
+                rawFallbackFrames: renderDiagnostics.rawFallbackFrames,
+                processingFailures: renderDiagnostics.processingFailures,
                 modelVersion: renderDiagnostics.modelVersion ?? renderDiagnostics.processorName,
                 renderDurationMs: renderDurationMs,
                 renderRealtimeFactor: realtimeFactor,
@@ -252,14 +253,27 @@ final class MeetingCleanedMicRenderer {
         microphoneStartOffsetMs: Int,
         systemStartOffsetMs: Int,
         sampleRate: Int
-    ) -> EchoPathProbeResult {
+    ) throws -> EchoPathProbeResult {
+        try probeEchoPath(
+            microphone: MeetingAudioSamples(microphone), system: MeetingAudioSamples(system),
+            microphoneStartOffsetMs: microphoneStartOffsetMs,
+            systemStartOffsetMs: systemStartOffsetMs, sampleRate: sampleRate)
+    }
+
+    static func probeEchoPath(
+        microphone: MeetingAudioSamples,
+        system: MeetingAudioSamples,
+        microphoneStartOffsetMs: Int,
+        systemStartOffsetMs: Int,
+        sampleRate: Int
+    ) throws -> EchoPathProbeResult {
         let sampleRate = max(1, sampleRate)
         let maxLagSamples = max(1, sampleRate / 5)
         let targetWindowSamples = max(1, sampleRate * echoProbeWindowSeconds)
         let windowLength = min(targetWindowSamples, microphone.count)
         guard windowLength > maxLagSamples + 1 else {
             return EchoPathProbeResult(
-                shouldRender: !system.isEmpty,
+                shouldRender: system.count > 0,
                 windowsEvaluated: 0,
                 bestCorrelation: nil,
                 bestDelaySamples: nil,
@@ -275,8 +289,8 @@ final class MeetingCleanedMicRenderer {
             windowLength: windowLength,
             candidateCount: echoProbeWindowCount * 4
         )
-        let energeticStarts = starts.compactMap { start -> Int? in
-            let rms = alignedReferenceRMS(
+        let energeticStarts = try starts.compactMap { start -> Int? in
+            let rms = try alignedReferenceRMS(
                 system: system,
                 start: start,
                 windowLength: windowLength,
@@ -308,7 +322,8 @@ final class MeetingCleanedMicRenderer {
         var bestDelaySamples: Int?
         var evaluated = 0
         for start in selectedStarts {
-            let analysisStart = bestAnalysisStart(
+            try Task.checkCancellation()
+            let analysisStart = try bestAnalysisStart(
                 system: system,
                 windowStart: start,
                 windowLength: windowLength,
@@ -316,8 +331,8 @@ final class MeetingCleanedMicRenderer {
                 relativeShiftSamples: relativeShiftSamples
             )
             let analysisEnd = analysisStart + analysisLength
-            let micWindow = Array(microphone[analysisStart..<analysisEnd])
-            let referenceWindow = alignedReferenceWindow(
+            let micWindow = try microphone.read(analysisStart..<analysisEnd)
+            let referenceWindow = try alignedReferenceWindow(
                 system: system,
                 start: analysisStart,
                 windowLength: analysisLength,
@@ -385,12 +400,12 @@ final class MeetingCleanedMicRenderer {
     }
 
     private static func bestAnalysisStart(
-        system: [Float],
+        system: MeetingAudioSamples,
         windowStart: Int,
         windowLength: Int,
         analysisLength: Int,
         relativeShiftSamples: Int
-    ) -> Int {
+    ) throws -> Int {
         let span = max(0, windowLength - analysisLength)
         guard span > 0 else { return windowStart }
         let starts = probeCandidateWindowStarts(
@@ -398,8 +413,8 @@ final class MeetingCleanedMicRenderer {
             windowLength: analysisLength,
             candidateCount: 5
         ).map { windowStart + $0 }
-        return starts.max { lhs, rhs in
-            alignedReferenceRMS(
+        return try starts.max { lhs, rhs in
+            try alignedReferenceRMS(
                 system: system,
                 start: lhs,
                 windowLength: analysisLength,
@@ -415,32 +430,34 @@ final class MeetingCleanedMicRenderer {
     }
 
     private static func alignedReferenceRMS(
-        system: [Float],
+        system: MeetingAudioSamples,
         start: Int,
         windowLength: Int,
         relativeShiftSamples: Int
-    ) -> Float {
+    ) throws -> Float {
         guard windowLength > 0 else { return 0 }
+        try Task.checkCancellation()
+        let samples = try alignedReferenceWindow(
+            system: system, start: start, windowLength: windowLength,
+            relativeShiftSamples: relativeShiftSamples)
         var power: Double = 0
-        for destinationIndex in start..<(start + windowLength) {
-            let sourceIndex = destinationIndex - relativeShiftSamples
-            let sample: Float = sourceIndex >= 0 && sourceIndex < system.count ? system[sourceIndex] : 0
-            power += Double(sample) * Double(sample)
-        }
+        for sample in samples { power += Double(sample) * Double(sample) }
         return Float((power / Double(windowLength)).squareRoot())
     }
 
     private static func alignedReferenceWindow(
-        system: [Float],
+        system: MeetingAudioSamples,
         start: Int,
         windowLength: Int,
         relativeShiftSamples: Int
-    ) -> [Float] {
-        var window: [Float] = []
-        window.reserveCapacity(windowLength)
-        for destinationIndex in start..<(start + windowLength) {
-            let sourceIndex = destinationIndex - relativeShiftSamples
-            window.append(sourceIndex >= 0 && sourceIndex < system.count ? system[sourceIndex] : 0)
+    ) throws -> [Float] {
+        let sourceStart = start - relativeShiftSamples
+        let lower = max(0, sourceStart)
+        let upper = min(system.count, sourceStart + windowLength)
+        var window = [Float](repeating: 0, count: windowLength)
+        if lower < upper {
+            let samples = try system.read(lower..<upper)
+            window.replaceSubrange((lower - sourceStart)..<(upper - sourceStart), with: samples)
         }
         return window
     }
@@ -466,92 +483,120 @@ final class MeetingCleanedMicRenderer {
         sampleRate: Int,
         conditioner: any MicConditioning
     ) throws -> ConditionedOutput {
-        // Finalize/recovery pass freshly built conditioners today; keep this
-        // defensive reset so direct tests or future callers cannot reuse stale
-        // adaptive filter state accidentally.
-        conditioner.reset()
-        // Place the system reference on the microphone's timeline: a sample at
-        // mic position p must be cancelled against the system audio at the same
-        // wall-clock instant. relativeShift > 0 means system started later than
-        // the mic, so the mic's opening has no reference (leading zeros); < 0
-        // means system started earlier, so its head is dropped.
-        let sampleRate = max(1, sampleRate)
-        let relativeShiftSamples = Int(
-            (Double(systemStartOffsetMs - microphoneStartOffsetMs) / 1000.0
-                * Double(sampleRate)).rounded())
+        let stream = ConditionedStream(
+            microphone: MeetingAudioSamples(microphone), system: MeetingAudioSamples(system),
+            microphoneStartOffsetMs: microphoneStartOffsetMs,
+            systemStartOffsetMs: systemStartOffsetMs, sampleRate: sampleRate,
+            conditioner: conditioner)
         var output: [Float] = []
-        output.reserveCapacity(microphone.count)
-        let chunkSize = 4_096
-        var cursor = 0
-        while cursor < microphone.count {
-            try Task.checkCancellation()
-            let end = min(cursor + chunkSize, microphone.count)
-            let micChunk = Array(microphone[cursor..<end])
-            var refChunk: [Float] = []
-            refChunk.reserveCapacity(end - cursor)
-            for destinationIndex in cursor..<end {
-                let sourceIndex = destinationIndex - relativeShiftSamples
-                refChunk.append(
-                    sourceIndex >= 0 && sourceIndex < system.count
-                        ? system[sourceIndex]
-                        : 0)
-            }
-            output += conditioner.condition(
-                microphone: micChunk, speaker: refChunk, hasSpeakerReference: true)
-            cursor = end
-        }
-        try Task.checkCancellation()
-        output += conditioner.flush()
-        // `flush()` rounds the final partial frame up, so the conditioner can
-        // emit a few samples past the mic length; trim them so the cleaned file
-        // is never longer than the raw mic (the 1:1 guarantee above) and its
-        // reported duration matches the source.
-        if output.count > microphone.count {
-            output.removeLast(output.count - microphone.count)
-        }
-        if output.count < microphone.count {
-            // A conditioner that under-flushes must not shorten the derived STT
-            // artifact; keep the 1:1 duration contract by falling back to the
-            // raw mic tail for any missing samples.
-            output.append(contentsOf: microphone[output.count..<microphone.count])
-        }
-
+        while let chunk = try stream.next() { output.append(contentsOf: chunk) }
         let diagnostics = conditioner.diagnostics
         return ConditionedOutput(
-            output: output,
-            processedFrames: diagnostics.processedFrames,
+            output: output, processedFrames: diagnostics.processedFrames,
             rawFallbackFrames: diagnostics.rawFallbackFrames,
             processingFailures: diagnostics.processingFailures)
     }
 
-    private static func rmsRatio(_ a: [Float], _ b: [Float]) -> Float {
-        func power(_ s: [Float]) -> Double {
-            guard !s.isEmpty else { return 0 }
-            var acc = 0.0
-            for v in s { acc += Double(v) * Double(v) }
-            return acc / Double(s.count)
+    /// Pull-based output keeps codec backpressure from accumulating cleaned PCM.
+    /// The production inputs are scratch files; memory fixtures use this same
+    /// alignment, conditioner cadence, flush, trim and raw-tail fallback.
+    final class ConditionedStream {
+        private let microphone: MeetingAudioSamples
+        private let system: MeetingAudioSamples
+        private let relativeShiftSamples: Int
+        private let conditioner: any MicConditioning
+        private var cursor = 0
+        private var flushed = false
+        private var inputPower = 0.0
+        private var outputPower = 0.0
+        private(set) var emittedCount = 0
+        static let blockFrames = 4_096
+
+        init(
+            microphone: MeetingAudioSamples, system: MeetingAudioSamples,
+            microphoneStartOffsetMs: Int, systemStartOffsetMs: Int,
+            sampleRate: Int, conditioner: any MicConditioning
+        ) {
+            self.microphone = microphone
+            self.system = system
+            self.conditioner = conditioner
+            relativeShiftSamples = Int(
+                (Double(systemStartOffsetMs - microphoneStartOffsetMs) / 1000.0
+                    * Double(max(1, sampleRate))).rounded())
+            conditioner.reset()
         }
-        let bp = power(b)
-        guard bp > 0 else { return 0 }
-        return Float((power(a) / bp).squareRoot())
+
+        var rmsRatio: Float {
+            guard inputPower > 0, emittedCount > 0 else { return 0 }
+            return Float((outputPower / inputPower).squareRoot())
+        }
+
+        func next() throws -> [Float]? {
+            while true {
+                try Task.checkCancellation()
+                let chunk: [Float]
+                if cursor < microphone.count {
+                    let end = min(cursor + Self.blockFrames, microphone.count)
+                    let mic = try microphone.read(cursor..<end)
+                    for sample in mic { inputPower += Double(sample) * Double(sample) }
+                    let reference = try alignedReferenceWindow(
+                        system: system, start: cursor, windowLength: end - cursor,
+                        relativeShiftSamples: relativeShiftSamples)
+                    chunk = conditioner.condition(
+                        microphone: mic, speaker: reference, hasSpeakerReference: true)
+                    cursor = end
+                } else if !flushed {
+                    flushed = true
+                    chunk = conditioner.flush()
+                } else if emittedCount < microphone.count {
+                    // An under-flushing conditioner must not shorten the file.
+                    chunk = try microphone.read(
+                        emittedCount..<min(emittedCount + Self.blockFrames, microphone.count))
+                } else {
+                    return nil
+                }
+                // Flush can round up to a complete DSP frame. Keep exactly the
+                // microphone's length, just as the previous array render did.
+                let output = Array(chunk.prefix(max(0, microphone.count - emittedCount)))
+                for sample in output { outputPower += Double(sample) * Double(sample) }
+                emittedCount += output.count
+                if !output.isEmpty { return output }
+            }
+        }
     }
 
     // MARK: Audio I/O
 
-    /// Decode an audio file to mono Float32 at `sampleRate`, fully in memory.
-    /// Peak scales with meeting length (~230 MB/hour/track at 16 kHz), which is
-    /// acceptable for a bounded, off-actor, post-stop one-shot render. If
-    /// multi-hour meetings prove this too heavy, stream decode→condition→encode
-    /// in chunks instead (deferred; the path is inert until U5 bundles assets).
     enum DecodeLimitExceeded: Error, Equatable {
         case tooManyFrames(frameCount: Int, maxFrames: Int)
     }
 
+    static func decodeToScratch(
+        url: URL, sampleRate: Int, maxFrames: Int
+    ) async throws -> MeetingDecodedAudio {
+        let audio = try MeetingDecodedAudio()
+        try await decodeMonoFloatChunks(url: url, sampleRate: sampleRate, maxFrames: maxFrames) {
+            try audio.append($0)
+        }
+        return audio
+    }
+
+    /// Array collector for small fixtures. Production render uses disk-backed
+    /// samples, including the echo probe, and never calls this collector.
     static func decodeMonoFloat(
-        url: URL,
-        sampleRate: Int,
-        maxFrames: Int? = nil
+        url: URL, sampleRate: Int, maxFrames: Int? = nil
     ) async throws -> [Float] {
+        var samples: [Float] = []
+        try await decodeMonoFloatChunks(url: url, sampleRate: sampleRate, maxFrames: maxFrames) {
+            samples.append(contentsOf: $0)
+        }
+        return samples
+    }
+
+    private static func decodeMonoFloatChunks(
+        url: URL, sampleRate: Int, maxFrames: Int?,
+        consume: (UnsafeBufferPointer<Float>) throws -> Void
+    ) async throws {
         let file = try AVAudioFile(forReading: url)
         guard
             let targetFormat = AVAudioFormat(
@@ -567,7 +612,7 @@ final class MeetingCleanedMicRenderer {
             throw MeetingAudioError.storageFailed("decode converter unavailable")
         }
 
-        var samples: [Float] = []
+        var decodedCount = 0
         let sourceRate = file.processingFormat.sampleRate
         // Corrupt files can report zero/sub-Hz source rates; fail before ratio
         // math so output-buffer sizing cannot explode into OOM-scale requests.
@@ -624,14 +669,11 @@ final class MeetingCleanedMicRenderer {
                 reachedEnd = true
             }
             if let channel = outputBuffer.floatChannelData?.pointee {
-                samples.append(
-                    contentsOf: UnsafeBufferPointer(
-                        start: channel, count: Int(outputBuffer.frameLength)))
-            }
-            if let maxFrames, samples.count > maxFrames {
-                throw DecodeLimitExceeded.tooManyFrames(
-                    frameCount: samples.count,
-                    maxFrames: maxFrames)
+                decodedCount += Int(outputBuffer.frameLength)
+                if let maxFrames, decodedCount > maxFrames {
+                    throw DecodeLimitExceeded.tooManyFrames(frameCount: decodedCount, maxFrames: maxFrames)
+                }
+                try consume(UnsafeBufferPointer(start: channel, count: Int(outputBuffer.frameLength)))
             }
             await Task.yield()
             if providedFrames < readFrames { reachedEnd = true }
@@ -659,22 +701,31 @@ final class MeetingCleanedMicRenderer {
         if status != .error, let channel = outputBuffer.floatChannelData?.pointee,
             outputBuffer.frameLength > 0
         {
-            samples.append(
-                contentsOf: UnsafeBufferPointer(
-                    start: channel, count: Int(outputBuffer.frameLength)))
-            if let maxFrames, samples.count > maxFrames {
-                throw DecodeLimitExceeded.tooManyFrames(
-                    frameCount: samples.count,
-                    maxFrames: maxFrames)
+            decodedCount += Int(outputBuffer.frameLength)
+            if let maxFrames, decodedCount > maxFrames {
+                throw DecodeLimitExceeded.tooManyFrames(frameCount: decodedCount, maxFrames: maxFrames)
             }
+            try consume(UnsafeBufferPointer(start: channel, count: Int(outputBuffer.frameLength)))
             await Task.yield()
         }
-        return samples
     }
 
     /// Encode mono Float32 samples to an AAC `.m4a` at `sampleRate`.
     static func encodeMonoFloat(
         _ samples: [Float], sampleRate: Int, to outputURL: URL, fileManager: FileManager
+    ) async throws {
+        var cursor = 0
+        try await encodeMonoFloat(sampleRate: sampleRate, to: outputURL, fileManager: fileManager) {
+            guard cursor < samples.count else { return nil }
+            let end = min(cursor + 16_384, samples.count)
+            defer { cursor = end }
+            return Array(samples[cursor..<end])
+        }
+    }
+
+    private static func encodeMonoFloat(
+        sampleRate: Int, to outputURL: URL, fileManager: FileManager,
+        nextSamples: () throws -> [Float]?
     ) async throws {
         try? fileManager.removeItem(at: outputURL)
         guard
@@ -718,13 +769,10 @@ final class MeetingCleanedMicRenderer {
         writer.startSession(atSourceTime: .zero)
 
         let sampleBufferFactory = PCMBufferToSampleBuffer()
-        let blockFrames = 16_384
         var written: Int64 = 0
-        var cursor = 0
-        while cursor < samples.count {
+        while let samples = try nextSamples() {
             try Task.checkCancellation()
-            let end = min(cursor + blockFrames, samples.count)
-            let frameCount = AVAudioFrameCount(end - cursor)
+            let frameCount = AVAudioFrameCount(samples.count)
             guard let buffer = AVAudioPCMBuffer(pcmFormat: pcmFormat, frameCapacity: frameCount),
                 let channel = buffer.floatChannelData?.pointee
             else {
@@ -732,7 +780,7 @@ final class MeetingCleanedMicRenderer {
             }
             buffer.frameLength = frameCount
             samples.withUnsafeBufferPointer { src in
-                channel.update(from: src.baseAddress! + cursor, count: Int(frameCount))
+                channel.update(from: src.baseAddress!, count: Int(frameCount))
             }
             let sampleBuffer = try sampleBufferFactory.makeSampleBuffer(
                 from: buffer, presentationTimeSamples: written)
@@ -753,9 +801,9 @@ final class MeetingCleanedMicRenderer {
                     writer.error?.localizedDescription ?? "cleaned mic append failed")
             }
             written += Int64(frameCount)
-            cursor = end
         }
 
+        try Task.checkCancellation()
         input.markAsFinished()
         await finishWriting(writer)
         if writer.status != .completed {

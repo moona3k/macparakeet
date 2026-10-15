@@ -164,12 +164,19 @@ public actor VoiceControlTurnRunner {
         ingressAuthority = submissionAuthority
         if !alternativeLabels.isEmpty || !alternativeIDs.isEmpty {
             let count = max(alternativeLabels.count, alternativeIDs.count)
-            if let index = VoiceControlSpokenPick.index(in: answer, count: count) {
+            // The same reading the classifier used: `select 2`, `click Open`, `Select All.`
+            let exact = VoiceControlSessionGrammar.normalize(answer)
+            // An offered `Please Save` is matched before the politeness is dropped.
+            let said = alternativeLabels.contains { VoiceControlSessionGrammar.normalize($0) == exact }
+                ? exact : (exact.hasPrefix("please ") ? String(exact.dropFirst(7)) : exact)
+            let spoken = VoiceControlUtteranceIntent.withoutPickVerb(said)
+            if let index = VoiceControlSpokenPick.index(in: spoken, count: count) {
                 if alternativeLabels.indices.contains(index) { chosenAlternative = alternativeLabels[index] }
                 if alternativeIDs.indices.contains(index) { chosenTargetID = alternativeIDs[index] }
             } else {
                 let matches = alternativeLabels.filter {
-                    $0.caseInsensitiveCompare(answer.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
+                    let label = VoiceControlSessionGrammar.normalize($0)
+                    return label == said || label == spoken
                 }
                 guard matches.count == 1, let match = matches.first,
                     let index = alternativeLabels.firstIndex(of: match)
@@ -352,6 +359,8 @@ public actor VoiceControlTurnRunner {
             } else {
                 record("decision", outcome: authority.isValid ? "failed" : "cancelled", started: start)
             }
+            // Whatever the engine threw, a revoked authority means Stop won.
+            if !authority.isValid { throw CancellationError() }
             throw error
         }
     }
@@ -535,6 +544,12 @@ public actor VoiceControlTurnRunner {
                         snapshot.targets.first(where: { $0.id == id })?.label
                     }
                     record("policy", outcome: "numbered_pick")
+                    let marks = zip(alternativeLabels, alternativeIDs).enumerated().map { offset, pair in
+                        VoiceControlHighlight.Mark(
+                            label: pair.0, frame: snapshot.targets.first(where: { $0.id == pair.1 })?.frame,
+                            number: offset + 1)
+                    }
+                    continuation.yield(.highlight(VoiceControlHighlight(style: .numbered, marks: marks)))
                     continuation.yield(.clarification(prompt)); return
                 case .action(let action):
                     guard let bound = bind(action, to: snapshot),
@@ -582,6 +597,7 @@ public actor VoiceControlTurnRunner {
             "policy", operation: action.operation, outcome: "confirmation_" + consequence.rawValue,
             observation: snapshot, action: action)
         let prefix = VoiceControlConfirmationCopy.prompt(action: action, target: target, consequence: consequence)
+        continuation.yield(.highlight(VoiceControlHighlight(style: .confirming, marks: [.init(label: target.label, frame: target.frame)])))
         continuation.yield(.confirmation(action, prefix))
         expiryTask?.cancel()
         let seconds = limits.confirmationSeconds
@@ -604,6 +620,9 @@ public actor VoiceControlTurnRunner {
         dispatchedStates.insert(identity); dispatched += 1
         let effect = effectIdentity(action, snapshot: snapshot)
         referenceSnapshot = snapshot; referenceAction = action; referenceTime = Date()
+        if let target = snapshot.targets.first(where: { $0.id == action.targetID }) {
+            continuation.yield(.highlight(VoiceControlHighlight(style: .acting, marks: [.init(label: target.label, frame: target.frame)])))
+        }
         continuation.yield(.acting(action))
         record("dispatch", operation: action.operation, outcome: "started", observation: snapshot, action: action)
         let start = ContinuousClock.now
@@ -655,7 +674,8 @@ public actor VoiceControlTurnRunner {
         VoiceControlAction(operation: action.operation, targetID: action.targetID, value: action.value,
             targetLabel: snapshot.targets.first(where: { $0.id == action.targetID })?.label ?? action.targetLabel,
             receiptStatus: status, consequence: action.consequence, modelID: action.modelID,
-            decisionConfidence: action.decisionConfidence, postcondition: action.postcondition)
+            decisionConfidence: action.decisionConfidence, postcondition: action.postcondition,
+            completesRequest: action.completesRequest)
     }
     private func reconcilePostcondition(in snapshot: VoiceControlSnapshot) {
         guard let last = history.last, last.postcondition != .unknown,
@@ -666,7 +686,8 @@ public actor VoiceControlTurnRunner {
             operation: last.operation, targetID: last.targetID, value: last.value,
             targetLabel: last.targetLabel, requiresConfirmation: last.requiresConfirmation,
             receiptStatus: .verified, consequence: last.consequence, modelID: last.modelID,
-            decisionConfidence: last.decisionConfidence, postcondition: last.postcondition)
+            decisionConfidence: last.decisionConfidence, postcondition: last.postcondition,
+            completesRequest: last.completesRequest)
         record(
             "verification", operation: last.operation, outcome: "postcondition_holds",
             observation: snapshot, action: last)
@@ -689,7 +710,7 @@ public actor VoiceControlTurnRunner {
             targetLabel: target.label, requiresConfirmation: action.requiresConfirmation,
             receiptStatus: action.receiptStatus, consequence: action.consequence,
             modelID: action.modelID, decisionConfidence: action.decisionConfidence,
-            postcondition: action.postcondition)
+            postcondition: action.postcondition, completesRequest: action.completesRequest)
     }
     private func isRepeated(_ action: VoiceControlAction, snapshot: VoiceControlSnapshot) -> Bool {
         if uncertainEffects.contains(effectIdentity(action, snapshot: snapshot)) {

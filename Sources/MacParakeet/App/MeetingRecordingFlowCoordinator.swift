@@ -102,8 +102,12 @@ final class MeetingRecordingFlowCoordinator {
     private let onQueuedTranscriptionReady: (Transcription, Bool) -> Void
     private let onQueuedTranscriptionFailed: (UUID, TranscriptionCompletionNotifier.Content) -> Void
     private let onRecordingBegan: () -> Void
+    private let isApplicationActive: @MainActor @Sendable () -> Bool
+    private let onSourceLossNotice: (MeetingSourceLossNotice, @escaping @MainActor @Sendable () -> Bool) -> Void
+    private var sourceLossNoticePolicy: MeetingSourceLossNoticePolicy
     private let onRecordingStopping: () -> Void
     private let onFlowReturnedToIdle: () -> Void
+    private let presentStartBusyNotice: @MainActor () -> Void
     private let meetingTranscriptionQueue: MeetingTranscriptionQueue
 
     private var stateMachine = MeetingRecordingFlowStateMachine()
@@ -117,7 +121,9 @@ final class MeetingRecordingFlowCoordinator {
     private var panelViewModel: MeetingRecordingPanelViewModel?
     private var actionTask: Task<Void, Never>?
     private var pauseToggleTask: Task<Void, Never>?
+    private var pendingPauseTarget: Bool?
     private var pausePublicationRevision: UInt64 = 0
+    private var isPresentingStartBusyNotice = false
     private var microphoneMuteToggleTask: Task<Void, Never>?
     private var meetingTypeUpdateTail: Task<Void, Never>?
     private var autoDismissTask: Task<Void, Never>?
@@ -184,8 +190,19 @@ final class MeetingRecordingFlowCoordinator {
         onQueuedTranscriptionReady: ((Transcription, Bool) -> Void)? = nil,
         onQueuedTranscriptionFailed: ((UUID, TranscriptionCompletionNotifier.Content) -> Void)? = nil,
         onRecordingBegan: @escaping () -> Void = {},
+        // `NSApp` is nil in hosts without an NSApplication, such as parallel
+        // xctest workers; count that as active so no banner is posted there.
+        isApplicationActive: @escaping @MainActor @Sendable () -> Bool = { NSApp?.isActive ?? true },
+        sourceLossNoticeThreshold: TimeInterval = MeetingSourceLossNoticePolicy.defaultThreshold,
+        onSourceLossNotice: @escaping (MeetingSourceLossNotice, @escaping @MainActor @Sendable () -> Bool) -> Void = {
+            notice, isStillRelevant in
+            MeetingSourceLossNoticePresenter.present(notice, isStillRelevant: isStillRelevant)
+        },
         onRecordingStopping: @escaping () -> Void = {},
-        onFlowReturnedToIdle: @escaping () -> Void = {}
+        onFlowReturnedToIdle: @escaping () -> Void = {},
+        presentStartBusyNotice: @escaping @MainActor () -> Void = {
+            MeetingRecordingFlowCoordinator.presentStartBusyAlert()
+        }
     ) {
         self.meetingRecordingService = meetingRecordingService
         self.transcriptionService = transcriptionService
@@ -226,8 +243,12 @@ final class MeetingRecordingFlowCoordinator {
                 TranscriptionCompletionPresenter.presentNotification(content)
             }
         self.onRecordingBegan = onRecordingBegan
+        self.sourceLossNoticePolicy = MeetingSourceLossNoticePolicy(threshold: sourceLossNoticeThreshold)
+        self.isApplicationActive = isApplicationActive
+        self.onSourceLossNotice = onSourceLossNotice
         self.onRecordingStopping = onRecordingStopping
         self.onFlowReturnedToIdle = onFlowReturnedToIdle
+        self.presentStartBusyNotice = presentStartBusyNotice
         self.meetingTranscriptionQueue.onStateChanged = { [weak self] snapshot in
             self?.pillViewModel.backgroundTranscriptionCount = snapshot.totalCount
         }
@@ -264,30 +285,62 @@ final class MeetingRecordingFlowCoordinator {
     private var pendingStartContext: MeetingStartContext?
     private var pendingCalendarEventSnapshot: MeetingCalendarSnapshot?
 
+    func handleURLCommand(_ command: MeetingURLCommand) {
+        switch command {
+        case .start(let title):
+            switch stateMachine.state {
+            case .idle:
+                startRecording(title: title, presentLivePanelWhenReady: true)
+            case .stopping, .finishing:
+                presentStartBusyNoticeOnce()
+            case .checkingPermissions, .starting, .recording:
+                break
+            }
+        case .stop:
+            stopRecording()
+        case .pause:
+            setPaused(true)
+        case .resume:
+            setPaused(false)
+        }
+    }
+
+    func togglePause() {
+        setPaused(!(pendingPauseTarget ?? pillViewModel.isPaused))
+    }
+
     /// Pause / resume the in-flight recording. The state flip happens AFTER
     /// the service confirms — an optimistic flip before the await would race
     /// with the 1s polling reconciler (which reads `captureMode` from the
     /// actor and could see `.full` while the spawned pause Task is still
     /// queued, then flip the pill back to `.recording`).
     ///
-    /// Stale toggles are cancelled so a rapid pause/resume/pause sequence
-    /// settles in the latest user intent rather than the order Tasks happen
-    /// to be scheduled.
-    func togglePause() {
-        guard pillViewModel.canTogglePause else { return }
-        let wantPause = !pillViewModel.isPaused
-        pauseToggleTask?.cancel()
+    /// An explicit desired state makes repeated automation commands
+    /// idempotent. Service calls are serialized so a suspended pause cannot
+    /// land after a later resume, and a stop or capture failure that lands
+    /// during an await must not be stomped by a stale flip.
+    func setPaused(_ wantPause: Bool) {
+        guard stateMachine.state == .recording, pillViewModel.canTogglePause else { return }
+        guard (pendingPauseTarget ?? pillViewModel.isPaused) != wantPause else { return }
+        pendingPauseTarget = wantPause
+        let generation = stateMachine.generation
+        let previous = pauseToggleTask
+        previous?.cancel()
         pauseToggleTask = Task { @MainActor [meetingRecordingService, weak self] in
+            await previous?.value
+            guard !Task.isCancelled, let self,
+                  self.stateMachine.generation == generation,
+                  self.stateMachine.state == .recording else { return }
             if wantPause {
                 await meetingRecordingService.pauseRecording()
             } else {
                 await meetingRecordingService.resumeRecording()
             }
-            guard !Task.isCancelled, let self else { return }
-            // Only flip if the pill is still in a togglable state. A stop or
-            // capture-failure that landed during the await may have moved
-            // the pill to `.transcribing` / `.error`; we must not stomp it.
-            guard self.pillViewModel.canTogglePause else { return }
+            guard !Task.isCancelled,
+                  self.stateMachine.generation == generation,
+                  self.stateMachine.state == .recording,
+                  self.pillViewModel.canTogglePause else { return }
+            self.pendingPauseTarget = nil
             self.pausePublicationRevision &+= 1
             self.pillViewModel.state = wantPause ? .paused : .recording
             self.pillController?.refreshState()
@@ -368,7 +421,14 @@ final class MeetingRecordingFlowCoordinator {
             currentMeetingTrigger = trigger
             sendEvent(.stopRequested)
             return true
-        case .idle, .checkingPermissions, .stopping, .finishing:
+        case .checkingPermissions:
+            // No capture exists yet. Cancel the permission task without
+            // scheduling service cancellation that could hit a later session.
+            actionTask?.cancel()
+            clearPendingStartContext(failureReason: "cancelled", outcome: .cancelled)
+            sendEvent(.stopRequested)
+            return true
+        case .idle, .stopping, .finishing:
             return false
         }
     }
@@ -478,15 +538,19 @@ final class MeetingRecordingFlowCoordinator {
 
     /// Discard the pending start context (trigger + title) when the start
     /// sequence exits without ever reaching the `.startRecording` effect —
-    /// today, only the permissions-denied path. The `.startRecording`
-    /// effect handler clears these inline because it needs to snapshot
-    /// them first to fire telemetry; this helper is for the paths that
-    /// bail out earlier. If the bailing-out start was calendar-driven,
+    /// denied permissions or a stop during permission checking. The
+    /// `.startRecording` effect handler clears these inline because it needs
+    /// to snapshot them first to fire telemetry; this helper is for the paths
+    /// that bail out earlier, reporting `outcome` (`.unavailable` unless the
+    /// caller cancelled). If the bailing-out start was calendar-driven,
     /// emits `calendar_auto_start_failed{reason}` for observability.
-    private func clearPendingStartContext(failureReason: String) {
+    private func clearPendingStartContext(
+        failureReason: String,
+        outcome: ObservabilityOutcome = .unavailable
+    ) {
         let wasCalendarTriggered = pendingTrigger == .calendarAutoStart
         sendMeetingOperation(
-            outcome: .unavailable,
+            outcome: outcome,
             trigger: pendingTrigger.map(TelemetryMeetingOperationTrigger.init),
             stage: .permissions,
             errorType: failureReason
@@ -557,6 +621,7 @@ final class MeetingRecordingFlowCoordinator {
     private func executeEffect(_ effect: MeetingRecordingFlowEffect) {
         switch effect {
         case .checkPermissions:
+            pendingPauseTarget = nil
             let gen = stateMachine.generation
             actionTask = Task { @MainActor in
                 let sourceMode = self.pendingAudioSourceMode ?? meetingAudioSourceModeProvider()
@@ -565,6 +630,7 @@ final class MeetingRecordingFlowCoordinator {
                 let microphonePrompted: Bool
                 if sourceMode.capturesMicrophone {
                     let microphoneStatus = await permissionService.checkMicrophonePermission()
+                    guard !Task.isCancelled, self.stateMachine.generation == gen else { return }
                     switch microphoneStatus {
                     case .granted:
                         microphoneGranted = true
@@ -582,6 +648,7 @@ final class MeetingRecordingFlowCoordinator {
                     microphonePrompted = false
                 }
 
+                guard !Task.isCancelled, self.stateMachine.generation == gen else { return }
                 if !microphoneGranted {
                     if microphonePrompted {
                         Telemetry.send(.permissionDenied(permission: .microphone))
@@ -897,6 +964,10 @@ final class MeetingRecordingFlowCoordinator {
             let operationContext = currentMeetingOperationContext ?? ObservabilityOperationContext()
             let operationTrigger = currentMeetingTrigger
             currentMeetingOperationContext = operationContext
+            // The service may still be reserving its speech engine before it
+            // publishes an active session. Preserve that task so an early
+            // stop cannot fail and leave the original start running unowned.
+            let precedingStartTask = actionTask
             actionTask = Task { @MainActor in
                 var stoppedOutput: MeetingRecordingOutput?
                 var captureDiagnostics: MeetingCaptureDiagnostics?
@@ -938,6 +1009,10 @@ final class MeetingRecordingFlowCoordinator {
 
                 do {
                     activeSessionID = await meetingRecordingService.activeSessionID
+                    if activeSessionID == nil {
+                        await precedingStartTask?.value
+                        activeSessionID = await meetingRecordingService.activeSessionID
+                    }
                     let prepared = try await Observability.withOperationContext(operationContext) {
                         // Flush any keystrokes typed in the last < 250 ms so
                         // they make it onto the lock file and into the saved
@@ -1269,6 +1344,7 @@ final class MeetingRecordingFlowCoordinator {
         stopSpeechWarmUpObservation()
         pauseToggleTask?.cancel()
         pauseToggleTask = nil
+        pendingPauseTarget = nil
         microphoneMuteToggleTask?.cancel()
         microphoneMuteToggleTask = nil
         completingFlourishTask?.cancel()
@@ -1313,6 +1389,26 @@ final class MeetingRecordingFlowCoordinator {
         pendingLivePanelPresentation = false
     }
 
+    private func presentStartBusyNoticeOnce() {
+        guard !isPresentingStartBusyNotice else { return }
+        isPresentingStartBusyNotice = true
+        defer { isPresentingStartBusyNotice = false }
+        presentStartBusyNotice()
+    }
+
+    static func presentStartBusyAlert() {
+        NSApp.activate(ignoringOtherApps: true)
+
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = "Meeting Recorder Is Busy"
+        alert.informativeText =
+            "MacParakeet is still finishing the previous recording. "
+            + "Send the start link again in a moment."
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
     private func confirmAndCancelRecording() {
         let alert = NSAlert()
         alert.alertStyle = .warning
@@ -1355,6 +1451,7 @@ final class MeetingRecordingFlowCoordinator {
 
     private func startPillPolling() {
         pillPollingTask?.cancel()
+        sourceLossNoticePolicy.reset()
         pillPollingTask = Task { @MainActor [weak self] in
             guard let self else { return }
             while !Task.isCancelled {
@@ -1413,6 +1510,19 @@ final class MeetingRecordingFlowCoordinator {
                 panelViewModel.captureHealth = captureHealth
             }
         }
+        if let notice = sourceLossNoticePolicy.evaluate(
+            health: captureHealth,
+            isActivelyRecording: stateMachine.state == .recording && captureMode == .full,
+            canDeliverBanner: panelController?.isVisible != true && !isApplicationActive(),
+            now: Date()
+        ) {
+            AudioCaptureDiagnostics.append(
+                "meeting_source_loss_notice source=\(notice.source.rawValue)"
+            )
+            onSourceLossNotice(notice) { [weak self, generation = stateMachine.generation] in
+                self?.isSourceLossStillCurrent(notice.source, generation: generation) ?? false
+            }
+        }
         // A confirmed toggle may have published while these service reads
         // suspended. Keep its newer pause state, while still updating health
         // and levels above. Polling only reconciles recording/paused states.
@@ -1424,6 +1534,14 @@ final class MeetingRecordingFlowCoordinator {
             pillViewModel.state = .recording
         }
         panelViewModel?.isPaused = serviceIsPaused
+    }
+
+    /// The same recording is still live and the source is still lost.
+    private func isSourceLossStillCurrent(_ source: MeetingSourceHealth.Source, generation: Int) -> Bool {
+        guard stateMachine.generation == generation, stateMachine.state == .recording else { return false }
+        let health = pillViewModel.captureHealth
+        let status = source == .microphone ? health.microphone.status : health.system.status
+        return MeetingSourceLossNoticePolicy.isLost(status)
     }
 
     private static func displayLevel(_ level: Float) -> Float {

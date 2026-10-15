@@ -914,6 +914,100 @@ final class VoiceControlCommandRouterTests: XCTestCase {
             ])
         XCTAssertEqual(result, .directCompleted("Done. The requested change was verified."))
     }
+    /// `type` inside a sentence is a noun. Only a clause boundary (`now type`,
+    /// `, type`) starts literal text; everything after it is typed verbatim.
+    func testMidSentenceTypeIsANounNotATypeClause() async throws {
+        for goal in [
+            "what type of file is this", "click the file type menu", "change the type to PDF",
+            "select the ticket type adult", "what's the blood type here",
+        ] {
+            XCTAssertNil(VoiceControlCommandRouter.typePayload(in: goal), goal)
+        }
+        for (goal, payload) in [
+            ("then type hello", "hello"), ("open notes and type buy milk", "buy milk"),
+            ("I'm in the field, type hello", "hello"), ("Done. Type hello", "hello"),
+            ("now type the words what type of file", "what type of file"),
+            ("now type literally then type x", "then type x"),
+        ] {
+            XCTAssertEqual(VoiceControlCommandRouter.typePayload(in: goal), payload, goal)
+        }
+        let fallback = RecordingFallback()
+        let asked = try await VoiceControlCommandRouter(fallback: fallback)
+            .decide(goal: "what type of file is this", snapshot: editable(""), history: [])
+        XCTAssertEqual(asked, .clarify("fallback"), "a question about a type must not insert its tail")
+        let menu = VoiceControlSnapshot(
+            contextID: "test", applicationName: "Finder",
+            targets: [VoiceControlTarget(id: "kind", label: "File Type", role: "AXMenuButton", operations: [.press])])
+        let pressed = try await VoiceControlCommandRouter(fallback: MustNotDecide())
+            .decide(goal: "click the file type menu", snapshot: menu, history: [])
+        XCTAssertEqual(pressed, .action(VoiceControlAction(operation: .press, targetID: "kind")))
+    }
+    /// App names match whole names or a known alias, never substrings: `first
+    /// email` is not Mail, and `search results` is not Arc.
+    func testAppRequestsMatchWholeNamesOnly() async throws {
+        XCTAssertTrue(VoiceControlCommandRouter.application(named: "Google Chrome", matches: "chrome"))
+        XCTAssertTrue(VoiceControlCommandRouter.application(named: "Visual Studio Code", matches: "vs code"))
+        XCTAssertTrue(VoiceControlCommandRouter.application(named: "Microsoft Word", matches: "word"))
+        XCTAssertFalse(VoiceControlCommandRouter.application(named: "Arc", matches: "search results"))
+        XCTAssertFalse(VoiceControlCommandRouter.application(named: "Mail", matches: "first email"))
+        XCTAssertFalse(VoiceControlCommandRouter.application(named: "Xcode", matches: "code"))
+        XCTAssertFalse(VoiceControlCommandRouter.isBrowserName("Archive Utility"))
+        for (app, goal) in [
+            ("Mail", "open the first email"), ("Notes", "open the notes from yesterday"),
+            ("Messages", "open message from Sam"), ("Code", "open the source code"),
+        ] {
+            let fallback = RecordingFallback()
+            let snapshot = VoiceControlSnapshot(
+                contextID: "test", applicationName: app,
+                targets: [VoiceControlTarget(id: "row", label: "Inbox", role: "AXRow", operations: [.press])])
+            let result = try await VoiceControlCommandRouter(fallback: fallback)
+                .decide(goal: goal, snapshot: snapshot, history: [])
+            XCTAssertEqual(result, .clarify("fallback"), "\(goal) in \(app) is not a request for \(app)")
+        }
+        let finder = VoiceControlSnapshot(
+            contextID: "test", applicationName: "Finder",
+            targets: [VoiceControlTarget(id: "app:arc", label: "Arc", role: "application", operations: [.activateApp])])
+        let arc = try await VoiceControlCommandRouter(fallback: RecordingFallback())
+            .decide(goal: "go to search results", snapshot: finder, history: [])
+        XCTAssertEqual(arc, .clarify("fallback"))
+        let opened = try await VoiceControlCommandRouter(fallback: MustNotDecide())
+            .decide(goal: "go to arc", snapshot: finder, history: [])
+        XCTAssertEqual(opened, .action(VoiceControlAction(operation: .activateApp, targetID: "app:arc")))
+        let code = VoiceControlSnapshot(
+            contextID: "test", applicationName: "Code",
+            targets: [VoiceControlTarget(id: "app:x", label: "Xcode", role: "application", operations: [.activateApp])])
+        let xcode = try await VoiceControlCommandRouter(fallback: MustNotDecide())
+            .decide(goal: "click Xcode", snapshot: code, history: [])
+        XCTAssertEqual(xcode, .action(VoiceControlAction(operation: .activateApp, targetID: "app:x")))
+    }
+
+    /// The spoken name is tried whole first: `New Tab` is a label, not `New` plus a role word.
+    func testClickPrefersTheExactLabelBeforeStrippingARoleWord() async throws {
+        let router = VoiceControlCommandRouter(fallback: MustNotDecide())
+        let browser = VoiceControlSnapshot(
+            contextID: "test", applicationName: "Safari",
+            targets: [
+                VoiceControlTarget(id: "tab", label: "New Tab", role: "AXMenuItem", operations: [.press]),
+                VoiceControlTarget(id: "win", label: "New Window", role: "AXMenuItem", operations: [.press]),
+                VoiceControlTarget(id: "priv", label: "New Private Window", role: "AXMenuItem", operations: [.press]),
+                VoiceControlTarget(id: "fmt", label: "Format", role: "AXMenuBarItem", operations: [.press]),
+                VoiceControlTarget(id: "fmt-menu", label: "Format menu", role: "AXButton", operations: [.press]),
+                VoiceControlTarget(id: "save", label: "Save", role: "AXButton", operations: [.press]),
+            ])
+        for (goal, id) in [
+            ("click new tab", "tab"), ("click the Format menu", "fmt-menu"), ("click Format", "fmt"),
+            ("click the save button", "save"),
+        ] {
+            let result = try await router.decide(goal: goal, snapshot: browser, history: [])
+            XCTAssertEqual(result, .action(VoiceControlAction(operation: .press, targetID: id)), goal)
+        }
+        let done = try await router.decide(
+            goal: "click new tab", snapshot: browser,
+            history: [
+                VoiceControlAction(operation: .press, targetID: "tab", targetLabel: "New Tab", receiptStatus: .verified)
+            ])
+        XCTAssertEqual(done, .directCompleted("Done. The requested change was verified."))
+    }
     private func editable(_ value: String, selected: String? = nil, complete: Bool = true) -> VoiceControlSnapshot {
         VoiceControlSnapshot(
             contextID: "test", applicationName: "Fixture",

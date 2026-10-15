@@ -257,7 +257,8 @@ public final class LLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
         return try loadAPIKey(for: config.id)
     }
     public func loadAPIKey(for provider: LLMProviderID) throws -> String? {
-        try keychain.getString(Self.apiKeyKeychainKey(for: provider))
+        guard provider.supportsAPIKey else { return nil }
+        return try keychain.getString(Self.apiKeyKeychainKey(for: provider))
     }
     public func saveAPIKey(_ key: String) throws {
         try withOperationLease {

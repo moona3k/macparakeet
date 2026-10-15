@@ -196,6 +196,19 @@ public final class SettingsViewModel {
             Telemetry.send(pushToTalkHotkeyTrigger.customizedEvent(surface: .pushToTalk))
         }
     }
+    public var alternateHandsFreeHotkeyTrigger: HotkeyTrigger {
+        didSet {
+            alternateHandsFreeHotkeyTrigger.save(to: defaults, defaultsKey: HotkeyTrigger.alternateHandsFreeDefaultsKey)
+            NotificationCenter.default.post(name: .macParakeetHotkeyTriggerDidChange, object: nil)
+        }
+    }
+    public var alternatePushToTalkHotkeyTrigger: HotkeyTrigger {
+        didSet {
+            alternatePushToTalkHotkeyTrigger.save(
+                to: defaults, defaultsKey: HotkeyTrigger.alternatePushToTalkDefaultsKey)
+            NotificationCenter.default.post(name: .macParakeetPushToTalkHotkeyTriggerDidChange, object: nil)
+        }
+    }
     public var meetingHotkeyTrigger: HotkeyTrigger {
         didSet {
             meetingHotkeyTrigger.save(to: defaults, defaultsKey: HotkeyTrigger.meetingDefaultsKey)
@@ -286,6 +299,12 @@ public final class SettingsViewModel {
             microphoneTestState = .idle
             microphoneTestLevel = 0
             NotificationCenter.default.post(name: .macParakeetMicrophoneSelectionDidChange, object: nil)
+            // Only an explicit selection rebuilds the idle preparation. Route
+            // notifications from Core Audio do not (#1227). The warm hold owns
+            // its own refresh while Instant Dictation is on.
+            if !instantDictationEnabled {
+                sharedMicStream?.refreshIdlePrewarm()
+            }
             Telemetry.send(.settingChanged(setting: .microphoneSelection))
         }
     }
@@ -296,6 +315,11 @@ public final class SettingsViewModel {
                 forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey
             )
             Telemetry.send(.settingChanged(setting: .meetingAudioSourceMode, value: meetingAudioSourceMode.rawValue))
+        }
+    }
+    public var meetingURLControlEnabled: Bool {
+        didSet {
+            defaults.set(meetingURLControlEnabled, forKey: UserDefaultsAppRuntimePreferences.meetingURLControlEnabledKey)
         }
     }
     public var startMeetingsMuted: Bool {
@@ -1064,6 +1088,12 @@ public final class SettingsViewModel {
         if resolvedDictationHotkeys.shouldPersistPushToTalk {
             resolvedDictationHotkeys.pushToTalk.save(to: defaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
         }
+        alternateHandsFreeHotkeyTrigger = HotkeyTrigger.current(
+            defaults: defaults, defaultsKey: HotkeyTrigger.alternateHandsFreeDefaultsKey, fallback: .disabled
+        )
+        alternatePushToTalkHotkeyTrigger = HotkeyTrigger.current(
+            defaults: defaults, defaultsKey: HotkeyTrigger.alternatePushToTalkDefaultsKey, fallback: .disabled
+        )
         meetingHotkeyTrigger = Self.resolveMeetingHotkeyTrigger(defaults: defaults)
         fileTranscriptionHotkeyTrigger = Self.resolveTranscriptionHotkeyTrigger(
             defaults: defaults,
@@ -1090,6 +1120,7 @@ public final class SettingsViewModel {
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)
         )
         meetingAudioSourceMode = MeetingAudioSourceMode.current(defaults: defaults)
+        meetingURLControlEnabled = UserDefaultsAppRuntimePreferences.meetingURLControlEnabled(defaults: defaults)
         startMeetingsMuted = UserDefaultsAppRuntimePreferences.startMeetingsMuted(defaults: defaults)
         showMeetingRecordingPill = UserDefaultsAppRuntimePreferences.showMeetingRecordingPill(defaults: defaults)
         openAppAfterMeetingEnd = UserDefaultsAppRuntimePreferences.openAppAfterMeetingEnd(defaults: defaults)
@@ -1693,7 +1724,12 @@ public final class SettingsViewModel {
     public func requestScreenRecordingAccess() {
         guard let permissionService else { return }
         Telemetry.send(.permissionPrompted(permission: .screenRecording))
-        _ = permissionService.requestScreenRecordingPermission()
+        // The request prompts only while access is undetermined; after a
+        // denial it returns false silently. Access is granted in System
+        // Settings either way, so take the user there.
+        if !permissionService.requestScreenRecordingPermission() {
+            permissionService.openScreenRecordingSettings()
+        }
         refreshPermissions()
     }
 

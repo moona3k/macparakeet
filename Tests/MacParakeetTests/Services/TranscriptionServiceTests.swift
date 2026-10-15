@@ -1265,19 +1265,16 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertNil(result.cleanTranscript)
     }
 
-    func testTranscribeSkipsAIFormatterWhenCleanTranscriptExceedsInputCap() async throws {
-        // The formatter must reproduce the full text, so past the cap it
-        // can stall finalization until timeout before falling back. Clean mode
-        // should still keep deterministic cleanup as the fallback (#493).
+    func testTranscribeFormatsAICleanupWhenTranscriptExceedsOneSection() async throws {
         let seed = "hello world "
         let longTranscript = String(
             repeating: seed,
-            count: (AIFormatter.maxTranscriptionInputChars / seed.count) + 1
+            count: (LLMService.formatterMaxSectionCharacters / seed.count) + 1
         )
-        XCTAssertGreaterThan(longTranscript.count, AIFormatter.maxTranscriptionInputChars)
+        XCTAssertGreaterThan(longTranscript.count, LLMService.formatterMaxSectionCharacters)
         await mockSTT.configure(result: STTResult(text: longTranscript))
         let mockLLMService = MockLLMService()
-        mockLLMService.formatTranscriptResult = "should never be requested"
+        mockLLMService.formatTranscriptResult = "Cleaned long transcript."
 
         let service = TranscriptionService(
             audioProcessor: mockAudio,
@@ -1293,13 +1290,16 @@ final class TranscriptionServiceTests: XCTestCase {
         let result = try await service.transcribe(fileURL: URL(fileURLWithPath: "/tmp/test.mp3"))
 
         XCTAssertEqual(result.rawTranscript, longTranscript)
-        let cleanTranscript = try XCTUnwrap(result.cleanTranscript)
-        XCTAssertFalse(cleanTranscript.isEmpty)
-        XCTAssertNotEqual(cleanTranscript, longTranscript)
-        XCTAssertEqual(mockLLMService.formatTranscriptCallCount, 0)
+        XCTAssertEqual(result.cleanTranscript, "Cleaned long transcript.")
+        XCTAssertEqual(mockLLMService.formatTranscriptCallCount, 1)
+        XCTAssertGreaterThan(
+            mockLLMService.lastFormattedTranscript?.count ?? 0,
+            LLMService.formatterMaxSectionCharacters
+        )
 
         let runs = try llmRunRepo.fetchForTranscription(id: result.id)
-        XCTAssertTrue(runs.isEmpty)
+        XCTAssertEqual(runs.count, 1)
+        XCTAssertEqual(runs.first?.status, .succeeded)
     }
 
     func testTranscribeFallsBackWhenAIFormatterFailsAndPostsWarning() async throws {
@@ -3242,7 +3242,7 @@ final class TranscriptionServiceTests: XCTestCase {
         ])
     }
 
-    func testTranscribeMeetingKeepsFallbackSystemSpeakerWhenDiarizationDoesNotCoverEveryWord() async throws {
+    func testTranscribeMeetingLabelsUncoveredSystemWordsUnattributed() async throws {
         let recordingFolder = URL(fileURLWithPath: AppPaths.tempDir)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
@@ -3301,9 +3301,11 @@ final class TranscriptionServiceTests: XCTestCase {
 
         XCTAssertEqual(result.wordTimestamps?.map(\.speakerId), ["system:S1", "system"])
         XCTAssertEqual(result.speakers, [
-            SpeakerInfo(id: "system", label: "Others"),
+            SpeakerInfo(id: "system", label: "Unattributed"),
             SpeakerInfo(id: "system:S1", label: "Others 1"),
         ])
+        // The unattributed bucket is not a detected speaker (#1228).
+        XCTAssertEqual(result.speakerCount, 1)
     }
 
     func testTranscribeMeetingPreservesSingleSourceModelText() async throws {
@@ -3928,6 +3930,162 @@ final class TranscriptionServiceTests: XCTestCase {
         let exactDiarizeCalled = await diarization.diarizeCalled
         XCTAssertTrue(exactDiarizeCalled)
         XCTAssertEqual(result.speakers, [SpeakerInfo(id: "S1", label: "Speaker 1")])
+    }
+
+    func testFirstRunFileExactSpeakerCountUsesConstrainedServiceAndPersists() async throws {
+        await mockSTT.configure(result: STTResult(
+            text: "Hello there",
+            words: [TimestampedWord(word: "Hello", startMs: 0, endMs: 200, confidence: 1)]
+        ))
+        let diarization = MockDiarizationService()
+        await diarization.configure(result: MacParakeetDiarizationResult(
+            segments: [SpeakerSegment(speakerId: "S1", startMs: 0, endMs: 200)],
+            speakerCount: 1,
+            speakers: [SpeakerInfo(id: "S1", label: "Speaker 1")]
+        ))
+        let recorder = DiarizationConstraintRecorder()
+        let configuredService = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            diarizationService: nil,
+            diarizationServiceFactory: DiarizationServiceFactory { constraint in
+                recorder.record(constraint)
+                return diarization
+            }
+        )
+
+        let result = try await configuredService.transcribe(
+            fileURL: URL(fileURLWithPath: "/tmp/podcast.wav"),
+            audioTrackOrdinal: nil,
+            speakerSelection: .exact(2)
+        )
+
+        XCTAssertEqual(recorder.constraints, [.exact(2)])
+        let diarizeCalled = await diarization.diarizeCalled
+        XCTAssertTrue(diarizeCalled)
+        let persisted = try XCTUnwrap(transcriptionRepo.fetch(id: result.id))
+        XCTAssertEqual(persisted.status, .completed)
+        XCTAssertEqual(persisted.speakers, [SpeakerInfo(id: "S1", label: "Speaker 1")])
+    }
+
+    func testFirstRunURLExactSpeakerCountUsesConstrainedService() async throws {
+        let thumbnailDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("url-speaker-count-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: thumbnailDir) }
+        let downloadedURL = try makeTempDownloadedAudio()
+        defer { try? FileManager.default.removeItem(at: downloadedURL) }
+        let downloader = MockYouTubeDownloader(result: YouTubeDownloader.DownloadResult(
+            audioFileURL: downloadedURL,
+            title: "Interview",
+            durationSeconds: 60
+        ))
+        await mockSTT.configure(result: STTResult(
+            text: "Hello there",
+            words: [TimestampedWord(word: "Hello", startMs: 0, endMs: 200, confidence: 1)]
+        ))
+        let diarization = MockDiarizationService()
+        let recorder = DiarizationConstraintRecorder()
+        let configuredService = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            youtubeDownloader: downloader,
+            diarizationService: nil,
+            diarizationServiceFactory: DiarizationServiceFactory { constraint in
+                recorder.record(constraint)
+                return diarization
+            },
+            mediaMetadataExtractor: StubMediaMetadataExtractor(metadata: .empty),
+            thumbnailCache: ThumbnailCacheService(cacheDir: thumbnailDir.path)
+        )
+
+        _ = try await configuredService.transcribeURL(
+            urlString: "https://youtu.be/dQw4w9WgXcQ",
+            speakerSelection: .exact(3)
+        )
+
+        XCTAssertEqual(recorder.constraints, [.exact(3)])
+        let diarizeCalled = await diarization.diarizeCalled
+        XCTAssertTrue(diarizeCalled)
+    }
+
+    func testFirstRunApplePodcastsExactSpeakerCountUsesConstrainedServiceAndPersists() async throws {
+        let downloadedURL = try makeTempDownloadedAudio(fileExtension: "mp3")
+        defer { try? FileManager.default.removeItem(at: downloadedURL) }
+        let resolver = StubPodcastResolver(episode: ResolvedPodcastEpisode(
+            audioURL: "https://cdn.example.com/audio/7.mp3",
+            episodeTitle: "Episode 7",
+            showName: "Two Hosts",
+            artworkURL: nil,
+            episodeDescription: nil,
+            durationSeconds: 60,
+            releaseDate: nil
+        ))
+        await mockSTT.configure(result: STTResult(
+            text: "Hello there",
+            words: [TimestampedWord(word: "Hello", startMs: 0, endMs: 200, confidence: 1)]
+        ))
+        let diarization = MockDiarizationService()
+        await diarization.configure(result: MacParakeetDiarizationResult(
+            segments: [SpeakerSegment(speakerId: "S1", startMs: 0, endMs: 200)],
+            speakerCount: 1,
+            speakers: [SpeakerInfo(id: "S1", label: "Speaker 1")]
+        ))
+        let recorder = DiarizationConstraintRecorder()
+        let configuredService = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            shouldKeepDownloadedAudio: { false },
+            podcastResolver: resolver,
+            podcastAudioFetcher: StubPodcastAudioFetcher(fileURL: downloadedURL),
+            diarizationService: nil,
+            diarizationServiceFactory: DiarizationServiceFactory { constraint in
+                recorder.record(constraint)
+                return diarization
+            }
+        )
+
+        let result = try await configuredService.transcribeURL(
+            urlString: "https://podcasts.apple.com/us/podcast/two-hosts/id1?i=7",
+            speakerSelection: .exact(2)
+        )
+
+        XCTAssertEqual(recorder.constraints, [.exact(2)])
+        let diarizeCalled = await diarization.diarizeCalled
+        XCTAssertTrue(diarizeCalled)
+        let persisted = try XCTUnwrap(transcriptionRepo.fetch(id: result.id))
+        XCTAssertEqual(persisted.sourceType, .podcast)
+        XCTAssertEqual(persisted.speakers, [SpeakerInfo(id: "S1", label: "Speaker 1")])
+    }
+
+    func testFirstRunRejectsUnsupportedExactSpeakerCountBeforeTranscribing() async throws {
+        let recorder = DiarizationConstraintRecorder()
+        let configuredService = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            diarizationServiceFactory: DiarizationServiceFactory { constraint in
+                recorder.record(constraint)
+                return MockDiarizationService()
+            }
+        )
+
+        do {
+            _ = try await configuredService.transcribe(
+                fileURL: URL(fileURLWithPath: "/tmp/podcast.wav"),
+                audioTrackOrdinal: nil,
+                speakerSelection: .exact(0)
+            )
+            XCTFail("Expected an unsupported speaker count to throw")
+        } catch let error as SpeakerCountSelectionError {
+            XCTAssertEqual(error, .unsupportedExactCount(0))
+        }
+        XCTAssertTrue(recorder.constraints.isEmpty)
+        XCTAssertTrue(try transcriptionRepo.fetchAll().isEmpty)
+        let sttCallCount = await mockSTT.transcribeCallCount
+        XCTAssertEqual(sttCallCount, 0)
     }
 
     func testCanonicalMeetingAudioPreservesPlayableDurationIndependentOfWordTimings() async throws {

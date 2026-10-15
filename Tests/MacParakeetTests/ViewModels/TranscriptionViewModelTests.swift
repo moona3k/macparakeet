@@ -195,6 +195,117 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.currentTranscription?.rawTranscript, "Transcribed text")
     }
 
+    func testExactNextRunSpeakerCountAppliesToOneFileThenResetsToAuto() async throws {
+        let suiteName = makeIsolatedDefaultsSuite("TranscriptionViewModelTests-")
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey)
+        viewModel = TranscriptionViewModel(defaults: defaults)
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+
+        viewModel.nextRunSpeakerSelection = .exact(2)
+        viewModel.transcribeFile(url: URL(fileURLWithPath: "/tmp/interview.wav"))
+        XCTAssertEqual(viewModel.nextRunSpeakerSelection, .automatic)
+        try await waitUntil { !self.viewModel.isTranscribing }
+
+        viewModel.transcribeFile(url: URL(fileURLWithPath: "/tmp/later.wav"))
+        try await waitUntil { !self.viewModel.isTranscribing }
+
+        let selections = await mockService.transcriptionSpeakerSelections
+        let callCount = await mockService.transcribeCallCount
+        XCTAssertEqual(selections, [.exact(2)], "Only the first run carries the count")
+        XCTAssertEqual(callCount, 2)
+    }
+
+    func testNextRunSpeakerCountIsIgnoredWhenSpeakerDetectionIsOff() async throws {
+        let suiteName = makeIsolatedDefaultsSuite("TranscriptionViewModelTests-")
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey)
+        viewModel = TranscriptionViewModel(defaults: defaults)
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+
+        viewModel.nextRunSpeakerSelection = .exact(3)
+        viewModel.transcribeFile(url: URL(fileURLWithPath: "/tmp/interview.wav"))
+        try await waitUntil { !self.viewModel.isTranscribing }
+
+        let selections = await mockService.transcriptionSpeakerSelections
+        let callCount = await mockService.transcribeCallCount
+        XCTAssertTrue(selections.isEmpty, "A hidden count must not turn speaker detection back on")
+        XCTAssertEqual(callCount, 1)
+        XCTAssertEqual(viewModel.nextRunSpeakerSelection, .automatic)
+    }
+
+    func testAutomaticNextRunSpeakerCountUsesPlainTranscription() async throws {
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+
+        viewModel.transcribeFile(url: URL(fileURLWithPath: "/tmp/interview.wav"))
+        try await waitUntil { !self.viewModel.isTranscribing }
+
+        let selections = await mockService.transcriptionSpeakerSelections
+        let callCount = await mockService.transcribeCallCount
+        XCTAssertTrue(selections.isEmpty)
+        XCTAssertEqual(callCount, 1)
+    }
+
+    func testExactNextRunSpeakerCountAppliesToMediaLink() async throws {
+        let suiteName = makeIsolatedDefaultsSuite("TranscriptionViewModelTests-")
+        let defaults = UserDefaults(suiteName: suiteName)!
+        viewModel = TranscriptionViewModel(defaults: defaults)
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.urlInput = "https://youtu.be/dQw4w9WgXcQ"
+
+        viewModel.nextRunSpeakerSelection = .exact(4)
+        viewModel.transcribeURL()
+        XCTAssertEqual(viewModel.nextRunSpeakerSelection, .automatic)
+        try await waitUntil { !self.viewModel.isTranscribing }
+
+        let selections = await mockService.transcriptionSpeakerSelections
+        let urlCallCount = await mockService.transcribeURLCallCount
+        XCTAssertEqual(selections, [.exact(4)])
+        XCTAssertEqual(urlCallCount, 1)
+    }
+
+    func testExactNextRunSpeakerCountBypassesSavedVideoAndRunsFresh() async throws {
+        let saved = Transcription(
+            fileName: "Saved video",
+            rawTranscript: "Old",
+            status: .completed,
+            sourceURL: "https://youtu.be/dQw4w9WgXcQ"
+        )
+        mockRepo.transcriptions = [saved]
+        let suiteName = makeIsolatedDefaultsSuite("TranscriptionViewModelTests-")
+        viewModel = TranscriptionViewModel(defaults: UserDefaults(suiteName: suiteName)!)
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.urlInput = "https://youtu.be/dQw4w9WgXcQ"
+
+        viewModel.nextRunSpeakerSelection = .exact(2)
+        viewModel.transcribeURL()
+        XCTAssertEqual(viewModel.nextRunSpeakerSelection, .automatic)
+        try await waitUntil { !self.viewModel.isTranscribing }
+
+        let selections = await mockService.transcriptionSpeakerSelections
+        let urlCallCount = await mockService.transcribeURLCallCount
+        XCTAssertEqual(selections, [.exact(2)])
+        XCTAssertEqual(urlCallCount, 1)
+    }
+
+    func testAutomaticSpeakerCountStillReusesSavedVideo() async throws {
+        let saved = Transcription(
+            fileName: "Saved video",
+            rawTranscript: "Old",
+            status: .completed,
+            sourceURL: "https://youtu.be/dQw4w9WgXcQ"
+        )
+        mockRepo.transcriptions = [saved]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.urlInput = "https://youtu.be/dQw4w9WgXcQ"
+
+        viewModel.transcribeURL()
+
+        let urlCallCount = await mockService.transcribeURLCallCount
+        XCTAssertEqual(urlCallCount, 0)
+        XCTAssertEqual(viewModel.currentTranscription?.id, saved.id)
+    }
+
     func testTranscribeFileErrorHandling() async throws {
         await mockService.configure(
             error: NSError(

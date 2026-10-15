@@ -234,7 +234,7 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: outURL.path))
     }
 
-    func testEchoProbeCatchesLateEchoWindow() {
+    func testEchoProbeCatchesLateEchoWindow() throws {
         let sampleRate = 16_000
         let sampleCount = sampleRate * 40
         let tailStart = sampleRate * 30
@@ -252,7 +252,7 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
         }
         let mic = echoPath.apply(to: system)
 
-        let probe = MeetingCleanedMicRenderer.probeEchoPath(
+        let probe = try MeetingCleanedMicRenderer.probeEchoPath(
             microphone: mic,
             system: system,
             microphoneStartOffsetMs: 0,
@@ -297,6 +297,50 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
                 processor: MeetingAecNLMSProcessor(), referenceDelaySamples: 120))
 
         XCTAssertEqual(outcome, .skipped(.missingSystemReference))
+    }
+
+    func testCancellationAfterEncodingStartsRemovesDerivedFileAndPreservesSources() async throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (micURL, sysURL) = try await writeSourcePair(in: dir)
+        let originalMic = try Data(contentsOf: micURL)
+        let originalSystem = try Data(contentsOf: sysURL)
+        let output = dir.appendingPathComponent("cancelled.m4a")
+        let conditioner = CancellingRenderConditioner()
+        let task = Task {
+            try await MeetingCleanedMicRenderer().render(
+                microphoneURL: micURL, systemURL: sysURL,
+                sourceAlignment: MeetingSourceAlignment(meetingOriginHostTime: nil, microphone: nil, system: nil),
+                outputURL: output, conditioner: conditioner)
+        }
+        do {
+            _ = try await task.value
+            XCTFail("expected cancellation after first encoded block")
+        } catch is CancellationError {}
+        XCTAssertEqual(conditioner.calls, 2)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: output.path))
+        XCTAssertEqual(try Data(contentsOf: micURL), originalMic)
+        XCTAssertEqual(try Data(contentsOf: sysURL), originalSystem)
+    }
+
+    func testWriterCreationFailureFallsBackWithoutChangingSources() async throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (micURL, sysURL) = try await writeSourcePair(in: dir)
+        let originalMic = try Data(contentsOf: micURL)
+        let originalSystem = try Data(contentsOf: sysURL)
+        let output = dir.appendingPathComponent("missing/cleaned.m4a")
+        let result = try await MeetingCleanedMicRenderer().render(
+            microphoneURL: micURL, systemURL: sysURL,
+            sourceAlignment: equalAlignment(), outputURL: output,
+            conditioner: StreamingMeetingEchoSuppressor(
+                processor: MeetingAecNLMSProcessor(), referenceDelaySamples: 120))
+        guard case .skipped(.renderFailed) = result else {
+            return XCTFail("expected raw fallback, got \(result)")
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: output.path))
+        XCTAssertEqual(try Data(contentsOf: micURL), originalMic)
+        XCTAssertEqual(try Data(contentsOf: sysURL), originalSystem)
     }
 
     // MARK: Helpers
@@ -355,5 +399,17 @@ private final class RendererConditionerFactoryProbe: @unchecked Sendable {
             count += 1
         }
         return factory()
+    }
+}
+
+private final class CancellingRenderConditioner: MicConditioning, @unchecked Sendable {
+    private(set) var calls = 0
+    var diagnostics: MeetingEchoSuppressionDiagnostics { .passthrough() }
+    func reset() { calls = 0 }
+    func condition(microphone: [Float], speaker: [Float], hasSpeakerReference: Bool) -> [Float] {
+        calls += 1
+        // The encoder requests the second chunk only after appending the first.
+        if calls == 2 { withUnsafeCurrentTask { $0?.cancel() } }
+        return microphone
     }
 }

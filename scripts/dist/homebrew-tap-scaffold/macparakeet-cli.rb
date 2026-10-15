@@ -16,9 +16,9 @@ require "json"
 class MacparakeetCli < Formula
   desc "Local STT, transcription, and prompt automation for Apple Silicon"
   homepage "https://macparakeet.com"
-  url "https://github.com/moona3k/macparakeet/releases/download/cli-v3.1.0/macparakeet-cli-3.1.0-darwin-arm64.tar.gz"
-  version "3.1.0"
-  sha256 "05d0cb95ac4fb26bc18c5adecb7bb19d2a1892a42dd69bd5fce388f2138426bc"
+  url "https://github.com/moona3k/macparakeet/releases/download/cli-v5.1.0/macparakeet-cli-5.1.0-darwin-arm64.tar.gz"
+  version "5.1.0"
+  sha256 "b48210cb22eaf834fb4fea2201dab9334a1165ccaf4133991154c33123b43674"
   license "GPL-3.0-or-later"
 
   # Apple Silicon only — the Neural Engine is the entire performance story
@@ -40,7 +40,7 @@ class MacparakeetCli < Formula
   def install
     odie "macparakeet-cli requires macOS 14.2 or later" if MacOS.version < "14.2"
     bin.install "macparakeet-cli"
-    # The pinned pre-Ask release has no private runtime directory.
+    # Archives without the Ask runtime omit this directory.
     libexec.install "libexec/macparakeet-cli" if File.directory?("libexec/macparakeet-cli")
   end
 

@@ -65,8 +65,8 @@ struct DiarizationBenchmark: AsyncParsableCommand {
         let buildConfiguration = "release"
         #endif
         var configuration = [
-            "fluidAudioVersion": "0.17.4",
-            "fluidAudioRevision": "21493f8dac5a97e65742e6ff26f42f164c2fda0f",
+            "fluidAudioVersion": "0.17.7",
+            "fluidAudioRevision": "503b4bd1bbf7220882de39fe8ae6716aae4132da",
             "speakerConstraint": "automatic",
             "minimumSegmentSeconds": "0",
             "buildConfiguration": buildConfiguration,

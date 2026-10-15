@@ -361,12 +361,20 @@ public final class PromptsViewModel {
 
         let llmClient = self.llmClient
         generationConfigLoadTask = Task { [weak self, configStore] in
-            let config = await Task.detached(priority: .utility) {
-                try? configStore.loadConfig(for: task)
+            let (route, discoveryConfig) = await Task.detached(priority: .utility) {
+                let route = try? configStore.loadRouteMetadata(for: task)
+                // Discovery needs credentials, but provider and model display never do.
+                let discoveryConfig = route.flatMap { route in
+                    (try? configStore.loadConfig(for: task)).flatMap {
+                        LLMModelSelectionRoute(config: $0, isOverride: route.isOverride) == route ? $0 : nil
+                    }
+                }
+                return (route, discoveryConfig)
             }.value
             guard !Task.isCancelled else { return }
             self?.applyGenerationSettingsConfig(
-                config,
+                route?.config,
+                discoveryConfig: discoveryConfig,
                 llmClient: llmClient,
                 revision: revision
             )
@@ -375,6 +383,7 @@ public final class PromptsViewModel {
 
     private func applyGenerationSettingsConfig(
         _ config: LLMProviderConfig?,
+        discoveryConfig: LLMProviderConfig? = nil,
         llmClient: LLMClientProtocol? = nil,
         revision: Int
     ) {
@@ -392,8 +401,9 @@ public final class PromptsViewModel {
             for: config,
             discoveredModels: []
         )
+        guard let discoveryConfig else { return }
         generationModelListTask = LLMModelAvailability.refreshPickerModelsTask(
-            for: config,
+            for: discoveryConfig,
             llmClient: llmClient,
             configStore: configStore,
             task: generationTaskGroup

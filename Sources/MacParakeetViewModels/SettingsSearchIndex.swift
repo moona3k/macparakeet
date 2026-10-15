@@ -368,6 +368,18 @@ public enum SettingsSearchIndex {
             cardAnchor: "meeting"
         ),
         SettingsSearchEntry(
+            id: "meeting.urlControl",
+            tab: .capture,
+            title: "Allow recording control from links",
+            subtitle: "in Meeting Recording",
+            keywords: [
+                "links", "url", "url scheme", "deep link", "automation", "shortcuts",
+                "start recording", "stop recording", "pause recording", "resume recording",
+                "remote control", "macparakeet://",
+            ],
+            cardAnchor: "meeting"
+        ),
+        SettingsSearchEntry(
             id: "meeting.startMuted",
             tab: .capture,
             title: "Start meetings muted",

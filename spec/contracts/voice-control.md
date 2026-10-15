@@ -123,6 +123,26 @@ backoff (a `Retry-After` of at most 2 s wins; a longer one fails the decision
 without retry); consent is rechecked before each
 retry, Stop cancels the wait, and every other error fails the decision without
 retry. A decision request has no effect, so a retry cannot duplicate one.
+Stop during a request (`URLError.cancelled`) pauses the task; it is never
+reported as Jev being unavailable. A `401`/`403` is a rejected key, and Jev's
+`400 max_tokens_exceeded` is "too large"; the response body is matched for
+that one token and never surfaced. Each attempt times out after 8 s.
+
+Wire format. Every Choice is sent with its options in a deliberate order:
+controls in traversal order, value spans in priority order, outcome events in
+host order, and escape options (`none`, `insufficient_evidence`, `clarify`)
+last. The request body is written by `JevDecisionClient.requestBody`, not a
+Swift dictionary, so one observation and instruction always serialize to the
+same bytes (`jev-1.13` leans toward the first-listed option, and dictionary
+order changed per launch). The observation is `{application, summary,
+complete, targets}`, where each target is one line such as
+`n:4: field 'Search mail' (focused, value 'invoices', top-left)`; the `target`
+question's options are those ids with `null` criteria. A field's visible value
+(at most 160 characters) appears in its line; screen frames never reach Jev.
+
+Starting a session's microphone capture may send one content-free
+`GET /v1/models` with the key to open the connection early, only with this
+consent, at most once a minute.
 
 ## Speech lifecycle and commitment
 
@@ -174,9 +194,18 @@ preparation cannot renew execution authority. Cancel also revokes pending speech
 so a late final transcript cannot silently restart the cancelled task.
 
 Physical Stop/Escape and manual keyboard, mouse or scroll input outside the Voice
-Control panel revoke future effects. Marked synthetic insertion events and the
+Control panel revoke future effects while a task has live work or a
+confirmation is pending. With nothing running, a click, key or scroll (focusing a
+field during hands-free listening) is not a takeover and does not discard the
+utterance being spoken. Marked synthetic insertion events and the
 configured Voice Control shortcut are excluded from manual-takeover detection.
 An effect already dispatched may finish; the UI must not claim it was undone.
+
+A committed utterance is classified before it is dispatched
+(`VoiceControlUtteranceIntent`): an answer to the open clarification or
+confirmation, a correction of an open task, or a new instruction. A command said
+while a clarification is open starts a new task. A completed, failed or cancelled
+task is never revised. A dry run's question opens no conversation.
 
 Speech has an independent synchronous revocation fence. Queued speech-start,
 preview and final events carry capture/utterance identity and cannot revive a
@@ -190,7 +219,7 @@ current utterance and requires silence before another utterance can begin.
 | Stop listening | Revoke advancement and stop/discard microphone capture. |
 | End Voice Control | Revoke and drain the task, stop capture, clear active session state and release foreground ownership. |
 | Continue / resume | Observe the current state and remaining goal. Never blindly replay an unresolved unknown effect. |
-| Confirm / yes / okay | Consume a current, action-bound confirmation; never authorize an unrelated later action. |
+| Confirm / yes / confirm this action | Consume a current, action-bound confirmation; never authorize an unrelated later action. `ok` / `okay` never confirm. |
 
 Starting speech while awaiting a clarification or confirmation preserves that
 pending response. It does not call Stop or take a new observation that would
@@ -212,11 +241,28 @@ Manual takeover preserves the task and pauses advancement. Continue uses a fresh
 observation after the user's edit. Correction phrases such as “Actually London”
 and “No, the other one” revise the current task rather than discard the original
 goal. Unrelated instructions start a new task; clarification answers retain their
-pending response. Ambiguous references require clarification. A replacement
+pending response. `VoiceControlUtteranceIntent.classify` decides which: while a
+clarification is open, an offered label or a spoken pick (`2`, `the second one`)
+answers, a correction opener revises, command-shaped text (a leading
+unambiguous verb `open` / `click` / `press` / `tap` / `select` / `scroll` /
+`type` / `undo` / `go to` / `switch to`, a `new message` / `new tab`-style
+phrase, or help) starts a new task, and anything else answers. Words that also
+open ordinary answers (`New York trip`, `Find a time to meet`, `Close`, a bare
+`down`) answer the question. Corrections revise only an
+open (running, paused or awaiting) task; after completion, failure or
+cancellation every utterance is a new instruction. `undo` is a command, never a
+correction. Ambiguous references require clarification. A replacement
 utterance that supersedes unfinished recognition is identified in task activity.
 
-The panel displays the original goal, current instruction, stopping reason and an
-expandable activity list bounded to 100 entries. Attempting an action is not a
+The panel displays what was heard, the effect being performed in words (`Clicking
+‘Sent’…`, `Typing into ‘Search mail’…`), a state label, the original goal, the
+stopping reason and an expandable activity list bounded to 100 entries. Numbered
+choices are clickable rows; clicking one is the same as saying its number. A
+click-through overlay outlines the control as it is acted on, holds an outline on
+the control a confirmation is about, and draws number badges on pick choices. It
+uses frames from the current observation only, is excluded from screen capture
+(and is neither an occluder nor an own panel for screen-text reading),
+and clears on Stop, End, the next observation or the end of the task. Attempting an action is not a
 success receipt. Verified effects, observed transitions and unknown effects remain
 distinct. Activity is ephemeral and clears on End. No audio, screenshot, field
 value, selected text, credential or remote body is persisted or uploaded.
@@ -288,7 +334,17 @@ to its exact action, snapshot and authority.
 
 Confirmation is consequence-based. Ordinary navigation, selection, form edits,
 scrolling and search proceed within the requested task. Payment commitments,
-destructive actions and external commitments require confirmation. Known target
+destructive actions and external commitments require confirmation. The label
+keyword floor fails closed: a label of five words or fewer that holds a
+pay/delete/send word confirms (`Order tickets`, `Bulk delete`, `Save & Purchase`,
+`Process payment`, `Click to share`; `pay` always, so `Apple Pay` too), unless
+that word reads as a noun or a step toward another page. Exempt: before a noun
+such as `history`, `details`, `methods`, `status`, `page` or `view` (`Order
+history`, `Booking details`, `Payment methods`, `Checkout page`); after `new`
+or `sort` (`New post`, `Sort order`); as a destination (`Proceed to checkout`,
+`Continue to payment`, `Secure checkout`), because the pay control on that page
+still confirms; and a leading `Share` that only opens a sheet (`Share`, `Share
+options`, `Share menu`, `Share sheet`). Known target
 metadata for those risks cannot be downgraded by a model's ordinary label. An
 unknown model label does not by itself confirm an ordinary press. An explicitly
 unknown consequence on a non-navigation press does ask. Generated replacements
@@ -299,7 +355,10 @@ effects; correcting a goal must not erase unknown-effect or execution history.
 
 Supported exact local routes include literal text entry, unambiguous label
 selection, offered navigation keys, scrolling, advertised undo, precise
-single-occurrence replacement, activating a uniquely named running app,
+single-occurrence replacement, activating a uniquely named running app (whole
+name, the name without its vendor such as `Chrome`, or a known alias such as
+`VS Code`; `open the first email` in Mail is not a request for Mail, and
+`already in front` answers only a request that names the front app),
 opening an allowlisted web destination, filling an already-open search box
 on YouTube/Maps/Wikipedia/Google Search, pressing unique Gmail Compose, and
 the Google Flights form plan (trip type, origin, destination, date, unique
@@ -312,7 +371,12 @@ amendments, takes the turn. Only the current request of an amended goal routes
 the original goal). A correction that names no site abandons the earlier one,
 except a short fragment of at most three words that is neither a command nor
 about a message (`actually Paris`), which changes a detail and keeps the
-original request's site. A clarification is an answer, not a request.
+original request's site. A clarification is an answer, not a request. The
+exact local routes (keys, app activation, undo, scroll, named presses, help)
+also read the newest correction or clarification when it is itself a command
+(`undo`, `actually click Revert`), and that route finishes only when its own
+effect is the newest one in history. Answers (`2`) and text-entry corrections
+(`no, type Rome`) stay with Jev.
 Matching is at word boundaries. Explicit navigation (`open YouTube`, `go to
 Gmail`, a goal that starts with the site's name) always routes. A site
 mentioned in passing (`… on YouTube`, `… in Wikipedia`), an intent phrase
@@ -334,19 +398,31 @@ enabled events for one Jev Choice; Return is not enabled while a suggestion
 or date picker is open. Jev is never offered `role=url`
 destinations. When no local route or enabled event applies, the open-ended
 request is one disjoint question set — `kind` (`press` / `fill` / `scroll` /
-`finished` / `none`), one `target` head over every legality-filtered control,
-a `value` head only for a focused editable control (target criteria carry a
+`finished` / `none`), one `target` head over every offered control,
+a `value` head only for a focused editable control (each target line carries a
 nine-cell region hint such as `top-left` so identically labelled controls
 read apart), an advisory `consequence`
-head, and `direction` only when something scrolls — gated on `min(kind,
-target)` when a target is named. Filling an unfocused field costs one more
+head, `direction` only when something scrolls, and on a task's first decision
+of an unamended goal a `scope` head (`multi` / `single`) — gated on `min(kind,
+target)` when a target is named, `kind` alone for `none`, and 0.6 for
+`finished`. Offered controls are the legality-filtered set minus static text
+that repeats or begins the name of a non-text control (a link and its own
+label). When the press target falls below the gate but two or three controls
+hold at least 0.8 of the probability and Jev judged the press ordinary, the
+answer is a numbered pick over them; a consequential split asks instead.
+A value's support is its confidence or the summed probability of spans that
+differ only by boundary punctuation, whichever is higher. When `scope` is
+confidently `single`, the action is marked as completing the request: once it
+verifies the task is done, once it moves the interface the task appears
+complete, and no second decision is requested. An amended goal never inherits
+that mark. Filling an unfocused field costs one more
 single-head `value` request. Pages over 200 legal controls are truncated by
 priority (focused, editable, then traversal order) and the trace records how
 many were dropped; the turn does not fail. Consequence confidence never blocks
 or prompts; local policy decides pay/delete/send. Calendar days are matched by
 a deterministic spoken-date parser, not token overlap. Literal mode treats utterances as text; isolated
 `command mode` / `stop typing` exits and `command stop` pauses. Isolated utterances `typing mode`, `start typing`, `activate type`, `type mode`, `literal mode`, and `dictation mode` enter. `type literally command mode`
-enters those words. While a pay, delete, or send confirmation is pending, only isolated `yes` / `confirm` / `confirm this action` authorize; `ok` and `okay` do not. Isolated `no` / `cancel` / `cancel task` decline. Consecutive typed insertions join with a space when appending at the caret. Ambiguous visible names become a numbered local pick (`1` / `two` / `the second one`); `the other one` is not option 1. A unique visible name on a plain window is itself a press (`Save` or `the Save button`); `press return` sends a key, while `click Return` presses a control. A spoken `press return` never asks for confirmation, even in a composer where Return sends: saying it already carries that intent (owner decision, 2026-09-25). A focused field that already holds the requested type payload is left unchanged. Numbered picks rematch by id and label after the next observation. A confirmation whose snapshot is stale does not dispatch a rebound control; the person repeats the request. Prefix handling must preserve the payload rather than
+enters those words. While a pay, delete, or send confirmation is pending, only isolated `yes` / `confirm` / `confirm this action` authorize; `ok` and `okay` do not. Isolated `no` / `cancel` / `cancel task` decline. Consecutive typed insertions join with a space when appending at the caret. Ambiguous visible names become a numbered local pick (`1` / `two` / `the second one`); `the other one` is not option 1. A unique visible name on a plain window is itself a press (`Save` or `the Save button`); the name is matched as spoken before a trailing `button` / `link` / `tab` / `menu` is dropped, so `click new tab` presses `New Tab` instead of offering every `New …` control. A trailing `type` clause starts only after `,` / `.` or a joining word (`now`, `then`, `and`, `please`); `what type of file is this` and `click the file type menu` are not typing; `press return` sends a key, while `click Return` presses a control. A spoken `press return` never asks for confirmation, even in a composer where Return sends: saying it already carries that intent (owner decision, 2026-09-25). A focused field that already holds the requested type payload is left unchanged. Numbered picks rematch by id and label after the next observation. A confirmation whose snapshot is stale does not dispatch a rebound control; the person repeats the request. Prefix handling must preserve the payload rather than
 shortening or stripping arbitrary fillers. Selected-text rewriting uses the
 explicitly enabled writing provider and previews the generated action for
 confirmation.

@@ -15,10 +15,6 @@ public struct VoiceControlConversationState: Sendable {
         default: break
         }
     }
-    public static func isCorrection(_ text: String) -> Bool {
-        let value = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        return ["actually", "no,", "no ", "instead", "change that", "change the", "make it", "not ", "the other", "other one", "undo"].contains { value.hasPrefix($0) }
-    }
     public mutating func cancel() { expectedResponse = nil }
     public mutating func takeConfirmation() -> Bool {
         guard expectedResponse == .confirmation else { return false }
@@ -56,6 +52,11 @@ public final class VoiceControlViewModel {
     public var partialTranscript = ""
     public var message = "Hold Control–Option–Space to give an instruction."
     public var steps: [String] = []
+    /// Numbered choices of the open pick, in order. Rows in the panel; badges on screen.
+    public var choices: [VoiceControlHighlight.Mark] = []
+    /// The control the current step is about, for the status line.
+    public var focusLabel: String?
+    public var onChoose: ((Int) -> Void)?
     public var needsSetup = true
     public var keyInput = ""
     public var consent = false
@@ -86,8 +87,25 @@ public final class VoiceControlViewModel {
         steps.append(detail)
         if steps.count > 100 { steps.removeFirst(steps.count - 100) }
     }
+    /// The effect, named: `Clicking ‘Sent’…`, `Typing into ‘Search mail’…`.
+    public static func describe(_ action: VoiceControlAction, label: String?) -> String {
+        let name = (label ?? action.targetLabel).flatMap { $0.isEmpty ? nil : "‘\($0)’" }
+        switch action.operation {
+        case .press: return name.map { "Clicking \($0)" } ?? "Clicking"
+        case .select: return name.map { "Selecting \($0)" } ?? "Selecting"
+        case .setValue, .insertText: return name.map { "Typing into \($0)" } ?? "Typing"
+        case .scroll: return "Scrolling " + (action.value ?? "down") + (name.map { " in \($0)" } ?? "")
+        case .key: return "Pressing " + (action.value.map { $0.capitalized } ?? "the key")
+        case .activateApp: return name.map { "Switching to \($0)" } ?? "Switching apps"
+        }
+    }
+
     public func apply(_ event: VoiceControlEvent) {
         conversation.receive(event)
+        switch event {
+        case .highlight, .activity, .clarification: break
+        default: choices = []
+        }
         switch event {
         case .paused(let detail), .failed(let detail), .completed(let detail), .clarification(let detail): appendActivity(detail)
         default: break
@@ -96,8 +114,13 @@ public final class VoiceControlViewModel {
         case .observing: phase = .working; message = "Looking at the current app…"
         case .deciding: phase = .working; message = "Choosing the next step…"
         case .acting(let action):
-            phase = .working; message = "Applying the next step…"
-            appendActivity("Attempting: " + action.operation.rawValue)
+            phase = .working
+            let effect = Self.describe(action, label: focusLabel)
+            message = effect + "…"
+            appendActivity(effect)
+        case .highlight(let highlight):
+            focusLabel = highlight.style == .numbered ? nil : highlight.marks.first?.label
+            if highlight.style == .numbered { choices = highlight.marks }
         case .confirmation(_, let message): phase = .confirmation; self.message = message
         case .clarification(let message): phase = .clarification; self.message = message
         case .paused(let message): phase = .paused; self.message = message
@@ -106,7 +129,7 @@ public final class VoiceControlViewModel {
         case .activity(let detail): appendActivity(detail)
         case .cancelled:
             phase = .idle; message = "Task cancelled."
-            goal = ""; steps = []
+            goal = ""; steps = []; choices = []
         }
     }
 }

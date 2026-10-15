@@ -714,6 +714,59 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.canGenerateManualPromptResult)
     }
 
+    func testInferenceWarningDoesNotReadBlockedCredentials() throws {
+        let domain = makeIsolatedDefaultsSuite("test.prompt-credential-display.")
+        let lockURL = FileManager.default.temporaryDirectory.appendingPathComponent(domain)
+            .appendingPathComponent("routes.lock")
+        defer { try? FileManager.default.removeItem(at: lockURL.deletingLastPathComponent()) }
+        let credentials = InMemoryKeyValueStore()
+        let store = LLMConfigStore(preferencesDomain: domain, lockURL: lockURL, keychain: credentials)
+        try store.saveTaskOverride(.gemini(apiKey: "saved-key", model: "gemini-3.5-flash"), for: .analysis)
+        credentials.getError = KeyValueStoreError.unsupported
+        let prompt = Prompt(name: "Override", content: "Summarize.", modelOverride: "claude-sonnet-5")
+        promptRepo.prompts = [prompt]
+        viewModel.configure(
+            llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo, configStore: store)
+        viewModel.selectedPrompt = prompt
+        let readsBeforeRendering = credentials.readCount
+
+        for _ in 0..<3 {
+            XCTAssertEqual(
+                viewModel.selectedPromptInferenceCompatibilityMessage,
+                "This prompt's model isn't available with Google Gemini: the model identifier does not match this provider.")
+        }
+        XCTAssertEqual(credentials.readCount, readsBeforeRendering)
+    }
+
+    func testRegenerationKeepsSnapshotSettingsWhenCredentialsAreBlocked() throws {
+        let domain = makeIsolatedDefaultsSuite("test.prompt-credential-regeneration.")
+        let lockURL = FileManager.default.temporaryDirectory.appendingPathComponent(domain)
+            .appendingPathComponent("routes.lock")
+        defer { try? FileManager.default.removeItem(at: lockURL.deletingLastPathComponent()) }
+        let credentials = InMemoryKeyValueStore()
+        let store = LLMConfigStore(preferencesDomain: domain, lockURL: lockURL, keychain: credentials)
+        let route = LLMProviderConfig.gemini(apiKey: "saved-key", model: "gemini-3.5-flash")
+        try store.saveTaskOverride(route, for: .analysis)
+        credentials.getError = KeyValueStoreError.unsupported
+        let existing = PromptResult(
+            transcriptionId: UUID(), promptId: UUID(), promptVersionId: UUID(),
+            promptName: "Saved prompt", promptContent: "Historical prompt instructions.",
+            content: "Original result",
+            inferenceSettingsSnapshot: PromptInferenceSettings(temperature: 0.5, maxTokens: 600),
+            providerSnapshot: route.id.rawValue, modelSnapshot: "historical-model"
+        )
+        promptResultRepo.promptResults = [existing]
+        viewModel.configure(
+            llmService: llm, promptRepo: promptRepo, promptResultRepo: promptResultRepo, configStore: store)
+        viewModel.loadPromptResults(transcriptionId: existing.transcriptionId)
+
+        let id = try XCTUnwrap(viewModel.regeneratePromptResult(existing, transcript: "Transcript"))
+
+        let pending = try XCTUnwrap(viewModel.pendingGeneration(id: id))
+        XCTAssertEqual(pending.modelSnapshot, "historical-model")
+        XCTAssertEqual(pending.inferenceSettings, existing.inferenceSettingsSnapshot)
+    }
+
     func testSelectedPromptInferenceCompatibilityUsesStandaloneAnalysisWhenSettingsAreNil() {
         let store = MockLLMConfigStore()
         store.taskOverrides[.analysis] = .gemini(apiKey: "key", model: "gemini-3.5-flash")
@@ -2600,6 +2653,58 @@ final class PromptResultsViewModelTests: XCTestCase {
 
         XCTAssertEqual(llm.lastSummarySystemPrompt, assembledPrompt("Summarize."))
         XCTAssertNil(promptResultRepo.saveCalls.first?.userNotesSnapshot)
+    }
+
+    func testEnablingNotesAffectsNewSummaryButRegenerationKeepsOriginalOptOut() async throws {
+        let transcriptionID = UUID()
+        let notes = "Attendee spelling: Siobhán. Project URL: https://example.com/roadmap"
+        try transcriptionRepo.save(
+            Transcription(
+                id: transcriptionID,
+                fileName: "meeting.m4a",
+                sourceType: .meeting,
+                userNotes: notes
+            )
+        )
+        var prompt = Prompt.classicSummaryPrompt()
+        XCTAssertTrue(prompt.includeMeetingNotes)
+        // The historical result was generated before the default changed.
+        let existing = PromptResult(
+            transcriptionId: transcriptionID,
+            promptId: prompt.id,
+            promptName: prompt.name,
+            promptContent: prompt.content,
+            content: "Original summary"
+        )
+        prompt.includeMeetingNotes = true
+        promptRepo.prompts = [prompt]
+        promptResultRepo.promptResults = [existing]
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo,
+            transcriptionRepo: transcriptionRepo
+        )
+        viewModel.loadPromptResults(transcriptionId: transcriptionID)
+        llm.streamTokens = ["Replacement"]
+
+        _ = viewModel.regeneratePromptResult(existing, transcript: "Shivon discussed the roadmap.")
+        try await waitUntil { self.promptResultRepo.replaceCalls.count == 1 }
+        let replacement = try XCTUnwrap(promptResultRepo.replaceCalls.first?.promptResult)
+        XCTAssertFalse(replacement.includeMeetingNotesSnapshot)
+        XCTAssertNil(replacement.userNotesSnapshot)
+        XCTAssertFalse(try XCTUnwrap(llm.lastSummarySystemPrompt).contains(notes))
+
+        viewModel.selectedPrompt = prompt
+        let generationID = try XCTUnwrap(
+            viewModel.generatePromptResult(
+                transcript: "Shivon discussed the roadmap.", transcriptionId: transcriptionID
+            ))
+        try await waitUntil { self.promptResultRepo.saveCalls.contains(where: { $0.id == generationID }) }
+        let fresh = try XCTUnwrap(promptResultRepo.saveCalls.first(where: { $0.id == generationID }))
+        XCTAssertTrue(fresh.includeMeetingNotesSnapshot)
+        XCTAssertEqual(fresh.userNotesSnapshot, notes)
+        XCTAssertTrue(try XCTUnwrap(llm.lastSummarySystemPrompt).contains(notes))
     }
 
     func testRegenerateUsesCheckboxSnapshotWithCurrentNotes() async throws {

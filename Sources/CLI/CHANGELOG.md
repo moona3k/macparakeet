@@ -78,7 +78,7 @@ input, lookup miss, runtime exception, etc.:
 `errorType` is a low-cardinality stable string. Current values: `auth`,
 `config`, `connection`, `conflict`, `context`, `input_empty`, `input_missing`,
 `import_schema`, `invalid_response`, `lookup`, `model`, `provider`,
-`rate_limit`, `runtime`, `streaming`, `truncated`, `validation`. New error
+`rate_limit`, `runtime`, `streaming`, `timeout`, `truncated`, `validation`. New error
 classes get new values in minor releases; existing values are stable within a
 major.
 
@@ -110,6 +110,46 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Fixed
 
+- A provider request that hits its idle timeout reports `errorType` `timeout`
+  with "The request timed out before the provider finished responding." It was
+  previously `connection` ("Connection failed: The request timed out.").
+- Non-streaming cloud LLM requests wait 300 seconds for the response body,
+  matching local providers. AI cleanup of a transcript longer than about
+  seven minutes was failing at 30 seconds.
+- AI cleanup of a long transcript is sent in sections of at most 12,000
+  characters and joined. Meetings are no longer skipped at 20,000 characters.
+
+## [5.1.0] — 2026-10-12 (bundled with MacParakeet 0.8.10)
+
+Omitting `--model` on inline Anthropic and OpenRouter commands now selects
+Claude Sonnet 5.5. Pass `--model` to keep a previous id. JSON fields and exit
+codes are unchanged, so this stays a minor release. The standalone Homebrew CLI
+has its own release channel.
+
+### Changed
+
+- Inline Anthropic and OpenRouter LLM commands now default to Claude Sonnet 5.5
+  (`claude-sonnet-5-5` and `anthropic/claude-sonnet-5.5`). Pass `--model` to
+  keep a previous model. The `--model` help example references the same ID.
+- FluidAudio 0.17.7. Explicit `--speaker-count`, `--speaker-min` and
+  `--speaker-max` runs (Community-1) no longer over-split audio that contains
+  digital silence, such as a muted call track. Automatic speaker detection
+  (Nemotron), ASR, JSON fields and exit codes are unchanged.
+- Newly seeded built-in Summary prompts include meeting notes by default,
+  including when run through `prompts run`. Existing preferences, custom prompt
+  defaults, and saved result snapshots are preserved. Disable notes with
+  `prompts set Summary --no-include-meeting-notes`; `prompts restore-defaults`
+  continues to preserve notes preferences. No JSON schema changes (#1204).
+- Prompt-result context limiting reserves transcript space before bounding
+  oversized notes or system context, including LM Studio's smaller limit.
+- Transform shortcut assignment rejects collisions with either additional dictation
+  shortcut configured in the app. Existing error/output schemas are unchanged.
+
+### Fixed
+
+- Saved Keychain credentials no longer open system password dialogs during CLI
+  execution. Blocked access returns an error; grant this executable access in
+  Keychain Access before retrying. Existing keys and routes are preserved.
 - `retranscribe --update` for saved transcriptions and meetings returns the row
   committed by the shared transcription service. Notes, chat, names, favorites
   and audio metadata changed during recognition are preserved; the CLI no longer
@@ -119,6 +159,12 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   with the original status. A concurrent deletion or status change now fails
   with a `lookup` error instead of restoring stale history or recounting a
   deleted take. Failed-dictation recovery and audio-retention rules are unchanged.
+- When speaker detection finds remote speakers in a meeting, system-track words
+  that none of them claimed no longer appear as an extra `Others` speaker. Their
+  `speakers` entry keeps the id `system` with the label `Unattributed`, and
+  `speakerCount` leaves it out. When no remote speaker is detected, the entry
+  stays `Others` and is counted. Rows saved earlier keep their stored values.
+  JSON shapes are unchanged (#1228).
 
 ## [5.0.0] — 2026-09-27 (bundled with MacParakeet 0.8.9)
 

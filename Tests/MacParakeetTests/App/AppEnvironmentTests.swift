@@ -89,6 +89,31 @@ final class AppEnvironmentTests: XCTestCase {
         XCTAssertFalse(defaults.bool(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey))
     }
 
+    func testSyncAIFormatterAvailabilityUsesRouteMetadataWhenCredentialsAreBlocked() throws {
+        let (_, defaults) = makeDefaults()
+        let domain = makeIsolatedDefaultsSuite("AppEnvironmentTests-routes-")
+        let lockURL = FileManager.default.temporaryDirectory.appendingPathComponent(domain)
+            .appendingPathComponent("routes.lock")
+        addTeardownBlock { try? FileManager.default.removeItem(at: lockURL.deletingLastPathComponent()) }
+        let credentials = InMemoryKeyValueStore()
+        let store = LLMConfigStore(preferencesDomain: domain, lockURL: lockURL, keychain: credentials)
+        try store.saveTaskOverride(.openai(apiKey: "saved-key", model: "gpt-5.5"), for: .cleanup)
+        credentials.getError = KeyValueStoreError.unsupported
+        let readsBeforeSync = credentials.readCount
+
+        AppEnvironment.syncAIFormatterAvailabilityWithLLMConfiguration(defaults: defaults, configStore: store)
+
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey) as? Bool,
+            true
+        )
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey) as? Bool,
+            false
+        )
+        XCTAssertEqual(credentials.readCount, readsBeforeSync)
+    }
+
     func testSyncAIFormatterAvailabilityWritesTrueWhenProviderExists() {
         let (_, defaults) = makeDefaults()
         let configStore = MockLLMConfigStore()

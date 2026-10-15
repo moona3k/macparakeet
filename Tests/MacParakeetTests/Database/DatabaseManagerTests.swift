@@ -958,11 +958,13 @@ final class DatabaseManagerTests: XCTestCase {
             XCTAssertTrue(promptColumns.contains("includeMeetingNotes"))
             XCTAssertTrue(summaryColumns.contains("includeMeetingNotesSnapshot"))
 
-            let promptDefault = try Bool.fetchOne(
+            // The schema default stays off for generic/legacy rows; the
+            // built-in Summary's seeded preference is independently on.
+            let promptDefault = try String.fetchOne(
                 db,
-                sql: "SELECT includeMeetingNotes FROM prompts LIMIT 1"
+                sql: "SELECT dflt_value FROM pragma_table_info('prompts') WHERE name = 'includeMeetingNotes'"
             )
-            XCTAssertEqual(promptDefault, false)
+            XCTAssertEqual(promptDefault, "0")
         }
     }
 

@@ -53,13 +53,13 @@ public enum SpeakerDiarizationConstraint: Hashable, Sendable {
     case range(min: Int?, max: Int?)
 }
 
-/// Speaker-count behavior selected for one retranscription run.
+/// Speaker-count behavior selected for one transcription or retranscription run.
 ///
 /// This is deliberately separate from the saved speaker-detection preference:
-/// choosing either value explicitly requests diarization for this run. Meeting
-/// counts describe only the retained system-audio side; the microphone speaker
-/// (`Me`) is not included.
-public enum RetranscriptionSpeakerSelection: Equatable, Sendable {
+/// passing either value to a service explicitly requests diarization for this
+/// run. Meeting counts describe only the retained system-audio side; the
+/// microphone speaker (`Me`) is not included.
+public enum SpeakerCountSelection: Hashable, Sendable {
     public static let supportedExactCount = 1...100
 
     case automatic
@@ -74,21 +74,21 @@ public enum RetranscriptionSpeakerSelection: Equatable, Sendable {
         if case .exact(let count) = self,
             !Self.supportedExactCount.contains(count)
         {
-            throw RetranscriptionSpeakerSelectionError.unsupportedExactCount(count)
+            throw SpeakerCountSelectionError.unsupportedExactCount(count)
         }
         return self
     }
 }
 
-public enum RetranscriptionSpeakerSelectionError: LocalizedError, Equatable, Sendable {
+public enum SpeakerCountSelectionError: LocalizedError, Equatable, Sendable {
     case unsupportedExactCount(Int)
 
     public var errorDescription: String? {
         switch self {
         case .unsupportedExactCount(let count):
             return "Exact speaker count \(count) is outside the supported range "
-                + "\(RetranscriptionSpeakerSelection.supportedExactCount.lowerBound)..."
-                + "\(RetranscriptionSpeakerSelection.supportedExactCount.upperBound)."
+                + "\(SpeakerCountSelection.supportedExactCount.lowerBound)..."
+                + "\(SpeakerCountSelection.supportedExactCount.upperBound)."
         }
     }
 }
@@ -499,7 +499,7 @@ public actor DiarizationService: DiarizationServiceProtocol {
 
     /// Bump on any FluidAudio upgrade that could move the clustering centroid,
     /// even when the embedding model is untouched.
-    private nonisolated static let pipelineRevision = "fluidaudio-0.17.4"
+    private nonisolated static let pipelineRevision = "fluidaudio-0.17.7"
 
     /// Identity of the representation the shipping configuration produces.
     public nonisolated static var defaultModelIdentity: SpeakerModelIdentity {

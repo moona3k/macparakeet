@@ -255,7 +255,8 @@ public actor NativeVoiceControlAdapter: VoiceControlAdapter {
                 operations: item.target.operations, isNavigation: item.target.isNavigation,
                 isFocused: item.target.isFocused, selectedText: item.target.selectedText,
                 valueIsComplete: item.target.valueIsComplete, consequence: item.target.consequence,
-                isOffscreen: item.target.isOffscreen, region: item.target.region)
+                isOffscreen: item.target.isOffscreen, region: item.target.region,
+                frame: item.target.isOffscreen ? nil : item.bound.frame)
             handles[id] = BoundTarget(
                 element: item.bound.element, target: target, fingerprint: item.bound.fingerprint,
                 frame: item.bound.frame, pixelPoint: item.bound.pixelPoint)
@@ -303,8 +304,7 @@ public actor NativeVoiceControlAdapter: VoiceControlAdapter {
             isComplete: complete,
             metrics: VoiceControlObservationMetrics(
                 nodesVisited: walk.visited, capped: !walk.complete,
-                walkMilliseconds: Int(walkStarted.duration(to: .now).components.seconds) * 1000
-                    + Int(walkStarted.duration(to: .now).components.attoseconds / 1_000_000_000_000_000)))
+                walkMilliseconds: Self.milliseconds(walkStarted.duration(to: .now))))
         current = snapshot
         return snapshot
     }
@@ -340,6 +340,8 @@ public actor NativeVoiceControlAdapter: VoiceControlAdapter {
                 throw NativeVoiceControlError.unsupported
             }
             current = nil
+            let browser = AXUIElementCreateApplication(expectedPID)
+            let titleBefore = Self.focusedOrMainWindow(browser).map { Self.string($0, kAXTitleAttribute) }
             let opened = try await MainActor.run {
                 try authority.perform {
                     guard NSWorkspace.shared.frontmostApplication?.processIdentifier == expectedPID else {
@@ -349,9 +351,24 @@ public actor NativeVoiceControlAdapter: VoiceControlAdapter {
                 }
             }
             guard opened else { return VoiceControlReceipt(status: .failed, message: "Couldn’t open that website.") }
-            try await Task.sleep(for: .milliseconds(1_800))
+            // The page announces itself by retitling the window; a fast load
+            // should not wait out the old fixed 1.8 s. Browsers often show the URL
+            // or "Loading" first, so the new title must hold for two polls.
+            let deadline = ContinuousClock.now.advanced(by: .milliseconds(2_000))
+            var candidate: String?
+            var retitled = false
+            while ContinuousClock.now < deadline {
+                try await Task.sleep(for: .milliseconds(150))
+                let title = Self.focusedOrMainWindow(browser).map { Self.string($0, kAXTitleAttribute) }
+                guard let title, title != titleBefore, !title.isEmpty else { candidate = nil; continue }
+                retitled = true
+                if title == candidate { break }
+                candidate = title
+            }
+            // No retitle at all in 2 s is no evidence the page opened.
             return VoiceControlReceipt(
-                status: .transitionObserved, message: "Opened the requested website.")
+                status: retitled ? .transitionObserved : .unknown,
+                message: retitled ? "Opened the requested website." : "The website did not appear to load.")
         }
         guard let bound = handles[action.targetID], bound.target.operations.contains(action.operation) else {
             throw NativeVoiceControlError.unsupported
@@ -697,7 +714,10 @@ public actor NativeVoiceControlAdapter: VoiceControlAdapter {
                 [
                     kAXTextFieldRole, kAXComboBoxRole, kAXPopUpButtonRole, kAXMenuRole, kAXMenuItemRole,
                     kAXButtonRole, kAXCheckBoxRole, kAXRadioButtonRole, kAXStaticTextRole, "AXWebArea", "AXLink",
-                ].contains(role)
+                ].contains(role),
+                // A clock, a video timestamp or a progress figure changes on its
+                // own; it is not evidence that the press did anything.
+                role != kAXStaticTextRole || !Self.isVolatileText(Self.string(node, kAXValueAttribute))
             {
                 evidence.insert(
                     role + "|" + Self.label(node) + "|" + Self.string(node, kAXValueAttribute)
@@ -708,6 +728,21 @@ public actor NativeVoiceControlAdapter: VoiceControlAdapter {
             }
         }
         return evidence
+    }
+
+    static func milliseconds(_ duration: Duration) -> Int {
+        Int(duration.components.seconds) * 1000 + Int(duration.components.attoseconds / 1_000_000_000_000_000)
+    }
+
+    /// Times, percentages and progress figures (`7:42`, `45%`, `12 / 340`):
+    /// they change on their own. A plain number is kept, because a press can be
+    /// what changed it (a calculator display, a quantity stepper).
+    static func isVolatileText(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !trimmed.unicodeScalars.contains(where: { CharacterSet.letters.contains($0) }),
+            trimmed.contains(where: \.isNumber)
+        else { return false }
+        return trimmed.contains { ":%/".contains($0) }
     }
 
     private func validateContext() throws {
@@ -756,7 +791,7 @@ public actor NativeVoiceControlAdapter: VoiceControlAdapter {
         let pid = ProcessInfo.processInfo.processIdentifier
         let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
         return info.compactMap { window in
-            guard window[kCGWindowOwnerPID as String] as? Int32 == pid,
+            guard window[kCGWindowOwnerPID as String] as? Int32 == pid, !ScreenTextMerge.isOwnOverlay(window),
                 let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
                 let x = bounds["X"], let y = bounds["Y"], let w = bounds["Width"], let h = bounds["Height"], w > 0, h > 0
             else { return nil }

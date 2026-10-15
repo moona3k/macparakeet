@@ -73,3 +73,16 @@ final class NativeVoiceControlAdapterTests: XCTestCase {
                 isBrowser: false, inWebArea: false, hasWebContent: false, label: "New Note", role: kAXButtonRole))
     }
 }
+
+extension NativeVoiceControlAdapterTests {
+    func testClocksAndCountersAreNotTransitionEvidence() {
+        for text in ["7:42", "28:54 / 1:12:03", "45%", "12 / 340"] {
+            XCTAssertTrue(NativeVoiceControlAdapter.isVolatileText(text), text)
+        }
+        for text in ["Inbox", "Sent 3", "Page 2 of 7", "", " 3 ", "1,024", "/"] {
+            XCTAssertFalse(NativeVoiceControlAdapter.isVolatileText(text), text)
+        }
+        XCTAssertEqual(NativeVoiceControlAdapter.milliseconds(.milliseconds(1_999)), 1_999)
+        XCTAssertEqual(NativeVoiceControlAdapter.milliseconds(.seconds(2)), 2_000)
+    }
+}

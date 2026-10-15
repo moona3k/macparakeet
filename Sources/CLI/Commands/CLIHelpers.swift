@@ -446,6 +446,7 @@ enum CLIErrorType {
     static let rateLimit = "rate_limit"
     static let runtime = "runtime"
     static let streaming = "streaming"
+    static let timeout = "timeout"
     static let truncated = "truncated"
     static let validation = "validation"
 
@@ -474,6 +475,7 @@ enum CLIErrorType {
             switch llm {
             case .notConfigured: return config
             case .connectionFailed: return connection
+            case .requestTimedOut: return timeout
             case .authenticationFailed: return auth
             case .rateLimited: return rateLimit
             case .modelNotFound, .invalidModelOverride: return model

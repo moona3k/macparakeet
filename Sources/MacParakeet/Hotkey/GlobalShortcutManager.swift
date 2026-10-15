@@ -15,8 +15,6 @@ public final class GlobalShortcutManager {
     public var onTrigger: (() -> Void)?
 
     private let trigger: HotkeyTrigger
-    private let requiredChordFlags: UInt64
-    private let ignoredChordEventFlags: UInt64
     private var backgroundTap: BackgroundEventTap?
     private var targetModifierWasPressed = false
     private var triggerKeyIsPressed = false
@@ -26,8 +24,6 @@ public final class GlobalShortcutManager {
 
     public init(trigger: HotkeyTrigger) {
         self.trigger = trigger
-        self.requiredChordFlags = trigger.chordEventFlags
-        self.ignoredChordEventFlags = trigger.ignoredChordEventFlags
     }
 
     deinit {
@@ -299,7 +295,7 @@ public final class GlobalShortcutManager {
         switch type {
         case .keyDown:
             guard keyCode == triggerCode else { return false }
-            guard flags & ~ignoredChordEventFlags == requiredChordFlags else { return false }
+            guard trigger.chordEventMatches(flags: flags) else { return false }
             guard !triggerKeyIsPressed else { return true }
             triggerKeyIsPressed = true
             onTrigger?()

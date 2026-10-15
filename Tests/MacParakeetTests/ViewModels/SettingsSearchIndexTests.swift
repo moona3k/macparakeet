@@ -290,6 +290,18 @@ final class SettingsSearchIndexTests: XCTestCase {
         }
     }
 
+    func testMeetingURLControlQueriesFindConsentToggle() {
+        for query in ["links", "url", "automation", "recording control"] {
+            let entry = SettingsSearchIndex.matches(query).first { $0.id == "meeting.urlControl" }
+            if AppFeatures.meetingRecordingEnabled {
+                XCTAssertEqual(entry?.tab, .capture, "Query \(query) should find the link control consent toggle")
+                XCTAssertEqual(entry?.cardAnchor, "meeting")
+            } else {
+                XCTAssertNil(entry)
+            }
+        }
+    }
+
     func testMeetingSpeakerDetectionQueriesFindMeetingSetting() {
         let queries = ["system audio", "participants", "others", "speaker labels"]
 
@@ -424,6 +436,7 @@ final class SettingsSearchIndexTests: XCTestCase {
             "meeting.speakerDetection",
             "meeting.liveTranscription",
             "meeting.startMuted",
+            "meeting.urlControl",
             "meeting.autoStop",
             "meeting.calendar",
             "system.permissions.screen"

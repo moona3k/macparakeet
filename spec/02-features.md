@@ -168,6 +168,16 @@ Meeting Recording and Calendar are opt-in and self-prompt on first use (see ADR-
 
 Dictation defaults to a built-in shared `Fn` gesture preset: hold `Fn` for push-to-talk, or double-tap `Fn` for hands-free mode. `Fn+Fn` is not a customizable recorded hotkey; choosing restore default returns to this preset. Each dictation role can still be assigned a custom shortcut. The "record a shortcut" UI supports bare modifiers (Fn, Control, etc.), standalone keys (F5, Tab, etc.), modifier+key chords (Fn+Space, Cmd+9, Ctrl+Shift+D), and modifier-only chords (Command+Option, including side-specific variants like Right Command+Right Option). See ADR-009 for full details. Custom dictation shortcuts may be distinct, or both roles may share the exact same non-disabled trigger to reuse the hold/double-tap gesture model. Settings blocks overlapping but non-identical triggers.
 
+Settings > Capture > Dictation > **Additional shortcuts** provides an optional
+second push-to-talk and hands-free shortcut. Both pairs remain active on all
+keyboards. Within either pair, assigning the same trigger enables hold/double-tap
+behavior; distinct triggers use hold and single-tap respectively. Additional
+slots default to disabled and never migrate or replace the primary pair. During
+hands-free recording either ordinary hands-free shortcut can stop the take;
+hold-to-talk remains owned by the trigger that started it, and pressing another
+dictation shortcut during a hold does not interrupt it. See
+[dictation shortcuts contract](contracts/dictation-shortcuts.md).
+
 | Mode | Gesture | Behavior |
 |------|---------|----------|
 | **Hands-free** | Double-tap the shared Fn/custom trigger when both dictation roles share one, or tap the configured hands-free shortcut when roles are distinct | Persistent recording. Tap the shortcut again to stop. |
@@ -202,7 +212,7 @@ Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migra
 - `HotkeyTrigger` struct with `.modifier` / `.keyCode` / `.chord` / `.modifierChord` kind discriminator (see ADR-009)
 - Modifier triggers: `flagsChanged` events with `CGEventFlags` mask, bare-tap filtering
 - KeyCode triggers: `keyDown`/`keyUp` events with event swallowing, edge detection via `triggerKeyIsPressed` boolean
-- Modifier+key chord triggers: require ALL modifier flags present on `keyDown` of the trigger key. Hold-to-talk chord triggers use release-any-part behavior: releasing either the trigger key or any required modifier stops dictation. `chordModifierReleased` flag prevents double-fire when modifier is released while trigger key is still held.
+- Modifier+key chord triggers: on `keyDown` of the trigger key, the five relevant modifiers (fn, control, option, shift, command) must match the configured set exactly. Caps Lock and other non-relevant bits stay ignored. A function-family chord that does not itself require fn also ignores the phantom fn bit macOS sets on that key's own event. Extra real modifiers do not fire the chord, and that key is delivered to the front app. The decision belongs to the initial key-down of a press: auto-repeats keep it until key-up, so adding a modifier does not cancel an accepted hold and releasing one cannot start a press that was already rejected. Once the chord is down, hold-to-talk still uses release-any-part: releasing the trigger key or any required modifier stops dictation, and pressing an additional modifier does not. `chordModifierReleased` prevents a second stop when the modifier is released while the trigger key is still held. Tap recovery still treats the chord as held when the trigger key and its required modifiers are down.
 - Modifier-only chord triggers: require an exact set of 2+ chord-eligible modifiers before emitting the same key-agnostic gesture signals as single-key triggers. Generic and side-specific variants are persisted distinctly, and overlap checks block ambiguous assignments.
 - Edge detection: only fire on actual transitions of the target key state
 - Bare-tap filtering (modifiers only): if a regular key is pressed while the modifier is held (e.g., Ctrl+C), the release is not counted as a tap — prevents keyboard shortcuts from triggering dictation
@@ -210,7 +220,7 @@ Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migra
 - Chord validation: Escape blocked for all kinds. Modifier+key chords containing Command warn about system shortcut conflicts (Cmd+Tab, Cmd+Space, Cmd+Q/W/H/M). Fn is allowed in modifier+key chords such as Fn+Space.
 - Hands-free key-down: toggles persistent recording immediately for key and modifier+key triggers; bare modifier hands-free triggers toggle on bare release so normal modifier shortcuts are not captured.
 - Dedicated push-to-talk key-down: schedule only the startup debounce, then start hold-to-talk.
-- Duplicate or overlapping dictation shortcuts: exact duplicate triggers are allowed and use the shared hold/double-tap gesture model; overlapping but non-identical assignments are rejected in Settings and reported at runtime instead of creating a hidden combined gesture.
+- Duplicate or overlapping dictation shortcuts: within one pair, exact duplicate triggers are allowed and use the shared hold/double-tap gesture model; overlapping but non-identical assignments are rejected in Settings and reported at runtime instead of creating a hidden combined gesture. Across the primary and additional pairs every overlap, including an exact duplicate, is rejected, as are chords that share a terminal key even with different modifiers (see the dictation shortcuts contract).
 - On key-up: dedicated push-to-talk releases after startup debounce stop and process.
 - Escape cannot be assigned as a hotkey. It cancels a live dictation by default (`escapeCancelsDictation`). Off leaves Escape for the front app during a live take. A pending gesture that has not started a take still clears.
 - Requires Accessibility permission (prompted on first activation).
@@ -1027,7 +1037,7 @@ Important constraints:
 - formatter skips empty or whitespace-only input before prompt resolution or any provider call, so a model response can never become transcript content when STT produces no transcript text (#855)
 - formatter routing is per-surface: "Use for transcripts" (file/URL/meeting, default off) and "Use for dictation" (default off) toggles in AI settings, each ANDed with provider availability (#408, #493). Those toggles control enablement; cleanup and meeting analysis model routes follow [ADR-032](adr/032-llm-task-group-routing.md): inherit the default AI route or pick a general LLM route per task.
 - an optional **AI-polished dictation** shortcut (default unset) requests the formatter for that utterance when an AI provider is saved. The choice is captured at recording start, so a Settings change mid-utterance cannot flip it.
-- transcription formatter input is capped at `AIFormatter.maxTranscriptionInputChars` (20k chars); longer transcripts (hour-long meetings) skip straight to deterministic cleanup because a full-rewrite response can stall slow providers until timeout (#493)
+- transcription cleanup runs for a meeting of any length. One provider response cannot hold an hour-long rewrite, so the transcript is cleaned in successive sections of at most 12,000 characters, split on a paragraph, sentence, or word boundary, then joined. Each section still has to finish inside the 300-second body wait (#493, #1253). A 30-second wait previously failed cleanups of about seven minutes or longer and reported the timeout as a connection failure. Anthropic sections that no longer fit the inherited 4096-token default ask for up to 16384. Other providers keep their own output default, so a reasoning model's hidden tokens are not squeezed into that allowance.
 - dictation formatter prompts route through local exact-app profiles, local coarse-category profiles, built-in coarse-category smart defaults, and then the dictation formatter prompt
 - built-in smart defaults are user-controllable: a master switch plus per-category switches (UserDefaults-backed `AIFormatterSmartDefaultsPolicy`), and every built-in prompt is readable in Settings even when the master switch is off; with the tier off, zero-profile prompt selection is byte-for-byte the dictation fallback-prompt behavior
 - file/URL/meeting transcription uses a separate transcript formatter prompt (paragraph-oriented built-in default). A customized pre-split shared prompt is copied into both; new installs get two different built-ins. Both remain opt-in via the routing toggles and share the cleanup model route ([ADR-032](adr/032-llm-task-group-routing.md))
@@ -1045,7 +1055,7 @@ Important constraints:
 - [x] Formatter supports dictation and file/YouTube transcription flows
 - [x] Formatter supports meeting transcription (meeting finalization shares `completeTranscription`)
 - [x] Transcripts and dictation have independent routing toggles in AI settings (#493)
-- [x] Transcription formatter skips inputs over the length cap instead of stalling finalization for the full provider timeout (#493)
+- [x] Transcription cleanup covers a meeting of any length by cleaning successive sections that each fit one provider response (#493, #1253)
 - [x] Formatter uses the configured provider or local CLI through shared LLM infrastructure
 - [x] Formatter prompt is editable and resettable from settings
 - [x] Transcripts and dictation have independent formatter prompts in AI settings
@@ -1499,6 +1509,7 @@ This extension is not implemented; the checked criteria below describe the exist
 - Speaker colors in transcript view (visual differentiation)
 - Per-speaker analytics: speaking time, word count
 - On by default where supported for file/URL transcription and meeting finalization with a system-audio track; the Settings toggle remains available, and the CLI follows the saved preference — `--speaker-detection off` / `--no-diarize` forces it off, while speaker-count constraints keep forcing it on for that run
+- Optional exact speaker count before a file or link transcription ([#1225](https://github.com/moona3k/macparakeet/issues/1225)): while file/URL speaker detection is on, the Transcribe view shows **Speakers: Auto**. Choosing 1–12 applies to the next drop, file pick, or link only (every file in that batch), then resets to Auto. A YouTube video already in the Library is transcribed again instead of reused, so the count takes effect. An exact count uses the Community-1 constrained path, like Re-transcribe; meetings keep their calendar prior and use Re-transcribe for an exact count
 
 **Transcript with speakers:**
 
@@ -1545,9 +1556,10 @@ are unaffected.
 **Technical notes:**
 - Speaker detection runs locally after recording, separately from ASR (ADR-010).
 - Automatic detection uses Nemotron 3 `fast128`, with up to eight speakers per analyzed source. Explicit speaker-count constraints and experimental voice profiles retain Community-1 (pyannote segmentation, WeSpeaker v2 embeddings and VBx clustering).
-- Current source pins FluidAudio 0.17.4. The matched evaluation records improved speaker identity/counts alongside worse results on some distant-microphone recordings; it is not a universal accuracy improvement (ADR-010).
+- Current source pins FluidAudio 0.17.7, whose Community-1 fixes stop digital silence from splitting speakers (ADR-010 2026-10-08). The matched evaluation records improved speaker identity/counts alongside worse results on some distant-microphone recordings; it is not a universal accuracy improvement (ADR-010).
 - Setup prepares both the ~199 MB Nemotron model and ~130 MB Community-1 assets for offline use. Upgrading an old, unmarked Community-1 cache requires one connected setup to obtain the revision-pinned assets.
-- Runs after ASR completes and merges speaker segments with word-level timestamps by time overlap. Isolated one-word flips and unlabeled gaps inherit a speaker only when both neighboring runs agree (ADR-010 2026-09-15).
+- Runs after ASR completes and merges speaker segments with word-level timestamps by time overlap. Unlabeled gaps inherit a speaker only when both neighboring runs agree. A one-word turn that already has another speaker is kept (ADR-010 2026-10-12; supersedes the 2026-09-15 singleton collapse).
+- In a diarized meeting, system-track words that no cluster claims appear as `Unattributed`, not as another `Others` speaker, and do not count toward the speaker count or the re-transcription default (#1228).
 - Diarization is non-fatal — if it fails, ASR result is still persisted without speaker data
 - Automatic IDs (`"S1"`, `"S2"`) belong to one transcript version. User corrections are stored separately and resolved into effective attribution for display, search, exports, artifacts and AI; IDs are not cross-file or retranscription identity.
 - Nemotron retains overlapping speaker activity; the word merger still assigns at most one speaker per word. Community-1 retains exclusive output and can leave overlap-zone words unassigned.
@@ -1568,6 +1580,7 @@ are unaffected.
 - [x] Diarization failure is non-fatal (ASR result preserved)
 - [x] Progress shows "Identifying speakers..." headline
 - [x] Settings toggles for file/URL and meeting speaker detection (on by default where supported; explicit off is preserved)
+- [x] Transcribe view offers a one-run exact speaker count (1–12) for the next file, batch, or link; hidden while file/URL speaker detection is off
 - [x] CLI: `macparakeet-cli transcribe` follows the saved file/URL speaker-detection preference; meeting retranscription follows the saved meeting speaker-detection preference when app-default; `--speaker-detection off` / `--no-diarize` force off per run, and speaker-count constraints force on
 
 **Timed transcript corrections (shipping in stable 0.8.7):**
@@ -1590,7 +1603,7 @@ are unaffected.
   usable timing. Its replacement is explicitly untimed and is never silently
   aligned to automatic words.
 
-**Reading-view additions (development source, after 0.8.7):**
+**Reading-view additions (text editing shipped in 0.8.8; find and replace is in the 0.8.10 candidate):**
 
 - The Text view of a timed transcript has **Edit**. It opens the same passages
   for rewriting or removal, then **Done** saves them as one `reviseText`
@@ -1984,8 +1997,8 @@ ordinary Retry. See [ADR-030](adr/030-external-meeting-import.md) and the
 > Status: **IMPLEMENTED AND LOCALLY VERIFIED (2026-09-05)** — release
 > availability follows the normal channel process.
 
-The replacement does not restore a dedicated memo-steered built-in or enable
-notes automatically. Every saved meeting exposes a dedicated, always-editable
+The replacement uses a per-prompt notes setting, with the Summary default
+described below. Every saved meeting exposes a dedicated, always-editable
 `Notes` tab after `Transcript`. Changes auto-save after a 500 ms idle debounce,
 with Saving/Saved/Error feedback and Retry. This keeps the user-authored
 editorial layer separate from the factual transcript. Notes are backed by
@@ -2002,11 +2015,16 @@ through the CLI, its pending draft no longer blocks quit. Database read errors
 keep the draft and continue to block quit. A still-open deleted meeting keeps
 the draft readable for copying and labels it as unsaved to the deleted meeting.
 Every result prompt, including read-only built-ins, exposes an
-**Include meeting notes as context** checkbox. It defaults off for all existing
-and new prompts and is not available for Transforms.
+**Include meeting notes as context** checkbox. It defaults off for custom
+prompts and built-ins other than Summary. The built-in Summary
+is seeded with it on when the prompt library is first created; existing
+libraries keep their saved choice, including an explicit opt-out. It is not
+available for Transforms.
 
-When enabled, non-empty notes are added once as a delimited context block and
-the transcript remains the factual source of truth. Advanced custom prompts
+When enabled, non-empty notes are added once as a delimited context block.
+The block instructs the model to use explicit name/spelling corrections when
+the referent is clear, preserve relevant URLs exactly, and prefer the transcript
+for other factual conflicts. Linked pages are not fetched. Advanced custom prompts
 may continue to place notes explicitly with case-sensitive `{{userNotes}}`,
 even when the checkbox is off; enabling the checkbox cannot duplicate that
 content. Empty notes preserve the previous assembled prompt byte-for-byte.
@@ -2015,7 +2033,8 @@ time without a checkbox.
 
 The additive schema stores
 `prompts.includeMeetingNotes` and
-`summaries.includeMeetingNotesSnapshot`, both non-null and default false.
+`summaries.includeMeetingNotesSnapshot`, both non-null with a column default of
+false; the newly seeded Summary row sets its value to true.
 `userNotesSnapshot` stores the exact bounded notes value supplied to prompt
 assembly. The public CLI mirrors the setting on `prompts set` with
 `--include-meeting-notes` / `--no-include-meeting-notes` and additive JSON
@@ -2026,7 +2045,7 @@ fields.
 - [x] Saved meetings expose an always-editable Notes tab with debounced
   autosave, flush-before-LLM behavior, Retry, and separate artifact warnings.
 - [x] Rapid saves leave derived artifacts at the newest committed DB value.
-- [x] Prompt checkbox works independently for built-in and custom result prompts; existing prompts stay opted out.
+- [x] Prompt checkbox works independently for built-in and custom result prompts; existing prompts keep their saved preferences.
 - [x] The shared GUI/CLI assembler follows the empty/off/token/no-duplication decision table from ADR-020.
 - [x] Queue, retry, regenerate, and saved-result snapshots remain reproducible.
 - [x] Focused tests pass.
@@ -2073,6 +2092,17 @@ fields.
 - [x] `statusTitle` for `.error` is "Meeting interrupted" (was "Recording Error" — overclaims since the same state is reached from both `startFailed` and `transcriptionFailed`)
 - [x] `statusMessage` for `.error` reads `<technical detail>\n\nIf any audio was captured it's in your Library, where you can retry transcription or export the audio.`
 - [x] Empty/whitespace-only error strings fall back to "An unexpected error occurred." instead of producing a leading newline
+
+### Meeting recording links (#1198)
+
+The GUI app accepts opt-in `macparakeet://meeting/start`, `stop`, `pause`, and
+`resume` commands. Start optionally accepts a percent-encoded `title` query.
+The default-off **Allow recording control from links** switch is in Capture
+settings. Any app or website can send these links once enabled; existing audio
+permissions and recording settings remain in force. The
+[URL control contract](contracts/meeting-url-control-v1.md) defines validation,
+startup delivery, idempotency, busy-start behavior, and development-scheme
+isolation.
 
 ### F42: Meeting Recording Pause / Resume
 
@@ -2184,7 +2214,7 @@ authoritative transcript and is unchanged by this live-preview strategy.
 
 > Status: **PARTIAL IMPLEMENTATION** — Direct AVAudioEngine configuration-change and callback-stall recovery, typed system-source recovery, actionable source warnings, and finalized frame-derived capture reports are implemented. Amplitude-inferred mic restart and REQ-MEET-018 VAD transcript-gap repair remain proposed.
 
-**Implemented:** A stopped AVAudioEngine configuration-change episode rebuilds against the current route and format with bounded retries, and succeeds only after a replacement microphone buffer arrives. After the first input buffer, a five-second absence of further tap callbacks uses that same recovery even when AVAudioEngine still reports itself running; ordinary acoustic silence remains healthy because buffers continue. Typed ScreenCaptureKit first-buffer, heartbeat, and unexpected delegate failures similarly retry with fresh system streams while preserving the other source. Confirmed recovering, interrupted, stalled, or unavailable states surface non-blocking warnings. Finalization persists per-source written-frame coverage and partial-capture status in the meeting artifact; missing legacy reports mean unknown, not healthy.
+**Implemented:** A stopped AVAudioEngine configuration-change episode rebuilds against the current route and format with bounded retries, and succeeds only after a replacement microphone buffer arrives. After the first input buffer, a five-second absence of further tap callbacks uses that same recovery even when AVAudioEngine still reports itself running; ordinary acoustic silence remains healthy because buffers continue. Typed ScreenCaptureKit first-buffer, heartbeat, and unexpected delegate failures similarly retry with fresh system streams while preserving the other source. In a combined meeting, a microphone whose start failed with a retryable error, or stalled before delivering audio, is retried in the background for the rest of the session and joins when a retry delivers audio (#1223). Confirmed recovering, interrupted, stalled, or unavailable states surface non-blocking warnings on the live panel and the floating pill. When an unavailable or interrupted selected source stays lost for 10 s of active recording, one local notification per recording says the meeting may be missing a side; it is posted while MacParakeet is in the background and the live panel is not open, and waits until then. Finalization persists per-source written-frame coverage and partial-capture status in the meeting artifact; missing legacy reports mean unknown, not healthy.
 
 **Still proposed:** The metadata-only mic-health monitor emits privacy-safe `mic_stall_detected` telemetry, but signal amplitude alone does not restart the microphone. The separately proposed offline VAD pass would find transcript gaps and re-transcribe missed speech; the implemented frame report measures recorded media coverage, not transcript completeness.
 

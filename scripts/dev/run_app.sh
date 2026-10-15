@@ -192,6 +192,14 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
     <string>MacParakeet Dev</string>
     <key>CFBundleExecutable</key>
     <string>MacParakeet</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key><string>com.macparakeet.meeting</string>
+            <key>CFBundleTypeRole</key><string>Editor</string>
+            <key>CFBundleURLSchemes</key><array><string>macparakeet-dev</string></array>
+        </dict>
+    </array>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleVersion</key>

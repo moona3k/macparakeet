@@ -31,7 +31,7 @@ final class JevClientTransportTests: XCTestCase {
                 let questions = body?["questions"] as? [String: [String: Any]] ?? [:]
                 var answers: [String: Any] = [:]
                 for (name, question) in questions {
-                    let keys = Array((question["criteria"] as? [String: String] ?? [:]).keys).sorted()
+                    let keys = Array((question["criteria"] as? [String: Any] ?? [:]).keys).sorted()
                     let choice = name == "outcome" ? keys.first { $0.hasPrefix("n:") } ?? keys[0] : keys[0]
                     var probabilities = Dictionary(uniqueKeysWithValues: keys.map { ($0, 0.0) })
                     probabilities[choice] = 1
@@ -224,8 +224,8 @@ final class JevClientTransportTests: XCTestCase {
         do {
             _ = try await client(statuses: [401], calls: auth).decide(
                 goal: "pick", snapshot: snapshot, history: [], events: events)
-            XCTFail("expected unavailable")
-        } catch { XCTAssertEqual(error as? JevDecisionError, .unavailable) }
+            XCTFail("expected unauthorized")
+        } catch { XCTAssertEqual(error as? JevDecisionError, .unauthorized, "a rejected key says so") }
         let single = await auth.bodies.count
         XCTAssertEqual(single, 1)
     }

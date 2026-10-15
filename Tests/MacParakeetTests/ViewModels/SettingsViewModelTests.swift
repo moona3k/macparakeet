@@ -1,4 +1,5 @@
 import XCTest
+import AVFoundation
 import CoreAudio
 @testable import MacParakeetCore
 @testable import MacParakeetViewModels
@@ -46,6 +47,15 @@ final class SettingsViewModelTests: XCTestCase {
     var entitlements: EntitlementsService!
     var youtubeDownloadsTestDir: URL!
     var meetingRecordingsTestDir: URL!
+
+    func testMeetingURLControlRequiresExplicitOptInAndPersists() {
+        XCTAssertFalse(viewModel.meetingURLControlEnabled)
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences.meetingURLControlEnabled(defaults: testDefaults))
+        viewModel.meetingURLControlEnabled = true
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences.meetingURLControlEnabled(defaults: testDefaults))
+        viewModel.meetingURLControlEnabled = false
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences.meetingURLControlEnabled(defaults: testDefaults))
+    }
 
     private func waitUntil(
         timeout: Duration = .seconds(1),
@@ -746,6 +756,53 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(settings, [.microphoneSelection, .microphoneSelection])
     }
 
+    // Issue #1227: Core Audio route notifications no longer rebuild the idle
+    // preparation, so an explicit selection must rebuild it here.
+    func testSelectedMicrophoneRebuildsIdlePreparation() async throws {
+        let platform = PrepareCountingMicrophonePlatform()
+        let stream = SharedMicrophoneStream(
+            platform: platform,
+            autoPrewarmWhenIdle: true,
+            prewarmRefreshDebounce: 0
+        )
+        viewModel.instantDictationEnabled = false
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            sharedMicStream: stream
+        )
+
+        viewModel.selectedMicrophoneDeviceUID = "usb-mic-uid"
+
+        try await waitUntil { platform.prepareCount == 1 }
+        XCTAssertEqual(platform.stopEngineCount, 1)
+    }
+
+    func testSelectedMicrophoneSkipsIdleRebuildWhenInstantDictationIsOn() async throws {
+        let platform = PrepareCountingMicrophonePlatform()
+        let stream = SharedMicrophoneStream(
+            platform: platform,
+            autoPrewarmWhenIdle: true,
+            prewarmRefreshDebounce: 0
+        )
+        viewModel.instantDictationEnabled = true
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            sharedMicStream: stream
+        )
+
+        viewModel.selectedMicrophoneDeviceUID = "usb-mic-uid"
+        try await Task.sleep(for: .milliseconds(100))
+
+        XCTAssertEqual(platform.prepareCount, 0)
+        XCTAssertEqual(platform.stopEngineCount, 0)
+    }
+
     func testRefreshMicrophoneDevicesUsesInjectedDevicesAndMarksDefaultFirst() {
         let vm = SettingsViewModel(
             defaults: testDefaults,
@@ -1393,6 +1450,32 @@ final class SettingsViewModelTests: XCTestCase {
         wait(for: [expectation], timeout: 1.0)
     }
 
+    func testAdditionalDictationShortcutsRoundTripWithoutChangingPrimaryBindings() {
+        XCTAssertEqual(viewModel.alternateHandsFreeHotkeyTrigger, .disabled)
+        XCTAssertEqual(viewModel.alternatePushToTalkHotkeyTrigger, .disabled)
+        let primary = viewModel.hotkeyTrigger
+        let hold = viewModel.pushToTalkHotkeyTrigger
+        let key = HotkeyTrigger.fromKeyCode(117)
+        let handsFreeChanged = expectation(forNotification: .macParakeetHotkeyTriggerDidChange, object: nil)
+        let holdChanged = expectation(forNotification: .macParakeetPushToTalkHotkeyTriggerDidChange, object: nil)
+        viewModel.alternateHandsFreeHotkeyTrigger = key
+        viewModel.alternatePushToTalkHotkeyTrigger = key
+        wait(for: [handsFreeChanged, holdChanged], timeout: 1)
+        let reloaded = SettingsViewModel(defaults: testDefaults)
+        XCTAssertEqual(reloaded.alternateHandsFreeHotkeyTrigger, key)
+        XCTAssertEqual(reloaded.alternatePushToTalkHotkeyTrigger, key)
+        XCTAssertEqual(reloaded.hotkeyTrigger, primary)
+        XCTAssertEqual(reloaded.pushToTalkHotkeyTrigger, hold)
+        reloaded.alternateHandsFreeHotkeyTrigger = .disabled
+        XCTAssertEqual(SettingsViewModel(defaults: testDefaults).alternateHandsFreeHotkeyTrigger, .disabled)
+        XCTAssertEqual(SettingsViewModel(defaults: testDefaults).alternatePushToTalkHotkeyTrigger, key)
+    }
+
+    func testMalformedAdditionalShortcutFallsBackToDisabled() {
+        testDefaults.set("broken json", forKey: HotkeyTrigger.alternateHandsFreeDefaultsKey)
+        XCTAssertEqual(SettingsViewModel(defaults: testDefaults).alternateHandsFreeHotkeyTrigger, .disabled)
+    }
+
     func testPushToTalkHotkeyPostsNotificationOnChange() {
         let expectation = expectation(
             forNotification: Notification.Name("macparakeet.pushToTalkHotkeyTriggerDidChange"),
@@ -1749,6 +1832,39 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.microphoneGranted)
         XCTAssertTrue(viewModel.accessibilityGranted)
         XCTAssertTrue(viewModel.screenRecordingGranted)
+    }
+
+    func testRefusedScreenRecordingRequestOpensSystemSettings() {
+        // After a denial the system request returns false without a prompt,
+        // so Allow must lead to System Settings instead of doing nothing.
+        mockPermissions.screenRecordingPermission = false
+        mockPermissions.requestScreenRecordingResult = false
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
+
+        viewModel.requestScreenRecordingAccess()
+
+        XCTAssertEqual(mockPermissions.openScreenRecordingSettingsCallCount, 1)
+    }
+
+    func testGrantedScreenRecordingRequestStaysInApp() {
+        mockPermissions.screenRecordingPermission = false
+        mockPermissions.requestScreenRecordingResult = true
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
+
+        viewModel.requestScreenRecordingAccess()
+
+        XCTAssertTrue(mockPermissions.screenRecordingPermission, "Allow must make the system request")
+        XCTAssertEqual(mockPermissions.openScreenRecordingSettingsCallCount, 0)
     }
 
     func testRefreshPermissionsUpdatesNotGrantedState() async throws {
@@ -3857,5 +3973,35 @@ private actor MockSpeechEngineSwitcher: SpeechEngineSwitching {
         } else {
             releaseRequested = true
         }
+    }
+}
+
+private final class PrepareCountingMicrophonePlatform: MicrophoneEnginePlatform, @unchecked Sendable {
+    private let lock = NSLock()
+    private var prepares = 0
+    private var stops = 0
+
+    var prepareCount: Int { lock.withLock { prepares } }
+    var stopEngineCount: Int { lock.withLock { stops } }
+
+    var isEngineRunning: Bool { false }
+    var inputFormat: AVAudioFormat? { nil }
+
+    func configureAndStart(
+        vpioEnabled: Bool,
+        bufferSize: AVAudioFrameCount,
+        tapHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
+    ) throws {}
+
+    func stopEngine() {
+        lock.withLock { stops += 1 }
+    }
+
+    func prepare(
+        vpioEnabled: Bool,
+        bufferSize: AVAudioFrameCount,
+        tapHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
+    ) {
+        lock.withLock { prepares += 1 }
     }
 }

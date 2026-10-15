@@ -672,6 +672,14 @@ cat >"$INFO_PLIST" <<EOF
   <string>6.0</string>
   <key>CFBundleName</key>
   <string>${APP_NAME}</string>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key><string>com.macparakeet.meeting</string>
+      <key>CFBundleTypeRole</key><string>Editor</string>
+      <key>CFBundleURLSchemes</key><array><string>macparakeet</string></array>
+    </dict>
+  </array>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>

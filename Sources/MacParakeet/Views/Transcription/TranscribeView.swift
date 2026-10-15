@@ -17,6 +17,8 @@ struct TranscribeView: View {
     var onRefreshPermissions: () -> Void = {}
     @State private var showCancelConfirmation = false
     @State private var aiFormatterWarningMessage: String?
+    @AppStorage(UserDefaultsAppRuntimePreferences.speakerDiarizationKey)
+    private var speakerDetectionEnabled = UserDefaultsAppRuntimePreferences.defaultSpeakerDiarizationEnabled
 
     /// Fixed footer attribution. Previously rotated through 19 randomly-picked
     /// quotes per view init; pinned to a single quote until the rotation
@@ -132,17 +134,23 @@ struct TranscribeView: View {
                 Spacer()
 
                 VStack(spacing: DesignSystem.Spacing.xl) {
-                    HStack(alignment: .top, spacing: DesignSystem.Spacing.lg) {
-                        youTubeCard
-                        PortalDropZone(
-                            isDragging: $viewModel.isDragging,
-                            onDrop: { providers in
-                                viewModel.handleFileDrop(providers: providers) {
-                                    SoundManager.shared.play(.fileDropped)
-                                }
-                            },
-                            onBrowse: { openFilePicker() }
-                        )
+                    VStack(spacing: DesignSystem.Spacing.md) {
+                        HStack(alignment: .top, spacing: DesignSystem.Spacing.lg) {
+                            youTubeCard
+                            PortalDropZone(
+                                isDragging: $viewModel.isDragging,
+                                onDrop: { providers in
+                                    viewModel.handleFileDrop(providers: providers) {
+                                        SoundManager.shared.play(.fileDropped)
+                                    }
+                                },
+                                onBrowse: { openFilePicker() }
+                            )
+                        }
+
+                        if speakerDetectionEnabled {
+                            NextRunSpeakerCountMenu(selection: $viewModel.nextRunSpeakerSelection)
+                        }
                     }
                     .padding(.horizontal, DesignSystem.Spacing.xl)
 
@@ -657,6 +665,52 @@ struct TranscribeView: View {
             SoundManager.shared.play(.fileDropped)
             viewModel.transcribeFiles(urls: panel.urls)
         }
+    }
+}
+
+/// One-run speaker count for the next file or link (#1225). The view model
+/// resets it to Auto once that transcription starts.
+private struct NextRunSpeakerCountMenu: View {
+    @Binding var selection: SpeakerCountSelection
+
+    /// Reaches past automatic detection's eight-speaker limit (ADR-010). Larger
+    /// counts are rarely known up front; Re-transcribe and the CLI still accept
+    /// the full supported range.
+    private static let exactCounts = 1...12
+
+    var body: some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            Menu {
+                Picker("Speakers", selection: $selection) {
+                    Text("Auto").tag(SpeakerCountSelection.automatic)
+                    Divider()
+                    ForEach(Self.exactCounts, id: \.self) { count in
+                        Text(count == 1 ? "1 speaker" : "\(count) speakers")
+                            .tag(SpeakerCountSelection.exact(count))
+                    }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            } label: {
+                Label("Speakers: \(valueLabel)", systemImage: "person.2")
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Set the speaker count when you know it. Auto detects it.")
+            .accessibilityLabel("Speaker count for the next transcription")
+            .accessibilityValue(valueLabel)
+
+            if selection.exactCount != nil {
+                Text("Applies once, then resets")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .animation(.easeInOut(duration: 0.15), value: selection)
+    }
+
+    private var valueLabel: String {
+        selection.exactCount.map(String.init) ?? "Auto"
     }
 }
 

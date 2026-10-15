@@ -159,8 +159,8 @@ final class LLMConfigCommandTests: XCTestCase {
             environment: ["ANTHROPIC_API_KEY": "sk-env"])
         let openRouterConfig = try openRouterOptions.buildConfig(
             environment: ["OPENROUTER_API_KEY": "sk-env"])
-        XCTAssertEqual(anthropicConfig.modelName, "claude-sonnet-5")
-        XCTAssertEqual(openRouterConfig.modelName, "anthropic/claude-sonnet-5")
+        XCTAssertEqual(anthropicConfig.modelName, "claude-sonnet-5-5")
+        XCTAssertEqual(openRouterConfig.modelName, "anthropic/claude-sonnet-5.5")
     }
 
     func testInlineOneOffOmittedModelKeepsHistoricalCompatibilityDefault() throws {

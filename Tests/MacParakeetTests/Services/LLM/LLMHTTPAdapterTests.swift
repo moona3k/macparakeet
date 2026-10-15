@@ -331,7 +331,7 @@ final class LLMHTTPAdapterTests: XCTestCase {
         let request = try XCTUnwrap(capturedRequest)
         XCTAssertEqual(request.url?.absoluteString, "https://api.openai.com/v1/chat/completions")
         XCTAssertEqual(request.httpMethod, "POST")
-        XCTAssertEqual(request.timeoutInterval, 30)
+        XCTAssertEqual(request.timeoutInterval, 300)
         XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
         XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer sk-golden")
         XCTAssertEqual(
@@ -936,7 +936,7 @@ final class LLMHTTPAdapterTests: XCTestCase {
         let request = try XCTUnwrap(capturedRequest)
         XCTAssertEqual(request.url?.absoluteString, "https://api.anthropic.com/v1/messages")
         XCTAssertEqual(request.httpMethod, "POST")
-        XCTAssertEqual(request.timeoutInterval, 30)
+        XCTAssertEqual(request.timeoutInterval, 300)
         XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
         XCTAssertEqual(request.value(forHTTPHeaderField: "x-api-key"), "sk-ant-golden")
         XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))

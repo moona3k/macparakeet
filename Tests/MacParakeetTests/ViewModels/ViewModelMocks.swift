@@ -480,7 +480,7 @@ final class MockLaunchAtLoginService: LaunchAtLoginControlling {
 
 // MARK: - MockTranscriptionService
 
-actor MockTranscriptionService: SpeakerConfiguredRetranscriptionService {
+actor MockTranscriptionService: SpeakerConfiguredRetranscriptionService, SpeakerConfiguredTranscriptionService {
     private var transcribeHook: (@Sendable () async -> Void)?
     private let retranscriptionRepository: (any TranscriptionRepositoryProtocol)?
 
@@ -500,7 +500,10 @@ actor MockTranscriptionService: SpeakerConfiguredRetranscriptionService {
     var lastSource: TelemetryTranscriptionSource?
     var lastMeetingRecording: MeetingRecordingOutput?
     var lastSpeechEngineOverride: SpeechEngineSelection?
-    var lastRetranscriptionSpeakerSelection: RetranscriptionSpeakerSelection?
+    var lastRetranscriptionSpeakerSelection: SpeakerCountSelection?
+    /// One entry per first-run file or URL call that carried a speaker count.
+    var transcriptionSpeakerSelections: [SpeakerCountSelection] = []
+    var transcriptionSpeakerAudioTrackOrdinals: [Int?] = []
     var transcribeProgressPhases: [TranscriptionProgress] = []
     var transcribeDelayMs: UInt64 = 0
     var transcribeURLCallCount = 0
@@ -779,7 +782,7 @@ actor MockTranscriptionService: SpeakerConfiguredRetranscriptionService {
         fileURL: URL,
         source: TelemetryTranscriptionSource,
         speechEngineOverride: SpeechEngineSelection?,
-        speakerSelection: RetranscriptionSpeakerSelection,
+        speakerSelection: SpeakerCountSelection,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription {
         lastSpeechEngineOverride = speechEngineOverride
@@ -792,7 +795,7 @@ actor MockTranscriptionService: SpeakerConfiguredRetranscriptionService {
         existing transcription: Transcription,
         recording: MeetingRecordingOutput,
         speechEngineOverride: SpeechEngineSelection?,
-        speakerSelection: RetranscriptionSpeakerSelection,
+        speakerSelection: SpeakerCountSelection,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription {
         lastSpeechEngineOverride = speechEngineOverride
@@ -861,6 +864,27 @@ actor MockTranscriptionService: SpeakerConfiguredRetranscriptionService {
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
         try await transcribeURL(urlString: urlString, onProgress: onProgress)
+    }
+
+    func transcribe(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        audioTrackOrdinal: Int?,
+        speakerSelection: SpeakerCountSelection,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription {
+        transcriptionSpeakerSelections.append(speakerSelection)
+        transcriptionSpeakerAudioTrackOrdinals.append(audioTrackOrdinal)
+        return try await transcribe(fileURL: fileURL, source: source, onProgress: onProgress)
+    }
+
+    func transcribeURL(
+        urlString: String,
+        speakerSelection: SpeakerCountSelection,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription {
+        transcriptionSpeakerSelections.append(speakerSelection)
+        return try await transcribeURL(urlString: urlString, onProgress: onProgress)
     }
 }
 
@@ -1703,6 +1727,7 @@ final class MockPermissionService: PermissionServiceProtocol, @unchecked Sendabl
     var checkScreenRecordingPermissionCallCount = 0
     var checkAccessibilityPermissionCallCount = 0
     var openMicrophoneSettingsCallCount = 0
+    var openScreenRecordingSettingsCallCount = 0
     var screenRecordingPermissionSequence: [Bool] = []
 
     func checkMicrophonePermission() async -> PermissionStatus {
@@ -1733,7 +1758,9 @@ final class MockPermissionService: PermissionServiceProtocol, @unchecked Sendabl
         openMicrophoneSettingsCallCount += 1
     }
 
-    func openScreenRecordingSettings() {}
+    func openScreenRecordingSettings() {
+        openScreenRecordingSettingsCallCount += 1
+    }
 
     func checkAccessibilityPermission() -> Bool {
         checkAccessibilityPermissionCallCount += 1

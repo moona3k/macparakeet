@@ -15,7 +15,7 @@ private enum InlineLLMCompatibilityDefaults {
     // move faster as provider model recommendations change.
     static let openAIModel = "gpt-4.1"
     static let geminiModel = "gemini-2.5-flash"
-    static let openRouterModel = "anthropic/claude-sonnet-5"
+    static let openRouterModel = "anthropic/claude-sonnet-5.5"
 }
 
 func validateBaseURL(_ value: String) throws -> URL {
@@ -85,7 +85,7 @@ struct LLMInlineOptions: ParsableArguments {
     @Option(name: .long, help: "Environment variable name containing the API key.")
     var apiKeyEnv: String?
 
-    @Option(name: .long, help: "Model name (e.g. gpt-4o, claude-sonnet-5, gemini-2.0-flash).")
+    @Option(name: .long, help: "Model name (e.g. gpt-4o, claude-sonnet-5-5, gemini-2.0-flash).")
     var model: String?
 
     @Option(name: .long, help: "Base URL override (e.g. https://us.api.openai.com/v1).")

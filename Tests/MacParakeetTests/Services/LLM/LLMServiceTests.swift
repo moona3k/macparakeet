@@ -6,6 +6,7 @@ import XCTest
 final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
     var supportsInProcessLocalLLM = true
     var capturedMessages: [ChatMessage] = []
+    var capturedMessageBatches: [[ChatMessage]] = []
     var capturedContext: LLMExecutionContext?
     var capturedOptions: ChatCompletionOptions?
     var responseContent = "Mock response"
@@ -31,6 +32,7 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
     ) async throws -> ChatCompletionResponse {
         chatCompletionCallCount += 1
         capturedMessages = messages
+        capturedMessageBatches.append(messages)
         capturedContext = context
         capturedOptions = options
         if let chatCompletionError { throw chatCompletionError }
@@ -194,12 +196,23 @@ final class MockLLMExecutionContextResolver: LLMExecutionContextResolving, @unch
 }
 
 final class MockLLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
-    var config: LLMProviderConfig?
+    /// Like the real store, a configured key is also the saved provider key.
+    var config: LLMProviderConfig? {
+        didSet {
+            if let config, let key = config.apiKey { storedKeys[config.id] = key }
+        }
+    }
     /// Per-provider key storage for testing provider switching.
     var storedKeys: [LLMProviderID: String] = [:]
     var taskOverrides: [LLMTaskGroup: LLMProviderConfig] = [:]
 
-    func loadConfig() throws -> LLMProviderConfig? { config }
+    /// Simulates a route-store failure, such as a busy lease, before any key read.
+    var loadConfigError: Error?
+
+    func loadConfig() throws -> LLMProviderConfig? {
+        if let loadConfigError { throw loadConfigError }
+        return config
+    }
     func saveConfig(_ config: LLMProviderConfig) throws {
         self.config = config
         if let key = config.apiKey {
@@ -1081,6 +1094,90 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertEqual(operations.first?["feature"], TelemetryLLMFeature.formatter.rawValue)
     }
 
+    func testFormatTranscriptLeavesOutputTokenLimitUnsetForShortTranscripts() async throws {
+        mockClient.responseContent = "Hello."
+        mockClient.responseFinishReason = "stop"
+
+        _ = try await service.formatTranscriptDetailed(
+            transcript: "hello world",
+            promptTemplate: AIFormatter.defaultPromptTemplate,
+            source: .dictation,
+            defaultPromptUsed: true
+        )
+
+        XCTAssertNil(mockClient.capturedOptions?.maxTokens)
+    }
+
+    func testFormatTranscriptSizesOutputTokensToALongTranscript() async throws {
+        mockConfigStore.config = .anthropic(apiKey: "test-key", model: "claude-fable-5")
+        mockClient.responseContent = "Cleaned transcript."
+        mockClient.responseFinishReason = "end_turn"
+        let transcript = String(repeating: "a", count: LLMService.formatterMaxSectionCharacters)
+
+        _ = try await service.formatTranscriptDetailed(
+            transcript: transcript,
+            promptTemplate: AIFormatter.defaultPromptTemplate,
+            source: .transcription,
+            defaultPromptUsed: true
+        )
+
+        XCTAssertEqual(mockClient.capturedOptions?.maxTokens, LLMService.formatterMaximumOutputTokenLimit)
+    }
+
+    func testFormatTranscriptLeavesOutputLimitUnsetForGPT5Sections() async throws {
+        mockConfigStore.config = .openai(apiKey: "test-key", model: "gpt-5.5")
+        mockClient.responseContent = "Cleaned."
+        mockClient.responseFinishReason = "stop"
+        let transcript = String(repeating: "a", count: LLMService.formatterMaxSectionCharacters)
+
+        _ = try await service.formatTranscriptDetailed(
+            transcript: transcript,
+            promptTemplate: AIFormatter.defaultPromptTemplate,
+            source: .transcription,
+            defaultPromptUsed: true
+        )
+
+        XCTAssertEqual(mockClient.chatCompletionCallCount, 1)
+        XCTAssertNil(mockClient.capturedOptions?.maxTokens)
+    }
+
+    func testFormatterSectionsBreakOnParagraphsWordsAndHardCuts() {
+        let paragraphs = String(repeating: "a", count: 10) + "\n\n" + String(repeating: "b", count: 10)
+        XCTAssertEqual(
+            LLMService.formatterSections(of: paragraphs, limit: 12),
+            [String(repeating: "a", count: 10), String(repeating: "b", count: 10)]
+        )
+        XCTAssertEqual(
+            LLMService.formatterSections(of: "alpha beta gamma", limit: 8),
+            ["alpha", "beta", "gamma"]
+        )
+        XCTAssertEqual(
+            LLMService.formatterSections(of: String(repeating: "a", count: 5), limit: 2),
+            ["aa", "aa", "a"]
+        )
+    }
+
+    func testFormatTranscriptCleansALongTranscriptInSections() async throws {
+        mockClient.responseContent = "Cleaned."
+        mockClient.responseFinishReason = "end_turn"
+        mockClient.responseUsage = TokenUsage(promptTokens: 10, completionTokens: 4)
+        let transcript = String(repeating: "word ", count: 3_000)
+
+        let result = try await service.formatTranscriptDetailed(
+            transcript: transcript,
+            promptTemplate: AIFormatter.defaultPromptTemplate,
+            source: .transcription,
+            defaultPromptUsed: true
+        )
+
+        XCTAssertEqual(mockClient.chatCompletionCallCount, 2)
+        XCTAssertEqual(result.output, "Cleaned.\n\nCleaned.")
+        XCTAssertEqual(result.result.usage?.promptTokens, 20)
+        XCTAssertEqual(result.result.usage?.completionTokens, 8)
+        XCTAssertEqual(result.messageCount, 4)
+        XCTAssertFalse(mockClient.capturedMessages.last?.content.contains(transcript) ?? true)
+    }
+
     func testFormatterRejectsRenderedRequestsOverBudgetWithoutCallingProvider() async throws {
         mockConfigStore.config = .appleIntelligence()
         // Obtain the real system overhead from one small request.
@@ -1090,12 +1187,7 @@ final class LLMServiceTests: XCTestCase {
         )
         let available = LLMService.appleIntelligenceRoundTripBudget - mockClient.capturedMessages[0].content.count
         let cases = [
-            (String(repeating: "x", count: available + 1), AIFormatter.transcriptPlaceholder),
             ("x", String(repeating: "p", count: available) + AIFormatter.transcriptPlaceholder),
-            (
-                String(repeating: "x", count: available / 2 + 1),
-                AIFormatter.transcriptPlaceholder + AIFormatter.transcriptPlaceholder
-            ),
             ("x", String(repeating: "p", count: available - 1)),
         ]
         for (transcript, template) in cases {
@@ -1434,30 +1526,41 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertEqual(mockClient.chatCompletionStreamCallCount, 0)
     }
 
-    func testAppleIntelligenceFormatterRejectsOversizedInput() async throws {
+    func testAppleIntelligenceFormatterSectionsOversizedInputInsideRoundTripBudget() async throws {
         mockConfigStore.config = .appleIntelligence()
         let telemetry = LLMTelemetrySpy()
         Telemetry.configure(telemetry)
-        do {
-            _ = try await service.formatTranscriptDetailed(
-                transcript: String(repeating: "word ", count: 2_000),
-                promptTemplate: AIFormatter.defaultPromptTemplate,
-                source: .transcription, defaultPromptUsed: true
-            )
-            XCTFail("Expected oversized formatter input to fail")
-        } catch LLMError.formatterTruncated {
-            XCTAssertEqual(mockClient.chatCompletionCallCount, 0)
+        mockClient.responseContent = "Cleaned."
+        mockClient.responseFinishReason = "stop"
+
+        let result = try await service.formatTranscriptDetailed(
+            transcript: String(repeating: "word ", count: 2_000),
+            promptTemplate: AIFormatter.defaultPromptTemplate,
+            source: .transcription, defaultPromptUsed: true
+        )
+
+        XCTAssertGreaterThan(mockClient.chatCompletionCallCount, 1)
+        XCTAssertFalse(mockClient.capturedMessageBatches.isEmpty)
+        for batch in mockClient.capturedMessageBatches {
+            let rendered = batch.reduce(0) { $0 + $1.content.count }
+            XCTAssertLessThanOrEqual(rendered, LLMService.appleIntelligenceRoundTripBudget)
         }
+        XCTAssertEqual(
+            result.output,
+            Array(repeating: "Cleaned.", count: mockClient.chatCompletionCallCount).joined(separator: "\n\n")
+        )
         let events = telemetry.snapshot()
         XCTAssertTrue(
             events.contains {
-                if case .llmFormatterFailed = $0 { return true }; return false
+                if case .llmFormatterUsed = $0 { return true }
+                return false
             })
         XCTAssertFalse(
             events.contains {
-                if case .llmFormatterUsed = $0 { return true }; return false
+                if case .llmFormatterFailed = $0 { return true }
+                return false
             })
-        XCTAssertFalse(llmOperationProps(in: events).contains { $0["outcome"] == "success" })
+        XCTAssertTrue(llmOperationProps(in: events).contains { $0["outcome"] == "success" })
     }
 
     func testFormatterCancellationPropagatesFromProvider() async throws {
@@ -1515,6 +1618,98 @@ final class LLMServiceTests: XCTestCase {
             userMessage.content.count,
             LLMService.lmStudioContextBudget - systemMessage.content.count
         )
+    }
+
+    func testLMStudioSummaryNotesKeepShortTranscriptInBothPaths() async throws {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+        let prompt = Prompt.classicSummaryPrompt()
+        let systemPrompt = PromptSystemPromptAssembler.assemble(
+            promptContent: prompt.content,
+            extraInstructions: nil,
+            includeMeetingNotes: prompt.includeMeetingNotes,
+            userNotes: String(repeating: "agenda ", count: 2_000)
+        )
+        let transcript = "The board rejected the launch. No budget was approved."
+
+        for maxTokens: Int? in [nil, 1_000] {
+            let settings = maxTokens.map { PromptInferenceSettings(maxTokens: $0) }
+            let inputBudget = LLMService.lmStudioContextBudget - (maxTokens ?? 0) * 7 / 2
+            for streaming in [false, true] {
+                if streaming {
+                    for try await _ in service.generatePromptResultDetailedStream(
+                        transcript: transcript, systemPrompt: systemPrompt, inferenceSettings: settings
+                    ) {}
+                } else {
+                    _ = try await service.generatePromptResultDetailed(
+                        transcript: transcript, systemPrompt: systemPrompt, inferenceSettings: settings
+                    )
+                }
+                XCTAssertEqual(mockClient.capturedMessages.last?.content, transcript)
+                XCTAssertTrue(try XCTUnwrap(mockClient.capturedMessages.first).content.contains("agenda"))
+                XCTAssertLessThanOrEqual(
+                    mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }, inputBudget)
+            }
+        }
+    }
+
+    func testLMStudioSummaryNotesKeepLongTranscriptFactsInBothPaths() async throws {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+        let prompt = Prompt.classicSummaryPrompt()
+        let systemPrompt = PromptSystemPromptAssembler.assemble(
+            promptContent: prompt.content,
+            extraInstructions: nil,
+            includeMeetingNotes: prompt.includeMeetingNotes,
+            userNotes: String(repeating: "agenda ", count: 2_000)
+        )
+        let transcript =
+            "The board rejected the launch. " + String(repeating: "discussion ", count: 2_000)
+            + "No budget was approved."
+
+        for streaming in [false, true] {
+            if streaming {
+                for try await _ in service.generatePromptResultDetailedStream(
+                    transcript: transcript, systemPrompt: systemPrompt, inferenceSettings: nil
+                ) {}
+            } else {
+                _ = try await service.generatePromptResultDetailed(
+                    transcript: transcript, systemPrompt: systemPrompt
+                )
+            }
+            let userMessage = try XCTUnwrap(mockClient.capturedMessages.last)
+            XCTAssertTrue(userMessage.content.hasPrefix("The board rejected the launch."))
+            XCTAssertTrue(userMessage.content.hasSuffix("No budget was approved."))
+            XCTAssertTrue(userMessage.content.contains("[... content truncated ...]"))
+            XCTAssertTrue(try XCTUnwrap(mockClient.capturedMessages.first).content.contains("agenda"))
+            XCTAssertLessThanOrEqual(
+                mockClient.capturedMessages.reduce(0) { $0 + $1.content.count },
+                LLMService.lmStudioContextBudget)
+        }
+    }
+
+    func testLMStudioShortPromptKeepsOriginalMessages() async throws {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+        _ = try await service.generatePromptResultDetailed(
+            transcript: "The board rejected the launch.", systemPrompt: "Summarize faithfully."
+        )
+        XCTAssertEqual(mockClient.capturedMessages.first?.content, "Summarize faithfully.")
+        XCTAssertEqual(mockClient.capturedMessages.last?.content, "The board rejected the launch.")
+    }
+
+    func testLMStudioSystemOnlyRequestKeepsFullInputBudget() async throws {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+        for streaming in [false, true] {
+            if streaming {
+                for try await _ in service.generatePromptResultDetailedStream(
+                    transcript: "", systemPrompt: String(repeating: "x", count: 20_000), inferenceSettings: nil
+                ) {}
+            } else {
+                _ = try await service.generatePromptResultDetailed(
+                    transcript: "", systemPrompt: String(repeating: "x", count: 20_000)
+                )
+            }
+            XCTAssertEqual(mockClient.capturedMessages.first?.content.count, LLMService.lmStudioContextBudget)
+            XCTAssertEqual(mockClient.capturedMessages.last?.content, "")
+        }
     }
 
     func testOllamaPromptResultsUseConfiguredContextWindowInBothPaths() async throws {
@@ -1610,7 +1805,7 @@ final class LLMServiceTests: XCTestCase {
     func testLMStudioPromptResultBoundsRenderedSystemPromptContainingTranscript() async throws {
         mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
 
-        let transcript = String(repeating: "word ", count: 3_000)
+        let transcript = "Opening fact. " + String(repeating: "word ", count: 3_000) + "Closing fact."
         _ = try await service.generatePromptResultDetailed(
             transcript: transcript,
             systemPrompt: "Read this inline transcript:\n\(transcript)"
@@ -1623,7 +1818,8 @@ final class LLMServiceTests: XCTestCase {
             LLMService.lmStudioContextBudget
         )
         XCTAssertTrue(systemMessage.content.contains("[... content truncated ...]"))
-        XCTAssertEqual(userMessage.content, "")
+        XCTAssertTrue(userMessage.content.hasPrefix("Opening fact."))
+        XCTAssertTrue(userMessage.content.hasSuffix("Closing fact."))
     }
 
     func testLMStudioStreamingPromptResultUsesConservativeBudgetIncludingSystemPrompt() async throws {

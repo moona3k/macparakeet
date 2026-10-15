@@ -1104,6 +1104,38 @@ struct SettingsView: View {
 
                 Divider()
 
+                DisclosureGroup {
+                    VStack(spacing: DesignSystem.Spacing.md) {
+                        Text("Both shortcuts stay active, so you can switch keyboards without changing settings.")
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        transcriptionHotkeyRow(
+                            title: "Push to talk",
+                            detail: "Hold to dictate, release to stop.",
+                            surface: .alternatePushToTalk,
+                            trigger: $viewModel.alternatePushToTalkHotkeyTrigger
+                        )
+                        Divider()
+                        transcriptionHotkeyRow(
+                            title: "Hands-free mode",
+                            detail: HotkeyTrigger.isSharedDictationGesture(
+                                handsFree: viewModel.alternateHandsFreeHotkeyTrigger,
+                                pushToTalk: viewModel.alternatePushToTalkHotkeyTrigger
+                            )
+                                ? "Double-tap to start; tap a configured hands-free shortcut to stop."
+                                : "Tap to start; tap a configured hands-free shortcut to stop.",
+                            surface: .alternateHandsFree,
+                            trigger: $viewModel.alternateHandsFreeHotkeyTrigger
+                        )
+                    }
+                    .padding(.top, DesignSystem.Spacing.sm)
+                } label: {
+                    rowText(title: "Additional shortcuts", detail: additionalShortcutsDetail)
+                }
+
+                Divider()
+
                 transcriptionHotkeyRow(
                     title: "AI-polished dictation",
                     detail: aiPolishHotkeyDetail,
@@ -1371,6 +1403,14 @@ struct SettingsView: View {
                     .pickerStyle(.menu)
                     .frame(minWidth: 220, idealWidth: 260, maxWidth: 320)
                 }
+
+                Divider()
+
+                settingsToggleRow(
+                    title: "Allow recording control from links",
+                    detail: "Let links start, stop, pause, or resume meetings. Any app or website can send these links while enabled. Only enable this for automations you trust.",
+                    isOn: $viewModel.meetingURLControlEnabled
+                )
 
                 Divider()
 
@@ -1726,6 +1766,8 @@ struct SettingsView: View {
             fileTranscription: viewModel.fileTranscriptionHotkeyTrigger,
             youtubeTranscription: viewModel.youtubeTranscriptionHotkeyTrigger,
             dictationAIPolish: viewModel.dictationAIPolishHotkeyTrigger,
+            alternateHandsFree: viewModel.alternateHandsFreeHotkeyTrigger,
+            alternatePushToTalk: viewModel.alternatePushToTalkHotkeyTrigger,
             transformHotkeys: transformHotkeys,
             meetingRecordingEnabled: AppFeatures.meetingRecordingEnabled
         )
@@ -3698,8 +3740,8 @@ struct SettingsView: View {
 
     private var permissionsCard: some View {
         let permissionsSubtitle = AppFeatures.meetingRecordingEnabled
-            ? "Microphone is needed for dictation and microphone meetings. Accessibility is required for the global hotkey and paste. Screen Recording is needed for system-audio meetings."
-            : "Microphone is needed for dictation. Accessibility is required for the global hotkey and paste."
+            ? "Dictation and meetings use these. File transcription does not."
+            : "Dictation uses these. File transcription does not."
 
         return SettingsCard(
             title: "Permissions",
@@ -3707,65 +3749,46 @@ struct SettingsView: View {
             icon: "lock.shield",
             status: permissionsCardStatus
         ) {
-            VStack(spacing: DesignSystem.Spacing.md) {
-                HStack {
-                    rowText(
-                        title: "Microphone",
-                        detail: "Needed for dictation and microphone meetings. File transcription does not use it."
-                    )
-                    Spacer()
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+                permissionStatusRow(
+                    title: "Microphone",
+                    detail: "Dictation and microphone meetings."
+                ) {
+                    if !viewModel.microphoneGranted {
+                        microphonePermissionActionButton
+                    }
                     permissionPill(granted: viewModel.microphoneGranted)
                 }
 
                 Divider()
 
-                HStack {
-                    rowText(title: "Accessibility", detail: "Required for global hotkey and paste.")
-                    Spacer()
+                permissionStatusRow(
+                    title: "Accessibility",
+                    detail: "Global hotkey and paste."
+                ) {
+                    if !viewModel.accessibilityGranted {
+                        permissionLink("Settings") {
+                            openAccessibilitySettings()
+                        }
+                    }
                     permissionPill(granted: viewModel.accessibilityGranted)
                 }
 
                 if AppFeatures.meetingRecordingEnabled {
                     Divider()
 
-                    HStack {
-                        rowText(
-                            title: "Screen & System Audio Recording",
-                            detail: "Required for meeting modes that capture system audio. MacParakeet never records your screen."
-                        )
-                        Spacer()
-                        screenRecordingPermissionPill
-                    }
-                }
-
-                let needsScreenRecordingAction = AppFeatures.meetingRecordingEnabled
-                    && viewModel.meetingAudioSourceMode.capturesSystemAudio
-                    && !viewModel.screenRecordingGranted
-                if !viewModel.microphoneGranted || !viewModel.accessibilityGranted || needsScreenRecordingAction {
-                    Divider()
-                    HStack(spacing: DesignSystem.Spacing.sm) {
-                        if !viewModel.microphoneGranted {
-                            microphonePermissionActionButton
-                        }
-
-                        if !viewModel.accessibilityGranted {
-                            Button("Open Accessibility Settings") {
-                                openAccessibilitySettings()
-                            }
-                            .parakeetAction(.primaryProminent)
-                        }
-
+                    let needsScreenRecordingAction = viewModel.meetingAudioSourceMode.capturesSystemAudio
+                        && !viewModel.screenRecordingGranted
+                    permissionStatusRow(
+                        title: "Screen & System Audio",
+                        detail: "Meetings that include other people's audio. MacParakeet does not record your screen."
+                    ) {
                         if needsScreenRecordingAction {
-                            Button("Enable meeting recording") {
+                            permissionLink("Allow") {
                                 viewModel.requestScreenRecordingAccess()
                             }
-                            .parakeetAction(.primaryProminent)
-
-                            Button("Open Screen Recording Settings") {
-                                viewModel.openScreenRecordingSystemSettings()
-                            }
-                            .parakeetAction(.secondary)
                         }
+                        screenRecordingPermissionPill
                     }
                 }
             }
@@ -3948,6 +3971,31 @@ struct SettingsView: View {
         }
     }
 
+    /// One row: the explanation takes the remaining width, and the status pill is
+    /// always the trailing edge so every permission lines up. A missing
+    /// permission has one quiet action immediately beside its pill.
+    private func permissionStatusRow<Accessory: View>(
+        title: String,
+        detail: String,
+        @ViewBuilder accessory: () -> Accessory
+    ) -> some View {
+        HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
+            rowText(title: title, detail: detail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(alignment: .center, spacing: 10) {
+                accessory()
+            }
+            .fixedSize(horizontal: true, vertical: false)
+        }
+    }
+
+    private func permissionLink(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(title, action: action)
+            .buttonStyle(.plain)
+            .font(DesignSystem.Typography.caption.weight(.medium))
+            .foregroundStyle(DesignSystem.Colors.accent)
+    }
+
     private func metricTile(title: String, value: String, detail: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
@@ -4106,6 +4154,18 @@ struct SettingsView: View {
             RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
                 .fill(DesignSystem.Colors.surfaceElevated)
         )
+    }
+
+    private var additionalShortcutsDetail: String {
+        let handsFree = viewModel.alternateHandsFreeHotkeyTrigger
+        let pushToTalk = viewModel.alternatePushToTalkHotkeyTrigger
+        var parts: [String] = []
+        if !pushToTalk.isDisabled { parts.append("Hold " + pushToTalk.displayName) }
+        if !handsFree.isDisabled {
+            let shared = HotkeyTrigger.isSharedDictationGesture(handsFree: handsFree, pushToTalk: pushToTalk)
+            parts.append((shared ? "Double-tap " : "Tap ") + handsFree.displayName)
+        }
+        return parts.isEmpty ? "Optional second shortcuts for another keyboard." : parts.joined(separator: " · ")
     }
 
     private var usesSharedDictationGesture: Bool {
@@ -4327,15 +4387,13 @@ struct SettingsView: View {
     @ViewBuilder
     private var microphonePermissionActionButton: some View {
         if viewModel.microphoneStatus == .notDetermined {
-            Button("Grant Microphone Access") {
+            permissionLink("Allow") {
                 viewModel.requestMicrophoneAccess()
             }
-            .parakeetAction(.primaryProminent)
         } else {
-            Button("Open Microphone Settings") {
+            permissionLink("Settings") {
                 viewModel.openMicrophoneSystemSettings()
             }
-            .parakeetAction(.primaryProminent)
         }
     }
 

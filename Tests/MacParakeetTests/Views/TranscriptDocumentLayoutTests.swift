@@ -116,6 +116,130 @@ final class TranscriptDocumentLayoutTests: XCTestCase {
 
     }
 
+    /// Empty meeting notes leave the result page quiet. The old status caption
+    /// must not return and inflate the window minimum.
+    func testEmptyMeetingNotesLeaveTheResultPageQuiet() throws {
+        let rendered = try renderMeetingResult(currentNotes: nil, includeMeetingNotesSnapshot: false)
+        assertMeetingNotesInstructionStaysOutOfTheColumn(rendered.text)
+        assertResultWindowStaysAtOfferedSize(rendered.window)
+    }
+
+    /// A result that ignored current notes keeps the instruction out of the
+    /// column. The control shares the toolbar row, so it must not add a caption
+    /// that raises the window minimum the way the old paragraph did.
+    func testOmittedMeetingNotesStayOutOfTheResultColumn() throws {
+        let empty = try renderMeetingResult(currentNotes: nil, includeMeetingNotesSnapshot: false)
+        let omitted = try renderMeetingResult(
+            currentNotes: "Spell it Siobhan.", includeMeetingNotesSnapshot: false)
+        assertMeetingNotesInstructionStaysOutOfTheColumn(omitted.text)
+        XCTAssertFalse(empty.text.contains("Notes not included"))
+        assertResultWindowStaysAtOfferedSize(omitted.window)
+        XCTAssertEqual(
+            omitted.window.contentMinSize.height,
+            empty.window.contentMinSize.height,
+            accuracy: 8,
+            "The notes control must stay on the toolbar row instead of adding a caption"
+        )
+    }
+
+    func testSentMeetingNotesKeepASnapshotRow() throws {
+        let empty = try renderMeetingResult(currentNotes: nil, includeMeetingNotesSnapshot: false)
+        let sent = try renderMeetingResult(
+            currentNotes: "Spell it Siobhan.",
+            includeMeetingNotesSnapshot: true,
+            userNotesSnapshot: "Spell it Siobhan."
+        )
+        assertMeetingNotesInstructionStaysOutOfTheColumn(sent.text)
+        assertResultWindowStaysAtOfferedSize(sent.window)
+        XCTAssertGreaterThan(
+            sent.window.contentMinSize.height,
+            empty.window.contentMinSize.height + 16,
+            "A sent notes snapshot keeps its disclosure row"
+        )
+    }
+
+    private func assertMeetingNotesInstructionStaysOutOfTheColumn(_ text: String) {
+        XCTAssertFalse(text.contains("Meeting notes are off"))
+        XCTAssertFalse(text.contains("No meeting notes were recorded"))
+        XCTAssertFalse(text.contains("Meeting notes context was not recorded"))
+    }
+
+    private func assertResultWindowStaysAtOfferedSize(_ window: NSWindow) {
+        let minimum = window.contentMinSize
+        let content = window.contentRect(forFrameRect: window.frame)
+        print("Meeting result window minimum \(minimum), content \(content.size)")
+        XCTAssertLessThanOrEqual(
+            minimum.height, content.height,
+            "Result notes UI must not raise the window minimum above the pane"
+        )
+        XCTAssertEqual(content.height, 650, accuracy: 1)
+        XCTAssertEqual(content.width, 1_100, accuracy: 1)
+    }
+
+    private func renderMeetingResult(
+        currentNotes: String?,
+        includeMeetingNotesSnapshot: Bool,
+        userNotesSnapshot: String? = nil
+    ) throws -> (window: NSWindow, text: String) {
+        let suite = makeIsolatedDefaultsSuite("TranscriptDocumentLayoutTests.meeting-notes.\(UUID().uuidString).")
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let transcription = Transcription(
+            fileName: "Synthetic meeting",
+            cleanTranscript: "Synthetic transcript",
+            status: .completed,
+            sourceType: .meeting,
+            userNotes: currentNotes
+        )
+        let model = TranscriptionViewModel(defaults: defaults)
+        model.currentTranscription = transcription
+        let results = PromptResultsViewModel()
+        let result = PromptResult(
+            transcriptionId: transcription.id,
+            promptId: UUID(),
+            promptName: "Summary",
+            promptContent: "Summarize",
+            content: "A synthetic summary that stays in the column.",
+            userNotesSnapshot: userNotesSnapshot,
+            includeMeetingNotesSnapshot: includeMeetingNotesSnapshot
+        )
+        let host = Host(
+            rootView: TranscriptResultView(
+                transcription: transcription, viewModel: model,
+                chatViewModel: TranscriptChatViewModel(), promptResultsViewModel: results,
+                promptsViewModel: PromptsViewModel()
+            ).defaultAppStorage(defaults))
+        let window = NSWindow(
+            contentRect: NSRect(x: -20_000, y: -20_000, width: 1_100, height: 650),
+            styleMask: [.titled, .resizable], backing: .buffered, defer: false
+        )
+        window.contentView = host
+        window.orderFront(nil)
+        host.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        results.promptResults = [result]
+        model.hasPromptResultTabs = true
+        model.selectedTab = .result(id: result.id)
+        host.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        addTeardownBlock { window.orderOut(nil) }
+        return (window, renderedText(in: host))
+    }
+
+    private func renderedText(in view: NSView) -> String {
+        var parts: [String] = []
+        if let label = view.accessibilityLabel(), !label.isEmpty { parts.append(label) }
+        if let value = view.accessibilityValue() as? String, !value.isEmpty { parts.append(value) }
+        let identifier = view.accessibilityIdentifier()
+        if !identifier.isEmpty { parts.append(identifier) }
+        if let field = view as? NSTextField { parts.append(field.stringValue) }
+        if let textView = view as? NSTextView { parts.append(textView.string) }
+        if let button = view as? NSButton, !button.title.isEmpty { parts.append(button.title) }
+        for subview in view.subviews {
+            parts.append(renderedText(in: subview))
+        }
+        return parts.joined(separator: "\n")
+    }
+
     private func checkLayout<Content: View>(_ content: Content, width: Double, label: String) throws {
         let watchdog = DispatchWorkItem { fatalError("Document layout exceeded 120 seconds") }
         DispatchQueue.global().asyncAfter(deadline: .now() + 120, execute: watchdog)

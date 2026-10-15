@@ -52,8 +52,9 @@ testing.
   from the microphone.
 - **Live meeting UI** -- the Notes / Transcript / Ask three-tab live panel,
   the floating meeting pill, live recording controls, and in-flight
-  post-stop transcription abort/delete confirmation are GUI-only. The CLI
-  inspects meeting artifacts after the fact.
+  post-stop transcription abort/delete confirmation belong to the GUI. The CLI
+  inspects meeting artifacts after the fact. The app also offers the opt-in
+  [meeting URL controls](#meeting-url-controls) below.
 - **Onboarding, settings UI, library grids, sounds, overlays** -- none of these
   have automation analogues; they remain in the .app.
 
@@ -713,8 +714,8 @@ draft writes its cached configuration, including routes and provider keys.
 The GUI model picker rejects a stale selection if a concurrent CLI change has
 replaced or reset the displayed route. Route metadata updates are coordinated
 across processes; credentials remain separate, shared per-provider Keychain values.
-Competing changes fail busy before mutation, including while another operation
-awaits Keychain authorization. An unconfirmed-save error means publication could
+Competing changes fail busy before mutation, including while another change is
+writing credentials. An unconfirmed-save error means publication could
 not be confirmed after mutation; inspect the current routes before retrying.
 
 ### Other meeting commands
@@ -938,7 +939,7 @@ structured failure envelope instead of the success shape:
 `errorType` is a stable low-cardinality string; `fix` and `meta` are optional.
 Branch on the exit code, then classify the error with
 `Sources/CLI/CHANGELOG.md`. A potentially transient provider error
-(`rate_limit`, `connection`, `streaming`) does not by itself authorize replaying
+(`rate_limit`, `connection`, `timeout`, `streaming`) does not by itself authorize replaying
 a mutating command. Check whether partial output or saved results already
 exist before retrying; fix `auth`, `model`, input, lookup, and validation
 problems rather than retrying them unchanged.
@@ -1068,3 +1069,33 @@ Configure source auto-run separately, for example
 `prompts set PROMPT --source meeting --auto-run`. Label availability still
 limits which transcriptions qualify. Editing prompt text or inference settings
 in the app preserves existing policies unless the label selection is changed.
+
+## Meeting URL controls
+
+Development adds opt-in GUI recording control for Shortcuts, launchers, and
+shell scripts ([contract](../spec/contracts/meeting-url-control-v1.md), #1198).
+Enable **Allow recording control from links** under Settings → Capture →
+Meetings. This permits any app or website to send recording commands, so only
+enable it for automations you trust. macOS audio permissions still apply.
+
+```sh
+open 'macparakeet://meeting/start?title=Weekly%20Planning'
+open 'macparakeet://meeting/pause'
+open 'macparakeet://meeting/resume'
+open 'macparakeet://meeting/stop'
+```
+
+Omit `title` to use the normal date-based title. Percent-encode title text;
+for example, `R&D` is `R%26D`. Repeated commands are safe: `start` never toggles
+or renames an active recording, and `pause`/`resume` set an explicit state.
+Pause/resume require capture to have started. A stop during permission checks
+cancels the pending start. For starting or active capture, stop uses the normal
+save workflow. `open` does not return recording status or wait for saving.
+A `start` sent while stopping, saving, or showing an error pill is not queued:
+the app shows a "Meeting Recorder Is Busy" alert, so a script that runs `stop`
+then `start` must retry the `start` once the recorder is idle.
+The app may launch to receive the URL; controls are ignored while disabled or
+during onboarding. Use `macparakeet-dev://` for development bundles.
+
+This controls the GUI app, which owns audio capture. It does not change the
+headless CLI contract or promise support in previously released binaries.

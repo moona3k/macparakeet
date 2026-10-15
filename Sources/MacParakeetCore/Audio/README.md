@@ -86,6 +86,17 @@ owned by `AppEnvironment`.
   callback generations retire before teardown is awaited or a terminal event
   is published. A source failure racing the initial async start is retained
   until the start-to-running handoff, so a dead stream cannot be promoted.
+  In a combined meeting, a retryable failed microphone start (or an occupied
+  lease) is retried in the background for the whole session through the same
+  microphone object and a fresh lease per attempt (#1223); permission denial
+  and required-VPIO failures are not retried. A start that returns but stalls
+  before delivering any audio is stopped through its lease and retried the same
+  way, continuing the same backoff position for the meeting; a stall after audio
+  has flowed stays an interrupted source. The microphone stays `.unavailable`
+  while retrying and becomes ready with its first buffer, so system loss still
+  ends capture; buffers from a retry are held until the actor promotes it. Stop cancels the retry without awaiting a
+  native start; a late success is stopped again through the lease.
+  `meeting_mic_recovery_*` diagnostic lines record each attempt.
 - `MeetingAudioStorageWriter.swift` — fragmented MP4 writer for
   meeting source files (ADR-019 crash recovery). Finalization waits at most five
   seconds for per-source AVFoundation callbacks and marks a timed-out source
@@ -306,8 +317,7 @@ only `audioEngine.start()` (~tens of ms) instead of the full
 device-acquisition + format negotiation. Raw meetings use the same
 non-VPIO stream configuration and can consume the prepared engine too;
 an explicit VPIO request or different buffer size discards it and does
-a full configure. Idle microphone-route changes trailing-debounce a
-fresh preparation before the next capture. Like the warm hold, prepare
+a full configure. Like the warm hold, prepare
 is **suppressed on Bluetooth or unresolved inputs**: pre-acquiring a
 Bluetooth mic would pin HFP/SCO even while stopped, so the platform
 declines and that press pays the full cold
@@ -317,8 +327,21 @@ key-down without holding the mic open.
 Idle preparation preserves the active routing contract below: a named
 microphone stays explicitly pinned, while System Default stays implicit.
 Preparation validates the resolved leading input for Bluetooth safety but
-does not convert System Default into a `CurrentDevice` write. A default-input
-change invalidates and trailing-debounces a new preparation.
+does not convert System Default into a `CurrentDevice` write.
+
+**Route changes discard an idle preparation but never rebuild it (issue
+#1227).** A configuration change that invalidates the prepared route tears it
+down, and the next capture pays the full cold path. Preparation is rebuilt only
+at launch, after microphone permission is granted, after an explicit microphone
+selection in Settings while Instant Dictation is off (the warm hold refreshes
+itself when it is on), and when the last capture leaves. Core Audio route
+notifications (a headset connecting or disconnecting) must not trigger it.
+Acquiring a device while macOS is still switching the default input can block
+inside `kAudioOutputUnitProperty_CurrentDevice` or the input-format query until
+the next route change. One field log showed six such calls blocked, the
+longest for 22 hours, each holding the platform queue; during one of them
+`coreaudiod` used 73% CPU. A blocked native call cannot be cancelled, so the
+fix is not to make it in that window.
 
 **The warm hold must never pin a Bluetooth input (issue #481).** An
 idle open Bluetooth microphone forces the headset into HFP/SCO, which

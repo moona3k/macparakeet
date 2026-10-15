@@ -1,0 +1,23 @@
+<section class="mp-release-section">
+  <h2>New in 0.8.10</h2>
+  <p>Meetings recover more reliably, transcripts are easier to correct, and long meeting cleanup uses less memory.</p>
+  <ul>
+    <li>Set an exact speaker count before transcribing a file or link. Short replies such as “Yeah” stay with the speaker who said them. Unclaimed words are labelled Unattributed and left out of the count.</li>
+    <li>Find and replace words in a timed transcript. Each replacement undoes in one step.</li>
+    <li>A meeting microphone that fails to start is retried, and a missing microphone or system-audio side is called out.</li>
+    <li>Long meetings use less memory during the call and during echo cleanup. If live preview falls behind, some live words may skip. The saved recording is kept.</li>
+    <li>Optional second dictation shortcut for another keyboard. A shortcut such as ⌘D no longer also matches ⇧⌘D. Optional recording links stay off until you enable them in Capture settings; once on, other apps and websites can use them.</li>
+    <li>New libraries include meeting notes in Summary. Existing libraries keep their setting. Claude lists include the current models, and routine Keychain checks no longer ask for a password.</li>
+    <li>AI cleanup of a long transcript finishes instead of stopping at 30 seconds. A long recording is cleaned in sections.</li>
+  </ul>
+
+  <h3>Also included from 0.8.9</h3>
+  <ul>
+    <li>Turning AI off keeps saved API keys. Remove an unused key explicitly in AI Setup.</li>
+    <li>Use Apple Intelligence for Dictation &amp; cleanup with Default AI set to None. Summaries, chat, and Transforms require another provider.</li>
+    <li>See each task's provider or Off. Prompt settings follow the provider assigned to that task.</li>
+  </ul>
+  <p><strong>Previously selected Apple Intelligence?</strong> Check Settings → AI Setup. An old Apple default is cleared; an old Apple analysis override falls back to Default AI. Saved keys remain.</p>
+  <p>Requires Apple Silicon and macOS 14.2+. Apple Intelligence requires macOS 26+ and enabled system models.</p>
+  <p><a href="https://github.com/moona3k/macparakeet/releases/tag/v0.8.10">0.8.10 release notes and CLI compatibility</a> · <a href="https://github.com/moona3k/macparakeet/releases/tag/v0.8.9">0.8.9 notes</a></p>
+</section>

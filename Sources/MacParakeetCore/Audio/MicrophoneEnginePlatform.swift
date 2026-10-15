@@ -866,8 +866,9 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             guard !running, !prepared else { return }
             diagnostics.enter(.routeResolution)
             // Route observation stays active even when preparation is currently
-            // suppressed, so a later move from Bluetooth/unresolved to a safe
-            // device can proactively retry before the next dictation.
+            // suppressed, so route consumers such as the Instant Dictation warm
+            // hold still learn about a later move to a safe device. The idle
+            // preparation itself is not rebuilt on route changes (#1227).
             installRouteChangeObserversLocked()
             // Snapshot the route once. Stop at the first unresolved/Bluetooth
             // route: walking past it to a later built-in fallback would change

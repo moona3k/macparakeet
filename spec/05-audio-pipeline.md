@@ -22,7 +22,7 @@ Mic Input → SharedMicrophoneStream tap → temp WAV → selected local STT eng
 - **Minimum sample threshold**: 4,800 samples (0.3 seconds at 16kHz) required before sending to STT, mirroring FluidAudio's ASR guard. Header-only and near-empty recordings are rejected before they reach the speech engine.
 - **Stop-time capture health**: sustained exact-zero microphone audio is rejected as silent input. Quiet nonzero audio reaches STT even when it falls below the diagnostic non-silent buffer threshold; the speech engine decides whether it contains words.
 - Dictation extracts channel 0 for VPIO duplex layouts so reference audio is excluded. Raw multichannel input is downmixed; destructive channel cancellation falls back to the greatest-energy channel for the whole buffer (`AudioRecorder`).
-- **Idle engine prepare (cold-start latency)**: independent of Instant Dictation, the shared stream re-*prepares* the raw dictation engine whenever it goes idle (`SharedMicrophoneStream(autoPrewarmWhenIdle:)`, plus a one-shot `prewarmDictation()` at launch). Prepare pays the expensive cold-path work up front — applying an explicit named-device selection when requested, negotiating the output format, installing the tap, and calling `AVAudioEngine.prepare()` — but leaves the engine **stopped**, so there is no capture and **no microphone indicator** while idle. System Default remains implicit during preparation; it is never rewritten into a `CurrentDevice` pin. The next dictation press matches the prepared engine (`AVAudioEngineMicrophonePlatform.prepare`/`goPreparedLocked`) and pays only `audioEngine.start()` (tens of ms) instead of the full device-acquisition + format negotiation (which previously ran *after* key-down and clipped the opening words). Raw meetings use the same non-VPIO stream configuration and can consume the prepared engine too; explicit VPIO or a different buffer size causes a full configure. Idle microphone-route changes trailing-debounce a fresh preparation before the next capture. Prepare is **suppressed on Bluetooth or unresolved inputs** (pre-acquiring even a stopped BT mic pins HFP/SCO). This is the no-open-mic path to instant first words; it complements Instant Dictation rather than replacing it (when the warm lease already holds the engine, the stream is not idle and prepare no-ops). See `Audio/README.md` for the prepare/go split.
+- **Idle engine prepare (cold-start latency)**: independent of Instant Dictation, the shared stream re-*prepares* the raw dictation engine whenever it goes idle (`SharedMicrophoneStream(autoPrewarmWhenIdle:)`, plus a one-shot `prewarmDictation()` at launch). Prepare pays the expensive cold-path work up front — applying an explicit named-device selection when requested, negotiating the output format, installing the tap, and calling `AVAudioEngine.prepare()` — but leaves the engine **stopped**, so there is no capture and **no microphone indicator** while idle. System Default remains implicit during preparation; it is never rewritten into a `CurrentDevice` pin. The next dictation press matches the prepared engine (`AVAudioEngineMicrophonePlatform.prepare`/`goPreparedLocked`) and pays only `audioEngine.start()` (tens of ms) instead of the full device-acquisition + format negotiation (which previously ran *after* key-down and clipped the opening words). Raw meetings use the same non-VPIO stream configuration and can consume the prepared engine too; explicit VPIO or a different buffer size causes a full configure. Microphone-route changes discard an invalidated preparation but never rebuild it; preparation is rebuilt at launch, after microphone permission is granted, after an explicit microphone selection in Settings while Instant Dictation is off, and when the last capture leaves, because acquiring a device during a Core Audio route switch can block for hours (issue #1227). Prepare is **suppressed on Bluetooth or unresolved inputs** (pre-acquiring even a stopped BT mic pins HFP/SCO). This is the no-open-mic path to instant first words; it complements Instant Dictation rather than replacing it (when the warm lease already holds the engine, the stream is not idle and prepare no-ops). See `Audio/README.md` for the prepare/go split.
 - **Instant Dictation**: default-off setting that keeps a passive shared-stream subscriber attached while idle, stores a bounded 1-second RAM-only ring at 16kHz mono, and prepends up to 0.45 seconds to the next dictation WAV. Unlike idle prepare above, this keeps the mic actively **capturing**, so macOS shows the microphone indicator while it is enabled — its purpose is the pre-press pre-roll, not just a fast start. No STT or transcript processing runs while idle. The warm hold is suppressed unless the resolved input is positively known to be non-Bluetooth (an idle open Bluetooth mic pins the headset in HFP/SCO and degrades playback — issue #481); dictation then cold-starts with no pre-roll. Warm-capture refreshes triggered by microphone-selection, default-input, and live engine-configuration changes are debounced (0.5 s trailing) so notification bursts collapse into one engine restart, including profile/topology changes that retain the same device ID.
 - **Pre-roll discard on confirmed media pause (issue #474)**: when the Pause Media round-trip confirms system media was playing at press time, `stop()` trims the prepended pre-roll from the WAV before transcription — it is pre-press audio that no pause can silence, so on speakers it would put the media's speech at the head of the transcript. The minimum-sample threshold then applies to the post-trim count, so an effectively media-only capture dismisses silently. Best-effort: a pause confirmation that settles after capture stops keeps the pre-roll.
 - Dictation does not use the meeting crash-recovery lock-file pipeline. The current implementation writes a temp WAV and either moves it into retained storage or deletes it after processing.
@@ -185,6 +185,20 @@ accepted. A 12-second initial readiness window marks sources with no buffers
 unavailable (they may join later); with no source delivering, startup fails.
 This bounds the meeting's readiness decision, not native microphone execution.
 
+A combined meeting whose microphone start fails keeps recording system audio
+and retries the microphone through the same shared microphone object, taking a
+fresh lease once the previous one settles (#1223): 1, 2, 4, 8 and 15 s backoff, then every 30 s until Stop. An input-route
+change (`.macParakeetMicrophoneSelectionDidChange`) after a 2 s quiet period
+triggers an earlier attempt after a 750 ms debounce. The microphone stays
+unavailable while retrying, so the all-sources-lost rule below is unchanged; a
+successful retry joins like a late first start and becomes ready with its first
+buffer. A start that returns but stalls
+before delivering any audio counts as failed: it is stopped and retried, and the
+backoff position carries across such retries within the meeting, while a stall
+after audio has flowed is a mid-session loss. Microphone-only meetings,
+permission denial and required-VPIO failures are not retried. Mid-session
+microphone loss keeps the platform's bounded engine recovery.
+
 Stop retires session callbacks and settles available source files without
 waiting for native microphone startup/unsubscription. The microphone remains
 leased until both calls settle; another system-only meeting can proceed, but
@@ -321,6 +335,14 @@ estimation. Before running the model, the echo probe can skip no-echo meetings
 cleaned file. For very long meetings, the duration guard skips upfront when the
 render is predicted to exceed the bounded final-STT deadline.
 
+Decoded PCM is spooled sequentially to private, immediately unlinked temporary
+files. The echo probe reads bounded windows; conditioning and AAC encoding pull
+bounded chunks instead of retaining whole recordings in RAM. Sample alignment,
+probe thresholds, conditioner cadence and output duration are unchanged. Temporary
+storage is roughly 220 MiB per hour per source at 16 kHz mono Float32; descriptors
+release it on completion, cancellation, failure or process exit. Scratch I/O
+failure follows the existing observable raw-microphone fallback.
+
 Final STT waits on `MeetingCleanedMicrophoneReadiness` with a bounded,
 duration-scaled deadline before choosing the microphone source. It uses cleaned
 audio only when the render finishes and the artifact is non-empty and decodable;
@@ -345,6 +367,7 @@ is the artifact and sidecar contract.
 | `AudioEngineLifecycleDiagnostics` | Independent, bounded shared-microphone phase observations for the local log and optional telemetry; no capture control or product-operation counting |
 | `MicrophoneCapture` | Meeting mic subscriber with explicit mic-processing policy, effective-mode reporting, awaited teardown, and typed stall propagation |
 | `MeetingAudioCaptureService` | Actor combining the selected source stream(s) into `AsyncStream<MeetingAudioCaptureEvent>`; owns bounded fresh-instance system recovery, coalesces duplicate failures, and lets Stop invalidate every retry generation |
+| `MeetingPreviewIngressQueue` | Bounds resampled samples waiting for live preview. The capture reader writes the source file first and does not wait on preview ingest. A full queue drops further preview copies and marks live preview as catching up. Cancel discards pending preview instead of replaying it; Stop still finishes a short tail. The queue never drops audio that has not been written |
 | `CaptureOrchestrator` | Owns ingest/join/offset/chunk flow for live preview |
 | `MicConditioner` | Meeting-side seam for mic samples; passthrough is the default, and an optional `StreamingMeetingEchoSuppressor` can use paired system reference samples when the runtime/model are available |
 | `MeetingCleanedMicRenderer` | Post-stop offline derivation of `microphone-cleaned.m4a` from the raw mic + system sources through a freshly built suppressor; skips when no echo path/single-source and never throws into finalize |

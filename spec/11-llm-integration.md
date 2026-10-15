@@ -66,7 +66,7 @@ previous routes active.
 Route metadata is refreshed and read or written under a shared nonblocking
 cross-process lease. Mutations acquire it before changing credentials and keep
 it through metadata publication; competing operations fail busy without changes,
-including while Keychain authorization is pending. Effective-route resolution uses one metadata snapshot before loading the
+including while another mutation is writing credentials. Effective-route resolution uses one metadata snapshot before loading the
 selected provider's credentials outside that lock. Model pickers compare their
 displayed route and inheritance identity as part of the same store operation
 that changes the model, so a simultaneous CLI route change cannot redirect a
@@ -476,6 +476,7 @@ public protocol LLMServiceProtocol: Sendable {
 public enum LLMError: Error, LocalizedError, Sendable {
     case notConfigured             // No provider set up
     case connectionFailed(String)  // Network/localhost unreachable
+    case requestTimedOut           // Provider sent no bytes before the idle timeout
     case authenticationFailed      // Invalid API key
     case cliError(String)          // Local CLI subprocess failure
     case rateLimited               // Provider rate limit
@@ -509,20 +510,33 @@ Use bullet points for clarity. Keep the summary under 500 words.
 
 **Context assembly:** Full transcript text. If transcript exceeds the context budget, truncate from the middle with an ellipsis marker, preserving the head and tail within the limit. Truncation snaps to word boundaries to avoid slicing multi-byte Unicode. The transcript budget accounts for the rendered summary system prompt so the combined request stays inside the provider budget; if a custom prompt has already rendered transcript text into the system prompt, that rendered prompt is bounded too. **Budget:** 500,000 characters for cloud providers, 80,000 characters for most local providers (`isLocal == true`), and 8,000 characters for LM Studio because its effective context depends on the model loaded in the desktop server. Apple Intelligence is cleanup-only and is rejected for summary generation before context assembly.
 
+For prompt results, after reserving output tokens, a non-empty transcript
+reserves up to half the input budget (or its whole length, if shorter) before an
+oversized system prompt is bounded. Short system prompts stay unchanged and the
+transcript uses the remaining space. Empty transcripts reserve no space, so
+system-only requests can use the full input budget.
+
 **Meeting notes for result prompts:** Result
-prompts carry an `includeMeetingNotes` opt-in, false by default. At enqueue,
+prompts carry an `includeMeetingNotes` opt-in. It is false by default, except
+for the built-in Summary seeded when a prompt library is first created; existing
+libraries keep their saved value. At enqueue,
 the shared GUI/CLI assembly path captures that Boolean and the normalized notes
 value capped to 8,000 words. If notes are non-empty and the opt-in is enabled,
 the assembler appends one delimited, user-authored context block after the
 selected prompt and before per-run extra instructions. The block is source
-material, not instructions, and factual conflicts resolve in favor of the
-transcript.
+material, not instructions. It instructs the model to use explicit name/spelling
+corrections when the referent is clear, preserve relevant URLs exactly, and
+avoid inferring attendance, speaker identity, decisions, or commitments from a
+name or link alone. For other factual conflicts, it asks the model to prefer
+the transcript and state material uncertainty. These are prompt instructions,
+not guaranteed provider behavior. Linked pages are not fetched.
 
 Advanced custom templates retain case-sensitive `{{userNotes}}` substitution
 regardless of the checkbox. If the token is present, no automatic block is
 appended; if notes are empty, enabling the checkbox changes no prompt bytes.
-`PromptResult.userNotesSnapshot` stores the exact effective notes value used,
-while `includeMeetingNotesSnapshot` records the captured preference. Retry
+`PromptResult.userNotesSnapshot` stores the normalized, capped notes value used
+in prompt assembly, before any provider context trimming, while
+`includeMeetingNotesSnapshot` records the captured preference. Retry
 reuses the queued values; regenerate reuses the Boolean receipt with current
 committed notes. Regeneration reuses the saved model only when its provider receipt
 matches the current analysis provider; after a provider change or when provider
@@ -639,6 +653,9 @@ The setup header and settings card describe the saved provider: a failed test
 of an unsaved draft does not mark the working saved provider as disconnected.
 Test Connection never saves a draft; Save remains a separate action. A saved
 configuration is shown as ready without implying that connectivity was tested.
+Status rendering uses provider metadata rather than secret reads; blocked saved
+credentials show Open Keychain Access and Retry access actions. See
+[credential access](contracts/credential-access.md).
 Credential writes/deletes must succeed before replacing provider metadata.
 Local CLI settings are encoded before committing the provider switch, so an
 encoding failure leaves the previous provider and CLI settings intact.
@@ -737,9 +754,9 @@ transcription formatting continues to use the transcript formatter prompt
 (all transcription finalization paths share `completeTranscription`, which
 invokes the formatter). Dictation uses the dictation formatter prompt as
 its fallback after profiles/smart defaults. The transcripts-side formatter
-has its own "Use for transcripts" toggle (default off) and an input-length
-cap that skips formatting for transcripts too long to rewrite inside
-realistic provider timeouts (#493).
+has its own "Use for transcripts" toggle (default off). A transcript longer
+than one provider response is cleaned in successive sections and joined,
+instead of being skipped (#493, #1253).
 
 Browser hostname/domain matching is intentionally deferred. In V1, Gmail in
 Chrome can match an exact Chrome profile or the coarse `browser` category, but

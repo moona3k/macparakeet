@@ -229,10 +229,9 @@ actor VoiceControlReplayProbe: VoiceControlDecisionEngine {
     func decide(goal: String, snapshot: VoiceControlSnapshot, history: [VoiceControlAction]) async throws
         -> VoiceControlDecision
     {
-        let offered = VoiceControlLegality.offeredTargets(in: snapshot)
+        let offered = JevDecisionClient.offeredTargets(in: snapshot)
         request = .init(kind: "unconstrained", jev: false, options: offered.map { .init(id: $0.id, label: $0.label) })
-        return .clarify(
-            "(replay) The router fell through; Jev would choose among \(offered.count) legality-filtered controls.")
+        return .clarify("(replay) The router fell through; Jev would choose among \(offered.count) offered controls.")
     }
 
     func decide(

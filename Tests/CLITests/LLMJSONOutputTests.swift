@@ -195,6 +195,7 @@ final class LLMJSONOutputTests: XCTestCase {
         // silently break downstream agents that branch on these strings.
         XCTAssertEqual(CLIErrorType.key(for: LLMError.notConfigured), "config")
         XCTAssertEqual(CLIErrorType.key(for: LLMError.connectionFailed("nope")), "connection")
+        XCTAssertEqual(CLIErrorType.key(for: LLMError.requestTimedOut), "timeout")
         XCTAssertEqual(CLIErrorType.key(for: LLMError.authenticationFailed(nil)), "auth")
         XCTAssertEqual(CLIErrorType.key(for: LLMError.rateLimited), "rate_limit")
         XCTAssertEqual(CLIErrorType.key(for: LLMError.modelNotFound("gpt-9")), "model")

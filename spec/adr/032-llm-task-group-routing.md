@@ -145,7 +145,7 @@ Model writes do not read or rewrite provider credentials.
 
 Credential-changing mutations acquire the same lease before touching Keychain
 and hold it through metadata publication. A competing operation fails busy
-before changing either store, including while Keychain authorization is pending.
+before changing either store, including while another mutation is writing credentials.
 There is no blocking lock wait. This ordering prevents an abandoned route save
 or deletion from damaging the credentials of a retained route.
 
@@ -234,7 +234,7 @@ groups at different general providers or models.
   stored-config CLI commands, overlay the resolved route without replacing
   it. Inline CLI commands that pass a full provider context are
   independent configs.
-- Per-surface formatter enablement and the transcription length cap.
+- Per-surface formatter enablement. Long transcripts are cleaned in sections rather than skipped.
 - Translation (F31) runs as the `translate` task on the default route with
   a general LLM: `LLMService.translateDetailed` resolves
   `LLMTaskGroup.translate`, which has no override, so cleanup and analysis

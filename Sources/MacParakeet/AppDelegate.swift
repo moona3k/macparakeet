@@ -40,6 +40,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkeyCoordinator: AppHotkeyCoordinator?
     private var dictationFlowCoordinator: DictationFlowCoordinator?
     private var meetingRecordingFlowCoordinator: MeetingRecordingFlowCoordinator?
+    private lazy var meetingURLCommandRouter = MeetingURLCommandRouter(
+        scheme: Bundle.main.bundleIdentifier == AppPaths.developmentBundleIdentifier ? "macparakeet-dev" : "macparakeet",
+        isEnabled: { UserDefaultsAppRuntimePreferences.meetingURLControlEnabled() },
+        execute: { [weak self] command in
+            guard let self, !self.onboardingWindowController.isVisible,
+                  !self.isPresentingQuitAlert, self.meetingQuitTask == nil else { return }
+            self.meetingRecordingFlowCoordinator?.handleURLCommand(command)
+        }
+    )
     private var meetingAutoStartCoordinator: MeetingAutoStartCoordinator?
     private var meetingAutoStopCoordinator: MeetingAutoStopCoordinator?
     /// Productized Transforms coordinator (ADR-022). Owns the process-wide
@@ -392,6 +401,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - App Lifecycle
 
+    func application(_ application: NSApplication, open urls: [URL]) {
+        meetingURLCommandRouter.open(urls)
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Process boot marker for the audio diagnostics log. The dev app and
         // `swift test` write into the same on-disk file
@@ -556,6 +569,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } catch is CancellationError {
                 return
             } catch {
+                meetingURLCommandRouter.discardPending()
                 presentEnvironmentSetupError(error)
             }
         }
@@ -694,7 +708,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let llmService = env.llmService
         let llmServiceProvider: () -> LLMServiceProtocol? = { [weak configStore, llmService] in
             guard let configStore else { return nil }
-            return (try? configStore.loadConfig()) != nil ? llmService : nil
+            return (try? configStore.loadConfigMetadata()) != nil ? llmService : nil
         }
 
         // Productized Transforms coordinator (ADR-022). Reads `.transform`
@@ -706,7 +720,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             promptRepository: env.promptRepo,
             historyRepository: env.transformHistoryRepo,
             activeModelNameProvider: { [weak configStore] in
-                try? configStore?.loadConfig()?.modelName
+                try? configStore?.loadConfigMetadata()?.modelName
             },
             reservedHotkeysProvider: { [weak self] in
                 self?.transformReservedHotkeysForTransforms() ?? []
@@ -755,6 +769,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     guard let self else { return [] }
                     let transforms = (try? env.promptRepo.fetchVisible(category: .transform)) ?? []
                     return [self.settingsViewModel.hotkeyTrigger, self.settingsViewModel.pushToTalkHotkeyTrigger,
+                            self.settingsViewModel.alternateHandsFreeHotkeyTrigger,
+                            self.settingsViewModel.alternatePushToTalkHotkeyTrigger,
                             self.settingsViewModel.meetingHotkeyTrigger, self.settingsViewModel.fileTranscriptionHotkeyTrigger,
                             self.settingsViewModel.youtubeTranscriptionHotkeyTrigger]
                         + transforms.compactMap { $0.shortcut?.hotkeyTrigger }
@@ -771,6 +787,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBarCoordinator.refreshMeetingHotkeyShortcut()
         menuBarCoordinator.refreshTranscriptionHotkeyShortcuts()
         onboardingCoordinator.maybeShow(environment: env)
+        meetingURLCommandRouter.finishLaunching()
         scheduleDeferredSpeechPreWarm(environment: env)
         let recoveryTask = meetingRecoveryCoordinator.scheduleLaunchRecoveryScanIfReady(environment: env)
         meetingAudioRetentionSweepCoordinator.scheduleLaunchSweep(environment: env, after: recoveryTask)
@@ -979,6 +996,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 conflictMode: .bareModifierDictation
             ),
             TransformShortcutReservedHotkey(
+                name: "additional hands-free shortcut", trigger: settingsViewModel.alternateHandsFreeHotkeyTrigger,
+                conflictMode: .bareModifierDictation),
+            TransformShortcutReservedHotkey(
+                name: "additional push-to-talk shortcut", trigger: settingsViewModel.alternatePushToTalkHotkeyTrigger,
+                conflictMode: .bareModifierDictation),
+            TransformShortcutReservedHotkey(
                 name: "file transcription", trigger: settingsViewModel.fileTranscriptionHotkeyTrigger),
             TransformShortcutReservedHotkey(
                 name: "video URL transcription", trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger),
@@ -1038,12 +1061,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.instantDictationPreferenceGeneration == generation
             }
             guard shouldRefresh, !Task.isCancelled else { return }
-            if refreshWarmCapture {
-                if enabled {
-                    await env.audioProcessor.refreshInstantDictationWarmCapture()
-                } else {
-                    env.sharedMicStream.refreshIdlePrewarm()
-                }
+            // System route changes post the same notification as a Settings
+            // selection. They must not rebuild an idle preparation: acquiring
+            // the device while Core Audio is still switching routes can block
+            // for hours and keep coreaudiod busy (#1227). Settings rebuilds the
+            // preparation itself for an explicit selection change.
+            if refreshWarmCapture, enabled {
+                await env.audioProcessor.refreshInstantDictationWarmCapture()
             }
         }
     }
@@ -1053,7 +1077,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ?? AppHotkeyCoordinator.menuTitle(
                 handsFree: settingsViewModel.hotkeyTrigger,
                 pushToTalk: settingsViewModel.pushToTalkHotkeyTrigger,
-                aiPolish: settingsViewModel.dictationAIPolishHotkeyTrigger
+                aiPolish: settingsViewModel.dictationAIPolishHotkeyTrigger,
+                alternateHandsFree: settingsViewModel.alternateHandsFreeHotkeyTrigger,
+                alternatePushToTalk: settingsViewModel.alternatePushToTalkHotkeyTrigger
             )
     }
 

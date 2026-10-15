@@ -709,6 +709,7 @@ These are set automatically by `build_app_bundle.sh`:
 |-----|-------|
 | `SUFeedURL` | `https://macparakeet.com/appcast.xml` |
 | `SUPublicEDKey` | `2aqRU0Agz+xxZwt0kLybmKz/SAvZUsyn+z9fU0I6ynY=` |
+| `CFBundleURLTypes` | Registers the `macparakeet` scheme for the opt-in [meeting URL controls](../spec/contracts/meeting-url-control-v1.md). Dev bundles register `macparakeet-dev` instead. |
 
 ### Privacy Strings and Entitlements
 
