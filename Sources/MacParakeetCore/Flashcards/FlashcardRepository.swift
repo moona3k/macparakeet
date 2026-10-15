@@ -11,6 +11,8 @@ public protocol FlashcardRepositoryProtocol: Sendable {
 
     func cards(deckId: UUID) throws -> [Flashcard]
     func cards(sourceTranscriptionId: UUID) throws -> [Flashcard]
+    /// Fronts of every card in every deck, for duplicate checks.
+    func allFronts() throws -> [String]
     /// Due cards first (oldest due first), then new cards, up to `limit`.
     func dueCards(deckId: UUID?, now: Date, limit: Int) throws -> [Flashcard]
     func save(_ card: Flashcard) throws
@@ -96,6 +98,12 @@ public final class FlashcardRepository: FlashcardRepositoryProtocol {
                 .filter(Flashcard.Columns.deckId == deckId)
                 .order(Flashcard.Columns.createdAt.asc)
                 .fetchAll(db)
+        }
+    }
+
+    public func allFronts() throws -> [String] {
+        try dbQueue.read { db in
+            try String.fetchAll(db, Flashcard.select(Flashcard.Columns.front))
         }
     }
 

@@ -282,12 +282,17 @@ public final class FlashcardsViewModel {
         guard let generator, !isGenerating else { return }
         isGenerating = true
         errorMessage = nil
+        // Words already saved in any deck or waiting as drafts are not re-made.
+        let savedFronts = (try? repository?.allFronts()) ?? []
+        let known = Set((savedFronts + drafts.map(\.front)).map(FlashcardDraft.duplicateKey))
         generationTask = Task { [weak self] in
             do {
                 let result = try await generator.generate(
                     from: transcript, style: style, meaningLanguage: meaningLanguage, maxCards: maxCards,
-                    focus: focus)
-                self?.drafts.append(contentsOf: result)
+                    focus: focus, excluding: known)
+                guard let self else { return }
+                var seen = Set(self.drafts.map { FlashcardDraft.duplicateKey($0.front) })
+                self.drafts.append(contentsOf: result.filter { seen.insert(FlashcardDraft.duplicateKey($0.front)).inserted })
             } catch is CancellationError {
             } catch {
                 self?.errorMessage = error.localizedDescription
@@ -322,14 +327,19 @@ public final class FlashcardsViewModel {
         guard !valid.isEmpty else { return 0 }
         do {
             let deck = try repository.findOrCreateDeck(named: deckName)
-            let cards = valid.map {
+            // Skip words any deck already has, and repeats within this batch.
+            var seen = Set(try repository.allFronts().map(FlashcardDraft.duplicateKey))
+            let fresh = valid.filter { seen.insert(FlashcardDraft.duplicateKey($0.front)).inserted }
+            let skipped = valid.count - fresh.count
+            let cards = fresh.map {
                 var card = makeCard(from: $0, deckId: deck.id, sourceTranscriptionId: sourceTranscriptionId)
                 card.tags = tag
                 return card
             }
-            try repository.insert(cards)
+            if !cards.isEmpty { try repository.insert(cards) }
             drafts = []
             statusMessage = "Added \(cards.count) card\(cards.count == 1 ? "" : "s") to “\(deck.name)”."
+                + (skipped > 0 ? " Skipped \(skipped) already in your decks." : "")
             reload()
             return cards.count
         } catch {

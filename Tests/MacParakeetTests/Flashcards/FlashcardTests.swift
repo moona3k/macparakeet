@@ -221,6 +221,71 @@ final class FlashcardGenerationParsingTests: XCTestCase {
         XCTAssertNil(drafts[1].context)
     }
 
+    func testFormatsEveryMeaningWithExampleAndTranslation() {
+        let response = """
+            [{"front": "die Bank", "context": "Ich sitze auf der Bank.", "context_translation": "روی نیمکت نشسته‌ام.",
+              "meanings": [
+                {"meaning": "نیمکت", "example": "Die Bank ist nass.", "translation": "نیمکت خیس است."},
+                {"meaning": "بانک", "example": "Ich gehe zur Bank.", "translation": "به بانک می‌روم."}
+              ]},
+             {"front": "Die Bank!", "meanings": [{"meaning": "duplicate"}]}]
+            """
+        let drafts = FlashcardGenerationService.parse(response)
+        XCTAssertEqual(drafts.count, 1)
+        XCTAssertEqual(
+            drafts[0].back,
+            "1. نیمکت\ne.g. Die Bank ist nass.\n→ نیمکت خیس است.\n\n2. بانک\ne.g. Ich gehe zur Bank.\n→ به بانک می‌روم.")
+        XCTAssertEqual(drafts[0].context, "Ich sitze auf der Bank.\n→ روی نیمکت نشسته‌ام.")
+    }
+
+    func testDuplicateKeyIgnoresArticlesAndPunctuation() {
+        XCTAssertEqual(FlashcardDraft.duplicateKey("die Bank"), FlashcardDraft.duplicateKey("Bank!"))
+        XCTAssertEqual(FlashcardDraft.duplicateKey("eine  Bank"), "bank")
+        XCTAssertEqual(FlashcardDraft.duplicateKey("to go"), "go")
+        XCTAssertEqual(FlashcardDraft.duplicateKey("l’école"), "école")
+        XCTAssertEqual(FlashcardDraft.duplicateKey("die"), "die")
+    }
+
+    func testVocabularyPromptAsksForInfinitives() {
+        let prompt = FlashcardGenerationService.systemPrompt(style: .vocabulary, language: .english, maxCards: 5)
+        XCTAssertTrue(prompt.contains("infinitive"))
+    }
+
+    func testVocabularyRunsExtractionThenCardsOnlyForNewWords() async throws {
+        let llm = scriptedLLM([
+            #"[{"word": "die Bank", "context": "Ich sitze auf der Bank."}, {"word": "gehen", "context": "Er ging."}, {"word": "Gehen"}]"#,
+            #"[{"front": "gehen", "meanings": [{"meaning": "رفتن", "example": "Wir gehen.", "translation": "ما می‌رویم."}], "context": "Er ging."}]"#,
+        ])
+        let drafts = try await FlashcardGenerationService(llmService: llm.mock).generate(
+            from: "Ich sitze auf der Bank. Er ging.", style: .vocabulary, meaningLanguage: .english, maxCards: 5,
+            excluding: [FlashcardDraft.duplicateKey("Bank")])
+        XCTAssertEqual(drafts.map(\.front), ["gehen"])
+        XCTAssertEqual(llm.inputs.count, 2)
+        XCTAssertEqual(llm.inputs[1], #"[{"context":"Er ging.","word":"gehen"}]"#)
+    }
+
+    func testVocabularyReportsWhenEveryWordIsKnown() async {
+        let llm = scriptedLLM([#"[{"word": "die Bank"}]"#])
+        do {
+            _ = try await FlashcardGenerationService(llmService: llm.mock).generate(
+                from: "Bank", style: .vocabulary, meaningLanguage: .english, maxCards: 5, excluding: ["bank"])
+            XCTFail("expected allWordsKnown")
+        } catch {
+            XCTAssertEqual(error as? FlashcardGenerationError, .allWordsKnown)
+        }
+    }
+
+    /// Mock that answers successive prompt calls in order and records inputs.
+    private func scriptedLLM(_ responses: [String]) -> ScriptedLLM {
+        let llm = ScriptedLLM()
+        llm.queue = responses
+        llm.mock.promptResultHandler = { [unowned llm] transcript, _ in
+            llm.inputs.append(transcript)
+            return llm.queue.isEmpty ? "[]" : llm.queue.removeFirst()
+        }
+        return llm
+    }
+
     func testReturnsEmptyForNonJSON() {
         XCTAssertTrue(FlashcardGenerationService.parse("Sorry, I can't.").isEmpty)
     }
@@ -238,4 +303,10 @@ final class FlashcardGenerationParsingTests: XCTestCase {
         XCTAssertTrue(custom.contains("'Cooking'"))
         XCTAssertFalse(custom.contains("CEFR"))
     }
+}
+
+private final class ScriptedLLM: @unchecked Sendable {
+    let mock = MockLLMService()
+    var queue: [String] = []
+    var inputs: [String] = []
 }

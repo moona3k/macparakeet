@@ -199,6 +199,35 @@ public struct FlashcardDraft: Identifiable, Sendable, Equatable, Hashable {
         self.context = context
     }
 
+    /// Leading articles (and English "to") dropped when comparing fronts, so
+    /// "die Bank", "Bank", and "eine Bank" count as the same word.
+    static let ignoredLeadingWords: Set<String> = [
+        "der", "die", "das", "den", "dem", "des", "ein", "eine", "einen", "einem", "einer", "eines",
+        "the", "a", "an", "to",
+        "le", "la", "les", "un", "une",
+        "el", "los", "las", "una",
+        "il", "lo", "gli",
+        "de", "het", "een",
+    ]
+
+    /// Normalized front used to spot the same word twice: case, punctuation,
+    /// repeated whitespace, and a leading article are ignored.
+    public static func duplicateKey(_ front: String) -> String {
+        var words = front.lowercased()
+            .replacingOccurrences(of: "’", with: "'")
+            .split(whereSeparator: \.isWhitespace)
+            .map { $0.trimmingCharacters(in: .punctuationCharacters) }
+            .filter { !$0.isEmpty }
+        // French/Italian elision: "l'école" -> "école".
+        if let first = words.first, first.hasPrefix("l'"), first.count > 2 {
+            words[0] = String(first.dropFirst(2))
+        }
+        if words.count > 1, ignoredLeadingWords.contains(words[0]) {
+            words.removeFirst()
+        }
+        return words.joined(separator: " ")
+    }
+
     public var isValid: Bool {
         !front.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !back.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
