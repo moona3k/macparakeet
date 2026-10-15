@@ -8,30 +8,40 @@ Remotes in this checkout:
 - `origin` = upstream project (`moona3k/macparakeet`) - pull updates from here.
 - `fork` = your copy (`rtsysEmbedded/macparakeet`) - push your work here.
 
-Work on branch `feature/transcript-translation`. Keep the working tree clean
-(commit or stash first).
+All your work lives on `main` in your fork; nothing is sent upstream. Keep the
+working tree clean (commit or stash first).
 
-## 1. Update your branch with the latest upstream
+## 1. Save your changes to your fork
 
 ```bash
-git fetch origin
-git rev-list --left-right --count HEAD...origin/main   # left = yours, right = upstream-only
-git merge origin/main
+git add -A
+git commit -m "Describe what changed"
+git push            # main tracks fork/main
 ```
 
-If there are conflicts, `git status` lists files marked `UU`. Open each, find
-`<<<<<<<`, `=======`, `>>>>>>>`, keep both sides' intent (upstream's new code
-plus your feature lines), delete the markers, then:
+For a bigger change, use a branch and merge it into `main` with a PR on your
+fork (`gh pr create --repo rtsysEmbedded/macparakeet --base main`).
+
+## Get the latest upstream changes
+
+```bash
+scripts/dev/sync_upstream.sh
+```
+
+It fetches both remotes, merges `origin/main` into your `main`, and pushes
+`main` to `fork`. If it stops on conflicts, `git status` lists files marked
+`UU`. Open each, find `<<<<<<<`, `=======`, `>>>>>>>`, keep both sides' intent
+(upstream's new code plus your feature lines), delete the markers, then:
 
 ```bash
 grep -rnE '^(<<<<<<<|>>>>>>>)' Sources Tests spec   # must print nothing
 git add -A Sources Tests spec
 git commit --no-edit
+git push fork main
 ```
 
-Last time the conflicts were in `TranscriptResultView.swift` (upstream re-indented
-the summary buttons; the fix was to keep upstream's layout and re-add the
-`resultTranslateMenu(for: promptResult)` line) and in
+Past conflicts were in `TranscriptResultView.swift` (keep upstream's layout and
+re-add the `resultTranslateMenu(for: promptResult)` line) and in
 `spec/adr/032-llm-task-group-routing.md` (keep upstream's formatter line plus
 the translation bullets).
 
@@ -44,22 +54,9 @@ export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 swift test --filter 'DictationTranslationTests|LiveCaptionSessionTests|CloudSTTModelCatalogTests|CloudTranscribeEngineTests|RealtimeTranscribeEngineTests|DictationHistoryViewModelTests|LLMServiceTests|DatabaseManagerTests|TranscriptTranslation'
 ```
 
-## 3. Push to your fork
-
-```bash
-git push fork feature/transcript-translation
-```
-
-Optional - make your fork's `main` match (a plain fast-forward):
-
-```bash
-git push fork feature/transcript-translation:main
-git branch -f main HEAD
-```
-
 The first push asks for a GitHub username and a personal access token
-(classic, `repo` scope); macOS Keychain remembers it afterwards. An open pull
-request (moona3k/macparakeet#1260) updates automatically when you push the branch.
+(classic, `repo` scope); macOS Keychain remembers it afterwards. Pushing to
+`origin` is disabled in this checkout, so a stray push cannot go upstream.
 
 ## 4. Build the app for your Mac
 
