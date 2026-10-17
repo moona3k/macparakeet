@@ -38,7 +38,13 @@ Pipeline (see `MeetingCleanedMicRenderer`, `MicConditioner`,
    anyway for the meeting, giving a perfect reference most AEC systems
    lack.
 2. Alignment: host-time recorded offset, plus periodic cross-correlation
-   bulk-delay estimation (scalar read-offset only; no sample mutation).
+   bulk-delay estimation (scalar read-offset only; no sample mutation). The
+   offline render reads the reference 20 ms early, because recorded offsets
+   can leave it a few ms behind its echo and the estimator only searches
+   non-negative lags (#920: ~1 dB → ~22 dB cancellation on a speakerphone
+   meeting). The positive lag still searchable by the adaptive estimator
+   shrinks from 100 ms to 80 ms, so a higher-latency speaker path (some
+   Bluetooth outputs) can fall outside it.
 3. Suppression: the LocalVQE neural model — echo-only variant (v1.4),
    selected by a measured scoring gate (`MeetingAecModelScoringTests`,
    issue #605 U5) — is the only stage that modifies samples. Echo-only

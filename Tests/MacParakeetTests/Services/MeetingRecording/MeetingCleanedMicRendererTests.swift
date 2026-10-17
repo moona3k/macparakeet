@@ -83,6 +83,30 @@ final class MeetingCleanedMicRendererTests: XCTestCase {
                 + "(aligned \(aligned) dB vs ignoring-offset \(misaligned) dB)")
     }
 
+    func testAlignAndConditionCancelsEchoThatLeadsTheRecordedReference() throws {
+        // #920: the recorded host-time offset places the system reference 8 ms
+        // after its echo in the mic. A causal estimator/filter reading the
+        // reference at the recorded offset can never reach a negative lag; the
+        // renderer's lookahead turns it into a positive one it can recover.
+        // White noise, unlike the tonal voiceLike fixture, cannot be predicted
+        // from its own past, so only a correctly ordered reference cancels it.
+        var rng = MeetingAecRandom(seed: 0x0920)
+        let far = (0..<48_000).map { _ in 0.1 * rng.nextSymmetric() }
+        let mic = MeetingAecEchoPath(taps: [(delay: 0, gain: 0.6)]).apply(to: far)
+        let suppressor = StreamingMeetingEchoSuppressor(
+            processor: MeetingAecNLMSProcessor(),
+            estimator: MeetingEchoDelayEstimator(),
+            reestimateIntervalSamples: 8_000)
+        let result = try MeetingCleanedMicRenderer.alignAndCondition(
+            microphone: mic, system: far,
+            microphoneStartOffsetMs: 0, systemStartOffsetMs: 8,
+            sampleRate: 16_000, conditioner: suppressor)
+
+        let erle = MeetingAecMetrics.erleDB(
+            mic: mic, output: result.output, over: (mic.count / 2)..<(mic.count - 256))
+        XCTAssertGreaterThan(erle, 8, "an echo leading the recorded reference is still cancelled (ERLE \(erle) dB)")
+    }
+
     // MARK: I/O round-trip
 
     func testRenderProducesDecodableCleanedFile() async throws {
