@@ -275,11 +275,13 @@ struct DictationOverlayView: View {
             if viewModel.anchorsToTop {
                 overlayContent
                 liveTranscriptPreviewPanel
+                liveTranslationPanel
                 loadingCaption
                 hoverTooltipRow
             } else {
                 hoverTooltipRow
                 loadingCaption
+                liveTranslationPanel
                 liveTranscriptPreviewPanel
                 overlayContent
             }
@@ -508,6 +510,41 @@ struct DictationOverlayView: View {
             return (16, 2, 9, 62)
         case .large:
             return (19, 3, 11, 76)
+        }
+    }
+
+    /// Tail of the live translation, shown while recording when dictation
+    /// translation is on. Two lines at most so it fits beside the transcript.
+    private var liveTranslationPreview: String? {
+        guard case .recording = viewModel.state, viewModel.sessionKind == .dictation else { return nil }
+        let tail = String(Self.wordBoundedSuffix(of: viewModel.liveTranslation, maxCharacters: 110))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return tail.isEmpty ? nil : tail
+    }
+
+    private var liveTranslationDirection: LayoutDirection {
+        viewModel.liveTranslationIsRightToLeft ? .rightToLeft : .leftToRight
+    }
+
+    @ViewBuilder
+    private var liveTranslationPanel: some View {
+        if let liveTranslationPreview {
+            Text(liveTranslationPreview)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.accent)
+                .lineLimit(2)
+                .truncationMode(.head)
+                .multilineTextAlignment(.leading)
+                .frame(width: 252, alignment: .leading)
+                .environment(\.layoutDirection, liveTranslationDirection)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(DesignSystem.Colors.pillBackground.opacity(0.86))
+                )
+                .allowsHitTesting(false)
+                .accessibilityLabel(liveTranslationPreview)
         }
     }
 

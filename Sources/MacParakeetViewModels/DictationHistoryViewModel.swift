@@ -241,10 +241,13 @@ public final class DictationHistoryViewModel {
         selectedDictationIDs = []
     }
 
-    /// Enter bulk-selection mode, preselecting the row the user invoked it from.
-    public func beginBulkSelection(startingWith dictation: Dictation) {
+    /// Enter bulk-selection mode, preselecting the row the user invoked it from
+    /// (none when entered from the header button).
+    public func beginBulkSelection(startingWith dictation: Dictation? = nil) {
         isBulkSelectionModeEnabled = true
-        selectedDictationIDs.insert(dictation.id)
+        if let dictation {
+            selectedDictationIDs.insert(dictation.id)
+        }
     }
 
     /// Leave bulk-selection mode and drop any selection.

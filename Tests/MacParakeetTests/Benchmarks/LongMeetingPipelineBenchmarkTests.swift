@@ -374,6 +374,9 @@ final class LongMeetingPipelineBenchmarkTests: XCTestCase {
             guard CohereTranscribeEngine.isModelCached() else {
                 throw BenchmarkError.missingModel("Cohere Transcribe is not downloaded.")
             }
+        case .cloud:
+            // Benchmarks measure local pipelines; they must not upload audio.
+            throw BenchmarkError.invalidFixture("The online speech service is not a benchmark target.")
         }
 
         guard DiarizationService.isModelCached() else {

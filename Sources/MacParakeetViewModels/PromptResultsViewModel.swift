@@ -128,6 +128,13 @@ public final class PromptResultsViewModel {
     public var onModelChanged: (() -> Void)?
     public var onPromptResultsChanged: ((UUID, Bool) -> Void)?
     public var onGenerationCompleted: ((UUID, UUID) -> Void)?
+    /// A saved result was translated into a new result: `(transcriptionID, newResultID)`.
+    public var onPromptResultTranslated: ((UUID, UUID) -> Void)?
+    /// Results currently being translated into another language.
+    public private(set) var translatingPromptResultIDs: Set<UUID> = []
+    /// Last translation failure, keyed by the result it was for.
+    public private(set) var promptResultTranslationErrors: [UUID: String] = [:]
+    private var resultTranslator: TranscriptTranslating?
     public var onDeletedPromptResult: ((UUID) -> Void)?
     public var shouldMarkPromptResultUnread: ((UUID) -> Bool)?
     /// Reads the current Settings policy. Tests override this so enqueue
@@ -289,6 +296,61 @@ public final class PromptResultsViewModel {
         self.cliConfigStore = cliConfigStore
         loadVisiblePrompts()
         refreshModelInfo()
+    }
+
+    // MARK: - Translating a saved result
+
+    public var canTranslatePromptResults: Bool {
+        resultTranslator != nil
+    }
+
+    public func updateResultTranslator(_ translator: TranscriptTranslating?) {
+        resultTranslator = translator
+    }
+
+    /// Translates a saved result's text and stores it as a new result beside
+    /// the original, which is left untouched.
+    public func translatePromptResult(_ promptResult: PromptResult, to language: TranslationLanguage) {
+        guard let resultTranslator, let promptResultRepo,
+            !translatingPromptResultIDs.contains(promptResult.id)
+        else { return }
+        translatingPromptResultIDs.insert(promptResult.id)
+        promptResultTranslationErrors[promptResult.id] = nil
+
+        Task { [weak self] in
+            do {
+                let content = try await resultTranslator.translateMarkdown(promptResult.content, to: language)
+                guard let self else { return }
+                let now = Date()
+                var translated = promptResult
+                translated.id = UUID()
+                // Detached from the prompt so prompt-level bookkeeping (auto-run
+                // replacement, per-prompt pending checks) treats it as its own result.
+                translated.promptId = nil
+                translated.promptVersionId = nil
+                translated.promptName = "\(promptResult.promptName) · \(language.displayName)"
+                translated.content = content
+                translated.outputLanguagePolicySnapshot = language.rawValue
+                translated.contentEditedAt = nil
+                translated.createdAt = now
+                translated.updatedAt = now
+                try promptResultRepo.save(translated)
+
+                self.translatingPromptResultIDs.remove(promptResult.id)
+                if self.currentTranscriptionID == translated.transcriptionId {
+                    self.promptResults.insert(translated, at: 0)
+                }
+                self.onPromptResultsChanged?(translated.transcriptionId, true)
+                self.onPromptResultTranslated?(translated.transcriptionId, translated.id)
+                await self.refreshMeetingArtifacts(transcriptionId: translated.transcriptionId)
+            } catch {
+                guard let self else { return }
+                self.translatingPromptResultIDs.remove(promptResult.id)
+                if !(error is CancellationError) {
+                    self.promptResultTranslationErrors[promptResult.id] = error.localizedDescription
+                }
+            }
+        }
     }
 
     public func updateLLMService(

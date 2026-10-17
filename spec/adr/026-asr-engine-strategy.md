@@ -57,6 +57,28 @@ No cloud ASR engines, ever (no Deepgram/Groq/etc.). Speech audio and
 transcripts stay on-device for all three capture modes. This is the
 product's identity, not a temporary posture.
 
+> **Fork amendment (2026-10-04): opt-in online engine.** This fork departs
+> from §1 at its owner's explicit request. `SpeechEnginePreference.cloud`
+> ("Online", `CloudTranscribeEngine`) uploads audio to a user-configured
+> OpenAI-compatible `audio/transcriptions` server. Guardrails that keep the
+> local-first posture intact for everyone who does not choose it:
+>
+> - It is never a default. It is unusable until the user enters a server
+>   address and model, and selecting it shows a confirmation stating that
+>   audio leaves the Mac.
+> - The API key is stored in the Keychain, never in preferences.
+> - Local engines are unchanged; no local path falls back to the online one.
+> - Benchmarks refuse it, so they can never upload audio.
+>
+> It is a batch request/response engine (§2's two local runtimes are
+> untouched): dictation records first and transcribes after stop; meeting
+> preview chunks and final jobs are uploaded as submitted. Word timings come
+> from the service when the model provides them (Whisper-family); otherwise
+> the transcript is plain text. With an optional realtime model saved,
+> `RealtimeTranscribeEngine` also streams live dictation audio over a
+> Realtime transcription WebSocket for partial text; the final text still
+> comes from the batch request. Upstream's decision stands for upstream.
+
 ### 2. Two runtimes, and only two
 
 FluidAudio is the primary runtime and center of gravity; WhisperKit is a

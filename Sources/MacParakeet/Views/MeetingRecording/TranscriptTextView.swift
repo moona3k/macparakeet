@@ -157,6 +157,7 @@ struct TranscriptTextView: NSViewRepresentable {
         let timestampFont = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .regular)
         let textColor = Self.nsColor(DesignSystem.Colors.textPrimary)
         let timestampColor = Self.nsColor(DesignSystem.Colors.textTertiary)
+        let translationColor = Self.nsColor(DesignSystem.Colors.accent)
 
         for (offset, line) in lineSlice.enumerated() {
             let globalIndex = startingIndex + offset
@@ -197,7 +198,7 @@ struct TranscriptTextView: NSViewRepresentable {
 
             let textPara = NSMutableParagraphStyle()
             textPara.lineSpacing = 2
-            textPara.paragraphSpacing = 8
+            textPara.paragraphSpacing = line.translation?.isEmpty == false ? 2 : 8
             textPara.firstLineHeadIndent = 11
             textPara.headIndent = 11
 
@@ -207,6 +208,27 @@ struct TranscriptTextView: NSViewRepresentable {
                 .paragraphStyle: textPara,
             ])
             result.append(text)
+
+            if let translation = line.translation, !translation.isEmpty {
+                // Natural writing direction lets a Persian translation lay out
+                // right-to-left beneath a left-to-right original.
+                let translationPara = NSMutableParagraphStyle()
+                translationPara.lineSpacing = 2
+                translationPara.paragraphSpacing = 10
+                translationPara.firstLineHeadIndent = 11
+                translationPara.headIndent = 11
+                translationPara.tailIndent = -11
+                translationPara.baseWritingDirection = .natural
+                translationPara.alignment = .natural
+                result.append(
+                    NSAttributedString(
+                        string: "\(translation)\n",
+                        attributes: [
+                            .font: bodyFont,
+                            .foregroundColor: translationColor,
+                            .paragraphStyle: translationPara,
+                        ]))
+            }
 
             lineRanges.append(NSRange(location: lineStart, length: result.length - lineStart))
             previousSource = line.source

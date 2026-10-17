@@ -94,6 +94,20 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- `llm routes list` includes a `translate` entry for the transcript-translation
+  task (ADR-032, spec F31). It always inherits the default route; `llm routes
+  set|reset` still accept only `cleanup` and `analysis`. Existing entries and
+  their fields are unchanged.
+
+### Changed
+
+- When the app's saved speech engine is the opt-in online service,
+  `transcribe` without `--engine` uses it and prints a stderr note that audio
+  is uploaded. No CLI flag selects the online service, and JSON shapes are
+  unchanged apart from `engine: "cloud"` on those results.
+
 ### Fixed
 
 - A provider request that hits its idle timeout reports `errorType` `timeout`

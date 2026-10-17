@@ -58,6 +58,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     var onRunMenuBarTransform: ((UUID) -> Void)?
     var menuBarTransformsProvider: (() -> [MenuBarTransformListing])?
     var onVoiceControl: (() -> Void)?
+    var onLiveCaptions: (() -> Void)?
     var onInteractionBusy: (() -> Void)?
 
     private var statusItem: NSStatusItem?
@@ -523,6 +524,14 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
             openLiveMeetingPanelMenuItem = openLiveMeetingPanelItem
         }
 
+        let liveCaptionsItem = NSMenuItem(
+            title: "Live Captions…",
+            action: #selector(openLiveCaptions),
+            keyEquivalent: ""
+        )
+        liveCaptionsItem.target = self
+        menu.addItem(liveCaptionsItem)
+
         menu.addItem(NSMenuItem.separator())
 
         let cohereLanguageItem = NSMenuItem(title: "Cohere Language", action: nil, keyEquivalent: "")
@@ -764,6 +773,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     }
 
     @objc private func openVoiceControl() { onVoiceControl?() }
+    @objc private func openLiveCaptions() { onLiveCaptions?() }
 
     @objc private func pasteLastDictation() {
         guard let env = environmentProvider() else { return }

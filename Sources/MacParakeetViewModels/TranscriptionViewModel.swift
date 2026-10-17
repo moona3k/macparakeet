@@ -96,6 +96,7 @@ public final class TranscriptionViewModel {
         case notes
         case result(id: UUID)
         case generation(id: UUID)
+        case translation(TranslationLanguage)
         case chat
     }
 
@@ -120,6 +121,7 @@ public final class TranscriptionViewModel {
                     clearMeetingNotesError(for: previousID)
                 }
                 selectedTab = .transcript
+                hasTranslationTabs = false
             }
             if transcriptionChanged || currentTranscription == nil {
                 hasConversations = false
@@ -220,6 +222,9 @@ public final class TranscriptionViewModel {
     /// recording never silently constrains a later one (#1225).
     public var nextRunSpeakerSelection: SpeakerCountSelection = .automatic
     public var hasPromptResultTabs: Bool = false
+    public var hasTranslationTabs: Bool = false
+    /// Saved translations and translation jobs for the transcript detail view.
+    public let translationViewModel = TranscriptTranslationViewModel()
 
     // LLM state
     public var llmAvailable: Bool = false
@@ -273,6 +278,7 @@ public final class TranscriptionViewModel {
         currentTranscription?.sourceType == .meeting
             || llmAvailable
             || hasPromptResultTabs
+            || hasTranslationTabs
             || hasConversations
     }
     public private(set) var isConfigured = false
@@ -438,7 +444,10 @@ public final class TranscriptionViewModel {
         promptResultsViewModel: PromptResultsViewModel? = nil,
         speakerAttributionReader: SpeakerAttributionReading? = nil,
         speakerCorrectionService: SpeakerCorrectionServicing? = nil,
-        speakerVoiceprints: SpeakerVoiceprintServicing? = nil
+        speakerVoiceprints: SpeakerVoiceprintServicing? = nil,
+        translator: TranscriptTranslating? = nil,
+        translationRepo: TranscriptTranslationRepositoryProtocol? = nil,
+        translationModelNameProvider: (@MainActor () -> String?)? = nil
     ) {
         self.transcriptionService = transcriptionService
         self.audioTrackService =
@@ -451,6 +460,15 @@ public final class TranscriptionViewModel {
         self.speakerAttributionReader = speakerAttributionReader
         self.speakerCorrectionService = speakerCorrectionService
         self.speakerVoiceprints = speakerVoiceprints
+        translationViewModel.configure(
+            translator: translator,
+            repository: translationRepo,
+            modelNameProvider: translationModelNameProvider
+        )
+        translationViewModel.onTranslationsChanged = { [weak self] transcriptionID, hasTranslations in
+            guard self?.currentTranscription?.id == transcriptionID else { return }
+            self?.hasTranslationTabs = hasTranslations
+        }
         isConfigured = true
         clearError()
         loadTranscriptions()
@@ -1013,7 +1031,11 @@ public final class TranscriptionViewModel {
             AppFeatures.cohereEngineEnabled
             ? [.parakeet, .nemotron, .whisper, .cohere]
             : [.parakeet, .nemotron, .whisper]
-        return [primary] + defaultOrder.filter { $0 != primary }
+        // The online service is offered last and only once it is set up, so
+        // local engines stay the obvious choices.
+        let order = CloudSTTConfigStore(defaults: defaults).isConfigured
+            ? defaultOrder + [.cloud] : defaultOrder
+        return [primary] + order.filter { $0 != primary }
     }
 
     private func retranscriptionUnavailableReason(for engine: SpeechEnginePreference) -> String? {
@@ -1032,6 +1054,10 @@ public final class TranscriptionViewModel {
             return isCohereModelDownloaded()
                 ? nil
                 : "Download Cohere Transcribe in Settings before trying Cohere."
+        case .cloud:
+            return CloudSTTConfigStore(defaults: defaults).isConfigured
+                ? nil
+                : "Set up the online speech service in Settings before trying it."
         }
     }
 
@@ -1064,6 +1090,8 @@ public final class TranscriptionViewModel {
             // retranscription must carry the user's chosen language explicitly,
             // exactly as Nemotron/Whisper do above.
             return SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults)
+        case .cloud:
+            return nil
         }
     }
 
@@ -1787,6 +1815,8 @@ public final class TranscriptionViewModel {
                 return "Whisper \(friendly) \u{00B7} Local Core ML"
             case .cohere:
                 return "Cohere Transcribe \u{00B7} Local Core ML"
+            case .cloud:
+                return "Online speech service \u{00B7} Audio is uploaded"
             }
         case .identifyingSpeakers:
             return

@@ -144,6 +144,8 @@ final class DictationFlowCoordinator {
     var onSyncHotkeyRecordingMode: ((FnKeyStateMachine.RecordingMode) -> Void)?
     var onHotkeyRecordingEnded: (() -> Void)?
     var onInteractionBusy: (() -> Void)?
+    /// Live translation of the overlay's transcript (dictation translation).
+    let liveTranslator = DictationLiveTranslator()
     /// Observes every flow state change. Onboarding's practice box uses it to
     /// light the key and show listening/transcribing while it is the target.
     var onFlowStateChanged: ((DictationFlowState) -> Void)?
@@ -664,6 +666,12 @@ final class DictationFlowCoordinator {
             vm.busyProcessingMessage = nil
             setProcessingLoadCaption(nil)
             vm.liveTranscript = ""
+            vm.liveTranslation = ""
+            liveTranslator.reset()
+            liveTranslator.onTranslation = { [weak vm] text, language in
+                vm?.liveTranslation = text
+                vm?.liveTranslationIsRightToLeft = language.isRightToLeft
+            }
             vm.previewTextSize = runtimePreferences.dictationPreviewTextSize
             vm.state = .recording
             vm.startTimer()
@@ -676,6 +684,8 @@ final class DictationFlowCoordinator {
             overlayViewModel?.busyProcessingMessage = nil
             setProcessingLoadCaption(nil)
             overlayViewModel?.liveTranscript = ""
+            overlayViewModel?.liveTranslation = ""
+            liveTranslator.reset()
             overlayViewModel?.state = .processing
             armProcessingLoadCaption()
 
@@ -811,7 +821,7 @@ final class DictationFlowCoordinator {
                 sendEvent(.pasteFailed(generation: gen, message: "No transcription available."))
                 return
             }
-            let transcript = dictation.cleanTranscript ?? dictation.rawTranscript
+            let transcript = dictation.insertionText
             let insertionStyle = currentDictationInsertionStyle
             let action = pendingPostPasteAction
             pendingPostPasteAction = nil
@@ -1588,6 +1598,7 @@ final class DictationFlowCoordinator {
             // overlay's live-readout view tree every frame.
             if let overlayViewModel, overlayViewModel.liveTranscript != snapshot.liveTranscript {
                 overlayViewModel.liveTranscript = snapshot.liveTranscript
+                liveTranslator.update(snapshot.liveTranscript)
             }
 
             if autoStopEnabled {

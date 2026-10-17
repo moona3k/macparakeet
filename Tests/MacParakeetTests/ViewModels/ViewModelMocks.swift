@@ -988,6 +988,9 @@ final class MockTextSnippetRepository: TextSnippetRepositoryProtocol, @unchecked
 
 final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var summarizeResult = "Mock summary"
+    /// When set, computes the prompt result from the request instead of
+    /// returning `summarizeResult`.
+    var promptResultHandler: ((_ transcript: String, _ systemPrompt: String?) throws -> String)?
     var chatResult = "Mock chat response"
     var formatTranscriptResult = "Mock formatted transcript"
     var formatTranscriptProvider = "mock"
@@ -1029,6 +1032,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         lastSummaryTranscript = transcript
         lastSummarySystemPrompt = systemPrompt
         if let error = errorToThrow { throw error }
+        if let promptResultHandler { return try promptResultHandler(transcript, systemPrompt) }
         return summarizeResult
     }
 

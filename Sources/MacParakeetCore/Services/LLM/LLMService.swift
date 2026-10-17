@@ -76,6 +76,11 @@ public protocol LLMServiceProtocol: Sendable {
         source: TelemetryFormatterSource,
         defaultPromptUsed: Bool
     ) async throws -> LLMFormatterResult
+
+    /// Runs one translation request on the `translate` task route (ADR-032).
+    /// `instructions` is the complete system prompt and `text` is sent as-is;
+    /// callers keep each request small enough that nothing is truncated.
+    func translateDetailed(text: String, instructions: String) async throws -> LLMResult
 }
 
 public extension LLMServiceProtocol {
@@ -112,6 +117,12 @@ public extension LLMServiceProtocol {
         modelOverride: String?
     ) async throws -> LLMResult {
         try await transformDetailed(text: text, prompt: prompt)
+    }
+
+    /// Conformers without a dedicated translate route run the request as a
+    /// prompt result. `LLMService` overrides this with task routing.
+    func translateDetailed(text: String, instructions: String) async throws -> LLMResult {
+        try await generatePromptResultDetailed(transcript: text, systemPrompt: instructions)
     }
 
     func transformStream(
@@ -966,6 +977,74 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         }
     }
 
+    public func translateDetailed(text: String, instructions: String) async throws -> LLMResult {
+        let operationID = Observability.operationID()
+        let startedAt = Date()
+        let inputChars = text.count + instructions.count
+        let context = try loadContextForLLMOperation(
+            operationID: operationID,
+            feature: Self.translateFeature,
+            streaming: false,
+            startedAt: startedAt,
+            inputChars: inputChars,
+            messageCount: 2
+        )
+        let config = context.providerConfig
+        // Translation answers at about the length of its input, so the
+        // request must fit the round-trip budget whole: a truncated batch
+        // would silently drop lines.
+        guard inputChars <= contextBudget(for: config, roundTrip: true) else {
+            sendLLMOperation(
+                operationID: operationID,
+                feature: Self.translateFeature,
+                provider: config.id.rawValue,
+                streaming: false,
+                outcome: .failure,
+                startedAt: startedAt,
+                inputChars: inputChars,
+                inputTruncated: true,
+                messageCount: 2,
+                errorType: "context_too_long"
+            )
+            throw LLMError.contextTooLong
+        }
+        let messages = [
+            ChatMessage(role: .system, content: instructions),
+            ChatMessage(role: .user, content: text),
+        ]
+        do {
+            let response = try await client.chatCompletion(messages: messages, context: context, options: .default)
+            sendLLMOperation(
+                operationID: operationID,
+                feature: Self.translateFeature,
+                provider: config.id.rawValue,
+                streaming: false,
+                outcome: .success,
+                startedAt: startedAt,
+                inputChars: inputChars,
+                outputChars: response.content.count,
+                inputTruncated: false,
+                messageCount: messages.count
+            )
+            return LLMResult(response: response, provider: config.id, latencyMs: Self.latencyMs(since: startedAt))
+        } catch {
+            // No errorDetail for LLM errors — API responses may echo user transcript content
+            sendLLMOperation(
+                operationID: operationID,
+                feature: Self.translateFeature,
+                provider: config.id.rawValue,
+                streaming: false,
+                outcome: error is CancellationError ? .cancelled : Self.outcomeForLLMError(error),
+                startedAt: startedAt,
+                inputChars: inputChars,
+                inputTruncated: false,
+                messageCount: messages.count,
+                errorType: error is CancellationError ? nil : Self.errorType(for: error)
+            )
+            throw error
+        }
+    }
+
     private static func latencyMs(since start: Date) -> Int {
         Int((Date().timeIntervalSince(start) * 1000).rounded())
     }
@@ -1581,9 +1660,12 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         return context
     }
 
+    private static let translateFeature = "translate"
+
     private static func taskGroup(forFeature feature: String) -> LLMTaskGroup {
         if feature == TelemetryLLMFeature.formatter.rawValue || feature.hasPrefix("formatter_") { return .cleanup }
         if feature == "transform" { return .transform }
+        if feature == translateFeature { return .translate }
         return .analysis
     }
 

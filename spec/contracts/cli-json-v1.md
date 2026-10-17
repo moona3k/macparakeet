@@ -263,7 +263,7 @@ still apply.
   is no default. Apple Intelligence is accepted for `cleanup` only by
   `llm routes set`; analysis selection fails validation before persistence.
 - `llm routes list --json` returns `{ok:true,routes:[...]}`. Each entry has
-  `task` (`default`, `cleanup`, `analysis`, `transform`), `inherited` and
+  `task` (`default`, `cleanup`, `analysis`, `transform`, `translate`), `inherited` and
   `configured`; configured entries also include `provider`, `model`, `isLocal`
   and a redacted `endpoint` origin. Credentials, URL userinfo, path, query and
   fragment are never emitted. `llm routes set|reset <cleanup|analysis> --json`
