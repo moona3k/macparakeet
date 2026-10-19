@@ -1,6 +1,9 @@
 import Foundation
 
 public extension Notification.Name {
+    static let macParakeetMeetingActivitySettingsDidChange = Notification.Name(
+        "macparakeet.meetingActivitySettingsDidChange")
+
     /// Payload-free cross-process hint; committed database intent is authoritative.
     static let macParakeetShareStopQueued = Notification.Name("macparakeet.shareStopQueued")
     static let macParakeetOpenOnboarding = Notification.Name("macparakeet.openOnboarding")

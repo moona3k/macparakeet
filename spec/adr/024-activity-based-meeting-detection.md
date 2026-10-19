@@ -487,3 +487,11 @@ focused false-positive + idle-CPU pass clears.
   Teams tab needs the active tab URL. Is there a metadata-only path (e.g. the
   frontmost window's accessibility-exposed URL) that stays within the no-content
   invariant, or do browsers stay limited to "frontmost + mic" until one exists?
+
+## 2026-10-19 amendment: prompt-only runtime
+
+Development source now wires the local audio collector, bounded browser Accessibility metadata, session-aware prompt policy, and a nonactivating Record / Not now panel. The feature is exposed behind a per-user preference that defaults off; a legacy auto-start preference resolves to prompt mode. Native microphone attribution and strict browser meeting-room URLs establish candidates. Google Meet in-call button metadata can corroborate a muted call. Calendar matching, camera-only inference, activity auto-recording, and new auto-stop attribution are outside this implementation.
+
+The runtime rechecks stable evidence periodically to satisfy dwell deadlines without waiting for another device event. Per-session suppression replaces the coarse detector's 30-minute cooldown. Own dictation and any recording transition defer presentation, and stale panel actions cannot start an ended or replaced call. Accessibility work runs away from the main actor; browser titles, URL strings and button labels remain local and are not sent as telemetry.
+
+The July archived Phase C prompt implementation provided reusable panel and integration scaffolding. The current collectors remain in place; browser discovery, current lifecycle wiring, and session policy are new. Public API-based detection is an original implementation. Runtime availability is distinct from a stable release; see spec/README.md.

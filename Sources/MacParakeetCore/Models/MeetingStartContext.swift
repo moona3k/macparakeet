@@ -5,6 +5,7 @@ public struct MeetingStartContext: Codable, Sendable, Equatable {
         case manual
         case hotkey
         case calendarAutoStart = "calendar_auto_start"
+        case activityDetection = "activity_detection"
     }
 
     public struct FrontmostApplication: Codable, Sendable, Equatable {
@@ -41,6 +42,8 @@ public extension MeetingStartContext.TriggerKind {
             self = .hotkey
         case .calendarAutoStart:
             self = .calendarAutoStart
+        case .activityDetection:
+            self = .activityDetection
         }
     }
 }

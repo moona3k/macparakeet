@@ -288,7 +288,7 @@ struct SettingsView: View {
 
         if let badge = Self.attentionBadge(for: [
             engineSelectorCardStatus,
-            enginesModelsCardStatus
+            enginesModelsCardStatus,
         ]) {
             badges[.engine] = badge
         }
@@ -1472,7 +1472,9 @@ struct SettingsView: View {
                 // Start (calendar) and stop (activity) automation are grouped
                 // under one subsection so they read as the two ends of the
                 // recording lifecycle. Either flag alone still shows the group.
-                if AppFeatures.calendarEnabled || AppFeatures.meetingAutoStopEnabled {
+                if AppFeatures.calendarEnabled || AppFeatures.meetingAutoStopEnabled
+                    || AppFeatures.meetingActivityDetectionEnabled
+                {
                     Divider()
 
                     meetingAutomationSection
@@ -1535,12 +1537,25 @@ struct SettingsView: View {
                 Spacer()
             }
 
+            if AppFeatures.meetingActivityDetectionEnabled {
+                settingsToggleRow(
+                    title: "Remind me to record meetings",
+                    detail:
+                        "Offers to record when a call starts in a meeting app or browser. Browser detection uses Accessibility access. Recording starts only when you choose Record.",
+                    isOn: Binding(
+                        get: { viewModel.meetingActivityDetectionMode != .off },
+                        set: { viewModel.meetingActivityDetectionMode = $0 ? .prompt : .off }
+                    )
+                )
+            }
+
             if AppFeatures.calendarEnabled {
+                if AppFeatures.meetingActivityDetectionEnabled { Divider() }
                 CalendarSettingsView(viewModel: viewModel)
             }
 
             if AppFeatures.meetingAutoStopEnabled {
-                if AppFeatures.calendarEnabled {
+                if AppFeatures.calendarEnabled || AppFeatures.meetingActivityDetectionEnabled {
                     Divider()
                 }
 
@@ -2469,7 +2484,7 @@ struct SettingsView: View {
             strengths: [
                 "Fast everyday dictation",
                 "Timestamps for saved dictations",
-                "English + supported European languages"
+                "English + supported European languages",
             ],
             helpText: "Choose Parakeet for fast everyday dictation in supported languages. Use Whisper when your dictation language is outside Parakeet's coverage.",
             modelStatus: displayedParakeetModelStatus,
@@ -2489,7 +2504,7 @@ struct SettingsView: View {
             strengths: [
                 "Live preview while you speak",
                 "English or multilingual builds",
-                "Quality varies by language and audio"
+                "Quality varies by language and audio",
             ],
             helpText: "Choose Nemotron when responsive live preview matters more than proven final quality. It is Beta, so validate it on your language, device, and audio.",
             modelStatus: displayedNemotronModelStatus,
@@ -2509,7 +2524,7 @@ struct SettingsView: View {
             strengths: [
                 "Recorded dictation in many languages",
                 "Meeting preview with word timestamps",
-                "Slower cold starts; no dictation preview"
+                "Slower cold starts; no dictation preview",
             ],
             helpText: "Choose Whisper for recorded dictation outside Parakeet or Nemotron language coverage. It runs locally with word timestamps and can preview meetings, but first use can be slow and live dictation preview stays off.",
             modelStatus: displayedWhisperModelStatus,
@@ -2531,7 +2546,7 @@ struct SettingsView: View {
             strengths: [
                 "Local record-then-transcribe",
                 "Plain text with set language",
-                "No dictation or meeting preview"
+                "No dictation or meeting preview",
             ],
             helpText: "Choose Cohere when a local batch plain-text transcript is enough and you can set the language. It has no live preview, word timestamps, speaker labels, or auto language detection.",
             modelStatus: displayedCohereModelStatus,

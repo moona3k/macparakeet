@@ -109,7 +109,7 @@ public enum AppFeatures {
     /// coordinator, and no CoreAudio/CoreMediaIO collectors are started. Pure
     /// detector types and tests remain compiled so flipping the flag is a
     /// no-data operation after validation.
-    public static let meetingActivityDetectionEnabled: Bool = false
+    public static let meetingActivityDetectionEnabled: Bool = true
 
     /// Transforms — productized Phase 2 (ADR-022). When `true`:
     /// - the Transforms tab appears in the main sidebar
