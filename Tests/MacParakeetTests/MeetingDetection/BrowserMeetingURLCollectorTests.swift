@@ -42,7 +42,7 @@ final class BrowserMeetingURLCollectorTests: XCTestCase {
         XCTAssertEqual(result, ["com.google.Chrome": [room]])
     }
 
-    func testEmptyOrUnavailableObservationDoesNotPretendToKnowPreviousRoom() async {
+    func testEmptyObservationYieldsNoBrowserURLs() async {
         let collector = BrowserMeetingURLCollector(
             isTrusted: { true },
             processes: { [.init(bundleID: "com.apple.Safari", pid: 1)] },
@@ -167,4 +167,128 @@ final class BrowserMeetingURLCollectorTests: XCTestCase {
                 documentURL: teams, role: "AXButton", labels: ["Join room tutorial"]))
     }
 
+    func testBlockedFirstBrowserDoesNotStarveLaterBrowserObservation() async throws {
+        let room = try XCTUnwrap(URL(string: "https://meet.google.com/abc-defg-hij"))
+        let releaseFirst = AsyncStream<Void>.makeStream()
+        let laterStarted = expectation(description: "Later browser scans while the first reader is waiting")
+        let collector = BrowserMeetingURLCollector(
+            isTrusted: { true },
+            processes: {
+                [.init(bundleID: "com.apple.Safari", pid: 1), .init(bundleID: "com.google.Chrome", pid: 2)]
+            },
+            readProcess: { process, _ in
+                if process.pid == 1 {
+                    for await _ in releaseFirst.stream { break }
+                    return .init()
+                }
+                laterStarted.fulfill()
+                return .init(observation: .init(urls: [process.bundleID: [room]]), hasPopulatedWebArea: true)
+            }
+        )
+        let pending = Task { await collector.snapshotDetailed() }
+        await fulfillment(of: [laterStarted], timeout: 2)
+        releaseFirst.continuation.yield(())
+        releaseFirst.continuation.finish()
+        let result = await pending.value
+        XCTAssertEqual(result.urls, ["com.google.Chrome": [room]])
+        XCTAssertEqual(result.runningBrowserBundleIDs, ["com.apple.Safari", "com.google.Chrome"])
+    }
+
+    func testChromiumActivationIsNotRepeatedForHealthyPageAndRetriesAfterTreeDisappears() async {
+        let probe = BrowserProcessReadProbe(readiness: [true, false, true])
+        let collector = BrowserMeetingURLCollector(
+            isTrusted: { true },
+            processes: { [.init(bundleID: "com.google.Chrome", pid: 2)] },
+            readProcess: { process, activate in await probe.read(process: process, activate: activate) }
+        )
+        _ = await collector.snapshotDetailed()
+        _ = await collector.snapshotDetailed()
+        _ = await collector.snapshotDetailed()
+        let flags = await probe.activationFlags
+        XCTAssertEqual(flags, [true, false, true])
+    }
+
+    @MainActor
+    func testRestartedChromiumProcessGetsAccessibilitySetupButSafariDoesNot() async {
+        let probe = BrowserProcessReadProbe(readiness: [])
+        var process = BrowserMeetingURLCollector.BrowserProcess(bundleID: "com.operasoftware.Opera", pid: 3)
+        let collector = BrowserMeetingURLCollector(
+            isTrusted: { true },
+            processes: { [process] },
+            readProcess: { process, activate in await probe.read(process: process, activate: activate) }
+        )
+        _ = await collector.snapshotDetailed()
+        _ = await collector.snapshotDetailed()
+        process = .init(bundleID: "com.operasoftware.Opera", pid: 4)
+        _ = await collector.snapshotDetailed()
+        process = .init(bundleID: "com.apple.Safari", pid: 5)
+        _ = await collector.snapshotDetailed()
+        let flags = await probe.activationFlags
+        XCTAssertEqual(flags, [true, false, true, false])
+    }
+
+    func testHydrationReadsFreshPageMetadataWithoutReactivatingTree() async throws {
+        let oldRoom = try XCTUnwrap(URL(string: "https://meet.google.com/abc-defg-hij"))
+        let newRoom = try XCTUnwrap(URL(string: "https://meet.google.com/xyz-abcd-efg"))
+        let probe = BrowserHydrationReadProbe(results: [
+            .init(observation: .init(urls: ["com.google.Chrome": [oldRoom]]), hasPopulatedWebArea: false),
+            .init(
+                observation: .init(
+                    urls: ["com.google.Chrome": [newRoom]], inCallURLs: ["com.google.Chrome": [newRoom]]),
+                hasPopulatedWebArea: true),
+        ])
+        let result = await BrowserMeetingURLCollector.readWithHydration(
+            activateAccessibility: true,
+            wait: {},
+            scan: { await probe.scan(activate: $0) }
+        )
+        XCTAssertEqual(result.observation.urls, ["com.google.Chrome": [newRoom]])
+        XCTAssertEqual(result.observation.inCallURLs, ["com.google.Chrome": [newRoom]])
+        let flags = await probe.activationFlags
+        XCTAssertEqual(flags, [true, false])
+    }
+
+    func testHealthyTreeDoesNotWaitForHydration() async {
+        let result = await BrowserMeetingURLCollector.readWithHydration(
+            activateAccessibility: true,
+            wait: { XCTFail("A populated page needs no hydration delay") },
+            scan: { activate in
+                XCTAssertTrue(activate)
+                return .init(hasPopulatedWebArea: true)
+            }
+        )
+        XCTAssertTrue(result.hasPopulatedWebArea)
+    }
+
+}
+
+private actor BrowserProcessReadProbe {
+    private var readiness: [Bool]
+    private(set) var activationFlags: [Bool] = []
+
+    init(readiness: [Bool]) { self.readiness = readiness }
+
+    func read(process: BrowserMeetingURLCollector.BrowserProcess, activate: Bool)
+        -> BrowserMeetingURLCollector.ProcessReadResult
+    {
+        activationFlags.append(activate)
+        let populated = readiness.isEmpty ? true : readiness.removeFirst()
+        return .init(hasPopulatedWebArea: populated)
+    }
+}
+
+private actor BrowserHydrationReadProbe {
+    private var results: [BrowserMeetingURLCollector.ProcessReadResult]
+    private(set) var activationFlags: [Bool] = []
+
+    init(results: [BrowserMeetingURLCollector.ProcessReadResult]) { self.results = results }
+
+    func scan(activate: Bool) -> BrowserMeetingURLCollector.ProcessReadResult {
+        activationFlags.append(activate)
+        guard !results.isEmpty else {
+            XCTFail("Unexpected extra AX scan")
+            return .init()
+        }
+        return results.removeFirst()
+    }
 }

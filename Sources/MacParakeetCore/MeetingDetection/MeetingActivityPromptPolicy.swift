@@ -44,6 +44,16 @@ public struct MeetingActivityPromptPolicy: Sendable {
         if currentPrompt?.id == id { currentPrompt = nil }
     }
 
+    /// Called once when capture actually begins, never for permission checks or
+    /// failed starts. An activity-confirmed recording has a known candidate; a
+    /// manual/calendar start can only be attributed when one candidate is known.
+    /// Ambiguous concurrent calls remain eligible rather than all being consumed.
+    public mutating func recordingDidBegin(candidateID: String? = nil) {
+        let recordedID = candidateID ?? (activeCandidates.count == 1 ? activeCandidates.keys.first : nil)
+        guard let recordedID else { return }
+        dismiss(id: recordedID)
+    }
+
     /// Explicit room-end/pre-join observations override uncertain continuity.
     /// Clearing the active observation also invalidates any stale button.
     public mutating func resetSessions(for ids: Set<String>) {
@@ -87,15 +97,28 @@ public struct MeetingActivityPromptPolicy: Sendable {
             // dwell. Only already-observed sessions retain their suppression.
             if session.absentSince != nil, !session.prompted { session.firstSeen = now }
             session.absentSince = nil
-            // A manual or calendar recording consumes this call's reminder too.
-            if isRecording { session.prompted = true }
             sessions[candidate.id] = session
         }
-        if let currentPrompt,
-            incoming[currentPrompt.id] == nil || isRecording
-        {
-            self.currentPrompt = nil
+        if let currentPrompt {
+            // A missed AX/mic observation invalidates Record immediately via
+            // activeCandidates, but preserves the dismissible offer through the
+            // end grace. Returning evidence restores its Record action.
+            guard let session = sessions[currentPrompt.id] else {
+                self.currentPrompt = nil
+                return nextPrompt(candidates: incoming, now: now, canPrompt: canPrompt, isRecording: isRecording)
+            }
+            if let absentSince = session.absentSince,
+                now.timeIntervalSince(absentSince) >= sessionEndGrace
+            {
+                self.currentPrompt = nil
+            }
         }
+        return nextPrompt(candidates: incoming, now: now, canPrompt: canPrompt, isRecording: isRecording)
+    }
+
+    private mutating func nextPrompt(
+        candidates incoming: [String: MeetingPromptCandidate], now: Date, canPrompt: Bool, isRecording: Bool
+    ) -> MeetingPromptCandidate? {
         guard canPrompt, !isRecording, currentPrompt == nil else { return nil }
         for candidate in incoming.values.sorted(by: { $0.id < $1.id }) {
             guard var session = sessions[candidate.id], !session.prompted,

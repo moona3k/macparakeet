@@ -98,13 +98,15 @@ final class MeetingPromptCandidateTests: XCTestCase {
         }
     }
 
-    func testRoomIdentityIgnoresQueryAndFragmentButDistinguishesCalls() {
+    func testRoomIdentityIgnoresQueryAndFragmentButDistinguishesCalls() throws {
         let first = resolve(
             input: chrome, urls: [chrome: [URL(string: "https://meet.google.com/abc-defg-hij?authuser=0#foo")!]])
         let second = resolve(
             input: chrome, urls: [chrome: [URL(string: "https://meet.google.com/abc-defg-hij?authuser=1")!]])
         XCTAssertEqual(first, second)
-        XCTAssertFalse(first[0].id.contains("authuser"))
+        XCTAssertEqual(first.count, 1)
+        let candidate = try XCTUnwrap(first.first)
+        XCTAssertFalse(candidate.id.contains("authuser"))
         XCTAssertNotEqual(
             first, resolve(input: chrome, urls: [chrome: [URL(string: "https://meet.google.com/xyz-defg-hij")!]]))
     }

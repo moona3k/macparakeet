@@ -386,7 +386,10 @@ public final class SettingsViewModel {
         didSet {
             defaults.set(meetingActivityDetectionMode.rawValue, forKey: MeetingActivityDetectionPreferences.modeKey)
             NotificationCenter.default.post(name: .macParakeetMeetingActivitySettingsDidChange, object: nil)
-            Telemetry.send(.settingChanged(setting: .meetingActivityDetectionMode))
+            Telemetry.send(.settingChanged(
+                setting: .meetingActivityDetectionMode,
+                value: meetingActivityDetectionMode.rawValue
+            ))
         }
     }
     public var pauseMediaDuringDictation: Bool {

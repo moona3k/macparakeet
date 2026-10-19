@@ -436,14 +436,14 @@ final class AppEnvironmentConfigurer {
                 coordinatorRefs.dictation?.hideIdlePill()
                 isMeetingAutoStopObservingRecording = true
                 meetingAutoStopCoordinator?.recordingDidStart()
-                meetingActivityDetectionCoordinator?.recordingStateDidChange()
+                meetingActivityDetectionCoordinator?.recordingDidBegin()
             },
             onRecordingStopping: {
                 endMeetingAutoStopObservation()
             },
             onFlowReturnedToIdle: {
                 endMeetingAutoStopObservation()
-                meetingActivityDetectionCoordinator?.recordingStateDidChange()
+                meetingActivityDetectionCoordinator?.recordingFlowDidReturnToIdle()
                 callbacks.onMenuBarIconUpdate()
                 guard coordinatorRefs.dictation?.isDictationActive != true else { return }
                 coordinatorRefs.dictation?.showIdlePill()
@@ -587,6 +587,9 @@ final class AppEnvironmentConfigurer {
             let coordinator = MeetingActivityDetectionCoordinator(
                 settingsViewModel: settingsViewModel,
                 isRecordingActive: { [weak meetingCoordinator] in
+                    meetingCoordinator?.isCapturingMeetingAudioForAutoStop == true
+                },
+                isMeetingFlowBusy: { [weak meetingCoordinator] in
                     meetingCoordinator?.canStartMeetingRecording == false
                 },
                 isDictationActive: { [weak dictationCoordinator] in

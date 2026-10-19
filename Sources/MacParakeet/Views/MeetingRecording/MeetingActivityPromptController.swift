@@ -1,22 +1,32 @@
 import AppKit
+import Observation
 import SwiftUI
 
 private final class MeetingActivityPromptPanel: NSPanel {
-    override var canBecomeKey: Bool { true }
+    override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
+}
+
+@MainActor
+@Observable
+private final class MeetingActivityPromptState {
+    var recordingAvailable = true
 }
 
 @MainActor
 final class MeetingActivityPromptController {
     private var panel: NSPanel?
     private var onOutcome: (@MainActor (MeetingActivityPromptOutcome) -> Void)?
+    private let state = MeetingActivityPromptState()
 
     func show(displayName: String, onOutcome: @escaping @MainActor (MeetingActivityPromptOutcome) -> Void) {
         close()
         self.onOutcome = onOutcome
+        state.recordingAvailable = true
 
         let view = MeetingActivityPromptView(
             displayName: displayName,
+            state: state,
             onRecord: { [weak self] in self?.finish(.accepted) },
             onDecline: { [weak self] in self?.finish(.declined) }
         )
@@ -54,8 +64,14 @@ final class MeetingActivityPromptController {
             )
         }
 
+        // Keep keyboard focus in the meeting app. Actions are available by
+        // pointer or Accessibility, without intercepting Return or Escape.
         panel.orderFrontRegardless()
         self.panel = panel
+    }
+
+    func setRecordingAvailable(_ available: Bool) {
+        state.recordingAvailable = available
     }
 
     func close() {
@@ -65,11 +81,10 @@ final class MeetingActivityPromptController {
     }
 
     private func finish(_ outcome: MeetingActivityPromptOutcome) {
-        let callback = onOutcome
-        panel?.orderOut(nil)
-        panel = nil
-        onOutcome = nil
-        callback?(outcome)
+        if case .accepted = outcome, !state.recordingAvailable { return }
+        // The coordinator owns dismissal after validating the action. A stale
+        // Record action must not silently remove a still-useful reminder.
+        onOutcome?(outcome)
     }
 
     private static func screenForPrompt() -> NSScreen? {
@@ -83,6 +98,7 @@ final class MeetingActivityPromptController {
 
 private struct MeetingActivityPromptView: View {
     let displayName: String
+    let state: MeetingActivityPromptState
     let onRecord: () -> Void
     let onDecline: () -> Void
 
@@ -101,19 +117,19 @@ private struct MeetingActivityPromptView: View {
                         .foregroundStyle(DesignSystem.Colors.textSecondary)
                 }
             }
+            .accessibilityElement(children: .combine)
 
             HStack(spacing: DesignSystem.Spacing.sm) {
                 Spacer()
                 Button("Not now", action: onDecline)
                     .parakeetAction(.secondary)
-                    .keyboardShortcut(.escape, modifiers: [])
                 Button {
                     onRecord()
                 } label: {
                     Label("Record", systemImage: "record.circle.fill")
                 }
                 .parakeetAction(.primaryProminent)
-                .keyboardShortcut(.return, modifiers: [])
+                .disabled(!state.recordingAvailable)
             }
         }
         .padding(DesignSystem.Spacing.md)
@@ -125,8 +141,6 @@ private struct MeetingActivityPromptView: View {
                     RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
                         .stroke(DesignSystem.Colors.border, lineWidth: 0.5)
                 )
-                .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
         )
-        .accessibilityElement(children: .combine)
     }
 }

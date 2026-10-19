@@ -16,17 +16,25 @@ struct BrowserMeetingObservation: Sendable, Equatable {
 /// prejoin controls and Google Meet's in-call leave control. Some browsers expose
 /// only the selected tab; unknown observations do not establish a live call.
 actor BrowserMeetingURLCollector {
-    struct BrowserProcess: Sendable, Equatable {
+    struct BrowserProcess: Sendable, Hashable {
         let bundleID: String
         let pid: Int32
     }
 
     typealias ProcessProvider = @MainActor @Sendable () -> [BrowserProcess]
+    struct ProcessReadResult: Sendable {
+        var observation = BrowserMeetingObservation()
+        var hasPopulatedWebArea = false
+    }
+
     typealias SnapshotReader = @Sendable ([BrowserProcess]) -> BrowserMeetingObservation
+    typealias ProcessReader = @Sendable (BrowserProcess, Bool) async -> ProcessReadResult
 
     private let isTrusted: @Sendable () -> Bool
     private let processes: ProcessProvider
-    private let readSnapshot: SnapshotReader
+    private let readSnapshot: SnapshotReader?
+    private let readProcess: ProcessReader
+    private var accessibilityActivatedProcesses: Set<BrowserProcess> = []
     private let isMeetingURL: @Sendable (URL) -> Bool
 
     init(
@@ -39,12 +47,16 @@ actor BrowserMeetingURLCollector {
                 return BrowserProcess(bundleID: bundleID, pid: app.processIdentifier)
             }
         },
-        readSnapshot: @escaping SnapshotReader = { BrowserMeetingURLCollector.readBrowserDocuments($0) },
+        readSnapshot: SnapshotReader? = nil,
+        readProcess: @escaping ProcessReader = {
+            await BrowserMeetingURLCollector.readBrowserProcess($0, activateAccessibility: $1)
+        },
         isMeetingURL: @escaping @Sendable (URL) -> Bool = { MeetingPromptCandidateResolver.isMeetingURL($0) }
     ) {
         self.isTrusted = isTrusted
         self.processes = processes
         self.readSnapshot = readSnapshot
+        self.readProcess = readProcess
         self.isMeetingURL = isMeetingURL
     }
 
@@ -64,10 +76,27 @@ actor BrowserMeetingURLCollector {
         guard isTrusted(), !candidates.isEmpty else {
             return BrowserMeetingObservation(runningBrowserBundleIDs: running)
         }
-        let reader = readSnapshot
-        let observations = await Task.detached(priority: .utility) {
-            reader(candidates)
-        }.value
+        let observations: BrowserMeetingObservation
+        if let reader = readSnapshot {
+            observations = await Task.detached(priority: .utility) { reader(candidates) }.value
+        } else {
+            accessibilityActivatedProcesses.formIntersection(candidates)
+            let plans = candidates.map { process in
+                (
+                    process,
+                    Self.isChromiumBrowser(process.bundleID) && accessibilityActivatedProcesses.insert(process).inserted
+                )
+            }
+            let results = await Self.readProcesses(plans, reader: readProcess)
+            observations = results.reduce(into: BrowserMeetingObservation()) { combined, result in
+                Self.merge(result.1.observation, into: &combined)
+            }
+            for (process, result) in results where !result.hasPopulatedWebArea {
+                // Navigation can discard Chromium's tree. Re-enable on the next
+                // observation rather than repeatedly rebuilding a healthy tree.
+                accessibilityActivatedProcesses.remove(process)
+            }
+        }
         let allowed = Set(candidates.map(\.bundleID))
         var result = BrowserMeetingObservation(runningBrowserBundleIDs: running)
         for (bundleID, urls) in observations.urls where allowed.contains(bundleID) {
@@ -94,52 +123,120 @@ actor BrowserMeetingURLCollector {
         return result
     }
 
-    private nonisolated static func readBrowserDocuments(_ processes: [BrowserProcess]) -> BrowserMeetingObservation {
-        let deadline = ContinuousClock.now.advanced(by: .seconds(1))
-        var result = BrowserMeetingObservation()
-        for process in processes {
-            guard ContinuousClock.now < deadline else { break }
-            let application = AXUIElementCreateApplication(process.pid)
-            AXUIElementSetMessagingTimeout(application, 0.05)
-            let windows = children(of: application, attribute: kAXWindowsAttribute as CFString, limit: 24)
-            var queue: [(AXUIElement, Int, URL?, Bool)] = windows.map { ($0, 0, nil, false) }
-            var offset = 0
-            // Breadth-first traversal reaches all windows before nested chrome.
-            // Within a known meeting document we inspect roles and button names only;
-            // static text, editable fields and link subtrees are never read.
-            while offset < queue.count, offset < 320, ContinuousClock.now < deadline {
-                let (element, depth, inheritedURL, wasInDocument) = queue[offset]
-                offset += 1
-                AXUIElementSetMessagingTimeout(element, 0.05)
-                let metadata = documentMetadata(of: element)
-                let documentURL = metadata.url ?? inheritedURL
-                let inDocument = wasInDocument || metadata.role == "AXWebArea"
-                if let url = metadata.url {
-                    result.urls[process.bundleID, default: []].append(url)
-                }
-                if inDocument, let documentURL, MeetingPromptCandidateResolver.isMeetingURL(documentURL),
-                    metadata.role == kAXButtonRole
-                {
-                    let labels = buttonLabels(of: element)
-                    if isGoogleMeetRoom(documentURL), isMeetLeaveControl(role: metadata.role, labels: labels) {
-                        result.inCallURLs[process.bundleID, default: []].append(documentURL)
-                    } else if isPreJoinControl(documentURL: documentURL, role: metadata.role, labels: labels) {
-                        result.preJoinURLs[process.bundleID, default: []].append(documentURL)
-                    }
-                }
-                guard depth < 18, ContinuousClock.now < deadline else { continue }
-                if inDocument {
-                    guard let documentURL, MeetingPromptCandidateResolver.isMeetingURL(documentURL),
-                        ![kAXStaticTextRole, kAXTextAreaRole, kAXTextFieldRole, kAXButtonRole, "AXLink"].contains(
-                            metadata.role ?? "")
-                    else { continue }
-                }
-                let remaining = min(64, 320 - queue.count)
-                guard remaining > 0 else { continue }
-                queue.append(
-                    contentsOf: children(of: element, attribute: kAXChildrenAttribute as CFString, limit: remaining)
-                        .map { ($0, depth + 1, documentURL, inDocument) })
+    /// Each browser has an independent budget and task. An unresponsive Safari
+    /// window cannot consume Chrome's opportunity to report a live meeting.
+    private nonisolated static func readProcesses(
+        _ plans: [(BrowserProcess, Bool)], reader: @escaping ProcessReader
+    ) async -> [(BrowserProcess, ProcessReadResult)] {
+        await withTaskGroup(of: (BrowserProcess, ProcessReadResult).self) { group in
+            for (process, activate) in plans {
+                group.addTask { (process, await reader(process, activate)) }
             }
+            var results: [(BrowserProcess, ProcessReadResult)] = []
+            for await result in group { results.append(result) }
+            return results
+        }
+    }
+
+    private nonisolated static func merge(
+        _ observation: BrowserMeetingObservation, into result: inout BrowserMeetingObservation
+    ) {
+        for (bundleID, urls) in observation.urls { result.urls[bundleID, default: []].append(contentsOf: urls) }
+        for (bundleID, urls) in observation.inCallURLs {
+            result.inCallURLs[bundleID, default: []].append(contentsOf: urls)
+        }
+        for (bundleID, urls) in observation.preJoinURLs {
+            result.preJoinURLs[bundleID, default: []].append(contentsOf: urls)
+        }
+    }
+
+    nonisolated static func isChromiumBrowser(_ bundleID: String) -> Bool {
+        [
+            "com.google.Chrome", "com.microsoft.edgemac", "com.brave.Browser",
+            "company.thebrowser.Browser", "com.operasoftware.Opera", "com.operasoftware.OperaGX",
+        ].contains(bundleID)
+    }
+
+    private nonisolated static func readBrowserProcess(
+        _ process: BrowserProcess, activateAccessibility: Bool
+    ) async -> ProcessReadResult {
+        await readWithHydration(activateAccessibility: activateAccessibility) { activate in
+            await Task.detached(priority: .utility) {
+                scanBrowserProcess(process, activateAccessibility: activate)
+            }.value
+        }
+    }
+
+    nonisolated static func readWithHydration(
+        activateAccessibility: Bool,
+        wait: @Sendable () async throws -> Void = { try await Task.sleep(for: .milliseconds(150)) },
+        scan: @Sendable (Bool) async -> ProcessReadResult
+    ) async -> ProcessReadResult {
+        let first = await scan(activateAccessibility)
+        guard activateAccessibility, !first.hasPopulatedWebArea, !Task.isCancelled else { return first }
+        // Chromium builds page Accessibility asynchronously. Yield instead of
+        // blocking a worker or MainActor, then read fresh windows/nodes. No AX
+        // references survive this wait, so navigation cannot leave stale nodes.
+        do { try await wait() } catch { return first }
+        return await scan(false)
+    }
+
+    private nonisolated static func scanBrowserProcess(
+        _ process: BrowserProcess, activateAccessibility: Bool
+    ) -> ProcessReadResult {
+        let deadline = ContinuousClock.now.advanced(by: .milliseconds(400))
+        let application = AXUIElementCreateApplication(process.pid)
+        AXUIElementSetMessagingTimeout(application, 0.05)
+        if activateAccessibility {
+            // Existing Accessibility authorization covers these attributes.
+            // Match NativeVoiceControlAdapter, without Automation permission,
+            // activating tabs, reading text, or a background consent prompt.
+            AXUIElementSetAttributeValue(application, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+            AXUIElementSetAttributeValue(application, "AXEnhancedUserInterface" as CFString, kCFBooleanTrue)
+        }
+        var result = ProcessReadResult()
+        let windows = children(of: application, attribute: kAXWindowsAttribute as CFString, limit: 24)
+        var queue: [(AXUIElement, Int, URL?, Bool)] = windows.map { ($0, 0, nil, false) }
+        var offset = 0
+        // Breadth-first traversal reaches all windows before nested chrome.
+        // Within a known meeting document we inspect roles and button names only;
+        // static text, editable fields and link subtrees are never read.
+        while offset < queue.count, offset < 320, ContinuousClock.now < deadline {
+            let (element, depth, inheritedURL, wasInDocument) = queue[offset]
+            offset += 1
+            AXUIElementSetMessagingTimeout(element, 0.05)
+            let metadata = documentMetadata(of: element)
+            let documentURL = metadata.url ?? inheritedURL
+            let inDocument = wasInDocument || metadata.role == "AXWebArea"
+            if let url = metadata.url {
+                result.observation.urls[process.bundleID, default: []].append(url)
+            }
+            if inDocument, let documentURL, MeetingPromptCandidateResolver.isMeetingURL(documentURL),
+                metadata.role == kAXButtonRole
+            {
+                let labels = buttonLabels(of: element)
+                if isGoogleMeetRoom(documentURL), isMeetLeaveControl(role: metadata.role, labels: labels) {
+                    result.observation.inCallURLs[process.bundleID, default: []].append(documentURL)
+                } else if isPreJoinControl(documentURL: documentURL, role: metadata.role, labels: labels) {
+                    result.observation.preJoinURLs[process.bundleID, default: []].append(documentURL)
+                }
+            }
+            guard depth < 18, ContinuousClock.now < deadline else { continue }
+            if metadata.role == "AXWebArea" {
+                result.hasPopulatedWebArea =
+                    !children(of: element, attribute: kAXChildrenAttribute as CFString, limit: 1).isEmpty
+                    || result.hasPopulatedWebArea
+            }
+            if inDocument {
+                guard let documentURL, MeetingPromptCandidateResolver.isMeetingURL(documentURL),
+                    ![kAXStaticTextRole, kAXTextAreaRole, kAXTextFieldRole, kAXButtonRole, "AXLink"].contains(
+                        metadata.role ?? "")
+                else { continue }
+            }
+            let remaining = min(64, 320 - queue.count)
+            guard remaining > 0 else { continue }
+            let descendants = children(of: element, attribute: kAXChildrenAttribute as CFString, limit: remaining)
+            queue.append(contentsOf: descendants.map { ($0, depth + 1, documentURL, inDocument) })
         }
         return result
     }

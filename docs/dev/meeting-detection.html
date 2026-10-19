@@ -12,17 +12,17 @@
 <body>
 <main>
 <header>
-<div class="eyebrow">MacParakeet · Development-source feature walkthrough</div>
+<div class="eyebrow">MacParakeet · Next-release Beta walkthrough</div>
 <h1>A reminder to record the call you just joined.</h1>
 <p class="lead">Ad-hoc calls do not always appear in the calendar. An opt-in local reminder offers to record a detected meeting, while the user decides when capture begins.</p>
-<div class="tags"><span class="tag">Off by default</span><span class="tag">Record / Not now</span><span class="tag">Local metadata</span><span class="tag">No automatic recording</span></div>
+<div class="tags"><span class="tag">Opt-in Beta</span><span class="tag">Off by default</span><span class="tag">Record / Not now</span><span class="tag">Local metadata</span><span class="tag">No automatic recording</span></div>
 </header>
 <section class="two" aria-labelledby="experience">
 <div>
 <h2 id="experience">The user experience</h2>
-<p>Enable <strong>Settings → Capture → Meetings → Remind me to record meetings</strong>. Three seconds of qualifying activity makes a call eligible for a nonactivating reminder.</p>
+<p>Enable <strong>Settings → Capture → Meetings → Remind me to record meetings</strong>. Three seconds of qualifying activity makes a call eligible for a nonactivating, keyless reminder. The setting is labelled Beta.</p>
 <p><strong>Record</strong> rechecks the current call and uses the normal recording and permission flow. <strong>Not now</strong> suppresses the reminder for that call.</p>
-<p>Prompts wait while dictation or recording is busy, including recorder startup and finalization. The feature does not automatically record a call.</p>
+<p>Prompts wait while dictation or recording is busy, including recorder startup and finalization. Record and Not now remain separate Accessibility controls. The prompt leaves keyboard focus in the meeting app and does not intercept Return or Escape. The feature does not automatically record a call.</p>
 </div>
 <div>
 <div class="offer" role="img" aria-label="Illustration of the Record this meeting prompt, with Record and Not now actions">
@@ -48,7 +48,7 @@
 <table>
 <thead><tr><th>Surface</th><th>Evidence used</th><th>Practical limit</th></tr></thead>
 <tbody>
-<tr><td>Native conferencing apps</td><td>Microphone activity attributed to a recognized conferencing app.</td><td>App identity does not identify individual rooms or conclusively distinguish every audio preview from a joined call.</td></tr>
+<tr><td>Native conferencing apps</td><td>Microphone activity attributed to a recognized conferencing app.</td><td>App identity does not identify individual rooms or conclusively distinguish every audio preview from a joined call. Same-process calls separated by less than 30 seconds of input absence can share suppression.</td></tr>
 <tr><td>Slack</td><td>Both microphone and output activity attributed to Slack.</td><td>Recognition depends on the process activity that macOS exposes.</td></tr>
 <tr><td>Browser Meet / Zoom / Teams</td><td>A current recognized room URL plus microphone attribution to that browser; recognized prejoin controls exclude the room.</td><td>Accessibility permission and browser tab/window exposure determine what can be observed. URL recognition alone does not establish a joined call.</td></tr>
 <tr><td>Muted Google Meet</td><td>A current room URL and an accessible Leave call control can provide positive in-call evidence without microphone ownership.</td><td>This independent muted-join path is specific to Meet. Recognized English/Polish controls and actual browser exposure still need runtime qualification.</td></tr>
@@ -60,8 +60,8 @@
 <div>
 <h2 id="lifecycle">One call, one reminder</h2>
 <p>Distinct browser rooms have separate identities. A shown or dismissed browser call keeps its suppression when a background tab stops exposing metadata, while the browser remains running.</p>
-<p>Unknown metadata cannot authorize an old Record action. An explicit prejoin/end observation resets the room; a later joined call can qualify again. Native signal absence uses a 30-second grace period.</p>
-<p>Prejoin exclusions come from the current snapshot. A previously observed Zoom or Teams preview therefore cannot permanently veto the subsequent joined call.</p>
+<p>Unknown metadata cannot authorize an old Record action. During a brief observation gap, the panel can remain visible with Record disabled and Not now available. An explicit prejoin/end observation resets the room; a later joined call can qualify again. Native process exit or PID replacement resets suppression; otherwise input absence uses a 30-second grace period.</p>
+<p>Prejoin exclusions come from the current snapshot. A previously observed Zoom or Teams preview therefore cannot permanently veto the subsequent joined call. Successful capture consumes the confirmed room or sole observed candidate; failed/cancelled starts and ambiguous concurrent calls keep their eligibility.</p>
 </div>
 <div>
 <h2>Local observation</h2>
@@ -75,11 +75,12 @@
 <table>
 <thead><tr><th>Check</th><th>Status</th><th>Meaning</th></tr></thead>
 <tbody>
-<tr><td>Focused tests</td><td class="status">Passed · 539 tests</td><td>Affected behavior and integration tests. This count overlaps the final detection run.</td></tr>
-<tr><td>Final detection run</td><td class="status">Passed · 54 tests</td><td>Candidate resolution, browser fixtures, policy and coordinator lifecycle, including Zoom/Teams preview-to-join transitions.</td></tr>
+<tr><td>Focused tests</td><td class="status">Initial run passed · 539 tests</td><td>Affected behavior and integration tests. This count overlaps the final detection run.</td></tr>
+<tr><td>Final detection run</td><td class="status">Initial detection run passed · 54 tests</td><td>Candidate resolution, browser fixtures, policy and coordinator lifecycle, including Zoom/Teams preview-to-join transitions.</td></tr>
 <tr><td>Release GUI build</td><td class="status">Passed</td><td>Canonical Release app and CLI builds completed in the installation checkout with this feature patch and existing local fixes. The clean PR checkout compiled through its test suite. Compilation does not establish live detection coverage.</td></tr>
-<tr><td>Full suite</td><td class="pending">Completed · failures outside detection</td><td id="full-suite-result">Ran once with swift test --force-resolved-versions. App XCTest: 7,622 tests, 33 skipped, six failed assertions across four test cases. CLI XCTest: 645 tests, two skipped, zero failures. Swift Testing: 30 passed. The four failing Apple Intelligence availability and transcript-layout cases also failed in the October 17 local run; an exact-base suite was not rerun.</td></tr>
-<tr><td>Native runtime</td><td class="pending">Not yet verified</td><td id="native-runtime-result">Not yet demonstrated. The Release development app produced no prompt during a muted Brave/Google Meet trial; Accessibility access for that identity was unconfirmed. Installed-app testing and replacement are deferred while the existing app records an active meeting. Native prompt, Record/Not now and lifecycle checks remain outstanding.</td></tr>
+<tr><td>Full suite</td><td class="pending">Completed · relation to change unestablished</td><td id="full-suite-result">Ran once with swift test --force-resolved-versions. App XCTest: 7,622 tests, 33 skipped, six failed assertions across four test cases. CLI XCTest: 645 tests, two skipped, zero failures. Swift Testing: 30 passed. The failures concern Apple Intelligence availability and transcript layout. An exact-base suite was not rerun, so their relation to this change is not established.</td></tr>
+<tr><td>Review-fix verification</td><td class="pending">Pending</td><td id="review-fix-result">Current review changes require focused verification; earlier passing counts do not establish this revision.</td></tr>
+<tr><td>Native runtime</td><td class="pending">Not yet verified</td><td id="native-runtime-result">Not yet demonstrated. The Release development app produced no prompt during a muted Brave/Google Meet trial; Accessibility access for that identity was unconfirmed. Native prompt, Record/Not now, lifecycle and idle-CPU checks remain outstanding. Current review-fix qualification will be recorded separately.</td></tr>
 </tbody>
 </table>
 <p style="margin-top:20px">Focused tests cover stable dwell, prejoin-to-join transitions, muted Meet, dismissal/background continuity, stale callbacks, busy capture states, preference persistence, and recording attribution. Fixture-based tests do not establish end-to-end compatibility with every browser or meeting app.</p>
@@ -88,9 +89,9 @@
 </section>
 <section aria-labelledby="provenance">
 <h2 id="provenance">Provenance and publication</h2>
-<p>Adapted upstream archived activity-detection scaffolding; the public macOS/browser metadata behavior is an original implementation. REA informed behavioral investigation only; no proprietary implementation code is included.</p>
+<p>Panel and integration scaffolding was adapted from the archived Phase C implementation in <a href="https://github.com/moona3k/macparakeet">MacParakeet (moona3k/macparakeet)</a>, licensed under the <a href="https://github.com/moona3k/macparakeet/blob/main/LICENSE">GNU General Public License v3 (GPLv3)</a>. The adaptation remains part of this GPL-licensed project. Public macOS/browser metadata behavior is an original implementation. Behavioral investigation informed the expected user experience only; no proprietary implementation code was incorporated.</p>
 <p>This self-contained walkthrough accompanies <a href="https://github.com/moona3k/macparakeet/pull/1267">PR #1267</a> and is proposed for website publication by the maintainer. It has not been deployed, and no live walkthrough URL is claimed.</p>
-<p class="caption">Development source availability is separate from stable-release availability. The new per-user preference defaults off.</p>
+<p class="caption">The published stable <a href="https://github.com/moona3k/macparakeet/releases/tag/v0.8.10">0.8.10 release (October 14, 2026)</a> does not include reminders. The next app release targets an opt-in Beta; Debug and Release builds of this source expose it, with the preference off by default. The historical requirement to keep the compile flag off until full-suite and native qualification is replaced for this Beta so the useful path can be observed. This is not a GA or green-suite claim; known failures and pending qualification remain visible.</p>
 </section>
 <footer>Prepared for review · 19 October 2026 · Contains no actual meeting URLs, meeting history, private investigation material, external assets, or runtime screenshots.</footer>
 </main>

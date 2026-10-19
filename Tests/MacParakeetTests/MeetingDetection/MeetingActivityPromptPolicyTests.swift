@@ -50,6 +50,8 @@ final class MeetingActivityPromptPolicyTests: XCTestCase {
         // Stable calls have no polling timer; the last snapshot may be hours old.
         _ = update(&policy, at: 7200, candidates: [])
         XCTAssertNil(update(&policy, at: 7201))
+        XCTAssertFalse(policy.needsRefresh)
+        XCTAssertNil(update(&policy, at: 7204))
         XCTAssertNil(policy.currentPrompt)
     }
 
@@ -87,6 +89,7 @@ final class MeetingActivityPromptPolicyTests: XCTestCase {
     func testRecordingConsumesReminderAndSuppressesPromptAfterStop() {
         var policy = MeetingActivityPromptPolicy()
         _ = update(&policy, at: 0)
+        policy.recordingDidBegin()
         XCTAssertNil(update(&policy, at: 3, recording: true))
         XCTAssertNil(update(&policy, at: 300, recording: false))
         XCTAssertNil(policy.currentPrompt)
@@ -115,9 +118,11 @@ final class MeetingActivityPromptPolicyTests: XCTestCase {
         _ = update(&policy, at: 3)
         XCTAssertEqual(policy.activeCandidate(id: call.id), call)
         _ = update(&policy, at: 4, candidates: [])
-        XCTAssertNil(policy.currentPrompt)
+        XCTAssertEqual(policy.currentPrompt, call)
         XCTAssertNil(policy.activeCandidate(id: call.id))
         XCTAssertNil(update(&policy, at: 5))
+        XCTAssertEqual(policy.currentPrompt, call)
+        XCTAssertEqual(policy.activeCandidate(id: call.id), call)
     }
 
     func testConcurrentCallsHaveDeterministicOrderAndIndependentDismissals() {
@@ -174,6 +179,60 @@ final class MeetingActivityPromptPolicyTests: XCTestCase {
         _ = update(&policy, at: 100, candidates: [], preservedBrowsers: [call.bundleID])
         XCTAssertNil(update(&policy, at: 101, preservedBrowsers: [call.bundleID]))
         XCTAssertEqual(update(&policy, at: 104, preservedBrowsers: [call.bundleID]), call)
+    }
+
+    func testRecordingBeginningWithVisiblePromptClearsConsumedOffer() {
+        var policy = MeetingActivityPromptPolicy()
+        _ = update(&policy, at: 0)
+        _ = update(&policy, at: 3)
+        XCTAssertEqual(policy.currentPrompt, call)
+        policy.recordingDidBegin()
+        XCTAssertNil(update(&policy, at: 4, recording: true))
+        XCTAssertNil(policy.currentPrompt)
+        XCTAssertNil(update(&policy, at: 30))
+    }
+
+    func testVisiblePromptSurvivesMissingEvidenceUntilGraceExpires() {
+        var policy = MeetingActivityPromptPolicy()
+        _ = update(&policy, at: 0)
+        _ = update(&policy, at: 3)
+        _ = update(&policy, at: 4, candidates: [])
+        XCTAssertEqual(policy.currentPrompt, call)
+        XCTAssertNil(policy.activeCandidate(id: call.id))
+        _ = update(&policy, at: 33.9, candidates: [])
+        XCTAssertEqual(policy.currentPrompt, call)
+        _ = update(&policy, at: 34, candidates: [])
+        XCTAssertNil(policy.currentPrompt)
+    }
+
+    func testRecordingConsumesOnlyItsKnownCandidateAmongConcurrentCalls() {
+        var policy = MeetingActivityPromptPolicy()
+        let candidates = [call, anotherCall]
+        _ = update(&policy, at: 0, candidates: candidates)
+        _ = update(&policy, at: 3, candidates: candidates)
+        policy.recordingDidBegin(candidateID: call.id)
+        XCTAssertNil(update(&policy, at: 4, candidates: candidates, recording: true))
+        XCTAssertNil(policy.currentPrompt)
+        XCTAssertEqual(update(&policy, at: 30, candidates: candidates), anotherCall)
+    }
+
+    func testAmbiguousManualRecordingDoesNotConsumeEveryConcurrentCall() {
+        var policy = MeetingActivityPromptPolicy()
+        let candidates = [call, anotherCall]
+        _ = update(&policy, at: 0, candidates: candidates)
+        policy.recordingDidBegin()
+        XCTAssertNil(update(&policy, at: 3, candidates: candidates, recording: true))
+        XCTAssertEqual(update(&policy, at: 4, candidates: candidates), call)
+        policy.dismiss(id: call.id)
+        XCTAssertEqual(update(&policy, at: 5, candidates: candidates), anotherCall)
+    }
+
+    func testCallAppearingDuringAnotherRecordingRemainsEligibleAfterStop() {
+        var policy = MeetingActivityPromptPolicy()
+        _ = update(&policy, at: 0)
+        policy.recordingDidBegin()
+        XCTAssertNil(update(&policy, at: 4, candidates: [call, anotherCall], recording: true))
+        XCTAssertEqual(update(&policy, at: 8, candidates: [call, anotherCall]), anotherCall)
     }
 
     private func update(

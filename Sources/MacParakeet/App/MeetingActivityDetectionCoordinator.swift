@@ -30,17 +30,24 @@ final class MeetingActivityDetectionCoordinator {
     private let audioCollector: any AudioProcessActivityCollecting
     private let meetingURLProvider: @Sendable () async -> BrowserMeetingObservation
     private let isRecordingActive: @MainActor () -> Bool
+    private let isMeetingFlowBusy: @MainActor () -> Bool
+    private let runningNativeProcessIDsProvider: @MainActor () -> [String: Int32]
     private let isDictationActive: @MainActor () -> Bool
     private let onRecordingConfirmed: @MainActor () -> Int?
     private let showPrompt: PromptPresenter
     private let closePrompt: @MainActor () -> Void
+    private let setRecordingAvailable: @MainActor (Bool) -> Void
     private let featureEnabled: Bool
     private let pollInterval: TimeInterval
+    private let stablePollInterval: TimeInterval
     private let nowProvider: @MainActor () -> Date
     private var policy: MeetingActivityPromptPolicy
     private var presentedID: String?
     private var presentationToken: UUID?
     private var pendingRecordID: String?
+    private var requestedRecordingCandidateID: String?
+    private var nativeProcessIDs: [String: Int32] = [:]
+    private var lastEvaluationAt: Date?
     private var started = false
     private var collecting = false
     private var generation = 0
@@ -53,13 +60,25 @@ final class MeetingActivityDetectionCoordinator {
         audioCollector: any AudioProcessActivityCollecting = AudioProcessActivityCollector(),
         meetingURLProvider: (@Sendable () async -> BrowserMeetingObservation)? = nil,
         isRecordingActive: @escaping @MainActor () -> Bool,
+        isMeetingFlowBusy: (@MainActor () -> Bool)? = nil,
+        runningNativeProcessIDsProvider: @escaping @MainActor () -> [String: Int32] = {
+            NSWorkspace.shared.runningApplications.reduce(into: [:]) { result, application in
+                guard let bundleID = application.bundleIdentifier,
+                    let descriptor = MeetingAppRegistry.descriptor(forBundleID: bundleID),
+                    descriptor.trustTier != .browser
+                else { return }
+                result[bundleID] = application.processIdentifier
+            }
+        },
         isDictationActive: @escaping @MainActor () -> Bool = { false },
         onRecordingConfirmed: @escaping @MainActor () -> Int?,
         showPrompt: PromptPresenter? = nil,
         closePrompt: (@MainActor () -> Void)? = nil,
+        setRecordingAvailable: (@MainActor (Bool) -> Void)? = nil,
         featureEnabled: Bool = AppFeatures.meetingActivityDetectionEnabled,
         policy: MeetingActivityPromptPolicy = MeetingActivityPromptPolicy(),
         pollInterval: TimeInterval = 1,
+        stablePollInterval: TimeInterval = 2,
         nowProvider: @escaping @MainActor () -> Date = { Date() }
     ) {
         self.settingsViewModel = settingsViewModel
@@ -70,6 +89,8 @@ final class MeetingActivityDetectionCoordinator {
                 await browserCollector.snapshotDetailed()
             }
         self.isRecordingActive = isRecordingActive
+        self.isMeetingFlowBusy = isMeetingFlowBusy ?? isRecordingActive
+        self.runningNativeProcessIDsProvider = runningNativeProcessIDsProvider
         self.isDictationActive = isDictationActive
         self.onRecordingConfirmed = onRecordingConfirmed
         let controller = MeetingActivityPromptController()
@@ -78,9 +99,11 @@ final class MeetingActivityDetectionCoordinator {
                 controller.show(displayName: candidate.displayName, onOutcome: outcome)
             }
         self.closePrompt = closePrompt ?? { controller.close() }
+        self.setRecordingAvailable = setRecordingAvailable ?? { controller.setRecordingAvailable($0) }
         self.featureEnabled = featureEnabled
         self.policy = policy
         self.pollInterval = pollInterval
+        self.stablePollInterval = max(pollInterval, stablePollInterval)
         self.nowProvider = nowProvider
     }
 
@@ -111,6 +134,24 @@ final class MeetingActivityDetectionCoordinator {
 
     func recordingStateDidChange() { scheduleEvaluation() }
 
+    /// Clear attribution before any async metadata read. A failed/cancelled
+    /// activity start may be followed immediately by an unrelated manual start.
+    /// Deferred clicks remain pending until capture succeeds or their call ends.
+    func recordingFlowDidReturnToIdle() {
+        requestedRecordingCandidateID = nil
+        scheduleEvaluation()
+    }
+
+    /// Capture success is an event, not a busy-state poll: a recording can start
+    /// and stop between scans, and permission/failed-start states consume nothing.
+    func recordingDidBegin() {
+        policy.recordingDidBegin(candidateID: requestedRecordingCandidateID)
+        pendingRecordID = nil
+        requestedRecordingCandidateID = nil
+        dismissPanel()
+        scheduleEvaluation()
+    }
+
     private func refreshObservation() {
         guard started, settingsViewModel.meetingActivityDetectionMode != .off else {
             stopObservation()
@@ -123,7 +164,7 @@ final class MeetingActivityDetectionCoordinator {
         }
         if pollInterval > 0 {
             let timer = Timer(timeInterval: pollInterval, repeats: true) { [weak self] _ in
-                Task { @MainActor [weak self] in self?.scheduleEvaluation() }
+                Task { @MainActor [weak self] in self?.scheduleEvaluation(isPeriodic: true) }
             }
             RunLoop.main.add(timer, forMode: .common)
             self.timer = timer
@@ -141,11 +182,21 @@ final class MeetingActivityDetectionCoordinator {
         collecting = false
         policy = MeetingActivityPromptPolicy()
         pendingRecordID = nil
+        requestedRecordingCandidateID = nil
+        nativeProcessIDs = [:]
+        lastEvaluationAt = nil
         dismissPanel()
     }
 
-    private func scheduleEvaluation() {
+    private func scheduleEvaluation(isPeriodic: Bool = false) {
         guard collecting, evaluationTask == nil else { return }
+        // A muted browser join has no CoreAudio edge. Keep a bounded scan even
+        // in stable/dismissed states, at a slower cadence than dwell/retry work.
+        if isPeriodic, !policy.needsRefresh, pendingRecordID == nil,
+            let lastEvaluationAt, nowProvider().timeIntervalSince(lastEvaluationAt) < stablePollInterval
+        {
+            return
+        }
         let generation = generation
         evaluationTask = Task { [weak self] in
             guard let self else { return }
@@ -158,12 +209,25 @@ final class MeetingActivityDetectionCoordinator {
         guard collecting, settingsViewModel.meetingActivityDetectionMode != .off,
             self.generation == generation
         else { return }
+        lastEvaluationAt = now
         let browserObservation = await meetingURLProvider()
         guard !Task.isCancelled, collecting, settingsViewModel.meetingActivityDetectionMode != .off,
             self.generation == generation
         else { return }
         // Read again after Accessibility I/O: a call may have ended meanwhile.
         let audio = audioCollector.snapshot()
+        let runningNativeProcessIDs = runningNativeProcessIDsProvider()
+        let exitedNativeIDs = Set(
+            nativeProcessIDs.compactMap { bundleID, pid in
+                runningNativeProcessIDs[bundleID] == pid ? nil : "app:\(bundleID)"
+            })
+        // Microphone loss is ambiguous (mute/reconnect versus a new call).
+        // App exit or a new PID is a confirmed native session boundary.
+        policy.resetSessions(for: exitedNativeIDs)
+        if let pendingRecordID, exitedNativeIDs.contains(pendingRecordID) {
+            self.pendingRecordID = nil
+        }
+        nativeProcessIDs = runningNativeProcessIDs
         // Both room URLs and pre-join controls must come from this snapshot.
         // Cached browser state cannot authorize recording or veto a later join.
         let confirmedInCallIDs = Set(
@@ -185,7 +249,9 @@ final class MeetingActivityDetectionCoordinator {
             confirmedInCallURLsByBundleID: browserObservation.inCallURLs,
             excludedPreJoinURLsByBundleID: browserObservation.preJoinURLs
         )
-        let busy = isRecordingActive() || isDictationActive()
+        let meetingBusy = isMeetingFlowBusy()
+        let busy = meetingBusy || isDictationActive()
+        if !meetingBusy { requestedRecordingCandidateID = nil }
         let offer =
             policy.update(
                 candidates: candidates, now: now, canPrompt: !busy, isRecording: isRecordingActive(),
@@ -193,20 +259,36 @@ final class MeetingActivityDetectionCoordinator {
             )
             ?? policy.currentPrompt
         if let pendingRecordID {
-            guard policy.activeCandidate(id: pendingRecordID) != nil else {
+            if policy.activeCandidate(id: pendingRecordID) == nil {
                 self.pendingRecordID = nil
+            } else if busy {
                 dismissPanel()
                 return
-            }
-            dismissPanel()
-            if !busy, onRecordingConfirmed() != nil {
-                policy.dismiss(id: pendingRecordID)
+            } else {
+                dismissPanel()
+                // The start callback may synchronously report capture success.
+                // Make the attribution available before invoking it.
+                requestedRecordingCandidateID = pendingRecordID
+                if onRecordingConfirmed() != nil {
+                    self.pendingRecordID = nil
+                    return
+                }
+                requestedRecordingCandidateID = nil
+                if isMeetingFlowBusy() {
+                    // A racing start owns the flow; retain this user request
+                    // until it either captures (event consumes it) or goes idle.
+                    return
+                }
+                // A rejection with no busy owner is not a reason to silently
+                // retry forever. Restore the offer for another explicit click.
                 self.pendingRecordID = nil
             }
-            return
         }
         guard !busy, let offer else { dismissPanel(); return }
-        guard offer.id != presentedID else { return }
+        if offer.id == presentedID {
+            setRecordingAvailable(policy.activeCandidate(id: offer.id) != nil)
+            return
+        }
         dismissPanel()
         presentedID = offer.id
         let token = UUID()
@@ -214,18 +296,23 @@ final class MeetingActivityDetectionCoordinator {
         showPrompt(offer) { [weak self] outcome in
             self?.handleOutcome(outcome, candidateID: offer.id, token: token)
         }
+        setRecordingAvailable(policy.activeCandidate(id: offer.id) != nil)
     }
 
     private func handleOutcome(_ outcome: MeetingActivityPromptOutcome, candidateID: String, token: UUID) {
         guard collecting, settingsViewModel.meetingActivityDetectionMode != .off,
-            presentationToken == token, presentedID == candidateID,
-            policy.activeCandidate(id: candidateID) != nil
+            presentationToken == token, presentedID == candidateID
         else { return }
-        dismissPanel()
         switch outcome {
         case .declined:
+            dismissPanel()
             policy.dismiss(id: candidateID)
         case .accepted:
+            guard policy.activeCandidate(id: candidateID) != nil else {
+                setRecordingAvailable(false)
+                return
+            }
+            dismissPanel()
             // Revalidate against current audio/URL metadata before starting. A
             // busy recorder or dictation leaves the click pending for this call.
             pendingRecordID = candidateID
@@ -238,6 +325,11 @@ final class MeetingActivityDetectionCoordinator {
         presentedID = nil
         presentationToken = nil
         closePrompt()
+    }
+
+    func testHook_periodicTick() async {
+        scheduleEvaluation(isPeriodic: true)
+        await evaluationTask?.value
     }
 
     func testHook_waitForScheduledEvaluation() async { await evaluationTask?.value }

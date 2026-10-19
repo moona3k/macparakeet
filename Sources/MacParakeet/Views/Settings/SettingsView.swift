@@ -1469,9 +1469,8 @@ struct SettingsView: View {
                     meetingAutoSaveOptionsView
                 }
 
-                // Start (calendar) and stop (activity) automation are grouped
-                // under one subsection so they read as the two ends of the
-                // recording lifecycle. Either flag alone still shows the group.
+                // Recording reminders, calendar start, and activity stop share
+                // a subsection. Each feature flag independently exposes it.
                 if AppFeatures.calendarEnabled || AppFeatures.meetingAutoStopEnabled
                     || AppFeatures.meetingActivityDetectionEnabled
                 {
@@ -1518,20 +1517,16 @@ struct SettingsView: View {
         )
     }
 
-    /// Automatic-recording controls grouped under one subsection: the
-    /// calendar-driven "Start recording automatically" half (ADR-017) and the
-    /// activity-driven "Stop recording automatically" half (ADR-023). They read
-    /// as the two ends of the recording lifecycle but use different signals on
-    /// purpose — calendar *start* times are reliable, *end* times are not, so
-    /// stop keys off meeting-end activity (app quit + dual-channel silence)
-    /// instead. Each flag is independent; either alone still renders the group.
+    /// Independent meeting reminders and automation controls: prompt-only
+    /// activity detection (ADR-024), calendar start (ADR-017), and activity
+    /// stop (ADR-023). Any enabled feature flag renders this subsection.
     private var meetingAutomationSection: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
             HStack(spacing: 6) {
                 Image(systemName: "clock.arrow.circlepath")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
-                Text("Automatic recording")
+                Text("Reminders and automation")
                     .font(DesignSystem.Typography.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -1542,6 +1537,7 @@ struct SettingsView: View {
                     title: "Remind me to record meetings",
                     detail:
                         "Offers to record when a call starts in a meeting app or browser. Browser detection uses Accessibility access. Recording starts only when you choose Record.",
+                    isBeta: true,
                     isOn: Binding(
                         get: { viewModel.meetingActivityDetectionMode != .off },
                         set: { viewModel.meetingActivityDetectionMode = $0 ? .prompt : .off }
