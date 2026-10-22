@@ -489,4 +489,214 @@ final class SettingsSearchIndexTests: XCTestCase {
         let resultsInIndexOrder = results.map(\.id).map { id in indexOrder.firstIndex(of: id)! }
         XCTAssertEqual(resultsInIndexOrder, resultsInIndexOrder.sorted())
     }
+
+    func testPauseMediaQueriesFindDictationToggle() {
+        for query in ["pause", "media", "music"] {
+            let ids = SettingsSearchIndex.matches(query).map(\.id)
+            XCTAssertTrue(
+                ids.contains("dictation.pause.media"),
+                "Query \(query) should find the Pause media while dictating setting"
+            )
+        }
+        XCTAssertEqual(
+            SettingsSearchIndex.matches("pause").first?.id,
+            "dictation.pause.media",
+            "The pause toggle should lead the results for 'pause'"
+        )
+    }
+
+    func testPauseMediaEntryPointsAtDictationCard() throws {
+        let entry = try XCTUnwrap(
+            SettingsSearchIndex.entries.first { $0.id == "dictation.pause.media" }
+        )
+        XCTAssertEqual(entry.title, "Pause media while dictating")
+        XCTAssertEqual(entry.tab, .capture)
+        XCTAssertEqual(entry.cardAnchor, "dictation")
+    }
+
+    func testVoiceProfileRowsFollowFeatureFlag() {
+        let ids = Set(SettingsSearchIndex.entries.map(\.id))
+        for id in ["meeting.rememberSpeakers", "meeting.voiceProfiles"] {
+            XCTAssertEqual(
+                ids.contains(id),
+                AppFeatures.isVoiceProfilesAvailable(),
+                "\(id) should be indexed only when voice profiles are available"
+            )
+        }
+        XCTAssertTrue(
+            ids.contains("system.reset.voiceProfiles"),
+            "The Reset voice-profiles row is never flag-gated in the view"
+        )
+    }
+
+    /// Three entries were retitled to the text their rows show today. The
+    /// earlier wording stays searchable as a keyword.
+    func testRetitledRowsKeepTheirEarlierWordingSearchable() throws {
+        let retitled = [
+            (
+                id: "dictation.idle.pill", title: "Show dictation pill at all times",
+                earlier: "Show idle pill at all times"
+            ),
+            (id: "meeting.autoStop", title: "Stop recording automatically", earlier: "auto-stop meetings"),
+            (
+                id: "system.permissions.screen", title: "Screen & System Audio",
+                earlier: "Screen & System Audio Recording"
+            ),
+        ]
+        for row in retitled {
+            let entry = try XCTUnwrap(SettingsSearchIndex.allEntries.first { $0.id == row.id })
+            XCTAssertEqual(entry.title, row.title)
+            XCTAssertTrue(entry.matches(row.earlier), "\(row.earlier) should still find \(row.id)")
+        }
+    }
+
+    func testAdditionalShortcutRowsAreSearchable() {
+        let ids = SettingsSearchIndex.matches("additional shortcuts").map(\.id)
+        XCTAssertEqual(
+            ids,
+            [
+                "dictation.additional.shortcuts",
+                "dictation.additional.push.to.talk",
+                "dictation.additional.hands.free",
+            ]
+        )
+        XCTAssertTrue(
+            SettingsSearchIndex.matches("external keyboard").contains { $0.id == "dictation.additional.shortcuts" }
+        )
+    }
+
+    /// Rows that share a title must stay apart in the result list, which
+    /// shows only the title and the subtitle.
+    func testEntriesSharingATitleHaveDistinctSubtitles() {
+        var seen: [String: String] = [:]
+        for entry in SettingsSearchIndex.allEntries {
+            let key = "\(entry.title)\n\(entry.subtitle)"
+            if let other = seen[key] {
+                XCTFail("\(entry.id) and \(other) would render as the same search result")
+            }
+            seen[key] = entry.id
+        }
+    }
+
+    // MARK: - Row coverage
+
+    // The rows live in the app target, which the view-model tests cannot
+    // import, so these tests read `SettingsView.swift` as text. Only that file
+    // is scanned: the AI and Calendar tabs build their rows in their own views
+    // and stay covered by their card entries.
+
+    /// Helpers in `SettingsView.swift` whose `title:` is the text a card or
+    /// row shows. A bare `Toggle("…")` label is scanned as well.
+    private static let rowHelpers: Set<String> = [
+        "settingsCard", "SettingsCard", "SettingsRow", "settingsToggleRow", "rowText",
+        "transcriptionHotkeyRow", "resetActionRow", "permissionStatusRow", "modelStatusRow",
+    ]
+
+    /// Helpers that take a `title:` but do not draw a setting: the Storage
+    /// stat tiles and the engine banners.
+    private static let nonRowHelpers: Set<String> = [
+        "metricTile", "speechEngineSwitchBanner", "EngineDownloadBanner",
+    ]
+
+    /// Rows left out of the index on purpose, with the reason.
+    private static let unindexedRowTitles: [String: String] = [
+        "Pending recovery": "status line, shown only while a partial recording waits",
+        "Not applied yet": "status line, shown only until the next relaunch",
+    ]
+
+    private func settingsViewSource() throws -> String {
+        let viewURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/MacParakeet/Views/Settings/SettingsView.swift")
+        return try String(contentsOf: viewURL, encoding: .utf8)
+    }
+
+    /// The capture groups of every match of `pattern` in `source`.
+    private func captures(of pattern: String, in source: String) throws -> [[String]] {
+        let regex = try NSRegularExpression(pattern: pattern)
+        let range = NSRange(source.startIndex..., in: source)
+        return regex.matches(in: source, range: range).map { match in
+            (1..<match.numberOfRanges).compactMap { group in
+                Range(match.range(at: group), in: source).map { String(source[$0]) }
+            }
+        }
+    }
+
+    /// `(helper, title)` for every call that passes a literal title.
+    private func titledCalls(in source: String) throws -> [(helper: String, title: String)] {
+        try captures(of: #"\b(\w+)\(\s*title:\s*"((?:[^"\\]|\\.)+)""#, in: source)
+            .map { (helper: $0[0], title: $0[1]) }
+    }
+
+    /// The row scan only sees helpers it knows by name, so a new or renamed
+    /// helper would drop its rows out of the scan without failing anything.
+    /// This fails instead, until the helper is listed as a row or as not one.
+    func testRowScanKnowsEveryTitledHelperInSettingsView() throws {
+        let source = try settingsViewSource()
+        let declaredHelpers = try captures(
+            of: #"\bfunc\s+(\w+)[^{]*?[(,]\s*title:\s*String"#, in: source
+        ).map { $0[0] }
+        let calledHelpers = try titledCalls(in: source).map(\.helper)
+
+        let unknown = Set(declaredHelpers + calledHelpers)
+            .subtracting(Self.rowHelpers)
+            .subtracting(Self.nonRowHelpers)
+        XCTAssertTrue(
+            unknown.isEmpty,
+            "Titled helpers the row scan does not know: \(unknown.sorted().joined(separator: ", ")). "
+                + "Add each to rowHelpers or nonRowHelpers."
+        )
+
+        let unused = Self.rowHelpers.subtracting(calledHelpers)
+        XCTAssertTrue(
+            unused.isEmpty,
+            "Row helpers no longer called with a literal title: \(unused.sorted().joined(separator: ", ")). "
+                + "A renamed helper would leave its rows unscanned."
+        )
+    }
+
+    /// Every card and row the view declares must have an index entry with the
+    /// exact title it shows. A title declared more than once (Push to talk,
+    /// Voice profiles) needs that many entries, so removing one of them fails
+    /// even though the other still carries the title. Checked against the full
+    /// catalog, so the result does not depend on the feature flags.
+    func testEveryDeclaredSettingsRowTitleIsSearchable() throws {
+        let source = try settingsViewSource()
+        var declared: [String: Int] = [:]
+        for call in try titledCalls(in: source) where Self.rowHelpers.contains(call.helper) {
+            declared[call.title, default: 0] += 1
+        }
+        for toggle in try captures(of: #"\bToggle\(\s*"((?:[^"\\]|\\.)+)""#, in: source) {
+            declared[toggle[0], default: 0] += 1
+        }
+        // `autoSaveOptions` draws its "Format" row once in source but is called
+        // for both the Transcription and Meeting Recording cards.
+        let autoSaveCalls = try captures(of: #"(?<!func )\bautoSaveOptions\(\s*format:"#, in: source).count
+        XCTAssertEqual(autoSaveCalls, 2, "autoSaveOptions should be called once per card")
+        declared["Format", default: 0] += max(autoSaveCalls - 1, 0)
+        XCTAssertGreaterThan(
+            declared.values.reduce(0, +), 40, "The row scan should find the Settings rows"
+        )
+
+        for title in Self.unindexedRowTitles.keys where declared[title] == nil {
+            XCTFail("\(title) is no longer declared; remove it from unindexedRowTitles")
+        }
+
+        var indexed: [String: Int] = [:]
+        for entry in SettingsSearchIndex.allEntries {
+            indexed[entry.title, default: 0] += 1
+        }
+        let missing =
+            declared
+            .filter { Self.unindexedRowTitles[$0.key] == nil && indexed[$0.key, default: 0] < $0.value }
+            .map { "\($0.key) (declared \($0.value), indexed \(indexed[$0.key, default: 0]))" }
+            .sorted()
+        XCTAssertTrue(
+            missing.isEmpty,
+            "Settings rows with no search entry of their own: \(missing.joined(separator: ", "))"
+        )
+    }
 }
