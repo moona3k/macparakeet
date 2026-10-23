@@ -737,6 +737,9 @@ func loadSpeechStackStatus(
             whisperDownloaded
         case .cohere:
             cohereDownloaded
+        case .cloud:
+            // Nothing to download; usable once a server and model are set.
+            CloudSTTConfigStore().isConfigured
         }
 
     async let speechRuntimeReady = sttClient.isReady()

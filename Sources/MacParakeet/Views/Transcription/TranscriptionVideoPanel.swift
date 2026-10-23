@@ -7,6 +7,13 @@ import MacParakeetViewModels
 struct TranscriptionVideoPanel: View {
     let transcription: Transcription
     @Bindable var playerViewModel: MediaPlayerViewModel
+    var translationViewModel: TranscriptTranslationViewModel
+    /// Language the user asked to see as subtitles while its translation is
+    /// still being generated; applied as soon as the translation is saved.
+    @State private var pendingSubtitleLanguage: TranslationLanguage?
+    @AppStorage(UserDefaultsAppRuntimePreferences.autoTranslateTranscriptsKey) private var autoTranslate = false
+    @AppStorage(UserDefaultsAppRuntimePreferences.transcriptTranslationLanguageKey)
+    private var configuredLanguageCode = TranslationLanguage.persian.rawValue
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -32,6 +39,8 @@ struct TranscriptionVideoPanel: View {
 
                             PlaybackSpeedMenu(viewModel: playerViewModel)
 
+                            subtitleLanguageMenu
+
                             Button {
                                 playerViewModel.showSubtitles.toggle()
                             } label: {
@@ -53,6 +62,9 @@ struct TranscriptionVideoPanel: View {
                             .help(playerViewModel.showSubtitles ? "Hide subtitles" : "Show subtitles")
                         }
                         .padding(.top, 6)
+                        if let pending = pendingSubtitleLanguage {
+                            subtitleTranslationStatus(for: pending)
+                        }
                     }
                 }
 
@@ -64,6 +76,129 @@ struct TranscriptionVideoPanel: View {
             }
         }
         .padding(DesignSystem.Spacing.md)
+        .onAppear { autoTranslateSubtitlesIfNeeded() }
+        .onChange(of: playerViewModel.playerState) { autoTranslateSubtitlesIfNeeded() }
+        .onChange(of: translationViewModel.translations) {
+            syncSubtitlesWithTranslations()
+        }
+        .onChange(of: transcription.id) {
+            pendingSubtitleLanguage = nil
+        }
+    }
+
+    // MARK: - Subtitle translation
+
+    private var subtitleLanguageMenu: some View {
+        Menu {
+            Button {
+                pendingSubtitleLanguage = nil
+                playerViewModel.showOriginalSubtitles()
+            } label: {
+                menuItemLabel("Original", isSelected: playerViewModel.subtitleLanguage == nil)
+            }
+            Divider()
+            ForEach(TranslationLanguage.allCases) { language in
+                let saved = translationViewModel.translation(for: language)
+                Button {
+                    selectSubtitleLanguage(language, startIfMissing: true)
+                } label: {
+                    if saved != nil {
+                        menuItemLabel(
+                            "\(language.displayName) · \(language.nativeName)",
+                            isSelected: playerViewModel.subtitleLanguage == language
+                        )
+                    } else {
+                        Text("Translate to \(language.displayName) · \(language.nativeName)")
+                    }
+                }
+                .disabled(
+                    saved.map { !$0.hasTimedSegments }
+                        ?? (!translationViewModel.canTranslate || translationViewModel.isTranslating(language))
+                )
+            }
+        } label: {
+            Label(playerViewModel.subtitleLanguage?.displayName ?? "Translate", systemImage: "globe")
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .font(.system(size: 12, weight: .semibold))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(Capsule().fill(DesignSystem.Colors.surfaceElevated))
+        .help(
+            translationViewModel.canTranslate
+                ? "Subtitle language"
+                : "Set up an AI provider in Settings to translate subtitles"
+        )
+    }
+
+    @ViewBuilder
+    private func menuItemLabel(_ title: String, isSelected: Bool) -> some View {
+        if isSelected {
+            Label(title, systemImage: "checkmark")
+        } else {
+            Text(title)
+        }
+    }
+
+    @ViewBuilder
+    private func subtitleTranslationStatus(for language: TranslationLanguage) -> some View {
+        if let job = translationViewModel.job(for: language) {
+            if let message = job.errorMessage {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 4)
+            } else {
+                ProgressView(value: job.fractionCompleted) {
+                    Text("Translating subtitles to \(language.displayName)…")
+                        .font(.caption)
+                }
+                .controlSize(.small)
+                .padding(.top, 4)
+            }
+        }
+    }
+
+    /// Applies the "translate video subtitles automatically" setting once the
+    /// player is ready. Only timed transcripts can be shown as subtitles.
+    private func autoTranslateSubtitlesIfNeeded() {
+        guard autoTranslate,
+              playerViewModel.playerState == .ready,
+              playerViewModel.subtitleLanguage == nil,
+              pendingSubtitleLanguage == nil,
+              transcription.hasWordTimestamps,
+              !transcription.isTranscriptEdited,
+              let language = TranslationLanguage.resolve(configuredLanguageCode)
+        else { return }
+        selectSubtitleLanguage(language, startIfMissing: translationViewModel.canTranslate)
+    }
+
+    /// Show `language` on the video, generating the translation first when it
+    /// does not exist yet.
+    private func selectSubtitleLanguage(_ language: TranslationLanguage, startIfMissing: Bool) {
+        if let saved = translationViewModel.translation(for: language) {
+            pendingSubtitleLanguage = nil
+            playerViewModel.showTranslatedSubtitles(saved.segments, language: language)
+            playerViewModel.showSubtitles = true
+        } else if startIfMissing {
+            pendingSubtitleLanguage = language
+            translationViewModel.translate(to: language)
+        }
+    }
+
+    private func syncSubtitlesWithTranslations() {
+        if let pending = pendingSubtitleLanguage,
+           translationViewModel.translation(for: pending) != nil {
+            selectSubtitleLanguage(pending, startIfMissing: false)
+        } else if let shown = playerViewModel.subtitleLanguage {
+            // Keep the overlay in step with a re-translation or a deletion.
+            if let saved = translationViewModel.translation(for: shown) {
+                playerViewModel.showTranslatedSubtitles(saved.segments, language: shown)
+            } else {
+                playerViewModel.showOriginalSubtitles()
+            }
+        }
     }
 
     // MARK: - States

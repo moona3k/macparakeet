@@ -432,6 +432,7 @@ struct SettingsView: View {
         scrollableTabBody {
             engineSelectorCard.id("engine.selector")
             engineParakeetModelCard.id("engine.parakeetModel")
+            CloudSpeechServiceCard().id("engine.cloudService")
             engineNemotronModelCard.id("engine.nemotronModel")
             engineCohereModelCard.id("engine.cohereModel")
             engineLanguageCard.id("engine.language")
@@ -624,6 +625,8 @@ struct SettingsView: View {
             return "Switching back to Parakeet reloads the speech engine. Dictation, file transcription, and meetings pause until the switch finishes."
         case .cohere:
             return "Cohere is a local batch engine. It records first and transcribes after you stop, with no live preview, word timestamps, speaker labels, or auto language detection. Dictation, file transcription, and meetings pause until the switch finishes."
+        case .cloud:
+            return "The online engine uploads your audio to the speech service you configured. Recordings leave this Mac; every other engine keeps them on-device. Dictation records first and transcribes after you stop."
         }
     }
 
@@ -634,6 +637,7 @@ struct SettingsView: View {
     private var aiTabContent: some View {
         scrollableTabBody {
             aiProviderCard.id("ai.provider")
+            UsageCard().id("ai.usage")
         }
     }
 
@@ -2458,7 +2462,35 @@ struct SettingsView: View {
             if AppFeatures.cohereEngineEnabled {
                 cohereEngineTile
             }
+            cloudEngineTile
         }
+    }
+
+    private var cloudEngineTile: some View {
+        EngineOptionTile(
+            icon: "cloud",
+            name: "Online",
+            tagline: "Uploads audio to a service",
+            strengths: [
+                "OpenAI-compatible servers",
+                "No local model to download",
+                "Needs internet and an API key"
+            ],
+            helpText: "Choose Online to transcribe with a hosted model such as OpenAI or Groq. Your audio is uploaded to that service; every other engine keeps it on this Mac. Set the server, model, and key in Online Speech Service below.",
+            modelStatus: .ready,
+            isSelected: viewModel.engine.speechEnginePreference == .cloud,
+            isBusy: viewModel.engine.speechEngineSwitching,
+            unavailableReason: engineSwitchUnavailableReason(for: .cloud),
+            selectionRole: engineSelectionRole(for: .cloud),
+            onSelect: {
+                if CloudSTTConfigStore().isConfigured {
+                    selectEngine(.cloud)
+                } else {
+                    viewModel.engine.speechEngineError =
+                        "Set up the Online Speech Service below before switching engines."
+                }
+            }
+        )
     }
 
     private var parakeetEngineTile: some View {
@@ -3145,6 +3177,8 @@ struct SettingsView: View {
             return "Preparing Whisper"
         case .cohere:
             return "Preparing Cohere"
+        case .cloud:
+            return "Switching to the online service"
         }
     }
 

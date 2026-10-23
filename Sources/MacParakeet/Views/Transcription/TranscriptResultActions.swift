@@ -133,6 +133,37 @@ enum TranscriptResultActions {
         }
     }
 
+    /// Exports a saved translation as `.txt` or `.srt`.
+    static func exportTranslationToDownloads(
+        translation: TranscriptTranslation,
+        source: Transcription,
+        format: TranscriptExportFormat
+    ) throws -> URL {
+        do {
+            let baseStem = TranscriptSegmenter.sanitizedExportStem(from: source.effectiveDisplayTitle)
+            let stem = "\(baseStem)-\(translation.languageCode)"
+            let exportService = ExportService()
+            let content =
+                format == .srt
+                ? exportService.formatSRT(translation: translation, speakers: source.speakers)
+                : exportService.formatPlainText(translation: translation, speakers: source.speakers)
+
+            let downloadsURL = try downloadsDirectory()
+            let fileURL = nextAvailableURL(in: downloadsURL, stem: stem, format: format)
+            try content.write(to: fileURL, atomically: true, encoding: .utf8)
+            Telemetry.send(.exportUsed(format: format.rawValue))
+            return fileURL
+        } catch {
+            Telemetry.send(
+                .exportFailed(
+                    format: format.rawValue,
+                    errorType: TelemetryErrorClassifier.classify(error),
+                    errorDetail: TelemetryErrorClassifier.errorDetail(error)
+                ))
+            throw error
+        }
+    }
+
     static func exportTranscriptToDownloads(
         transcription: Transcription,
         format: TranscriptExportFormat,

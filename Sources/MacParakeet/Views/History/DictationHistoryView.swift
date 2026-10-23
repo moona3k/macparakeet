@@ -67,10 +67,27 @@ struct DictationHistoryView: View {
         HStack {
             DictationSubTabPicker(selection: $viewModel.selectedSubTab)
             Spacer()
+            if showsSelectManyButton {
+                Button {
+                    viewModel.beginBulkSelection()
+                } label: {
+                    Label("Select Many", systemImage: "checklist")
+                        .font(DesignSystem.Typography.bodySmall.weight(.semibold))
+                }
+                .parakeetAction(.secondary)
+                .help("Select multiple dictations to delete")
+                .accessibilityHint("Shows selection controls for bulk cleanup")
+            }
         }
         .padding(.horizontal, DesignSystem.Spacing.lg)
         .padding(.top, DesignSystem.Spacing.md)
         .padding(.bottom, DesignSystem.Spacing.sm)
+    }
+
+    private var showsSelectManyButton: Bool {
+        viewModel.selectedSubTab == .history
+            && !viewModel.isBulkSelectionModeEnabled
+            && !viewModel.groupedDictations.isEmpty
     }
 
     // MARK: - History Tab Content
@@ -553,6 +570,7 @@ struct DictationCardRow: View {
                             }
                         }
                     }
+                translationContent
             }
         }
         .padding(DesignSystem.Spacing.md)
@@ -661,6 +679,27 @@ struct DictationCardRow: View {
                 .disabled(isRetrying)
                 .accessibilityLabel(isRetrying ? "Retrying transcription" : "Retry transcription")
             }
+        }
+    }
+
+    /// The dictation's translation, when dictation translation was on.
+    @ViewBuilder
+    private var translationContent: some View {
+        if let translation = dictation.translation, !translation.isEmpty {
+            let language = TranslationLanguage.resolve(dictation.translationLanguage)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(language.map { "Translation · " + $0.displayName } ?? "Translation")
+                    .font(DesignSystem.Typography.caption.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                Text(translation)
+                    .font(DesignSystem.Typography.body)
+                    .foregroundStyle(DesignSystem.Colors.accent)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .environment(\.layoutDirection, language?.isRightToLeft == true ? .rightToLeft : .leftToRight)
+            }
+            .padding(.top, 4)
         }
     }
 

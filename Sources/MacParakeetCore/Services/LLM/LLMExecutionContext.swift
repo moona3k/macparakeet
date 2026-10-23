@@ -4,9 +4,12 @@ public enum LLMTaskGroup: String, Sendable, Codable, CaseIterable {
     case cleanup
     case analysis
     case transform
+    /// Transcript and live-meeting translation (spec F31, ADR-032). Inherits
+    /// the default route; there is no override or specialist recipe yet.
+    case translate
 
     public var allowsOverride: Bool {
-        self != .transform
+        self == .cleanup || self == .analysis
     }
 }
 

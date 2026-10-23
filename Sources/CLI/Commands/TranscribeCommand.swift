@@ -252,6 +252,8 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 explicitLanguage ?? storedLanguage
             case .cohere:
                 explicitLanguage ?? storedCohereLanguage
+            case .cloud:
+                explicitLanguage
             }
         case .parakeet:
             preference = .parakeet
@@ -630,6 +632,12 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 )
                 cohereEngine = createdCohereEngine
                 sttTranscriber = createdCohereEngine
+            case .cloud:
+                // Only reachable when the app's saved engine is the online
+                // service; the CLI has no flag that selects it.
+                printErr("Note: using the online speech service configured in the app. Audio is uploaded to it.")
+                sttTranscriber = CloudTranscribeEngine(
+                    configStore: CloudSTTConfigStore(defaults: defaults))
             }
             let audioProcessor = AudioProcessor()
             let youtubeDownloader = YouTubeDownloader(audioQuality: {

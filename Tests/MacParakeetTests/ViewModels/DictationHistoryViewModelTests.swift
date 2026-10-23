@@ -380,6 +380,17 @@ final class DictationHistoryViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.isDictationSelected(dictation))
     }
 
+    func testBeginBulkSelectionWithoutStartingDictationEnablesModeWithEmptySelection() {
+        let dictation = Dictation(durationMs: 1000, rawTranscript: "Start here")
+        mockRepo.dictations = [dictation]
+        viewModel.configure(dictationRepo: mockRepo)
+
+        viewModel.beginBulkSelection()
+
+        XCTAssertTrue(viewModel.isBulkSelectionModeEnabled)
+        XCTAssertTrue(viewModel.selectedDictationIDs.isEmpty)
+    }
+
     func testExitBulkSelectionClearsModeAndSelection() {
         let dictation = Dictation(durationMs: 1000, rawTranscript: "Start here")
         mockRepo.dictations = [dictation]

@@ -59,6 +59,8 @@ public final class MediaPlayerViewModel {
     public var showSubtitles: Bool = false
     /// Current subtitle text to display (nil when between cues or subtitles disabled)
     public var currentSubtitleText: String?
+    /// Language of the subtitle overlay; `nil` shows the original transcript.
+    public private(set) var subtitleLanguage: TranslationLanguage?
     /// Whether YouTube stream extraction is still pending (local audio preloaded via prepare())
     public var needsVideoStreamLoad: Bool = false
 
@@ -73,6 +75,7 @@ public final class MediaPlayerViewModel {
     public var onPlaybackFilePathConverted: (@MainActor @Sendable (UUID, String, String) async throws -> Void)?
 
     private var subtitleCues: [ExportService.SubtitleCue] = []
+    private var originalSubtitleCues: [ExportService.SubtitleCue] = []
     private var lastCueIndex: Int = -1
     private var timeObserver: Any?
     private var statusObserver: NSKeyValueObservation?
@@ -312,7 +315,9 @@ public final class MediaPlayerViewModel {
 
     /// Load subtitle cues from word timestamps for overlay display.
     public func loadSubtitleCues(from words: [WordTimestamp]) {
-        subtitleCues = ExportService().buildSubtitleCues(from: words)
+        originalSubtitleCues = ExportService().buildSubtitleCues(from: words)
+        subtitleCues = originalSubtitleCues
+        subtitleLanguage = nil
         lastCueIndex = -1
         currentSubtitleText = nil
     }
@@ -320,9 +325,37 @@ public final class MediaPlayerViewModel {
     /// Uses corrected segment envelopes when timed text was edited, while
     /// retaining word-level cues for untouched automatic text.
     public func loadSubtitleCues(from transcription: Transcription) {
-        subtitleCues = ExportService().buildSubtitleCues(from: transcription)
+        originalSubtitleCues = ExportService().buildSubtitleCues(from: transcription)
+        subtitleCues = originalSubtitleCues
+        subtitleLanguage = nil
         lastCueIndex = -1
         currentSubtitleText = nil
+    }
+
+    /// Swap the overlay to a saved translation. Only segments that carry
+    /// timing can be shown on the video.
+    public func showTranslatedSubtitles(_ segments: [TranslatedSegment], language: TranslationLanguage) {
+        let cues = segments.compactMap { segment -> ExportService.SubtitleCue? in
+            guard let startMs = segment.startMs, let endMs = segment.endMs else { return nil }
+            return ExportService.SubtitleCue(
+                startMs: startMs,
+                endMs: endMs,
+                text: segment.text,
+                speakerId: segment.speakerId
+            )
+        }
+        guard !cues.isEmpty else { return }
+        subtitleCues = cues
+        subtitleLanguage = language
+        lastCueIndex = -1
+        updateSubtitleText()
+    }
+
+    public func showOriginalSubtitles() {
+        subtitleCues = originalSubtitleCues
+        subtitleLanguage = nil
+        lastCueIndex = -1
+        updateSubtitleText()
     }
 
     public func cleanup() {

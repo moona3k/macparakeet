@@ -56,6 +56,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `TransformExecutor` pipeline. Gated on `AppFeatures.transformsEnabled`.
     private var transformsCoordinator: TransformsCoordinator?
     private var voiceControlCoordinator: VoiceControlCoordinator?
+    private var liveCaptionsViewModel: LiveCaptionsViewModel?
+    private var liveCaptionsController: LiveCaptionsWindowController?
     private var hasPresentedHotkeyUnavailableAlert = false
     private var hasPresentedHotkeyConflictAlert = false
     private var environmentSetupTask: Task<Void, Never>?
@@ -574,6 +576,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func setupEnvironment(_ env: AppEnvironment) {
+        setupLiveCaptions(env)
         appEnvironment = env
         if let shareStopObserver {
             DistributedNotificationCenter.default().removeObserver(shareStopObserver)
@@ -673,6 +676,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         dictationFlowCoordinator = runtime.dictationFlowCoordinator
+        dictationFlowCoordinator?.liveTranslator.translatorProvider = {
+            guard (try? env.llmConfigStore.loadConfig(for: .translate)) != nil else { return nil }
+            return TranscriptTranslationService(llmService: env.llmService)
+        }
         dictationFlowCoordinator?.isPracticeTarget = { [weak self] in
             self?.onboardingWindowController.isVisible == true
                 && self?.onboardingWindowController.currentViewModel?.isPracticeListening == true
@@ -845,6 +852,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             case .alreadyCached, .disabled, .cancelled:
                 break
             }
+        }
+    }
+
+    /// Live Captions: real-time transcript and translation in a floating
+    /// window, without recording a meeting. Opened from the menu bar.
+    private func setupLiveCaptions(_ env: AppEnvironment) {
+        let viewModel = LiveCaptionsViewModel(sessionFactory: {
+            // Its own capture service, sharing the app's microphone stream.
+            LiveCaptionSession(
+                capture: MeetingAudioCaptureService(
+                    micProcessingMode: .raw,
+                    sourceModeProvider: { .systemOnly },
+                    sharedMicStream: env.sharedMicStream
+                ))
+        })
+        let controller = LiveCaptionsWindowController(viewModel: viewModel)
+        liveCaptionsViewModel = viewModel
+        liveCaptionsController = controller
+        menuBarCoordinator.onLiveCaptions = { [weak viewModel, weak controller] in
+            // Pick up AI provider changes made since the window was last opened.
+            let hasTranslateRoute = (try? env.llmConfigStore.loadConfig(for: .translate)) != nil
+            viewModel?.liveTranslation.updateTranslator(
+                hasTranslateRoute ? TranscriptTranslationService(llmService: env.llmService) : nil)
+            controller?.show()
         }
     }
 
