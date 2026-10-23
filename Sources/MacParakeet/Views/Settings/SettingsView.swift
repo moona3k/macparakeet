@@ -1308,6 +1308,11 @@ struct SettingsView: View {
 
                 Divider()
 
+                if viewModel.playDictationCaptureSounds {
+                    DictationSoundSettingsSection(controller: SoundManager.shared.dictationSounds)
+                    Divider()
+                }
+
                 settingsToggleRow(
                     title: "Keep dictation on clipboard",
                     detail: "Leaves a copy of the pasted text on the clipboard, which helps when a remote desktop needs a manual ⌘V.",

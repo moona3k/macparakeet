@@ -420,6 +420,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         applyAppAppearance()
+        Task { await SoundManager.shared.dictationSounds.prepareCustomSounds() }
         startEnvironmentSetup()
         menuBarCoordinator.setupMainMenu()
         menuBarCoordinator.setMenuBarIconVisible(settingsViewModel.showMenuBarIcon)

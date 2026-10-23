@@ -187,7 +187,8 @@ public enum SettingsSearchIndex {
             subtitle: "in Dictation",
             keywords: [
                 "sound", "tone", "chime", "beep", "start sound", "stop sound",
-                "capture cue", "tink", "pop", "audio feedback",
+                "capture cue", "tink", "pop", "audio feedback", "handy", "marimba",
+                "custom sound", "import sound", "volume", "preview", "wav", "mute",
             ],
             cardAnchor: "dictation"
         ),
