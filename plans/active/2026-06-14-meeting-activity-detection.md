@@ -1,8 +1,8 @@
 # Activity-Based Meeting Detection
 
-**Status:** IN PROGRESS — Phases A+B implemented 2026-06-14 behind
-`AppFeatures.meetingActivityDetectionEnabled = false`. No user-visible behavior
-ships until later phases add coordinator/UI wiring and the flag is validated.
+**Status:** OPT-IN BETA RUNTIME IMPLEMENTED FOR THE NEXT APP RELEASE —
+per-user default off; available in Release builds of this source. Full-suite
+failures and native/browser qualification remain unresolved; see the amendment.
 **Date:** 2026-06-14
 **ADRs:** ADR-024 (activity-based meeting detection — the decision this plan
 implements). Related: ADR-002 (local-first), ADR-014 (meeting recording),
@@ -10,6 +10,51 @@ ADR-015 (concurrent dictation/meeting), ADR-017 (calendar auto-start — the
 coordinator/pure-evaluator pattern to mirror), ADR-023 (activity-based
 auto-stop — consumes the same signal layer this plan builds).
 **Requirement:** REQ-MEET-016 (v0.7, Phases A+B foundation implemented).
+
+## 2026-10-19 amendment: opt-in Beta runtime
+
+PR #1267 implements a narrower prompt-only runtime for the next app release.
+`AppFeatures.meetingActivityDetectionEnabled` is `true` in Debug and Release
+builds of this source; the per-user preference defaults off and the Settings
+row is labelled **Beta**. The published 0.8.10 DMG does not contain this feature.
+A detected call never starts recording automatically, including when an older
+experimental preference stored auto-start: it now resolves to prompt mode.
+
+This deliberately replaces the historical requirement below to keep the
+compile-time flag false until a fully green suite and completed native/idle-CPU
+qualification. The requested usable opt-in path is needed to observe actual
+browser/app behavior and finish that qualification. Availability as an opt-in
+Beta is not a GA claim, a passing full-suite claim, or a waiver of fixing real
+regressions. The prior manual qualification criteria remain work to complete;
+they no longer hide the entire prompt path behind a compile-time gate.
+
+Evidence before the current review fixes: 539 focused tests passed, followed by
+a 54-test detection run (overlapping counts). The canonical Release app and CLI
+built in the installation checkout with the feature patch and existing local
+fixes; this does not prove the clean PR checkout's complete native behavior.
+The full `swift test --force-resolved-versions` run completed with six failed
+assertions in four app test cases (7,622 app XCTest tests, 33 skipped); CLI
+XCTest had 645 tests, two skipped, no failures; Swift Testing had 30 passes.
+The failing cases concern Apple Intelligence availability and transcript layout,
+but no exact-base suite was rerun, so their relation to this change is not
+established. Review-fix verification is pending and must be recorded separately.
+
+Native/browser verification remains pending. An earlier muted Brave/Meet trial
+showed no reminder while Accessibility access for that development identity was
+unconfirmed; it is not evidence of successful detection. Record real joined vs
+prejoin, muted/background, Not now, Record, stale-action, dictation/recorder-busy,
+and app-frontmost idle-CPU observations before claiming those surfaces qualified.
+The current walkthrough records the evidence and limits without private meeting
+URLs or history: [`docs/dev/meeting-detection.html`](../../docs/dev/meeting-detection.html).
+
+The implementation uses public CoreAudio attribution and bounded browser
+Accessibility metadata, not camera inference or automatic recording. Current
+room observations authorize Record; remembered suppression alone does not.
+Historical Phase D auto-recording and new auto-stop attribution remain deferred.
+The phased design below is retained as historical planning; this amendment and
+ADR-024's matching amendment govern the current runtime where they differ.
+
+## Historical phased design
 
 ## What this plan closes out
 

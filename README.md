@@ -55,18 +55,18 @@
 
 ---
 
-MacParakeet combines system-wide dictation, file/media transcription, and meeting recording in one local-first app, with optional selected-text Transforms and agent automation through `macparakeet-cli`. Parakeet v3 is the standard-path local speech engine; locale-aware first-run setup selects WhisperKit instead when the Mac has no preferred English language and prefers Korean, Japanese, Chinese, or Cantonese. Parakeet v2/Unified, Nemotron Beta, Cohere Transcribe, and WhisperKit remain selectable local choices for different language, latency, timestamp, and accuracy needs. Version 0.8.9 is the current stable DMG, with clearer AI setup, saved-key retention, and Apple Intelligence for cleanup. It includes the dictation recovery, transcript and saved-result editing, Library performance, and speech-model improvements from 0.8.8. That download bundles CLI 5.0.0. This source revision prepares 0.8.10 and bundled CLI 5.1.0; those notes are not the download until the release is published. All speech recognition happens on your Mac; networked AI features are separate and opt-in.
+MacParakeet combines system-wide dictation, file/media transcription, and meeting recording in one local-first app, with optional selected-text Transforms and agent automation through `macparakeet-cli`. Parakeet v3 is the standard-path local speech engine; locale-aware first-run setup selects WhisperKit instead when the Mac has no preferred English language and prefers Korean, Japanese, Chinese, or Cantonese. Parakeet v2/Unified, Nemotron Beta, Cohere Transcribe, and WhisperKit remain selectable local choices for different language, latency, timestamp, and accuracy needs. Version 0.8.10 is the current stable DMG and bundles CLI 5.1.0. It includes speaker-count selection, transcript find and replace, additional dictation shortcuts, and meeting-capture recovery improvements; see the [0.8.10 release notes](docs/releases/0.8.10/github.md). This source revision adds opt-in Beta meeting recording reminders for the next app release. All speech recognition happens on your Mac; networked AI features are separate and opt-in.
 
 ## Release status
 
-The [notarized DMG](https://downloads.macparakeet.com/MacParakeet.dmg?v=20260927172238) is the stable release channel.
+The [notarized DMG](https://downloads.macparakeet.com/MacParakeet.dmg) is the stable release channel.
 
 | Channel | Status | Includes |
 |---------|--------|----------|
-| Stable DMG `0.8.9` | Recommended for normal use | Local dictation, file/media transcription, meetings, transcript and saved-result editing, dictation retry, faster Library browsing, and task-specific AI setup. Apple Intelligence serves cleanup; longer analysis and Transforms use another provider. Includes CLI 5.0.0. See the [0.8.9 release notes](docs/releases/0.8.9/github.md) and [0.8.8 feature recap](docs/releases/0.8.8/github.md). |
-| Development source (this revision) | Prepares 0.8.10; not the download yet | Speaker count before transcription, Unattributed leftovers, transcript find and replace, a second dictation shortcut, exact chord matching, opt-in meeting URL controls, meeting-microphone recovery, bounded meeting memory, and bundled CLI 5.1.0. See the [0.8.10 notes](docs/releases/0.8.10/github.md) and the [release/flag table](spec/README.md#release-channels-and-feature-flags). Cross-recording Ask, Voice Control, voice profiles, encrypted share links, and in-process MLX remain release-gated. |
+| Stable DMG `0.8.10` | Recommended for normal use; [published October 14, 2026](https://github.com/moona3k/macparakeet/releases/tag/v0.8.10) | Local dictation, file/media transcription, meetings, speaker-count selection, transcript find and replace, additional dictation shortcuts, meeting-capture recovery improvements, and bundled CLI 5.1.0. See the [0.8.10 release notes](docs/releases/0.8.10/github.md). |
+| Development source (this revision) | Advances beyond 0.8.10; reminder feature targets the next app release | Adds opt-in **Beta** meeting recording reminders, default off and available in Release builds of this source. No automatic activity-based recording. See the [release/flag table](spec/README.md#release-channels-and-feature-flags) for remaining gated features and verification limits. |
 
-See the [canonical release and feature-gate status](spec/README.md#release-channels-and-feature-flags). App-aware AI Formatter profiles, activity-based meeting detection, and the in-process MLX LLM remain gated; source presence does not mean they are available in the stable app.
+See the [canonical release and feature-gate status](spec/README.md#release-channels-and-feature-flags). This source adds opt-in **Beta** meeting recording reminders under Settings → Capture → Meetings for the next app release. The published stable 0.8.10 download does not include these reminders. App-aware AI Formatter profiles and the in-process MLX LLM remain gated; source presence does not mean they are available in the stable app.
 
 Meeting calendar support is live in the stable DMG. MacParakeet reads upcoming meetings from the local macOS Calendar store through EventKit, including Microsoft 365 and Exchange calendars enabled in System Settings → Internet Accounts. It can show reminders and optionally start a recording after a countdown. Auto-start defaults to `.off` and must be opted into. Recordings stop manually unless the separate activity-based auto-stop setting is enabled; that setting also defaults off.
 
@@ -133,7 +133,7 @@ Cohere is the most accurate on-device engine in this benchmark, but its statisti
 
 ## Get it
 
-**Download:** Grab the [notarized DMG](https://downloads.macparakeet.com/MacParakeet.dmg?v=20260927172238) or visit [macparakeet.com](https://macparakeet.com). Drag to Applications, done.
+**Download:** Grab the [notarized DMG](https://downloads.macparakeet.com/MacParakeet.dmg) or visit [macparakeet.com](https://macparakeet.com). Drag to Applications, done.
 
 On the standard path, first launch downloads the default Parakeet CoreML build (~465 MB) plus speaker-detection assets (~130 MB) as needed. Locale-aware Korean/Japanese/Chinese/Cantonese setup downloads WhisperKit instead when no preferred English language is present. Parakeet v2 and v3 cache independently if you install both. Core dictation, local-file transcription, and meeting recording can work offline after required models are installed; media imports, updates, telemetry, and cloud/remote AI providers still require a network.
 
