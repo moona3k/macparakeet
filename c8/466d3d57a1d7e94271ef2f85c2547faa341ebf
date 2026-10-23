@@ -1,0 +1,41 @@
+Sources/MacParakeet/App/VoiceControlCoordinator.swift
+  s_683f9dfee96dd7::t_d7df26edce78ae 426-428
+Sources/MacParakeetCore/Services/VoiceControl/README.md
+  s_683f9dfee96dd7::t_9b47d854d6684e 47
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlSpeechSession.swift
+  s_14e5285b25dc57::t_595536201a5d99 9-10,20-22,32,46,54-55,71-72,74-76,114,207,220,231,246,251-259,267-268,270,276,280,288,301,303,309-310,315-341,415-417
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlSpeechTiming.swift
+  s_683f9dfee96dd7::t_8b9264107773c1 1-98
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTraceStore.swift
+  s_683f9dfee96dd7::t_ef7686c8f5ea2d 86-87,92,102,108,181-197,475-480
+Tests/MacParakeetTests/Services/VoiceControl/VoiceControlSpeechTests.swift
+  s_14e5285b25dc57::t_fd62cb07ef2487 1,74,76,78,84-88,310-442
+Tests/MacParakeetTests/VoiceControl/VoiceControlTraceStoreTests.swift
+  s_683f9dfee96dd7::t_3167c6d1252f25 86-110
+spec/contracts/voice-control.md
+  s_14e5285b25dc57::t_9ac08a6ad4d011 171-178,299-305,477-478
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c8466d3d57a1d7e94271ef2f85c2547faa341ebf",
+  "prompts": {},
+  "sessions": {
+    "s_14e5285b25dc57": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d33723a9-876c-43cd-a921-5dc18a0c9aec",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_683f9dfee96dd7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a158dc-372d-7e81-ae8b-3ab5c44b130d",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
