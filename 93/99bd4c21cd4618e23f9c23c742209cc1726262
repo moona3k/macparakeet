@@ -1,0 +1,66 @@
+spec/contracts/telemetry-v1.md
+  s_712b38be9fe57b::t_b940c143de9bac 56-60
+Sources/MacParakeet/App/DictationURLCommand.swift
+  s_712b38be9fe57b::t_185a2e42bf8aad 1-11,17-27,31-34,36-84
+  s_712b38be9fe57b::t_ef75c161a48325 12-16,35
+  s_712b38be9fe57b::t_30ec5caa00f88e 28
+  s_712b38be9fe57b::t_6cd3f2e15ca021 29-30
+integrations/README.md
+  s_712b38be9fe57b::t_b940c143de9bac 1073-1093,1095-1102
+  s_712b38be9fe57b::t_30ec5caa00f88e 1094
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_712b38be9fe57b::t_185a2e42bf8aad 146
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_712b38be9fe57b::t_185a2e42bf8aad 320-324,1128
+Sources/MacParakeet/AppDelegate.swift
+  s_712b38be9fe57b::t_ef75c161a48325 48-49,58-59
+  s_712b38be9fe57b::t_185a2e42bf8aad 53-57,60-62,414-417,585,799
+spec/contracts/dictation-url-control-v1.md
+  s_712b38be9fe57b::t_b940c143de9bac 1-55,59-93,101-111
+  s_712b38be9fe57b::t_30ec5caa00f88e 56-58,94-100
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_712b38be9fe57b::t_185a2e42bf8aad 497-502,504-507
+  s_712b38be9fe57b::t_9add62272e454d 503
+docs/plans/2026-10-30-issue-1273-dictation-url-controls.md
+  s_712b38be9fe57b::t_b940c143de9bac 1-59
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_712b38be9fe57b::t_185a2e42bf8aad 1312-1318
+  s_712b38be9fe57b::t_0e052c0c9ae6e2 1311
+spec/contracts/README.md
+  s_712b38be9fe57b::t_30ec5caa00f88e 41
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_712b38be9fe57b::t_185a2e42bf8aad 176-182
+  s_712b38be9fe57b::t_bd0e3a870a18bf 175
+spec/02-features.md
+  s_712b38be9fe57b::t_b940c143de9bac 15-25
+Tests/MacParakeetTests/TelemetryServiceTests.swift
+  s_712b38be9fe57b::t_b940c143de9bac 1100-1109
+docs/telemetry.md
+  s_712b38be9fe57b::t_b940c143de9bac 250
+Sources/MacParakeetCore/AppRuntimePreferences.swift
+  s_712b38be9fe57b::t_185a2e42bf8aad 564-570
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_712b38be9fe57b::t_9c1deeb1238326 8-95
+Tests/MacParakeetTests/DictationFlow/DictationURLCommandTests.swift
+  s_712b38be9fe57b::t_bb01ee87467cd2 1-137
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_712b38be9fe57b::t_2875c62a27a5d7 6-13
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_712b38be9fe57b::t_3c949c524ada9e 51-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9399bd4c21cd4618e23f9c23c742209cc1726262",
+  "prompts": {},
+  "sessions": {
+    "s_712b38be9fe57b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18ee5-f506-71d1-b595-2fb20f5c5358",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
