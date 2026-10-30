@@ -320,17 +320,19 @@ final class MeetingRecordingFlowCoordinator {
         pauseToggleTask = Task { @MainActor [meetingRecordingService, weak self] in
             await previous?.value
             guard !Task.isCancelled, let self,
-                  self.stateMachine.generation == generation,
-                  self.stateMachine.state == .recording else { return }
+                self.stateMachine.generation == generation,
+                self.stateMachine.state == .recording
+            else { return }
             if wantPause {
                 await meetingRecordingService.pauseRecording()
             } else {
                 await meetingRecordingService.resumeRecording()
             }
             guard !Task.isCancelled,
-                  self.stateMachine.generation == generation,
-                  self.stateMachine.state == .recording,
-                  self.pillViewModel.canTogglePause else { return }
+                self.stateMachine.generation == generation,
+                self.stateMachine.state == .recording,
+                self.pillViewModel.canTogglePause
+            else { return }
             self.pendingPauseTarget = nil
             self.pausePublicationRevision &+= 1
             self.pillViewModel.state = wantPause ? .paused : .recording
@@ -358,11 +360,14 @@ final class MeetingRecordingFlowCoordinator {
 
     private func updateActiveMeetingType(_ meetingTypeID: UUID?) {
         meetingTypeIDSetter(meetingTypeID)
+        let generation = stateMachine.generation
         let previousUpdate = meetingTypeUpdateTail
-        meetingTypeUpdateTail = Task { @MainActor [meetingRecordingService] in
+        meetingTypeUpdateTail = Task { @MainActor [weak self, meetingRecordingService] in
             await previousUpdate?.value
-            guard !Task.isCancelled else { return }
-            await meetingRecordingService.updateMeetingType(meetingTypeID)
+            guard let sessionID = await meetingRecordingService.activeSessionID,
+                !Task.isCancelled, self?.stateMachine.generation == generation
+            else { return }
+            await meetingRecordingService.updateMeetingType(meetingTypeID, for: sessionID)
         }
     }
 
@@ -727,8 +732,13 @@ final class MeetingRecordingFlowCoordinator {
             // originally consumed these notes was reverted on 2026-05-02; the
             // notes themselves and the {{userNotes}} template variable remain
             // available for custom prompts.
+            let notesGeneration = stateMachine.generation
             panelVM.notesViewModel.bindPersist { [weak self] notes in
-                await self?.meetingRecordingService.updateNotes(notes)
+                guard let self,
+                    let sessionID = await self.meetingRecordingService.activeSessionID,
+                    self.stateMachine.generation == notesGeneration
+                else { return }
+                await self.meetingRecordingService.updateNotes(notes, for: sessionID)
             }
             panelViewModel = panelVM
 
@@ -944,7 +954,9 @@ final class MeetingRecordingFlowCoordinator {
             // stop cannot fail and leave the original start running unowned.
             let precedingStartTask = actionTask
             actionTask = Task { @MainActor in
-                var stoppedOutput: MeetingRecordingOutput?
+                var stoppedInput: MeetingFinalizationInput?
+                var preparedTranscriptionID: UUID?
+                var stoppedOutput: MeetingRecordingOutput? { stoppedInput?.recording }
                 var captureDiagnostics: MeetingCaptureDiagnostics?
                 let queueingStartedAt = Date()
                 var queueingOutcome = "success"
@@ -975,7 +987,7 @@ final class MeetingRecordingFlowCoordinator {
                 defer {
                     appendStopStage(
                         "queued_total",
-                        sessionID: stoppedOutput?.sessionID ?? activeSessionID,
+                        sessionID: stoppedInput?.sessionID ?? activeSessionID,
                         startedAt: queueingStartedAt,
                         outcome: queueingOutcome,
                         detail: queueingFailureDetail
@@ -994,15 +1006,16 @@ final class MeetingRecordingFlowCoordinator {
                         // Transcription.userNotes (ADR-020 §8).
                         let notesCommitStartedAt = Date()
                         await notesVM?.commit()
+                        await self.meetingTypeUpdateTail?.value
                         appendStopStage(
                             "notes_commit",
                             sessionID: activeSessionID,
                             startedAt: notesCommitStartedAt
                         )
                         let serviceStopStartedAt = Date()
-                        let output: MeetingRecordingOutput
+                        let input: MeetingFinalizationInput
                         do {
-                            output = try await meetingRecordingService.stopRecording()
+                            input = try await meetingRecordingService.stopForFinalization()
                         } catch {
                             if let activeSessionID {
                                 captureDiagnostics = await meetingRecordingService.captureDiagnostics(
@@ -1017,39 +1030,28 @@ final class MeetingRecordingFlowCoordinator {
                             )
                             throw error
                         }
-                        stoppedOutput = output
-                        captureDiagnostics = await meetingRecordingService.captureDiagnostics(for: output.sessionID)
-                        appendStopStage(
-                            "service_stop",
-                            sessionID: output.sessionID,
-                            startedAt: serviceStopStartedAt
-                        )
-                        Telemetry.send(
-                            .meetingRecordingCompleted(
-                                durationSeconds: output.durationSeconds,
-                                liveWordCount: liveWordCount,
-                                liveTranscriptLagged: liveTranscriptLagged
-                            ))
+                        stoppedInput = input
+                        captureDiagnostics = await meetingRecordingService.captureDiagnostics(for: input.sessionID)
+                        appendStopStage("service_stop", sessionID: input.sessionID, startedAt: serviceStopStartedAt)
                         let prepareRowStartedAt = Date()
-                        var prepared: Transcription
+                        let prepared: Transcription
                         do {
-                            prepared = try await transcriptionService.prepareMeetingTranscription(
-                                recording: output
-                            )
-                            // The user can refine the type while recording.
-                            // Snapshot it immediately before queueing so the
-                            // durable stub and auto-run routing agree.
-                            let meetingTypeID = output.meetingTypeId ?? self.meetingTypeIDProvider()
-                            try self.transcriptionRepo.updateMeetingType(
-                                id: prepared.id,
-                                meetingTypeId: meetingTypeID
-                            )
-                            prepared.meetingTypeId = meetingTypeID
+                            switch input {
+                            case .capture(let capture):
+                                prepared = capture.makeProcessingTranscription()
+                                let repo = self.transcriptionRepo
+                                try await Task.detached(priority: .userInitiated) { try repo.save(prepared) }.value
+                            case .prepared(let output):
+                                var row = try await transcriptionService.prepareMeetingTranscription(recording: output)
+                                let meetingTypeID = output.meetingTypeId ?? self.meetingTypeIDProvider()
+                                try self.transcriptionRepo.updateMeetingType(id: row.id, meetingTypeId: meetingTypeID)
+                                row.meetingTypeId = meetingTypeID
+                                prepared = row
+                            }
+                            preparedTranscriptionID = prepared.id
                         } catch {
                             appendStopStage(
-                                "prepare_row",
-                                sessionID: output.sessionID,
-                                startedAt: prepareRowStartedAt,
+                                "prepare_row", sessionID: input.sessionID, startedAt: prepareRowStartedAt,
                                 outcome: error is CancellationError ? "cancelled" : "failure",
                                 detail: "error_type=\(TelemetryErrorClassifier.classify(error))"
                             )
@@ -1057,24 +1059,37 @@ final class MeetingRecordingFlowCoordinator {
                         }
                         appendStopStage(
                             "prepare_row",
-                            sessionID: output.sessionID,
+                            sessionID: input.sessionID,
                             startedAt: prepareRowStartedAt
                         )
                         self.persistLiveAskConversationIfNeeded(transcriptionID: prepared.id)
                         let enqueueStartedAt = Date()
-                        await meetingTranscriptionQueue.enqueue(
-                            MeetingTranscriptionQueue.Item(
-                                recording: output,
-                                transcriptionID: prepared.id,
-                                recordingGeneration: gen,
-                                operationContext: operationContext,
-                                trigger: operationTrigger,
-                                liveWordCount: liveWordCount,
+                        let item = MeetingTranscriptionQueue.Item(
+                            input: input, transcriptionID: prepared.id, recordingGeneration: gen,
+                            operationContext: operationContext, trigger: operationTrigger,
+                            liveWordCount: liveWordCount, liveTranscriptLagged: liveTranscriptLagged
+                        )
+                        let admitted: Bool
+                        if case .capture = input {
+                            admitted = try await meetingTranscriptionQueue.enqueueClaimingFinalizationOwnership(item)
+                        } else {
+                            admitted = await meetingTranscriptionQueue.enqueue(item)
+                        }
+                        guard admitted else { throw MeetingFinalizationRetryError.alreadyProcessing }
+                        let durationSeconds: TimeInterval
+                        switch input {
+                        case .capture(let capture):
+                            durationSeconds = Double(capture.metadata.captureReport?.capturedDurationMs ?? 0) / 1_000
+                        case .prepared(let output): durationSeconds = output.durationSeconds
+                        }
+                        Telemetry.send(
+                            .meetingRecordingCompleted(
+                                durationSeconds: durationSeconds, liveWordCount: liveWordCount,
                                 liveTranscriptLagged: liveTranscriptLagged
                             ))
                         appendStopStage(
                             "queue_enqueue",
-                            sessionID: output.sessionID,
+                            sessionID: input.sessionID,
                             startedAt: enqueueStartedAt
                         )
                         return prepared
@@ -1083,23 +1098,25 @@ final class MeetingRecordingFlowCoordinator {
                     self.currentMeetingTrigger = nil
                     self.sendEvent(.recordingQueued(generation: gen, transcriptionID: prepared.id))
                 } catch {
-                    // If stop already succeeded, the lock is already
-                    // awaitingTranscription. Leave it for recovery to retry.
+                    if case .capture(let capture) = stoppedInput {
+                        await self.relinquishUnqueuedCapture(capture, transcriptionID: preparedTranscriptionID)
+                    }
+                    // Saved sources remain discoverable even when row/admission failed.
                     if error is CancellationError {
                         queueingOutcome = "cancelled"
                         queueingFailureDetail = "error_type=\(TelemetryErrorClassifier.classify(error))"
                         self.sendMeetingOperation(
                             outcome: .cancelled,
                             output: stoppedOutput,
-                            stage: stoppedOutput == nil ? .stopRecording : .completeTranscription,
+                            stage: stoppedInput == nil ? .stopRecording : .completeTranscription,
                             captureDiagnostics: captureDiagnostics,
                             liveWordCount: liveWordCount,
                             liveTranscriptLagged: liveTranscriptLagged
                         )
                         let message =
-                            stoppedOutput == nil
+                            stoppedInput == nil
                             ? "Meeting stop was cancelled"
-                            : "Meeting processing was interrupted and will be retried automatically."
+                            : "Meeting audio was saved. Retry from the Library or Pending Recovery in Settings."
                         self.sendEvent(
                             .transcriptionFailed(
                                 generation: gen,
@@ -1118,7 +1135,7 @@ final class MeetingRecordingFlowCoordinator {
                         self.sendMeetingOperation(
                             outcome: .failure,
                             output: stoppedOutput,
-                            stage: stoppedOutput == nil ? .stopRecording : .completeTranscription,
+                            stage: stoppedInput == nil ? .stopRecording : .completeTranscription,
                             captureDiagnostics: captureDiagnostics,
                             liveWordCount: liveWordCount,
                             liveTranscriptLagged: liveTranscriptLagged,
@@ -1831,6 +1848,27 @@ final class MeetingRecordingFlowCoordinator {
         }
     }
 
+    private func relinquishUnqueuedCapture(_ capture: MeetingRecordingCapture, transcriptionID: UUID?) async {
+        let repo = transcriptionRepo
+        do {
+            try await Task.detached(priority: .utility) {
+                let released = try MeetingRecordingLockFileStore().relinquishUnqueuedCapture(
+                    folderURL: capture.folderURL, sessionID: capture.sessionID
+                )
+                if released, let transcriptionID {
+                    try repo.updateStatus(
+                        id: transcriptionID, status: .error,
+                        errorMessage: "Audio saved. Meeting preparation could not be queued. Retry this meeting."
+                    )
+                }
+            }.value
+        } catch {
+            AudioCaptureDiagnostics.append(
+                "meeting_capture_handoff_recovery_failed session=\(capture.sessionID.uuidString) error_type=\(TelemetryErrorClassifier.classify(error))"
+            )
+        }
+    }
+
     private func makeRetryQueueItem(from transcription: Transcription) async throws -> MeetingTranscriptionQueue.Item {
         let repo = transcriptionRepo
         let recordingGeneration = stateMachine.generation
@@ -1855,13 +1893,19 @@ final class MeetingRecordingFlowCoordinator {
                 MeetingAudioFile.mixedAudioURL(for: latest)
                 ?? folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.playback)
             let durationSeconds = latest.durationMs.map { max(0, Double($0) / 1000.0) } ?? 0
-            let recording = try MeetingRecordingOutput.loadArchived(
-                displayName: latest.effectiveDisplayTitle,
-                mixedAudioURL: mixedAudioURL,
-                durationSeconds: durationSeconds
-            )
+            let input: MeetingFinalizationInput
+            if !MeetingRecordingOutput.isViablePlaybackFile(at: mixedAudioURL) {
+                input = .capture(try MeetingRecordingCapture.load(from: folderURL))
+            } else {
+                input = .prepared(
+                    try MeetingRecordingOutput.loadArchived(
+                        displayName: latest.effectiveDisplayTitle,
+                        mixedAudioURL: mixedAudioURL,
+                        durationSeconds: durationSeconds
+                    ))
+            }
             return MeetingTranscriptionQueue.Item(
-                recording: recording,
+                input: input,
                 transcriptionID: latest.id,
                 recordingGeneration: recordingGeneration,
                 operationContext: ObservabilityOperationContext(),

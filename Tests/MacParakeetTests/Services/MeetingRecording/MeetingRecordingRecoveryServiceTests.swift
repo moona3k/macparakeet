@@ -875,8 +875,12 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         )
         try transcriptionRepo.save(stub)
 
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: mixedURL.path),
+            "The source-only handoff must not require a preexisting mix")
         let recovered = try await recoveryService.recover(fixture.lock)
 
+        XCTAssertTrue(MeetingRecordingOutput.isViablePlaybackFile(at: mixedURL))
         XCTAssertEqual(recovered.id, stub.id)
         XCTAssertTrue(recovered.recoveredFromCrash)
         XCTAssertEqual(transcriptionService.recordings.count, 0)

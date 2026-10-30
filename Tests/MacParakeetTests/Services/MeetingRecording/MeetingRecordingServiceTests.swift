@@ -4,6 +4,85 @@ import XCTest
 @testable import MacParakeetCore
 
 final class MeetingRecordingServiceTests: XCTestCase {
+    func testNextCaptureWritesAudioWhilePreviousPlaybackIsBlocked() async throws {
+        try await assertNextCaptureSurvivesPlayback(.success)
+    }
+
+    func testPlaybackFallbackCannotResetNextCapture() async throws {
+        try await assertNextCaptureSurvivesPlayback(.fallback)
+    }
+
+    func testCancelledPlaybackCannotResetNextCaptureOrRunFallback() async throws {
+        try await assertNextCaptureSurvivesPlayback(.cancelled)
+    }
+
+    private func assertNextCaptureSurvivesPlayback(_ outcome: GatedPlaybackConverter.Outcome) async throws {
+        let audio = MockMeetingAudioCaptureService()
+        let converter = GatedPlaybackConverter(outcome: outcome)
+        let service = MeetingRecordingService(
+            audioCaptureService: audio, audioConverter: converter,
+            sttTranscriber: CountingMeetingSTTClient(),
+            micConditionerFactory: { PassthroughMicConditioner() }
+        )
+        try await service.startRecording(title: "A")
+        await service.updateNotes("A notes")
+        let firstType = UUID()
+        await service.updateMeetingType(firstType)
+        let buffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 48_000, sampleValue: 0.25, sampleRate: 48_000))
+        let time = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100))
+        await audio.yield(.microphoneBuffer(buffer, time))
+        await audio.yield(.systemBuffer(buffer, time))
+        guard case .capture(let first) = try await service.stopForFinalization() else {
+            return XCTFail("Production stop must hand off sources before playback")
+        }
+        defer { try? FileManager.default.removeItem(at: first.folderURL) }
+        let lock = try XCTUnwrap(MeetingRecordingLockFileStore().read(folderURL: first.folderURL))
+        XCTAssertEqual(lock.state, .awaitingTranscription)
+        XCTAssertEqual(lock.notes, "A notes")
+        XCTAssertEqual(first.metadata.meetingTypeId, firstType)
+        let stub = first.makeProcessingTranscription()
+        XCTAssertNil(stub.durationMs)
+        XCTAssertNil(stub.fileSizeBytes)
+        XCTAssertEqual(stub.filePath, first.mixedAudioURL.path)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: first.mixedAudioURL.path))
+        let preparation = Task { try await first.preparePlayback(using: converter) }
+        defer { converter.release.signal() }
+        try await containmentBeforeDeadline { await converter.entered.wait() }
+
+        try await service.startRecording(title: "B")
+        let secondID = await service.activeSessionID
+        await service.updateNotes("B notes")
+        await service.updateMeetingType(nil)
+        // Even a stale UI callback already queued before B started is scoped.
+        await service.updateNotes("stale A notes", for: first.sessionID)
+        await service.updateMeetingType(firstType, for: first.sessionID)
+        await audio.yield(.microphoneBuffer(buffer, time))
+        await audio.yield(.systemBuffer(buffer, time))
+        if outcome == .cancelled { preparation.cancel() }
+        converter.release.signal()
+        do {
+            let output = try await containmentBeforeDeadline { try await preparation.value }
+            XCTAssertNotEqual(outcome, .cancelled)
+            XCTAssertEqual(output.sessionID, first.sessionID)
+            XCTAssertEqual(output.userNotes, "A notes")
+            XCTAssertEqual(output.captureReport?.playbackFallbackSource != nil, outcome == .fallback)
+        } catch is CancellationError {
+            XCTAssertEqual(outcome, .cancelled)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: first.mixedAudioURL.path))
+        }
+        let stillActiveID = await service.activeSessionID
+        XCTAssertEqual(stillActiveID, secondID)
+        let second = try await service.stopCapture()
+        defer { try? FileManager.default.removeItem(at: second.folderURL) }
+        XCTAssertEqual(second.displayName, "B")
+        XCTAssertEqual(second.lock.notes, "B notes")
+        XCTAssertNil(second.metadata.meetingTypeId)
+        XCTAssertGreaterThan(second.metadata.sourceAlignment.microphone?.writtenFrameCount ?? 0, 0)
+        XCTAssertGreaterThan(second.metadata.sourceAlignment.system?.writtenFrameCount ?? 0, 0)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: first.microphoneAudioURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: first.systemAudioURL.path))
+    }
+
     func testStopOwnsSettlementAndConcurrentDiscardCannotDeleteSavedAudio() async throws {
         let capture = MockMeetingAudioCaptureService(holdStop: true)
         let lockStore = RecordingLockFileStore()
@@ -5993,4 +6072,21 @@ private actor ChunkRangeRecordingMeetingSTTClient: STTClientProtocol {
     func clearModelCache() async {}
 
     func shutdown() async {}
+}
+
+private final class GatedPlaybackConverter: AudioFileConverting, Sendable {
+    enum Outcome: Sendable, Equatable { case success, fallback, cancelled }
+    let entered = MeetingTestAsyncSignal()
+    let release = MeetingTestAsyncSignal()
+    let outcome: Outcome
+
+    init(outcome: Outcome) { self.outcome = outcome }
+    func convert(fileURL: URL) async throws -> URL { fileURL }
+    func mixToM4A(inputURLs: [URL], outputURL: URL, sourceAlignment: MeetingSourceAlignment?) async throws {
+        entered.signal()
+        await release.wait()
+        try Task.checkCancellation()
+        if outcome == .fallback { throw MeetingAudioError.mixFailed("Injected mix failure") }
+        try FileManager.default.copyItem(at: inputURLs[0], to: outputURL)
+    }
 }

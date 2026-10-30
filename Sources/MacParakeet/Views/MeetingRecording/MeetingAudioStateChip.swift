@@ -10,6 +10,11 @@ struct MeetingAudioStateChip: View {
         switch state {
         case .saved, .notMeeting:
             EmptyView()
+        case .sourcesSaved:
+            Text("Playback pending")
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .help("Source audio is saved. Playback will be available after preparation finishes.")
         case .removed:
             Button {
                 showingUnavailableAudioExplanation.toggle()
@@ -53,7 +58,7 @@ struct MeetingAudioStateChip: View {
         switch state {
         case .missing:
             return DesignSystem.Colors.warningAmber
-        case .saved, .removed, .notMeeting:
+        case .saved, .sourcesSaved, .removed, .notMeeting:
             return DesignSystem.Colors.textTertiary
         }
     }
@@ -62,7 +67,7 @@ struct MeetingAudioStateChip: View {
         switch state {
         case .missing:
             return DesignSystem.Colors.warningAmber.opacity(0.12)
-        case .saved, .removed, .notMeeting:
+        case .saved, .sourcesSaved, .removed, .notMeeting:
             return .clear
         }
     }
@@ -71,7 +76,7 @@ struct MeetingAudioStateChip: View {
         switch state {
         case .missing:
             return "Meeting audio file is missing"
-        case .saved, .removed, .notMeeting:
+        case .saved, .sourcesSaved, .removed, .notMeeting:
             return ""
         }
     }

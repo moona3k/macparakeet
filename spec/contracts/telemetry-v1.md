@@ -333,3 +333,13 @@ Deploy the website validator before releasing a client that emits new
 `build_number`). Unknown event names still 400 the whole batch; unknown keys
 on this event are dropped silently. A paired source change or passing app
 tests does not prove the deployed endpoint accepts the fields.
+
+### Source-only meeting stop
+
+`meetingRecordingCompleted` at queue admission uses the captured source-timeline
+duration when playback has not yet been prepared. Ready-output callers retain
+probed playback duration. Failed playback preparation has no ready recording
+output; unknown output-derived facts are omitted. The local
+`meeting_playback_prepared` and `prepare_playback` queue stage diagnostics record
+derivation timing separately from stop/capture settlement. No audio, notes,
+transcript text, or new network payload fields are added.

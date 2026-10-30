@@ -130,9 +130,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         // of the audio metadata still succeeds; only the typed notes are lost.
         notes = (try? container.decodeIfPresent(String.self, forKey: .notes)) ?? nil
         meetingTypeId = (try? container.decodeIfPresent(UUID.self, forKey: .meetingTypeId)) ?? nil
-        audioRetentionStartedAt = (
-            try? container.decodeIfPresent(Date.self, forKey: .audioRetentionStartedAt)
-        ) ?? nil
+        audioRetentionStartedAt = (try? container.decodeIfPresent(Date.self, forKey: .audioRetentionStartedAt)) ?? nil
         titleOverride = Transcription.normalizedTitleOverride(
             from: (try? container.decodeIfPresent(String.self, forKey: .titleOverride)) ?? nil
         )
@@ -418,6 +416,22 @@ public final class MeetingRecordingLockFileStore:
             return processChecker.isAlive(pid: pid)
         }
         return false
+    }
+
+    /// A settled capture that could not enter the queue has no remaining owner.
+    /// Make it discoverable in this process as well as after a restart. Never
+    /// revoke a queue/recovery lease or an active recording's ownership.
+    @discardableResult
+    public func relinquishUnqueuedCapture(folderURL: URL, sessionID: UUID) throws -> Bool {
+        try Self.withFinalizationOwnershipMutex(folderURL: folderURL) {
+            guard let lock = try read(folderURL: folderURL),
+                lock.sessionId == sessionID, lock.pid == processID,
+                lock.state == .awaitingTranscription, lock.finalizationLeaseId == nil,
+                !MeetingAudioWriterFinalizationRegistry.contains(folderURL: folderURL)
+            else { return false }
+            try write(lock.withFinalizationOwner(pid: 0, leaseID: UUID()), folderURL: folderURL)
+            return true
+        }
     }
 
     public func claimFinalizationOwnership(

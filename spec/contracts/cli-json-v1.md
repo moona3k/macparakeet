@@ -566,3 +566,13 @@ conversations expose optional `messages[].activities`, preserving compatibility
 with older messages. Limits, count semantics, and fields are defined in
 [the Ask workspace contract](ask-workspace.md). Consumers should ignore unknown
 event types and optional fields.
+
+### Meetings awaiting playback preparation
+
+A processing meeting may have durable source audio before its canonical
+playback file exists (#1291). Its `filePath` remains the intended canonical path
+for identity/recovery; optional `durationMs` is absent while unknown. Consumers
+must not infer file availability from the presence of that path. Artifact paths
+continue to report retained files under their existing rules. Completed meetings
+retain measured playback durations and the existing schema. There are no new
+CLI capture start/stop commands.

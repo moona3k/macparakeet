@@ -19,6 +19,25 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         tempRoot = nil
     }
 
+    func testUnqueuedCaptureBecomesRecoverableWithoutReleasingAnotherOwner() throws {
+        let folder = tempRoot.appendingPathComponent("unqueued")
+        let lock = MeetingRecordingLockFile(
+            sessionId: UUID(), startedAt: Date(), displayName: "A",
+            state: .awaitingTranscription, folderURL: folder
+        )
+        let store = MeetingRecordingLockFileStore()
+        try store.write(lock, folderURL: folder)
+        XCTAssertFalse(try store.relinquishUnqueuedCapture(folderURL: folder, sessionID: UUID()))
+        XCTAssertTrue(try store.relinquishUnqueuedCapture(folderURL: folder, sessionID: lock.sessionId))
+        XCTAssertEqual(try store.discoverOrphans(meetingsRoot: tempRoot).map(\.sessionId), [lock.sessionId])
+        let lease = try store.claimFinalizationOwnership(folderURL: folder)
+        XCTAssertFalse(try store.relinquishUnqueuedCapture(folderURL: folder, sessionID: lock.sessionId))
+        XCTAssertEqual(try store.read(folderURL: folder)?.finalizationLeaseId, lease.id)
+        try store.releaseFinalizationOwnership(lease)
+        try store.write(lock.withState(.recording), folderURL: folder)
+        XCTAssertFalse(try store.relinquishUnqueuedCapture(folderURL: folder, sessionID: lock.sessionId))
+    }
+
     func testWriteThenReadRoundTrip() throws {
         let folderURL = tempRoot.appendingPathComponent("session")
         let lockFile = makeLockFile(folderURL: folderURL)
@@ -38,7 +57,8 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
             audioRetentionStartedAt: retentionStartedAt,
             titleOverride: "Partnership discussion"
         )
-        let transitioned = lockFile
+        let transitioned =
+            lockFile
             .withState(.awaitingTranscription)
             .withFinalizationOwner(pid: 456, leaseID: UUID())
 

@@ -136,14 +136,16 @@ the session folder before any audio is captured:
 }
 ```
 
-On `stopRecording()` (success path), the marker is rewritten to
-`state: "awaitingTranscription"` after the writers have been
-finalized, `meeting-recording-metadata.json` is on disk, and `meeting-playback.m4a` has been
-mixed. The marker is **atomically deleted** only after the post-stop
+On `stopCapture()` (success path), the marker is rewritten to
+`state: "awaitingTranscription"` after the writers have been finalized and
+`meeting-recording-metadata.json` is on disk. Playback mixing is deferred to
+the existing queue (#1291); this state no longer requires `meeting-playback.m4a`
+to exist. The compatibility `stopRecording()` interface still awaits playback
+and returns a ready output, without retaining capture ownership. The marker is **atomically deleted** only after the post-stop
 `Transcription` row has been completed. The stopped-session path first saves a
 processing Library row, then queues final transcription; the lock stays in
 place while that row is awaiting transcription. This keeps the audio
-recoverable if the app crashes in the clean-stop window between mixing and
+recoverable if the app crashes in the clean-stop window between source settlement and
 transcription completion. On capture or mix failure, the marker stays in place
 and the session is treated as recoverable.
 `cancelRecording()` deletes the marker and the session folder because

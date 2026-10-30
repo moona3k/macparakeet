@@ -15,6 +15,8 @@ public enum MeetingAudioFile {
     public enum State: Equatable, Sendable {
         case notMeeting
         case saved
+        /// Durable sources remain, but canonical playback is not ready.
+        case sourcesSaved
         case removed
         case missing
     }
@@ -105,7 +107,34 @@ public enum MeetingAudioFile {
         if exists && !isDirectory.boolValue {
             return .saved
         }
+        if let folderURL = MeetingArtifactStore.sessionFolderURL(for: transcription),
+            hasRetainedSources(in: folderURL, fileManager: fileManager)
+        {
+            return .sourcesSaved
+        }
         return .missing
+    }
+
+    /// A cheap source-presence check for presentation. Playback preparation
+    /// performs the decodability check off the main actor before finalization.
+    private static func hasRetainedSources(in folderURL: URL, fileManager: FileManager) -> Bool {
+        let sources = [
+            MeetingArtifactAudioFileNames.resolveRawMicrophoneURL(in: folderURL, fileManager: fileManager),
+            MeetingArtifactAudioFileNames.resolveRawSystemURL(in: folderURL, fileManager: fileManager),
+        ]
+        return sources.contains { source in
+            guard source.exists,
+                let size = try? fileManager.attributesOfItem(atPath: source.url.path)[.size] as? NSNumber
+            else { return false }
+            return size.int64Value > 0
+        }
+    }
+
+    public static func canRetryFinalization(for transcription: Transcription, fileManager: FileManager = .default)
+        -> Bool
+    {
+        let audioState = state(for: transcription, fileManager: fileManager)
+        return audioState == .saved || audioState == .sourcesSaved
     }
 
     // MARK: - Safe copy

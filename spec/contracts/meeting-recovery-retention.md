@@ -57,8 +57,9 @@ Stable lock fields:
 Stable states:
 
 - `recording`: capture may still be writing source audio.
-- `awaitingTranscription`: source/mixed audio has been finalized, but final
-  transcription or recovery cleanup has not completed.
+- `awaitingTranscription`: source writers and capture metadata are settled;
+  canonical playback preparation, final transcription, or recovery cleanup may
+  still be pending. Playback need not exist. The lock remains a retention barrier.
 
 `notes` is a backward-compatible additive field. Missing values decode to safe
 defaults, and malformed `notes` does not block recovery of the structural lock
@@ -70,9 +71,10 @@ the optional retention clock for the managed copy, and a normalized explicit
 title when present. Older locks omit both fields and keep their existing behavior.
 
 `finalizationLeaseId` is a backward-compatible optional ownership token.
-Normal stop-and-queue locks and older locks omit it. Retry and crash-recovery
-flows write a fresh token together with the claiming process PID before they
-touch the transcript row or start STT. A missing token decodes as `nil`. A
+Older normal stop-and-queue locks omit it. Source-only capture admission now
+claims a token before entering the existing queue; retry and crash-recovery
+also claim before processing. A live lease spans playback preparation, final
+transcription, and settlement. No second capture owns that folder. A missing token decodes as `nil`. A
 malformed token or zero-byte file makes `read` return `nil` (the same as
 today's corrupt-JSON path). Reconciliation then treats that row as unowned
 and marks it retryable; claim treats a *present but unreadable* lock as dead
@@ -466,3 +468,21 @@ name, or acquisition semantics must also update this file's Meeting Media
 Mutation Lease section and `MeetingMediaMutationLeaseTests`. Migrating a GUI
 or CLI call site to `deleteTranscription`/`clearManagedMeetingAudio` should
 update the call-site bullet above rather than leave it stale.
+
+## Source-only capture handoff (#1291)
+
+The recorder releases shared capture state after finalized sources, alignment,
+notes, and the awaiting-transcription lock are durable. The coordinator persists
+one processing row under the expected canonical playback path and admits it to
+the existing queue before advertising idle. Its duration/size are unknown until
+playback preparation succeeds. Recovery already rebuilds playback from source
+files and matches that canonical path to reuse an existing row.
+
+A failed row save or queue admission explicitly relinquishes an unleased,
+awaiting-transcription lock belonging to the same session/process: under the
+ownership mutex it writes a dead owner PID (0) and a fresh token. This makes
+Pending Recovery discover it without restarting. It never revokes an active
+lease, a recording-state lock, or pending writer finalization. If relinquishing
+also fails, source data stays retained and restart recovery remains available.
+A failed prepared job restores its previous ownership and marks its existing
+row retryable. Retry rebuilds absent/undecodable playback before STT.

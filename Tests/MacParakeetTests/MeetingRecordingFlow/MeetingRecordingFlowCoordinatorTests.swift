@@ -1,3 +1,4 @@
+import AVFoundation
 import XCTest
 @testable import MacParakeet
 @testable import MacParakeetCore
@@ -544,6 +545,82 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(ownershipClaimer.claimedFolderURLs, [folderURL.standardizedFileURL])
     }
 
+    func testRetryRebuildsMissingPlaybackBeforeReusingPersistedRow() async throws {
+        let transcriptionService = MockTranscriptionService()
+        await transcriptionService.holdMeetingFinalization()
+        let settlementHarness = await makeSettlementHarness(transcriptionService: transcriptionService)
+        let folderURL = try makeArchivedRetryFolder()
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+        let playbackURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.playback)
+        let sourceURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawMicrophone)
+        try FileManager.default.moveItem(at: playbackURL, to: sourceURL)
+        let track = MeetingSourceAlignment.Track(
+            firstHostTime: nil, lastHostTime: nil, startOffsetMs: 0,
+            writtenFrameCount: 48_000, sampleRate: 48_000
+        )
+        try MeetingRecordingMetadataStore.save(
+            MeetingRecordingMetadata(
+                sourceAlignment: MeetingSourceAlignment(meetingOriginHostTime: nil, microphone: track, system: nil)
+            ), folderURL: folderURL)
+        try MeetingRecordingLockFileStore().write(
+            MeetingRecordingLockFile(
+                sessionId: UUID(), startedAt: Date(), displayName: "Retry meeting",
+                state: .awaitingTranscription, folderURL: folderURL
+            ), folderURL: folderURL)
+        let failed = Transcription(
+            id: UUID(),
+            fileName: "Retry meeting",
+            filePath: playbackURL.path,
+            meetingArtifactFolderPath: folderURL.path,
+            durationMs: 12_000,
+            status: .error,
+            errorMessage: "Previous failure",
+            sourceType: .meeting
+        )
+        try settlementHarness.transcriptionRepo.save(failed)
+        let ownershipClaimer = FlowFinalizationOwnershipClaimer()
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: MeetingRecordingServiceSpy(output: makeRecordingOutput()),
+            transcriptionService: transcriptionService,
+            permissionService: MockPermissionService(),
+            transcriptionRepo: settlementHarness.transcriptionRepo,
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            llmService: nil,
+            pillViewModel: MeetingRecordingPillViewModel(),
+            meetingRecordingSettlement: settlementHarness.settlement,
+            finalizationOwnershipClaimer: ownershipClaimer,
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in }
+        )
+
+        try await coordinator.retryMeetingFinalization(failed)
+        try await waitForTranscriptionStatus(
+            id: failed.id,
+            in: settlementHarness.transcriptionRepo,
+            status: .processing
+        )
+
+        await transcriptionService.releaseMeetingFinalization()
+        await coordinator.testHook_waitForMeetingTranscriptionQueue()
+
+        let completed = try XCTUnwrap(settlementHarness.transcriptionRepo.fetch(id: failed.id))
+        XCTAssertEqual(completed.status, .completed)
+        XCTAssertNil(completed.errorMessage)
+        XCTAssertEqual(settlementHarness.transcriptionRepo.transcriptions.map(\.id), [failed.id])
+        XCTAssertTrue(MeetingRecordingOutput.isViablePlaybackFile(at: playbackURL))
+        XCTAssertEqual(settlementHarness.lockStore.deletes, [folderURL.standardizedFileURL])
+
+        let snapshot = await transcriptionService.meetingFlowSnapshot()
+        XCTAssertEqual(snapshot.prepareMeetingCallCount, 0)
+        XCTAssertEqual(snapshot.finalizeMeetingCallCount, 1)
+        XCTAssertEqual(snapshot.finalizedMeetingTranscriptionIDs, [failed.id])
+        XCTAssertEqual(snapshot.finalizedMeetingRecordings.first?.displayName, failed.fileName)
+        XCTAssertEqual(snapshot.finalizedMeetingRecordings.first?.durationSeconds, 12)
+        XCTAssertEqual(ownershipClaimer.claimedFolderURLs, [folderURL.standardizedFileURL])
+    }
+
     func testRetryMeetingFinalizationDoesNotQueueWithoutOwnership() async throws {
         let transcriptionService = MockTranscriptionService()
         let settlementHarness = await makeSettlementHarness(
@@ -1066,6 +1143,73 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         let recordingSnapshot = await recordingService.snapshot()
         XCTAssertEqual(coordinator.testHook_state, .recording)
         XCTAssertEqual(recordingSnapshot.stopCallCount, 0)
+    }
+
+    func testNextFlowStartsWhilePlaybackIsBlockedAndOldCompletionCannotReplaceIt() async throws {
+        for failPlayback in [false, true] {
+            let output = makeRecordingOutput()
+            let folder = output.folderURL
+            defer { try? FileManager.default.removeItem(at: folder) }
+            let lock = MeetingRecordingLockFile(
+                sessionId: output.sessionID, startedAt: Date(), displayName: "A",
+                state: .awaitingTranscription, notes: "A notes", folderURL: folder
+            )
+            try MeetingRecordingLockFileStore().write(lock, folderURL: folder)
+            let capture = MeetingRecordingCapture(
+                lock: lock, metadata: MeetingRecordingMetadata(sourceAlignment: output.sourceAlignment),
+                folderURL: folder, microphoneAudioURL: output.microphoneAudioURL, systemAudioURL: output.systemAudioURL
+            )
+            let recordingService = MeetingRecordingServiceSpy(output: output)
+            await recordingService.setFinalizationInput(.capture(capture))
+            let transcriptionService = MockTranscriptionService()
+            let harness = await makeSettlementHarness(transcriptionService: transcriptionService)
+            let entered = expectation(description: "A playback blocked")
+            let (release, continuation) = AsyncStream<Void>.makeStream()
+            defer { continuation.finish() }
+            let queue = MeetingTranscriptionQueue(
+                transcriptionService: transcriptionService, transcriptionRepo: harness.transcriptionRepo,
+                meetingRecordingSettlement: harness.settlement,
+                preparePlayback: { _ in
+                    entered.fulfill()
+                    var iterator = release.makeAsyncIterator()
+                    _ = await iterator.next()
+                    if failPlayback { throw FlowTestError.finalizationFailed }
+                    return output
+                }
+            )
+            let pill = MeetingRecordingPillViewModel()
+            var presentations: [Bool] = []
+            var failures: [UUID] = []
+            let coordinator = MeetingRecordingFlowCoordinator(
+                meetingRecordingService: recordingService, transcriptionService: transcriptionService,
+                permissionService: MockPermissionService(), transcriptionRepo: harness.transcriptionRepo,
+                conversationRepo: MockChatConversationRepository(), quickPromptRepo: NoOpQuickPromptRepository(),
+                configStore: NoOpLLMConfigStore(), llmService: nil, pillViewModel: pill,
+                meetingRecordingSettlement: harness.settlement, meetingTranscriptionQueue: queue,
+                onMenuBarIconUpdate: { _ in }, onTranscriptionReady: { _ in },
+                onQueuedTranscriptionReady: { _, canPresent in presentations.append(canPresent) },
+                onQueuedTranscriptionFailed: { id, _ in failures.append(id) }
+            )
+            coordinator.testHook_enterRecording()
+            XCTAssertTrue(coordinator.stopRecording())
+            await coordinator.testHook_waitForActionTask()
+            await fulfillment(of: [entered], timeout: 5)
+            XCTAssertEqual(coordinator.testHook_state, .idle)
+            let row = try XCTUnwrap(harness.transcriptionRepo.transcriptions.first)
+            XCTAssertEqual(row.userNotes, "A notes")
+            XCTAssertNil(row.durationMs)
+            XCTAssertEqual(row.filePath, capture.mixedAudioURL.path)
+            coordinator.handleURLCommand(.start(title: "B"))
+            try await waitForPillState(pill, .recording)
+            continuation.yield(())
+            continuation.finish()
+            await queue.waitUntilIdle()
+            XCTAssertEqual(coordinator.testHook_state, .recording)
+            XCTAssertEqual(pill.state, .recording)
+            XCTAssertEqual(presentations, failPlayback ? [] : [false])
+            XCTAssertEqual(failures, failPlayback ? [row.id] : [])
+            await coordinator.discardRecordingAndWaitForCompletion()
+        }
     }
 
     func testCanStartNextRecordingWhilePreviousFinalizeIsQueued() async throws {
@@ -1956,7 +2100,15 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             .standardizedFileURL
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let playbackURL = folder.appendingPathComponent(MeetingArtifactAudioFileNames.playback)
-        try Data("audio".utf8).write(to: playbackURL)
+        let format = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1))
+        let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 48_000))
+        buffer.frameLength = 48_000
+        let file = try AVAudioFile(
+            forWriting: playbackURL,
+            settings: [
+                AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 48_000, AVNumberOfChannelsKey: 1,
+            ])
+        try file.write(from: buffer)
         try MeetingRecordingMetadataStore.save(
             MeetingRecordingMetadata(
                 sourceAlignment: MeetingSourceAlignment(
@@ -2019,6 +2171,15 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
         let sourceMode: MeetingAudioSourceMode?
         let startContext: MeetingStartContext?
         let calendarEventSnapshot: MeetingCalendarSnapshot?
+    }
+
+    private var finalizationInput: MeetingFinalizationInput?
+
+    func setFinalizationInput(_ input: MeetingFinalizationInput) { finalizationInput = input }
+
+    func stopForFinalization() async throws -> MeetingFinalizationInput {
+        let output = try await stopRecording()
+        return finalizationInput ?? .prepared(output)
     }
 
     private var output: MeetingRecordingOutput

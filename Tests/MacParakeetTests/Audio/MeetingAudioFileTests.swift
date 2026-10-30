@@ -3,6 +3,22 @@ import XCTest
 
 final class MeetingAudioFileTests: XCTestCase {
 
+    func testSourceOnlyMeetingIsRetryableButNotPlayableOrRemovable() throws {
+        let folder = makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try Data([1, 2, 3]).write(to: folder.appendingPathComponent("microphone-raw.m4a"))
+        for status in [Transcription.TranscriptionStatus.processing, .error, .cancelled] {
+            let row = Transcription(
+                fileName: "A", filePath: folder.appendingPathComponent("meeting-playback.m4a").path,
+                meetingArtifactFolderPath: folder.path, status: status, sourceType: .meeting
+            )
+            XCTAssertEqual(MeetingAudioFile.state(for: row), .sourcesSaved)
+            XCTAssertTrue(MeetingAudioFile.canRetryFinalization(for: row))
+            XCTAssertFalse(MeetingAudioFile.isAvailable(for: row))
+            XCTAssertFalse(MeetingAudioFile.isRemovable(for: row))
+        }
+    }
+
     // MARK: - mixedAudioURL
 
     func testMixedAudioURLReturnsNilForFileSource() {
