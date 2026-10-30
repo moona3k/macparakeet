@@ -34,10 +34,19 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertNil(
             try MeetingRecordingMetadataStore.load(from: capture.folderURL).captureReport?.playbackFallbackSource)
         XCTAssertEqual(scheduled.buildCount, 0, "Failed preparation must leave no unowned cleaned writer")
-        let output = try await capture.preparePlayback(using: ThrowingMeetingAudioFileConverter())
+        let reloaded = try MeetingRecordingCapture.load(from: capture.folderURL) {
+            StreamingMeetingEchoSuppressor(
+                processor: MeetingAecNLMSProcessor(), referenceDelaySamples: 120)
+        }
+        let output = try await reloaded.preparePlayback(using: ThrowingMeetingAudioFileConverter())
         XCTAssertNotNil(output.captureReport?.playbackFallbackSource)
         XCTAssertEqual(output.captureReport?.quality, .partial)
-        XCTAssertEqual(scheduled.buildCount, 1)
+        XCTAssertEqual(scheduled.buildCount, 0, "Retry must reconstruct work instead of using the old callback")
+        let decision = try await output.resolvedMicrophoneTranscriptionSource(
+            policy: .init(floorSeconds: 10, durationMultiplier: 0, capSeconds: 10)
+        )
+        XCTAssertEqual(decision.reason, .cleanedUsed)
+        XCTAssertTrue(MeetingRecordingOutput.isViablePlaybackFile(at: decision.url))
         XCTAssertEqual(
             try MeetingRecordingMetadataStore.load(from: capture.folderURL).captureReport,
             output.captureReport

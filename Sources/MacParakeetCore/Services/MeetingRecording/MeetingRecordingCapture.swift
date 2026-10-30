@@ -33,19 +33,71 @@ public struct MeetingRecordingCapture: Sendable, Equatable {
 
     /// Retry reconstructs work from durable facts, never from an old Task handle.
     public static func load(from folderURL: URL) throws -> Self {
+        let configuration = MeetingEchoSuppressionConfiguration.fromEnvironment()
+        return try load(from: folderURL) {
+            MeetingEchoSuppressionFactory.makeConditioner(configuration: configuration)
+        }
+    }
+
+    static func load(
+        from folderURL: URL,
+        cleanedMicConditionerFactory: @escaping @Sendable () -> any MicConditioning
+    ) throws -> Self {
         guard let lock = try MeetingRecordingLockFileStore().read(folderURL: folderURL) else {
             throw MeetingFinalizationOwnershipError.missingLock
         }
         guard lock.state == .awaitingTranscription,
             !MeetingAudioWriterFinalizationRegistry.contains(folderURL: folderURL)
         else { throw MeetingRecordingRecoveryError.writerFinalizationInProgress }
+        let microphoneURL = MeetingArtifactAudioFileNames.resolveRawMicrophoneURL(in: folderURL).url
+        let systemURL = MeetingArtifactAudioFileNames.resolveRawSystemURL(in: folderURL).url
         return try Self(
             lock: lock,
             metadata: MeetingRecordingMetadataStore.load(from: folderURL),
             folderURL: folderURL,
-            microphoneAudioURL: MeetingArtifactAudioFileNames.resolveRawMicrophoneURL(in: folderURL).url,
-            systemAudioURL: MeetingArtifactAudioFileNames.resolveRawSystemURL(in: folderURL).url
+            microphoneAudioURL: microphoneURL,
+            systemAudioURL: systemURL,
+            cleanedMicrophonePreparation: makeCleanedMicrophonePreparation(
+                folderURL: folderURL, microphoneURL: microphoneURL, systemURL: systemURL,
+                sessionID: lock.sessionId, conditionerFactory: cleanedMicConditionerFactory
+            )
         )
+    }
+
+    /// Snapshot dependencies only. Derived writers start after playback and
+    /// metadata preparation succeed while the queue owns the folder lease.
+    static func makeCleanedMicrophonePreparation(
+        folderURL: URL,
+        microphoneURL: URL,
+        systemURL: URL,
+        sessionID: UUID,
+        conditionerFactory: @escaping @Sendable () -> any MicConditioning,
+        scheduler: @escaping MeetingCleanedMicrophoneReadinessScheduling = {
+            MeetingCleanedMicrophoneRenderScheduler.schedule(
+                outputURL: $0, microphoneURL: $1, systemURL: $2, sourceAlignment: $3,
+                sessionID: $4, conditionerFactory: $5, fileManager: $6, eventName: $7
+            )
+        },
+        fileManager: MeetingPlaybackArtifactBuilder.SendableFileManager = .init()
+    ) -> @Sendable (MeetingSourceAlignment) -> MeetingCleanedMicrophoneReadiness {
+        { sourceAlignment in
+            let outputURL = folderURL.appendingPathComponent(MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
+            guard
+                MeetingCleanedMicrophoneReadinessPolicy.production.shouldAttemptRender(
+                    for: sourceAlignment.cleanedMicrophoneRenderDurationSeconds
+                )
+            else {
+                return MeetingCleanedMicrophoneRenderScheduler.skipPredictedRenderTimeout(
+                    outputURL: outputURL, sessionID: sessionID, fileManager: fileManager.value,
+                    eventName: "meeting_cleaned_mic"
+                )
+            }
+            return scheduler(
+                outputURL, sourceAlignment.microphone != nil ? microphoneURL : nil,
+                sourceAlignment.system != nil ? systemURL : nil, sourceAlignment,
+                sessionID, conditionerFactory, fileManager.value, "meeting_cleaned_mic"
+            )
+        }
     }
 
     public func makeProcessingTranscription() -> Transcription {

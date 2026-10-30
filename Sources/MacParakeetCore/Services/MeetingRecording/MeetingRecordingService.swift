@@ -1187,7 +1187,12 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         }
         currentLockFile = awaitingLock
 
-        let cleanedMicrophonePreparation = makeCleanedMicrophonePreparation(session: session)
+        let cleanedMicrophonePreparation = MeetingRecordingCapture.makeCleanedMicrophonePreparation(
+            folderURL: session.folderURL, microphoneURL: session.microphoneAudioURL,
+            systemURL: session.systemAudioURL, sessionID: session.id,
+            conditionerFactory: cleanedMicConditionerFactory, scheduler: cleanedMicrophoneReadinessScheduler,
+            fileManager: .init(fileManager)
+        )
         let output = MeetingRecordingCapture(
             lock: awaitingLock,
             metadata: recordingMetadata,
@@ -2196,36 +2201,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             assertionFailure("Unexpected URL passed to source(for:): \(url.path)")
         }
         return .system
-    }
-
-    /// Snapshot dependencies without launching another writer. The queue starts
-    /// derivation only after playback/metadata succeed under its folder lease.
-    private func makeCleanedMicrophonePreparation(
-        session: Session
-    ) -> @Sendable (MeetingSourceAlignment) -> MeetingCleanedMicrophoneReadiness {
-        let fileManager = MeetingPlaybackArtifactBuilder.SendableFileManager(fileManager)
-        let scheduler = cleanedMicrophoneReadinessScheduler
-        let conditionerFactory = cleanedMicConditionerFactory
-        return { sourceAlignment in
-            let outputURL = session.folderURL.appendingPathComponent(
-                MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
-            guard
-                MeetingCleanedMicrophoneReadinessPolicy.production.shouldAttemptRender(
-                    for: sourceAlignment.cleanedMicrophoneRenderDurationSeconds
-                )
-            else {
-                return MeetingCleanedMicrophoneRenderScheduler.skipPredictedRenderTimeout(
-                    outputURL: outputURL, sessionID: session.id, fileManager: fileManager.value,
-                    eventName: "meeting_cleaned_mic"
-                )
-            }
-            return scheduler(
-                outputURL,
-                sourceAlignment.microphone != nil ? session.microphoneAudioURL : nil,
-                sourceAlignment.system != nil ? session.systemAudioURL : nil,
-                sourceAlignment, session.id, conditionerFactory, fileManager.value, "meeting_cleaned_mic"
-            )
-        }
     }
 
     private func buildSourceAlignment(

@@ -11,8 +11,9 @@ Out of scope: activity detection, a pending-start queue, new capture engines, ne
 - [x] Split saved capture from prepared playback; reuse the existing builder and queue.
 - [x] Cover admission, source-only Retry/recovery, and pending audio presentation.
 - [x] Add behavioral regression tests and update contracts.
-- [ ] Review exact committed diff independently and with Greptile if available.
-- [ ] Open PR and inspect exact-head GitHub CI/review results.
+- [x] Review committed diff independently; address substantive findings. Greptile unavailable (not signed in).
+- [x] Open [PR #1295](https://github.com/moona3k/macparakeet/pull/1295).
+- [ ] Assess final GitHub compilation/test results before declaring merge readiness.
 
 Validation: fresh local dependency builds are avoided (7 GB disk available). GitHub CI compiles/tests the complete change. Local parsing/format and focused checks that do not require a new build are permitted. Native long-meeting/device testing remains a separate qualification gate.
 
@@ -51,3 +52,13 @@ existing lanes. GitHub documents both the [retirement](https://github.com/action
 and [installed Xcode versions](https://github.com/actions/runner-images/blob/main/images/macos/macos-15-Readme.md).
 Local Greptile was attempted but refused because it is not signed in; independent
 agent reviews supplement GitHub review feedback.
+
+The final review also caught a persisted-Retry gap: reloaded captures now rebuild
+the existing cleaned-microphone preparation configuration instead of losing the
+in-memory callback. The failure test reloads from disk and verifies a playable
+cleaned source. Live and reloaded captures share the same scheduling function.
+
+At the user's suggestion, p-stack's Separate Before Serializing Shared State,
+Minimize Reader Load, and Prove It Works principles were applied to the final
+review. They support separate per-session artifact ownership and the existing
+queue. No broader scheduler or capture redesign is needed for this defect.
