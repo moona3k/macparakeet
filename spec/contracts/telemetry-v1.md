@@ -53,6 +53,11 @@ records the September 2026 tightening of privacy and outcome semantics.
 - A successful CLI early exit has `outcome=success`, `exit_code=0` and no
   `error_type`, even when ArgumentParser implements it by throwing.
 
+Dictation URL controls add the finite `url_control` value to the existing
+`dictation_started.trigger` and `dictation_operation.trigger` fields. They do
+not report incoming URLs, caller identity, or parameters. Consent for URL
+control and optional telemetry remain independent.
+
 ## Client delivery policy
 
 GUI telemetry defaults off in debug builds, builds marked `dev-*` or `swiftpm-*`,

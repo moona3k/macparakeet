@@ -494,6 +494,17 @@ final class DictationFlowCoordinator {
         return true
     }
 
+    func handleURLCommand(_ command: DictationURLCommand) {
+        switch command.action(for: stateMachine.state) {
+        case .start:
+            startDictation(mode: .persistent, trigger: .urlControl)
+        case .stop:
+            stopDictation()
+        case nil:
+            break
+        }
+    }
+
     func stopDictation() {
         sendEvent(.stopRequested)
     }

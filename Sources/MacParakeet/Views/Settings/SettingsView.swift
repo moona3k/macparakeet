@@ -1309,6 +1309,14 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
+                    title: "Allow dictation control from links",
+                    detail: "Let links start, stop, or toggle dictation. Any app or website can send these links while enabled. Only enable this for automations you trust.",
+                    isOn: $viewModel.dictationURLControlEnabled
+                )
+
+                Divider()
+
+                settingsToggleRow(
                     title: "Keep dictation on clipboard",
                     detail: "Leaves a copy of the pasted text on the clipboard, which helps when a remote desktop needs a manual ⌘V.",
                     isOn: $viewModel.keepDictationOnClipboard

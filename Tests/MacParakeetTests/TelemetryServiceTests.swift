@@ -1097,6 +1097,16 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertEqual(TelemetryURLPlatform(nil), .other)
     }
 
+    func testDictationURLTriggerSerializesOnlyBoundedMetadata() throws {
+        let event = TelemetryEvent(
+            spec: .dictationStarted(trigger: .urlControl, mode: .persistent),
+            appVer: "test", osVer: "test", locale: "en-US", chip: "test", session: "test"
+        )
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(event)) as? [String: Any])
+        let props = try XCTUnwrap(json["props"] as? [String: String])
+        XCTAssertEqual(props, ["trigger": "url_control", "mode": "persistent"])
+    }
+
     func testCanonicalOperationBucketsUnknownEngineVariant() throws {
         let event = TelemetryEvent(
             spec: .dictationOperation(

@@ -173,6 +173,14 @@ public enum SettingsSearchIndex {
             cardAnchor: "dictation"
         ),
         SettingsSearchEntry(
+            id: "dictation.url.control",
+            tab: .capture,
+            title: "Allow dictation control from links",
+            subtitle: "in Dictation",
+            keywords: ["url", "automation", "stream deck", "streamdeck", "raycast", "keyboard maestro", "shortcuts", "toggle"],
+            cardAnchor: "dictation"
+        ),
+        SettingsSearchEntry(
             id: "dictation.keep.clipboard",
             tab: .capture,
             title: "Keep dictation on clipboard",

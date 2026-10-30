@@ -143,6 +143,7 @@ public enum TelemetryDictationTrigger: String, Sendable, Equatable {
     case hotkey
     case pillClick = "pill_click"
     case menuBar = "menu_bar"
+    case urlControl = "url_control"
 }
 
 public enum TelemetryDictationMode: String, Sendable, Equatable {

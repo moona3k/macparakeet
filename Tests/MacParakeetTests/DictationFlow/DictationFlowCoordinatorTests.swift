@@ -5,6 +5,94 @@ import XCTest
 
 @MainActor
 final class DictationFlowCoordinatorTests: XCTestCase {
+    func testURLRepeatedStartPreservesTakeAndStopDeliversOnce() async throws {
+        let harness = try await makeRecordingHarness()
+        await harness.stt.configure(result: STTResult(text: "URL dictation"))
+        harness.coordinator.handleURLCommand(.start)
+        harness.coordinator.handleURLCommand(.start)
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+        harness.coordinator.handleURLCommand(.start)
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .recording(mode: .persistent))
+        harness.coordinator.handleURLCommand(.stop)
+        harness.coordinator.handleURLCommand(.stop)
+        harness.coordinator.handleURLCommand(.toggle)
+        harness.coordinator.handleURLCommand(.start)
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .processing)
+        let pasted = await waitUntilAsync { await harness.clipboard.snapshot().pastedTexts.count == 1 }
+        XCTAssertTrue(pasted)
+        XCTAssertEqual(try harness.repo.fetchAll(limit: nil).map(\.rawTranscript), ["URL dictation"])
+    }
+
+    func testURLToggleCancelsPendingEntitlementsWithoutDelayedStart() async throws {
+        let harness = try await makeRecordingHarness()
+        harness.coordinator.handleURLCommand(.toggle)
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .checkingEntitlements(mode: .persistent))
+        harness.coordinator.handleURLCommand(.toggle)
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .idle)
+        let started = await waitUntil(timeoutMs: 300) { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertFalse(started)
+        XCTAssertEqual(try harness.repo.fetchAll(limit: nil).count, 0)
+    }
+
+    func testURLStopDuringStartupPreservesPendingStopAndDelivers() async throws {
+        let harness = try await makeRecordingHarness()
+        await harness.stt.configure(result: STTResult(text: "early stop"))
+        await harness.audio.configureStartCaptureDelay(milliseconds: 150)
+        harness.coordinator.handleURLCommand(.start)
+        let starting = await waitUntil {
+            harness.coordinator.flowStateForTesting == .startingService(mode: .persistent)
+        }
+        XCTAssertTrue(starting)
+        harness.coordinator.handleURLCommand(.stop)
+        for command in DictationURLCommand.allCases { harness.coordinator.handleURLCommand(command) }
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .pendingStop(mode: .persistent))
+        let pasted = await waitUntilAsync { await harness.clipboard.snapshot().pastedTexts.count == 1 }
+        XCTAssertTrue(pasted)
+    }
+
+    func testURLCommandsPreserveUndoWindow() async throws {
+        let harness = try await makeRecordingHarness()
+        harness.coordinator.handleURLCommand(.start)
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+        harness.coordinator.cancelDictation()
+        for command in DictationURLCommand.allCases { harness.coordinator.handleURLCommand(command) }
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .cancelCountdown)
+        harness.coordinator.cancelDictation()
+    }
+
+    func testURLCommandsDoNotInterruptPendingPaste() async throws {
+        let harness = try await makeRecordingHarness()
+        await harness.stt.configure(result: STTResult(text: "keep this paste"))
+        await harness.clipboard.setPasteDelayMs(300)
+        harness.coordinator.handleURLCommand(.start)
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+        harness.coordinator.handleURLCommand(.toggle)
+        let pasteStarted = await waitUntilAsync { await harness.clipboard.snapshot().pasteCallCount == 1 }
+        XCTAssertTrue(pasteStarted)
+        for command in DictationURLCommand.allCases { harness.coordinator.handleURLCommand(command) }
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .finishing(outcome: .success))
+        let pasted = await waitUntilAsync {
+            await harness.clipboard.snapshot().pastedTexts == ["keep this paste "]
+        }
+        XCTAssertTrue(pasted)
+    }
+
+    func testURLStartRespectsInteractionArbiter() async throws {
+        let arbiter = GUIMutationArbiter()
+        let harness = try await makeRecordingHarness(mutationArbiter: arbiter)
+        let lease = try XCTUnwrap(arbiter.acquire(.transform))
+        harness.coordinator.handleURLCommand(.start)
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .idle)
+        XCTAssertEqual(arbiter.current, lease)
+        arbiter.release(lease)
+        harness.coordinator.handleURLCommand(.start)
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .checkingEntitlements(mode: .persistent))
+        harness.coordinator.handleURLCommand(.stop)
+    }
+
     func testBusyDictationStartIsRefusedAndNextStartCanProceed() async throws {
         let arbiter = GUIMutationArbiter()
         let harness = try await makeRecordingHarness(mutationArbiter: arbiter)

@@ -38,6 +38,7 @@ Each contract document should include:
 Planned contracts are listed separately below; they do not describe available payloads.
 
 - [Credential Access](credential-access.md) — noninteractive Keychain access and preservation of saved AI settings
+- [Dictation URL control v1](dictation-url-control-v1.md) — opt-in hands-free start/stop/toggle that preserves active work
 - [Meeting URL control v1](meeting-url-control-v1.md) — opt-in GUI recording commands and creation titles
 - [Voice Control](voice-control.md) — gated shared speech, consent, foreground ownership and revocable execution
 - [Dictation Shortcuts](dictation-shortcuts.md) — primary and additional push-to-talk/hands-free pairs, collision reservations, held-trigger ownership and Escape/Undo with multiple listeners

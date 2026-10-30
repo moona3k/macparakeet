@@ -317,6 +317,11 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .meetingAudioSourceMode, value: meetingAudioSourceMode.rawValue))
         }
     }
+    public var dictationURLControlEnabled: Bool {
+        didSet {
+            defaults.set(dictationURLControlEnabled, forKey: UserDefaultsAppRuntimePreferences.dictationURLControlEnabledKey)
+        }
+    }
     public var meetingURLControlEnabled: Bool {
         didSet {
             defaults.set(meetingURLControlEnabled, forKey: UserDefaultsAppRuntimePreferences.meetingURLControlEnabledKey)
@@ -1120,6 +1125,7 @@ public final class SettingsViewModel {
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)
         )
         meetingAudioSourceMode = MeetingAudioSourceMode.current(defaults: defaults)
+        dictationURLControlEnabled = UserDefaultsAppRuntimePreferences.dictationURLControlEnabled(defaults: defaults)
         meetingURLControlEnabled = UserDefaultsAppRuntimePreferences.meetingURLControlEnabled(defaults: defaults)
         startMeetingsMuted = UserDefaultsAppRuntimePreferences.startMeetingsMuted(defaults: defaults)
         showMeetingRecordingPill = UserDefaultsAppRuntimePreferences.showMeetingRecordingPill(defaults: defaults)

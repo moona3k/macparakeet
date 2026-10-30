@@ -1070,6 +1070,36 @@ Configure source auto-run separately, for example
 limits which transcriptions qualify. Editing prompt text or inference settings
 in the app preserves existing policies unless the label selection is changed.
 
+## Dictation URL controls
+
+Development adds opt-in GUI dictation controls for Stream Deck, Shortcuts,
+Raycast, Keyboard Maestro, and scripts ([contract](../spec/contracts/dictation-url-control-v1.md),
+#1273). Enable **Allow dictation control from links** under Settings → Capture
+→ Dictation. This is separate from meeting control and allows any app or
+website to invoke the URLs while enabled.
+
+```sh
+open -g 'macparakeet://dictation/start'
+open -g 'macparakeet://dictation/stop'
+open -g 'macparakeet://dictation/toggle'
+```
+
+Use background delivery (`open -g`) and keep the intended text field focused.
+The caller needs no Accessibility permission to send a URL; MacParakeet still
+needs its normal permissions for capture and automatic insertion. Complete
+onboarding/permissions first. Launchers, cold launch, or permission dialogs can
+change focus, so restore the target before dictating and stopping if needed.
+
+`start` never replaces an active take. `stop` uses normal transcription and
+insertion; during entitlement or microphone permission checks it cancels the pending start,
+and during service startup it waits for capture before stopping. `toggle`
+starts when idle/ready and stops when starting/recording. All three ignore
+pending stop, processing, undo countdown, and result display/paste. Busy starts
+are not deferred; retry after idle. Prefer start/stop to toggle for retries.
+`open` returns no recording or transcription status. No parameters are accepted.
+Use `macparakeet-dev://` for development bundles. This controls the GUI app,
+not the CLI, and requires a build containing this feature.
+
 ## Meeting URL controls
 
 Development adds opt-in GUI recording control for Shortcuts, launchers, and

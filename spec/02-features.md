@@ -12,6 +12,17 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 
 ---
 
+## Dictation URL controls (development)
+
+Settings → Capture → Dictation adds a separate default-off **Allow dictation
+control from links** switch. `macparakeet://dictation/start`, `/stop`, and
+`/toggle` let automation tools use the normal hands-free capture and insertion
+flow without synthesizing hotkeys. Any app or website can invoke links while
+enabled. Repeated starts preserve active work; processing, undo, and pending
+paste are protected. Use background delivery and keep the target field focused.
+See the [URL contract](contracts/dictation-url-control-v1.md) for exact state,
+permission, focus, validation, and cold-launch semantics.
+
 ## Explicit Voice Control (development)
 
 Voice Control is an opt-in surface separate from ordinary dictation. Hold its

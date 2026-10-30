@@ -3,6 +3,14 @@ import XCTest
 @testable import MacParakeetViewModels
 
 final class SettingsSearchIndexTests: XCTestCase {
+    func testAutomationQueriesFindDictationURLControl() {
+        for query in ["url", "Stream Deck", "StreamDeck", "Raycast", "Keyboard Maestro", "Shortcuts"] {
+            let entry = SettingsSearchIndex.matches(query).first { $0.id == "dictation.url.control" }
+            XCTAssertEqual(entry?.cardAnchor, "dictation", query)
+            XCTAssertEqual(entry?.tab, .capture, query)
+        }
+    }
+
     func testEmptyQueryReturnsNoResults() {
         XCTAssertTrue(SettingsSearchIndex.matches("").isEmpty)
     }
