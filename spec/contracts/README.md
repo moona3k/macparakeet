@@ -50,6 +50,7 @@ Planned contracts are listed separately below; they do not describe available pa
 - [CLI JSON v1](cli-json-v1.md)
 - [DAPT Export v1](dapt-export-v1.md)
 - [File Transcription Audio Tracks](file-transcription-audio-tracks.md)
+- [YouTube Video Playback](youtube-video-playback.md)
 - [Custom Word Deletion](custom-word-deletion.md)
 - [Transcript Correction Submission](speaker-correction-view-model.md)
 - [Telemetry and Diagnostic Evidence](telemetry-v1.md)

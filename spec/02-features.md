@@ -1826,15 +1826,19 @@ Embedded video/audio playback, split-pane detail view, synced transcript highlig
 
 > Status: **IMPLEMENTED**
 
-**What:** Embedded playback for YouTube videos (HLS streaming) and local audio/video files. Split-pane layout with video on the left and tabbed content on the right.
+**What:** Embedded playback for YouTube videos and local audio/video files. Split-pane layout with video on the left and tabbed content on the right.
 
 **Acceptance criteria:**
-- [x] YouTube videos play via HLS streaming (yt-dlp URL extraction + AVPlayer)
+- [x] YouTube videos use direct combined-stream playback when available (yt-dlp URL extraction + AVPlayer)
+- [x] Separate H.264 MP4 video and AAC M4A audio can be downloaded on demand and combined into a temporary playback file; preparation stages are shown while loading
 - [x] Local video files play via AVPlayer
 - [x] Audio-only files show a 44px horizontal scrubber bar instead of video
 - [x] Playback mode auto-detected (video/audio/none)
 - [x] MediaPlayerViewModel with play/pause, seek, 10Hz time sync
 - [x] Video panel collapsible (full → hidden)
+
+The [YouTube video playback contract](contracts/youtube-video-playback.md) defines
+format selection, temporary-file ownership, cancellation, and retained-audio safety.
 
 ### F25: Synced Transcript & Timestamps
 
