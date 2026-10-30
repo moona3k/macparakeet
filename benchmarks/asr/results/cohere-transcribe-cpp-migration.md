@@ -104,6 +104,9 @@ Each measurement records `compute_backend` from the actual transcription JSON
 `engineVariant` (`metal` or `cpu`). Mixed/missing variants fail qualification,
 including a change between the cold and repeated process. Saved compute
 preferences are not modified by the harness.
+Each invocation uses explicit raw processing and a fresh database inside its
+owned temporary directory, so saved Clean mode, vocabulary, snippets, and user
+database state cannot alter the measured transcript or startup cost.
 Install the pinned model and budget enough disk for a fresh SwiftPM build before
 running. Resolve and commit `Package.resolved` with the native package enabled
 first; the measured build only uses those resolved dependency versions and may

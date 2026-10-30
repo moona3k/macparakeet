@@ -200,8 +200,12 @@ class CohereMultilingualSpeedTests(unittest.TestCase):
                 source.write_bytes(b"audio")
                 def run(command, description, **options):
                     self.assertEqual(command[command.index("--format") + 1], "json")
+                    self.assertEqual(command[command.index("--mode") + 1], "raw")
                     self.assertEqual(options["env"], {"TEST": "1"})
                     output = Path(command[command.index("--output-dir") + 1])
+                    database = Path(command[command.index("--database") + 1])
+                    self.assertEqual(database, output.parent / "benchmark.sqlite")
+                    self.assertFalse(database.exists())
                     for index in range(2):
                         (output / f"transcript-{index}.json").write_text(json.dumps({
                             "engine": "cohere", "engineVariant": backend,
