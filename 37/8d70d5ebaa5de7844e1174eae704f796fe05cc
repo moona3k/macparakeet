@@ -1,0 +1,39 @@
+Tests/MacParakeetTests/Services/LLM/KnowledgeCardRecoveryTests.swift
+  s_6f26576d2ce855::t_5e6a7e2fecdc9b 1-265
+Tests/MacParakeetTests/Services/LLM/CardGenerationServiceTests.swift
+  s_6f26576d2ce855::t_5e6a7e2fecdc9b 215-256,645,854
+spec/contracts/saved-audio-auto-prompt-completion.md
+  s_6f26576d2ce855::t_5e6a7e2fecdc9b 143-174
+spec/contracts/telemetry-v1.md
+  s_6f26576d2ce855::t_5e6a7e2fecdc9b 336-353
+Sources/CLI/CHANGELOG.md
+  s_6f26576d2ce855::t_5e6a7e2fecdc9b 113-117
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_6f26576d2ce855::t_5e6a7e2fecdc9b 248,435,438-450,454,485-486,510-522,525,527,529-531,533-547,550-577,588-589,595-607,612,630-631,641-667,686-692
+Tests/MacParakeetTests/Database/CardRepositoryTests.swift
+  s_6f26576d2ce855::t_5e6a7e2fecdc9b 73-93
+Sources/MacParakeetCore/Services/LLM/CardGenerationService.swift
+  s_6f26576d2ce855::t_5e6a7e2fecdc9b 234,241,248
+Tests/MacParakeetTests/Services/LLM/LLMConfigStoreTests.swift
+  s_6f26576d2ce855::t_5e6a7e2fecdc9b 26-51
+Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
+  s_6f26576d2ce855::t_5e6a7e2fecdc9b 12,20-21,24,43,49,53,55,1637,1643,1646-1649
+Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift
+  s_6f26576d2ce855::t_5e6a7e2fecdc9b 52-166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "378d70d5ebaa5de7844e1174eae704f796fe05cc",
+  "prompts": {},
+  "sessions": {
+    "s_6f26576d2ce855": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e58-eaa6-7583-abd5-6aec9f43cba6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
