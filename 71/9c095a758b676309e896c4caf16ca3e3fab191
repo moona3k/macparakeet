@@ -1,0 +1,22 @@
+Tests/MacParakeetTests/Views/TranscriptDocumentLayoutTests.swift
+  s_7788d1c08e1bb0::t_ab7e40a1fbf73f 14-20,83,99-101,106-108,224,269
+Tests/MacParakeetTests/Services/VoiceControl/VoiceControlSpeechTests.swift
+  s_7788d1c08e1bb0::t_4acdd29ab6d703 75,80,85,172,174-177,179-180,326-334,336,355,357-362,364-371,373-378,380-385,388,420-425,428-429,432
+  s_7788d1c08e1bb0::t_109fbb1d2b8cf1 178
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "719c095a758b676309e896c4caf16ca3e3fab191",
+  "prompts": {},
+  "sessions": {
+    "s_7788d1c08e1bb0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e2a-e6db-73e2-812b-c7e92b308260",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
