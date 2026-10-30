@@ -1,0 +1,21 @@
+docs/research/2026-10-30-1286-quartz-state/README.md
+  s_7788d1c08e1bb0::t_4c7658e33110cc 79-86
+Tests/MacParakeetTests/Services/System/AppGeneratedKeyboardEventsTests.swift
+  s_7788d1c08e1bb0::t_4c7658e33110cc 66-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a5f49001e06a2eee8a20612a00f436e2a3bcb1f6",
+  "prompts": {},
+  "sessions": {
+    "s_7788d1c08e1bb0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e2a-e6db-73e2-812b-c7e92b308260",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
