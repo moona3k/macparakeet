@@ -5,6 +5,119 @@ import XCTest
 
 @MainActor
 final class AskWorkspaceViewModelTests: XCTestCase {
+    func testControlledStreamCanFinishBeforeSendStarts() async throws {
+        let original = AskConversation(sections: [AskContextSection(sourceIDs: [UUID()])])
+        let service = AskWorkspaceMock(conversations: [original])
+        await service.enableControlledStream()
+        await service.finishStream(text: "Already finished")
+        let completed = expectation(description: "Pre-finished stream returned")
+        let request = Task {
+            defer { completed.fulfill() }
+            return try await service.send(
+                id: original.id, question: "Question", expectedRevision: original.revision,
+                approvedProviderID: nil, onEvent: { _ in })
+        }
+        defer { request.cancel() }
+        addTeardownBlock { await service.finishStream(text: "") }
+        guard await XCTWaiter.fulfillment(of: [completed], timeout: 2) == .completed else {
+            return XCTFail("Finishing before registration must release the fake stream")
+        }
+        let saved = try await request.value
+        XCTAssertEqual(saved.messages.last?.content, "Already finished")
+    }
+
+    func testControlledStreamCancellationReleasesSuspendedSend() async throws {
+        let original = AskConversation(sections: [AskContextSection(sourceIDs: [UUID()])])
+        let service = AskWorkspaceMock(conversations: [original])
+        await service.enableControlledStream()
+        let completed = expectation(description: "Cancelled stream returned")
+        let request = Task {
+            defer { completed.fulfill() }
+            return try await service.send(
+                id: original.id, question: "Question", expectedRevision: original.revision,
+                approvedProviderID: nil, onEvent: { _ in })
+        }
+        defer { request.cancel() }
+        addTeardownBlock { await service.finishStream(text: "") }
+        guard try await waitForStreamStart(service) else { return XCTFail("Fake stream did not start") }
+        request.cancel()
+        guard await XCTWaiter.fulfillment(of: [completed], timeout: 2) == .completed else {
+            return XCTFail("Cancelling must release the fake without finishStream")
+        }
+        do {
+            _ = try await request.value
+            XCTFail("Cancelled stream must not save an assistant response")
+        } catch is CancellationError {}
+        let saved = try await service.conversation(id: original.id)
+        XCTAssertEqual(saved?.messages.map(\.role), [.user])
+    }
+
+    func testCancelledOldStreamCannotClearReplacementSinkOrFinishItsGate() async throws {
+        let original = AskConversation(sections: [AskContextSection(sourceIDs: [UUID()])])
+        let service = AskWorkspaceMock(conversations: [original])
+        await service.enableControlledStream()
+        let oldCallback = AsyncStream<Void>.makeStream()
+        let oldStarted = expectation(description: "Old send reached its callback")
+        let oldCompleted = expectation(description: "Old send retired")
+        let oldRequest = Task {
+            defer { oldCompleted.fulfill() }
+            return try await service.send(
+                id: original.id, question: "Old", expectedRevision: original.revision,
+                approvedProviderID: nil,
+                onEvent: { _ in
+                    oldStarted.fulfill()
+                    for await _ in oldCallback.stream {}
+                })
+        }
+        defer { oldRequest.cancel(); oldCallback.continuation.finish() }
+        addTeardownBlock { await service.finishStream(text: "") }
+        guard await XCTWaiter.fulfillment(of: [oldStarted], timeout: 2) == .completed else {
+            return XCTFail("Old send did not reach the controlled callback")
+        }
+        await service.enableControlledStream()
+        let replacementEvent = expectation(description: "Replacement sink remains installed")
+        let replacementCompleted = expectation(description: "Replacement stream returned")
+        let replacement = Task {
+            defer { replacementCompleted.fulfill() }
+            return try await service.send(
+                id: original.id, question: "Replacement", expectedRevision: original.revision + 1,
+                approvedProviderID: nil,
+                onEvent: { event in
+                    if case .text("Replacement event") = event { replacementEvent.fulfill() }
+                })
+        }
+        defer { replacement.cancel() }
+        guard try await waitForStreamStart(service) else { return XCTFail("Replacement stream did not start") }
+        oldRequest.cancel()
+        oldCallback.continuation.finish()
+        guard await XCTWaiter.fulfillment(of: [oldCompleted], timeout: 2) == .completed else {
+            return XCTFail("Old stream did not settle after cancellation")
+        }
+        do {
+            _ = try await oldRequest.value
+            XCTFail("Retired send must not overwrite the replacement")
+        } catch is CancellationError {}
+        await service.emit(.text("Replacement event"))
+        guard await XCTWaiter.fulfillment(of: [replacementEvent], timeout: 2) == .completed else {
+            return XCTFail("Old cancellation cleared the replacement sink")
+        }
+        await service.finishStream(text: "Replacement answer")
+        guard await XCTWaiter.fulfillment(of: [replacementCompleted], timeout: 2) == .completed else {
+            return XCTFail("Replacement stream did not finish")
+        }
+        let saved = try await replacement.value
+        XCTAssertEqual(saved.messages.last?.content, "Replacement answer")
+    }
+
+    private func waitForStreamStart(_ service: AskWorkspaceMock) async throws -> Bool {
+        let deadline = ContinuousClock.now + .seconds(2)
+        while !(await service.hasRequested("streamStarted")) {
+            guard ContinuousClock.now < deadline else { return false }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        return true
+    }
+
     func testActivityUpdatesInPlaceAndStreamingFlushesDuringProviderPause() async throws {
         let source = UUID()
         let original = AskConversation(sections: [AskContextSection(sourceIDs: [source])])
@@ -795,16 +908,27 @@ actor AskWorkspaceMock: AskWorkspaceServing {
     private var requestedOperations: Set<String> = []
     private var shouldFailSend = false
     private var shouldFailCreate = false
-    private var controlledStream = false
-    private var streamContinuation: CheckedContinuation<Void, Never>?
+    private var controlledStream: AsyncStream<Void>?
+    private var streamContinuation: AsyncStream<Void>.Continuation?
+    private var controlledStreamGeneration = 0
     private var eventSink: (@Sendable (AskAgentEvent) async -> Void)?
-    private var finalStreamText = ""
+    private var finalStreamText: String?
 
-    func enableControlledStream() { controlledStream = true }
+    func enableControlledStream() {
+        // Each run has its own cancellation-aware gate. Retiring an old gate
+        // cannot finish or clear a replacement run's continuation or sink.
+        streamContinuation?.finish()
+        controlledStreamGeneration += 1
+        let gate = AsyncStream<Void>.makeStream()
+        controlledStream = gate.stream
+        streamContinuation = gate.continuation
+        finalStreamText = nil
+        requestedOperations.remove("streamStarted")
+    }
     func emit(_ event: AskAgentEvent) async { await eventSink?(event) }
     func finishStream(text: String) {
         finalStreamText = text
-        streamContinuation?.resume()
+        streamContinuation?.finish()
         streamContinuation = nil
     }
 
@@ -832,6 +956,7 @@ actor AskWorkspaceMock: AskWorkspaceServing {
     func replaceConversation(_ value: AskConversation) { values[value.id] = value }
     func failNextSend() { shouldFailSend = true }
     func failNextCreate() { shouldFailCreate = true }
+    func hasRequested(_ operation: String) -> Bool { requestedOperations.contains(operation) }
     func waitUntilRequested(_ operation: String) async {
         while !requestedOperations.contains(operation) { await Task.yield() }
     }
@@ -915,6 +1040,8 @@ actor AskWorkspaceMock: AskWorkspaceServing {
         id: UUID, question: String, expectedRevision: Int, approvedProviderID: String?,
         onEvent: @escaping @Sendable (AskAgentEvent) async -> Void
     ) async throws -> AskConversation {
+        let stream = controlledStream
+        let generation = controlledStreamGeneration
         await pause("send")
         if shouldFailSend {
             shouldFailSend = false
@@ -926,12 +1053,19 @@ actor AskWorkspaceMock: AskWorkspaceServing {
         value.revision += 1
         values[id] = value
         await onEvent(.activity("Searching"))
-        if controlledStream {
+        if let stream {
+            guard controlledStreamGeneration == generation else { throw CancellationError() }
+            if finalStreamText == nil { try Task.checkCancellation() }
             eventSink = onEvent
-            await withCheckedContinuation { continuation in
-                streamContinuation = continuation
-                requestedOperations.insert("streamStarted")
+            defer {
+                if controlledStreamGeneration == generation { eventSink = nil }
             }
+            requestedOperations.insert("streamStarted")
+            for await _ in stream {}
+            guard controlledStreamGeneration == generation else { throw CancellationError() }
+            // Explicit producer completion wins over stopAndSettle's later
+            // cancellation. An unfinished cancelled gate has no answer to save.
+            guard let finalStreamText else { throw CancellationError() }
             value.messages.append(
                 AskMessage(sectionID: value.activeSection!.id, role: .assistant, content: finalStreamText))
             values[id] = value
