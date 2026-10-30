@@ -27,7 +27,7 @@ concurrency:
 jobs:
   behavior:
     name: Tests and Swift 6
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 45
     steps:
       - name: Checkout
@@ -216,7 +216,7 @@ jobs:
 
   distribution:
     name: Release and Bundle
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 60
     steps:
       - name: Checkout
@@ -374,7 +374,7 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.qualify_build_cache }}
     needs: distribution
     name: Build Cache Invalidation
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v6
