@@ -1201,45 +1201,24 @@ Settings open in the content area when "Settings" is selected in the sidebar. Th
 └───────────────────────────────────────────────────────────┘
 ```
 
-### Vocabulary (v0.2)
+### Vocabulary
 
-The Vocabulary sidebar item is a dedicated panel for managing the text processing pipeline. It replaces the Processing section that was previously in Settings, promoting vocabulary management to a first-class feature.
+Vocabulary leads with Word corrections and Text snippets, followed by Backup &
+Restore. Both managers and backup actions are available in Raw and Clean modes.
+Managing saved vocabulary never changes the processing mode. The page explains
+that word corrections apply in Clean mode and to meeting transcripts; text
+snippets expand in Clean mode.
 
-```
-┌───────────────────────────────────────────────────────────┐
-│  PROCESSING MODE                                          │
-│  ─────────────────────────────────────────────────────    │
-│  [● Clean (fillers removed)]  [  Raw (no processing)]    │
-│  Raw outputs STT text as-is. Clean removes filler words, │
-│  applies custom word corrections, and expands snippets.   │
-│                                                           │
-│  HOW IT WORKS                                             │
-│  ─────────────────────────────────────────────────────    │
-│  1. Filler Removal — Always strips uh, umm, uhh.        │
-│     Standalone um is on by default; turn off for PT/DE. │
-│     [Also remove “um” ●]  User toggle, not auto-detect  │
-│  2. Custom Words — Fixes domain terms STT gets wrong      │
-│  3. Text Snippets — Expands trigger phrases to full text  │
-│  4. Whitespace Cleanup — Normalizes spacing/punctuation   │
-│                                                           │
-│  TIPS                                                     │
-│  ─────────────────────────────────────────────────────    │
-│  💡 Parakeet already handles punctuation and caps...      │
-│  💡 Custom words fix domain terms STT gets wrong...       │
-│  💡 Leave replacement empty to enforce casing...          │
-│  💡 Snippet triggers should be natural phrases...         │
-│  💡 Changes take effect on the next dictation.            │
-│                                                           │
-│  CUSTOM WORDS                              [Manage...]    │
-│  Words defined                                  12        │
-│                                                           │
-│  TEXT SNIPPETS                             [Manage...]    │
-│  Snippets defined                                5        │
-│                                                           │
-└───────────────────────────────────────────────────────────┘
-```
+Processing mode, Clean processing options, and Voice Return follow the saved
+vocabulary controls. The Clean processing guide describes the existing ordered
+steps without duplicating the management buttons. Raw/Clean processing semantics
+are unchanged.
 
-Note: How It Works, Tips, Custom Words, and Text Snippets sections are only visible when processing mode is set to "Clean".
+Export remains available without relying on cached word/snippet counts. The
+export service reads the actual records and reports a failure if they cannot be
+read; an empty export is valid. Backup actions wait for service initialization
+and any active import/export. Import policies and replace-all protections are
+unchanged.
 
 ### Transforms (ADR-022)
 
@@ -1273,11 +1252,19 @@ The Transforms sidebar item is visible when `AppFeatures.transformsEnabled` is t
 
 ### Custom Words Management
 
-Vocabulary > Fix words > Manage words opens a 640 × 560 sheet with a title,
+Vocabulary > Word corrections > Manage words opens a 640 × 560 sheet with a title,
 recognition-support detail, and Done button. Search matches both words and
 replacements. The grouped list shows the word, replacement or exact-spelling
 hint, an enable switch, and an individual delete action. The Add Rule form
-follows the list.
+follows the list. Each opening clears the previous search. Matching, counts,
+and selection use the same query with surrounding whitespace trimmed; a search
+with no matches offers Clear search.
+
+A load failure appears beside the list with Retry, never as “No custom words
+yet.” The last successfully loaded rows remain visible, with mutations disabled
+until a successful retry. An unconfigured manager shows a loading state; only a
+successful empty read can show the empty-dictionary prompt. Read errors are
+separate from Add Rule validation errors.
 
 **Bulk deletion:** one quiet Select… action appears beside the rule count.
 It enters selection mode without adding persistent checkboxes to the normal

@@ -44,6 +44,10 @@ public final class VocabularyBackupViewModel {
 
     public var isPresentingImportSheet: Bool { pendingImport != nil }
 
+    public var canStartOperation: Bool {
+        service != nil && status != .exporting && status != .importing
+    }
+
     public func suggestedFilename() -> String {
         service?.suggestedFilename() ?? "MacParakeet-Vocabulary.json"
     }

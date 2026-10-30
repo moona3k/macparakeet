@@ -38,6 +38,11 @@ start-muted meeting request is separate.
 - Search changes clear selection and unconfirmed requests. Select all captures
   the currently matching rules; clearing the search permits selecting the
   entire loaded vocabulary. Reloading prunes selected IDs that no longer exist.
+- Search trims surrounding whitespace consistently for matching and selection.
+  Opening the word manager clears its previous search and transient selection.
+  A failed vocabulary read retains the last loaded rows but disables mutations,
+  including confirmation of a previously captured deletion, until a successful
+  retry. Opening the manager during an active deletion cannot reset selection.
 - Selection does not alter rule enabled states, stored transcripts, recordings,
   snippets, or preferences. There is no schema migration or new network call.
 

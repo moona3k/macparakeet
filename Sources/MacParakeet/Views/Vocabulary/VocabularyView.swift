@@ -25,39 +25,30 @@ struct VocabularyView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
                 pageHeader
+                managementSection
+                VocabularyBackupSection(viewModel: backupViewModel)
                 modeSelectionCard
-                voiceReturnCard
-                if selectedMode == .raw {
-                    rawModeCard
-                } else {
+                if selectedMode == .clean {
                     pipelineCard
-                    VocabularyBackupSection(
-                        viewModel: backupViewModel,
-                        wordCount: settingsViewModel.customWordCount,
-                        snippetCount: settingsViewModel.snippetCount
-                    )
                 }
+                voiceReturnCard
             }
             .padding(DesignSystem.Spacing.lg)
         }
         .background(DesignSystem.Colors.background)
         .sheet(isPresented: $showCustomWords) {
-            settingsViewModel.refreshStats()
-        } content: {
             CustomWordsView(
                 viewModel: customWordsViewModel,
                 recognitionStatus: settingsViewModel.customVocabularyRecognitionStatus
             )
-                .frame(width: 640, height: 560)
+            .frame(width: 640, height: 560)
         }
         .sheet(isPresented: $showTextSnippets) {
-            settingsViewModel.refreshStats()
-        } content: {
             TextSnippetsView(viewModel: textSnippetsViewModel)
                 .frame(width: 640, height: 560)
         }
         .onAppear {
-            settingsViewModel.refreshStats()
+            customWordsViewModel.loadWords()
         }
     }
 
@@ -67,7 +58,7 @@ struct VocabularyView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Vocabulary")
                 .font(DesignSystem.Typography.pageTitle)
-            Text("How your voice becomes text — entirely on your Mac.")
+            Text("Your words, corrections, and shortcuts. Stored on your Mac.")
                 .font(DesignSystem.Typography.bodySmall)
                 .foregroundStyle(.secondary)
         }
@@ -75,11 +66,80 @@ struct VocabularyView: View {
         .padding(.bottom, DesignSystem.Spacing.xs)
     }
 
+    // MARK: - Vocabulary management
+
+    private var managementSection: some View {
+        VStack(spacing: 0) {
+            managementRow(
+                title: "Word corrections",
+                detail: "Fix names and terms that speech recognition gets wrong.",
+                actionTitle: "Manage words",
+                isPrimary: true
+            ) {
+                customWordsViewModel.prepareForPresentation()
+                showCustomWords = true
+            }
+
+            HStack {
+                Text(customWordCountLabel)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .padding(.horizontal, DesignSystem.Spacing.lg)
+            .padding(.bottom, DesignSystem.Spacing.md)
+
+            Divider().padding(.horizontal, DesignSystem.Spacing.lg)
+
+            managementRow(
+                title: "Text snippets",
+                detail: "Expand a spoken phrase into saved text.",
+                actionTitle: "Manage snippets"
+            ) {
+                textSnippetsViewModel.loadSnippets()
+                showTextSnippets = true
+            }
+
+            Text("Word corrections apply in Clean mode and to meeting transcripts. Text snippets expand in Clean mode.")
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, DesignSystem.Spacing.lg)
+                .padding(.bottom, DesignSystem.Spacing.lg)
+        }
+        .vocabGroup()
+    }
+
+    private func managementRow(
+        title: String,
+        detail: String,
+        actionTitle: String,
+        isPrimary: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        HStack(spacing: DesignSystem.Spacing.lg) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(DesignSystem.Typography.sectionTitle)
+                Text(detail)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: DesignSystem.Spacing.sm)
+            Button(actionTitle, action: action)
+                .parakeetAction(isPrimary ? .primaryProminent : .secondary)
+                .fixedSize()
+        }
+        .padding(DesignSystem.Spacing.lg)
+    }
+
     // MARK: - Mode Selection
 
     private var modeSelectionCard: some View {
         vocabularyCard(
-            title: "Mode",
+            title: "Processing mode",
             subtitle: "Switch anytime. Takes effect on your next dictation.",
             icon: "slider.horizontal.3"
         ) {
@@ -115,7 +175,7 @@ struct VocabularyView: View {
 
     private var pipelineCard: some View {
         vocabularyCard(
-            title: "Clean Pipeline",
+            title: "Clean processing",
             subtitle: "These steps run in order on every Clean dictation.",
             icon: "list.number"
         ) {
@@ -131,12 +191,7 @@ struct VocabularyView: View {
                 pipelineStep(
                     number: 2,
                     title: "Fix words",
-                    detail: "\(customWordCountLabel) · \(settingsViewModel.customVocabularyRecognitionStatus.title)",
-                    actionTitle: "Manage words",
-                    action: {
-                        customWordsViewModel.loadWords()
-                        showCustomWords = true
-                    }
+                    detail: "Apply your enabled word corrections"
                 )
 
                 dividerLine
@@ -144,12 +199,7 @@ struct VocabularyView: View {
                 pipelineStep(
                     number: 3,
                     title: "Expand snippets",
-                    detail: "\(settingsViewModel.snippetCount) phrase snippet\(settingsViewModel.snippetCount == 1 ? "" : "s")",
-                    actionTitle: "Manage snippets",
-                    action: {
-                        textSnippetsViewModel.loadSnippets()
-                        showTextSnippets = true
-                    }
+                    detail: "Replace spoken phrases with your saved text"
                 )
 
                 dividerLine
@@ -161,9 +211,7 @@ struct VocabularyView: View {
                 pipelineStep(
                     number: 5,
                     title: "Shape text",
-                    detail: "Spacing, casing, and ending punctuation",
-                    actionTitle: nil,
-                    action: nil
+                    detail: "Spacing, casing, and ending punctuation"
                 )
             }
             .padding(.top, 2)
@@ -171,7 +219,15 @@ struct VocabularyView: View {
     }
 
     private var customWordCountLabel: String {
-        "\(settingsViewModel.customWordCount) custom correction\(settingsViewModel.customWordCount == 1 ? "" : "s")"
+        switch customWordsViewModel.loadState {
+        case .notLoaded:
+            return "Loading saved words…"
+        case .failed:
+            return "Couldn't load saved words. Open Manage words to retry."
+        case .loaded:
+            let count = customWordsViewModel.words.count
+            return count == 1 ? "1 saved word rule" : "\(count) saved word rules"
+        }
     }
 
     private var fillerRemovalRow: some View {
@@ -413,18 +469,6 @@ struct VocabularyView: View {
         }
     }
 
-    private var rawModeCard: some View {
-        vocabularyCard(
-            title: "Raw Mode Active",
-            subtitle: "Text processing is off.",
-            icon: "waveform.badge.exclamationmark"
-        ) {
-            Text("Switch to Clean mode when you want post-processing before paste/export.")
-                .font(DesignSystem.Typography.bodySmall)
-                .foregroundStyle(.secondary)
-        }
-    }
-
     // MARK: - Reusable
 
     private var dividerLine: some View {
@@ -561,9 +605,7 @@ struct VocabularyView: View {
     private func pipelineStep(
         number: Int,
         title: String,
-        detail: String,
-        actionTitle: String?,
-        action: (() -> Void)?
+        detail: String
     ) -> some View {
         HStack(spacing: DesignSystem.Spacing.md) {
             Text("\(number)")
@@ -585,13 +627,6 @@ struct VocabularyView: View {
 
             Spacer()
 
-            if let actionTitle, let action {
-                Button(actionTitle) {
-                    action()
-                }
-                .font(DesignSystem.Typography.caption.weight(.semibold))
-                .parakeetAction(.secondary)
-            }
         }
         .padding(.horizontal, DesignSystem.Spacing.lg)
         .padding(.vertical, DesignSystem.Spacing.md)
