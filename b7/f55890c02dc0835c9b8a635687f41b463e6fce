@@ -1,0 +1,23 @@
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift
+  s_e22d9d41797ef3::t_09fde7276fb42b 1214-1285
+plans/active/2026-10-30-1291-capture-finalization.md
+  s_e22d9d41797ef3::t_2fd8952e5dbc38 87-92
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingRecoveryService.swift
+  s_e22d9d41797ef3::t_7cab58ad35db61 368,475-477,487,491-504,506-508,510-511
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b7f55890c02dc0835c9b8a635687f41b463e6fce",
+  "prompts": {},
+  "sessions": {
+    "s_e22d9d41797ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18dfb-ae53-7c60-9a4e-a3aa4f722892",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
