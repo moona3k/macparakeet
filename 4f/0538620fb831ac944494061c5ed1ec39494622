@@ -1,0 +1,21 @@
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_712b38be9fe57b::t_5858fc3f638cd5 8-12,14-29,1157-1185
+  s_712b38be9fe57b::t_af44170808a4fa 13
+  s_712b38be9fe57b::t_3749d23194ed9c 1186-1187
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4f0538620fb831ac944494061c5ed1ec39494622",
+  "prompts": {},
+  "sessions": {
+    "s_712b38be9fe57b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18ee5-f506-71d1-b595-2fb20f5c5358",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
