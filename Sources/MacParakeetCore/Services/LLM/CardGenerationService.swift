@@ -231,21 +231,21 @@ public final class CardGenerationService: CardGenerating, @unchecked Sendable {
 
 }
 
-private struct CardDraft: Decodable {
+struct CardDraft: Decodable {
     var synopsis: String
     var topics: [String]
     var decisions: [CardDraftCitation]
     var actions: [CardDraftAction]
 }
 
-private struct CardDraftCitation: Decodable {
+struct CardDraftCitation: Decodable {
     var text: String
     var quote: String
     var startMs: Int?
     var endMs: Int?
 }
 
-private struct CardDraftAction: Decodable {
+struct CardDraftAction: Decodable {
     var text: String
     var owner: String?
     var quote: String

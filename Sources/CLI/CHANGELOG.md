@@ -110,6 +110,11 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Fixed
 
+- Knowledge-card generation now makes one corrective retry for incomplete or
+  malformed output, waits briefly for busy AI settings, and reserves provider
+  context for the answer. Usage totals include both responses when both report
+  usage; otherwise usage stays unknown. A failed replacement preserves saved cards.
+
 - A provider request that hits its idle timeout reports `errorType` `timeout`
   with "The request timed out before the provider finished responding." It was
   previously `connection` ("Connection failed: The request timed out.").

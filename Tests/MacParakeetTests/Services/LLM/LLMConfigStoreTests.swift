@@ -23,6 +23,32 @@ final class LLMConfigStoreTests: XCTestCase {
         try? FileManager.default.removeItem(at: routeLockURL.deletingLastPathComponent())
     }
 
+    func testKnowledgeCardWaitsForRealConfigurationLeaseWithoutMutatingRoute() async throws {
+        try store.saveConfig(.openai(apiKey: "working-key", model: "working-model"))
+        let fd = open(routeLockURL.path, O_RDWR | O_CLOEXEC | O_NOFOLLOW)
+        guard fd >= 0 else { return XCTFail("Could not open fixture lock") }
+        defer { close(fd) }
+        XCTAssertEqual(flock(fd, LOCK_EX | LOCK_NB), 0)
+        let client = MockLLMClient()
+        client.responseContent = """
+            {"synopsis":"Synthetic card.","topics":[],"decisions":[],"actions":[]}
+            """
+        let service = LLMService(
+            client: client, contextResolver: StoredLLMExecutionContextResolver(configStore: store),
+            cardRetrySleep: { delay in
+                XCTAssertEqual(delay, 100_000_000)
+                XCTAssertEqual(flock(fd, LOCK_UN), 0)
+            })
+
+        let result = try await service.generateKnowledgeCard(transcript: "Synthetic transcript.", source: .file)
+
+        XCTAssertEqual(client.chatCompletionCallCount, 1)
+        XCTAssertEqual(result.provider, "openai")
+        XCTAssertEqual(client.capturedContext?.providerConfig.modelName, "working-model")
+        XCTAssertEqual(try store.loadConfig()?.modelName, "working-model")
+        XCTAssertEqual(try store.loadAPIKey(), "working-key")
+    }
+
     func testBusyMutationsCannotReadRotateOrDeleteCredentials() throws {
         try store.saveConfig(.openai(apiKey: "working-key", model: "working"))
         let keys = RouteFailingKeys()

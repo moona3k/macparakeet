@@ -245,6 +245,7 @@ public extension LLMServiceProtocol {
 public final class LLMService: LLMServiceProtocol, Sendable {
     private let client: LLMClientProtocol
     private let contextResolver: any LLMExecutionContextResolving
+    private let cardRetrySleep: @Sendable (UInt64) async throws -> Void
     private struct MessageAssembly {
         let messages: [ChatMessage]
         let inputTruncated: Bool
@@ -431,12 +432,26 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         return (contextBudget * 2 - 1) / 7
     }
 
-    public init(
+    public convenience init(
         client: LLMClientProtocol = RoutingLLMClient(),
         contextResolver: any LLMExecutionContextResolving = StoredLLMExecutionContextResolver()
     ) {
+        self.init(
+            client: client, contextResolver: contextResolver,
+            cardRetrySleep: {
+                try await Task.sleep(nanoseconds: $0)
+            })
+    }
+
+    // Card-only clock seam: no configuration mutation or generic operation retries.
+    init(
+        client: LLMClientProtocol,
+        contextResolver: any LLMExecutionContextResolving,
+        cardRetrySleep: @escaping @Sendable (UInt64) async throws -> Void
+    ) {
         self.client = client
         self.contextResolver = contextResolver
+        self.cardRetrySleep = cardRetrySleep
     }
 
     public convenience init(
@@ -467,13 +482,8 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     public func generateKnowledgeCard(transcript: String, source: CardSource) async throws -> LLMResult {
         let operationID = Observability.operationID()
         let startedAt = Date()
-        let context = try loadContextForLLMOperation(
-            operationID: operationID,
-            feature: "knowledge_card",
-            streaming: false,
-            startedAt: startedAt,
-            inputChars: transcript.count,
-            messageCount: 2
+        let context = try await loadKnowledgeCardContext(
+            operationID: operationID, startedAt: startedAt, inputChars: transcript.count
         )
         let capability = client.structuredOutputCapability(context: context)
         let sourceInstructions: String
@@ -495,44 +505,77 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                 for: capability
             ))
             """
-        let assembly = buildPromptResultMessages(
-            transcript: """
-                <untrusted_transcript_data>
-                \(transcript)
-                </untrusted_transcript_data>
-                """,
-            systemPrompt: systemPrompt,
-            config: context.providerConfig,
-            inputBudget: context.providerConfig.id == .appleIntelligence
-                ? try promptResultInputBudget(
-                    for: context.providerConfig,
-                    maxOutputTokens: 700
-                )
-                : nil
-        )
         let responseFormat: ChatResponseFormat? =
             capability == .nativeJSONSchema ? Self.knowledgeCardResponseFormat : nil
-        let attemptCount = capability == .promptEmbeddedJSONSchema ? 2 : 1
+        // Preserve successful first requests where model/endpoint capacity is
+        // unknown. JSON syntax and citations get more room after truncation.
+        let (initialLimit, recoveryLimit): (Int, Int) =
+            switch context.providerConfig.id {
+            case .ollama: (2_048, 4_096)
+            case .lmstudio: (1_024, 1_536)
+            // Custom servers expose no context-window contract. Preserve their
+            // successful first requests; spend more only after explicit truncation.
+            case .openaiCompatible: (700, 2_048)
+            default: (700, 4_096)
+            }
+        var outputLimit = initialLimit
+        var correction = ""
         var promptTokens: Int?
         var completionTokens: Int?
+        var receivedResponse = false
         var retryCount = 0
+        var inputTruncated = false
         do {
-            for attempt in 0..<attemptCount {
+            // One recovery request across both native and embedded-schema routes.
+            for attempt in 0..<2 {
+                try Task.checkCancellation()
                 retryCount = attempt
-                let response = try await client.chatCompletion(
-                    messages: assembly.messages,
-                    context: context,
-                    options: ChatCompletionOptions(
-                        temperature: 0.1,
-                        maxTokens: 700,
-                        responseFormat: responseFormat
+                let options = try PromptInferenceCapabilityResolver.resolve(
+                    config: context.providerConfig,
+                    baseline: ChatCompletionOptions(responseFormat: responseFormat),
+                    requested: PromptInferenceSettings(temperature: 0.1, maxTokens: outputLimit)
+                ).options
+                let assembly = buildPromptResultMessages(
+                    transcript: """
+                        <untrusted_transcript_data>
+                        \(transcript)
+                        </untrusted_transcript_data>
+                        """,
+                    systemPrompt: systemPrompt + correction,
+                    config: context.providerConfig,
+                    inputBudget: try promptResultInputBudget(
+                        for: context.providerConfig, maxOutputTokens: options.maxTokens
                     )
                 )
-                if let usage = response.usage {
-                    promptTokens = (promptTokens ?? 0) + usage.promptTokens
-                    completionTokens = (completionTokens ?? 0) + usage.completionTokens
+                inputTruncated = inputTruncated || assembly.inputTruncated
+                let response = try await client.chatCompletion(
+                    messages: assembly.messages, context: context, options: options
+                )
+                promptTokens = LLMUsage.derivedTotal(
+                    promptTokens: receivedResponse ? promptTokens : 0, completionTokens: response.usage?.promptTokens
+                )
+                completionTokens = LLMUsage.derivedTotal(
+                    promptTokens: receivedResponse ? completionTokens : 0,
+                    completionTokens: response.usage?.completionTokens
+                )
+                receivedResponse = true
+                try Task.checkCancellation()
+                let truncated = ["length", "max_tokens", "max_output_tokens"]
+                    .contains(response.finishReason?.lowercased() ?? "")
+                guard !truncated, Self.isValidKnowledgeCardJSON(response.content) else {
+                    // Never replay partial/untrusted model output as instructions.
+                    // With no finish metadata (localCLI), repair format without
+                    // pretending token counts prove truncation.
+                    if truncated { outputLimit = recoveryLimit }
+                    correction = """
+
+                        The previous attempt was incomplete or did not match the card schema.
+                        Generate a fresh, shorter complete JSON object. Include a non-empty synopsis,
+                        topics, decisions and actions; use empty arrays when there are no items.
+                        Include all citation fields. No markdown fences, commentary or reasoning text.
+                        """
+                    continue
                 }
-                guard Self.isValidKnowledgeCardJSON(response.content) else { continue }
                 sendLLMOperation(
                     operationID: operationID,
                     feature: "knowledge_card",
@@ -542,20 +585,31 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     startedAt: startedAt,
                     inputChars: transcript.count,
                     outputChars: response.content.count,
-                    inputTruncated: assembly.inputTruncated,
-                    messageCount: assembly.messages.count,
+                    inputTruncated: inputTruncated,
+                    messageCount: 2,
                     promptTokens: promptTokens,
                     completionTokens: completionTokens,
                     retryCount: retryCount
                 )
                 return LLMResult(
-                    response: response,
-                    provider: context.providerConfig.id,
-                    latencyMs: Self.latencyMs(since: startedAt)
+                    output: response.content,
+                    provider: context.providerConfig.id.rawValue,
+                    model: response.model,
+                    usage: promptTokens.flatMap { prompt in
+                        completionTokens.map { completion in
+                            LLMUsage(
+                                promptTokens: prompt, completionTokens: completion,
+                                totalTokens: LLMUsage.derivedTotal(promptTokens: prompt, completionTokens: completion))
+                        }
+                    },
+                    stopReason: response.finishReason,
+                    latencyMs: Self.latencyMs(since: startedAt),
+                    effectiveSettings: response.effectiveInferenceSettings
                 )
             }
             throw LLMError.invalidResponse
         } catch {
+            let error: Error = Task.isCancelled ? CancellationError() : error
             let errorType = Self.operationErrorType(for: error)
             if !(error is CancellationError), Self.isProviderUnavailable(error) {
                 Telemetry.send(
@@ -573,12 +627,39 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                 outcome: Self.outcomeForLLMError(error),
                 startedAt: startedAt,
                 inputChars: transcript.count,
-                inputTruncated: assembly.inputTruncated,
-                messageCount: assembly.messages.count,
+                inputTruncated: inputTruncated,
+                messageCount: 2,
                 errorType: errorType,
                 promptTokens: promptTokens,
                 completionTokens: completionTokens,
                 retryCount: retryCount
+            )
+            throw error
+        }
+    }
+
+    private func loadKnowledgeCardContext(
+        operationID: String, startedAt: Date, inputChars: Int
+    ) async throws -> LLMExecutionContext {
+        let delays: [UInt64] = [100_000_000, 300_000_000, 600_000_000]
+        do {
+            var attempt = 0
+            while true {
+                try Task.checkCancellation()
+                do {
+                    return try loadContext(for: .analysis)
+                } catch LLMConfigStore.StoreError.busy where attempt < delays.count {
+                    try await cardRetrySleep(delays[attempt])
+                    attempt += 1
+                }
+            }
+        } catch {
+            let error: Error = Task.isCancelled ? CancellationError() : error
+            sendLLMOperation(
+                operationID: operationID, feature: "knowledge_card", provider: "unknown",
+                streaming: false, outcome: Self.outcomeForLLMSetupError(error),
+                startedAt: startedAt, inputChars: inputChars, messageCount: 2,
+                errorType: Self.operationErrorType(for: error)
             )
             throw error
         }
@@ -602,36 +683,13 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     }
 
     private static func isValidKnowledgeCardJSON(_ output: String) -> Bool {
-        guard let data = output.data(using: .utf8),
-            let object = try? JSONSerialization.jsonObject(with: data),
-            let card = object as? [String: Any],
-            Set(["synopsis", "topics", "decisions", "actions"]).isSubset(of: Set(card.keys)),
-            card["synopsis"] is String,
-            let topics = card["topics"] as? [Any],
-            topics.allSatisfy({ $0 is String }),
-            let decisions = card["decisions"] as? [Any],
-            decisions.allSatisfy({ isValidCitationObject($0, includesOwner: false) }),
-            let actions = card["actions"] as? [Any],
-            actions.allSatisfy({ isValidCitationObject($0, includesOwner: true) })
-        else {
-            return false
-        }
-        return true
-    }
-
-    private static func isValidCitationObject(_ value: Any, includesOwner: Bool) -> Bool {
-        guard let item = value as? [String: Any] else { return false }
-        let requiredKeys: Set<String> = ["text", "quote", "startMs", "endMs"]
-        guard requiredKeys.isSubset(of: Set(item.keys)),
-            item["text"] is String,
-            item["quote"] is String,
-            item["startMs"] is Int,
-            item["endMs"] is Int
-        else {
-            return false
-        }
-        guard includesOwner, let owner = item["owner"] else { return true }
-        return owner is String || owner is NSNull
+        // Share the persistence decoder so JSON booleans cannot bridge to Int
+        // timestamps and produce success before the later save rejects them.
+        guard let draft = try? JSONDecoder().decode(CardDraft.self, from: Data(output.utf8)),
+            !draft.synopsis.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return false }
+        return draft.decisions.allSatisfy { $0.startMs != nil && $0.endMs != nil }
+            && draft.actions.allSatisfy { $0.startMs != nil && $0.endMs != nil }
     }
 
     public func chat(
