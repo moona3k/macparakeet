@@ -1,4 +1,3 @@
-import FluidAudio
 import Foundation
 import OSLog
 
@@ -264,20 +263,46 @@ public actor CloudTranscribeEngine: STTTranscribing {
 
     private let configStore: CloudSTTConfigStore
     private let transport: CloudSTTTransport
-    private let loadSamples: @Sendable (URL) throws -> [Float]
+    private let makeSampleReader: @Sendable (URL) async throws -> any CloudAudioSampleReading
+    private let chunkSampleLimit: Int
+    private let splitSearchLimit: Int
     private let retryDelay: Duration
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "CloudTranscribeEngine")
 
     public init(
         configStore: CloudSTTConfigStore = CloudSTTConfigStore(),
         transport: CloudSTTTransport = URLSessionCloudSTTTransport(),
-        loadSamples: @escaping @Sendable (URL) throws -> [Float] = { try AudioConverter().resampleAudioFile($0) },
+        loadSamples: (@Sendable (URL) throws -> [Float])? = nil,
         retryDelay: Duration = .seconds(1)
     ) {
         self.configStore = configStore
         self.transport = transport
-        self.loadSamples = loadSamples
+        // Explicit injection is retained for fixtures and Settings' one-second
+        // synthetic connection probe. Real recording callers use the file reader.
+        if let loadSamples {
+            makeSampleReader = { url in CloudArraySampleReader(samples: try loadSamples(url)) }
+        } else {
+            makeSampleReader = { try CloudAudioFileReader(url: $0) }
+        }
+        chunkSampleLimit = Self.maxChunkSamples
+        splitSearchLimit = Self.splitSearchSamples
         self.retryDelay = retryDelay
+    }
+
+    init(
+        configStore: CloudSTTConfigStore,
+        transport: CloudSTTTransport,
+        makeSampleReader: @escaping @Sendable (URL) async throws -> any CloudAudioSampleReading,
+        maxChunkSamples: Int,
+        splitSearchSamples: Int
+    ) {
+        precondition(maxChunkSamples > 1 && splitSearchSamples > 0)
+        self.configStore = configStore
+        self.transport = transport
+        self.makeSampleReader = makeSampleReader
+        chunkSampleLimit = maxChunkSamples
+        splitSearchLimit = splitSearchSamples
+        retryDelay = .seconds(1)
     }
 
     /// Ready means configured; there is no model to load.
@@ -306,30 +331,46 @@ public actor CloudTranscribeEngine: STTTranscribing {
         }
 
         onProgress?(0, 100)
-        let loadSamples = self.loadSamples
-        let samples = try await Task.detached(priority: .userInitiated) {
-            try loadSamples(audioURL)
-        }.value
         try Task.checkCancellation()
-
-        let ranges = Self.chunkRanges(for: samples)
+        let reader = try await makeSampleReader(audioURL)
+        let estimatedSamples = await reader.estimatedSampleCount
+        var pending: [Float] = []
+        var reachedEnd = false
+        var offset = 0
         var texts: [String] = []
         var words: [TimestampedWord] = []
         var detectedLanguage: String?
 
-        for (index, range) in ranges.enumerated() {
+        while true {
             try Task.checkCancellation()
-            let wav = Self.wavData(from: samples[range])
+            // One extra sample distinguishes an exact final window from a
+            // longer recording that needs a quiet-point cut. No read occurs
+            // during the upload; only the short cut tail survives it.
+            while pending.count < chunkSampleLimit + 1, !reachedEnd {
+                try Task.checkCancellation()
+                let requested = min(CloudAudioFileReader.maxReadSamples, chunkSampleLimit + 1 - pending.count)
+                let batch = try await reader.read(maxSamples: requested)
+                try Task.checkCancellation()
+                guard batch.count <= requested else { throw CloudAudioFileReader.ReadError.invalidBatch }
+                if batch.isEmpty { reachedEnd = true } else { pending.append(contentsOf: batch) }
+            }
+            guard !pending.isEmpty else { break }
+            let count = Self.chunkRanges(
+                for: pending, maxChunkSamples: chunkSampleLimit, splitSearchSamples: splitSearchLimit
+            )[0].count
+            let wav = Self.wavData(from: pending[..<count])
+            pending = Array(pending.dropFirst(count))
             let response = try await requestTranscription(
                 wav: wav, endpoint: endpoint, config: config, language: language)
+            try Task.checkCancellation()
             UsageLedger.shared.record(
                 UsageEvent(
                     kind: .cloudSpeech,
                     provider: endpoint.host ?? "online",
                     model: config.model.trimmingCharacters(in: .whitespacesAndNewlines),
-                    audioMs: range.count * 1000 / Self.sampleRate
+                    audioMs: count * 1000 / Self.sampleRate
                 ))
-            let offsetMs = range.lowerBound * 1000 / Self.sampleRate
+            let offsetMs = offset * 1000 / Self.sampleRate
             let text = response.text.trimmingCharacters(in: .whitespacesAndNewlines)
             if !text.isEmpty { texts.append(text) }
             words.append(
@@ -342,8 +383,13 @@ public actor CloudTranscribeEngine: STTTranscribing {
                     )
                 })
             detectedLanguage = detectedLanguage ?? response.language
-            onProgress?((index + 1) * 100 / ranges.count, 100)
+            offset += count
+            let progress = estimatedSamples > 0 ? Int(min(99, Double(offset) / Double(estimatedSamples) * 100)) : 0
+            onProgress?(progress, 100)
         }
+        guard offset > 0 else { throw AudioProcessorError.insufficientSamples }
+        try Task.checkCancellation()
+        onProgress?(100, 100)
 
         return STTResult(
             text: texts.joined(separator: " "),
@@ -433,9 +479,12 @@ public actor CloudTranscribeEngine: STTTranscribing {
     private func sendWithRetry(_ request: URLRequest, body: Data) async throws -> (Data, HTTPURLResponse) {
         var attempt = 0
         while true {
+            try Task.checkCancellation()
             attempt += 1
             do {
-                return try await transport.send(request, body: body)
+                let response = try await transport.send(request, body: body)
+                try Task.checkCancellation()
+                return response
             } catch let error as CloudSTTError {
                 throw error
             } catch is CancellationError {
@@ -597,8 +646,29 @@ public actor CloudTranscribeEngine: STTTranscribing {
         data.append(Data("data".utf8))
         append(UInt32(byteCount))
         for sample in samples {
-            append(Int16((max(-1, min(1, sample)) * Float(Int16.max)).rounded()))
+            let finiteSample = sample.isFinite ? sample : 0
+            append(Int16((max(-1, min(1, finiteSample)) * Float(Int16.max)).rounded()))
         }
         return data
+    }
+}
+
+/// Compatibility adapter for explicit synthetic/test input. It is never the
+/// default decoder for a recording and does not claim bounded source storage.
+private actor CloudArraySampleReader: CloudAudioSampleReading {
+    let estimatedSampleCount: Int
+    private let samples: [Float]
+    private var position = 0
+
+    init(samples: [Float]) {
+        self.samples = samples
+        estimatedSampleCount = samples.count
+    }
+
+    func read(maxSamples: Int) throws -> [Float] {
+        try Task.checkCancellation()
+        let end = min(samples.count, position + maxSamples)
+        defer { position = end }
+        return Array(samples[position..<end])
     }
 }

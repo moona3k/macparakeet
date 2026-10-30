@@ -187,6 +187,11 @@ owned by `AppEnvironment`.
   speech boundaries and falls back to fixed on VAD errors.
 - `AudioFileConverter.swift` — file-side converter (FFmpeg /
   AVFoundation) for file/YouTube/meeting transcription inputs.
+- `CloudAudioFileReader.swift` — demand-driven file decoder for the optional
+  online engine. Keeps one AVAudioFile/converter across reads, downmixes to
+  16 kHz mono, and drains conversion at EOF with fixed-size native buffers.
+  The caller requests another upload window only after the previous upload
+  settles; it never accumulates the whole recording in memory.
 - `AudioProcessor.swift` + `AudioProcessorProtocol.swift` — thin
   facade composing `AudioRecorder` + `AudioFileConverter` behind a
   single protocol. Useful where a caller wants both the dictation

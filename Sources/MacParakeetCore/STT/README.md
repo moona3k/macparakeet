@@ -84,8 +84,11 @@ meeting preview warm-up and inference without changing capture or final STT.
   `audio/transcriptions` server; **sends recorded audio off the device**.
   Holds no model: "ready" means a server address and model are
   saved (`CloudSTTConfigStore`; API key in the Keychain). Batch-only like
-  Cohere. Audio longer than ten minutes is split at quiet points and word
-  times are re-offset. Requests `verbose_json` word timings and retries as
+  Cohere. File decoding is bounded and demand-driven: one upload window plus
+  one sample of lookahead, with a short quiet-point tail retained between
+  uploads. No next window is decoded until the current upload settles.
+  Audio longer than ten minutes is split at quiet points and word times are
+  re-offset from actual emitted sample counts. Requests `verbose_json` word timings and retries as
   plain `json` for models that reject it. Never selected by default and
   never used as a fallback for a local engine.
 - `RealtimeTranscribeEngine.swift` — streaming half of the online engine.

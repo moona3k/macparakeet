@@ -2375,7 +2375,7 @@ An optional "Online" speech engine transcribes through any OpenAI-compatible `au
 - It can be the engine for everything, or only for recordings and files through the existing Final Transcription override.
 - Batch only: dictation records first and transcribes after stop. Meeting live preview is disabled for arbitrary online models because this engine-wide capability cannot guarantee word timings. Final responses preserve valid supplied timings; text-only results stay plain text.
 - Optional realtime model (for example `gpt-realtime-whisper`): when one is saved, dictation streams the microphone over a Realtime transcription session and shows text while the user speaks. The final dictation text still comes from the recorded audio through the file model, so both are billed. Meeting live preview remains disabled.
-- Long audio is split into uploads of at most ten minutes at quiet points.
+- Long audio is decoded incrementally into uploads of at most ten minutes at quiet points. Decoding waits for each upload to settle, so audio buffers stay bounded independently of recording length; the source recording remains intact.
 - Transcripts record `engine = cloud` and the model name as the variant, shown as "Online · <model>".
 
 ### F52: Dictation Translation (fork)

@@ -1,3 +1,5 @@
+import AVFAudio
+import AudioToolbox
 import XCTest
 
 @testable import MacParakeetCore
@@ -56,6 +58,19 @@ private final class FlakyCloudTransport: CloudSTTTransport, @unchecked Sendable 
     }
 }
 
+private actor CancelledFallbackCloudTransport: CloudSTTTransport {
+    private(set) var attempts = 0
+
+    func send(_ request: URLRequest, body: Data) async throws -> (Data, HTTPURLResponse) {
+        attempts += 1
+        withUnsafeCurrentTask { $0?.cancel() }
+        return (
+            Data(#"{"error":"verbose_json unsupported"}"#.utf8),
+            HTTPURLResponse(url: request.url!, statusCode: 400, httpVersion: nil, headerFields: nil)!
+        )
+    }
+}
+
 private final class MemoryKeyValueStore: KeyValueStore, @unchecked Sendable {
     private let lock = NSLock()
     private var values: [String: String] = [:]
@@ -70,6 +85,59 @@ private final class MemoryKeyValueStore: KeyValueStore, @unchecked Sendable {
         }
     }
     func delete(_ key: String) throws { lock.withLock { values[key] = nil } }
+}
+
+private actor PullCloudReader: CloudAudioSampleReading {
+    let estimatedSampleCount: Int
+    private let samples: [Float]
+    private let failAt: Int?
+    private(set) var position = 0
+    private(set) var requests: [Int] = []
+
+    init(samples: [Float], failAt: Int? = nil) {
+        self.samples = samples
+        self.failAt = failAt
+        estimatedSampleCount = samples.count
+    }
+
+    func read(maxSamples: Int) throws -> [Float] {
+        try Task.checkCancellation()
+        requests.append(maxSamples)
+        if let failAt, position >= failAt { throw CloudAudioFileReader.ReadError.conversionFailed }
+        let end = min(samples.count, position + min(maxSamples, 137))
+        defer { position = end }
+        return Array(samples[position..<end])
+    }
+}
+
+private actor PullCloudTransport: CloudSTTTransport {
+    private let reader: PullCloudReader
+    private let onFirstUpload: @Sendable () async throws -> Void
+    private(set) var readPositions: [Int] = []
+    private(set) var uploads: [[Int16]] = []
+
+    init(reader: PullCloudReader, onFirstUpload: @escaping @Sendable () async throws -> Void = {}) {
+        self.reader = reader
+        self.onFirstUpload = onFirstUpload
+    }
+
+    func send(_ request: URLRequest, body: Data) async throws -> (Data, HTTPURLResponse) {
+        readPositions.append(await reader.position)
+        let start = try XCTUnwrap(body.range(of: Data("RIFF".utf8))?.lowerBound)
+        let count = body.subdata(in: start + 40..<start + 44).withUnsafeBytes {
+            Int(UInt32(littleEndian: $0.loadUnaligned(as: UInt32.self)))
+        }
+        let samples = body.subdata(in: start + 44..<start + 44 + count).withUnsafeBytes {
+            Array($0.bindMemory(to: Int16.self)).map(Int16.init(littleEndian:))
+        }
+        uploads.append(samples)
+        if uploads.count == 1 { try await onFirstUpload() }
+        let json = #"{"text":"part","words":[{"word":"part","start":0.001,"end":0.002}]}"#
+        return (
+            Data(json.utf8),
+            HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+        )
+    }
 }
 
 final class CloudTranscribeEngineTests: XCTestCase {
@@ -318,6 +386,195 @@ final class CloudTranscribeEngineTests: XCTestCase {
         XCTAssertTrue((900..<950).contains(ranges[0].upperBound), "First cut lands in the silent stretch")
     }
 
+    func testPullDecoderWaitsForUploadAndPreservesEverySampleAndOffset() async throws {
+        try store.save(CloudSTTConfig(baseURL: "https://example.com/v1", model: "whisper-1"))
+        var samples = [Float](repeating: 0.5, count: 2_500)
+        for index in 900..<950 { samples[index] = 0 }
+        let reader = PullCloudReader(samples: samples)
+        let started = expectation(description: "First upload owns the decoded window")
+        let completed = expectation(description: "Incremental transcription completed")
+        let gate = AsyncStream<Void>.makeStream()
+        let transport = PullCloudTransport(reader: reader) {
+            started.fulfill()
+            for await _ in gate.stream {}
+        }
+        let engine = CloudTranscribeEngine(
+            configStore: store, transport: transport, makeSampleReader: { _ in reader },
+            maxChunkSamples: 1_000, splitSearchSamples: 400)
+        let inputURL = audioURL
+        let request = Task {
+            defer { completed.fulfill() }
+            return try await engine.transcribe(audioURL: inputURL, job: .meetingFinalize, language: nil)
+        }
+        defer { request.cancel(); gate.continuation.finish() }
+        guard await XCTWaiter.fulfillment(of: [started], timeout: 2) == .completed else {
+            return XCTFail("First upload did not start")
+        }
+        let positionDuringUpload = await reader.position
+        XCTAssertEqual(positionDuringUpload, 1_001, "Decode only one window plus EOF lookahead before uploading")
+        gate.continuation.finish()
+        guard await XCTWaiter.fulfillment(of: [completed], timeout: 2) == .completed else {
+            return XCTFail("Incremental transcription did not complete")
+        }
+        let result = try await request.value
+        let ranges = CloudTranscribeEngine.chunkRanges(for: samples, maxChunkSamples: 1_000, splitSearchSamples: 400)
+        let uploads = await transport.uploads
+        XCTAssertEqual(uploads.map(\.count), ranges.map(\.count))
+        XCTAssertEqual(
+            uploads.flatMap { $0 }, samples.map { Int16(($0 * Float(Int16.max)).rounded()) },
+            "Quiet-point tails are neither dropped nor duplicated")
+        XCTAssertEqual(result.words.map(\.startMs), ranges.map { $0.lowerBound * 1_000 / 16_000 + 1 })
+        XCTAssertEqual(result.text, Array(repeating: "part", count: ranges.count).joined(separator: " "))
+        let readPositions = await transport.readPositions
+        XCTAssertEqual(readPositions, [1_001, 1_901, 2_500])
+        let requests = await reader.requests
+        XCTAssertTrue(requests.allSatisfy { $0 > 0 && $0 <= 1_001 })
+    }
+
+    func testCancellationAfterNoncooperativeUploadPreventsFurtherDecode() async throws {
+        try store.save(CloudSTTConfig(baseURL: "https://example.com/v1", model: "whisper-1"))
+        let reader = PullCloudReader(samples: Array(repeating: 0.2, count: 2_500))
+        let transport = PullCloudTransport(reader: reader) {
+            withUnsafeCurrentTask { $0?.cancel() }
+            // Deliberately return success despite cancellation, like a provider
+            // that has already buffered its response.
+        }
+        let engine = CloudTranscribeEngine(
+            configStore: store, transport: transport, makeSampleReader: { _ in reader },
+            maxChunkSamples: 1_000, splitSearchSamples: 400)
+        let inputURL = audioURL
+        let request = Task {
+            try await engine.transcribe(audioURL: inputURL, job: .meetingFinalize, language: nil)
+        }
+        do {
+            _ = try await request.value
+            XCTFail("Expected cancellation")
+        } catch is CancellationError {}
+        let position = await reader.position
+        let uploads = await transport.uploads
+        XCTAssertEqual(position, 1_001)
+        XCTAssertEqual(uploads.count, 1)
+    }
+
+    func testCancelledUploadCannotTriggerPlainJSONFallbackUpload() async throws {
+        try store.save(CloudSTTConfig(baseURL: "https://example.com/v1", model: "whisper-1"))
+        let transport = CancelledFallbackCloudTransport()
+        let engine = CloudTranscribeEngine(
+            configStore: store, transport: transport, loadSamples: { _ in [0.1, 0.2] })
+        let inputURL = audioURL
+        let request = Task {
+            try await engine.transcribe(audioURL: inputURL, job: .dictation, language: nil)
+        }
+        do {
+            _ = try await request.value
+            XCTFail("Cancellation must win over an unsupported response format")
+        } catch is CancellationError {}
+        let attempts = await transport.attempts
+        XCTAssertEqual(attempts, 1)
+    }
+
+    func testDecodeFailureAndEmptyFileDoNotUploadPartialAudio() async throws {
+        try store.save(CloudSTTConfig(baseURL: "https://example.com/v1", model: "whisper-1"))
+        for reader in [
+            PullCloudReader(samples: []),
+            PullCloudReader(samples: Array(repeating: 0.2, count: 2_500), failAt: 137),
+        ] {
+            let transport = PullCloudTransport(reader: reader)
+            let engine = CloudTranscribeEngine(
+                configStore: store, transport: transport, makeSampleReader: { _ in reader },
+                maxChunkSamples: 1_000, splitSearchSamples: 400)
+            do {
+                _ = try await engine.transcribe(audioURL: audioURL, job: .meetingFinalize, language: nil)
+                XCTFail("Empty or failed decoding must not upload")
+            } catch {}
+            let uploads = await transport.uploads
+            XCTAssertTrue(uploads.isEmpty)
+        }
+    }
+
+    func testFailedUploadStopsBeforeReadingTheNextWindow() async throws {
+        try store.save(CloudSTTConfig(baseURL: "https://example.com/v1", model: "whisper-1"))
+        let reader = PullCloudReader(samples: Array(repeating: 0.2, count: 2_500))
+        let transport = PullCloudTransport(reader: reader) { throw CloudSTTError.unauthorized }
+        let engine = CloudTranscribeEngine(
+            configStore: store, transport: transport, makeSampleReader: { _ in reader },
+            maxChunkSamples: 1_000, splitSearchSamples: 400)
+        do {
+            _ = try await engine.transcribe(audioURL: audioURL, job: .meetingFinalize, language: nil)
+            XCTFail("Expected upload failure")
+        } catch {
+            XCTAssertEqual(error as? CloudSTTError, .unauthorized)
+        }
+        let position = await reader.position
+        XCTAssertEqual(position, 1_001)
+    }
+
+    func testFileReaderKeepsResamplingStateAcrossSmallReadsAndDrainsEOF() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("cloud-reader-\(UUID())")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        for (rate, ext) in [(16_000.0, "wav"), (44_100.0, "wav"), (48_000.0, "wav"), (48_000.0, "m4a")] {
+            let url = folder.appendingPathComponent("\(Int(rate)).\(ext)")
+            let frames = Int(rate / 4) + 113
+            try writeReaderFixture(url, rate: rate, frames: frames)
+            let small = try await readFixture(url, batch: 257)
+            let large = try await readFixture(url, batch: 16_384)
+            XCTAssertEqual(small, large, "Chunk size must not reset the resampler or change its phase")
+            let expected = Int((Double(frames) * 16_000 / rate).rounded(.up))
+            XCTAssertLessThanOrEqual(abs(small.count - expected), 1)
+            XCTAssertGreaterThan(small.suffix(100).reduce(Float(0)) { $0 + $1 * $1 }, 0.01)
+        }
+    }
+
+    func testDefaultEngineReadsARealFileAndLeavesItIntact() async throws {
+        try store.save(CloudSTTConfig(baseURL: "https://example.com/v1", model: "whisper-1"))
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("cloud-default-\(UUID()).wav")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try writeReaderFixture(url, rate: 48_000, frames: 4_913)
+        let original = try Data(contentsOf: url)
+        let transport = RecordingCloudTransport(responses: [(200, #"{"text":"real file"}"#)])
+        let engine = CloudTranscribeEngine(configStore: store, transport: transport)
+        let result = try await engine.transcribe(audioURL: url, job: .fileTranscription, language: nil)
+        XCTAssertEqual(result.text, "real file")
+        XCTAssertEqual(transport.calls.count, 1)
+        XCTAssertEqual(try Data(contentsOf: url), original)
+    }
+
+    private func writeReaderFixture(_ url: URL, rate: Double, frames: Int) throws {
+        let format = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: rate, channels: 2))
+        var settings = format.settings
+        settings[AVLinearPCMIsNonInterleaved] = false
+        if url.pathExtension == "m4a" {
+            settings = [
+                AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: rate,
+                AVNumberOfChannelsKey: 2, AVEncoderBitRateKey: 128_000,
+            ]
+        }
+        let file = try AVAudioFile(forWriting: url, settings: settings)
+        let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames)))
+        buffer.frameLength = AVAudioFrameCount(frames)
+        for index in 0..<frames {
+            buffer.floatChannelData![0][index] = 0
+            buffer.floatChannelData![1][index] = Float(sin(Double(index) * 2 * .pi * 440 / rate)) * 0.5
+        }
+        try file.write(from: buffer)
+    }
+
+    private func readFixture(_ url: URL, batch: Int) async throws -> [Float] {
+        let reader = try CloudAudioFileReader(url: url)
+        let expected = await reader.estimatedSampleCount
+        var result: [Float] = []
+        while true {
+            let next = try await reader.read(maxSamples: batch)
+            XCTAssertLessThanOrEqual(next.count, batch)
+            if next.isEmpty { return result }
+            result.append(contentsOf: next)
+            guard result.count <= expected + CloudAudioFileReader.maxReadSamples else {
+                throw CloudAudioFileReader.ReadError.noProgress
+            }
+        }
+    }
+
     // MARK: - Failures
 
     func testRejectedKeyAndServerErrorsAreReportedWithoutLeakingTheKey() async throws {
@@ -410,11 +667,17 @@ final class CloudTranscribeEngineTests: XCTestCase {
         XCTAssertEqual(samples, [0, Int16.max, -Int16.max, Int16.max], "Out-of-range samples are clamped")
     }
 
-    func testCapabilitiesDescribeABatchEngineWithWordTimings() {
+    func testWavEncodingTurnsNonfiniteSamplesIntoSilence() {
+        let wav = CloudTranscribeEngine.wavData(from: [Float.nan, .infinity, -.infinity][...])
+        XCTAssertEqual(wav.suffix(6), Data(repeating: 0, count: 6))
+    }
+
+    func testCapabilitiesAllowConditionalDictationWithoutGuaranteedMeetingTimings() {
         let capabilities = SpeechEngineCapabilityRegistry.capabilities(for: .cloud)
         XCTAssertTrue(
             capabilities.supportsNativeLiveDictation, "Offered; declined at start unless a realtime model is saved")
-        XCTAssertTrue(capabilities.supportsMeetingLivePreview)
+        XCTAssertFalse(capabilities.providesWordTimestamps, "Arbitrary online models do not guarantee word timings")
+        XCTAssertFalse(capabilities.supportsMeetingLivePreview)
         XCTAssertNil(capabilities.modelLifecycle.minimumMemoryBytes)
         XCTAssertFalse(capabilities.modelLifecycle.isUserDeletable)
         XCTAssertEqual(SpeechEnginePreference.cloud.displayName, "Online")
