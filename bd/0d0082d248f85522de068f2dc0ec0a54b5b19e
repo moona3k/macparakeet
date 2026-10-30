@@ -1,0 +1,24 @@
+plans/active/2026-10-30-1291-capture-finalization.md
+  s_e22d9d41797ef3::t_8205749d1619c2 108-112
+Tests/MacParakeetTests/Services/VoiceControl/VoiceControlSpeechTests.swift
+  s_e22d9d41797ef3::t_0b8abeff4fe9dd 89,345,410,470
+  s_e22d9d41797ef3::t_92df361736afd0 75,85-86,172,174-180,326,328-334,336,355-357,361,364-371,373-385,388,420-422,425,428-429,432
+Tests/MacParakeetTests/Views/TranscriptDocumentLayoutTests.swift
+  s_e22d9d41797ef3::t_92df361736afd0 14,99-101,106-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bd0d0082d248f85522de068f2dc0ec0a54b5b19e",
+  "prompts": {},
+  "sessions": {
+    "s_e22d9d41797ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18dfb-ae53-7c60-9a4e-a3aa4f722892",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
