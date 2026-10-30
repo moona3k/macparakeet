@@ -1,0 +1,34 @@
+Sources/MacParakeetViewModels/VocabularyBackupViewModel.swift
+  s_d597488767616c::t_63ac3756b2998a 48-52,59-66,69,72,77,84-97,104,127,132,163
+Sources/MacParakeet/Views/Vocabulary/VocabularyBackupSection.swift
+  s_d597488767616c::t_5398a9951ae408 178-187,189,193
+Tests/MacParakeetTests/ViewModels/VocabularyBackupViewModelTests.swift
+  s_d597488767616c::t_b241c043269dee 7-27,32-33,35-41,45-64,68-140,142-144
+  s_d597488767616c::t_54711c0d4c294a 145
+spec/04-ui-patterns.md
+  s_38e5722b9dd02a::t_f45a7983aacda5 1220-1223
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fbea315082a98b0baacbc7981471fcf0ca499bd4",
+  "prompts": {},
+  "sessions": {
+    "s_38e5722b9dd02a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18df1-f109-71c3-9889-878dba2f138e",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_d597488767616c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2fb16b11-5a47-4e5d-b02b-c774ab1cf4d7",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
