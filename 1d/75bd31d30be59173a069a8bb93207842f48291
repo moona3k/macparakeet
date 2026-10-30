@@ -1,0 +1,19 @@
+.github/workflows/ci.yml
+  s_9acf0b68f7f81b::t_efd9036581ac07 30,219,377
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1d75bd31d30be59173a069a8bb93207842f48291",
+  "prompts": {},
+  "sessions": {
+    "s_9acf0b68f7f81b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e2a-e4f4-7330-be9f-30aa395c1c1e",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
