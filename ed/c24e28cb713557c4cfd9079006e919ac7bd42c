@@ -1,0 +1,25 @@
+docs/research/2026-10-30-1286-quartz-state/README.md
+  s_7788d1c08e1bb0::t_99cb179cddedd8 56-65,84-104
+scripts/dev/voice-control/run_ax_flights_probe.py
+  s_7788d1c08e1bb0::t_99cb179cddedd8 29,34
+scripts/dev/voice-control/run_ax_browser_probe.py
+  s_7788d1c08e1bb0::t_99cb179cddedd8 29,34
+docs/research/2026-10-30-1286-quartz-state/quartz-paste.jsonl
+  s_7788d1c08e1bb0::t_99cb179cddedd8 1-2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "edc24e28cb713557c4cfd9079006e919ac7bd42c",
+  "prompts": {},
+  "sessions": {
+    "s_7788d1c08e1bb0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e2a-e6db-73e2-812b-c7e92b308260",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
