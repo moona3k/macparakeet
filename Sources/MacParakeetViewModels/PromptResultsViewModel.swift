@@ -320,6 +320,7 @@ public final class PromptResultsViewModel {
         Task { [weak self] in
             do {
                 let content = try await resultTranslator.translateMarkdown(promptResult.content, to: language)
+                try Task.checkCancellation()
                 guard let self else { return }
                 let now = Date()
                 var translated = promptResult
@@ -328,6 +329,10 @@ public final class PromptResultsViewModel {
                 // replacement, per-prompt pending checks) treats it as its own result.
                 translated.promptId = nil
                 translated.promptVersionId = nil
+                // These describe the original generation, not this translation.
+                translated.providerSnapshot = nil
+                translated.modelSnapshot = nil
+                translated.inferenceSettingsSnapshot = nil
                 translated.promptName = "\(promptResult.promptName) · \(language.displayName)"
                 translated.content = content
                 translated.outputLanguagePolicySnapshot = language.rawValue

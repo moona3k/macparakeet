@@ -187,8 +187,25 @@ public enum TranscriptTranslationSource {
     }
 
     public static func hash(of segments: [TranslationSourceSegment]) -> String {
-        let payload = segments.map(\.text).joined(separator: "\n")
-        return SHA256.hash(data: Data(payload.utf8)).map { String(format: "%02x", $0) }.joined()
+        var digest = SHA256()
+        // Length-prefix each optional field so boundaries and nil values cannot
+        // collide. Timing and speaker edits also invalidate derived subtitles.
+        func append(_ value: String?) {
+            guard let value else {
+                digest.update(data: Data("nil:".utf8))
+                return
+            }
+            let bytes = Data(value.utf8)
+            digest.update(data: Data("\(bytes.count):".utf8))
+            digest.update(data: bytes)
+        }
+        for segment in segments {
+            append(segment.text)
+            append(segment.startMs.map(String.init))
+            append(segment.endMs.map(String.init))
+            append(segment.speakerId)
+        }
+        return digest.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     static func untimedSegments(from text: String) -> [TranslationSourceSegment] {

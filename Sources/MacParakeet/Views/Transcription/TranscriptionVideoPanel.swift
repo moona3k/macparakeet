@@ -8,9 +8,9 @@ struct TranscriptionVideoPanel: View {
     let transcription: Transcription
     @Bindable var playerViewModel: MediaPlayerViewModel
     var translationViewModel: TranscriptTranslationViewModel
-    /// Language the user asked to see as subtitles while its translation is
-    /// still being generated; applied as soon as the translation is saved.
-    @State private var pendingSubtitleLanguage: TranslationLanguage?
+    /// Keep the user's requested language even when source edits reset the
+    /// player's active cues. Cleared only by Original or another transcript.
+    @State private var requestedSubtitleLanguage: TranslationLanguage?
     @AppStorage(UserDefaultsAppRuntimePreferences.autoTranslateTranscriptsKey) private var autoTranslate = false
     @AppStorage(UserDefaultsAppRuntimePreferences.transcriptTranslationLanguageKey)
     private var configuredLanguageCode = TranslationLanguage.persian.rawValue
@@ -62,8 +62,8 @@ struct TranscriptionVideoPanel: View {
                             .help(playerViewModel.showSubtitles ? "Hide subtitles" : "Show subtitles")
                         }
                         .padding(.top, 6)
-                        if let pending = pendingSubtitleLanguage {
-                            subtitleTranslationStatus(for: pending)
+                        if let requested = requestedSubtitleLanguage {
+                            subtitleTranslationStatus(for: requested)
                         }
                     }
                 }
@@ -81,17 +81,33 @@ struct TranscriptionVideoPanel: View {
         .onChange(of: translationViewModel.translations) {
             syncSubtitlesWithTranslations()
         }
+        .onChange(of: selectedSubtitleTranslation) {
+            // A source edit can invalidate the saved row without changing it.
+            syncSubtitlesWithTranslations()
+        }
+        .onChange(of: translationViewModel.currentSourceHash) {
+            // Refresh the original fallback too, without launching another job.
+            playerViewModel.loadSubtitleCues(from: transcription)
+            // loadSubtitleCues clears the displayed cue; refresh it even when paused.
+            playerViewModel.showOriginalSubtitles()
+            syncSubtitlesWithTranslations()
+        }
         .onChange(of: transcription.id) {
-            pendingSubtitleLanguage = nil
+            requestedSubtitleLanguage = nil
         }
     }
 
     // MARK: - Subtitle translation
 
+    private var selectedSubtitleTranslation: TranscriptTranslation? {
+        guard let language = requestedSubtitleLanguage else { return nil }
+        return translationViewModel.subtitleTranslation(for: language)
+    }
+
     private var subtitleLanguageMenu: some View {
         Menu {
             Button {
-                pendingSubtitleLanguage = nil
+                requestedSubtitleLanguage = nil
                 playerViewModel.showOriginalSubtitles()
             } label: {
                 menuItemLabel("Original", isSelected: playerViewModel.subtitleLanguage == nil)
@@ -102,7 +118,9 @@ struct TranscriptionVideoPanel: View {
                 Button {
                     selectSubtitleLanguage(language, startIfMissing: true)
                 } label: {
-                    if saved != nil {
+                    if let saved, translationViewModel.isStale(saved) {
+                        Text("\(language.displayName) · Out of date")
+                    } else if saved != nil {
                         menuItemLabel(
                             "\(language.displayName) · \(language.nativeName)",
                             isSelected: playerViewModel.subtitleLanguage == language
@@ -112,7 +130,7 @@ struct TranscriptionVideoPanel: View {
                     }
                 }
                 .disabled(
-                    saved.map { !$0.hasTimedSegments }
+                    saved.map { !$0.hasTimedSegments && !translationViewModel.isStale($0) }
                         ?? (!translationViewModel.canTranslate || translationViewModel.isTranslating(language))
                 )
             }
@@ -145,10 +163,16 @@ struct TranscriptionVideoPanel: View {
     private func subtitleTranslationStatus(for language: TranslationLanguage) -> some View {
         if let job = translationViewModel.job(for: language) {
             if let message = job.errorMessage {
-                Text(message)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 4)
+                HStack {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button("Retry") { translationViewModel.translate(to: language) }
+                        .parakeetAction(.secondary)
+                        .controlSize(.small)
+                        .disabled(!translationViewModel.canTranslate)
+                }
+                .padding(.top, 4)
             } else {
                 ProgressView(value: job.fractionCompleted) {
                     Text("Translating subtitles to \(language.displayName)…")
@@ -157,6 +181,19 @@ struct TranscriptionVideoPanel: View {
                 .controlSize(.small)
                 .padding(.top, 4)
             }
+        } else if let saved = translationViewModel.translation(for: language),
+            translationViewModel.isStale(saved)
+        {
+            HStack {
+                Text("\(language.displayName) subtitles are out of date. Showing the original.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button("Re-translate") { translationViewModel.translate(to: language) }
+                    .parakeetAction(.secondary)
+                    .controlSize(.small)
+                    .disabled(!translationViewModel.canTranslate)
+            }
+            .padding(.top, 4)
         }
     }
 
@@ -164,12 +201,12 @@ struct TranscriptionVideoPanel: View {
     /// player is ready. Only timed transcripts can be shown as subtitles.
     private func autoTranslateSubtitlesIfNeeded() {
         guard autoTranslate,
-              playerViewModel.playerState == .ready,
-              playerViewModel.subtitleLanguage == nil,
-              pendingSubtitleLanguage == nil,
-              transcription.hasWordTimestamps,
-              !transcription.isTranscriptEdited,
-              let language = TranslationLanguage.resolve(configuredLanguageCode)
+            playerViewModel.playerState == .ready,
+            playerViewModel.subtitleLanguage == nil,
+            requestedSubtitleLanguage == nil,
+            transcription.hasWordTimestamps,
+            !transcription.isTranscriptEdited,
+            let language = TranslationLanguage.resolve(configuredLanguageCode)
         else { return }
         selectSubtitleLanguage(language, startIfMissing: translationViewModel.canTranslate)
     }
@@ -177,27 +214,23 @@ struct TranscriptionVideoPanel: View {
     /// Show `language` on the video, generating the translation first when it
     /// does not exist yet.
     private func selectSubtitleLanguage(_ language: TranslationLanguage, startIfMissing: Bool) {
-        if let saved = translationViewModel.translation(for: language) {
-            pendingSubtitleLanguage = nil
-            playerViewModel.showTranslatedSubtitles(saved.segments, language: language)
-            playerViewModel.showSubtitles = true
-        } else if startIfMissing {
-            pendingSubtitleLanguage = language
+        let saved = translationViewModel.translation(for: language)
+        guard saved != nil || startIfMissing else { return }
+        requestedSubtitleLanguage = language
+        playerViewModel.showSubtitles = true
+        syncSubtitlesWithTranslations()
+        if saved == nil, startIfMissing {
             translationViewModel.translate(to: language)
         }
     }
 
     private func syncSubtitlesWithTranslations() {
-        if let pending = pendingSubtitleLanguage,
-           translationViewModel.translation(for: pending) != nil {
-            selectSubtitleLanguage(pending, startIfMissing: false)
-        } else if let shown = playerViewModel.subtitleLanguage {
-            // Keep the overlay in step with a re-translation or a deletion.
-            if let saved = translationViewModel.translation(for: shown) {
-                playerViewModel.showTranslatedSubtitles(saved.segments, language: shown)
-            } else {
-                playerViewModel.showOriginalSubtitles()
-            }
+        guard let requested = requestedSubtitleLanguage else { return }
+        // Passive reconciliation preserves the CC toggle and never makes a request.
+        if let saved = translationViewModel.subtitleTranslation(for: requested) {
+            playerViewModel.showTranslatedSubtitles(saved.segments, language: requested)
+        } else {
+            playerViewModel.showOriginalSubtitles()
         }
     }
 

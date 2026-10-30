@@ -40,8 +40,7 @@ public struct CloudSTTModelCatalog: Equatable, Sendable {
     /// rejects the key, so the caller can keep showing the fallback.
     public static func load(config: CloudSTTConfig, fetch: Fetch = urlSessionFetch) async throws -> CloudSTTModelCatalog
     {
-        let trimmed = config.baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard config.transcriptionsURL != nil, let base = URL(string: trimmed) else {
+        guard let endpoint = config.normalizedEndpoint, let base = URL(string: endpoint) else {
             throw CloudSTTError.notConfigured
         }
         var request = URLRequest(url: base.appendingPathComponent("models"))

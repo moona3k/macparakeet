@@ -28,15 +28,17 @@ public final class TranscriptTranslationViewModel {
 
     /// Saved translations for the transcript currently on screen.
     public private(set) var translations: [TranscriptTranslation] = []
+    /// Fingerprint of the effective source, including timing and speakers.
+    /// Playback observes this to refresh original cues after source edits.
+    public private(set) var currentSourceHash: String?
     public var onTranslationsChanged: ((UUID, Bool) -> Void)?
 
     private var jobs: [JobKey: Job] = [:]
     private var tasks: [JobKey: Task<Void, Never>] = [:]
+    private var generations: [JobKey: UUID] = [:]
     private var translator: TranscriptTranslating?
     private var repository: TranscriptTranslationRepositoryProtocol?
-    private var modelNameProvider: (@MainActor () -> String?)?
     private var currentTranscription: Transcription?
-    private var currentSourceHash: String?
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "TranscriptTranslationViewModel")
 
     public init() {}
@@ -48,11 +50,10 @@ public final class TranscriptTranslationViewModel {
     public func configure(
         translator: TranscriptTranslating?,
         repository: TranscriptTranslationRepositoryProtocol?,
-        modelNameProvider: (@MainActor () -> String?)? = nil
+        modelNameProvider _: (@MainActor () -> String?)? = nil
     ) {
         self.translator = translator
         self.repository = repository
-        self.modelNameProvider = modelNameProvider
     }
 
     public func updateTranslator(_ translator: TranscriptTranslating?) {
@@ -103,6 +104,15 @@ public final class TranscriptTranslationViewModel {
         translations.first { $0.languageCode == language.rawValue }
     }
 
+    /// Only a current, timed translation can replace the original subtitles.
+    /// Outdated translations remain available in their saved translation tab.
+    public func subtitleTranslation(for language: TranslationLanguage) -> TranscriptTranslation? {
+        guard let translation = translation(for: language),
+            translation.hasTimedSegments, !isStale(translation)
+        else { return nil }
+        return translation
+    }
+
     public func job(for language: TranslationLanguage) -> Job? {
         guard let transcriptionId = currentTranscription?.id else { return nil }
         return jobs[JobKey(transcriptionId: transcriptionId, language: language)]
@@ -136,16 +146,20 @@ public final class TranscriptTranslationViewModel {
         jobs[key] = Job(totalSegments: source.count)
         notifyChanged(transcription.id)
 
+        let generation = UUID()
+        generations[key] = generation
         tasks[key] = Task { [weak self] in
             do {
                 let segments = try await translator.translate(source, to: language) { [weak self] batch in
-                    await self?.appendProgress(batch, for: key)
+                    await self?.appendProgress(batch, for: key, generation: generation)
                 }
-                self?.finish(key, segments: segments, sourceHash: sourceHash)
+                try Task.checkCancellation()
+                self?.finish(
+                    key, generation: generation, segments: segments, sourceHash: sourceHash)
             } catch is CancellationError {
-                self?.clearJob(key)
+                self?.clearJob(key, generation: generation)
             } catch {
-                self?.fail(key, error: error)
+                self?.fail(key, generation: generation, error: error)
             }
         }
     }
@@ -171,34 +185,43 @@ public final class TranscriptTranslationViewModel {
 
     // MARK: - Job bookkeeping
 
-    private func appendProgress(_ batch: [TranslatedSegment], for key: JobKey) {
+    private func appendProgress(_ batch: [TranslatedSegment], for key: JobKey, generation: UUID) {
+        guard generations[key] == generation else { return }
         jobs[key]?.segments.append(contentsOf: batch)
     }
 
-    private func finish(_ key: JobKey, segments: [TranslatedSegment], sourceHash: String) {
+    private func finish(
+        _ key: JobKey, generation: UUID, segments: [TranslatedSegment], sourceHash: String
+    ) {
+        guard generations[key] == generation else { return }
         let translation = TranscriptTranslation(
             transcriptionId: key.transcriptionId,
             languageCode: key.language.rawValue,
             segments: segments,
             sourceHash: sourceHash,
-            modelName: modelNameProvider?()
+            // The translator may use a different provider/model for each
+            // batch. A UI configuration snapshot is not response provenance.
+            modelName: nil
         )
         do {
             try repository?.save(translation)
-            clearJob(key)
+            clearJob(key, generation: generation)
         } catch {
-            fail(key, error: error)
+            fail(key, generation: generation, error: error)
         }
     }
 
-    private func fail(_ key: JobKey, error: Error) {
+    private func fail(_ key: JobKey, generation: UUID, error: Error) {
+        guard generations[key] == generation else { return }
         tasks[key] = nil
         jobs[key]?.errorMessage = error.localizedDescription
         // LLM errors can echo transcript content, so only the type is logged.
         logger.error("translation_failed error=\(String(describing: type(of: error)), privacy: .public)")
     }
 
-    private func clearJob(_ key: JobKey) {
+    private func clearJob(_ key: JobKey, generation: UUID? = nil) {
+        if let generation, generations[key] != generation { return }
+        generations[key] = nil
         tasks[key] = nil
         jobs[key] = nil
         if key.transcriptionId == currentTranscription?.id {

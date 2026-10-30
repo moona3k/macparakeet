@@ -5,6 +5,25 @@ import XCTest
 
 final class MediaPlayerViewModelTests: XCTestCase {
 
+    @MainActor
+    func testChangingSubtitleLanguageClearsPreviousCueDuringGap() {
+        let model = MediaPlayerViewModel()
+        model.showSubtitles = true
+        model.currentTimeMs = 500
+        model.loadSubtitleCues(from: [WordTimestamp(word: "Original", startMs: 2000, endMs: 3000, confidence: 1)])
+        model.showTranslatedSubtitles(
+            [TranslatedSegment(startMs: 0, endMs: 1000, text: "Translated")], language: .german)
+        XCTAssertEqual(model.currentSubtitleText, "Translated")
+        model.showOriginalSubtitles()
+        XCTAssertNil(model.currentSubtitleText)
+        model.showTranslatedSubtitles(
+            [TranslatedSegment(startMs: 0, endMs: 1000, text: "Translated")], language: .german)
+        XCTAssertEqual(model.currentSubtitleText, "Translated")
+        model.showTranslatedSubtitles(
+            [TranslatedSegment(startMs: 2000, endMs: 3000, text: "Later")], language: .english)
+        XCTAssertNil(model.currentSubtitleText)
+    }
+
     // MARK: - Playback Mode Detection
 
     func testDetectPlaybackModeForYouTube() {

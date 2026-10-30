@@ -566,3 +566,11 @@ conversations expose optional `messages[].activities`, preserving compatibility
 with older messages. Limits, count semantics, and fields are defined in
 [the Ask workspace contract](ask-workspace.md). Consumers should ignore unknown
 event types and optional fields.
+
+### Translation and file engine routing
+
+`transcribe --engine app-default` follows the saved final/file transcription engine,
+including its existing inheritance rule when no final override is stored. A live
+Cloud engine does not override an explicitly selected local final engine. The
+`translate` LLM route is listed as inherited from the default route and cannot be
+configured as an independent override.

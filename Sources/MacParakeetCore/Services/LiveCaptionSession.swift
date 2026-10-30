@@ -40,26 +40,34 @@ public actor LiveCaptionSession {
     private let capture: any MeetingAudioCapturing
     private let configStore: CloudSTTConfigStore
     private let connect: RealtimeSTTConnect
-
+    private let uploadBufferSampleLimit: Int
+    private var generation = 0
+    private var historyGeneration = 0
     private var engines: [AudioSource: RealtimeTranscribeEngine] = [:]
     private var converters: [AudioSource: LiveCaptionResampler] = [:]
     private var linesBySource: [AudioSource: [RealtimeCaptionLine]] = [:]
-    /// Phrase ids in the order they were first heard, across both sources.
     private var order: [String] = []
     private var eventTask: Task<Void, Never>?
+    private var uploadTasks: [AudioSource: Task<Void, Never>] = [:]
+    private var queuedAudio: [AudioSource: [[Float]]] = [:]
+    /// Includes the chunk currently waiting on the network.
+    private var bufferedSamples: [AudioSource: Int] = [:]
+    private var shutdownTask: Task<Void, Never>?
     private var onUpdate: Update?
     private var onFailure: Failure?
-    private var isRunning = false
+    private var captureRequested = false
 
     public init(
         capture: any MeetingAudioCapturing,
         configStore: CloudSTTConfigStore = CloudSTTConfigStore(),
+        uploadBufferSampleLimit: Int = 48_000,
         connect: @escaping RealtimeSTTConnect = { url, apiKey in
             URLSessionRealtimeSTTSocket(url: url, apiKey: apiKey)
         }
     ) {
         self.capture = capture
         self.configStore = configStore
+        self.uploadBufferSampleLimit = max(1, uploadBufferSampleLimit)
         self.connect = connect
     }
 
@@ -68,7 +76,10 @@ public actor LiveCaptionSession {
         onUpdate: @escaping Update,
         onFailure: @escaping Failure
     ) async throws {
-        await stop()
+        generation += 1
+        let current = generation
+        await retireSession().value
+        try requireCurrent(current)
         guard configStore.isConfigured, configStore.loadMetadata().hasRealtimeModel else {
             throw LiveCaptionSessionError.realtimeModelMissing
         }
@@ -82,65 +93,131 @@ public actor LiveCaptionSession {
         do {
             for source in sources {
                 let engine = RealtimeTranscribeEngine(configStore: configStore, connect: connect)
-                try await engine.beginLiveDictation(language: nil, onPartial: { _ in })
-                await engine.setLineObserver { [weak self] lines in
-                    Task { await self?.receive(lines, from: source) }
-                }
+                // Stop must see an engine even while its connection is pending.
                 engines[source] = engine
+                try await engine.beginLiveDictation(language: nil, onPartial: { _ in })
+                try requireCurrent(current)
+                await installLineObserver(engine, source: source, generation: current, history: historyGeneration)
+                try requireCurrent(current)
+                try await engine.setFailureObserver { [weak self] message in
+                    Task { await self?.fail(message, generation: current) }
+                }
+                try requireCurrent(current)
             }
 
             let events = await capture.events
+            try requireCurrent(current)
             eventTask = Task { [weak self] in
                 for await event in events {
                     guard !Task.isCancelled else { break }
-                    await self?.handle(event)
+                    await self?.handle(event, generation: current)
                 }
             }
+            // The capture service can be stopped while its start is suspended.
+            captureRequested = true
             _ = try await capture.start(sourceMode: sourceMode)
-            isRunning = true
+            try requireCurrent(current)
         } catch {
-            await stop()
+            if generation == current {
+                generation += 1
+                await retireSession().value
+            }
             throw error
         }
     }
 
     public func stop() async {
+        generation += 1
+        await retireSession().value
+    }
+
+    /// Revocation is synchronous; cleanup is serialized before another start.
+    private func retireSession() -> Task<Void, Never> {
         eventTask?.cancel()
         eventTask = nil
-        if isRunning {
-            await capture.stop()
-        }
-        isRunning = false
-        for engine in engines.values {
-            await engine.cancelLiveDictation()
-        }
+        for task in uploadTasks.values { task.cancel() }
+        uploadTasks = [:]
+        queuedAudio = [:]
+        bufferedSamples = [:]
+        let retiringEngines = Array(engines.values)
         engines = [:]
+        let stopCapture = captureRequested
+        captureRequested = false
         converters = [:]
         linesBySource = [:]
         order = []
+        historyGeneration += 1
         onUpdate = nil
         onFailure = nil
+        let previousShutdown = shutdownTask
+        let capture = capture
+        let cleanup = Task {
+            await previousShutdown?.value
+            for engine in retiringEngines { await engine.cancelLiveDictation() }
+            if stopCapture { await capture.stop() }
+        }
+        shutdownTask = cleanup
+        return cleanup
     }
 
-    // MARK: - Capture events
+    public func clearHistory() async -> [LiveCaptionLine] {
+        let current = generation
+        historyGeneration += 1
+        let history = historyGeneration
+        linesBySource = [:]
+        order = []
+        let activeEngines = engines
+        for (source, engine) in activeEngines {
+            await engine.clearCaptionHistory()
+            guard current == generation, history == historyGeneration else { return [] }
+            await installLineObserver(engine, source: source, generation: current, history: history)
+        }
+        return currentLines()
+    }
 
-    private func handle(_ event: MeetingAudioCaptureEvent) async {
-        switch event {
-        case .microphoneBuffer(let buffer, _):
-            await feed(buffer, source: .microphone)
-        case .systemBuffer(let buffer, _):
-            await feed(buffer, source: .system)
-        case .error(let error):
-            onFailure?(error.localizedDescription)
-        case .sourceInterrupted(let source, let error):
-            onFailure?(
-                "\(source == .microphone ? "Microphone" : "Computer audio") stopped: \(error.localizedDescription)")
-        default:
-            break
+    private func installLineObserver(
+        _ engine: RealtimeTranscribeEngine, source: AudioSource, generation: Int, history: Int
+    ) async {
+        await engine.setLineObserver { [weak self] lines in
+            Task { await self?.receive(lines, from: source, generation: generation, history: history) }
         }
     }
 
-    private func feed(_ buffer: AVAudioPCMBuffer, source: AudioSource) async {
+    private func requireCurrent(_ expected: Int) throws {
+        try Task.checkCancellation()
+        guard generation == expected else { throw CancellationError() }
+    }
+
+    private func fail(_ message: String, generation expected: Int) async {
+        guard generation == expected else { return }
+        let notify = onFailure
+        generation += 1
+        let cleanup = retireSession()
+        notify?(message)
+        await cleanup.value
+    }
+
+    private func handle(_ event: MeetingAudioCaptureEvent, generation: Int) async {
+        guard self.generation == generation, captureRequested else { return }
+        switch event {
+        case .microphoneBuffer(let buffer, _):
+            await enqueue(buffer, source: .microphone, generation: generation)
+        case .systemBuffer(let buffer, _):
+            await enqueue(buffer, source: .system, generation: generation)
+        case .error:
+            await fail("Audio capture failed. Live captions stopped.", generation: generation)
+        case .sourceInterrupted(let source, _):
+            await fail(
+                "\(source == .microphone ? "Microphone" : "Computer audio") stopped. Live captions stopped.",
+                generation: generation)
+        default: break
+        }
+    }
+
+    /// Capture-event consumption never waits on an upload. At most two seconds
+    /// of 24 kHz samples per source are retained by default, including in-flight
+    /// audio. Overflow stops visibly rather than silently losing caption audio.
+    private func enqueue(_ buffer: AVAudioPCMBuffer, source: AudioSource, generation: Int) async {
         guard let engine = engines[source] else { return }
         let converter: LiveCaptionResampler
         if let existing = converters[source], existing.matches(buffer.format) {
@@ -153,20 +230,54 @@ public actor LiveCaptionSession {
         }
         let samples = converter.convert(buffer)
         guard !samples.isEmpty else { return }
-        do {
-            try await engine.processSamples24k(samples)
-        } catch {
-            onFailure?("The connection to the speech service was lost.")
+        let buffered = bufferedSamples[source, default: 0]
+        guard samples.count <= uploadBufferSampleLimit - buffered else {
+            await fail(
+                "The speech service is too slow to keep up. Live captions stopped; try starting again.",
+                generation: generation)
+            return
+        }
+        bufferedSamples[source] = buffered + samples.count
+        queuedAudio[source, default: []].append(samples)
+        if uploadTasks[source] == nil {
+            uploadTasks[source] = Task { [weak self] in
+                await self?.drainUploads(source: source, engine: engine, generation: generation)
+            }
         }
     }
 
-    private func receive(_ lines: [RealtimeCaptionLine], from source: AudioSource) {
-        guard engines[source] != nil else { return }
+    private func drainUploads(source: AudioSource, engine: RealtimeTranscribeEngine, generation: Int) async {
+        while self.generation == generation, !Task.isCancelled {
+            guard var queue = queuedAudio[source], !queue.isEmpty else {
+                uploadTasks[source] = nil
+                return
+            }
+            let samples = queue.removeFirst()
+            queuedAudio[source] = queue
+            do {
+                try await engine.processSamples24k(samples)
+                guard self.generation == generation, !Task.isCancelled else { return }
+                bufferedSamples[source, default: 0] -= samples.count
+            } catch {
+                guard self.generation == generation, !Task.isCancelled else { return }
+                await fail(
+                    "The connection to the speech service was lost. Live captions stopped.", generation: generation)
+                return
+            }
+        }
+    }
+
+    private func receive(_ lines: [RealtimeCaptionLine], from source: AudioSource, generation: Int, history: Int) {
+        guard self.generation == generation, historyGeneration == history, engines[source] != nil else { return }
         linesBySource[source] = lines
         for line in lines {
             let id = Self.lineID(source: source, itemID: line.id)
             if !order.contains(id) { order.append(id) }
         }
+        onUpdate?(currentLines())
+    }
+
+    private func currentLines() -> [LiveCaptionLine] {
         var byID: [String: LiveCaptionLine] = [:]
         for (lineSource, sourceLines) in linesBySource {
             for line in sourceLines {
@@ -174,7 +285,7 @@ public actor LiveCaptionSession {
                 byID[id] = LiveCaptionLine(id: id, source: lineSource, text: line.text, isFinal: line.isFinal)
             }
         }
-        onUpdate?(order.compactMap { byID[$0] })
+        return order.compactMap { byID[$0] }
     }
 
     static func lineID(source: AudioSource, itemID: String) -> String {

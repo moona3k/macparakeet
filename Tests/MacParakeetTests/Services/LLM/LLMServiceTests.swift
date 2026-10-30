@@ -15,6 +15,7 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
     var chatCompletionStreamCallCount = 0
     var responseReasoningContent: String?
     var responseFinishReason: String?
+    var cancelBeforeReturningCompletion = false
     var responseModel = "mock-model"
     var responseUsage: TokenUsage?
     var streamTokens: [String]?
@@ -37,6 +38,9 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
         capturedOptions = options
         if let chatCompletionError { throw chatCompletionError }
         let content = responseContents.isEmpty ? responseContent : responseContents.removeFirst()
+        if cancelBeforeReturningCompletion {
+            withUnsafeCurrentTask { $0?.cancel() }
+        }
         return ChatCompletionResponse(
             content: content,
             reasoningContent: responseReasoningContent,
@@ -416,6 +420,37 @@ final class LLMServiceTests: XCTestCase {
             XCTAssertTrue(mockClient.capturedMessages.isEmpty, "An over-budget batch must not be sent truncated")
         } catch {
             XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testTranslateRejectsTruncatedOutputEvenWhenEveryMarkerIsPresent() async throws {
+        mockClient.responseContent = "[1] A partial final sentence"
+        for reason in ["length", "max_tokens", "MAX_TOKENS"] {
+            mockClient.responseFinishReason = reason
+            do {
+                _ = try await service.translateDetailed(text: "[1] Complete sentence.", instructions: "Translate.")
+                XCTFail("Expected incomplete translation for \(reason)")
+            } catch TranscriptTranslationError.incompleteResponse {
+                // A numbered line can still end halfway through its content.
+            }
+        }
+        mockClient.responseFinishReason = "stop"
+        let result = try await service.translateDetailed(text: "[1] Complete sentence.", instructions: "Translate.")
+        XCTAssertEqual(result.output, mockClient.responseContent)
+    }
+
+    func testTranslateRejectsResponseWhenProviderReturnsAfterCancellation() async {
+        mockClient.responseContent = "[1] Completed text from a cancelled request"
+        mockClient.cancelBeforeReturningCompletion = true
+        let service = self.service!
+        let task = Task {
+            try await service.translateDetailed(text: "[1] Hello", instructions: "Translate.")
+        }
+        do {
+            _ = try await task.value
+            XCTFail("A provider returning success must not suppress cancellation")
+        } catch {
+            XCTAssertTrue(error is CancellationError)
         }
     }
 

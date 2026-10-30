@@ -59,8 +59,14 @@ final class CancelFlowTests: XCTestCase {
         try await assertProcessingCancellation(at: .formatterCancellation)
     }
 
+    func testCancelledTranslationNeverCompletesHistoryAndPreservesReplacement() async throws {
+        try await assertProcessingCancellation(at: .translation)
+        try await assertProcessingCancellation(at: .translationCancellation)
+    }
+
     private enum CancellationStage: Sendable {
-        case transcription, formatting, formatterCancellation, successDisplay, formatterRun
+        case transcription, formatting, formatterCancellation, translation, translationCancellation, successDisplay,
+            formatterRun
 
         var isCommitted: Bool { self == .successDisplay || self == .formatterRun }
     }
@@ -89,6 +95,14 @@ final class CancelFlowTests: XCTestCase {
                         }
                         if stage == .formatterCancellation { llm.errorToThrow = CancellationError() }
                     }
+                    if stage == .translation || stage == .translationCancellation {
+                        llm.summarizeResult = "[1] Translated take"
+                        llm.translationHook = {
+                            suspended.fulfill()
+                            await release.wait()
+                        }
+                        if stage == .translationCancellation { llm.translationError = CancellationError() }
+                    }
                     let runs = LLMRunRepository(dbQueue: db.dbQueue)
                     let service = DictationService(
                         audioProcessor: audio,
@@ -97,6 +111,10 @@ final class CancelFlowTests: XCTestCase {
                         shouldSaveDictationHistory: { saveHistory },
                         shouldPreserveDiscardedDictations: { preserve },
                         llmService: llm,
+                        dictationTranslationSettings: {
+                            stage == .translation || stage == .translationCancellation
+                                ? DictationTranslationSettings(language: .german, output: .translation) : nil
+                        },
                         llmRunRepo: stage == .formatterRun
                             ? SuspendedDictationRunRepository(
                                 base: runs, gate: release, entered: { suspended.fulfill() })
@@ -140,6 +158,10 @@ final class CancelFlowTests: XCTestCase {
                     let committed = stage.isCommitted
                     XCTAssertEqual(rows.count, committed || (preserve && saveHistory) ? 1 : 0, context)
                     XCTAssertTrue(rows.allSatisfy { $0.status == (committed ? .completed : .cancelled) }, context)
+                    if stage == .translation || stage == .translationCancellation {
+                        XCTAssertTrue(
+                            rows.allSatisfy { $0.translation == nil && $0.translationLanguage == nil }, context)
+                    }
                     XCTAssertEqual(try repo.fetchCompleted(limit: 10).count, committed && saveHistory ? 1 : 0, context)
                     XCTAssertEqual(try repo.stats().totalCount, committed ? 1 : 0, context)
                     XCTAssertEqual(try runs.count(), committed && saveHistory ? 1 : 0, context)

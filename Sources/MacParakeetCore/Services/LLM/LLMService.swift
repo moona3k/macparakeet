@@ -1014,6 +1014,12 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         ]
         do {
             let response = try await client.chatCompletion(messages: messages, context: context, options: .default)
+            try Task.checkCancellation()
+            if let reason = response.finishReason?.lowercased(),
+                reason == "length" || reason == "max_tokens"
+            {
+                throw TranscriptTranslationError.incompleteResponse
+            }
             sendLLMOperation(
                 operationID: operationID,
                 feature: Self.translateFeature,

@@ -59,9 +59,16 @@ private final class FlakyCloudTransport: CloudSTTTransport, @unchecked Sendable 
 private final class MemoryKeyValueStore: KeyValueStore, @unchecked Sendable {
     private let lock = NSLock()
     private var values: [String: String] = [:]
+    private var rejectsWrites = false
+    func rejectWrites() { lock.withLock { rejectsWrites = true } }
 
     func getString(_ key: String) throws -> String? { lock.withLock { values[key] } }
-    func setString(_ value: String, forKey key: String) throws { lock.withLock { values[key] = value } }
+    func setString(_ value: String, forKey key: String) throws {
+        try lock.withLock {
+            if rejectsWrites { throw CloudSTTError.unauthorized }
+            values[key] = value
+        }
+    }
     func delete(_ key: String) throws { lock.withLock { values[key] = nil } }
 }
 
@@ -128,6 +135,107 @@ final class CloudTranscribeEngineTests: XCTestCase {
             XCTAssertEqual(error as? CloudSTTError, .notConfigured)
         }
         XCTAssertTrue(transport.calls.isEmpty, "No audio may be uploaded before setup")
+    }
+
+    func testSavedCredentialIsReusedOnlyForTheSameNormalizedEndpoint() throws {
+        try store.save(CloudSTTConfig(baseURL: "https://provider-a.example/v1", model: "m", apiKey: "secret-a"))
+        let same = try store.resolvingSavedAPIKey(
+            for: CloudSTTConfig(baseURL: " HTTPS://PROVIDER-A.EXAMPLE:443/v1/ ", model: "new", apiKey: " "))
+        XCTAssertEqual(same.apiKey, "secret-a")
+        for endpoint in [
+            "https://provider-b.example/v1", "http://provider-a.example/v1",
+            "https://provider-a.example/other", "https://provider-a.example:444/v1",
+        ] {
+            XCTAssertThrowsError(try store.resolvingSavedAPIKey(for: CloudSTTConfig(baseURL: endpoint, model: "m"))) {
+                XCTAssertEqual($0 as? CloudSTTError, .endpointCredentialMismatch)
+            }
+        }
+        XCTAssertEqual(try store.load().apiKey, "secret-a")
+    }
+
+    func testChangedEndpointUsesOnlyExplicitNewKeyForLookupAndTranscription() async throws {
+        try store.save(CloudSTTConfig(baseURL: "https://provider-a.example/v1", model: "m", apiKey: "secret-a"))
+        let config = try store.resolvingSavedAPIKey(
+            for: CloudSTTConfig(baseURL: "https://provider-b.example/v1", model: "m", apiKey: "secret-b"))
+        _ = try await CloudSTTModelCatalog.load(config: config) { request in
+            XCTAssertEqual(request.url?.host, "provider-b.example")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer secret-b")
+            return (
+                Data(#"{"data":[]}"#.utf8),
+                HTTPURLResponse(
+                    url: request.url!, statusCode: 200,
+                    httpVersion: nil, headerFields: nil)!
+            )
+        }
+        try store.save(config)
+        let transport = RecordingCloudTransport(responses: [(200, #"{"text":"ok"}"#)])
+        _ = try await makeEngine(transport: transport).transcribe(
+            audioURL: audioURL, job: .fileTranscription, language: nil)
+        XCTAssertEqual(transport.calls.first?.request.url?.host, "provider-b.example")
+        XCTAssertEqual(transport.calls.first?.request.value(forHTTPHeaderField: "Authorization"), "Bearer secret-b")
+
+        try store.clearAPIKey()
+        let anonymous = try store.resolvingSavedAPIKey(
+            for: CloudSTTConfig(baseURL: "https://anonymous.example/v1", model: "m"))
+        XCTAssertNil(anonymous.apiKey)
+    }
+
+    func testFailedKeychainSaveCannotAttachOldKeyToNewEndpoint() throws {
+        let keys = MemoryKeyValueStore()
+        let store = CloudSTTConfigStore(defaults: defaults, keychain: keys)
+        let original = CloudSTTConfig(baseURL: "https://provider-a.example/v1", model: "m", apiKey: "secret-a")
+        try store.save(original)
+        keys.rejectWrites()
+
+        XCTAssertThrowsError(
+            try store.save(
+                CloudSTTConfig(baseURL: "https://provider-b.example/v1", model: "new", apiKey: "secret-b")))
+
+        XCTAssertEqual(try store.load(), original)
+    }
+
+    func testEndpointBoundKeyFailsClosedWhenPreferencesAndKeychainDisagree() throws {
+        try store.save(CloudSTTConfig(baseURL: "https://provider-b.example/v1", model: "m", apiKey: "secret-b"))
+        // Model a restart after the Keychain write but before preferences update.
+        defaults.set("https://provider-a.example/v1", forKey: CloudSTTConfigStore.baseURLKey)
+        XCTAssertThrowsError(try store.load()) {
+            XCTAssertEqual($0 as? CloudSTTError, .endpointCredentialMismatch)
+        }
+    }
+
+    func testLegacyRawKeyIsReadAndBoundToEndpointOnNextSave() throws {
+        let keys = MemoryKeyValueStore()
+        defaults.set("https://provider-a.example/v1", forKey: CloudSTTConfigStore.baseURLKey)
+        defaults.set("m", forKey: CloudSTTConfigStore.modelKey)
+        try keys.setString("legacy-secret", forKey: CloudSTTConfigStore.apiKeyKeychainKey)
+        let store = CloudSTTConfigStore(defaults: defaults, keychain: keys)
+        let saved = try store.load()
+        XCTAssertEqual(saved.apiKey, "legacy-secret")
+        try store.save(saved)
+        XCTAssertEqual(try store.load().apiKey, "legacy-secret")
+        XCTAssertNotEqual(try keys.getString(CloudSTTConfigStore.apiKeyKeychainKey), "legacy-secret")
+        defaults.set("https://provider-b.example/v1", forKey: CloudSTTConfigStore.baseURLKey)
+        XCTAssertThrowsError(try store.load())
+    }
+
+    func testMalformedProviderTimesAreDiscardedWithoutTrapping() throws {
+        let response = try XCTUnwrap(
+            CloudTranscribeEngine.parseResponse(
+                Data(
+                    #"""
+                    {"text":"kept","words":[
+                      {"word":"huge","start":1e300,"end":1e300},
+                      {"word":"negative","start":-1,"end":0},
+                      {"word":"reversed","start":2,"end":1},
+                      {"word":"out-of-chunk","start":700,"end":701},
+                      {"word":"valid","start":0.1,"end":0.2,"probability":2}
+                    ]}
+                    """#.utf8)))
+        XCTAssertEqual(response.text, "kept")
+        XCTAssertEqual(response.words.map(\.word), ["valid"])
+        XCTAssertEqual(response.words.first?.startMs, 100)
+        XCTAssertEqual(response.words.first?.endMs, 200)
+        XCTAssertEqual(response.words.first?.confidence, 1)
     }
 
     // MARK: - Transcribing

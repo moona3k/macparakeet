@@ -7,7 +7,7 @@ public protocol RealtimeSTTSocket: Sendable {
     /// Next text message from the service; throws when the connection ends.
     func receive() async throws -> String
     func close()
-    /// Why the connection ended (close code and reason), when known.
+    /// Non-content diagnostics (close code and HTTP status), when known.
     var closeDescription: String? { get }
 }
 
@@ -30,6 +30,19 @@ public struct RealtimeCaptionLine: Sendable, Equatable, Identifiable {
 }
 
 public typealias RealtimeSTTConnect = @Sendable (_ url: URL, _ apiKey: String?) async throws -> RealtimeSTTSocket
+
+enum RealtimeSTTFailure: Error, LocalizedError, Equatable, Sendable {
+    case connectionLost
+    case requestRejected
+
+    var errorDescription: String? {
+        switch self {
+        case .connectionLost: "The connection to the speech service was lost."
+        case .requestRejected:
+            "The speech service rejected the realtime session. Check its model and connection settings."
+        }
+    }
+}
 
 public final class URLSessionRealtimeSTTSocket: RealtimeSTTSocket, @unchecked Sendable {
     private let task: URLSessionWebSocketTask
@@ -61,9 +74,8 @@ public final class URLSessionRealtimeSTTSocket: RealtimeSTTSocket, @unchecked Se
     }
 
     public var closeDescription: String? {
-        let reason = task.closeReason.flatMap { String(data: $0, encoding: .utf8) } ?? ""
         let status = (task.response as? HTTPURLResponse).map { " http=\($0.statusCode)" } ?? ""
-        return "close_code=\(task.closeCode.rawValue)\(status) reason=\(reason.prefix(200))"
+        return "close_code=\(task.closeCode.rawValue)\(status)"
     }
 }
 
@@ -91,6 +103,10 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "RealtimeTranscribeEngine")
 
     private var socket: RealtimeSTTSocket?
+    private var generation = 0
+    private var failure: RealtimeSTTFailure?
+    private var onFailure: (@Sendable (String) -> Void)?
+    private var clearedItems: Set<String> = []
     private var receiveTask: Task<Void, Never>?
     private var onPartial: (@Sendable (String) -> Void)?
     private var model = ""
@@ -106,7 +122,7 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
     private var hasLoggedFirstText = false
     private var pendingFinals = 0
 
-    private var resampleCarry: Float?
+    private var resampleCarry: [Float] = []
     private var hasSpeechSinceCommit = false
     private var silenceMs = 0
     private var uncommittedMs = 0
@@ -130,7 +146,9 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
         language: String?,
         onPartial: @escaping @Sendable (String) -> Void
     ) async throws {
-        await cancelLiveDictation()
+        teardown()
+        let current = generation
+        try Task.checkCancellation()
         let config = try configStore.load()
         guard configStore.isConfigured, config.hasRealtimeModel, let url = config.realtimeURL else {
             throw STTLiveDictationTranscriptionError.unsupportedEngine(.cloud)
@@ -141,15 +159,26 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
         self.onPartial = onPartial
 
         let socket = try await connect(url, config.apiKey)
+        guard current == generation, !Task.isCancelled else {
+            socket.close()
+            throw CancellationError()
+        }
         self.socket = socket
-        try await socket.send(Self.sessionUpdate(model: model))
+        do {
+            try await socket.send(Self.sessionUpdate(model: model))
+            try requireCurrent(current)
+        } catch {
+            socket.close()
+            if current == generation { teardown() }
+            throw error
+        }
 
         AudioCaptureDiagnostics.append("realtime_stt_session_started host=\(provider) model=\(model)")
         receiveTask = Task { [weak self] in
             while !Task.isCancelled {
                 do {
                     let message = try await socket.receive()
-                    await self?.handle(message)
+                    await self?.handle(message, generation: current)
                 } catch {
                     if !Task.isCancelled {
                         // No user content: close code, HTTP status, and error type only.
@@ -157,6 +186,7 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
                         AudioCaptureDiagnostics.append(
                             "realtime_stt_socket_closed \(socket.closeDescription ?? "")\(code) error_type=\(type(of: error))"
                         )
+                        await self?.fail(.connectionLost, generation: current)
                     }
                     return
                 }
@@ -167,9 +197,25 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
     /// Per-phrase updates for caption views. Dictation uses `onPartial`.
     func setLineObserver(_ observer: (@Sendable ([RealtimeCaptionLine]) -> Void)?) {
         onLines = observer
+        observer?(captionLines())
+    }
+
+    func setFailureObserver(_ observer: (@Sendable (String) -> Void)?) throws {
+        onFailure = observer
+        if let failure { throw failure }
+    }
+
+    func clearCaptionHistory() {
+        clearedItems.formUnion(itemOrder)
+        itemOrder = []
+        itemTexts = [:]
+        finalItems = []
+        onLines?([])
     }
 
     func processLiveDictationSamples(_ samples: [Float]) async throws {
+        let current = generation
+        try requireCurrent(current)
         guard let socket, !samples.isEmpty else { return }
 
         let chunkMs = samples.count * 1000 / Self.inputSampleRate
@@ -183,12 +229,14 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
         }
 
         let resampled = Self.resample16kTo24k(samples, carry: &resampleCarry)
-        try await send(resampled, to: socket)
+        try await send(resampled, to: socket, generation: current)
     }
 
     /// Feeds audio that is already 24 kHz mono (live captions convert capture
     /// buffers straight to the session rate).
     func processSamples24k(_ samples: [Float]) async throws {
+        let current = generation
+        try requireCurrent(current)
         guard let socket, !samples.isEmpty else { return }
 
         let chunkMs = samples.count * 1000 / Self.outputSampleRate
@@ -200,11 +248,13 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
         } else {
             silenceMs += chunkMs
         }
-        try await send(samples, to: socket)
+        try await send(samples, to: socket, generation: current)
     }
 
-    private func send(_ samples24k: [Float], to socket: RealtimeSTTSocket) async throws {
+    private func send(_ samples24k: [Float], to socket: RealtimeSTTSocket, generation: Int) async throws {
+        try requireCurrent(generation)
         try await socket.send(Self.appendEvent(samples: samples24k))
+        try requireCurrent(generation)
 
         // The service does no turn detection for transcription sessions, so
         // the client marks the end of each phrase to receive its final text.
@@ -215,15 +265,19 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
     }
 
     func finishLiveDictation() async throws -> STTResult {
+        let current = generation
+        try requireCurrent(current)
         if hasSpeechSinceCommit {
             try? await commit()
         }
         // Give the service a moment to return finals for committed phrases.
         var waitedMs = 0
         while pendingFinals > 0, waitedMs < 3_000 {
-            try? await Task.sleep(for: .milliseconds(50))
+            try await Task.sleep(for: .milliseconds(50))
+            try requireCurrent(current)
             waitedMs += 50
         }
+        try requireCurrent(current)
         let result = STTResult(text: currentText(), words: [], language: nil, engine: .cloud, engineVariant: model)
         teardown()
         return result
@@ -236,8 +290,11 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
     // MARK: - Session
 
     private func commit() async throws {
+        let current = generation
+        try requireCurrent(current)
         guard let socket else { return }
         try await socket.send(#"{"type":"input_audio_buffer.commit"}"#)
+        try requireCurrent(current)
         pendingFinals += 1
         hasSpeechSinceCommit = false
         silenceMs = 0
@@ -245,6 +302,7 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
     }
 
     private func teardown() {
+        generation += 1
         receiveTask?.cancel()
         receiveTask = nil
         socket?.close()
@@ -255,38 +313,57 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
         socket = nil
         onPartial = nil
         onLines = nil
+        onFailure = nil
+        failure = nil
+        clearedItems = []
         finalItems = []
         loggedEventTypes = []
         hasLoggedFirstText = false
         itemOrder = []
         itemTexts = [:]
         pendingFinals = 0
-        resampleCarry = nil
+        resampleCarry = []
         hasSpeechSinceCommit = false
         silenceMs = 0
         uncommittedMs = 0
         totalAudioMs = 0
     }
 
-    private func handle(_ message: String) {
+    private func requireCurrent(_ expected: Int) throws {
+        try Task.checkCancellation()
+        guard expected == generation else { throw CancellationError() }
+        if let failure { throw failure }
+    }
+
+    private func fail(_ error: RealtimeSTTFailure, generation expected: Int) {
+        guard generation == expected else { return }
+        let notify = onFailure
+        teardown()
+        failure = error
+        notify?(error.localizedDescription)
+    }
+
+    private func handle(_ message: String, generation expected: Int) {
+        guard generation == expected, !Task.isCancelled else { return }
         logEventTypeOnce(message)
         guard let event = Self.parseEvent(message) else { return }
         switch event {
         case .delta(let itemID, let text):
+            guard !clearedItems.contains(itemID) else { return }
             noteItem(itemID)
             itemTexts[itemID, default: ""] += text
             publish()
         case .completed(let itemID, let transcript):
+            guard !clearedItems.contains(itemID) else { return }
             noteItem(itemID)
             itemTexts[itemID] = transcript
             finalItems.insert(itemID)
             pendingFinals = max(0, pendingFinals - 1)
             publish()
-        case .error(let code, let message):
-            // The service's error text describes the request (for example an
-            // unsupported parameter); it does not echo audio or transcripts.
-            logger.error("realtime_stt_error code=\(code, privacy: .public)")
-            AudioCaptureDiagnostics.append("realtime_stt_error code=\(code) message=\(message.prefix(240))")
+        case .error:
+            logger.error("realtime_stt_request_rejected")
+            AudioCaptureDiagnostics.append("realtime_stt_request_rejected")
+            fail(.requestRejected, generation: expected)
         }
     }
 
@@ -296,13 +373,14 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
             AudioCaptureDiagnostics.append("realtime_stt_first_text")
         }
         onPartial?(currentText())
-        if let onLines {
-            onLines(
-                itemOrder.compactMap { id in
-                    guard let text = itemTexts[id]?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty
-                    else { return nil }
-                    return RealtimeCaptionLine(id: id, text: text, isFinal: finalItems.contains(id))
-                })
+        onLines?(captionLines())
+    }
+
+    private func captionLines() -> [RealtimeCaptionLine] {
+        itemOrder.compactMap { id in
+            guard let text = itemTexts[id]?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty
+            else { return nil }
+            return RealtimeCaptionLine(id: id, text: text, isFinal: finalItems.contains(id))
         }
     }
 
@@ -310,10 +388,17 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
     /// a session that connects but produces no text can be diagnosed.
     private func logEventTypeOnce(_ message: String) {
         guard let object = try? JSONSerialization.jsonObject(with: Data(message.utf8)) as? [String: Any],
-            let type = object["type"] as? String, !loggedEventTypes.contains(type), loggedEventTypes.count < 24
+            let rawType = object["type"] as? String
         else { return }
-        loggedEventTypes.insert(type)
-        AudioCaptureDiagnostics.append("realtime_stt_event type=\(type.prefix(80))")
+        let knownTypes: Set<String> = [
+            "session.created", "session.updated", "transcription_session.created", "transcription_session.updated",
+            "conversation.item.input_audio_transcription.delta",
+            "conversation.item.input_audio_transcription.completed",
+            "input_audio_buffer.committed", "error",
+        ]
+        let type = knownTypes.contains(rawType) ? rawType : "other"
+        guard loggedEventTypes.insert(type).inserted else { return }
+        AudioCaptureDiagnostics.append("realtime_stt_event type=\(type)")
     }
 
     private func noteItem(_ itemID: String) {
@@ -379,7 +464,8 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
     static func appendEvent(samples: [Float]) -> String {
         var data = Data(capacity: samples.count * 2)
         for sample in samples {
-            let value = Int16((max(-1, min(1, sample)) * Float(Int16.max)).rounded())
+            let finite = sample.isFinite ? sample : 0
+            let value = Int16((max(-1, min(1, finite)) * Float(Int16.max)).rounded())
             withUnsafeBytes(of: value.littleEndian) { data.append(contentsOf: $0) }
         }
         return json(["type": "input_audio_buffer.append", "audio": data.base64EncodedString()])
@@ -398,14 +484,14 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
     }
 
     /// 16 kHz → 24 kHz by linear interpolation (three output samples for every
-    /// two input samples). `carry` holds the last input sample so consecutive
-    /// chunks join without a click.
-    static func resample16kTo24k(_ samples: [Float], carry: inout Float?) -> [Float] {
+    /// two input samples). Keep one or two unconsumed inputs, including the
+    /// interpolation phase, so odd chunk boundaries cannot discard time.
+    static func resample16kTo24k(_ samples: [Float], carry: inout [Float]) -> [Float] {
         guard !samples.isEmpty else { return [] }
-        let input = (carry.map { [$0] } ?? []) + samples
+        let input = carry + samples
         let usable = input.count - 1
         guard usable > 0 else {
-            carry = input.last
+            carry = input
             return []
         }
         let pairs = usable / 2
@@ -419,12 +505,7 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
             output.append(a + (b - a) * (2.0 / 3.0))
             output.append(b + (c - b) * (1.0 / 3.0))
         }
-        // An odd leftover input sample waits for the next chunk.
-        carry = input[pairs * 2]
-        if usable % 2 == 1 {
-            output.append(input[pairs * 2])
-            carry = input[pairs * 2 + 1]
-        }
+        carry = Array(input[(pairs * 2)...])
         return output
     }
 }

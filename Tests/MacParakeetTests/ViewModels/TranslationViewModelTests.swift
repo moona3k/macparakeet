@@ -39,6 +39,78 @@ private final class MockTranscriptTranslator: TranscriptTranslating, @unchecked 
     }
 }
 
+/// Deliberately ignores cancellation so tests control when an obsolete provider
+/// returns or sends progress. No wall-clock sleeps drive the interleavings.
+@MainActor
+private final class ControlledTranscriptTranslator: TranscriptTranslating {
+    private enum Action: Sendable {
+        case progress([TranslatedSegment], CheckedContinuation<Void, Never>)
+        case finish(Result<[TranslatedSegment], Error>)
+    }
+
+    private struct Pending {
+        var actions: [Action] = []
+        var waiter: CheckedContinuation<Action, Never>?
+    }
+
+    private var pending: [Int: Pending] = [:]
+    private(set) var requestCount = 0
+    private(set) var returnedRequests: Set<Int> = []
+
+    func translate(
+        _ segments: [TranslationSourceSegment],
+        to language: TranslationLanguage,
+        onBatch: @Sendable ([TranslatedSegment]) async -> Void
+    ) async throws -> [TranslatedSegment] {
+        let request = requestCount
+        requestCount += 1
+        pending[request] = Pending()
+        defer {
+            pending[request] = nil
+            returnedRequests.insert(request)
+        }
+        while true {
+            switch await nextAction(request) {
+            case .progress(let segments, let acknowledged):
+                await onBatch(segments)
+                acknowledged.resume()
+            case .finish(let result):
+                return try result.get()
+            }
+        }
+    }
+
+    private func nextAction(_ request: Int) async -> Action {
+        if pending[request]?.actions.isEmpty == false {
+            return pending[request]!.actions.removeFirst()
+        }
+        return await withCheckedContinuation { pending[request]?.waiter = $0 }
+    }
+
+    private func send(_ action: Action, request: Int) {
+        if let waiter = pending[request]?.waiter {
+            pending[request]?.waiter = nil
+            waiter.resume(returning: action)
+        } else {
+            pending[request]?.actions.append(action)
+        }
+    }
+
+    func emit(_ segments: [TranslatedSegment], request: Int) async {
+        guard pending[request] != nil else {
+            XCTFail("No pending translation request \(request)")
+            return
+        }
+        await withCheckedContinuation { acknowledged in
+            send(.progress(segments, acknowledged), request: request)
+        }
+    }
+
+    func finish(_ request: Int, result: Result<[TranslatedSegment], Error>) {
+        send(.finish(result), request: request)
+    }
+}
+
 private struct TranslatorFailure: LocalizedError {
     var errorDescription: String? { "provider unavailable" }
 }
@@ -95,7 +167,7 @@ final class TranscriptTranslationViewModelTests: XCTestCase {
 
         let saved = try XCTUnwrap(repo.fetch(transcriptionId: transcription.id, languageCode: "fa"))
         XCTAssertEqual(saved.segments.map(\.text), ["fa:Hello there.", "fa:How are you?"])
-        XCTAssertEqual(saved.modelName, "test-model")
+        XCTAssertNil(saved.modelName, "Configured model names do not prove which model translated every batch")
         XCTAssertNil(viewModel.job(for: .persian))
         XCTAssertFalse(viewModel.isStale(saved))
         XCTAssertEqual(changes.last, true)
@@ -131,6 +203,42 @@ final class TranscriptTranslationViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.isStale(saved))
     }
 
+    func testSubtitleSelectionRejectsStaleTimingAndKeepsSavedTranslation() async throws {
+        var transcription = try makeTranscription(text: "Hello there.")
+        transcription.wordTimestamps = [
+            WordTimestamp(word: "Hello there.", startMs: 0, endMs: 1_000, confidence: 1, speakerId: "speaker-1")
+        ]
+        viewModel.load(transcription: transcription)
+        viewModel.translate(to: .german)
+        await waitUntil { self.viewModel.translation(for: .german) != nil }
+        let saved = try XCTUnwrap(viewModel.subtitleTranslation(for: .german))
+        let originalFingerprint = viewModel.currentSourceHash
+
+        transcription.wordTimestamps?[0].endMs = 2_000
+        viewModel.load(transcription: transcription)
+
+        XCTAssertNotEqual(viewModel.currentSourceHash, originalFingerprint)
+        XCTAssertNil(
+            viewModel.subtitleTranslation(for: .german), "Old cues must stop being selectable after timing changes")
+        XCTAssertEqual(viewModel.translation(for: .german), saved, "Stale translations remain durable and readable")
+        XCTAssertEqual(try repo.fetch(transcriptionId: transcription.id, languageCode: "de"), saved)
+
+        viewModel.translate(to: .german)
+        await waitUntil { self.viewModel.subtitleTranslation(for: .german) != nil }
+        XCTAssertEqual(viewModel.subtitleTranslation(for: .german)?.segments.first?.endMs, 2_000)
+    }
+
+    func testSubtitleSelectionRejectsCurrentUntimedTranslation() async throws {
+        viewModel.load(transcription: try makeTranscription())
+        XCTAssertNil(viewModel.subtitleTranslation(for: .german))
+        viewModel.translate(to: .german)
+        await waitUntil { self.viewModel.translation(for: .german) != nil }
+
+        let saved = try XCTUnwrap(viewModel.translation(for: .german))
+        XCTAssertFalse(viewModel.isStale(saved))
+        XCTAssertNil(viewModel.subtitleTranslation(for: .german))
+    }
+
     func testDeleteRemovesSavedTranslation() async throws {
         let transcription = try makeTranscription()
         viewModel.load(transcription: transcription)
@@ -156,6 +264,87 @@ final class TranscriptTranslationViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.translations.isEmpty, "The other transcript's translation must not leak in")
     }
 
+    func testCancelledProviderReturningSuccessDoesNotSave() async throws {
+        let controlled = ControlledTranscriptTranslator()
+        viewModel.updateTranslator(controlled)
+        let transcription = try makeTranscription(text: "Original text.")
+        viewModel.load(transcription: transcription)
+        viewModel.translate(to: .german)
+        await waitUntil { controlled.requestCount == 1 }
+
+        viewModel.cancel(.german)
+        controlled.finish(0, result: .success([TranslatedSegment(text: "Obsolete result")]))
+        await waitUntil { controlled.returnedRequests.contains(0) }
+
+        XCTAssertNil(viewModel.job(for: .german))
+        XCTAssertFalse(viewModel.hasTranslationTabs)
+        XCTAssertTrue(try repo.fetchAll(transcriptionId: transcription.id).isEmpty)
+    }
+
+    func testCancelledJobCannotPublishProgressOrClearOrFailItsReplacement() async throws {
+        for oldFails in [false, true] {
+            let controlled = ControlledTranscriptTranslator()
+            viewModel.updateTranslator(controlled)
+            let transcription = try makeTranscription(text: "Replacement source.")
+            viewModel.load(transcription: transcription)
+            viewModel.translate(to: .german)
+            await waitUntil { controlled.requestCount == 1 }
+            viewModel.cancel(.german)
+            viewModel.translate(to: .german)
+            await waitUntil { controlled.requestCount == 2 }
+
+            await controlled.emit([TranslatedSegment(text: "Old progress")], request: 0)
+            XCTAssertEqual(viewModel.job(for: .german)?.segments, [])
+            await controlled.emit([TranslatedSegment(text: "New progress")], request: 1)
+            XCTAssertEqual(viewModel.job(for: .german)?.segments.map(\.text), ["New progress"])
+
+            controlled.finish(
+                0,
+                result: oldFails ? .failure(TranslatorFailure()) : .success([TranslatedSegment(text: "Old result")])
+            )
+            await waitUntil { controlled.returnedRequests.contains(0) }
+            XCTAssertTrue(viewModel.isTranslating(.german))
+            XCTAssertNil(viewModel.job(for: .german)?.errorMessage)
+            XCTAssertEqual(viewModel.job(for: .german)?.segments.map(\.text), ["New progress"])
+            XCTAssertTrue(try repo.fetchAll(transcriptionId: transcription.id).isEmpty)
+
+            controlled.finish(1, result: .success([TranslatedSegment(text: "New result")]))
+            await waitUntil { self.viewModel.translation(for: .german) != nil }
+            let saved = try XCTUnwrap(repo.fetch(transcriptionId: transcription.id, languageCode: "de"))
+            XCTAssertEqual(saved.segments.map(\.text), ["New result"])
+            XCTAssertNil(viewModel.job(for: .german))
+        }
+    }
+
+    func testPartialFailurePreservesSavedTranslationAndRetryCanReplaceIt() async throws {
+        let transcription = try makeTranscription(text: "Source text.")
+        viewModel.load(transcription: transcription)
+        viewModel.translate(to: .german)
+        await waitUntil { self.viewModel.translation(for: .german) != nil }
+        let original = try XCTUnwrap(viewModel.translation(for: .german))
+        let controlled = ControlledTranscriptTranslator()
+        viewModel.updateTranslator(controlled)
+        viewModel.translate(to: .german)
+        await waitUntil { controlled.requestCount == 1 }
+        await controlled.emit([TranslatedSegment(text: "Partial result")], request: 0)
+        controlled.finish(0, result: .failure(TranslatorFailure()))
+        await waitUntil { self.viewModel.job(for: .german)?.errorMessage != nil }
+
+        XCTAssertEqual(viewModel.job(for: .german)?.segments.map(\.text), ["Partial result"])
+        XCTAssertEqual(try repo.fetch(transcriptionId: transcription.id, languageCode: "de")?.id, original.id)
+        XCTAssertEqual(viewModel.translation(for: .german)?.segments, original.segments)
+        XCTAssertFalse(viewModel.isTranslating(.german))
+
+        viewModel.translate(to: .german)
+        await waitUntil { controlled.requestCount == 2 }
+        XCTAssertNil(viewModel.job(for: .german)?.errorMessage)
+        controlled.finish(1, result: .success([TranslatedSegment(text: "Complete replacement")]))
+        await waitUntil { self.viewModel.job(for: .german) == nil }
+        let saved = try repo.fetchAll(transcriptionId: transcription.id)
+        XCTAssertEqual(saved.count, 1)
+        XCTAssertEqual(saved.first?.segments.map(\.text), ["Complete replacement"])
+    }
+
     func testTranslateWithoutTranslatorDoesNothing() throws {
         viewModel.updateTranslator(nil)
         viewModel.load(transcription: try makeTranscription())
@@ -178,7 +367,10 @@ final class PromptResultTranslationTests: XCTestCase {
             transcriptionId: transcription.id,
             promptName: "Summary",
             promptContent: "Summarize.",
-            content: "## Summary\n\n- First point"
+            content: "## Summary\n\n- First point",
+            inferenceSettingsSnapshot: PromptInferenceSettings(temperature: 0.5, maxTokens: 600),
+            providerSnapshot: "original-provider",
+            modelSnapshot: "original-model"
         )
         try resultRepo.save(original)
 
@@ -204,7 +396,14 @@ final class PromptResultTranslationTests: XCTestCase {
         XCTAssertEqual(translated.promptName, "Summary · Persian")
         XCTAssertEqual(translated.content, "fa:## Summary\n\nfa:- First point")
         XCTAssertNil(translated.promptId)
-        XCTAssertEqual(saved.first { $0.id == original.id }?.content, original.content)
+        XCTAssertNil(translated.providerSnapshot)
+        XCTAssertNil(translated.modelSnapshot)
+        XCTAssertNil(translated.inferenceSettingsSnapshot)
+        let retained = try XCTUnwrap(saved.first { $0.id == original.id })
+        XCTAssertEqual(retained.content, original.content)
+        XCTAssertEqual(retained.providerSnapshot, original.providerSnapshot)
+        XCTAssertEqual(retained.modelSnapshot, original.modelSnapshot)
+        XCTAssertEqual(retained.inferenceSettingsSnapshot, original.inferenceSettingsSnapshot)
         XCTAssertTrue(viewModel.translatingPromptResultIDs.isEmpty)
         XCTAssertEqual(viewModel.promptResults.first?.id, translatedID)
     }

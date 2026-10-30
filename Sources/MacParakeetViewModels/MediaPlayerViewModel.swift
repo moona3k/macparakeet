@@ -348,6 +348,7 @@ public final class MediaPlayerViewModel {
         subtitleCues = cues
         subtitleLanguage = language
         lastCueIndex = -1
+        currentSubtitleText = nil
         updateSubtitleText()
     }
 
@@ -355,6 +356,7 @@ public final class MediaPlayerViewModel {
         subtitleCues = originalSubtitleCues
         subtitleLanguage = nil
         lastCueIndex = -1
+        currentSubtitleText = nil
         updateSubtitleText()
     }
 

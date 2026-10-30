@@ -91,14 +91,23 @@ final class TranscriptTranslationSourceTests: XCTestCase {
         XCTAssertTrue(TranscriptTranslationSource.segments(for: transcription).isEmpty)
     }
 
-    func testHashChangesWithTextOnly() {
+    func testHashChangesWithTextTimingSpeakerAndSegmentBoundaries() {
         let a = [TranslationSourceSegment(startMs: 0, endMs: 10, text: "Hello")]
         let sameTextDifferentTiming = [TranslationSourceSegment(startMs: 5, endMs: 50, text: "Hello")]
         let differentText = [TranslationSourceSegment(startMs: 0, endMs: 10, text: "Hello!")]
 
-        XCTAssertEqual(
+        XCTAssertNotEqual(
             TranscriptTranslationSource.hash(of: a), TranscriptTranslationSource.hash(of: sameTextDifferentTiming))
         XCTAssertNotEqual(TranscriptTranslationSource.hash(of: a), TranscriptTranslationSource.hash(of: differentText))
+        let differentSpeaker = [TranslationSourceSegment(startMs: 0, endMs: 10, speakerId: "S1", text: "Hello")]
+        XCTAssertNotEqual(
+            TranscriptTranslationSource.hash(of: a), TranscriptTranslationSource.hash(of: differentSpeaker))
+        XCTAssertEqual(TranscriptTranslationSource.hash(of: a), TranscriptTranslationSource.hash(of: a))
+        XCTAssertNotEqual(
+            TranscriptTranslationSource.hash(of: [TranslationSourceSegment(text: "one\ntwo")]),
+            TranscriptTranslationSource.hash(of: [
+                TranslationSourceSegment(text: "one"), TranslationSourceSegment(text: "two"),
+            ]))
     }
 
     func testLanguageResolveAcceptsCodesAndEnglishNames() {
@@ -109,6 +118,15 @@ final class TranscriptTranslationSourceTests: XCTestCase {
         XCTAssertNil(TranslationLanguage.resolve(nil))
         XCTAssertTrue(TranslationLanguage.persian.isRightToLeft)
         XCTAssertFalse(TranslationLanguage.german.isRightToLeft)
+    }
+
+    func testUntimedTranslationExportPreservesUnattributedParagraphs() {
+        let translation = TranscriptTranslation(
+            transcriptionId: UUID(), languageCode: "de",
+            segments: [TranslatedSegment(text: "First paragraph."), TranslatedSegment(text: "Second paragraph.")],
+            sourceHash: "h")
+        XCTAssertEqual(
+            ExportService().formatPlainText(translation: translation), "First paragraph.\n\nSecond paragraph.")
     }
 
     func testExportFormatsTranslationAsSRTAndPlainText() {

@@ -1009,6 +1009,8 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var chatCallCount = 0
     var formatTranscriptCallCount = 0
     var formatTranscriptHook: (@Sendable () async -> Void)?
+    var translationHook: (@Sendable () async -> Void)?
+    var translationError: Error?
     var lastChatQuestion: String?
     var lastSummaryTranscript: String?
     var lastChatTranscript: String?
@@ -1026,6 +1028,12 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     /// Consumed FIFO when non-empty; falls back to `summarizeResult`/`errorToThrow`
     /// when empty so existing single-outcome tests are unaffected.
     var detailedResultsQueue: [Result<LLMResult, Error>] = []
+
+    func translateDetailed(text: String, instructions: String) async throws -> LLMResult {
+        await translationHook?()
+        if let translationError { throw translationError }
+        return try await generatePromptResultDetailed(transcript: text, systemPrompt: instructions)
+    }
 
     func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String {
         summarizeCallCount += 1

@@ -116,6 +116,7 @@ public actor DictationService: DictationServiceProtocol {
     private let removeUmFiller: @Sendable () -> Bool
     private let textRefinementService: TextRefinementService
     private let llmService: LLMServiceProtocol?
+    private let dictationTranslationSettings: @Sendable () -> DictationTranslationSettings?
     private let llmRunRecorder: LLMRunRecorder
     private let shouldUseAIFormatter: @Sendable () -> Bool
     private let isAIFormatterEnabled: @Sendable () -> Bool
@@ -226,6 +227,9 @@ public actor DictationService: DictationServiceProtocol {
         dictationInsertionStyle: (@Sendable () -> DictationInsertionStyle)? = nil,
         removeUmFiller: (@Sendable () -> Bool)? = nil,
         llmService: LLMServiceProtocol? = nil,
+        dictationTranslationSettings: @escaping @Sendable () -> DictationTranslationSettings? = {
+            DictationTranslationSettings.current()
+        },
         llmRunRepo: LLMRunRepositoryProtocol? = nil,
         shouldUseAIFormatter: (@Sendable () -> Bool)? = nil,
         isAIFormatterEnabled: (@Sendable () -> Bool)? = nil,
@@ -267,6 +271,7 @@ public actor DictationService: DictationServiceProtocol {
         self.removeUmFiller = removeUmFiller ?? { true }
         self.textRefinementService = TextRefinementService()
         self.llmService = llmService
+        self.dictationTranslationSettings = dictationTranslationSettings
         self.llmRunRecorder = LLMRunRecorder(repository: llmRunRepo)
         self.shouldUseAIFormatter = shouldUseAIFormatter ?? { false }
         self.isAIFormatterEnabled = isAIFormatterEnabled ?? { true }
@@ -1840,7 +1845,7 @@ public actor DictationService: DictationServiceProtocol {
     private func translateDictationIfEnabled(
         _ text: String
     ) async -> (text: String, settings: DictationTranslationSettings)? {
-        guard let settings = DictationTranslationSettings.current(), let llmService,
+        guard let settings = dictationTranslationSettings(), let llmService,
             !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else { return nil }
         do {
@@ -1972,7 +1977,7 @@ public actor DictationService: DictationServiceProtocol {
         completionStatus = try processingCompletionStatus(status)
         if completionStatus == .cancelled { formatterOutcome = .skipped }
 
-        let formattedTranscript = formatterOutcome.text.map {
+        var formattedTranscript = formatterOutcome.text.map {
             guard insertionStyle == .inline else { return $0 }
             let normalizedFormatterText = $0.trimmingCharacters(in: .whitespacesAndNewlines)
             return TextProcessingPipeline().applyInsertionStyle(
@@ -1982,9 +1987,17 @@ public actor DictationService: DictationServiceProtocol {
             )
         }
         let finalText = formattedTranscript ?? baseText
-        let wc = finalText.split(whereSeparator: \.isWhitespace).count
-        let translationResult =
+        var translationResult =
             completionStatus == .completed ? await translateDictationIfEnabled(finalText) : nil
+        // A provider may ignore cancellation or return just as the user discards.
+        // Resolve retention again immediately before synchronous persistence.
+        completionStatus = try processingCompletionStatus(status)
+        if completionStatus == .cancelled {
+            formatterOutcome = .skipped
+            formattedTranscript = nil
+            translationResult = nil
+        }
+        let wc = (formattedTranscript ?? baseText).split(whereSeparator: \.isWhitespace).count
 
         var dictation = Dictation(
             id: dictationID,

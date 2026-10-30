@@ -834,8 +834,8 @@ CREATE TABLE transcript_translations (
         REFERENCES transcriptions(id) ON DELETE CASCADE,
     languageCode      TEXT NOT NULL,                       -- Target language: "fa", "en", "de"
     segments          TEXT NOT NULL,                       -- JSON [TranslatedSegment]
-    sourceHash        TEXT NOT NULL,                       -- SHA-256 of the source segment texts
-    modelName         TEXT,                                -- Model that produced the translation
+    sourceHash        TEXT NOT NULL,                       -- SHA-256 of text, timing, speaker IDs, and segment boundaries
+    modelName         TEXT,                                -- Actual response model when known; otherwise NULL
     createdAt         TEXT NOT NULL,                       -- ISO 8601 timestamp
     updatedAt         TEXT NOT NULL                        -- ISO 8601 timestamp
 );
@@ -847,7 +847,7 @@ CREATE UNIQUE INDEX idx_transcript_translations_transcription_language
 **Notes:**
 - `segments` is a JSON array of `{startMs?, endMs?, speakerId?, text}`. Source segments come from the effective transcript projection (ADR-031): corrected segment text when timed text was edited, sentence-level segments from word timings otherwise, and untimed paragraphs for whole-transcript edits and engines without word timestamps. Timing and speaker are copied through, so translated lines stay seekable and can be shown as video subtitles or exported as SRT.
 - One row per `(transcriptionId, languageCode)`; saving a new translation for a language replaces the previous one.
-- `sourceHash` fingerprints the transcript text the translation was made from. When it no longer matches (correction, edit, or retranscription), the UI marks the translation as out of date and offers Re-translate; the row is not deleted automatically.
+- `sourceHash` fingerprints the ordered source text, timing, speaker IDs, and segment boundaries the translation was made from. When it no longer matches (correction, edit, or retranscription), the UI marks the translation as out of date and offers Re-translate; the row is not deleted automatically.
 - `transcriptionId` has a cascading delete — deleting a transcription removes its translations.
 - Live meeting translation is in-memory only and never writes to this table.
 
@@ -2066,3 +2066,16 @@ let processing = try dbQueue.read { db in
 ---
 
 *Last updated: 2026-05-16*
+
+### Online speech credentials (fork feature under review)
+
+New Online Speech Service credentials are stored as an `endpoint-v1:` Keychain
+value containing the normalized API endpoint and key together. URL credentials,
+query strings, and fragments are rejected; scheme/host/default port/trailing
+slash normalization does not collapse distinct API paths. Reads fail closed if
+saved endpoint preferences do not match the credential envelope. Legacy raw
+keys remain associated with their existing saved endpoint and are upgraded on
+the next successful save. Keychain writes complete before endpoint preferences
+change; failure leaves the previous configuration intact. A blank key field can
+reuse a stored credential only for the same endpoint. Changing providers
+requires an explicit replacement key or explicitly clearing the old key.

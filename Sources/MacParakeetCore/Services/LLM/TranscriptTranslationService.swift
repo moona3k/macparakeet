@@ -26,18 +26,35 @@ public extension TranscriptTranslating {
     /// and fenced code blocks are passed through untouched.
     func translateMarkdown(_ markdown: String, to language: TranslationLanguage) async throws -> String {
         var lines = markdown.components(separatedBy: "\n")
-        var translatable: [(index: Int, indent: String, text: String)] = []
-        var insideCodeFence = false
+        var translatable: [(index: Int, indent: String, text: String, trailingWhitespace: String)] = []
+        var codeFence: (marker: Character, length: Int)?
 
         for (index, line) in lines.enumerated() {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
-                insideCodeFence.toggle()
+            if let fence = codeFence {
+                let markerCount = trimmed.prefix(while: { $0 == fence.marker }).count
+                if markerCount >= fence.length,
+                    trimmed.dropFirst(markerCount).allSatisfy(\.isWhitespace)
+                {
+                    codeFence = nil
+                }
                 continue
             }
-            guard !insideCodeFence, trimmed.contains(where: \.isLetter) else { continue }
+            if let marker = trimmed.first, marker == "`" || marker == "~" {
+                let markerCount = trimmed.prefix(while: { $0 == marker }).count
+                let info = trimmed.dropFirst(markerCount)
+                // Backtick fence info strings cannot themselves contain a
+                // backtick. A closing fence must match the opener's marker and
+                // be at least as long, with only whitespace after its run.
+                if markerCount >= 3, marker != "`" || !info.contains("`") {
+                    codeFence = (marker, markerCount)
+                    continue
+                }
+            }
+            guard trimmed.contains(where: \.isLetter) else { continue }
             let indent = String(line.prefix(while: { $0 == " " || $0 == "\t" }))
-            translatable.append((index, indent, trimmed))
+            let trailingWhitespace = String(line.reversed().prefix(while: { $0 == " " || $0 == "\t" }).reversed())
+            translatable.append((index, indent, trimmed, trailingWhitespace))
         }
         guard !translatable.isEmpty else { return markdown }
 
@@ -46,7 +63,7 @@ public extension TranscriptTranslating {
             to: language
         )
         for (source, result) in zip(translatable, translated) {
-            lines[source.index] = source.indent + result.text
+            lines[source.index] = source.indent + result.text + source.trailingWhitespace
         }
         return lines.joined(separator: "\n")
     }
@@ -92,6 +109,7 @@ public struct TranscriptTranslationService: TranscriptTranslating {
             try Task.checkCancellation()
             let batch = Array(segments[range])
             let texts = try await translateBatch(batch.map(\.text), to: language)
+            try Task.checkCancellation()
             let results = zip(batch, texts).map { source, text in
                 TranslatedSegment(
                     startMs: source.startMs,
@@ -102,6 +120,7 @@ public struct TranscriptTranslationService: TranscriptTranslating {
             }
             translated.append(contentsOf: results)
             await onBatch(results)
+            try Task.checkCancellation()
         }
         return translated
     }
@@ -133,6 +152,36 @@ public struct TranscriptTranslationService: TranscriptTranslating {
     // MARK: - One batch
 
     private func translateBatch(_ texts: [String], to language: TranslationLanguage) async throws -> [String] {
+        // batchRanges isolates an oversized segment. Split that one input into
+        // bounded requests, then reassemble it before publishing progress so
+        // timing, speaker identity, and one-result-per-segment remain intact.
+        if texts.count == 1, let text = texts.first, text.count > Self.maxBatchCharacters {
+            var translatedParts: [String] = []
+            var remainder = text[...]
+            while !remainder.isEmpty {
+                try Task.checkCancellation()
+                let hardEnd =
+                    remainder.index(
+                        remainder.startIndex, offsetBy: Self.maxBatchCharacters, limitedBy: remainder.endIndex)
+                    ?? remainder.endIndex
+                let end: String.Index
+                if hardEnd != remainder.endIndex,
+                    let space = remainder[..<hardEnd].lastIndex(where: \.isWhitespace),
+                    space != remainder.startIndex
+                {
+                    end = remainder.index(after: space)
+                } else {
+                    end = hardEnd
+                }
+                let part = String(remainder[..<end]).trimmingCharacters(in: .whitespacesAndNewlines)
+                remainder = remainder[end...]
+                guard !part.isEmpty else { continue }
+                translatedParts += try await translateBatch([part], to: language)
+            }
+            try Task.checkCancellation()
+            return [translatedParts.joined(separator: " ")]
+        }
+
         var results = try await requestTranslations(of: texts, to: language)
 
         // Models occasionally merge or drop a line. Ask again for just the

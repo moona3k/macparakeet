@@ -156,6 +156,80 @@ final class TranscriptTranslationServiceTests: XCTestCase {
         XCTAssertEqual(llm.lastSummaryTranscript, "[1] first second")
     }
 
+    func testOversizedSegmentUsesBoundedRequestsAndReassemblesOriginalMetadata() async throws {
+        var requests: [String] = []
+        llm.promptResultHandler = { transcript, _ in
+            requests.append(transcript)
+            return "[1] part-\(requests.count)"
+        }
+        let source = TranslationSourceSegment(
+            startMs: 1_000, endMs: 15_000, speakerId: "speaker-1", text: String(repeating: "word ", count: 1_100))
+        let batches = BatchRecorder()
+
+        let result = try await service.translate([source], to: .german) { batch in
+            await batches.record(batch.count)
+        }
+
+        XCTAssertEqual(requests.count, 3)
+        XCTAssertTrue(
+            requests.allSatisfy { $0.dropFirst("[1] ".count).count <= TranscriptTranslationService.maxBatchCharacters })
+        let sourceParts = requests.map { String($0.dropFirst("[1] ".count)) }
+        XCTAssertEqual(sourceParts.joined(separator: " "), source.text.trimmingCharacters(in: .whitespaces))
+        XCTAssertEqual(
+            result,
+            [TranslatedSegment(startMs: 1_000, endMs: 15_000, speakerId: "speaker-1", text: "part-1 part-2 part-3")])
+        let counts = await batches.counts
+        XCTAssertEqual(counts, [1], "Progress remains one completed original segment")
+    }
+
+    func testFailureInLaterLongSegmentPartPublishesNoPartialOriginalSegment() async {
+        var calls = 0
+        llm.promptResultHandler = { _, _ in
+            calls += 1
+            if calls == 1 { return "[1] First part" }
+            throw LLMError.contextTooLong
+        }
+        let batches = BatchRecorder()
+        do {
+            _ = try await service.translate(
+                [TranslationSourceSegment(text: String(repeating: "x", count: 5_000))], to: .german
+            ) { batch in
+                await batches.record(batch.count)
+            }
+            XCTFail("Expected later part failure")
+        } catch LLMError.contextTooLong {
+            // A failed later chunk must not publish the earlier partial text.
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+        XCTAssertEqual(calls, 2)
+        let counts = await batches.counts
+        XCTAssertTrue(counts.isEmpty)
+    }
+
+    func testCancellationFromFinalProgressCallbackDoesNotReturnSuccess() async {
+        llm.promptResultHandler = echoTranslations(prefix: "DE:")
+        let service = self.service!
+        let task = Task {
+            try await service.translate([TranslationSourceSegment(text: "Hello")], to: .german) { _ in
+                withUnsafeCurrentTask { $0?.cancel() }
+            }
+        }
+        do {
+            _ = try await task.value
+            XCTFail("Cancellation while publishing the final batch must propagate")
+        } catch {
+            XCTAssertTrue(error is CancellationError)
+        }
+    }
+
+    func testTranslateMarkdownPreservesTrailingHardBreakSpacesAndTabs() async throws {
+        llm.promptResultHandler = echoTranslations(prefix: "DE:")
+        let markdown = "  First line  \nSecond line\t\n\n```swift\nlet x = 1  \n```"
+        let result = try await service.translateMarkdown(markdown, to: .german)
+        XCTAssertEqual(result, "  DE:First line  \nDE:Second line\t\n\n```swift\nlet x = 1  \n```")
+    }
+
     // MARK: - Markdown
 
     func testTranslateMarkdownKeepsStructureAndSkipsCodeAndBlankLines() async throws {
@@ -192,6 +266,41 @@ final class TranscriptTranslationServiceTests: XCTestCase {
             llm.lastSummaryTranscript,
             "[1] ## Summary\n[2] - First point\n[3] - Nested point\n[4] Closing line."
         )
+    }
+
+    func testTranslateMarkdownKeepsShorterMixedAndInfoBearingFencesInsideCode() async throws {
+        llm.promptResultHandler = echoTranslations(prefix: "DE:")
+        for marker in ["`", "~"] {
+            let opposite = marker == "`" ? "~" : "`"
+            let fence = String(repeating: marker, count: 4)
+            let lines = [
+                "Before",
+                fence + "swift",
+                "private code before shorter fence",
+                String(repeating: marker, count: 3),
+                "private code after shorter fence",
+                String(repeating: opposite, count: 4),
+                "private code after different marker",
+                fence + " not a closing fence",
+                "private code after info-bearing fence",
+                String(repeating: marker, count: 5) + " \t",
+                "After",
+            ]
+            let result = try await service.translateMarkdown(lines.joined(separator: "\n"), to: .german)
+            var expected = lines
+            expected[0] = "DE:Before"
+            expected[expected.count - 1] = "DE:After"
+            XCTAssertEqual(result, expected.joined(separator: "\n"), "Fence marker: \(marker)")
+            XCTAssertEqual(llm.lastSummaryTranscript, "[1] Before\n[2] After", "Code must never reach the provider")
+        }
+    }
+
+    func testTranslateMarkdownUnclosedFenceKeepsRemainingCodeLocal() async throws {
+        llm.promptResultHandler = echoTranslations(prefix: "DE:")
+        let markdown = "Before\n````\nprivate code\n```\nstill private code"
+        let result = try await service.translateMarkdown(markdown, to: .german)
+        XCTAssertEqual(result, "DE:Before\n````\nprivate code\n```\nstill private code")
+        XCTAssertEqual(llm.lastSummaryTranscript, "[1] Before")
     }
 
     func testTranslateMarkdownWithNothingToTranslateMakesNoRequest() async throws {

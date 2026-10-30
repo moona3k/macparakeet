@@ -47,6 +47,17 @@ final class CloudSTTModelCatalogTests: XCTestCase {
         }
         do {
             _ = try await CloudSTTModelCatalog.load(config: config) { request in
+                (
+                    Data(#"{"error":{"message":"temporarily unavailable"}}"#.utf8),
+                    self.response(503, request.url!)
+                )
+            }
+            XCTFail("Expected server status and message")
+        } catch {
+            XCTAssertEqual(error as? CloudSTTError, .server(status: 503, message: "temporarily unavailable"))
+        }
+        do {
+            _ = try await CloudSTTModelCatalog.load(config: config) { request in
                 (Data("<html>".utf8), self.response(200, request.url!))
             }
             XCTFail("Expected invalidResponse")

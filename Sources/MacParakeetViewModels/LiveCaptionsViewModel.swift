@@ -32,6 +32,10 @@ public final class LiveCaptionsViewModel {
     private var session: LiveCaptionSession?
     /// Guards against a late callback from a session that was already stopped.
     private var generation = 0
+    private var startTask: Task<Void, Never>?
+    private var stopTask: Task<Void, Never>?
+    private var acceptingUpdates = true
+    private var clearGeneration = 0
 
     public init(
         sessionFactory: @escaping SessionFactory,
@@ -69,10 +73,14 @@ public final class LiveCaptionsViewModel {
         lines = []
         notice = nil
         liveTranslation.reset()
+        acceptingUpdates = true
         state = .starting
 
         let mode = sourceMode
-        Task { [weak self] in
+        let pendingStop = stopTask
+        startTask = Task { [weak self] in
+            await pendingStop?.value
+            guard !Task.isCancelled, self?.generation == current else { return }
             do {
                 try await session.start(
                     sourceMode: mode,
@@ -83,14 +91,13 @@ public final class LiveCaptionsViewModel {
                         Task { @MainActor in self?.note(message, generation: current) }
                     }
                 )
-                guard let self, self.generation == current else {
-                    await session.stop()
-                    return
-                }
+                guard let self, self.generation == current else { return }
                 self.state = .running
+                self.startTask = nil
             } catch {
                 guard let self, self.generation == current else { return }
                 self.session = nil
+                self.startTask = nil
                 self.state = .failed(error.localizedDescription)
             }
         }
@@ -98,33 +105,55 @@ public final class LiveCaptionsViewModel {
 
     public func stop() {
         generation += 1
+        startTask?.cancel()
+        startTask = nil
         let stopping = session
         session = nil
         state = .idle
-        Task { await stopping?.stop() }
+        acceptingUpdates = true
+        let pendingStop = stopTask
+        stopTask = Task {
+            await pendingStop?.value
+            await stopping?.stop()
+        }
     }
 
     public func clear() {
         lines = []
         liveTranslation.reset()
+        guard let session else { return }
+        acceptingUpdates = false
+        clearGeneration += 1
+        let clearing = clearGeneration
+        let current = generation
+        Task { [weak self] in
+            let remaining = await session.clearHistory()
+            guard let self, self.generation == current, self.clearGeneration == clearing else { return }
+            self.acceptingUpdates = true
+            self.apply(remaining, generation: current)
+        }
     }
 
     /// Transcript as plain text; with translations when translation is on.
     public var transcriptText: String {
         lines.map { line in
-            guard let translation = liveTranslation.translation(forLineID: line.id) else { return line.text }
-            return "\(line.text)\n\(translation)"
+            let source = line.source == .microphone ? "Microphone" : "Computer audio"
+            let original = "\(source): \(line.text)"
+            guard let translation = liveTranslation.translation(forLineID: line.id) else { return original }
+            return "\(original)\n\(translation)"
         }.joined(separator: "\n\n")
     }
 
     private func apply(_ newLines: [LiveCaptionLine], generation: Int) {
-        guard generation == self.generation else { return }
+        guard generation == self.generation, acceptingUpdates else { return }
         lines = newLines
         liveTranslation.update(lines: newLines.map { .init(id: $0.id, text: $0.text) })
     }
 
     private func note(_ message: String, generation: Int) {
         guard generation == self.generation else { return }
+        stop()
         notice = message
+        state = .failed(message)
     }
 }

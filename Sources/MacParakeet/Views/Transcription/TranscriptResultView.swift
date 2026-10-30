@@ -987,7 +987,7 @@ struct TranscriptResultView: View {
                 .padding(.top, DesignSystem.Spacing.md)
 
             TranscriptionVideoPanel(
-                transcription: transcription,
+                transcription: activeTranscription,
                 playerViewModel: playerViewModel,
                 translationViewModel: viewModel.translationViewModel
             )

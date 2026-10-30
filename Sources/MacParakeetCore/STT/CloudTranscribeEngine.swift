@@ -31,9 +31,8 @@ public struct CloudSTTConfig: Equatable, Sendable {
     /// WebSocket address for a realtime transcription session, derived from
     /// the same server address (`https` → `wss`).
     public var realtimeURL: URL? {
-        let trimmed = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard var components = URLComponents(string: trimmed), let scheme = components.scheme?.lowercased(),
-            components.host?.isEmpty == false
+        guard let normalizedEndpoint, var components = URLComponents(string: normalizedEndpoint),
+            let scheme = components.scheme
         else { return nil }
         switch scheme {
         case "https": components.scheme = "wss"
@@ -54,11 +53,24 @@ public struct CloudSTTConfig: Equatable, Sendable {
     /// The endpoint requests are posted to, or `nil` when the base URL is not
     /// a usable http(s) URL.
     public var transcriptionsURL: URL? {
-        let trimmed = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let url = URL(string: trimmed), let scheme = url.scheme?.lowercased(),
-            scheme == "https" || scheme == "http", url.host?.isEmpty == false
-        else { return nil }
+        guard let normalizedEndpoint, let url = URL(string: normalizedEndpoint) else { return nil }
         return url.appendingPathComponent("audio").appendingPathComponent("transcriptions")
+    }
+
+    /// Credentials belong to the whole API base, including its path. A different
+    /// path on the same host can be a different tenant or reverse-proxy service.
+    public var normalizedEndpoint: String? {
+        guard var components = URLComponents(string: baseURL.trimmingCharacters(in: .whitespacesAndNewlines)),
+            let scheme = components.scheme?.lowercased(), ["http", "https"].contains(scheme),
+            let host = components.host?.lowercased(), !host.isEmpty,
+            components.user == nil, components.password == nil,
+            components.query == nil, components.fragment == nil
+        else { return nil }
+        components.scheme = scheme
+        components.host = host
+        if components.port == (scheme == "https" ? 443 : 80) { components.port = nil }
+        while components.path.hasSuffix("/") { components.path.removeLast() }
+        return components.string
     }
 
     public var isUsable: Bool {
@@ -76,6 +88,12 @@ public final class CloudSTTConfigStore: @unchecked Sendable {
 
     private let defaults: UserDefaults
     private let keychain: KeyValueStore
+    private static let configurationLock = NSRecursiveLock()
+    private static let credentialPrefix = "endpoint-v1:"
+    private struct StoredCredential: Codable {
+        let endpoint: String?
+        let apiKey: String
+    }
 
     public init(
         defaults: UserDefaults = .standard,
@@ -87,30 +105,74 @@ public final class CloudSTTConfigStore: @unchecked Sendable {
 
     /// Server address and model only; never touches the Keychain.
     public func loadMetadata() -> CloudSTTConfig {
-        CloudSTTConfig(
-            baseURL: defaults.string(forKey: Self.baseURLKey) ?? CloudSTTConfig.defaultBaseURL,
-            model: defaults.string(forKey: Self.modelKey) ?? CloudSTTConfig.defaultModel,
-            realtimeModel: defaults.string(forKey: Self.realtimeModelKey) ?? ""
-        )
+        Self.configurationLock.withLock {
+            CloudSTTConfig(
+                baseURL: defaults.string(forKey: Self.baseURLKey) ?? CloudSTTConfig.defaultBaseURL,
+                model: defaults.string(forKey: Self.modelKey) ?? CloudSTTConfig.defaultModel,
+                realtimeModel: defaults.string(forKey: Self.realtimeModelKey) ?? ""
+            )
+        }
     }
 
     public func load() throws -> CloudSTTConfig {
+        Self.configurationLock.lock()
+        defer { Self.configurationLock.unlock() }
         var config = loadMetadata()
-        config.apiKey = try keychain.getString(Self.apiKeyKeychainKey)
+        if let stored = try keychain.getString(Self.apiKeyKeychainKey) {
+            if stored.hasPrefix(Self.credentialPrefix) {
+                let data = Data(stored.dropFirst(Self.credentialPrefix.count).utf8)
+                guard let credential = try? JSONDecoder().decode(StoredCredential.self, from: data),
+                    credential.endpoint == config.normalizedEndpoint
+                else { throw CloudSTTError.endpointCredentialMismatch }
+                config.apiKey = credential.apiKey
+            } else {
+                // Existing installations stored a raw key for the saved endpoint.
+                // The next save upgrades it to an endpoint-bound value.
+                config.apiKey = stored
+            }
+        }
         return config
     }
 
     public func save(_ config: CloudSTTConfig) throws {
-        defaults.set(config.baseURL.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Self.baseURLKey)
-        defaults.set(config.model.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Self.modelKey)
-        defaults.set(
-            config.realtimeModel.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Self.realtimeModelKey)
+        Self.configurationLock.lock()
+        defer { Self.configurationLock.unlock() }
         let key = config.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if key.isEmpty {
             try keychain.delete(Self.apiKeyKeychainKey)
         } else {
-            try keychain.setString(key, forKey: Self.apiKeyKeychainKey)
+            let credential = StoredCredential(endpoint: config.normalizedEndpoint, apiKey: key)
+            let encoded = try JSONEncoder().encode(credential)
+            try keychain.setString(
+                Self.credentialPrefix + String(decoding: encoded, as: UTF8.self), forKey: Self.apiKeyKeychainKey)
         }
+        // A failed Keychain write must leave the old endpoint and key paired.
+        // The endpoint inside the Keychain value also prevents a mismatched pair
+        // from being used after a crash between these two persistent writes.
+        defaults.set(config.baseURL.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Self.baseURLKey)
+        defaults.set(config.model.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Self.modelKey)
+        defaults.set(
+            config.realtimeModel.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Self.realtimeModelKey)
+    }
+
+    /// A blank Settings field means keep the saved credential only for its
+    /// original endpoint. Callers can explicitly clear it for anonymous servers.
+    public func resolvingSavedAPIKey(for draft: CloudSTTConfig) throws -> CloudSTTConfig {
+        Self.configurationLock.lock()
+        defer { Self.configurationLock.unlock() }
+        var resolved = draft
+        guard draft.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false else { return draft }
+        let saved = try load()
+        guard let key = saved.apiKey, !key.isEmpty else { resolved.apiKey = nil; return resolved }
+        guard let endpoint = draft.normalizedEndpoint, endpoint == saved.normalizedEndpoint else {
+            throw CloudSTTError.endpointCredentialMismatch
+        }
+        resolved.apiKey = key
+        return resolved
+    }
+
+    public func clearAPIKey() throws {
+        try Self.configurationLock.withLock { try keychain.delete(Self.apiKeyKeychainKey) }
     }
 
     /// True only after the user has saved a usable server address and model.
@@ -134,6 +196,7 @@ public enum CloudSTTError: Error, LocalizedError, Equatable {
     case server(status: Int, message: String?)
     case network(String)
     case invalidResponse
+    case endpointCredentialMismatch
 
     public var errorDescription: String? {
         switch self {
@@ -157,6 +220,9 @@ public enum CloudSTTError: Error, LocalizedError, Equatable {
             return "Could not reach the online speech service: \(detail)"
         case .invalidResponse:
             return "The online speech service returned a response that could not be read."
+        case .endpointCredentialMismatch:
+            return
+                "The server address changed. Enter its API key, or clear the saved key to use a server without authentication."
         }
     }
 }
@@ -435,14 +501,18 @@ public actor CloudTranscribeEngine: STTTranscribing {
             guard let word = (raw["word"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
                 !word.isEmpty,
                 let start = (raw["start"] as? NSNumber)?.doubleValue,
-                let end = (raw["end"] as? NSNumber)?.doubleValue
+                let end = (raw["end"] as? NSNumber)?.doubleValue,
+                start.isFinite, end.isFinite, start >= 0, end >= start,
+                let startMs = Int(exactly: (start * 1000).rounded()),
+                let endMs = Int(exactly: (end * 1000).rounded()),
+                endMs <= maxChunkSamples * 1000 / sampleRate
             else { return nil }
-            let startMs = max(0, Int((start * 1000).rounded()))
+            let probability = (raw["probability"] as? NSNumber)?.doubleValue ?? 1
             return ParsedWord(
                 word: word,
                 startMs: startMs,
-                endMs: max(startMs, Int((end * 1000).rounded())),
-                confidence: (raw["probability"] as? NSNumber)?.doubleValue ?? 1.0
+                endMs: endMs,
+                confidence: probability.isFinite ? min(1, max(0, probability)) : 1
             )
         }
         return ParsedResponse(text: text, words: words, language: object["language"] as? String)

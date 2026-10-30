@@ -379,7 +379,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         }
 
         for segment in translation.segments {
-            if segment.speakerId != currentSpeaker {
+            if segment.speakerId == nil || segment.speakerId != currentSpeaker {
                 flush()
                 currentSpeaker = segment.speakerId
             }

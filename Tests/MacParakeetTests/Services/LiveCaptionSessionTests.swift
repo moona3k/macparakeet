@@ -8,6 +8,11 @@ private actor FakeCaptionCapture: MeetingAudioCapturing {
     private var continuation: AsyncStream<MeetingAudioCaptureEvent>.Continuation?
     private(set) var startedModes: [MeetingAudioSourceMode] = []
     private(set) var stopCount = 0
+    private let beforeStartReturns: @Sendable () async -> Void
+
+    init(beforeStartReturns: @escaping @Sendable () async -> Void = {}) {
+        self.beforeStartReturns = beforeStartReturns
+    }
 
     var events: AsyncStream<MeetingAudioCaptureEvent> {
         AsyncStream { continuation = $0 }
@@ -15,6 +20,7 @@ private actor FakeCaptionCapture: MeetingAudioCapturing {
 
     func start(sourceMode: MeetingAudioSourceMode?) async throws -> MeetingAudioCaptureStartReport {
         startedModes.append(sourceMode ?? .microphoneAndSystem)
+        await beforeStartReturns()
         return MeetingAudioCaptureStartReport(sourceMode: sourceMode ?? .microphoneAndSystem)
     }
 
@@ -23,14 +29,31 @@ private actor FakeCaptionCapture: MeetingAudioCapturing {
     func emit(_ event: MeetingAudioCaptureEvent) { continuation?.yield(event) }
 }
 
+/// Deliberately ignores task cancellation to model a late external completion.
+private actor CaptionGate {
+    private var opened = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    func wait() async {
+        guard !opened else { return }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+    func open() {
+        opened = true
+        for waiter in waiters { waiter.resume() }
+        waiters = []
+    }
+}
+
 private final class CaptionSocket: RealtimeSTTSocket, @unchecked Sendable {
     private let lock = NSLock()
     private var _sent: [String] = []
     private var _closed = false
     private var incoming: AsyncStream<String>.Continuation!
     private var iterator: AsyncStream<String>.Iterator
+    private let beforeSendReturns: @Sendable (String) async -> Void
 
-    init() {
+    init(beforeSendReturns: @escaping @Sendable (String) async -> Void = { _ in }) {
+        self.beforeSendReturns = beforeSendReturns
         var continuation: AsyncStream<String>.Continuation!
         let stream = AsyncStream<String> { continuation = $0 }
         iterator = stream.makeAsyncIterator()
@@ -40,7 +63,10 @@ private final class CaptionSocket: RealtimeSTTSocket, @unchecked Sendable {
     var sent: [String] { lock.withLock { _sent } }
     var isClosed: Bool { lock.withLock { _closed } }
     func push(_ message: String) { incoming.yield(message) }
-    func send(_ text: String) async throws { lock.withLock { _sent.append(text) } }
+    func send(_ text: String) async throws {
+        lock.withLock { _sent.append(text) }
+        await beforeSendReturns(text)
+    }
     func receive() async throws -> String {
         guard let message = await iterator.next() else { throw CancellationError() }
         return message
@@ -179,6 +205,247 @@ final class LiveCaptionSessionTests: XCTestCase {
 
         XCTAssertEqual(Double(samples.count), 24_000, accuracy: 600, "Half the frames: 48 kHz to 24 kHz")
         XCTAssertTrue(samples.dropFirst(600).allSatisfy { abs($0 - 0.2) < 0.05 }, "Stereo is mixed to mono, not summed")
+    }
+
+    private func configureRealtime() throws {
+        try store.save(CloudSTTConfig(baseURL: "https://example.com/v1", model: "m", realtimeModel: "rt"))
+    }
+
+    func testStopRevokesPendingConnectionBeforeItCanStartCapture() async throws {
+        try configureRealtime()
+        let connected = expectation(description: "Connection pending")
+        let gate = CaptionGate()
+        let capture = FakeCaptionCapture()
+        let socket = CaptionSocket()
+        let session = LiveCaptionSession(capture: capture, configStore: store) { _, _ in
+            connected.fulfill()
+            await gate.wait()
+            return socket
+        }
+        let starting = Task {
+            try await session.start(sourceMode: .systemOnly, onUpdate: { _ in }, onFailure: { _ in })
+        }
+        await fulfillment(of: [connected], timeout: 3)
+        await session.stop()
+        await gate.open()
+        do {
+            try await starting.value
+            XCTFail("A stopped startup must not become active")
+        } catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertTrue(socket.isClosed)
+        XCTAssertTrue(socket.sent.isEmpty)
+        let modes = await capture.startedModes
+        XCTAssertTrue(modes.isEmpty)
+    }
+
+    func testStopRevokesPendingCaptureStartAndClosesItsSocket() async throws {
+        try configureRealtime()
+        let captureStarted = expectation(description: "Capture start pending")
+        let gate = CaptionGate()
+        let capture = FakeCaptionCapture {
+            captureStarted.fulfill()
+            await gate.wait()
+        }
+        let socket = CaptionSocket()
+        let session = LiveCaptionSession(capture: capture, configStore: store) { _, _ in socket }
+        let starting = Task {
+            try await session.start(sourceMode: .systemOnly, onUpdate: { _ in }, onFailure: { _ in })
+        }
+        await fulfillment(of: [captureStarted], timeout: 3)
+        await session.stop()
+        let stops = await capture.stopCount
+        XCTAssertEqual(stops, 1, "Capture receives stop even before its start returns")
+        XCTAssertTrue(socket.isClosed)
+        await gate.open()
+        do {
+            try await starting.value
+            XCTFail("The late capture result must not reactivate the session")
+        } catch { XCTAssertTrue(error is CancellationError) }
+        await capture.emit(.systemBuffer(buffer(), AVAudioTime(hostTime: 0)))
+        XCTAssertFalse(socket.sent.contains { $0.contains("input_audio_buffer.append") })
+    }
+
+    func testLateConnectionCannotStopOrUpdateARestartedSession() async throws {
+        try configureRealtime()
+        let firstConnection = expectation(description: "First connection pending")
+        let gate = CaptionGate()
+        let capture = FakeCaptionCapture()
+        let pool = SocketPool()
+        let box = LineBox()
+        let session = LiveCaptionSession(capture: capture, configStore: store) { _, _ in
+            let socket = pool.make()
+            if pool.sockets.count == 1 {
+                firstConnection.fulfill()
+                await gate.wait()
+            }
+            return socket
+        }
+        let firstStart = Task {
+            try await session.start(
+                sourceMode: .systemOnly, onUpdate: { _ in XCTFail("Stale update") },
+                onFailure: { _ in XCTFail("Stale failure") })
+        }
+        await fulfillment(of: [firstConnection], timeout: 3)
+        await session.stop()
+        try await session.start(sourceMode: .systemOnly, onUpdate: { box.set($0) }, onFailure: { _ in })
+        let active = try XCTUnwrap(pool.sockets.last)
+        await gate.open()
+        do {
+            try await firstStart.value
+            XCTFail("The superseded start must fail")
+        } catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertTrue(pool.sockets[0].isClosed)
+        XCTAssertFalse(active.isClosed)
+        let stopsBeforeFinalStop = await capture.stopCount
+        XCTAssertEqual(stopsBeforeFinalStop, 0, "The old startup never owned the new capture")
+        active.push(#"{"type":"conversation.item.input_audio_transcription.delta","item_id":"new","delta":"New"}"#)
+        await waitUntil { box.lines.map(\.text) == ["New"] }
+        await capture.emit(.systemBuffer(buffer(), AVAudioTime(hostTime: 0)))
+        await waitUntil { active.sent.contains { $0.contains("input_audio_buffer.append") } }
+        await session.stop()
+    }
+
+    func testStopRevokesPendingSessionUpdate() async throws {
+        try configureRealtime()
+        let updating = expectation(description: "Session update pending")
+        let gate = CaptionGate()
+        let capture = FakeCaptionCapture()
+        let socket = CaptionSocket { text in
+            if text.contains("session.update") {
+                updating.fulfill()
+                await gate.wait()
+            }
+        }
+        let session = LiveCaptionSession(capture: capture, configStore: store) { _, _ in socket }
+        let starting = Task {
+            try await session.start(sourceMode: .systemOnly, onUpdate: { _ in }, onFailure: { _ in })
+        }
+        await fulfillment(of: [updating], timeout: 3)
+        await session.stop()
+        XCTAssertTrue(socket.isClosed)
+        await gate.open()
+        do {
+            try await starting.value
+            XCTFail("The late session update must not start capture")
+        } catch { XCTAssertTrue(error is CancellationError) }
+        let modes = await capture.startedModes
+        XCTAssertTrue(modes.isEmpty)
+    }
+
+    func testSlowUploadStopsAtBufferLimitAndDiscardsQueuedAudio() async throws {
+        try configureRealtime()
+        let uploading = expectation(description: "Upload pending")
+        let failed = expectation(description: "Overflow reported")
+        let gate = CaptionGate()
+        let capture = FakeCaptionCapture()
+        let socket = CaptionSocket { text in
+            if text.contains("input_audio_buffer.append") {
+                uploading.fulfill()
+                await gate.wait()
+            }
+        }
+        let session = LiveCaptionSession(capture: capture, configStore: store, uploadBufferSampleLimit: 6_000) {
+            _, _ in socket
+        }
+        try await session.start(
+            sourceMode: .systemOnly, onUpdate: { _ in },
+            onFailure: { message in
+                XCTAssertTrue(message.contains("too slow"))
+                failed.fulfill()
+            })
+        await capture.emit(.systemBuffer(buffer(), AVAudioTime(hostTime: 0)))
+        await fulfillment(of: [uploading], timeout: 3)
+        for _ in 0..<5 { await capture.emit(.systemBuffer(buffer(), AVAudioTime(hostTime: 0))) }
+        await fulfillment(of: [failed], timeout: 3)
+        await session.stop()
+        XCTAssertTrue(socket.isClosed)
+        let stops = await capture.stopCount
+        XCTAssertEqual(stops, 1)
+        await gate.open()
+        XCTAssertEqual(socket.sent.filter { $0.contains("input_audio_buffer.append") }.count, 1)
+    }
+
+    func testClearedSessionHistoryDoesNotReturnWithLaterProviderUpdates() async throws {
+        try configureRealtime()
+        let capture = FakeCaptionCapture()
+        let socket = CaptionSocket()
+        let box = LineBox()
+        let session = LiveCaptionSession(capture: capture, configStore: store) { _, _ in socket }
+        try await session.start(sourceMode: .systemOnly, onUpdate: { box.set($0) }, onFailure: { _ in })
+        socket.push(#"{"type":"conversation.item.input_audio_transcription.delta","item_id":"old","delta":"Old"}"#)
+        await waitUntil { box.lines.map(\.text) == ["Old"] }
+        let cleared = await session.clearHistory()
+        XCTAssertTrue(cleared.isEmpty)
+        socket.push(
+            #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"old","transcript":"Old final"}"#
+        )
+        socket.push(#"{"type":"conversation.item.input_audio_transcription.delta","item_id":"new","delta":"New"}"#)
+        await waitUntil { box.lines.map(\.text) == ["New"] }
+        XCTAssertEqual(box.lines.map(\.id), ["sys:new"])
+        await session.stop()
+    }
+
+    @MainActor
+    func testViewModelClearsSessionHistoryAndStopsOnServerFailure() async throws {
+        try configureRealtime()
+        let capture = FakeCaptionCapture()
+        let socket = CaptionSocket()
+        let session = LiveCaptionSession(capture: capture, configStore: store) { _, _ in socket }
+        let viewModel = LiveCaptionsViewModel(
+            sessionFactory: { session },
+            liveTranslation: LiveTranslationViewModel(defaults: defaults), defaults: defaults)
+        viewModel.start()
+        await waitUntil { viewModel.state == .running }
+        socket.push(#"{"type":"conversation.item.input_audio_transcription.delta","item_id":"old","delta":"Old"}"#)
+        await waitUntil { viewModel.lines.map(\.text) == ["Old"] }
+        viewModel.clear()
+        XCTAssertTrue(viewModel.lines.isEmpty)
+        // A visible new line proves the clear operation has resumed updates.
+        await waitUntil {
+            if viewModel.lines.map(\.text) == ["New"] { return true }
+            socket.push(
+                #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"new","transcript":"New"}"#)
+            return false
+        }
+        socket.push(
+            #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"old","transcript":"Old final"}"#
+        )
+        socket.push(
+            #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"after","transcript":"After"}"#)
+        await waitUntil { viewModel.lines.contains { $0.text == "After" } }
+        XCTAssertFalse(viewModel.lines.contains { $0.text.contains("Old") })
+        socket.push(#"{"type":"error","error":{"code":"invalid_model","message":"provider detail"}}"#)
+        await waitUntil { if case .failed = viewModel.state { return true } else { return false } }
+        XCTAssertFalse(viewModel.isRunning)
+        XCTAssertTrue(socket.isClosed)
+        XCTAssertFalse(viewModel.notice?.contains("provider detail") ?? true)
+        await session.stop()
+        let stops = await capture.stopCount
+        XCTAssertEqual(stops, 1)
+    }
+
+    @MainActor
+    func testCopiedCaptionsPreserveSourceAttributionInBothMode() async throws {
+        try configureRealtime()
+        let capture = FakeCaptionCapture()
+        let pool = SocketPool()
+        let session = LiveCaptionSession(capture: capture, configStore: store) { _, _ in pool.make() }
+        let viewModel = LiveCaptionsViewModel(
+            sessionFactory: { session },
+            liveTranslation: LiveTranslationViewModel(defaults: defaults), defaults: defaults)
+        viewModel.sourceMode = .microphoneAndSystem
+        viewModel.start()
+        await waitUntil { viewModel.state == .running }
+        XCTAssertEqual(pool.sockets.count, 2)
+        pool.sockets[0].push(
+            #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"a","transcript":"Question"}"#)
+        await waitUntil { viewModel.lines.count == 1 }
+        pool.sockets[1].push(
+            #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"a","transcript":"Answer"}"#)
+        await waitUntil { viewModel.lines.count == 2 }
+        XCTAssertEqual(viewModel.transcriptText, "Microphone: Question\n\nComputer audio: Answer")
+        viewModel.stop()
+        await session.stop()
     }
 
     @MainActor

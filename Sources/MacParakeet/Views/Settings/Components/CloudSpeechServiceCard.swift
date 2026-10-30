@@ -74,10 +74,24 @@ struct CloudSpeechServiceCard: View {
 
                 field("API key") {
                     SecureField(
-                        hasSavedKey ? "A key is saved — leave empty to keep it" : "Stored in your Keychain",
+                        hasSavedKey ? "Leave empty to keep the key for the same server" : "Stored in your Keychain",
                         text: $apiKey
                     )
                     .textFieldStyle(.roundedBorder)
+                    if hasSavedKey {
+                        Button("Clear saved key") {
+                            do {
+                                try store.clearAPIKey()
+                                hasSavedKey = false
+                                apiKey = ""
+                                errorMessage = nil
+                            } catch {
+                                errorMessage = "Could not clear the saved key: \(error.localizedDescription)"
+                            }
+                        }
+                        .parakeetAction(.secondary)
+                        .disabled(isTesting || isLoadingModels)
+                    }
                 }
 
                 Text(
@@ -159,16 +173,13 @@ struct CloudSpeechServiceCard: View {
     }
 
     /// Fetches the server's model list using the key in the field, or the
-    /// saved key when the field is empty. Keeps the current list on failure.
+    /// saved key for the same endpoint when empty. Keeps the list on failure.
     private func loadModels() {
         isLoadingModels = true
         modelListNote = nil
         Task {
             do {
-                var config = draft
-                if apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    config.apiKey = try store.load().apiKey
-                }
+                let config = try store.resolvingSavedAPIKey(for: draft)
                 let loaded = try await CloudSTTModelCatalog.load(config: config)
                 if loaded.fileModels.isEmpty && loaded.realtimeModels.isEmpty {
                     modelListNote =
@@ -190,7 +201,7 @@ struct CloudSpeechServiceCard: View {
         model = metadata.model
         realtimeModel = metadata.realtimeModel
         // The saved key is not read back into the field; leaving the field
-        // empty on save keeps whatever is already stored.
+        // empty on save keeps it only while the endpoint is unchanged.
         apiKey = ""
         hasSavedKey = store.hasAPIKey
         if hasSavedKey, store.isConfigured { loadModels() }
@@ -223,10 +234,7 @@ struct CloudSpeechServiceCard: View {
         savedMessage = nil
         errorMessage = nil
         do {
-            var config = draft
-            if apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                config.apiKey = try store.load().apiKey
-            }
+            let config = try store.resolvingSavedAPIKey(for: draft)
             try store.save(config)
             apiKey = ""
             hasSavedKey = store.hasAPIKey

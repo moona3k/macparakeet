@@ -2344,12 +2344,12 @@ speaker identity remain future work.
 Share transcripts between Mac and iPhone. Capture in-person conversations on iPhone.
 
 ### F31: Translation
-Translate a conversation into Persian, English, or German. Translation is the ADR-032 `translate` task: it runs on the default AI route through `LLMService` (general LLM; no specialist recipe and no dedicated Settings row yet). A local provider keeps the text on-device; a cloud provider receives the transcript text, the same as summaries and chat. Apple Intelligence cannot serve it. Translation never replaces the canonical stored transcript.
+Translate a conversation into Persian, English, or German. Translation is the ADR-032 `translate` task: it runs on the default AI route through `LLMService` (general LLM; no specialist recipe and no dedicated Settings row yet). A local provider keeps the text on-device; a cloud provider receives the transcript text, the same as summaries and chat. Apple Intelligence cannot serve it. Translation never replaces the canonical stored transcript. Cancellation revokes the current job: a late response cannot save a cancelled translation, append progress to a replacement, or clear a newer job. Oversized source segments use bounded subrequests and reassemble one timed/speaker segment only after every part succeeds. Markdown translation retains trailing spaces and tabs, including hard line breaks. Saved model metadata stays unknown unless response provenance establishes it; translating a saved AI result does not inherit that result’s provider/model/inference settings.
 
 **Saved transcripts (meetings, files, URLs)**
 - The globe menu in the transcript tab bar translates the transcript and opens it in its own tab (one tab per language). The effective transcript (ADR-031 projection) is sent in numbered batches so long conversations are never truncated and every translated line maps to one source segment.
 - Translated lines keep their timestamps and speakers; clicking a timestamp seeks playback. Persian is laid out right-to-left.
-- Translations are saved with the transcript (`transcript_translations`) and can be copied, exported (`.txt`, and `.srt` when timed), re-translated, or deleted. If the transcript text changes afterwards, the translation is flagged as out of date.
+- Translations are saved with the transcript (`transcript_translations`) and can be copied, exported (`.txt`, and `.srt` when timed), re-translated, or deleted. If source text, timing, or speaker attribution changes afterwards, the translation is flagged as out of date.
 - A translation job keeps running and saves if the user opens another transcript before it finishes.
 
 **Summaries and other prompt results**
@@ -2357,6 +2357,7 @@ Translate a conversation into Persian, English, or German. Translation is the AD
 
 **Video subtitles**
 - The subtitle language menu on the video player switches the overlay between the original and any saved translation, generating the translation first when needed.
+- Only current, timed translations are used as subtitles. When source text, timing, or speakers change, the player returns to original subtitles and offers Re-translate; the outdated saved translation remains available in its tab. Failed subtitle translation offers Retry.
 - Optional setting (Settings → AI): translate subtitles automatically into a chosen language when a video transcript is opened.
 
 **Live meetings**
@@ -2370,7 +2371,7 @@ Translate a conversation into Persian, English, or German. Translation is the AD
 ### F34: Online Speech Engine (fork, opt-in)
 An optional "Online" speech engine transcribes through any OpenAI-compatible `audio/transcriptions` server (OpenAI, Groq, self-hosted). It is the only engine that uploads audio; see the fork amendment in ADR-026.
 
-- Settings → Speech → Online Speech Service holds the server address, model, and API key (Keychain). The Online tile cannot be selected until a server and model are saved, and switching to it asks for confirmation.
+- Settings → Speech → Online Speech Service holds the server address, model, and API key (Keychain). A blank key field reuses a saved key only for the same normalized endpoint. Keys are bound to that endpoint in Keychain; mismatched or failed partial saves cannot send a key to another server. The Online tile cannot be selected until a server and model are saved, and switching to it asks for confirmation.
 - It can be the engine for everything, or only for recordings and files through the existing Final Transcription override.
 - Batch only: dictation records first and transcribes after stop. Meeting live preview uploads each preview chunk and needs a model that returns word timings (Whisper-family); other models produce a plain-text transcript without speaker labels.
 - Optional realtime model (for example `gpt-realtime-whisper`): when one is saved, dictation streams the microphone over a Realtime transcription session and shows text while the user speaks. The final dictation text still comes from the recorded audio through the file model, so both are billed. Meeting live preview is unchanged (chunk uploads through the file model).
@@ -2389,7 +2390,7 @@ Settings → AI → Dictation translation: choose a language (Off by default) an
 ### F36: Live Captions (fork)
 Menu bar → Live Captions… opens a floating, always-on-top window that shows speech as text in real time with its translation beside it, without recording a meeting.
 
-- Requires the online speech service with a realtime model; it streams audio to that service (ADR-026 fork amendment) and does nothing until the user presses Start.
+- Requires the online speech service with a realtime model; it streams audio to that service (ADR-026 fork amendment) and does nothing until the user presses Start. Stop revokes pending connection/capture startup. Upload buffering is bounded per source; a slow or rejected connection stops visibly. Clear removes session history, and Copy preserves microphone/computer-audio source labels.
 - Source: computer audio (default), microphone, or both. Each source gets its own realtime session so the two are not mixed; lines are labeled by source and ordered by when each phrase was first heard.
 - Two columns (original, translation), adjustable text size, translation language and speed, Copy and Clear. Phrases still being spoken are shown dimmed.
 - Nothing is saved: no audio file, transcript row, or meeting. Closing the window stops the session. Uploaded audio is counted in Usage & Cost.

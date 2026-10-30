@@ -190,7 +190,7 @@ final class RealtimeTranscribeEngineTests: XCTestCase {
     }
 
     func testResamplerProducesThreeSamplesForEveryTwoAcrossChunks() {
-        var carry: Float?
+        var carry: [Float] = []
         let ramp = (0..<1_600).map { Float($0) / 1_600 }
         var output: [Float] = []
         for start in stride(from: 0, to: ramp.count, by: 160) {
@@ -207,5 +207,47 @@ final class RealtimeTranscribeEngineTests: XCTestCase {
         XCTAssertEqual(object["type"] as? String, "input_audio_buffer.append")
         let data = try XCTUnwrap(Data(base64Encoded: object["audio"] as? String ?? ""))
         XCTAssertEqual([UInt8](data), [0x00, 0x00, 0xFF, 0x7F, 0x01, 0x80])
+    }
+
+    func testOddSizedResamplingChunksPreserveTheSameSamplesAndPhase() {
+        let input = (0..<321).map { Float($0) / 321 }
+        var wholeCarry: [Float] = []
+        let whole = RealtimeTranscribeEngine.resample16kTo24k(input, carry: &wholeCarry)
+        for chunkSize in [1, 3, 7, 17, 159] {
+            var carry: [Float] = []
+            var output: [Float] = []
+            for start in stride(from: 0, to: input.count, by: chunkSize) {
+                output += RealtimeTranscribeEngine.resample16kTo24k(
+                    Array(input[start..<min(start + chunkSize, input.count)]), carry: &carry)
+            }
+            XCTAssertEqual(output, whole, "Chunk size \(chunkSize) must preserve interpolation phase")
+            XCTAssertEqual(carry, wholeCarry)
+        }
+    }
+
+    func testServerRejectionClosesSocketAndFailsFurtherAudio() async throws {
+        try store.save(CloudSTTConfig(baseURL: "https://example.com/v1", model: "m", realtimeModel: "rt"))
+        let socket = FakeRealtimeSocket()
+        let engine = RealtimeTranscribeEngine(configStore: store) { _, _ in socket }
+        let failures = PartialRecorder()
+        try await engine.beginLiveDictation(language: nil, onPartial: { _ in })
+        try await engine.setFailureObserver { failures.add($0) }
+        socket.push(#"{"type":"error","error":{"code":"bad_request","message":"private provider detail"}}"#)
+        await waitUntil { !failures.values.isEmpty }
+        XCTAssertTrue(socket.isClosed)
+        XCTAssertFalse(failures.values[0].contains("private provider detail"))
+        do {
+            try await engine.processLiveDictationSamples(speech)
+            XCTFail("Rejected sessions must fail instead of silently consuming audio")
+        } catch {
+            XCTAssertEqual(error as? RealtimeSTTFailure, .requestRejected)
+        }
+    }
+
+    func testNonfinitePCMValuesEncodeAsSilence() throws {
+        let event = RealtimeTranscribeEngine.appendEvent(samples: [.nan, .infinity, -.infinity])
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(event.utf8)) as? [String: Any])
+        let data = try XCTUnwrap(Data(base64Encoded: object["audio"] as? String ?? ""))
+        XCTAssertEqual([UInt8](data), [UInt8](repeating: 0, count: 6))
     }
 }
