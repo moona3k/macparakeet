@@ -103,7 +103,7 @@ struct CustomWordsView: View {
 
     private var wordsSection: some View {
         Section {
-            if viewModel.filteredWords.isEmpty, viewModel.loadState == .loaded {
+            if viewModel.filteredWords.isEmpty, viewModel.loadState == .loaded || !viewModel.words.isEmpty {
                 emptyWordsState
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, DesignSystem.Spacing.xl)

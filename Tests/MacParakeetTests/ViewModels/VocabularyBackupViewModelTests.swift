@@ -110,7 +110,6 @@ final class VocabularyBackupViewModelTests: XCTestCase {
 
         var nestedExportRan = false
         var statusesDuringSave: [VocabularyBackupViewModel.Status] = []
-        var applyResult: Bool?
         await viewModel.exportVocabulary { _ in
             await viewModel.exportVocabulary { _ in
                 nestedExportRan = true
@@ -126,19 +125,61 @@ final class VocabularyBackupViewModelTests: XCTestCase {
 
             viewModel.cancelImport()
             statusesDuringSave.append(viewModel.status)
-
-            applyResult = await viewModel.applyImport()
-            statusesDuringSave.append(viewModel.status)
             return "Backup.json"
         }
 
         XCTAssertFalse(nestedExportRan)
-        XCTAssertEqual(statusesDuringSave, Array(repeating: VocabularyBackupViewModel.Status.exporting, count: 5))
-        XCTAssertEqual(applyResult, false)
+        XCTAssertEqual(statusesDuringSave, Array(repeating: VocabularyBackupViewModel.Status.exporting, count: 4))
         XCTAssertEqual(
             viewModel.status,
             .exported(wordsCount: 0, snippetsCount: 0, filename: "Backup.json")
         )
+    }
+
+    func testApplyImportIsIgnoredWhileExportAwaitsSaveAndKeepsPendingPreview() async throws {
+        let sourceDatabase = try DatabaseManager()
+        let sourceWordRepo = CustomWordRepository(dbQueue: sourceDatabase.dbQueue)
+        try sourceWordRepo.save(CustomWord(word: "kubernetes", replacement: "Kubernetes"))
+        let backupData = try VocabularyImportExportService(
+            customWordRepo: sourceWordRepo,
+            snippetRepo: TextSnippetRepository(dbQueue: sourceDatabase.dbQueue),
+            dbQueue: sourceDatabase.dbQueue
+        ).exportData()
+        let backupURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vocabulary-backup-\(UUID().uuidString).json")
+        try backupData.write(to: backupURL)
+        defer { try? FileManager.default.removeItem(at: backupURL) }
+
+        let targetDatabase = try DatabaseManager()
+        let targetWordRepo = CustomWordRepository(dbQueue: targetDatabase.dbQueue)
+        var importFinishedCount = 0
+        let viewModel = VocabularyBackupViewModel()
+        viewModel.configure(
+            service: VocabularyImportExportService(
+                customWordRepo: targetWordRepo,
+                snippetRepo: TextSnippetRepository(dbQueue: targetDatabase.dbQueue),
+                dbQueue: targetDatabase.dbQueue
+            ),
+            onImportFinished: { importFinishedCount += 1 }
+        )
+
+        await viewModel.loadPreview(from: backupURL)
+        let preview = try XCTUnwrap(viewModel.pendingImport)
+        XCTAssertEqual(preview.wordsTotal, 1)
+
+        var applyResult: Bool?
+        var previewDuringSave: VocabularyImportExportService.ImportPreview?
+        await viewModel.exportVocabulary { _ in
+            applyResult = await viewModel.applyImport()
+            previewDuringSave = viewModel.pendingImport
+            return "Backup.json"
+        }
+
+        XCTAssertEqual(applyResult, false)
+        XCTAssertEqual(previewDuringSave, preview)
+        XCTAssertEqual(viewModel.pendingImport, preview)
+        XCTAssertEqual(importFinishedCount, 0)
+        XCTAssertTrue(try targetWordRepo.fetchAll().isEmpty)
     }
 
     func testBackupControlsWaitForCurrentOperationAndRecoverAfterFailure() throws {

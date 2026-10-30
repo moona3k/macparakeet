@@ -1206,8 +1206,12 @@ Settings open in the content area when "Settings" is selected in the sidebar. Th
 Vocabulary leads with Word corrections and Text snippets, followed by Backup &
 Restore. Both managers and backup actions are available in Raw and Clean modes.
 Managing saved vocabulary never changes the processing mode. The page explains
-that word corrections apply in Clean mode and to meeting transcripts; text
-snippets expand in Clean mode.
+that word replacements apply in Clean mode and to meeting transcripts; text
+snippets expand in Clean mode. Recognition boosting is separate: when the
+selected engine supports it and it is enabled, enabled words without a
+replacement boost recognition in any mode. Once the words have loaded, the
+saved-word count line also shows the current recognition status, with its
+detail on hover.
 
 Processing mode, Voice Return, and Clean processing options follow the saved
 vocabulary controls. The Clean processing guide describes the existing ordered
@@ -1264,9 +1268,11 @@ field's clear control remains available when there are no matches.
 
 A load failure appears beside the list with Retry, never as “No custom words
 yet.” The last successfully loaded rows remain visible, with mutations disabled
-until a successful retry. An unconfigured manager shows a loading state; only a
-successful empty read can show the empty-dictionary prompt. Read errors are
-separate from Add Rule validation errors.
+until a successful retry. If the list is retained and the search matches
+nothing, it shows “No matches”, including after a failed reload. An
+unconfigured manager shows a loading state; only a successful empty read can
+show the empty-dictionary prompt, and a failed initial load with no rows stays
+banner-only. Read errors are separate from Add Rule validation errors.
 
 **Bulk deletion:** one quiet Select… action appears beside the rule count.
 It enters selection mode without adding persistent checkboxes to the normal

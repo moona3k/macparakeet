@@ -84,6 +84,7 @@ struct VocabularyView: View {
                 Text(customWordCountLabel)
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.secondary)
+                    .help(settingsViewModel.customVocabularyRecognitionStatus.detail)
                 Spacer()
             }
             .padding(.horizontal, DesignSystem.Spacing.lg)
@@ -100,7 +101,7 @@ struct VocabularyView: View {
                 showTextSnippets = true
             }
 
-            Text("Word corrections apply in Clean mode and to meeting transcripts. Text snippets expand in Clean mode.")
+            Text("Word replacements apply in Clean mode and meeting transcripts. Text snippets expand in Clean mode.")
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -226,7 +227,8 @@ struct VocabularyView: View {
             return "Couldn't load saved words. Open Manage words to retry."
         case .loaded:
             let count = customWordsViewModel.words.count
-            return count == 1 ? "1 saved word rule" : "\(count) saved word rules"
+            let countText = count == 1 ? "1 saved word rule" : "\(count) saved word rules"
+            return "\(countText) · \(settingsViewModel.customVocabularyRecognitionStatus.title)"
         }
     }
 
