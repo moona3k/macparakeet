@@ -105,3 +105,8 @@ before the required event (one also failed on the merge base). The fixtures now
 compare persisted bytes, preserve requested offscreen window geometry, and await
 actual STT/transcript events. Original behavioral assertions remain. Release,
 bundle, process-recovery, and Swift 6 checks passed; final-head CI is still required.
+
+PR #1294 subsequently landed the runner and shared fixture corrections on
+`main`, with green CI. The merge adopts those fixture files unchanged, removing
+their duplicate changes and the CI-runner migration from this PR's final diff.
+The meeting-specific persisted-lock assertion remains here.

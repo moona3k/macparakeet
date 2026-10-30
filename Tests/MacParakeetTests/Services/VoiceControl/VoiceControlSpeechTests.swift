@@ -72,30 +72,21 @@ private actor VoiceControlTestAudio: AudioProcessorProtocol {
 private actor VoiceControlTestSTT: STTTranscribing {
     var jobs: [STTJobKind] = []
     var frames: [Int64] = []
-    var audioURLs: [URL] = []
-    var startExpectations: [XCTestExpectation] = []
+    var paths: [String] = []
     var shouldWait = false
     var waitsOnlyOnce = false
     var waiting: CheckedContinuation<Void, Never>?
     func setWait(onlyOnce: Bool = false) { shouldWait = true; waitsOnlyOnce = onlyOnce }
-    func expectStarts(_ expectations: [XCTestExpectation]) { startExpectations = expectations }
     func release() { shouldWait = false; waiting?.resume(); waiting = nil }
     func transcribe(audioPath: String, job: STTJobKind, onProgress: (@Sendable (Int, Int) -> Void)?) async throws
         -> STTResult
     {
         jobs.append(job)
-        let audioURL = URL(fileURLWithPath: audioPath)
-        audioURLs.append(audioURL)
-        frames.append((try? AVAudioFile(forReading: audioURL).length) ?? -1)
-        let started = jobs.count <= startExpectations.count ? startExpectations[jobs.count - 1] : nil
+        paths.append(audioPath)
+        frames.append((try? AVAudioFile(forReading: URL(fileURLWithPath: audioPath)).length) ?? -1)
         if shouldWait {
             if waitsOnlyOnce { shouldWait = false }
-            await withCheckedContinuation {
-                waiting = $0
-                started?.fulfill()
-            }
-        } else {
-            started?.fulfill()
+            await withCheckedContinuation { waiting = $0 }
         }
         return STTResult(text: "type um, DO NOT expand this snippet")
     }
@@ -178,12 +169,15 @@ extension VoiceControlSpeechTests {
         }
         try await session.begin(handsFree: false)
         let commit = Task { await session.commit() }
-        for _ in 0..<10_000 {
-            if await stt.waiting != nil { break }
-            await Task.yield()
-        }
-        let didStart = await stt.waiting != nil
+        let didStart = await waitUntil { await stt.waiting != nil }
         XCTAssertTrue(didStart)
+        guard didStart else {
+            await stt.release()
+            await session.cancel()
+            await commit.value
+            _ = await collector.value
+            return
+        }
         await session.discardPendingUtterance()
         await stt.release()
         await commit.value
@@ -329,28 +323,26 @@ extension VoiceControlSpeechTests {
         for _ in 0..<9 { await audio.emit(Self.silence) }
     }
 
-    private func waitForSegmentCleanup(_ url: URL) async throws {
+    private func waitUntil(_ condition: @Sendable () async -> Bool) async -> Bool {
         let deadline = ContinuousClock.now.advanced(by: .seconds(5))
-        while FileManager.default.fileExists(atPath: url.path), ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(1))
+        while !(await condition()) {
+            guard ContinuousClock.now < deadline else { return false }
+            do {
+                try await Task.sleep(for: .milliseconds(1))
+            } catch {
+                return false
+            }
         }
-        XCTAssertFalse(
-            FileManager.default.fileExists(atPath: url.path),
-            "The superseded final must return through its cleanup before the session is stopped"
-        )
+        return true
     }
 
     func testSpeechResumingBeforePendingFinalMergesEarlierWordsIntoOneCommand() async throws {
         let audio = try VoiceControlTestAudio()
         let stt = VoiceControlTestSTT()
-        let firstStarted = expectation(description: "First final STT is suspended")
-        let secondStarted = expectation(description: "Merged final reached STT")
-        let transcriptDelivered = expectation(description: "Merged transcript delivered")
-        await stt.expectStarts([firstStarted, secondStarted])
         await stt.setWait(onlyOnce: true)
         let session = VoiceControlSpeechSession(audio: audio, stt: stt)
         let events = session.events
-        let delivered = TranscriptCounter(expectations: [transcriptDelivered])
+        let delivered = TranscriptCounter()
         let collector = Task {
             for await event in events {
                 if case .transcript = event { await delivered.increment() }
@@ -360,24 +352,40 @@ extension VoiceControlSpeechTests {
         }
         try await session.begin(handsFree: true)
         await speakThenPause(audio)
-        let firstStartResult = await XCTWaiter.fulfillment(of: [firstStarted], timeout: 5)
-        guard firstStartResult == .completed else {
+        let firstStarted = await waitUntil { await stt.waiting != nil }
+        XCTAssertTrue(firstStarted, "The first segment reached final STT before speech resumed")
+        guard firstStarted else {
             await stt.release()
             await session.cancel()
             await collector.value
-            return XCTFail("The first segment must reach final STT before speech resumes")
+            return
         }
-        let firstAudioURL = await stt.audioURLs.first
-        let supersededAudioURL = try XCTUnwrap(firstAudioURL)
         await speakThenPause(audio)
-        await fulfillment(of: [secondStarted], timeout: 5)
+        let secondStarted = await waitUntil { await stt.jobs.count >= 2 }
+        XCTAssertTrue(secondStarted, "The merged segment reached final STT before releasing the first result")
+        guard secondStarted else {
+            await stt.release()
+            await session.cancel()
+            await collector.value
+            return
+        }
         await stt.release()
-        await fulfillment(of: [transcriptDelivered], timeout: 5)
-        // The service deletes this file in transcribe's defer, after deciding
-        // whether its late result may publish. Stop must not mask that decision.
-        try await waitForSegmentCleanup(supersededAudioURL)
+        let transcriptDelivered = await waitUntil { await delivered.count >= 1 }
+        XCTAssertTrue(transcriptDelivered, "The merged command was delivered before stopping")
+        guard transcriptDelivered else {
+            await session.cancel()
+            await collector.value
+            return
+        }
+        // Transcription deletes its segment in defer, after accepting or rejecting
+        // the result. Drain both finals before Stop can mask a stale transcript.
+        let finalsFinished = await waitUntil {
+            await stt.paths.allSatisfy { !FileManager.default.fileExists(atPath: $0) }
+        }
+        XCTAssertTrue(finalsFinished, "Both final results were handled before stopping")
         await session.cancel()
         await collector.value
+        guard finalsFinished else { return }
         let frames = await stt.frames
         XCTAssertEqual(frames.count, 2)
         XCTAssertEqual(frames.first, 17_600)
@@ -397,11 +405,9 @@ extension VoiceControlSpeechTests {
     func testSpeechAfterDeliveredFinalStartsAFreshUtterance() async throws {
         let audio = try VoiceControlTestAudio()
         let stt = VoiceControlTestSTT()
-        let firstDelivered = expectation(description: "First command transcript delivered")
-        let secondDelivered = expectation(description: "Second command transcript delivered")
         let session = VoiceControlSpeechSession(audio: audio, stt: stt)
         let events = session.events
-        let delivered = TranscriptCounter(expectations: [firstDelivered, secondDelivered])
+        let delivered = TranscriptCounter()
         let collector = Task {
             for await event in events {
                 if case .transcript = event { await delivered.increment() }
@@ -411,16 +417,19 @@ extension VoiceControlSpeechTests {
         }
         try await session.begin(handsFree: true)
         await speakThenPause(audio)
-        let firstDeliveryResult = await XCTWaiter.fulfillment(of: [firstDelivered], timeout: 5)
-        guard firstDeliveryResult == .completed else {
+        let firstDelivered = await waitUntil { await delivered.count >= 1 }
+        XCTAssertTrue(firstDelivered, "The first command was delivered before the next utterance")
+        guard firstDelivered else {
             await session.cancel()
             await collector.value
-            return XCTFail("The first command must be delivered before fresh speech begins")
+            return
         }
         await speakThenPause(audio)
-        await fulfillment(of: [secondDelivered], timeout: 5)
+        let secondDelivered = await waitUntil { await delivered.count >= 2 }
+        XCTAssertTrue(secondDelivered, "Both commands were delivered before stopping")
         await session.cancel()
         await collector.value
+        guard secondDelivered else { return }
         let frames = await stt.frames
         XCTAssertEqual(frames, [17_600, 17_600], "A delivered command is never merged into the next one")
         let measured = await delivered.metrics
@@ -458,11 +467,6 @@ extension VoiceControlSpeechTests {
 private actor TranscriptCounter {
     var count = 0
     var metrics: [VoiceControlSpeechTurnMetrics] = []
-    let expectations: [XCTestExpectation]
-    init(expectations: [XCTestExpectation] = []) { self.expectations = expectations }
-    func increment() {
-        count += 1
-        if count <= expectations.count { expectations[count - 1].fulfill() }
-    }
+    func increment() { count += 1 }
     func note(_ value: VoiceControlSpeechTurnMetrics) { metrics.append(value) }
 }

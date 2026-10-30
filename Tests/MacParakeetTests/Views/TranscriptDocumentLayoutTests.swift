@@ -11,8 +11,7 @@ import XCTest
 /// Parsing is awaited explicitly so assertions cannot pass on an empty view.
 @MainActor
 final class TranscriptDocumentLayoutTests: XCTestCase {
-    /// Measure the offered pane size even when it exceeds the CI display.
-    /// Content minimums are still checked separately by the layout assertions.
+    /// Exercise the offered pane size independently of the test machine's display.
     private final class LayoutWindow: NSWindow {
         override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
             frameRect
@@ -97,12 +96,16 @@ final class TranscriptDocumentLayoutTests: XCTestCase {
         host.layoutSubtreeIfNeeded()
         RunLoop.main.run(until: Date().addingTimeInterval(0.2))
         let editor = try XCTUnwrap(descendants(host).compactMap { $0 as? NSTextView }.first(where: \.isEditable))
-        XCTAssertEqual(window.contentRect(forFrameRect: window.frame).height, 650, accuracy: 1)
+        let smallContent = window.contentRect(forFrameRect: window.frame)
+        XCTAssertEqual(smallContent.width, 1_100, accuracy: 1)
+        XCTAssertEqual(smallContent.height, 650, accuracy: 1)
         let smallHeight = try XCTUnwrap(editor.enclosingScrollView).contentView.bounds.height
         window.setContentSize(NSSize(width: 1_100, height: 950))
         host.layoutSubtreeIfNeeded()
         RunLoop.main.run(until: Date().addingTimeInterval(0.2))
-        XCTAssertEqual(window.contentRect(forFrameRect: window.frame).height, 950, accuracy: 1)
+        let largeContent = window.contentRect(forFrameRect: window.frame)
+        XCTAssertEqual(largeContent.width, 1_100, accuracy: 1)
+        XCTAssertEqual(largeContent.height, 950, accuracy: 1)
         let largeHeight = try XCTUnwrap(editor.enclosingScrollView).contentView.bounds.height
         print("Result editor viewport: \(smallHeight) -> \(largeHeight) for +300 pt window height")
         XCTAssertGreaterThan(
