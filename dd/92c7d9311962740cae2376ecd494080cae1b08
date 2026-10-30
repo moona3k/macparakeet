@@ -1,0 +1,40 @@
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_b0bea76041335f::t_3f1b02f23d26ab 499-500,503,508
+docs/audits/2026-10-30-knowledge-card-reliability.md
+  s_b0bea76041335f::t_65433c0922a3c7 69-80,88-92
+spec/contracts/telemetry-v1.md
+  s_b0bea76041335f::t_c1a5bb0cd0f34f 345-347
+Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift
+  s_b0bea76041335f::t_3f1b02f23d26ab 58,74,87
+  s_b0bea76041335f::t_f75c8600c2a73f 90-109,113-117,120-127
+  s_b0bea76041335f::t_552488d870ec93 110-112,118-119
+  s_b0bea76041335f::t_4efa968ffe97c8 88-89
+Tests/MacParakeetTests/Services/LLM/KnowledgeCardRecoveryTests.swift
+  s_b0bea76041335f::t_3f1b02f23d26ab 22,30,34-35,37,128
+  s_b0bea76041335f::t_f75c8600c2a73f 58-77,155-158,160,174
+  s_b0bea76041335f::t_e851476ae4e241 161-173
+spec/contracts/saved-audio-auto-prompt-completion.md
+  s_b0bea76041335f::t_c1a5bb0cd0f34f 153
+  s_b0bea76041335f::t_65433c0922a3c7 154-158
+Tests/MacParakeetTests/Services/LLM/CardGenerationServiceTests.swift
+  s_b0bea76041335f::t_3f1b02f23d26ab 30
+docs/dev/knowledge-card-reliability.html
+  s_b0bea76041335f::t_65433c0922a3c7 18
+  s_b0bea76041335f::t_c1a5bb0cd0f34f 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dd92c7d9311962740cae2376ecd494080cae1b08",
+  "prompts": {},
+  "sessions": {
+    "s_b0bea76041335f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e4d-82c1-7933-b5d2-8c919ed88cbc",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
