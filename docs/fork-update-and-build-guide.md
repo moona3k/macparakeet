@@ -21,8 +21,9 @@ If there are conflicts, `git status` lists files marked `UU`. Open each, find
 plus your feature lines), delete the markers, then:
 
 ```bash
-grep -rnE '^(<<<<<<<|>>>>>>>)' Sources Tests spec   # must print nothing
-git add -A Sources Tests spec
+git diff --check   # must report no conflict markers or whitespace errors
+git status --short # review every resolved path before staging
+git add -A
 git commit --no-edit
 ```
 

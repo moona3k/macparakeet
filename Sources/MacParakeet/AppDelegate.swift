@@ -872,9 +872,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         liveCaptionsController = controller
         menuBarCoordinator.onLiveCaptions = { [weak viewModel, weak controller] in
             // Pick up AI provider changes made since the window was last opened.
-            let hasTranslateRoute = (try? env.llmConfigStore.loadConfig(for: .translate)) != nil
+            let route = try? env.llmConfigStore.loadRouteMetadata(for: .translate)
             viewModel?.liveTranslation.updateTranslator(
-                hasTranslateRoute ? TranscriptTranslationService(llmService: env.llmService) : nil)
+                route?.config.id.canServe(.translate) == true
+                    ? TranscriptTranslationService(llmService: env.llmService) : nil,
+                route: route)
             controller?.show()
         }
     }

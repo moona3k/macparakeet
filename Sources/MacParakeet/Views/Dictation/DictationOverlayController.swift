@@ -104,8 +104,9 @@ final class DictationOverlayController: DictationOverlayControlling {
 
         // Start with generous size — SwiftUI content sizes itself, panel background is clear
         let panelWidth: CGFloat = 300
-        // Room for the pill, the live transcript card, and the translation card.
-        let panelHeight: CGFloat = 210
+        // Large transcript (98pt), translation (44pt), tooltip (36pt), pill
+        // (46pt), spacing and shadows must all fit without compressing cards.
+        let panelHeight: CGFloat = 280
         hosting.frame = NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight)
 
         let panel = ClickablePanel(

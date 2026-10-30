@@ -28,12 +28,15 @@ struct UsageCard: View {
 
                     Spacer()
 
-                    Button("Refresh") { viewModel.reload() }
+                    Button("Refresh") { Task { await viewModel.reload() } }
                         .parakeetAction(.secondary)
                         .controlSize(.small)
+                        .disabled(viewModel.isLoading)
                 }
 
-                if let error = viewModel.loadError {
+                if viewModel.isLoading {
+                    ProgressView("Loading usage…")
+                } else if let error = viewModel.loadError {
                     Text(error)
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(DesignSystem.Colors.errorRed)
@@ -77,12 +80,12 @@ struct UsageCard: View {
                 }
             }
         }
-        .onAppear { viewModel.reload() }
+        .task { await viewModel.reload() }
         .sheet(item: $editingRow) { row in
             UsagePriceEditor(row: row, viewModel: viewModel) { editingRow = nil }
         }
         .confirmationDialog("Clear usage history?", isPresented: $confirmingClear) {
-            Button("Clear", role: .destructive) { viewModel.clearHistory() }
+            Button("Clear", role: .destructive) { Task { await viewModel.clearHistory() } }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This removes the recorded AI and online-speech usage. Transcripts and recordings are not affected.")
@@ -198,13 +201,28 @@ private struct UsagePriceEditor: View {
     @State private var output = ""
     @State private var audio = ""
 
+    private var enteredPrice: UsagePrice? {
+        if row.kind == .llm {
+            guard let input = UsageViewModel.parsePrice(input), let output = UsageViewModel.parsePrice(output)
+            else { return nil }
+            return UsagePrice(inputPerMillion: input, outputPerMillion: output)
+        }
+        guard let audio = UsageViewModel.parsePrice(audio) else { return nil }
+        return UsagePrice(audioPerMinute: audio)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-            Text("Price for \(row.model)")
+            Text("Price for \(row.provider) · \(row.model)")
                 .font(DesignSystem.Typography.body.weight(.semibold))
             Text("Enter your provider's current price in US dollars.")
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
+            if viewModel.legacyPrice(for: row) != nil {
+                Text("Your previous model-only price is shown below. Save to confirm it for this provider.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+            }
 
             if row.kind == .llm {
                 field("Input, per 1M tokens", text: $input)
@@ -212,10 +230,15 @@ private struct UsagePriceEditor: View {
             } else {
                 field("Audio, per minute", text: $audio)
             }
+            if enteredPrice == nil {
+                Text("Enter a nonnegative decimal amount in each field. Use 0 for a free rate.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+            }
 
             HStack {
                 if viewModel.hasCustomPrice(for: row) {
-                    Button("Use Built-in Price") {
+                    Button("Remove Custom Price") {
                         viewModel.setPrice(nil, for: row)
                         onDone()
                     }
@@ -225,26 +248,21 @@ private struct UsagePriceEditor: View {
                 Button("Cancel", action: onDone)
                     .parakeetAction(.secondary)
                 Button("Save") {
-                    viewModel.setPrice(
-                        UsagePrice(
-                            inputPerMillion: Self.number(input),
-                            outputPerMillion: Self.number(output),
-                            audioPerMinute: Self.number(audio)
-                        ),
-                        for: row
-                    )
+                    guard let price = enteredPrice, viewModel.setPrice(price, for: row) else { return }
                     onDone()
                 }
                 .parakeetAction(.primary)
+                .disabled(enteredPrice == nil)
             }
         }
         .padding(DesignSystem.Spacing.lg)
         .frame(width: 380)
         .onAppear {
-            let price = viewModel.price(for: row) ?? UsagePrice()
-            input = Self.text(price.inputPerMillion)
-            output = Self.text(price.outputPerMillion)
-            audio = Self.text(price.audioPerMinute)
+            if let price = viewModel.price(for: row) ?? viewModel.legacyPrice(for: row) {
+                input = UsageViewModel.priceEditorText(price.inputPerMillion)
+                output = UsageViewModel.priceEditorText(price.outputPerMillion)
+                audio = UsageViewModel.priceEditorText(price.audioPerMinute)
+            }
         }
     }
 
@@ -262,12 +280,4 @@ private struct UsagePriceEditor: View {
         }
     }
 
-    /// Accepts both "0.15" and "0,15".
-    private static func number(_ text: String) -> Double {
-        max(0, Double(text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")) ?? 0)
-    }
-
-    private static func text(_ value: Double) -> String {
-        value == 0 ? "" : String(format: "%g", value)
-    }
 }

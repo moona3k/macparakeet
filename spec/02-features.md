@@ -2365,45 +2365,45 @@ Translate a conversation into Persian, English, or German. Translation is the AD
 - Lines are translated once they settle (the newest line waits until its text stops changing). After three consecutive provider failures translation pauses until the user retries.
 - The same menu sets what is shown — the original with its translation underneath, or the translation only (a line shows its original text until its translation arrives) — and the speed: Balanced waits 1.5 s for the newest line to settle; Faster waits 0.4 s and sends more AI requests because a growing line is translated again. Both choices are remembered.
 - Floating captions: the Captions button in the Transcript tab opens an always-on-top window that does not take keyboard focus, showing the last lines in two columns (original, translation), with adjustable text size and its own language menu. Persian is laid out right-to-left. Whether it was open is remembered for the next meeting. It always shows both columns; the display-mode setting applies only to the meeting panel.
-- The Online Speech Service card offers model dropdowns filled from the server's `/models` list (speech models only, sorted by name into file and realtime), with a built-in fallback list and free-text entry.
 - Live translations are in-memory only and are not saved; translate the saved meeting transcript for a durable copy. The chosen live language is remembered.
 
-### F34: Online Speech Engine (fork, opt-in)
-An optional "Online" speech engine transcribes through any OpenAI-compatible `audio/transcriptions` server (OpenAI, Groq, self-hosted). It is the only engine that uploads audio; see the fork amendment in ADR-026.
+### F51: Online Speech Engine (fork, opt-in)
+An optional "Online" speech engine transcribes through any OpenAI-compatible `audio/transcriptions` server (OpenAI, Groq, self-hosted). This is the batch upload path; realtime dictation and Live Captions also upload audio. These fork paths require an upstream scope decision under ADR-002 and ADR-026; the fork amendment does not establish an accepted upstream exception.
 
+- The Online Speech Service card offers model dropdowns filled from the server's `/models` list (speech models only, sorted by name into file and realtime), with a built-in fallback list and free-text entry.
 - Settings → Speech → Online Speech Service holds the server address, model, and API key (Keychain). A blank key field reuses a saved key only for the same normalized endpoint. Keys are bound to that endpoint in Keychain; mismatched or failed partial saves cannot send a key to another server. The Online tile cannot be selected until a server and model are saved, and switching to it asks for confirmation.
 - It can be the engine for everything, or only for recordings and files through the existing Final Transcription override.
-- Batch only: dictation records first and transcribes after stop. Meeting live preview uploads each preview chunk and needs a model that returns word timings (Whisper-family); other models produce a plain-text transcript without speaker labels.
-- Optional realtime model (for example `gpt-realtime-whisper`): when one is saved, dictation streams the microphone over a Realtime transcription session and shows text while the user speaks. The final dictation text still comes from the recorded audio through the file model, so both are billed. Meeting live preview is unchanged (chunk uploads through the file model).
+- Batch only: dictation records first and transcribes after stop. Meeting live preview is disabled for arbitrary online models because this engine-wide capability cannot guarantee word timings. Final responses preserve valid supplied timings; text-only results stay plain text.
+- Optional realtime model (for example `gpt-realtime-whisper`): when one is saved, dictation streams the microphone over a Realtime transcription session and shows text while the user speaks. The final dictation text still comes from the recorded audio through the file model, so both are billed. Meeting live preview remains disabled.
 - Long audio is split into uploads of at most ten minutes at quiet points.
 - Transcripts record `engine = cloud` and the model name as the variant, shown as "Online · <model>".
 
-### F37: Dictation Translation (fork)
+### F52: Dictation Translation (fork)
 Settings → AI → Dictation translation: choose a language (Off by default) and what is typed into the target app.
 
 - Typed text is selectable: the translation, the original (translation shown only), or both (original, then translation on the next line).
-- While dictating, the floating overlay shows a live translation under the live transcript. It needs an engine that produces live text, translates only the recent tail of the transcript, and is best-effort.
-- When dictation ends, the finished text is translated once and typed according to the setting. This adds one AI request before typing. If translation fails, the original is typed and nothing is lost.
+- While dictating, the floating overlay shows a live translation under the live transcript. It needs an engine that produces live text, translates only the recent tail after the text becomes quiet, and is best-effort. Cancel, discard, and dismissal revoke pending work.
+- When dictation ends, the finished text is translated once and typed according to the setting. Translation waits at most five seconds; errors or the deadline return the original text without waiting for a noncooperative provider. Cancellation still follows the dictation discard/retention policy, and late output cannot update history.
 - Transcript columns always stay in the spoken language. The translation, its language, and the typed-output choice are stored on the dictation (`translation`, `translationLanguage`, `translationOutput`, migration v0.52) and history shows the translation under the original.
 - Uses the `translate` task route (default AI). A cloud provider receives the dictated text.
 
-### F36: Live Captions (fork)
+### F53: Live Captions (fork)
 Menu bar → Live Captions… opens a floating, always-on-top window that shows speech as text in real time with its translation beside it, without recording a meeting.
 
 - Requires the online speech service with a realtime model; it streams audio to that service (ADR-026 fork amendment) and does nothing until the user presses Start. Stop revokes pending connection/capture startup. Upload buffering is bounded per source; a slow or rejected connection stops visibly. Clear removes session history, and Copy preserves microphone/computer-audio source labels.
 - Source: computer audio (default), microphone, or both. Each source gets its own realtime session so the two are not mixed; lines are labeled by source and ordered by when each phrase was first heard.
 - Two columns (original, translation), adjustable text size, translation language and speed, Copy and Clear. Phrases still being spoken are shown dimmed.
 - Nothing is saved: no audio file, transcript row, or meeting. Closing the window stops the session. Uploaded audio is counted in Usage & Cost.
-- Realtime sessions write connection diagnostics (event types, error codes and messages, close codes; never audio or transcript text) to the audio diagnostics log.
+- Realtime sessions write bounded connection diagnostics to the audio diagnostics log; arbitrary provider error text, close reasons, and unknown event names are omitted.
 
-### F35: Usage & Cost (fork)
+### F54: Usage & Cost (fork)
 Settings → AI → Usage & Cost totals, for the last 7 days, 30 days, or all time:
 
-- AI models: requests and input/output tokens per provider and model, for every AI feature. Token counts the provider did not report are estimated and marked.
+- AI models: requests and input/output tokens per provider, model, and locality, for every AI feature. Token counts the provider did not report are estimated and marked.
 - Online speech service: uploads and audio minutes per model, including realtime dictation sessions.
-- Local speech engines: recordings and audio minutes, shown as free.
+- Local speech engines: completed recordings and audio minutes, shown as free. Failed and in-progress dictations are excluded.
 
-Cost is an estimate from a built-in price list that the user can correct per model; models with no known price are listed as not included rather than guessed. Counting starts when this version first runs. History can be cleared; only counts are stored (`usage_events`).
+Cost is an estimate from a built-in price list for known provider/model pairs. Custom prices are scoped by usage kind, provider, model, and locality; local and remote usage never merge. Legacy model-only prices remain stored but require explicit provider confirmation before use. Invalid or incomplete prices cannot be saved. Models with no known price are listed as not included rather than guessed. Counting starts when this version first runs. History can be cleared; only counts are stored (`usage_events`).
 
 ### F32: API / Shortcuts Integration
 Expose transcription as a macOS Shortcut action. Enable automation: "When I receive a voice memo, transcribe it."

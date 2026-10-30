@@ -145,7 +145,7 @@ final class DictationFlowCoordinator {
     var onHotkeyRecordingEnded: (() -> Void)?
     var onInteractionBusy: (() -> Void)?
     /// Live translation of the overlay's transcript (dictation translation).
-    let liveTranslator = DictationLiveTranslator()
+    let liveTranslator: DictationLiveTranslator
     /// Observes every flow state change. Onboarding's practice box uses it to
     /// light the key and show listening/transcribing while it is the target.
     var onFlowStateChanged: ((DictationFlowState) -> Void)?
@@ -214,6 +214,7 @@ final class DictationFlowCoordinator {
     /// Skip the recovery NSAlert so denied-mic starts can be asserted in XCTest
     /// without `runModal` in a headless process.
     var testHook_skipMicPermissionAlert = false
+    var testHook_recordingSnapshot: (() async -> (state: DictationState, audioLevel: Float, liveTranscript: String))?
 
     // MARK: - Flow Context (not state machine concerns)
 
@@ -260,6 +261,7 @@ final class DictationFlowCoordinator {
         runtimePreferences: AppRuntimePreferencesProtocol,
         permissionService: PermissionServiceProtocol = PermissionService(),
         focusedAppContextService: any FocusedAppContextProviding = FocusedAppContextService(),
+        liveTranslator: DictationLiveTranslator? = nil,
         captionTiming: DictationProcessingLoadCaptionTiming = .production,
         activeSpeechEngine: @escaping @MainActor () -> SpeechEnginePreference = { SpeechEnginePreference.current() },
         mediaPauseCoordinator: (any DictationMediaPauseCoordinating)? = nil,
@@ -285,6 +287,7 @@ final class DictationFlowCoordinator {
         self.runtimePreferences = runtimePreferences
         self.permissionService = permissionService
         self.focusedAppContextService = focusedAppContextService
+        self.liveTranslator = liveTranslator ?? DictationLiveTranslator()
         self.captionTiming = captionTiming
         self.activeSpeechEngine = activeSpeechEngine
         self.mediaPauseCoordinator = mediaPauseCoordinator ?? NoOpDictationMediaPauseCoordinator()
@@ -711,12 +714,14 @@ final class DictationFlowCoordinator {
             showErrorAfterCaptionFailureIfNeeded(message: message)
 
         case .hideOverlay:
+            liveTranslator.reset()
             dismissCaption(outcome: .cancelled)
             overlayController?.hide()
             overlayController = nil
             overlayViewModel = nil
 
         case .dismissReadyPill:
+            liveTranslator.reset()
             dismissCaption(outcome: .cancelled)
             overlayController?.hide()
             overlayController = nil
@@ -780,6 +785,7 @@ final class DictationFlowCoordinator {
             stopRecordingTask(generation: stateMachine.generation, sessionID: sessionID, mode: mode)
 
         case .cancelRecording(let reason):
+            liveTranslator.reset()
             let sessionID = serviceSession.currentSessionID
             Task { @MainActor in
                 await self.serviceSession.cancelRecording(
@@ -789,6 +795,7 @@ final class DictationFlowCoordinator {
             }
 
         case .confirmCancel(let reason):
+            liveTranslator.reset()
             let sessionID = serviceSession.currentSessionID
             Task { @MainActor in
                 if let reason {
@@ -801,6 +808,7 @@ final class DictationFlowCoordinator {
             }
 
         case .discardRecording:
+            liveTranslator.reset()
             let sessionID = serviceSession.currentSessionID
             Task { @MainActor in
                 await self.serviceSession.confirmCancel(sessionID: sessionID)
@@ -1045,6 +1053,7 @@ final class DictationFlowCoordinator {
         // MARK: Task management
 
         case .cancelRecordingTask:
+            liveTranslator.reset()
             recordingTask?.cancel()
             recordingTask = nil
 
@@ -1060,6 +1069,8 @@ final class DictationFlowCoordinator {
 
     // Snapshot before cancelling: cancellation clears actionTask, but tests
     // must join the owned continuation before asserting that no delivery ran.
+    var recordingTaskForTesting: Task<Void, Never>? { recordingTask }
+
     var processingTaskForTesting: Task<Void, Never>? { actionTask }
 
     var processingLoadCaptionForTesting: DictationOverlayViewModel.ProcessingLoadCaption? {
@@ -1304,7 +1315,7 @@ final class DictationFlowCoordinator {
                 {
                     self.playStartCueIfEnabled(sessionID: sessionID)
                 }
-                await self.runRecordingLevelLoop()
+                await self.runRecordingLevelLoop(generation: generation, sessionID: sessionID)
             } catch is CancellationError {
                 await self.mediaPauseCoordinator.resumeAfterDictationCapture()
                 return
@@ -1581,14 +1592,23 @@ final class DictationFlowCoordinator {
         }
     }
 
-    private func runRecordingLevelLoop() async {
+    private func runRecordingLevelLoop(generation: Int, sessionID: Int) async {
         let (autoStopEnabled, silenceDelay) = (settingsViewModel.silenceAutoStop, settingsViewModel.silenceDelay)
         var lastNonSilenceAt = Date()
         var didAutoStop = false
 
         while !Task.isCancelled {
-            let snapshot = await serviceSession.recordingSnapshot()
-            guard case .recording = snapshot.state else { break }
+            let snapshot: (state: DictationState, audioLevel: Float, liveTranscript: String)
+            if let testHook_recordingSnapshot {
+                snapshot = await testHook_recordingSnapshot()
+            } else {
+                snapshot = await serviceSession.recordingSnapshot()
+            }
+            guard !Task.isCancelled, stateMachine.generation == generation,
+                serviceSession.currentSessionID == sessionID,
+                case .recording = stateMachine.state,
+                case .recording = snapshot.state
+            else { break }
 
             let level = snapshot.audioLevel
             overlayViewModel?.audioLevel = level

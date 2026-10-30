@@ -5,6 +5,63 @@ import XCTest
 
 @MainActor
 final class DictationFlowCoordinatorTests: XCTestCase {
+    func testCancelDiscardAndDismissRevokeLiveTranslation() async throws {
+        for action in ["cancel", "discard", "dismiss"] {
+            let translator = DictationLiveTranslator(debounce: .zero)
+            let provider = DictationTranslationProbe()
+            translator.settingsProvider = { DictationTranslationSettings(language: .german, output: .translation) }
+            translator.translatorProvider = { provider }
+            let harness = try await makeRecordingHarness(liveTranslator: translator)
+            harness.coordinator.isPracticeTarget = { action == "dismiss" }
+            harness.coordinator.startDictation(mode: .persistent)
+            let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+            XCTAssertTrue(started)
+            var delivered: [String] = []
+            translator.onTranslation = { text, _ in delivered.append(text) }
+            translator.update("Abandoned take")
+            let entered = await waitUntil { provider.requests.count == 1 }
+            XCTAssertTrue(entered)
+            switch action {
+            case "cancel": harness.coordinator.cancelDictation()
+            case "discard": harness.coordinator.discardProvisionalRecording(showReadyPill: false)
+            default: harness.coordinator.dismissPracticeDictation()
+            }
+            provider.finish(0)
+            let returned = await waitUntil { provider.returned.contains(0) }
+            XCTAssertTrue(returned)
+            XCTAssertTrue(delivered.isEmpty, action)
+            XCTAssertEqual(provider.requests.count, 1, action)
+            await harness.service.confirmCancel()
+        }
+    }
+
+    func testDelayedRecordingSnapshotCannotRestartTranslationAfterCancel() async throws {
+        let translator = DictationLiveTranslator(debounce: .zero)
+        let provider = DictationTranslationProbe()
+        var settingsReads = 0
+        translator.settingsProvider = {
+            settingsReads += 1
+            return DictationTranslationSettings(language: .german, output: .translation)
+        }
+        translator.translatorProvider = { provider }
+        let harness = try await makeRecordingHarness(liveTranslator: translator)
+        var releaseSnapshot: CheckedContinuation<Void, Never>?
+        harness.coordinator.testHook_recordingSnapshot = {
+            await withCheckedContinuation { releaseSnapshot = $0 }
+            return (.recording, 0.5, "Abandoned take")
+        }
+        harness.coordinator.startDictation(mode: .persistent)
+        let snapshotStarted = await waitUntil { releaseSnapshot != nil }
+        XCTAssertTrue(snapshotStarted)
+        let recordingTask = harness.coordinator.recordingTaskForTesting
+        harness.coordinator.cancelDictation()
+        releaseSnapshot?.resume()
+        await recordingTask?.value
+        XCTAssertEqual(settingsReads, 0, "A stale snapshot must not call the reset translator")
+        XCTAssertTrue(provider.requests.isEmpty)
+        await harness.service.confirmCancel()
+    }
+
     func testBusyDictationStartIsRefusedAndNextStartCanProceed() async throws {
         let arbiter = GUIMutationArbiter()
         let harness = try await makeRecordingHarness(mutationArbiter: arbiter)
@@ -921,7 +978,8 @@ final class DictationFlowCoordinatorTests: XCTestCase {
     private func makeRecordingHarness(
         mutationArbiter: GUIMutationArbiter? = nil,
         captureSoundsEnabled: Bool = false,
-        preserveDiscarded: Bool = false
+        preserveDiscarded: Bool = false,
+        liveTranslator: DictationLiveTranslator? = nil
     ) async throws -> RecordingHarness {
         let dbManager = try DatabaseManager()
         let audio = MockAudioProcessor()
@@ -963,6 +1021,7 @@ final class DictationFlowCoordinatorTests: XCTestCase {
             sttRuntime: AlwaysReadySTTReadinessChecker(),
             runtimePreferences: preferences,
             permissionService: MockPermissionService(),
+            liveTranslator: liveTranslator,
             playCaptureCue: { cues.played.append($0) },
             overlayControllerFactory: { MicPermissionSpyDictationOverlayController(viewModel: $0) },
             onMenuBarIconUpdate: { _ in },

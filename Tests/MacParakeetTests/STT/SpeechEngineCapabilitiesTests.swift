@@ -2,6 +2,16 @@ import XCTest
 @testable import MacParakeetCore
 
 final class SpeechEngineCapabilitiesTests: XCTestCase {
+    func testArbitraryCloudModelDoesNotPromiseTimingsOrEnableMeetingPreview() {
+        let cloud = SpeechEngineCapabilityRegistry.capabilities(for: .cloud)
+        XCTAssertFalse(cloud.providesWordTimestamps)
+        XCTAssertFalse(cloud.supportsMeetingLivePreview)
+        let selection = SpeechEngineSelection(engine: .cloud, language: nil)
+        let plan = MeetingSpeechPlan.resolve(live: selection, final: selection, liveCapabilities: cloud)
+        XCTAssertNil(plan.preview, "Unknown cloud models must not manufacture timed meeting preview")
+        XCTAssertEqual(plan.final, selection, "The requested final engine is preserved")
+    }
+
     func testRegistryHasOneRowForEveryEngineVariant() {
         XCTAssertEqual(
             Set(SpeechEngineCapabilityRegistry.all.map(\.key)),

@@ -117,6 +117,7 @@ public actor DictationService: DictationServiceProtocol {
     private let textRefinementService: TextRefinementService
     private let llmService: LLMServiceProtocol?
     private let dictationTranslationSettings: @Sendable () -> DictationTranslationSettings?
+    private let dictationTranslationTimeout: Duration
     private let llmRunRecorder: LLMRunRecorder
     private let shouldUseAIFormatter: @Sendable () -> Bool
     private let isAIFormatterEnabled: @Sendable () -> Bool
@@ -230,6 +231,7 @@ public actor DictationService: DictationServiceProtocol {
         dictationTranslationSettings: @escaping @Sendable () -> DictationTranslationSettings? = {
             DictationTranslationSettings.current()
         },
+        dictationTranslationTimeout: Duration = .seconds(5),
         llmRunRepo: LLMRunRepositoryProtocol? = nil,
         shouldUseAIFormatter: (@Sendable () -> Bool)? = nil,
         isAIFormatterEnabled: (@Sendable () -> Bool)? = nil,
@@ -272,6 +274,7 @@ public actor DictationService: DictationServiceProtocol {
         self.textRefinementService = TextRefinementService()
         self.llmService = llmService
         self.dictationTranslationSettings = dictationTranslationSettings
+        self.dictationTranslationTimeout = dictationTranslationTimeout
         self.llmRunRecorder = LLMRunRecorder(repository: llmRunRepo)
         self.shouldUseAIFormatter = shouldUseAIFormatter ?? { false }
         self.isAIFormatterEnabled = isAIFormatterEnabled ?? { true }
@@ -1846,11 +1849,38 @@ public actor DictationService: DictationServiceProtocol {
         _ text: String
     ) async -> (text: String, settings: DictationTranslationSettings)? {
         guard let settings = dictationTranslationSettings(), let llmService,
-            !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            !Task.isCancelled, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else { return nil }
+        let completion = CancellationResponsiveTaskAwaiter()
+        // Unstructured work is intentional: a provider that ignores cancellation
+        // must not keep the dictation waiting for task-group teardown.
+        let translation = Task.detached {
+            do {
+                try Task.checkCancellation()
+                let result = try await TranscriptTranslationService(llmService: llmService)
+                    .translateMarkdown(text, to: settings.language)
+                completion.resume(with: .success(()))
+                return result
+            } catch {
+                completion.resume(with: .failure(error))
+                throw error
+            }
+        }
+        let timeout = dictationTranslationTimeout
+        let timer = Task {
+            do {
+                try await Task.sleep(for: timeout)
+                completion.resume(with: .failure(DictationTranslationTimeout.expired))
+            } catch {}
+        }
+        defer {
+            translation.cancel()
+            timer.cancel()
+        }
         do {
-            let translated = try await TranscriptTranslationService(llmService: llmService)
-                .translateMarkdown(text, to: settings.language)
+            try await completion.wait()
+            try Task.checkCancellation()
+            let translated = try await translation.value
             AudioCaptureDiagnostics.append("dictation_translation_completed language=\(settings.language.rawValue)")
             return (translated, settings)
         } catch {
@@ -1858,6 +1888,10 @@ public actor DictationService: DictationServiceProtocol {
             AudioCaptureDiagnostics.append("dictation_translation_failed error_type=\(type(of: error))")
             return nil
         }
+    }
+
+    private enum DictationTranslationTimeout: Error {
+        case expired
     }
 
     private func processCapturedAudio(

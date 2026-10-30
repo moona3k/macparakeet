@@ -439,6 +439,23 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertEqual(result.output, mockClient.responseContent)
     }
 
+    func testTranslateReservesOutputSpaceBeforeSendingLocalRequest() async throws {
+        mockConfigStore.config = .lmstudio(model: "local")
+        let instructions = "Translate."
+        let fittingCount = (LLMService.lmStudioContextBudget - instructions.count) / 2
+        _ = try await service.translateDetailed(
+            text: String(repeating: "a", count: fittingCount), instructions: instructions)
+        let sentText = mockClient.capturedMessages.last?.content
+        do {
+            _ = try await service.translateDetailed(
+                text: String(repeating: "b", count: fittingCount + 1), instructions: instructions)
+            XCTFail("Input plus expected translation must fit the context")
+        } catch let error as LLMError {
+            guard case .contextTooLong = error else { return XCTFail("Unexpected error: \(error)") }
+            XCTAssertEqual(mockClient.capturedMessages.last?.content, sentText, "Rejected input was not sent")
+        }
+    }
+
     func testTranslateRejectsResponseWhenProviderReturnsAfterCancellation() async {
         mockClient.responseContent = "[1] Completed text from a cancelled request"
         mockClient.cancelBeforeReturningCompletion = true

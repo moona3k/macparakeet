@@ -939,7 +939,7 @@ struct LLMSettingsView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             }
-            Picker("Translate dictation into", selection: $dictationTranslationLanguageCode) {
+            Picker("Translate dictation into", selection: dictationTranslationLanguageSelection) {
                 Text("Off").tag("")
                 ForEach(TranslationLanguage.allCases) { language in
                     Text(language.displayName + " · " + language.nativeName).tag(language.rawValue)
@@ -952,7 +952,7 @@ struct LLMSettingsView: View {
                 }
             }
             .frame(maxWidth: 360)
-            .disabled(dictationTranslationLanguageCode.isEmpty)
+            .disabled(TranslationLanguage.resolve(dictationTranslationLanguageCode) == nil)
         }
         .id("ai.dictationTranslation")
     }
@@ -975,7 +975,10 @@ struct LLMSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Picker("Subtitle language", selection: $subtitleTranslationLanguageCode) {
+            Picker("Subtitle language", selection: subtitleTranslationLanguageSelection) {
+                if TranslationLanguage.resolve(subtitleTranslationLanguageCode) == nil {
+                    Text("Choose a language").tag("")
+                }
                 ForEach(TranslationLanguage.allCases) { language in
                     Text("\(language.displayName) · \(language.nativeName)").tag(language.rawValue)
                 }
@@ -993,6 +996,22 @@ struct LLMSettingsView: View {
                 guard let policy = MeetingAIOutputLanguagePolicy(configurationValue: value) else { return }
                 viewModel.meetingAIOutputLanguagePolicy = policy
             }
+        )
+    }
+
+    private var dictationTranslationLanguageSelection: Binding<String> {
+        Binding(
+            get: { TranslationLanguage.resolve(dictationTranslationLanguageCode)?.rawValue ?? "" },
+            set: { dictationTranslationLanguageCode = $0 }
+        )
+    }
+
+    private var subtitleTranslationLanguageSelection: Binding<String> {
+        Binding(
+            get: {
+                TranslationLanguage.resolve(subtitleTranslationLanguageCode)?.rawValue ?? ""
+            },
+            set: { subtitleTranslationLanguageCode = $0 }
         )
     }
 

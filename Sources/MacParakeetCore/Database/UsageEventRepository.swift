@@ -3,7 +3,7 @@ import GRDB
 
 public protocol UsageEventRepositoryProtocol: Sendable {
     func save(_ event: UsageEvent) throws
-    /// Totals per kind, provider, and model for events on or after `since`
+    /// Totals per kind, provider, model, and locality for events on or after `since`
     /// (all time when `nil`), busiest first.
     func summary(since: Date?) throws -> [UsageSummaryRow]
     /// Local speech-engine totals from saved transcriptions and dictations.
@@ -29,8 +29,7 @@ public final class UsageEventRepository: UsageEventRepositoryProtocol {
             let rows = try Row.fetchAll(
                 db,
                 sql: """
-                    SELECT kind, provider, model,
-                           MAX(isLocal) AS isLocal,
+                    SELECT kind, provider, model, isLocal,
                            COUNT(*) AS requests,
                            SUM(promptTokens) AS promptTokens,
                            SUM(completionTokens) AS completionTokens,
@@ -38,8 +37,8 @@ public final class UsageEventRepository: UsageEventRepositoryProtocol {
                            SUM(audioMs) AS audioMs
                     FROM usage_events
                     WHERE (? IS NULL OR createdAt >= ?)
-                    GROUP BY kind, provider, model
-                    ORDER BY requests DESC, provider, model
+                    GROUP BY kind, provider, model, isLocal
+                    ORDER BY requests DESC, provider, model, isLocal
                     """,
                 arguments: [since, since]
             )
@@ -75,7 +74,7 @@ public final class UsageEventRepository: UsageEventRepositoryProtocol {
                         SELECT COALESCE(engine, 'unknown') AS engine, engineVariant AS variant,
                                COUNT(*) AS items, COALESCE(SUM(durationMs), 0) AS audioMs
                         FROM dictations
-                        WHERE (? IS NULL OR createdAt >= ?)
+                        WHERE status = 'completed' AND (? IS NULL OR createdAt >= ?)
                         GROUP BY 1, 2
                     )
                     GROUP BY engine, variant

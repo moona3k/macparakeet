@@ -81,8 +81,8 @@ meeting preview warm-up and inference without changing capture or final STT.
   entry points enforce the same gate before constructing or selecting Cohere.
 - `CloudTranscribeEngine.swift` — opt-in online engine (fork amendment to
   ADR-026). Uploads 16 kHz mono WAV to a user-configured OpenAI-compatible
-  `audio/transcriptions` server; **the only engine that sends audio off the
-  device**. Holds no model: "ready" means a server address and model are
+  `audio/transcriptions` server; **sends recorded audio off the device**.
+  Holds no model: "ready" means a server address and model are
   saved (`CloudSTTConfigStore`; API key in the Keychain). Batch-only like
   Cohere. Audio longer than ten minutes is split at quiet points and word
   times are re-offset. Requests `verbose_json` word timings and retries as

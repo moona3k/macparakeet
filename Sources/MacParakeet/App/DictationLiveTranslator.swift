@@ -9,22 +9,42 @@ import MacParakeetCore
 /// translates the finished transcript separately.
 @MainActor
 final class DictationLiveTranslator {
-    static let debounce: Duration = .milliseconds(450)
+    nonisolated static let debounce: Duration = .milliseconds(450)
     /// Characters of the live transcript sent per request.
-    static let tailCharacters = 320
+    nonisolated static let tailCharacters = 320
 
     var translatorProvider: (() -> TranscriptTranslating?)?
     var onTranslation: ((String, TranslationLanguage) -> Void)?
+    var settingsProvider: () -> DictationTranslationSettings? = { DictationTranslationSettings.current() }
 
     private var latest = ""
+    private var lastChangedAt: ContinuousClock.Instant
     private var lastTranslatedSource = ""
+    private var lastTranslatedLanguage: TranslationLanguage?
     private var task: Task<Void, Never>?
     private var generation = 0
+    private let debounceDelay: Duration
+    private let now: () -> ContinuousClock.Instant
+    private let sleep: @MainActor (Duration) async throws -> Void
+
+    init(
+        debounce: Duration = DictationLiveTranslator.debounce,
+        now: @escaping () -> ContinuousClock.Instant = { .now },
+        sleep: @escaping @MainActor (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+    ) {
+        debounceDelay = debounce
+        self.now = now
+        self.sleep = sleep
+        lastChangedAt = now()
+    }
 
     /// Call whenever the live transcript changes.
     func update(_ text: String) {
-        latest = text
-        guard task == nil, DictationTranslationSettings.current() != nil else { return }
+        if text != latest {
+            latest = text
+            lastChangedAt = now()
+        }
+        guard task == nil, settingsProvider() != nil else { return }
         let current = generation
         task = Task { [weak self] in
             await self?.run(generation: current)
@@ -38,25 +58,35 @@ final class DictationLiveTranslator {
         task = nil
         latest = ""
         lastTranslatedSource = ""
+        lastTranslatedLanguage = nil
     }
 
     private func run(generation current: Int) async {
         defer { if generation == current { task = nil } }
         while !Task.isCancelled, generation == current {
-            try? await Task.sleep(for: Self.debounce)
+            while now() - lastChangedAt < debounceDelay {
+                do {
+                    try await sleep(debounceDelay - (now() - lastChangedAt))
+                } catch { return }
+                guard !Task.isCancelled, generation == current else { return }
+            }
             guard !Task.isCancelled, generation == current,
-                let settings = DictationTranslationSettings.current(),
+                let settings = settingsProvider(),
                 let translator = translatorProvider?()
             else { return }
 
             let source = Self.tail(of: latest)
-            guard !source.isEmpty, source != lastTranslatedSource else { return }
+            guard !source.isEmpty, source != lastTranslatedSource || settings.language != lastTranslatedLanguage
+            else { return }
             do {
                 let result = try await translator.translate(
                     [TranslationSourceSegment(text: source)], to: settings.language)
                 guard !Task.isCancelled, generation == current else { return }
                 lastTranslatedSource = source
-                if let text = result.first?.text {
+                lastTranslatedLanguage = settings.language
+                if source == Self.tail(of: latest), settingsProvider()?.language == settings.language,
+                    let text = result.first?.text
+                {
                     onTranslation?(text, settings.language)
                 }
             } catch {

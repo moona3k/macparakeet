@@ -993,7 +993,10 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         // Translation answers at about the length of its input, so the
         // request must fit the round-trip budget whole: a truncated batch
         // would silently drop lines.
-        guard inputChars <= contextBudget(for: config, roundTrip: true) else {
+        let budget = contextBudget(for: config, roundTrip: true)
+        // Reserve another source-length of space for the translated output.
+        // Non-Apple context budgets otherwise cover input only.
+        guard inputChars <= budget, text.count <= budget - inputChars else {
             sendLLMOperation(
                 operationID: operationID,
                 feature: Self.translateFeature,

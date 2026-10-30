@@ -645,7 +645,9 @@ final class AppEnvironmentConfigurer {
     /// Translation runs on the `translate` task route (ADR-032), which
     /// inherits the default AI route. `nil` when that route is unconfigured.
     private static func translator(in env: AppEnvironment) -> TranscriptTranslating? {
-        guard (try? env.llmConfigStore.loadConfig(for: .translate)) != nil else { return nil }
+        guard let config = try? env.llmConfigStore.loadConfig(for: .translate),
+            config.id.canServe(.translate)
+        else { return nil }
         return TranscriptTranslationService(llmService: env.llmService)
     }
 

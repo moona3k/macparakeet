@@ -64,6 +64,62 @@ final class CancelFlowTests: XCTestCase {
         try await assertProcessingCancellation(at: .translationCancellation)
     }
 
+    func testDictationTranslationTimeoutReturnsOriginalBeforeProviderFinishes() async throws {
+        try await assertTranslationReturnsBeforeProvider(cancel: false)
+    }
+
+    func testDictationTranslationCancellationReturnsBeforeProviderFinishes() async throws {
+        try await assertTranslationReturnsBeforeProvider(cancel: true)
+    }
+
+    private func assertTranslationReturnsBeforeProvider(cancel: Bool) async throws {
+        let audioURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".wav")
+        try Data([0, 1, 2]).write(to: audioURL)
+        defer { try? FileManager.default.removeItem(at: audioURL) }
+        await mockAudio.configure(captureResult: audioURL)
+        await mockSTT.configure(result: STTResult(text: "Original words"))
+        let entered = expectation(description: "Provider entered")
+        let released = expectation(description: "Provider released")
+        let returned = expectation(description: "Dictation returned without waiting for provider")
+        let gate = ProcessingCancellationGate()
+        let llm = MockLLMService()
+        llm.summarizeResult = "[1] Late translated words"
+        llm.translationHook = {
+            entered.fulfill()
+            await gate.wait()  // Deliberately ignores cancellation.
+            released.fulfill()
+        }
+        let service = DictationService(
+            audioProcessor: mockAudio, sttTranscriber: mockSTT, dictationRepo: dictationRepo,
+            shouldPreserveDiscardedDictations: { false }, llmService: llm,
+            dictationTranslationSettings: { DictationTranslationSettings(language: .german, output: .translation) },
+            dictationTranslationTimeout: cancel ? .seconds(60) : .milliseconds(30)
+        )
+        await service.setSuccessDisplayWaiterForTesting({})
+        try await service.startRecording()
+        let stop = Task {
+            defer { returned.fulfill() }
+            return try await service.stopRecording()
+        }
+        await fulfillment(of: [entered], timeout: 2)
+        if cancel { stop.cancel() }
+        await fulfillment(of: [returned], timeout: 1)
+        // Always release the fake provider even when the bounded-return assertion fails.
+        await gate.open()
+        await fulfillment(of: [released], timeout: 2)
+        do {
+            let result = try await stop.value
+            XCTAssertFalse(cancel, "Cancellation must not return a deliverable dictation")
+            XCTAssertNil(result.dictation.translation)
+            XCTAssertEqual(result.dictation.insertionText, result.dictation.cleanTranscript ?? "Original words")
+        } catch is CancellationError {
+            XCTAssertTrue(cancel)
+        }
+        let rows = try dictationRepo.fetchAll(limit: nil)
+        XCTAssertEqual(rows.count, cancel ? 0 : 1)
+        XCTAssertTrue(rows.allSatisfy { $0.translation == nil }, "Late provider completion must never mutate history")
+    }
+
     private enum CancellationStage: Sendable {
         case transcription, formatting, formatterCancellation, translation, translationCancellation, successDisplay,
             formatterRun

@@ -116,6 +116,21 @@ private struct TranslatorFailure: LocalizedError {
 }
 
 @MainActor
+private final class LiveTranslationTestClock {
+    var now = ContinuousClock.now
+    private(set) var waits: [Duration] = []
+    private var continuations: [Int: CheckedContinuation<Void, Never>] = [:]
+
+    func sleep(_ duration: Duration) async {
+        let index = waits.count
+        waits.append(duration)
+        await withCheckedContinuation { continuations[index] = $0 }
+    }
+
+    func resume(_ index: Int) { continuations.removeValue(forKey: index)?.resume() }
+}
+
+@MainActor
 private func waitUntil(
     timeout: Duration = .seconds(5),
     _ condition: @MainActor () -> Bool,
@@ -565,6 +580,74 @@ final class LiveTranslationViewModelTests: XCTestCase {
             LiveTranslationViewModel.Speed.fast.settleDelay,
             LiveTranslationViewModel.Speed.balanced.settleDelay
         )
+    }
+
+    func testSpeedChangeWakesWaitingWorkerAndPreservesSettledLines() async {
+        let clock = LiveTranslationTestClock()
+        let viewModel = LiveTranslationViewModel(
+            defaults: defaults, now: { clock.now }, sleepForSettle: { await clock.sleep($0) })
+        viewModel.updateTranslator(translator)
+        viewModel.language = .german
+        viewModel.update(lines: [line("1", "Settled"), line("2", "Newest")])
+        await waitUntil { clock.waits.count == 1 }
+        XCTAssertEqual(viewModel.translation(forLineID: "1"), "de:Settled")
+        clock.now = clock.now.advanced(by: .milliseconds(500))
+        viewModel.speed = .fast
+        // The new 400ms deadline already elapsed; no release of the obsolete
+        // 1500ms sleep is needed for this request to finish.
+        await waitUntil { viewModel.translation(forLineID: "2") == "de:Newest" }
+        XCTAssertEqual(translator.requests, [["Settled"], ["Newest"]])
+        clock.resume(0)
+        await Task.yield()
+        XCTAssertEqual(viewModel.translation(forLineID: "1"), "de:Settled")
+        viewModel.reset()
+    }
+
+    func testUnchangedRouteRefreshPreservesSettledTranslations() async {
+        let viewModel = makeViewModel()
+        let route = LLMModelSelectionRoute(
+            config: LLMProviderConfig(
+                id: .openai, baseURL: URL(string: "https://example.invalid")!, apiKey: nil,
+                modelName: "first", isLocal: false), isOverride: false)
+        viewModel.updateTranslator(translator, route: route)
+        viewModel.language = .german
+        viewModel.update(lines: [line("1", "Hello")])
+        await waitUntil { viewModel.translation(forLineID: "1") != nil }
+        viewModel.updateTranslator(translator, route: route)
+        await Task.yield()
+        XCTAssertEqual(translator.requests.count, 1, "Showing the same window must not repeat settled requests")
+        XCTAssertEqual(viewModel.translation(forLineID: "1"), "de:Hello")
+
+        let changed = LLMModelSelectionRoute(
+            config: LLMProviderConfig(
+                id: .openai, baseURL: route.config.baseURL, apiKey: nil, modelName: "second", isLocal: false),
+            isOverride: false)
+        viewModel.updateTranslator(translator, route: changed)
+        await waitUntil { self.translator.requests.count == 2 }
+        viewModel.updateTranslator(nil, route: changed)
+        XCTAssertFalse(viewModel.isActive, "Availability changes must revoke the same route")
+        XCTAssertNil(viewModel.translation(forLineID: "1"))
+        viewModel.updateTranslator(translator, route: changed)
+        await waitUntil { self.translator.requests.count == 3 }
+        viewModel.reset()
+    }
+
+    func testObsoleteWorkerCannotPublishOrClearReplacementState() async {
+        let controlled = ControlledTranscriptTranslator()
+        let viewModel = makeViewModel()
+        viewModel.updateTranslator(controlled)
+        viewModel.language = .german
+        viewModel.update(lines: [line("1", "Hello")])
+        await waitUntil { controlled.requestCount == 1 }
+        viewModel.language = .persian
+        await waitUntil { controlled.requestCount == 2 }
+        controlled.finish(0, result: .success([TranslatedSegment(text: "old")]))
+        await waitUntil { controlled.returnedRequests.contains(0) }
+        XCTAssertNil(viewModel.translation(forLineID: "1"))
+        XCTAssertTrue(viewModel.isTranslating, "An obsolete worker cannot clear the replacement's progress")
+        controlled.finish(1, result: .success([TranslatedSegment(text: "new")]))
+        await waitUntil { viewModel.translation(forLineID: "1") == "new" }
+        viewModel.reset()
     }
 
     func testTranslationOnlyModeReplacesLineTextOnceTranslated() async {

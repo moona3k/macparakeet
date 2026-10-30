@@ -249,11 +249,11 @@ public struct URLSessionCloudSTTTransport: CloudSTTTransport {
 /// Online speech engine: uploads audio to an OpenAI-compatible
 /// `audio/transcriptions` endpoint.
 ///
-/// Unlike every other engine, this one sends speech audio off the device.
+/// This batch engine sends speech audio off the device.
 /// It is opt-in, never a default, and departs from ADR-026's local-only ASR
 /// rule (see the amendment there). Batch-only: dictation records first and
-/// transcribes after stop; meeting preview chunks and final jobs are uploaded
-/// as they are submitted.
+/// transcribes after stop. The shared cloud capability does not enable
+/// meeting preview because arbitrary models do not guarantee word timings.
 public actor CloudTranscribeEngine: STTTranscribing {
     static let sampleRate = 16_000
     /// 16 kHz mono 16-bit PCM is ~1.9 MB per minute, so ten minutes stays

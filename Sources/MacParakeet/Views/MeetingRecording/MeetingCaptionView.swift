@@ -241,7 +241,7 @@ struct MeetingCaptionView: View {
                 .foregroundStyle(DesignSystem.Colors.accent)
                 .textSelection(.enabled)
                 .multilineTextAlignment(.leading)
-        } else if translation.language == nil {
+        } else if !translation.isAvailable || translation.language == nil {
             Text(missingTranslationHint)
                 .font(.system(size: hintSize))
                 .foregroundStyle(DesignSystem.Colors.textTertiary)

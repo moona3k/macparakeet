@@ -94,6 +94,7 @@ public final class LiveTranslationViewModel {
             guard speed != oldValue else { return }
             defaults.set(speed.rawValue, forKey: UserDefaultsAppRuntimePreferences.liveMeetingTranslationSpeedKey)
             // A waiting worker sleeps on the old delay; start one on the new.
+            if isWaitingForSettle { cancelWorker() }
             startWorkerIfNeeded()
         }
     }
@@ -103,21 +104,29 @@ public final class LiveTranslationViewModel {
 
     private var entries: [String: Entry] = [:]
     private var lines: [Line] = []
-    private var lastLineChangedAt: ContinuousClock.Instant = .now
+    private var lastLineChangedAt: ContinuousClock.Instant
     private var consecutiveFailures = 0
     private var worker: Task<Void, Never>?
+    private var workerGeneration = 0
+    private var isWaitingForSettle = false
     private var translator: TranscriptTranslating?
+    private var translationRoute: LLMModelSelectionRoute?
+    private var hasTranslationRoute = false
     private let defaults: UserDefaults
     /// Test override for the settle wait; `nil` uses `speed`.
     private let settleDelayOverride: Duration?
     private var settleDelay: Duration { settleDelayOverride ?? speed.settleDelay }
     private let retryDelay: Duration
+    private let now: () -> ContinuousClock.Instant
+    private let sleepForSettle: @MainActor (Duration) async throws -> Void
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "LiveTranslationViewModel")
 
     public init(
         defaults: UserDefaults = .standard,
         settleDelay: Duration? = nil,
-        retryDelay: Duration = .seconds(5)
+        retryDelay: Duration = .seconds(5),
+        now: @escaping () -> ContinuousClock.Instant = { .now },
+        sleepForSettle: @escaping @MainActor (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.defaults = defaults
         self.settleDelayOverride = settleDelay
@@ -128,6 +137,9 @@ public final class LiveTranslationViewModel {
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.liveMeetingTranslationSpeedKey)
             .flatMap(Speed.init(rawValue:)) ?? .balanced
         self.retryDelay = retryDelay
+        self.now = now
+        self.sleepForSettle = sleepForSettle
+        self.lastLineChangedAt = now()
         self.language = TranslationLanguage.resolve(
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.liveMeetingTranslationLanguageKey)
         )
@@ -142,6 +154,18 @@ public final class LiveTranslationViewModel {
     }
 
     public func updateTranslator(_ translator: TranscriptTranslating?) {
+        hasTranslationRoute = false
+        self.translator = translator
+        restart()
+    }
+
+    /// Repeated window presentation with the same route keeps settled lines
+    /// and in-flight work. Route metadata deliberately excludes credentials.
+    public func updateTranslator(_ translator: TranscriptTranslating?, route: LLMModelSelectionRoute?) {
+        guard !hasTranslationRoute || translationRoute != route || (self.translator == nil) != (translator == nil)
+        else { return }
+        hasTranslationRoute = true
+        translationRoute = route
         self.translator = translator
         restart()
     }
@@ -149,7 +173,7 @@ public final class LiveTranslationViewModel {
     /// Feed the current live transcript. Cheap to call on every update.
     public func update(lines newLines: [Line]) {
         if newLines.last != lines.last {
-            lastLineChangedAt = .now
+            lastLineChangedAt = now()
         }
         lines = newLines
         if newLines.isEmpty {
@@ -173,48 +197,62 @@ public final class LiveTranslationViewModel {
 
     /// Clears per-meeting state. The chosen language is kept.
     public func reset() {
-        worker?.cancel()
-        worker = nil
+        cancelWorker()
         lines = []
         entries = [:]
         errorMessage = nil
         consecutiveFailures = 0
-        isTranslating = false
     }
 
     // MARK: - Worker
 
     private func restart() {
-        worker?.cancel()
-        worker = nil
+        cancelWorker()
         entries = [:]
         errorMessage = nil
         consecutiveFailures = 0
-        isTranslating = false
         startWorkerIfNeeded()
+    }
+
+    private func cancelWorker() {
+        workerGeneration &+= 1
+        worker?.cancel()
+        worker = nil
+        isWaitingForSettle = false
+        isTranslating = false
     }
 
     private func startWorkerIfNeeded() {
         guard worker == nil, isActive, consecutiveFailures < Self.maxConsecutiveFailures else { return }
         guard !pendingLines().isEmpty || lastLineNeedsTranslation else { return }
+        workerGeneration &+= 1
+        let generation = workerGeneration
         worker = Task { [weak self] in
-            await self?.runWorker()
+            await self?.runWorker(generation: generation)
         }
     }
 
-    private func runWorker() async {
+    private func runWorker(generation: Int) async {
         defer {
-            isTranslating = false
-            if !Task.isCancelled { worker = nil }
+            if workerGeneration == generation {
+                isTranslating = false
+                isWaitingForSettle = false
+                worker = nil
+            }
         }
 
-        while !Task.isCancelled, let language, let translator {
+        while !Task.isCancelled, workerGeneration == generation, let language, let translator {
             let batch = pendingLines()
             if batch.isEmpty {
                 // Only the newest, still-changing line is left: wait for it to
                 // settle rather than translating every partial update.
                 guard lastLineNeedsTranslation else { return }
-                try? await Task.sleep(for: remainingSettleTime())
+                isWaitingForSettle = true
+                do {
+                    try await sleepForSettle(remainingSettleTime())
+                } catch { return }
+                guard workerGeneration == generation else { return }
+                isWaitingForSettle = false
                 continue
             }
 
@@ -224,7 +262,7 @@ public final class LiveTranslationViewModel {
                     batch.map { TranslationSourceSegment(text: $0.text) },
                     to: language
                 )
-                guard !Task.isCancelled, self.language == language else { return }
+                guard !Task.isCancelled, workerGeneration == generation, self.language == language else { return }
                 for (line, result) in zip(batch, translated) {
                     entries[line.id] = Entry(source: line.text, text: result.text)
                 }
@@ -233,7 +271,7 @@ public final class LiveTranslationViewModel {
             } catch is CancellationError {
                 return
             } catch {
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, workerGeneration == generation else { return }
                 consecutiveFailures += 1
                 errorMessage = error.localizedDescription
                 // LLM errors can echo transcript content, so only the type is logged.
@@ -241,6 +279,7 @@ public final class LiveTranslationViewModel {
                 guard consecutiveFailures < Self.maxConsecutiveFailures else { return }
                 try? await Task.sleep(for: retryDelay)
             }
+            guard workerGeneration == generation else { return }
             isTranslating = false
         }
     }
@@ -267,11 +306,11 @@ public final class LiveTranslationViewModel {
     }
 
     private var isLastLineSettled: Bool {
-        ContinuousClock.now - lastLineChangedAt >= settleDelay
+        now() - lastLineChangedAt >= settleDelay
     }
 
     private func remainingSettleTime() -> Duration {
-        let remaining = settleDelay - (ContinuousClock.now - lastLineChangedAt)
+        let remaining = settleDelay - (now() - lastLineChangedAt)
         return max(remaining, .milliseconds(50))
     }
 }

@@ -55,7 +55,7 @@ extension UsageEvent: FetchableRecord, PersistableRecord {
     public static let databaseTableName = "usage_events"
 }
 
-/// Totals for one provider + model over a period.
+/// Totals for one kind, provider, model, and locality over a period.
 public struct UsageSummaryRow: Sendable, Equatable, Identifiable {
     public var kind: UsageEvent.Kind
     public var provider: String
@@ -67,7 +67,10 @@ public struct UsageSummaryRow: Sendable, Equatable, Identifiable {
     public var tokensEstimated: Bool
     public var audioMs: Int
 
-    public var id: String { "\(kind.rawValue)|\(provider)|\(model)" }
+    public var id: String {
+        [kind.rawValue, provider, model, isLocal ? "local" : "remote"]
+            .map { "\($0.utf8.count):\($0)" }.joined()
+    }
 
     public init(
         kind: UsageEvent.Kind,
@@ -125,6 +128,10 @@ public struct UsagePrice: Codable, Sendable, Equatable {
         self.audioPerMinute = audioPerMinute
     }
 
+    public var isValid: Bool {
+        [inputPerMillion, outputPerMillion, audioPerMinute].allSatisfy { $0.isFinite && $0 >= 0 }
+    }
+
     public func cost(for row: UsageSummaryRow) -> Double {
         Double(row.promptTokens) / 1_000_000 * inputPerMillion
             + Double(row.completionTokens) / 1_000_000 * outputPerMillion
@@ -134,7 +141,10 @@ public struct UsagePrice: Codable, Sendable, Equatable {
 
 /// Built-in starting prices plus the user's own overrides.
 public struct UsagePriceBook: Sendable {
+    /// Legacy model-only values remain stored until the user confirms which
+    /// provider they belong to. They are never silently applied to a row.
     public static let overridesKey = "usagePriceOverrides"
+    public static let scopedOverridesKey = "usagePriceOverridesByProviderV1"
 
     /// List prices in US dollars as known when this was written. They are a
     /// starting point only; the user can correct any of them in the panel.
@@ -167,14 +177,20 @@ public struct UsagePriceBook: Sendable {
     }
 
     public func overrides() -> [String: UsagePrice] {
-        guard let data = defaults.data(forKey: Self.overridesKey),
+        prices(forKey: Self.overridesKey)
+    }
+
+    private func prices(forKey key: String) -> [String: UsagePrice] {
+        guard let data = defaults.data(forKey: key),
             let decoded = try? JSONDecoder().decode([String: UsagePrice].self, from: data)
         else { return [:] }
         return decoded
     }
 
-    /// Sets or clears (`nil`) the user's price for a model.
+    /// Legacy API retained for callers with model-only data. A saved value
+    /// still requires explicit provider confirmation before it affects costs.
     public func setOverride(_ price: UsagePrice?, forModel model: String) {
+        guard price?.isValid != false else { return }
         var all = overrides()
         all[Self.key(model)] = price
         if let data = try? JSONEncoder().encode(all) {
@@ -186,22 +202,64 @@ public struct UsagePriceBook: Sendable {
         overrides()[Self.key(model)] != nil
     }
 
+    /// A candidate for the editor, not an automatically usable provider price.
+    public func legacyOverride(forModel model: String) -> UsagePrice? {
+        guard let price = overrides()[Self.key(model)], price.isValid else { return nil }
+        return price
+    }
+
+    @discardableResult
+    public func setOverride(_ price: UsagePrice?, for row: UsageSummaryRow) -> Bool {
+        guard !row.isLocal, price?.isValid != false else { return false }
+        var all = prices(forKey: Self.scopedOverridesKey)
+        all[row.id] = price
+        guard let data = try? JSONEncoder().encode(all) else { return false }
+        defaults.set(data, forKey: Self.scopedOverridesKey)
+        return true
+    }
+
+    public func hasOverride(for row: UsageSummaryRow) -> Bool {
+        prices(forKey: Self.scopedOverridesKey)[row.id]?.isValid == true
+    }
+
     /// The price to use for a row: free for local models, then the user's
     /// override, then the built-in table. `nil` means unknown.
     public func price(for row: UsageSummaryRow) -> UsagePrice? {
         if row.isLocal { return UsagePrice() }
-        if let override = overrides()[Self.key(row.model)] { return override }
-        return Self.builtInPrice(forModel: row.model)
+        if let override = prices(forKey: Self.scopedOverridesKey)[row.id] {
+            return override.isValid ? override : nil
+        }
+        // A legacy correction must not silently become either another
+        // provider's price or the built-in price it previously replaced.
+        guard !hasOverride(forModel: row.model) else { return nil }
+        return Self.builtInPrice(for: row)
     }
 
-    static func builtInPrice(forModel model: String) -> UsagePrice? {
-        // Providers such as OpenRouter prefix the vendor: "openai/gpt-4o".
-        let name = Self.key(model).split(separator: "/").last.map(String.init) ?? Self.key(model)
-        return
-            builtIn
-            .filter { name.hasPrefix($0.prefix) }
-            .max { $0.prefix.count < $1.prefix.count }?
-            .price
+    static func builtInPrice(for row: UsageSummaryRow) -> UsagePrice? {
+        let name = Self.key(row.model)
+        let provider = Self.key(row.provider)
+        let vendorMatches: Bool
+        switch (row.kind, provider) {
+        case (.llm, "openai"): vendorMatches = name.hasPrefix("gpt-")
+        case (.llm, "anthropic"): vendorMatches = name.hasPrefix("claude-")
+        case (.llm, "gemini"): vendorMatches = name.hasPrefix("gemini-")
+        case (.cloudSpeech, "api.openai.com"):
+            vendorMatches =
+                name == "whisper-1" || name.hasPrefix("gpt-4o-transcribe")
+                || name.hasPrefix("gpt-4o-mini-transcribe")
+        case (.cloudSpeech, "api.groq.com"): vendorMatches = name.hasPrefix("whisper-large-v3")
+        default: vendorMatches = false
+        }
+        guard vendorMatches else { return nil }
+        guard
+            let price =
+                builtIn
+                .filter({ name == $0.prefix || name.hasPrefix($0.prefix + "-") })
+                .max(by: { $0.prefix.count < $1.prefix.count })?
+                .price
+        else { return nil }
+        guard row.kind == .cloudSpeech ? price.audioPerMinute > 0 : price.audioPerMinute == 0 else { return nil }
+        return price
     }
 
     private static func key(_ model: String) -> String {

@@ -66,7 +66,7 @@ small set of inherited groups:
 | `cleanup` | Formatter for dictation and file/URL/meeting transcription | Inherit the default AI route |
 | `analysis` | Prompt results / summaries, transcript chat, live Ask, knowledge cards | Inherit the default AI route |
 | `transform` | System-wide Transforms | Inherit the default AI route; no required Settings row |
-| `translate` | Transcript and live-meeting translation (spec F31) | Inherit the default AI route; no Settings row, override, or recipe yet |
+| `translate` | Transcript, saved-result, video, live-meeting, and dictation translation (spec F31/F52) | Inherit the default AI route; no Settings row, override, or recipe yet |
 
 Summary and Ask share `analysis`. Dictation format and file format share
 `cleanup`; they already have independent on/off toggles. Transforms

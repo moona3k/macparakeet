@@ -136,6 +136,6 @@ public final class UsageRecordingLLMClient: LLMClientProtocol, Sendable {
     }
 
     private static func characters(in messages: [ChatMessage]) -> Int {
-        messages.reduce(0) { $0 + $1.content.count }
+        messages.reduce(0) { $0 + $1.modelContent.count }
     }
 }

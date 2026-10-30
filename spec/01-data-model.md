@@ -855,7 +855,7 @@ CREATE UNIQUE INDEX idx_transcript_translations_transcription_language
 
 ### `usage_events` (v0.51, Swift model: `UsageEvent`)
 
-Local ledger behind the Usage & Cost panel (F35). One row per completed AI request or online-speech upload. Metadata only: no prompt, transcript, or audio content. No foreign keys, so usage totals survive deletion of the recordings they came from.
+Local ledger behind the Usage & Cost panel (F54). Aggregations and row identities distinguish usage kind, provider, model, and locality. Provider-scoped prices are stored in `usagePriceOverridesByProviderV1`; legacy `usagePriceOverrides` remains intact and requires explicit provider confirmation before pricing a row. One row per completed AI request or online-speech upload. Metadata only: no prompt, transcript, or audio content. No foreign keys, so usage totals survive deletion of the recordings they came from.
 
 ```sql
 CREATE TABLE usage_events (
@@ -1944,7 +1944,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `dictations.wordCount` | v0.5 | Cached word count for voice stats |
 | `chat_conversations` | v0.5 | Multi-conversation chat per transcription (FK → transcriptions) |
 | `ask_conversations` | v0.49-ask-conversations | Independent Ask conversations; bounded Codable payload, revision and run lease; no source foreign key |
-| `dictations.translation`, `translationLanguage`, `translationOutput` | v0.52-dictation-translation | Dictation translation (F37): translated text, target language code, and what was typed (`translation` / `original` / `both`). Transcript columns stay in the spoken language |
+| `dictations.translation`, `translationLanguage`, `translationOutput` | v0.52-dictation-translation | Dictation translation (F52): translated text, target language code, and what was typed (`translation` / `original` / `both`). Transcript columns stay in the spoken language |
 | `usage_events` | v0.51-usage-events | Local usage ledger: one row per completed AI request or online-speech upload (provider, model, tokens, audio ms); metadata only |
 | `transcript_translations` | v0.50-transcript-translations | Saved transcript translation per transcript and language (FK → transcriptions, cascade) |
 | `transcriptions.thumbnailURL` | v0.5 | YouTube video thumbnail URL |
