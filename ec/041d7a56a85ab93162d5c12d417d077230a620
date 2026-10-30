@@ -1,0 +1,23 @@
+scripts/ci/quartz-key-state-probe.c
+  s_7788d1c08e1bb0::t_49bc92a6b7b5b5 1-104
+plans/active/2026-10-30-1286-synthetic-paste-state.md
+  s_7788d1c08e1bb0::t_49bc92a6b7b5b5 1-37
+.github/workflows/quartz-key-state-probe.yml
+  s_7788d1c08e1bb0::t_49bc92a6b7b5b5 1-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ec041d7a56a85ab93162d5c12d417d077230a620",
+  "prompts": {},
+  "sessions": {
+    "s_7788d1c08e1bb0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e2a-e6db-73e2-812b-c7e92b308260",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
