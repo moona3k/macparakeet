@@ -30,7 +30,7 @@ Use a **deterministic 5-step pipeline** for Clean processing rather than an impl
 | 1. Filler removal | Strip always-safe hesitation sounds; standalone `um` on by default, opt-out for Portuguese/German | "I um think" -> "I think" |
 | 2. Custom word replacement | User-defined replacement corrections | "kube" -> "Kubernetes", "mac parakeet" -> "MacParakeet" |
 | 3. Trailing action extraction | Strip terminal action-snippet triggers and surface a post-paste action | "send this press return" -> text plus Return action |
-| 4. Snippet expansion | Trigger phrase text expansion | "my address" -> "123 Main St, Springfield, IL 62704" |
+| 4. Snippet expansion | Trigger phrase text expansion, then optional spoken punctuation | "my address" -> "123 Main St"; "question mark" -> "?" |
 | 5. Whitespace cleanup | Collapse spaces and fix punctuation spacing | "hello   world ." -> "hello world." |
 
 ### Processing Modes
@@ -77,7 +77,7 @@ The deterministic pipeline has a sub-5ms latency target. LLM-based formatting or
 The deterministic pipeline includes three user-configurable features:
 
 - **Custom words**: Users define replacement corrections (for example, replace "kube" with "Kubernetes"). Entries with nil or blank replacement still participate in this deterministic step: case-insensitive matches are replaced with the stored word, restoring its casing. Those entries also supply recognition-time anchors to the separate, opt-in STT sidecar described in [the engine spec](../06-stt-engine.md); the sidecar is not required for casing correction.
-- **Text snippets**: Users define natural language trigger phrases ("my address" expands to their full address, "my signature" expands to their email sign-off). Triggers are spoken phrases — not abbreviations — because STT outputs natural speech. These are instant and deterministic.
+- **Text snippets**: Users define natural language trigger phrases ("my address" expands to their full address, "my signature" expands to their email sign-off). Triggers are spoken phrases — not abbreviations — because STT outputs natural speech. These are instant and deterministic. Built-in spoken punctuation (`question mark` → `?`) runs after user snippets in Clean mode so a custom snippet of the same trigger still wins. Meetings do not run spoken punctuation.
 - **Trailing action snippets**: Users can attach a post-paste action such as Voice Return to one or more terminal trigger phrases. The pipeline strips the trigger before normal snippet expansion and surfaces the action to the paste layer.
 
 An LLM-based approach would require prompt engineering to respect user-defined words and snippets, with no guarantee of compliance.

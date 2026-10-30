@@ -118,7 +118,8 @@ final class TranscriptTimestampedLayoutSmokeTests: XCTestCase {
         cards: [IdentifiedSpeakerTurn],
         segments: [TranscriptSegment],
         onRenderedChildAppear: @escaping () -> Void = {},
-        attribution: EffectiveSpeakerAttribution? = nil
+        attribution: EffectiveSpeakerAttribution? = nil,
+        onProxy: @escaping (ScrollViewProxy) -> Void = { _ in }
     ) -> CountingHostingView<AnyView> {
         let rowCount = attribution?.editableSegments.count
             ?? (hasSpeakers ? cards.reduce(0) { $0 + $1.turn.segments.count } : segments.count)
@@ -147,11 +148,12 @@ final class TranscriptTimestampedLayoutSmokeTests: XCTestCase {
                 ? identifiedEffectiveSpeakerTurnCards(attribution?.turns ?? []) : [],
             availableSpeakers: attribution?.speakers ?? []
         )
-        let content = ScrollViewReader { _ in
+        let content = ScrollViewReader { proxy in
             ScrollView {
                 body
                     .padding(DesignSystem.Spacing.lg)
             }
+            .onAppear { onProxy(proxy) }
         }
         let view = CountingHostingView(rootView: AnyView(content))
         view.frame = NSRect(x: 0, y: 0, width: 800, height: 600)
@@ -199,7 +201,7 @@ final class TranscriptTimestampedLayoutSmokeTests: XCTestCase {
 
         let start = Date()
         view.layoutSubtreeIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        settleFindScroll()
         let firstLayout = Date().timeIntervalSince(start)
         XCTAssertLessThan(
             firstLayout, firstLayoutBudgetSeconds,
@@ -381,13 +383,274 @@ final class TranscriptTimestampedLayoutSmokeTests: XCTestCase {
         window.orderFront(nil)
         defer { window.orderOut(nil) }
         view.layoutSubtreeIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        settleFindScroll()
 
         XCTAssertGreaterThan(appearances.count, 0)
         XCTAssertLessThan(
             appearances.count,
             segments.count,
             "The lazy stack eagerly realized every 10k-word transcript row"
+        )
+    }
+
+    // MARK: - Find navigation scroll targets (#1193)
+
+    private final class ProxyBox {
+        var proxy: ScrollViewProxy?
+    }
+
+    /// Hosts `view` in an offscreen window and returns its scroll view once
+    /// the first layout has settled.
+    private func mount(_ view: CountingHostingView<AnyView>) -> (NSWindow, NSScrollView)? {
+        let window = NSWindow(
+            contentRect: NSRect(x: -20_000, y: -20_000, width: 800, height: 600),
+            styleMask: [.titled, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = view
+        window.orderFront(nil)
+        view.layoutSubtreeIfNeeded()
+        settleFindScroll()
+        guard let scrollView = findScrollView(view) else { return nil }
+        return (window, scrollView)
+    }
+
+    private func scroll<ID: Hashable>(_ proxy: ScrollViewProxy, to id: ID) {
+        proxy.scrollTo(id, anchor: .center)
+        settleFindScroll()
+    }
+
+    private func settleFindScroll() {
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+    }
+
+    /// Runs the production find jump into a lazy card and waits for both hops.
+    private func revealInLazyCard<ID: Hashable>(
+        _ segmentID: ID,
+        cardID: ID,
+        proxy: ScrollViewProxy
+    ) async throws {
+        let reveal = try XCTUnwrap(
+            revealTranscriptFindSegment(segmentID, cardID: cardID, usesLazyStack: true, proxy: proxy)
+        )
+        await reveal.value
+        settleFindScroll()
+    }
+
+    func testEffectiveRowIDsMapCardSegmentsToTheirCard() {
+        let source = segments(count: 60, speakers: ["S1", "S1", "S1", "S2"])
+        let attribution = attribution(for: source)
+        let cards = identifiedEffectiveSpeakerTurnCards(attribution.turns)
+        let rows = effectiveTranscriptRowIDs(for: attribution)
+
+        XCTAssertEqual(Set(rows.keys), Set(attribution.editableSegments.map(\.id)))
+        for card in cards {
+            for segment in card.segments {
+                XCTAssertEqual(rows[segment.id], card.id)
+            }
+        }
+    }
+
+    func testEffectiveRowIDsSplitLongTurnsAtCardBoundaries() {
+        let attribution = attribution(for: segments(count: 49, speakers: ["S1"]))
+        let segments = attribution.editableSegments
+        let rows = effectiveTranscriptRowIDs(for: attribution)
+
+        XCTAssertEqual(rows[segments[23].id], segments[0].id)
+        XCTAssertEqual(rows[segments[24].id], segments[24].id)
+        XCTAssertEqual(rows[segments[48].id], segments[48].id)
+    }
+
+    func testEffectiveRowIDsWithoutSpeakersNeedNoCardHop() {
+        let attribution = attribution(for: segments(count: 12, speakers: [nil]))
+        XCTAssertTrue(attribution.speakers.isEmpty)
+        let rows = effectiveTranscriptRowIDs(for: attribution)
+
+        XCTAssertTrue(rows.isEmpty)
+    }
+
+    func testLegacyRowIDsMapSpeakerCardSegmentsToFirstStart() {
+        let source = segments(count: 30, speakers: ["S1", "S1", "S2"])
+        let cards = cards(for: source)
+        let rows = legacyTranscriptRowIDs(hasSpeakers: true, cards: cards)
+
+        for card in cards {
+            let first = card.turn.segments[0].startMs
+            for segment in card.turn.segments {
+                XCTAssertEqual(rows[segment.startMs], first)
+            }
+        }
+        XCTAssertTrue(legacyTranscriptRowIDs(hasSpeakers: false, cards: cards).isEmpty)
+    }
+
+    /// Legacy flat rows in the lazy layout must be reachable from far away.
+    /// Their `startMs` id used to sit on a nested anchor, which a `LazyVStack`
+    /// cannot resolve until the row is realized, so find stayed put.
+    func testLazyLegacyFlatRowIsReachableFromFarAway() throws {
+        let segments = segments(count: 900, speakers: [nil])
+        let box = ProxyBox()
+        let view = host(
+            hasSpeakers: false, cards: [], segments: segments,
+            onProxy: { box.proxy = $0 }
+        )
+        let (window, scrollView) = try XCTUnwrap(mount(view))
+        defer { window.orderOut(nil) }
+        let proxy = try XCTUnwrap(box.proxy)
+        XCTAssertEqual(scrollView.contentView.bounds.origin.y, 0)
+
+        scroll(proxy, to: segments[700].startMs)
+
+        XCTAssertGreaterThan(scrollView.contentView.bounds.origin.y, 10_000)
+    }
+
+    /// Effective flat rows resolve through their `ForEach` identity, which is
+    /// the segment id find targets.
+    func testLazyFlatRowIsReachableFromFarAway() throws {
+        let attribution = attribution(for: segments(count: 900, speakers: [nil]))
+        let box = ProxyBox()
+        let view = host(
+            hasSpeakers: false, cards: [], segments: [], attribution: attribution,
+            onProxy: { box.proxy = $0 }
+        )
+        let (window, scrollView) = try XCTUnwrap(mount(view))
+        defer { window.orderOut(nil) }
+        let proxy = try XCTUnwrap(box.proxy)
+        XCTAssertEqual(scrollView.contentView.bounds.origin.y, 0)
+
+        scroll(proxy, to: attribution.editableSegments[700].id)
+
+        XCTAssertGreaterThan(scrollView.contentView.bounds.origin.y, 10_000)
+    }
+
+    /// The find jump used for a segment deep inside a lazy speaker card:
+    /// the card id resolves from far away, and once the card is realized the
+    /// segment's own anchor refines the position.
+    func testLazyCardSegmentIsReachableThroughItsRow() async throws {
+        let attribution = attribution(for: segments(count: 900, speakers: ["S1"]))
+        XCTAssertTrue(
+            TranscriptBodyLayout.usesLazyStack(
+                rowCount: attribution.editableSegments.count,
+                environment: [:]
+            )
+        )
+        let target = attribution.editableSegments[700 + 13]
+        let row = try XCTUnwrap(effectiveTranscriptRowIDs(for: attribution)[target.id])
+        XCTAssertNotEqual(row, target.id, "target must be nested inside a card")
+        let box = ProxyBox()
+        let view = host(
+            hasSpeakers: true, cards: [], segments: [], attribution: attribution,
+            onProxy: { box.proxy = $0 }
+        )
+        let (window, scrollView) = try XCTUnwrap(mount(view))
+        defer { window.orderOut(nil) }
+        let proxy = try XCTUnwrap(box.proxy)
+
+        scroll(proxy, to: row)
+        let atRow = scrollView.contentView.bounds.origin.y
+        XCTAssertGreaterThan(atRow, 10_000)
+
+        // Exercise the production two-hop implementation, including its 50 ms
+        // layout delay, from an unrealized card.
+        scrollView.contentView.scroll(to: .zero)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        try await revealInLazyCard(target.id, cardID: row, proxy: proxy)
+        let atSegment = scrollView.contentView.bounds.origin.y
+        XCTAssertNotEqual(atSegment, atRow, "the nested anchor should refine within the card")
+
+        // Converged: a repeated jump to the same segment does not move again.
+        scroll(proxy, to: TranscriptFindSegmentID(segmentID: target.id))
+        XCTAssertEqual(scrollView.contentView.bounds.origin.y, atSegment, accuracy: 1)
+    }
+
+    func testFindRevealsFirstEffectiveSegmentInsideTallLazyCard() async throws {
+        let attribution = attribution(for: segments(count: 900, speakers: ["S1"]))
+        let target = attribution.editableSegments[696]  // first of a 24-segment card
+        let row = try XCTUnwrap(effectiveTranscriptRowIDs(for: attribution)[target.id])
+        XCTAssertEqual(row, target.id)
+        let box = ProxyBox()
+        let view = host(
+            hasSpeakers: true, cards: [], segments: [], attribution: attribution,
+            onProxy: { box.proxy = $0 }
+        )
+        let (window, scrollView) = try XCTUnwrap(mount(view))
+        defer { window.orderOut(nil) }
+        let proxy = try XCTUnwrap(box.proxy)
+
+        scroll(proxy, to: row)
+        let cardCenter = scrollView.contentView.bounds.origin.y
+        XCTAssertGreaterThan(cardCenter, 10_000)
+        scrollView.contentView.scroll(to: .zero)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+
+        try await revealInLazyCard(target.id, cardID: row, proxy: proxy)
+        let segmentCenter = scrollView.contentView.bounds.origin.y
+        XCTAssertGreaterThan(segmentCenter, 10_000)
+        // Centering the card leaves this line more than half a viewport above
+        // its center. Find must move up to the first line instead.
+        XCTAssertLessThan(segmentCenter, cardCenter - scrollView.contentView.bounds.height / 2)
+        scroll(proxy, to: TranscriptFindSegmentID(segmentID: target.id))
+        XCTAssertEqual(scrollView.contentView.bounds.origin.y, segmentCenter, accuracy: 1)
+    }
+
+    func testFindRevealsFirstLegacySegmentInsideTallLazyCard() async throws {
+        let source = segments(count: 900, speakers: ["S1"])
+        let cards = cards(for: source)
+        let target = source[696]
+        let row = try XCTUnwrap(legacyTranscriptRowIDs(hasSpeakers: true, cards: cards)[target.startMs])
+        XCTAssertEqual(row, target.startMs)
+        let box = ProxyBox()
+        let view = host(hasSpeakers: true, cards: cards, segments: source, onProxy: { box.proxy = $0 })
+        let (window, scrollView) = try XCTUnwrap(mount(view))
+        defer { window.orderOut(nil) }
+        let proxy = try XCTUnwrap(box.proxy)
+
+        scroll(proxy, to: row)
+        let cardCenter = scrollView.contentView.bounds.origin.y
+        XCTAssertGreaterThan(cardCenter, 10_000)
+        scrollView.contentView.scroll(to: .zero)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+
+        try await revealInLazyCard(target.startMs, cardID: row, proxy: proxy)
+        let segmentCenter = scrollView.contentView.bounds.origin.y
+        XCTAssertGreaterThan(segmentCenter, 10_000)
+        XCTAssertLessThan(segmentCenter, cardCenter - scrollView.contentView.bounds.height / 2)
+        scroll(proxy, to: TranscriptFindSegmentID(segmentID: target.startMs))
+        XCTAssertEqual(scrollView.contentView.bounds.origin.y, segmentCenter, accuracy: 1)
+    }
+
+    func testCancelledFindDoesNotRefineAfterCardHop() async throws {
+        let attribution = attribution(for: segments(count: 900, speakers: ["S1"]))
+        let target = attribution.editableSegments[696]
+        let box = ProxyBox()
+        let view = host(
+            hasSpeakers: true, cards: [], segments: [], attribution: attribution,
+            onProxy: { box.proxy = $0 }
+        )
+        let (window, scrollView) = try XCTUnwrap(mount(view))
+        defer { window.orderOut(nil) }
+        let proxy = try XCTUnwrap(box.proxy)
+        // Realize the nested anchor so an incorrectly uncancelled refinement
+        // cannot silently miss it and let this test pass.
+        scroll(proxy, to: target.id)
+        let reveal = try XCTUnwrap(
+            revealTranscriptFindSegment(target.id, cardID: target.id, usesLazyStack: true, proxy: proxy)
+        )
+        // Cancel after the synchronous card hop but before refinement, as a
+        // manual scroll or a newer find command does.
+        reveal.cancel()
+        await reveal.value
+        settleFindScroll()
+        let cancelledOffset = scrollView.contentView.bounds.origin.y
+        XCTAssertGreaterThan(cancelledOffset, 10_000, "the synchronous card hop must still happen")
+
+        // Lazy estimates can adjust the coarse offset as the card is measured.
+        // Prove cancellation suppressed the line hop: explicitly revealing the
+        // first line must still move up by more than half the viewport.
+        scroll(proxy, to: TranscriptFindSegmentID(segmentID: target.id))
+        XCTAssertGreaterThan(
+            cancelledOffset - scrollView.contentView.bounds.origin.y,
+            scrollView.contentView.bounds.height / 2
         )
     }
 }

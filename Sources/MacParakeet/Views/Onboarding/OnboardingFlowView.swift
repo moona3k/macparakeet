@@ -4,27 +4,45 @@ import MacParakeetViewModels
 
 struct OnboardingFlowView: View {
     @Bindable var viewModel: OnboardingViewModel
+    /// Source of the live dictation bindings and the Edit shortcut sheet.
+    /// Nil in previews, where the sheet is hidden and bindings come from
+    /// UserDefaults.
+    var settingsViewModel: SettingsViewModel?
+    var transformsViewModel: TransformsViewModel?
     let onFinish: () -> Void
-    let onOpenMainApp: () -> Void
     let onOpenSettings: () -> Void
-    /// Arms/disarms the no-STT hotkey rehearsal while the "Learn the Hotkey"
-    /// step is on screen. Defaults to no-ops so previews/tests can omit them.
+    /// Arms/disarms the no-STT key rehearsal while the Try It card should
+    /// light its keys. Defaults to no-ops so previews/tests can omit them.
     var onHotkeyPreviewArm: () -> Void = {}
     var onHotkeyPreviewDisarm: () -> Void = {}
+    /// A shortcut recorder in the Edit shortcut sheet started or stopped.
+    var onShortcutRecordingChanged: (Bool) -> Void = { _ in }
+    /// A dictation binding changed from the Edit shortcut sheet.
+    var onShortcutBindingsChanged: () -> Void = {}
 
-    /// Triggers shown in onboarding copy — fall back to defaults when disabled
-    /// so instructional text stays readable.
+    @State private var hoveredStep: OnboardingViewModel.Step?
+    @State private var backButtonHovered = false
+    @State private var isEditingShortcut = false
+
+    // MARK: - Bindings
+
+    private var handsFreeTrigger: HotkeyTrigger {
+        settingsViewModel?.hotkeyTrigger ?? HotkeyTrigger.current
+    }
+
+    private var pushToTalkTrigger: HotkeyTrigger {
+        settingsViewModel?.pushToTalkHotkeyTrigger
+            ?? HotkeyTrigger.current(defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey, fallback: .defaultPushToTalk)
+    }
+
+    /// Triggers shown in copy fall back to defaults when disabled so the
+    /// instructional text stays readable.
     private var handsFreeDisplayTrigger: HotkeyTrigger {
-        let current = HotkeyTrigger.current
-        return current.isDisabled ? .defaultDictation : current
+        handsFreeTrigger.isDisabled ? .defaultDictation : handsFreeTrigger
     }
 
     private var pushToTalkDisplayTrigger: HotkeyTrigger {
-        let current = HotkeyTrigger.current(
-            defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
-            fallback: .defaultPushToTalk
-        )
-        return current.isDisabled ? .defaultPushToTalk : current
+        pushToTalkTrigger.isDisabled ? .defaultPushToTalk : pushToTalkTrigger
     }
 
     private var usesSharedDictationGesture: Bool {
@@ -34,23 +52,25 @@ struct OnboardingFlowView: View {
         )
     }
 
-    private var handsFreeGestureTitle: String {
-        "\(usesSharedDictationGesture ? "Double-tap" : "Tap") \(handsFreeDisplayTrigger.shortSymbol)"
-    }
-
     private var handsFreeInstructionPhrase: String {
-        "\(usesSharedDictationGesture ? "Double-tap" : "Tap") \(handsFreeDisplayTrigger.displayName)"
+        "\(usesSharedDictationGesture ? "double-tap" : "tap") \(handsFreeDisplayTrigger.displayName)"
     }
 
-    private var handsFreeTryNowVerb: String {
-        usesSharedDictationGesture ? "double-tap" : "tap"
+    /// The gesture most people will use next: hold-to-talk when it is set.
+    private var primaryGesturePhrase: String {
+        if !pushToTalkTrigger.isDisabled || handsFreeTrigger.isDisabled {
+            return "hold \(pushToTalkDisplayTrigger.displayName)"
+        }
+        return handsFreeInstructionPhrase
     }
 
-    private let windowWidth: CGFloat = 740
-    private let windowHeight: CGFloat = 500
+    /// The rehearsal owns the key only on Try It, before the box listens, and
+    /// never while a recorder is capturing (the sheet pauses it separately).
+    private var shouldRehearse: Bool {
+        viewModel.step == .practice && !viewModel.isPracticeListening
+    }
 
-    @State private var hoveredStep: OnboardingViewModel.Step?
-    @State private var backButtonHovered = false
+    private let windowSize = OnboardingWindowController.windowSize
 
     private var visibleSteps: [OnboardingViewModel.Step] { OnboardingViewModel.visibleSteps }
     private var totalSteps: Int { visibleSteps.count }
@@ -67,24 +87,49 @@ struct OnboardingFlowView: View {
             Divider()
             content
         }
-        .frame(width: windowWidth, height: windowHeight)
+        .frame(width: windowSize.width, height: windowSize.height)
         .background(DesignSystem.Colors.background)
         .onAppear {
             viewModel.markOnboardingShown()
             viewModel.startPermissionPolling()
-            // Part B: kick the ~465 MB speech-model download off at onboarding
-            // open so it overlaps the permission + hotkey steps. The Parakeet-vs-
-            // Whisper fork is already decided (whisperRecommendation resolves in
-            // the VM init), and startEngineWarmUp() is idempotent — the engine
-            // step's .onAppear call below is a fallback, and any failure before
-            // the engine step is preserved but rendered only there (§5.1–5.3).
+            // Kick the speech-model download off at onboarding open so it
+            // overlaps permissions and the key rehearsal (ADR 005, 2026-06-14).
+            // The Parakeet-vs-Whisper fork is already decided in the VM init,
+            // and startEngineWarmUp() is idempotent.
             viewModel.startEngineWarmUp()
         }
         .onDisappear {
             viewModel.stopPermissionPolling()
+            onHotkeyPreviewDisarm()
+        }
+        .onChange(of: shouldRehearse, initial: true) { _, rehearse in
+            if rehearse {
+                viewModel.refreshAccessibilityPermission()
+                onHotkeyPreviewArm()
+            } else {
+                onHotkeyPreviewDisarm()
+            }
+        }
+        .onChange(of: handsFreeTrigger) { _, _ in
+            viewModel.practiceHotkeyBindingsChanged()
+            onShortcutBindingsChanged()
+        }
+        .onChange(of: pushToTalkTrigger) { _, _ in
+            viewModel.practiceHotkeyBindingsChanged()
+            onShortcutBindingsChanged()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             viewModel.refresh()
+        }
+        .sheet(isPresented: $isEditingShortcut) {
+            if let settingsViewModel {
+                OnboardingShortcutEditor(
+                    settingsViewModel: settingsViewModel,
+                    transformsViewModel: transformsViewModel,
+                    onRecordingStateChanged: onShortcutRecordingChanged,
+                    onDone: { isEditingShortcut = false }
+                )
+            }
         }
     }
 
@@ -92,7 +137,6 @@ struct OnboardingFlowView: View {
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
-            // App header with warm merkaba
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 12) {
                     MeditativeMerkabaView(size: 28, revolutionDuration: 6.0, tintColor: DesignSystem.Colors.accent)
@@ -130,25 +174,79 @@ struct OnboardingFlowView: View {
                 .progressViewStyle(.linear)
                 .tint(DesignSystem.Colors.accent)
                 .padding(.horizontal, DesignSystem.Spacing.xl)
+                .animation(.easeInOut(duration: 0.3), value: onboardingProgress)
 
             Spacer()
 
+            speechModelStatus
+                .padding(.horizontal, DesignSystem.Spacing.xl)
+
             VStack(alignment: .leading, spacing: 6) {
-                Label("Local-first. No audio uploads.", systemImage: "lock.shield")
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(.secondary)
-                Label("Setup metrics are non-identifying.", systemImage: "chart.bar.xaxis")
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(.secondary)
-                Label("Paste needs Accessibility.", systemImage: "keyboard")
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(.secondary)
+                Label("Audio stays on your Mac.", systemImage: "lock.shield")
+                Label("Non-identifying metrics.", systemImage: "chart.bar.xaxis")
             }
+            .font(DesignSystem.Typography.caption)
+            .foregroundStyle(.secondary)
             .padding(.horizontal, DesignSystem.Spacing.xl)
             .padding(.bottom, DesignSystem.Spacing.xl)
         }
-        .frame(minWidth: 220, maxWidth: 260, alignment: .leading)
+        .frame(width: 236, alignment: .leading)
         .background(DesignSystem.Colors.surfaceElevated)
+    }
+
+    /// The model download runs behind every step, so its status lives here
+    /// instead of on a step of its own.
+    private var speechModelStatus: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                switch viewModel.engineState {
+                case .ready:
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(DesignSystem.Colors.successGreen)
+                case .failed:
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(DesignSystem.Colors.warningAmber)
+                case .idle, .working:
+                    ProgressView().controlSize(.mini)
+                }
+                Text(speechModelStatusText)
+                    .font(DesignSystem.Typography.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                Spacer(minLength: 0)
+                if case .working(_, let progress?) = viewModel.engineState {
+                    Text("\(Int((progress * 100).rounded()))%")
+                        .font(DesignSystem.Typography.micro.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if case .working(_, let progress) = viewModel.engineState {
+                Group {
+                    if let progress {
+                        ProgressView(value: progress)
+                    } else {
+                        ProgressView()
+                    }
+                }
+                .progressViewStyle(.linear)
+                .tint(DesignSystem.Colors.accent)
+                .controlSize(.small)
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(DesignSystem.Colors.cardBackground.opacity(0.7))
+        )
+        .accessibilityElement(children: .combine)
+    }
+
+    private var speechModelStatusText: String {
+        let name = viewModel.whisperRecommendation == nil ? "Speech model" : "Whisper model"
+        switch viewModel.engineState {
+        case .idle, .working: return "\(name) downloading"
+        case .ready: return "\(name) ready"
+        case .failed: return "\(name) needs attention"
+        }
     }
 
     private func stepRow(_ step: OnboardingViewModel.Step) -> some View {
@@ -192,7 +290,9 @@ struct OnboardingFlowView: View {
             }
         }
         .onTapGesture {
-            if step.rawValue <= viewModel.step.rawValue || stepIsCompleted(step) {
+            // Jump back freely. Jumping ahead is limited to steps already done
+            // so the Try It gates cannot be bypassed from the sidebar.
+            if step.rawValue <= viewModel.step.rawValue {
                 viewModel.jump(to: step)
             }
         }
@@ -201,25 +301,20 @@ struct OnboardingFlowView: View {
     private func stepIcon(_ step: OnboardingViewModel.Step) -> String {
         switch step {
         case .welcome: return "hand.wave"
-        case .microphone: return "mic"
-        case .accessibility: return "accessibility"
-        case .hotkey: return "keyboard"
-        case .engine: return "cpu"
+        case .permissions: return "lock.open"
+        case .practice: return "keyboard"
         case .done: return "checkmark.circle"
         }
     }
 
     private func stepIsCompleted(_ step: OnboardingViewModel.Step) -> Bool {
         switch step {
-        case .welcome, .hotkey:
+        case .welcome:
             return viewModel.step.rawValue > step.rawValue
-        case .microphone:
-            return viewModel.micStatus == .granted || viewModel.step.rawValue > step.rawValue
-        case .accessibility:
-            return viewModel.accessibilityGranted
-        case .engine:
-            if case .ready = viewModel.engineState { return true }
-            return false
+        case .permissions:
+            return viewModel.accessibilityGranted && viewModel.step.rawValue > step.rawValue
+        case .practice:
+            return viewModel.hasPracticeResult
         case .done:
             return viewModel.hasCompletedCurrentRun
         }
@@ -229,27 +324,28 @@ struct OnboardingFlowView: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(titleForStep(viewModel.step))
+            VStack(alignment: .leading, spacing: 8) {
+                Text(title)
                     .font(DesignSystem.Typography.pageTitle)
-                Text(subtitleForStep(viewModel.step))
+                    .contentTransition(.opacity)
+                Text(subtitle)
                     .font(DesignSystem.Typography.bodySmall)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                progressStrip
             }
+            .animation(.easeInOut(duration: 0.2), value: title)
             .padding(.horizontal, 28)
-            .padding(.top, 26)
+            .padding(.top, 24)
 
             SacredGeometryDivider()
-                .padding(.top, 18)
+                .padding(.top, 14)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     stepBody(viewModel.step)
                 }
                 .padding(.horizontal, 28)
-                .padding(.vertical, 22)
+                .padding(.vertical, 18)
             }
             .id(viewModel.step)
             .transition(
@@ -274,11 +370,10 @@ struct OnboardingFlowView: View {
                 Text(hint)
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
 
             HStack {
-                // Back button — hidden on welcome via opacity
                 Button {
                     viewModel.goBack()
                 } label: {
@@ -307,18 +402,26 @@ struct OnboardingFlowView: View {
 
                 Spacer()
 
+                if viewModel.step == .practice, !viewModel.hasPracticeResult {
+                    Button("Skip for now") {
+                        viewModel.skipPractice()
+                    }
+                    .parakeetAction(.subtle)
+                    .padding(.trailing, 4)
+                }
+
                 if viewModel.step == .done {
-                    accentButton("Open MacParakeet", icon: "arrow.right", large: true, disabled: false, isDefault: true)
-                    {
+                    OnboardingAccentButton(title: "Finish", icon: "checkmark", large: true, isDefault: true) {
                         _ = viewModel.markOnboardingCompleted()
                         onFinish()
-                        onOpenMainApp()
                     }
                 } else {
-                    let disabled = continueButtonDisabled
-                    accentButton(
-                        primaryButtonTitle(for: viewModel.step), icon: "arrow.right", large: false, disabled: disabled,
-                        isDefault: true
+                    OnboardingAccentButton(
+                        title: primaryButtonTitle,
+                        icon: "arrow.right",
+                        disabled: continueButtonDisabled,
+                        // Return in the practice box is a newline, not Continue.
+                        isDefault: !viewModel.isPracticeListening
                     ) {
                         viewModel.goNext()
                     }
@@ -336,71 +439,38 @@ struct OnboardingFlowView: View {
         switch step {
         case .welcome:
             welcomeStep
-        case .microphone:
-            permissionCard(
-                title: "Microphone access",
-                status: micStatusText(viewModel.micStatus),
-                statusStyle: micStatusStyle(viewModel.micStatus),
-                detail: "Skip if you only transcribe files."
-            ) {
-                accentButton(
-                    viewModel.isBusy ? "Requesting..." : "Grant Microphone Access",
-                    disabled: viewModel.isBusy || viewModel.micStatus == .granted
-                ) {
-                    viewModel.requestMicrophoneAccess()
-                }
-
-                if viewModel.micStatus == .denied {
-                    Button("Open System Settings") {
-                        openPrivacySettings(anchor: "Privacy_Microphone")
-                    }
-                }
-            }
-        case .accessibility:
-            permissionCard(
-                title: "Accessibility access",
-                status: viewModel.accessibilityGranted ? "Granted" : "Not granted",
-                statusStyle: viewModel.accessibilityGranted ? .ok : .warn,
-                detail: "Required for the global hotkey and Cmd+V paste automation."
-            ) {
-                accentButton(
-                    "Enable Accessibility",
-                    disabled: viewModel.isBusy || viewModel.accessibilityGranted
-                ) {
-                    viewModel.requestAccessibilityAccess(prompt: true)
-                }
-
-                Button("Open System Settings") {
-                    openPrivacySettings(anchor: "Privacy_Accessibility")
-                }
-            }
-        case .hotkey:
-            hotkeyStep
-        case .engine:
-            engineSetupView
-                .onAppear {
-                    viewModel.startEngineWarmUp()
-                }
+        case .permissions:
+            permissionsStep
+        case .practice:
+            OnboardingPracticeStepView(
+                viewModel: viewModel,
+                handsFreeTrigger: handsFreeTrigger,
+                pushToTalkTrigger: pushToTalkTrigger,
+                canEditShortcut: settingsViewModel != nil,
+                onEditShortcut: { isEditingShortcut = true },
+                onOpenSettings: onOpenSettings
+            )
         case .done:
             doneStep
         }
     }
 
-    // MARK: - Welcome Step
+    // MARK: - Welcome
 
     private var welcomeStep: some View {
         VStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
-            // Hero merkaba with particle shimmer
             ZStack {
+                SeedOfLifeBackdrop()
+                    .frame(width: 124, height: 124)
                 ParticleField(
                     particleCount: 8,
                     tintColor: DesignSystem.Colors.accent,
                     opacity: 0.3,
                     driftDirection: .orbital
                 )
-                .frame(width: 120, height: 120)
+                .frame(width: 104, height: 104)
 
-                MeditativeMerkabaView(size: 64, revolutionDuration: 5.0, tintColor: DesignSystem.Colors.accent)
+                MeditativeMerkabaView(size: 56, revolutionDuration: 5.0, tintColor: DesignSystem.Colors.accent)
                     .opacity(0.8)
             }
             .frame(maxWidth: .infinity)
@@ -415,13 +485,13 @@ struct OnboardingFlowView: View {
                     icon: "mic.fill",
                     title: "Dictate anywhere",
                     detail:
-                        "\(handsFreeInstructionPhrase) for hands-free dictation, or hold \(pushToTalkDisplayTrigger.displayName) and release to stop. Text appears where your cursor is."
+                        "Hold \(pushToTalkDisplayTrigger.displayName) and talk, or \(handsFreeInstructionPhrase) for hands-free. Text appears where your cursor is."
                 )
                 featureRow(
-                    icon: "bolt.fill",
-                    title: "Ready before you need it",
+                    icon: "keyboard",
+                    title: "Try it before you leave",
                     detail:
-                        "The local speech model downloads during setup so your first dictation is not a surprise wait."
+                        "Two permissions, then your first dictation right here in this window. The speech model downloads while you set up."
                 )
                 featureRow(
                     icon: "lock.shield.fill",
@@ -433,430 +503,239 @@ struct OnboardingFlowView: View {
         }
     }
 
-    // MARK: - Hotkey Step
+    // MARK: - Permissions
 
-    @State private var tapPhase = 0
-    @State private var holdPhase: CGFloat = 0
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var allPermissionsGranted: Bool {
+        viewModel.accessibilityGranted && viewModel.micStatus == .granted
+    }
 
-    private var hotkeyStep: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            if HotkeyTrigger.current.isDisabled {
-                HStack(spacing: 8) {
-                    Image(systemName: "info.circle.fill")
-                        .foregroundStyle(DesignSystem.Colors.accent)
-                    Text(
-                        "Your hands-free hotkey is currently disabled. The examples below show the default shortcuts. You can set hotkeys anytime in Settings."
-                    )
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(.secondary)
-                }
-                .padding(DesignSystem.Spacing.md)
-                .background(
-                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                        .fill(DesignSystem.Colors.accent.opacity(0.08))
-                )
-            }
-
-            // Live rehearsal nudge — only when Accessibility is granted, since
-            // the preview taps can't arm without it (and dictation won't work
-            // anyway). No model is needed: this is a visual preview only.
-            if viewModel.accessibilityGranted {
-                HStack(spacing: 8) {
-                    Image(systemName: "hand.tap.fill")
-                        .foregroundStyle(DesignSystem.Colors.accent)
-                    Text(
-                        "Try it now — \(handsFreeTryNowVerb) \(handsFreeDisplayTrigger.shortSymbol) or hold \(pushToTalkDisplayTrigger.shortSymbol). A live preview appears at the bottom of your screen."
-                    )
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(DesignSystem.Spacing.md)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                        .fill(DesignSystem.Colors.accent.opacity(0.08))
-                )
-            }
-
-            // Hands-free mode card
-            onboardingCard {
-                HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
-                    handsFreeIllustration
-                        .frame(width: 80)
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Hands-free mode")
-                            .font(DesignSystem.Typography.micro)
-                            .foregroundStyle(DesignSystem.Colors.accent)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Capsule().fill(DesignSystem.Colors.accent.opacity(0.12)))
-
-                        Text(handsFreeGestureTitle)
-                            .font(DesignSystem.Typography.sectionTitle)
-
-                        Text(
-                            "Starts persistent recording.\nTap \(handsFreeDisplayTrigger.shortSymbol) once more to stop and paste."
-                        )
-                        .font(DesignSystem.Typography.bodySmall)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+    private var permissionsStep: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            permissionRow(
+                icon: "mic.fill",
+                title: "Hear you while you dictate",
+                detail:
+                    "MacParakeet uses the microphone for dictation and meeting recording. Skip this if you only transcribe files.",
+                tag: "Optional",
+                granted: viewModel.micStatus == .granted
+            ) {
+                if viewModel.micStatus == .denied {
+                    Button("Open Settings") {
+                        openPrivacySettings(anchor: "Privacy_Microphone")
+                    }
+                    .parakeetAction(.secondary)
+                } else {
+                    OnboardingAccentButton(
+                        title: viewModel.isBusy ? "Asking..." : "Allow",
+                        disabled: viewModel.isBusy
+                    ) {
+                        viewModel.requestMicrophoneAccess()
                     }
                 }
-                .padding(DesignSystem.Spacing.lg)
-            }
-
-            // Push-to-Talk card
-            onboardingCard {
-                HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
-                    holdIllustration
-                        .frame(width: 80)
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Push-to-Talk")
-                            .font(DesignSystem.Typography.micro)
-                            .foregroundStyle(DesignSystem.Colors.accent)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Capsule().fill(DesignSystem.Colors.accent.opacity(0.12)))
-
-                        Text("Hold \(pushToTalkDisplayTrigger.shortSymbol)")
-                            .font(DesignSystem.Typography.sectionTitle)
-
-                        Text("Records while you hold the key.\nRelease to stop and paste.")
-                            .font(DesignSystem.Typography.bodySmall)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+            } footnote: {
+                if viewModel.micStatus == .denied {
+                    Text("Microphone access is off. Turn on MacParakeet in System Settings, or continue without it.")
                 }
-                .padding(DesignSystem.Spacing.lg)
             }
 
-            // Escape row
-            HStack(spacing: 10) {
-                keyCap("Esc")
-                Text("Press Escape to cancel")
-                    .font(DesignSystem.Typography.caption)
+            permissionRow(
+                icon: "keyboard.fill",
+                title: "Use your dictation key and type into any app",
+                detail:
+                    "Lets MacParakeet notice your dictation key from any app and paste your words where the cursor is.",
+                tag: "Required",
+                granted: viewModel.accessibilityGranted
+            ) {
+                OnboardingAccentButton(title: "Allow", disabled: viewModel.isBusy) {
+                    viewModel.requestAccessibilityAccess(prompt: true)
+                }
+            } footnote: {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("macOS opens Privacy & Security. Turn on MacParakeet there, and this page updates by itself.")
+                    Button("Open System Settings") {
+                        openPrivacySettings(anchor: "Privacy_Accessibility")
+                    }
+                    .buttonStyle(.link)
+                }
+            }
+
+            HStack(spacing: 8) {
+                Image(systemName: "lock.shield")
+                    .foregroundStyle(DesignSystem.Colors.accent)
+                Text("MacParakeet does not ask for screen recording, meeting audio, or your calendar during setup.")
                     .foregroundStyle(.secondary)
-                Text("·")
-                    .foregroundStyle(.tertiary)
-                Text("5-second undo window")
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(.tertiary)
             }
-
-            Text(
-                "Click Next to keep these hotkeys for now. You can change them later in Settings > Dictation; external keyboards can use keys like F13/F19 or End, modifier+key shortcuts, or modifier-only chords such as Control+Option."
-            )
             .font(DesignSystem.Typography.caption)
-            .foregroundStyle(.secondary)
-        }
-        .onAppear {
-            viewModel.refreshAccessibilityPermission()
-            startAnimations()
-            onHotkeyPreviewArm()
-        }
-        .onDisappear {
-            stopAnimations()
-            onHotkeyPreviewDisarm()
+            .padding(.top, 4)
         }
     }
 
-    // MARK: - Hotkey Gesture Illustrations
+    private func permissionRow<Action: View, Footnote: View>(
+        icon: String,
+        title: String,
+        detail: String,
+        tag: String,
+        granted: Bool,
+        @ViewBuilder action: () -> Action,
+        @ViewBuilder footnote: () -> Footnote
+    ) -> some View {
+        OnboardingCard(highlighted: granted) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: icon)
+                        .font(.system(size: 15))
+                        .foregroundStyle(granted ? DesignSystem.Colors.successGreen : DesignSystem.Colors.accent)
+                        .frame(width: 34, height: 34)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(
+                                    granted
+                                        ? DesignSystem.Colors.successGreen.opacity(0.12)
+                                        : DesignSystem.Colors.accent.opacity(0.1))
+                        )
 
-    @State private var animationTask: Task<Void, Never>?
-
-    private var handsFreeIllustration: some View {
-        keyCap(handsFreeDisplayTrigger.shortSymbol)
-            .scaleEffect(tapPhase == 1 ? 0.9 : 1.0)
-            .opacity(reduceMotion || tapPhase == 1 ? 1.0 : 0.5)
-            .animation(.easeInOut(duration: 0.15), value: tapPhase)
-            .overlay(alignment: .topTrailing) {
-                if usesSharedDictationGesture {
-                    Text("x2")
-                        .font(DesignSystem.Typography.caption.weight(.semibold))
-                        .foregroundStyle(DesignSystem.Colors.accent)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(Capsule().fill(DesignSystem.Colors.accent.opacity(0.14)))
-                        .offset(x: 14, y: -10)
-                }
-            }
-    }
-
-    private var holdIllustration: some View {
-        VStack(spacing: 6) {
-            keyCap(pushToTalkDisplayTrigger.shortSymbol)
-                .scaleEffect(holdPhase > 0 ? 0.93 : 1.0)
-                .opacity(reduceMotion || holdPhase > 0 ? 1.0 : 0.5)
-                .animation(.easeInOut(duration: 0.15), value: holdPhase > 0)
-
-            // Hold bar that grows
-            GeometryReader { geo in
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(DesignSystem.Colors.accent.opacity(0.5))
-                    .frame(width: geo.size.width * (reduceMotion ? 1.0 : holdPhase))
-                    .animation(.linear(duration: holdPhase > 0 ? 1.0 : 0.15), value: holdPhase)
-            }
-            .frame(height: 4)
-        }
-    }
-
-    private func startAnimations() {
-        guard !reduceMotion else { return }
-        animationTask?.cancel()
-        let tapCount = usesSharedDictationGesture ? 2 : 1
-        animationTask = Task { @MainActor in
-            while !Task.isCancelled {
-                // Hands-free gesture.
-                for tapIndex in 0..<tapCount {
-                    tapPhase = 1
-                    try? await Task.sleep(for: .milliseconds(160))
-                    guard !Task.isCancelled else { return }
-                    tapPhase = 0
-                    if tapIndex < tapCount - 1 {
-                        try? await Task.sleep(for: .milliseconds(120))
-                        guard !Task.isCancelled else { return }
-                    }
-                }
-
-                // Hold: press and grow bar
-                holdPhase = 0.01  // trigger "pressed" state
-                try? await Task.sleep(for: .milliseconds(100))
-                guard !Task.isCancelled else { return }
-                holdPhase = 1.0
-                try? await Task.sleep(for: .seconds(1))
-                guard !Task.isCancelled else { return }
-                holdPhase = 0
-
-                // Pause before repeat
-                try? await Task.sleep(for: .seconds(1.5))
-            }
-        }
-    }
-
-    private func stopAnimations() {
-        animationTask?.cancel()
-        animationTask = nil
-    }
-
-    // MARK: - Engine Setup
-
-    private var engineSetupView: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            if let recommendation = viewModel.whisperRecommendation {
-                onboardingCard {
-                    HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: "globe.asia.australia.fill")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(DesignSystem.Colors.accent)
-                            .frame(width: 34, height: 34)
-                            .background(
-                                RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                                    .fill(DesignSystem.Colors.accent.opacity(0.1))
-                            )
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("\(recommendation.languageName) setup")
-                                .font(DesignSystem.Typography.sectionTitle)
-                            Text(
-                                "Your Mac language settings suggest \(recommendation.languageName). MacParakeet will set up local Whisper instead of Parakeet so dictation works for this language from the first run."
-                            )
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            Text(title)
+                                .font(DesignSystem.Typography.body.weight(.semibold))
+                            Text(tag)
+                                .font(DesignSystem.Typography.micro)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1)
+                                .background(Capsule().fill(DesignSystem.Colors.surfaceElevated))
+                        }
+                        Text(detail)
                             .font(DesignSystem.Typography.bodySmall)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
-                        }
                     }
-                    .padding(DesignSystem.Spacing.lg)
+
+                    Spacer(minLength: 8)
+
+                    if granted {
+                        Label("Allowed", systemImage: "checkmark.circle.fill")
+                            .font(DesignSystem.Typography.caption.weight(.semibold))
+                            .foregroundStyle(DesignSystem.Colors.successGreen)
+                            .transition(.scale.combined(with: .opacity))
+                    } else {
+                        action()
+                    }
                 }
-            }
 
-            onboardingCard {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 10) {
-                        switch viewModel.engineState {
-                        case .ready:
-                            Image(systemName: "checkmark.seal.fill")
-                                .font(.system(size: 20))
-                                .foregroundStyle(DesignSystem.Colors.successGreen)
-                        case .failed:
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .font(.system(size: 20))
-                                .foregroundStyle(DesignSystem.Colors.warningAmber)
-                        case .idle, .working(_, _):
-                            SpinnerRingView(size: 20, revolutionDuration: 2.5, tintColor: DesignSystem.Colors.accent)
-                        }
-
-                        Text(engineHeadline(viewModel.engineState))
-                            .font(DesignSystem.Typography.sectionTitle)
-
-                        Spacer()
-                    }
-
-                    Text(engineDetail(viewModel.engineState))
-                        .font(DesignSystem.Typography.bodySmall)
+                if !granted {
+                    footnote()
+                        .font(DesignSystem.Typography.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-
-                    if case .working(_, let progress) = viewModel.engineState {
-                        if let progress {
-                            ProgressView(value: progress)
-                                .progressViewStyle(.linear)
-                                .tint(DesignSystem.Colors.accent)
-                        } else {
-                            ProgressView()
-                                .progressViewStyle(.linear)
-                                .tint(DesignSystem.Colors.accent)
-                        }
-                    }
-
-                    if case .failed(let failure) = viewModel.engineState {
-                        Text(failure.message)
-                            .font(DesignSystem.Typography.caption)
-                            .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
-                            .padding(DesignSystem.Spacing.sm)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(
-                                RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                                    .fill(DesignSystem.Colors.warningAmber.opacity(0.08))
-                            )
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Try this:")
-                                .font(DesignSystem.Typography.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                            ForEach(failure.recovery.tips, id: \.self) { tip in
-                                Text("• \(tip)")
-                                    .font(DesignSystem.Typography.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-
-                        HStack {
-                            accentButton("Retry", disabled: false) {
-                                viewModel.retryEngineWarmUp()
-                            }
-
-                            Button("Open Settings") {
-                                onOpenSettings()
-                            }
-                            .parakeetAction(.secondary)
-                        }
-                    }
-
-                    if case .working(let message, _) = viewModel.engineState {
-                        Text(message)
-                            .font(DesignSystem.Typography.caption)
-                            .foregroundStyle(.secondary)
-                            .contentTransition(.numericText())
-                            .animation(.default, value: message)
-                    }
+                        .padding(.leading, 46)
                 }
-                .padding(DesignSystem.Spacing.lg)
             }
-
-            if case .ready = viewModel.engineState {
-                Text("Setup complete. You can start dictating immediately.")
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(.secondary)
-            }
+            .padding(DesignSystem.Spacing.md)
+            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: granted)
         }
     }
 
-    // MARK: - Done Step
+    // MARK: - Done
 
     private var doneStep: some View {
-        VStack(alignment: .center, spacing: DesignSystem.Spacing.lg) {
-            // Celebration merkaba with particles
+        VStack(alignment: .center, spacing: 12) {
             ZStack {
+                SeedOfLifeBackdrop(glow: true)
+                    .frame(width: 120, height: 120)
                 ParticleField(
                     particleCount: 12,
                     tintColor: DesignSystem.Colors.accent,
                     opacity: 0.35,
                     driftDirection: .orbital
                 )
-                .frame(width: 180, height: 180)
+                .frame(width: 116, height: 116)
 
-                MeditativeMerkabaView(size: 96, revolutionDuration: 4.0, tintColor: DesignSystem.Colors.accent)
+                MeditativeMerkabaView(size: 60, revolutionDuration: 4.0, tintColor: DesignSystem.Colors.accent)
                     .opacity(0.85)
             }
             .frame(maxWidth: .infinity)
 
-            VStack(spacing: DesignSystem.Spacing.sm) {
-                Text("You're all set.")
-                    .font(DesignSystem.Typography.heroTitle)
-                Text("MacParakeet is ready to turn your voice into text.")
-                    .font(DesignSystem.Typography.bodySmall)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
+            Text("You're all set.")
+                .font(DesignSystem.Typography.heroTitle)
+                .frame(maxWidth: .infinity)
 
-            onboardingCard {
-                VStack(alignment: .leading, spacing: 14) {
-                    quickTip(
-                        icon: "mic.fill",
-                        text: HotkeyTrigger.current.isDisabled
-                            ? "Click the dictation pill or set a hotkey in Settings to start dictating"
-                            : "\(handsFreeInstructionPhrase) to start dictating anywhere")
-                    quickTip(icon: "doc.fill", text: "Drop an audio file onto the main window to transcribe")
-                    quickTip(icon: "gearshape", text: "Visit Settings to customize your experience")
-                    if AppFeatures.meetingRecordingEnabled {
-                        Divider()
-                            .padding(.vertical, 4)
-                        quickTip(
-                            icon: "record.circle",
-                            text: "Recording a meeting? Click Record Meeting in the Transcribe tab.")
-                    }
+            OnboardingCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    doneResult
+
+                    Divider()
+
+                    doneLine(
+                        icon: "arrow.up.forward.app",
+                        text:
+                            "Next, click into any app you use, like Mail or Notes, and \(primaryGesturePhrase) there. Your words land at the cursor."
+                    )
+                    doneLine(
+                        icon: "menubar.rectangle",
+                        text: "MacParakeet stays in your menu bar. Settings and your dictation history live there."
+                    )
                 }
-                .padding(DesignSystem.Spacing.lg)
+                .padding(DesignSystem.Spacing.md)
             }
         }
     }
 
-    // MARK: - Reusable Helpers
-
-    private func onboardingCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        content()
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
-                    .fill(DesignSystem.Colors.cardBackground)
-                    .cardShadow(DesignSystem.Shadows.cardRest)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
-                    .strokeBorder(DesignSystem.Colors.border.opacity(0.5), lineWidth: 0.5)
-            )
-    }
-
-    private func accentButton(
-        _ title: String, icon: String? = nil, large: Bool = false, disabled: Bool, isDefault: Bool = false,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Text(title)
-                if let icon {
-                    Image(systemName: icon)
-                        .font(.system(size: 11, weight: .semibold))
+    @ViewBuilder
+    private var doneResult: some View {
+        if let transcript = viewModel.practiceTranscript, viewModel.hasPracticeResult {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Your first dictation worked", systemImage: "checkmark.seal.fill")
+                    .font(DesignSystem.Typography.body.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.successGreen)
+                HStack(spacing: 10) {
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(DesignSystem.Colors.accent)
+                        .frame(width: 3)
+                    Text("\u{201C}\(transcript)\u{201D}")
+                        .font(DesignSystem.Typography.bodySmall)
+                        .italic()
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
                 }
+                .fixedSize(horizontal: false, vertical: true)
             }
-            .font(.system(size: large ? 14 : 13, weight: .semibold))
-            .foregroundStyle(DesignSystem.Colors.onAccent)
-            .padding(.horizontal, large ? 20 : 14)
-            .padding(.vertical, large ? 10 : 7)
-            .background(
-                RoundedRectangle(cornerRadius: DesignSystem.Layout.buttonCornerRadius)
-                    .fill(disabled ? DesignSystem.Colors.accent.opacity(0.4) : DesignSystem.Colors.accent)
-            )
+        } else {
+            switch viewModel.engineState {
+            case .ready:
+                doneLine(icon: "mic.fill", text: "Dictation is ready whenever you are.")
+            case .failed:
+                doneLine(
+                    icon: "exclamationmark.triangle.fill",
+                    text:
+                        "The speech model did not finish. Open Settings > Local Models to retry the download before you dictate."
+                )
+            case .idle, .working:
+                doneLine(
+                    icon: "arrow.down.circle",
+                    text: "The speech model is still downloading. Dictation works as soon as it finishes."
+                )
+            }
         }
-        .buttonStyle(.plain)
-        .disabled(disabled)
-        .keyboardShortcut(isDefault ? .defaultAction : nil)
     }
+
+    private func doneLine(icon: String, text: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 13))
+                .foregroundStyle(DesignSystem.Colors.accent)
+                .frame(width: 26, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(DesignSystem.Colors.accent.opacity(0.1))
+                )
+            Text(text)
+                .font(DesignSystem.Typography.bodySmall)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    // MARK: - Helpers
 
     private func featureRow(icon: String, title: String, detail: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
@@ -874,185 +753,8 @@ struct OnboardingFlowView: View {
                 Text(detail)
                     .font(DesignSystem.Typography.bodySmall)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-        }
-    }
-
-    private func keyCap(_ label: String) -> some View {
-        Text(label)
-            .font(.system(size: 12, weight: .medium, design: .rounded))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(DesignSystem.Colors.surfaceElevated)
-                    .shadow(color: .black.opacity(0.08), radius: 1, x: 0, y: 1)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .strokeBorder(DesignSystem.Colors.border, lineWidth: 0.5)
-            )
-    }
-
-    private func quickTip(icon: String, text: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 14))
-                .foregroundStyle(DesignSystem.Colors.accent)
-                .frame(width: 28, height: 28)
-                .background(
-                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                        .fill(DesignSystem.Colors.accent.opacity(0.1))
-                )
-            Text(text)
-                .font(DesignSystem.Typography.bodySmall)
-                .foregroundStyle(.primary)
-        }
-    }
-
-    // MARK: - Permission Card
-
-    private enum StatusStyle {
-        case ok
-        case warn
-    }
-
-    private func permissionCard(
-        title: String,
-        status: String,
-        statusStyle: StatusStyle,
-        detail: String,
-        @ViewBuilder actions: () -> some View
-    ) -> some View {
-        onboardingCard {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text(title)
-                        .font(DesignSystem.Typography.sectionTitle)
-                    Spacer()
-                    Text(status)
-                        .font(DesignSystem.Typography.caption)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(
-                            Capsule().fill(
-                                statusStyle == .ok
-                                    ? DesignSystem.Colors.successGreen.opacity(0.15)
-                                    : DesignSystem.Colors.warningAmber.opacity(0.15))
-                        )
-                        .foregroundStyle(
-                            statusStyle == .ok ? DesignSystem.Colors.successGreen : DesignSystem.Colors.warningAmber)
-                }
-
-                Text(detail)
-                    .font(DesignSystem.Typography.bodySmall)
-                    .foregroundStyle(.secondary)
-
-                HStack(spacing: 10) {
-                    actions()
-                }
-            }
-            .padding(DesignSystem.Spacing.lg)
-        }
-    }
-
-    // MARK: - Text Helpers
-
-    private func titleForStep(_ step: OnboardingViewModel.Step) -> String {
-        switch step {
-        case .welcome: return "Welcome to MacParakeet"
-        case .microphone: return "Enable Microphone Access"
-        case .accessibility: return "Enable Accessibility"
-        case .hotkey: return "Learn the Hotkey"
-        case .engine: return "Prepare Speech Model"
-        case .done: return "All Set"
-        }
-    }
-
-    private func subtitleForStep(_ step: OnboardingViewModel.Step) -> String {
-        switch step {
-        case .welcome:
-            return "Set up the permissions and local speech model that make dictation reliable."
-        case .microphone:
-            return "Used for dictation. File transcription does not need a microphone."
-        case .accessibility:
-            return "Accessibility is required for the global hotkey and reliable paste automation."
-        case .hotkey:
-            return "Two ways to dictate — pick whichever feels natural."
-        case .engine:
-            if let recommendation = viewModel.whisperRecommendation {
-                return
-                    "Preparing local Whisper for \(recommendation.languageName) so dictation works for your Mac language settings."
-            }
-            return
-                "The speech model (~465 MB) downloads once. Usually quick on broadband, longer on slower connections."
-        case .done:
-            return "Start with dictation. Meeting recording, files, and settings are ready when you need them."
-        }
-    }
-
-    private func primaryButtonTitle(for step: OnboardingViewModel.Step) -> String {
-        switch step {
-        case .welcome: return "Continue"
-        case .microphone:
-            return viewModel.micStatus == .granted ? "Continue" : "Continue without microphone"
-        case .accessibility: return "Continue"
-        case .hotkey: return "Continue"
-        case .engine: return "Continue"
-        case .done: return "Finish"
-        }
-    }
-
-    private func micStatusText(_ status: PermissionStatus) -> String {
-        switch status {
-        case .granted: return "Granted"
-        case .denied: return "Denied"
-        case .notDetermined: return "Not requested"
-        }
-    }
-
-    private func micStatusStyle(_ status: PermissionStatus) -> StatusStyle {
-        switch status {
-        case .granted: return .ok
-        case .denied, .notDetermined: return .warn
-        }
-    }
-
-    private func engineHeadline(_ state: OnboardingViewModel.EngineState) -> String {
-        switch state {
-        case .idle: return "Not started"
-        case .working(_, _): return "Working\u{2026}"
-        case .ready: return "Ready"
-        case .failed: return "Needs attention"
-        }
-    }
-
-    private func engineDetail(_ state: OnboardingViewModel.EngineState) -> String {
-        if let recommendation = viewModel.whisperRecommendation {
-            switch state {
-            case .idle:
-                return
-                    "Whisper Large v3 Turbo (~632 MB) will download once, then run fully on-device with \(recommendation.languageName) selected."
-            case .working(_, _):
-                return
-                    "Preparing local Whisper for \(recommendation.languageName). Audio stays on this Mac; no cloud STT is used."
-            case .ready:
-                return "Whisper is ready for \(recommendation.languageName) dictation and transcription."
-            case .failed:
-                return "Whisper setup failed. Please retry to complete multilingual speech setup."
-            }
-        }
-
-        switch state {
-        case .idle:
-            return "The speech model (~465 MB) will download now. Internet is required this one time only."
-        case .working(_, _):
-            return
-                "Downloading the speech model (~465 MB). This is a one-time download — dictation and transcription work fully offline after this."
-        case .ready:
-            return "Parakeet speech model is ready."
-        case .failed:
-            return "Setup failed. Please retry to complete model preparation."
         }
     }
 
@@ -1062,23 +764,45 @@ struct OnboardingFlowView: View {
         }
     }
 
-    private var progressStrip: some View {
-        VStack(spacing: 6) {
-            HStack {
-                Text("Setup Progress")
-                    .font(DesignSystem.Typography.micro)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("\(currentStepIndex)/\(totalSteps)")
-                    .font(DesignSystem.Typography.micro)
-                    .foregroundStyle(.tertiary)
-            }
+    // MARK: - Text
 
-            ProgressView(value: onboardingProgress)
-                .progressViewStyle(.linear)
-                .tint(DesignSystem.Colors.accent)
+    private var title: String {
+        switch viewModel.step {
+        case .welcome: return "Welcome to MacParakeet"
+        case .permissions:
+            return allPermissionsGranted ? "Thanks for trusting MacParakeet" : "Give MacParakeet two permissions"
+        case .practice:
+            return viewModel.practicePhase == .hotkey ? "Try your dictation key" : "Now say something"
+        case .done: return "All Set"
         }
-        .padding(.top, 4)
+    }
+
+    private var subtitle: String {
+        switch viewModel.step {
+        case .welcome:
+            return "Two permissions and one practice dictation. The speech model downloads in the background."
+        case .permissions:
+            return allPermissionsGranted
+                ? "Your audio and transcripts stay on this Mac."
+                : "macOS asks for each one. You stay on this page while it does."
+        case .practice:
+            if viewModel.practicePhase == .hotkey {
+                return "Press the real key. It lights up in the card when MacParakeet hears it."
+            }
+            return "Use the key you just tried. Your words land in the box below."
+        case .done:
+            return "Finish closes this window. Dictation works in any app from here on."
+        }
+    }
+
+    private var primaryButtonTitle: String {
+        switch viewModel.step {
+        case .permissions:
+            return viewModel.accessibilityGranted && viewModel.micStatus != .granted
+                ? "Continue without microphone" : "Continue"
+        case .welcome, .practice, .done:
+            return "Continue"
+        }
     }
 
     private var continueHint: String? {
@@ -1090,20 +814,28 @@ struct OnboardingFlowView: View {
         }
 
         switch viewModel.step {
-        case .welcome, .microphone, .hotkey, .done:
+        case .welcome, .done:
             return nil
-        case .accessibility:
-            return "Enable Accessibility to continue."
-        case .engine:
-            if viewModel.whisperRecommendation != nil {
-                return
-                    "Preparing Whisper — first-time Core ML optimization can take 3-5 minutes on some Macs. Everything works offline after setup."
+        case .permissions:
+            return "Allow the dictation key and paste to continue."
+        case .practice:
+            if viewModel.practicePhase == .hotkey {
+                return "Press your key once to continue."
             }
-            return "Downloading — this can take several minutes. Everything works offline after setup."
+            switch viewModel.practiceBoxState {
+            case .loading:
+                return "The box opens when the speech model is ready."
+            case .failed:
+                return "Retry the download, or skip for now."
+            case .waitingForKey, .clickToStart:
+                return "Click the box, then use your key."
+            case .listening:
+                return "Continue unlocks when your words land in the box."
+            }
         }
     }
 
     private var continueButtonDisabled: Bool {
-        return !viewModel.canContinueFromCurrentStep() || viewModel.isBusy
+        !viewModel.canContinueFromCurrentStep() || viewModel.isBusy
     }
 }

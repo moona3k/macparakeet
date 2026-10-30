@@ -147,7 +147,22 @@ while IFS= read -r -d '' bundle; do
 done < <(find "$PRODUCT_DIR" -maxdepth 1 -type d -name '*.bundle' -print0)
 mkdir -p "$RESOURCES_DIR/Legal"
 cp "$ROOT_DIR/Sources/MacParakeet/Resources/Legal/MarkdownDependencies.txt" "$RESOURCES_DIR/Legal/MarkdownDependencies.txt"
+cp "$ROOT_DIR/Sources/MacParakeet/Resources/Legal/NemotronDiarization.txt" "$RESOURCES_DIR/Legal/NemotronDiarization.txt"
 cp "$ROOT_DIR/THIRD_PARTY_LICENSES.md" "$RESOURCES_DIR/Legal/THIRD_PARTY_LICENSES.md"
+
+# Only opted-in Debug launches need the experimental Ask runtime. Ordinary
+# development must not require Node/npm or reinstall helper dependencies.
+BUILD_ASK_HELPER=false
+if [[ "$CONFIG" == Debug ]]; then
+  for launch_arg in "$@"; do
+    if [[ "$launch_arg" == --enable-ask-workspace ]]; then
+      BUILD_ASK_HELPER=true
+    fi
+  done
+fi
+if [[ "$BUILD_ASK_HELPER" == true ]]; then
+  "$ROOT_DIR/scripts/build_ask_helper.sh" "$RESOURCES_DIR/AskAgentHelper" "$RESOURCES_DIR/node"
+fi
 
 # Copy frameworks into the bundle so dyld loads only bundle-local paths.
 BUNDLE_FW_DIR="$APP_BUNDLE/Contents/Frameworks"
@@ -177,6 +192,14 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
     <string>MacParakeet Dev</string>
     <key>CFBundleExecutable</key>
     <string>MacParakeet</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key><string>com.macparakeet.meeting</string>
+            <key>CFBundleTypeRole</key><string>Editor</string>
+            <key>CFBundleURLSchemes</key><array><string>macparakeet-dev</string></array>
+        </dict>
+    </array>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleVersion</key>

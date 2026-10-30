@@ -124,6 +124,22 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .hidePill, value: Self.settingValue(!showIdlePill)))
         }
     }
+    public var dictationOverlayPlacement: DictationOverlayPlacement {
+        didSet {
+            guard dictationOverlayPlacement != oldValue else { return }
+            defaults.set(
+                dictationOverlayPlacement.rawValue,
+                forKey: UserDefaultsAppRuntimePreferences.dictationOverlayPlacementKey
+            )
+            NotificationCenter.default.post(
+                name: .macParakeetDictationOverlayPlacementDidChange,
+                object: nil
+            )
+            Telemetry.send(
+                .settingChanged(setting: .overlayPlacement, value: dictationOverlayPlacement.rawValue)
+            )
+        }
+    }
     /// Show the Discover card in the main sidebar. Defaults to `true`, so
     /// nothing changes for existing users until they turn it off.
     ///
@@ -180,6 +196,19 @@ public final class SettingsViewModel {
             Telemetry.send(pushToTalkHotkeyTrigger.customizedEvent(surface: .pushToTalk))
         }
     }
+    public var alternateHandsFreeHotkeyTrigger: HotkeyTrigger {
+        didSet {
+            alternateHandsFreeHotkeyTrigger.save(to: defaults, defaultsKey: HotkeyTrigger.alternateHandsFreeDefaultsKey)
+            NotificationCenter.default.post(name: .macParakeetHotkeyTriggerDidChange, object: nil)
+        }
+    }
+    public var alternatePushToTalkHotkeyTrigger: HotkeyTrigger {
+        didSet {
+            alternatePushToTalkHotkeyTrigger.save(
+                to: defaults, defaultsKey: HotkeyTrigger.alternatePushToTalkDefaultsKey)
+            NotificationCenter.default.post(name: .macParakeetPushToTalkHotkeyTriggerDidChange, object: nil)
+        }
+    }
     public var meetingHotkeyTrigger: HotkeyTrigger {
         didSet {
             meetingHotkeyTrigger.save(to: defaults, defaultsKey: HotkeyTrigger.meetingDefaultsKey)
@@ -208,6 +237,16 @@ public final class SettingsViewModel {
                 object: nil
             )
             Telemetry.send(youtubeTranscriptionHotkeyTrigger.customizedEvent(surface: .youtubeTranscription))
+        }
+    }
+    public var dictationAIPolishHotkeyTrigger: HotkeyTrigger {
+        didSet {
+            dictationAIPolishHotkeyTrigger.save(to: defaults, defaultsKey: HotkeyTrigger.dictationAIPolishDefaultsKey)
+            NotificationCenter.default.post(
+                name: .macParakeetDictationAIPolishHotkeyTriggerDidChange,
+                object: nil
+            )
+            Telemetry.send(dictationAIPolishHotkeyTrigger.customizedEvent(surface: .dictationAIPolish))
         }
     }
     public var silenceAutoStop: Bool {
@@ -260,6 +299,12 @@ public final class SettingsViewModel {
             microphoneTestState = .idle
             microphoneTestLevel = 0
             NotificationCenter.default.post(name: .macParakeetMicrophoneSelectionDidChange, object: nil)
+            // Only an explicit selection rebuilds the idle preparation. Route
+            // notifications from Core Audio do not (#1227). The warm hold owns
+            // its own refresh while Instant Dictation is on.
+            if !instantDictationEnabled {
+                sharedMicStream?.refreshIdlePrewarm()
+            }
             Telemetry.send(.settingChanged(setting: .microphoneSelection))
         }
     }
@@ -270,6 +315,11 @@ public final class SettingsViewModel {
                 forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey
             )
             Telemetry.send(.settingChanged(setting: .meetingAudioSourceMode, value: meetingAudioSourceMode.rawValue))
+        }
+    }
+    public var meetingURLControlEnabled: Bool {
+        didSet {
+            defaults.set(meetingURLControlEnabled, forKey: UserDefaultsAppRuntimePreferences.meetingURLControlEnabledKey)
         }
     }
     public var startMeetingsMuted: Bool {
@@ -343,6 +393,19 @@ public final class SettingsViewModel {
             ))
         }
     }
+    public var playDictationCaptureSounds: Bool {
+        didSet {
+            defaults.set(
+                playDictationCaptureSounds,
+                forKey: UserDefaultsAppRuntimePreferences.playDictationCaptureSoundsKey
+            )
+            Telemetry.send(.settingChanged(
+                setting: .playDictationCaptureSounds,
+                value: Self.settingValue(playDictationCaptureSounds)
+            ))
+        }
+    }
+
     public var escapeCancelsDictation: Bool {
         didSet {
             defaults.set(
@@ -516,6 +579,18 @@ public final class SettingsViewModel {
             }
             defaults.set(processingMode, forKey: UserDefaultsAppRuntimePreferences.processingModeKey)
             Telemetry.send(.processingModeChanged(mode: processingMode))
+        }
+    }
+    public var spokenPunctuationEnabled: Bool {
+        didSet {
+            defaults.set(
+                spokenPunctuationEnabled,
+                forKey: UserDefaultsAppRuntimePreferences.spokenPunctuationEnabledKey
+            )
+            Telemetry.send(.settingChanged(
+                setting: .spokenPunctuation,
+                value: Self.settingValue(spokenPunctuationEnabled)
+            ))
         }
     }
     public var dictationInsertionStyle: DictationInsertionStyle {
@@ -998,6 +1073,7 @@ public final class SettingsViewModel {
         }
         appAppearanceMode = AppPreferences.appearanceMode(defaults: defaults)
         showIdlePill = defaults.object(forKey: UserDefaultsAppRuntimePreferences.showIdlePillKey) as? Bool ?? true
+        dictationOverlayPlacement = DictationOverlayPlacement.current(defaults: defaults)
         showDiscover = defaults.object(forKey: UserDefaultsAppRuntimePreferences.showDiscoverKey) as? Bool ?? true
         telemetryEnabled = AppPreferences.isTelemetryEnabled(defaults: defaults)
         notifyOnTranscriptionComplete = defaults.object(
@@ -1012,6 +1088,12 @@ public final class SettingsViewModel {
         if resolvedDictationHotkeys.shouldPersistPushToTalk {
             resolvedDictationHotkeys.pushToTalk.save(to: defaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
         }
+        alternateHandsFreeHotkeyTrigger = HotkeyTrigger.current(
+            defaults: defaults, defaultsKey: HotkeyTrigger.alternateHandsFreeDefaultsKey, fallback: .disabled
+        )
+        alternatePushToTalkHotkeyTrigger = HotkeyTrigger.current(
+            defaults: defaults, defaultsKey: HotkeyTrigger.alternatePushToTalkDefaultsKey, fallback: .disabled
+        )
         meetingHotkeyTrigger = Self.resolveMeetingHotkeyTrigger(defaults: defaults)
         fileTranscriptionHotkeyTrigger = Self.resolveTranscriptionHotkeyTrigger(
             defaults: defaults,
@@ -1020,6 +1102,10 @@ public final class SettingsViewModel {
         youtubeTranscriptionHotkeyTrigger = Self.resolveTranscriptionHotkeyTrigger(
             defaults: defaults,
             defaultsKey: HotkeyTrigger.youtubeTranscriptionDefaultsKey
+        )
+        dictationAIPolishHotkeyTrigger = Self.resolveTranscriptionHotkeyTrigger(
+            defaults: defaults,
+            defaultsKey: HotkeyTrigger.dictationAIPolishDefaultsKey
         )
         silenceAutoStop = defaults.bool(forKey: UserDefaultsAppRuntimePreferences.silenceAutoStopKey)
         let delay = defaults.double(forKey: UserDefaultsAppRuntimePreferences.silenceDelayKey)
@@ -1034,6 +1120,7 @@ public final class SettingsViewModel {
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)
         )
         meetingAudioSourceMode = MeetingAudioSourceMode.current(defaults: defaults)
+        meetingURLControlEnabled = UserDefaultsAppRuntimePreferences.meetingURLControlEnabled(defaults: defaults)
         startMeetingsMuted = UserDefaultsAppRuntimePreferences.startMeetingsMuted(defaults: defaults)
         showMeetingRecordingPill = UserDefaultsAppRuntimePreferences.showMeetingRecordingPill(defaults: defaults)
         openAppAfterMeetingEnd = UserDefaultsAppRuntimePreferences.openAppAfterMeetingEnd(defaults: defaults)
@@ -1044,6 +1131,7 @@ public final class SettingsViewModel {
         pauseMediaDuringDictation = defaults.object(
             forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey
         ) as? Bool ?? false
+        playDictationCaptureSounds = UserDefaultsAppRuntimePreferences.playDictationCaptureSounds(defaults: defaults)
         escapeCancelsDictation = UserDefaultsAppRuntimePreferences.escapeCancelsDictation(defaults: defaults)
         preserveDiscardedDictations = UserDefaultsAppRuntimePreferences.preserveDiscardedDictations(defaults: defaults)
         instantDictationEnabled = defaults.object(
@@ -1057,6 +1145,7 @@ public final class SettingsViewModel {
         voiceReturnEnabled = defaults.bool(forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
         voiceReturnTriggers = UserDefaultsAppRuntimePreferences.voiceReturnTriggerList(defaults: defaults)
         processingMode = Self.normalizedProcessingMode(defaults.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey))
+        spokenPunctuationEnabled = UserDefaultsAppRuntimePreferences.spokenPunctuationEnabled(defaults: defaults)
         dictationInsertionStyle = DictationInsertionStyle.current(defaults: defaults)
         removeUmFiller = UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: defaults)
         saveDictationHistory = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveDictationHistoryKey) as? Bool ?? true
@@ -1635,7 +1724,12 @@ public final class SettingsViewModel {
     public func requestScreenRecordingAccess() {
         guard let permissionService else { return }
         Telemetry.send(.permissionPrompted(permission: .screenRecording))
-        _ = permissionService.requestScreenRecordingPermission()
+        // The request prompts only while access is undetermined; after a
+        // denial it returns false silently. Access is granted in System
+        // Settings either way, so take the user there.
+        if !permissionService.requestScreenRecordingPermission() {
+            permissionService.openScreenRecordingSettings()
+        }
         refreshPermissions()
     }
 

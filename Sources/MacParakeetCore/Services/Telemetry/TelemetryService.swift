@@ -163,7 +163,7 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
         self.isTransportEligible = isTransportEligible
             ?? (isEnabled == nil ? TelemetryPolicy.currentGUITransportEligible : { true })
         self.requestTimeoutInterval = requestTimeoutInterval
-        self.sessionId = UUID().uuidString
+        self.sessionId = Observability.processSessionID
         self.sessionStartedAt = Date()
 
         let info = SystemInfo.current

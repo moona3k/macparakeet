@@ -147,9 +147,162 @@ final class MeetingSplitViewModelTests: XCTestCase {
         // Push the first cut past the second: no longer strictly ascending.
         viewModel.updateCut(at: 0, toMs: 9_000)
 
-        XCTAssertNotNil(viewModel.validationError)
+        XCTAssertEqual(
+            viewModel.validationError,
+            "Each split time must come after the previous one. Choose a different time for each split.")
         XCTAssertFalse(viewModel.canSubmit)
         XCTAssertFalse(viewModel.submit())
+    }
+
+    func testManualZeroAndTerminalCutsShowRecoveryGuidance() async {
+        await viewModel.present(sourceId: sourceId, sourceTitle: "Weekly sync")
+        for text in ["0:00", "0:10", "0:11"] {
+            viewModel.updateCutText(at: 0, to: text)
+            XCTAssertEqual(
+                viewModel.validationError, "Choose split times after the start and before the end of the recording.")
+            XCTAssertFalse(viewModel.canSubmit)
+        }
+        viewModel.updateCutText(at: 0, to: "0:03")
+        XCTAssertNil(viewModel.validationError)
+        XCTAssertTrue(viewModel.canSubmit)
+    }
+
+    func testManualDuplicateCutsShowRecoveryGuidance() async {
+        await viewModel.present(sourceId: sourceId, sourceTitle: "Weekly sync")
+        viewModel.addSplit()
+        viewModel.updateCutText(at: 1, to: "0:02.500")
+        XCTAssertEqual(
+            viewModel.validationError,
+            "Each split time must come after the previous one. Choose a different time for each split.")
+        XCTAssertFalse(viewModel.canSubmit)
+        viewModel.updateCutText(at: 1, to: "0:06")
+        XCTAssertNil(viewModel.validationError)
+        XCTAssertTrue(viewModel.canSubmit)
+    }
+
+    func testCurrentPositionRejectsInvalidAndUnchangedTimesWithoutChangingDraft() async {
+        XCTAssertFalse(viewModel.canUseCurrentPosition(at: 0, toMs: 3_000))
+        viewModel.useCurrentPosition(at: 0, toMs: 3_000)
+        XCTAssertNil(viewModel.editing)
+
+        await viewModel.present(sourceId: sourceId, sourceTitle: "Weekly sync")
+        viewModel.updateTitle(at: 0, to: "Planning")
+        let original = viewModel.editing
+        let originalText = viewModel.boundaryText
+        for value in [-1, 0, 5_000, 10_000, 10_001, Int.max] {
+            XCTAssertFalse(viewModel.canUseCurrentPosition(at: 0, toMs: value), "Position: \(value)")
+            viewModel.useCurrentPosition(at: 0, toMs: value)
+            XCTAssertEqual(viewModel.editing, original)
+            XCTAssertEqual(viewModel.boundaryText, originalText)
+            XCTAssertNil(viewModel.validationError)
+            XCTAssertTrue(viewModel.canSubmit)
+        }
+        for index in [-1, 1, Int.max] {
+            XCTAssertFalse(viewModel.canUseCurrentPosition(at: index, toMs: 3_000))
+            viewModel.useCurrentPosition(at: index, toMs: 3_000)
+            XCTAssertEqual(viewModel.editing, original)
+        }
+        XCTAssertEqual(service.createAndProcessCallCount, 0)
+    }
+
+    func testCurrentPositionAppliesValidTimesAndDisablesWhenAlreadyApplied() async {
+        await viewModel.present(sourceId: sourceId, sourceTitle: "Weekly sync")
+        viewModel.updateTitle(at: 0, to: "Planning")
+        for value in [1, 3_250, 9_999] {
+            XCTAssertTrue(viewModel.canUseCurrentPosition(at: 0, toMs: value))
+            viewModel.useCurrentPosition(at: 0, toMs: value)
+            XCTAssertEqual(viewModel.editing?.cutPointsMs, [value])
+            XCTAssertEqual(viewModel.editing?.partTitles.first, "Planning")
+            XCTAssertFalse(viewModel.canUseCurrentPosition(at: 0, toMs: value))
+            XCTAssertNil(viewModel.validationError)
+            XCTAssertTrue(viewModel.canSubmit)
+        }
+        XCTAssertEqual(viewModel.boundaryText, ["0:09.999"])
+        viewModel.updateCutText(at: 0, to: "00:09.999")
+        XCTAssertFalse(viewModel.canUseCurrentPosition(at: 0, toMs: 9_999))
+        viewModel.useCurrentPosition(at: 0, toMs: 9_999)
+        XCTAssertEqual(viewModel.boundaryText, ["00:09.999"], "An unchanged action preserves typed formatting")
+    }
+
+    func testCurrentPositionCannotDuplicateOrCrossEitherNeighbor() async {
+        await prepareFourNamedParts()
+        let original = viewModel.editing
+        let originalText = viewModel.boundaryText
+        for value in [2_499, 2_500, 7_500, 7_501] {
+            XCTAssertFalse(viewModel.canUseCurrentPosition(at: 1, toMs: value))
+            viewModel.useCurrentPosition(at: 1, toMs: value)
+            XCTAssertEqual(viewModel.editing, original)
+            XCTAssertEqual(viewModel.boundaryText, originalText)
+            XCTAssertNil(viewModel.validationError)
+        }
+        XCTAssertTrue(viewModel.canUseCurrentPosition(at: 1, toMs: 6_000))
+        viewModel.useCurrentPosition(at: 1, toMs: 6_000)
+        XCTAssertEqual(viewModel.editing?.cutPointsMs, [2_500, 6_000, 7_500])
+        XCTAssertEqual(viewModel.editing?.partTitles, ["A", "B", "C", "D"])
+        XCTAssertEqual(service.createAndProcessCallCount, 0)
+    }
+
+    func testCurrentPositionRepairsMalformedTargetEvenWhenOldNumericValueMatches() async {
+        await viewModel.present(sourceId: sourceId, sourceTitle: "Weekly sync")
+        viewModel.updateCutText(at: 0, to: "0:")
+        let error = viewModel.validationError
+        viewModel.useCurrentPosition(at: 0, toMs: 0)
+        XCTAssertEqual(viewModel.boundaryText, ["0:"])
+        XCTAssertEqual(viewModel.validationError, error)
+        XCTAssertTrue(viewModel.canUseCurrentPosition(at: 0, toMs: 5_000))
+        viewModel.useCurrentPosition(at: 0, toMs: 5_000)
+        XCTAssertEqual(viewModel.boundaryText, ["0:05"])
+        XCTAssertNil(viewModel.validationError)
+        XCTAssertTrue(viewModel.canSubmit)
+    }
+
+    func testCurrentPositionDoesNotUseStaleValuesFromMalformedNeighbor() async {
+        await viewModel.present(sourceId: sourceId, sourceTitle: "Weekly sync")
+        viewModel.addSplit()
+        viewModel.updateCutText(at: 0, to: "0:")
+        let original = viewModel.editing
+        let error = viewModel.validationError
+        XCTAssertFalse(viewModel.canUseCurrentPosition(at: 1, toMs: 6_000))
+        viewModel.useCurrentPosition(at: 1, toMs: 6_000)
+        XCTAssertEqual(viewModel.editing, original)
+        XCTAssertEqual(viewModel.boundaryText, ["0:", "0:05"])
+        XCTAssertEqual(viewModel.validationError, error)
+        viewModel.updateCutText(at: 0, to: "0:04")
+        XCTAssertFalse(viewModel.canUseCurrentPosition(at: 1, toMs: 3_000))
+        XCTAssertTrue(viewModel.canUseCurrentPosition(at: 1, toMs: 6_000))
+    }
+
+    func testCurrentPositionCanRepairDuplicateCutsDespiteTitleError() async {
+        await viewModel.present(sourceId: sourceId, sourceTitle: "Weekly sync")
+        viewModel.addSplit()
+        viewModel.updateCutText(at: 1, to: "0:02.500")
+        viewModel.updateTitle(at: 0, to: "")
+        XCTAssertTrue(viewModel.canUseCurrentPosition(at: 1, toMs: 6_000))
+        viewModel.useCurrentPosition(at: 1, toMs: 6_000)
+        XCTAssertEqual(viewModel.editing?.cutPointsMs, [2_500, 6_000])
+        XCTAssertEqual(viewModel.validationError, "Every part needs a title.")
+        XCTAssertFalse(viewModel.canSubmit)
+        XCTAssertTrue(viewModel.canUseCurrentPosition(at: 1, toMs: 7_000))
+    }
+
+    func testCurrentPositionCannotEditProcessingOrCompletedDraft() async throws {
+        await viewModel.present(sourceId: sourceId, sourceTitle: "Weekly sync")
+        let gate = Gate()
+        service.createAndProcessHandler = { _, sid, cuts, titles, _, _ in
+            await gate.wait()
+            return try self.service.makeCommittedOperation(sourceId: sid, cutPointsMs: cuts, titles: titles)
+        }
+        let original = viewModel.editing
+        XCTAssertTrue(viewModel.submit())
+        XCTAssertFalse(viewModel.canUseCurrentPosition(at: 0, toMs: 3_000))
+        viewModel.useCurrentPosition(at: 0, toMs: 3_000)
+        XCTAssertEqual(viewModel.editing, original)
+        await gate.open()
+        try await waitUntil { !self.viewModel.isProcessingActive }
+        XCTAssertFalse(viewModel.canUseCurrentPosition(at: 0, toMs: 3_000))
+        viewModel.useCurrentPosition(at: 0, toMs: 3_000)
+        XCTAssertEqual(viewModel.editing, original)
+        XCTAssertEqual(service.createAndProcessCallCount, 1)
     }
 
     func testBlankTitleProducesValidationErrorAndBlocksSubmit() async {

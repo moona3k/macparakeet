@@ -86,6 +86,69 @@ public final class TranscriptFindModel {
         currentMatchIndex = (i - 1 + matches.count) % matches.count
     }
 
+    /// Put the cursor on the first match at or after `utf16Offset` in block
+    /// `blockIndex`, wrapping to the first match. Replace uses this to resume
+    /// after the text it just inserted, so a replacement that still contains
+    /// the query is not matched again.
+    public func moveToFirstMatch(atOrAfter blockIndex: Int, utf16Offset: Int) {
+        guard !matches.isEmpty else { return }
+        currentMatchIndex =
+            matches.firstIndex {
+                $0.blockIndex > blockIndex
+                    || ($0.blockIndex == blockIndex && $0.range.location >= utf16Offset)
+            } ?? 0
+    }
+
+    // MARK: - Replacement
+
+    /// A block's text after replacing some of its matches.
+    public struct Replacement: Equatable, Sendable {
+        public let blockIndex: Int
+        public let text: String
+        /// Matches replaced in this block.
+        public let count: Int
+
+        public init(blockIndex: Int, text: String, count: Int) {
+            self.blockIndex = blockIndex
+            self.text = text
+            self.count = count
+        }
+    }
+
+    /// New text for the block owning the current match, with only that match
+    /// replaced. `nil` when there is no current match. Nothing is mutated: the
+    /// caller persists the edit and then feeds the new blocks back in.
+    public func replacingCurrent(with replacement: String) -> Replacement? {
+        guard let current else { return nil }
+        return replacing([current.range], inBlock: current.blockIndex, with: replacement)
+    }
+
+    /// New text for every block that has matches, with all of them replaced,
+    /// in block order. Each match is replaced once, so a replacement that
+    /// contains the query does not cascade.
+    public func replacingAll(with replacement: String) -> [Replacement] {
+        var rangesByBlock: [Int: [NSRange]] = [:]
+        for match in matches { rangesByBlock[match.blockIndex, default: []].append(match.range) }
+        return rangesByBlock.keys.sorted().compactMap { blockIndex in
+            replacing(rangesByBlock[blockIndex] ?? [], inBlock: blockIndex, with: replacement)
+        }
+    }
+
+    private func replacing(
+        _ ranges: [NSRange],
+        inBlock blockIndex: Int,
+        with replacement: String
+    ) -> Replacement? {
+        guard blocks.indices.contains(blockIndex), !ranges.isEmpty else { return nil }
+        let text = NSMutableString(string: blocks[blockIndex])
+        // Back to front, so earlier ranges stay valid as lengths change.
+        for range in ranges.sorted(by: { $0.location > $1.location }) {
+            guard NSMaxRange(range) <= text.length else { return nil }
+            text.replaceCharacters(in: range, with: replacement)
+        }
+        return Replacement(blockIndex: blockIndex, text: text as String, count: ranges.count)
+    }
+
     // MARK: - Derived state
 
     public var matchCount: Int { matches.count }
@@ -126,6 +189,8 @@ public final class TranscriptFindModel {
             var searchStart = text.startIndex
             while searchStart < text.endIndex,
                   let found = text.range(of: needle, options: options, range: searchStart..<text.endIndex) {
+                // Only non-overlapping matches, so every match can also be
+                // replaced independently.
                 result.append(Match(blockIndex: blockIndex, range: NSRange(found, in: text)))
                 // Advance past this match; never less than one character so a
                 // degenerate zero-width match can't spin forever.

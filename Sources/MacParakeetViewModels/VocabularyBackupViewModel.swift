@@ -109,6 +109,7 @@ public final class VocabularyBackupViewModel {
 
     @discardableResult
     public func applyImport() async -> Bool {
+        guard status != .importing else { return false }
         guard let service else {
             failMissingService()
             return false
@@ -126,6 +127,12 @@ public final class VocabularyBackupViewModel {
             status = .imported(result)
             onImportFinished?()
             return true
+        } catch let error as VocabularyImportExportService.ImportError {
+            if error == .stalePreview {
+                pendingImport = nil
+            }
+            status = .failed(error.errorDescription ?? "Couldn't apply the import.")
+            return false
         } catch {
             status = .failed("Couldn't apply the import: \(error.localizedDescription)")
             return false

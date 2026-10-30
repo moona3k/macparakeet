@@ -47,7 +47,7 @@ public struct SpeakerAttributionProjection: Sendable {
 
         var result = automaticTranscription
         result.speakers = attribution.speakers
-        result.speakerCount = attribution.speakers.count
+        result.speakerCount = SpeakerInfo.participants(in: attribution.speakers).count
         result.wordTimestamps = attribution.words
         result.diarizationSegments = attribution.diarizationSegments
         if attribution.hasTextCorrections {

@@ -83,6 +83,31 @@ final class VoiceControlTraceStoreTests: XCTestCase {
         XCTAssertEqual(sessions.count, 2)
     }
 
+    func testSpeechTimingAppendsOwnerOnlyLinesAndKeepsTheNewest() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("voice-control-logs-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = VoiceControlTraceStore(directory: root, pointerDirectory: nil, speechRetention: 2)
+        for merged in 0..<3 {
+            await store.noteSpeechTurn(
+                VoiceControlSpeechTurnMetrics(
+                    at: Date(), outcome: .delivered, speechMilliseconds: 1_300, pauseMilliseconds: [900],
+                    mergedSegments: merged, endpointSilenceMilliseconds: 900, transcribeMilliseconds: 120,
+                    sincePreviousMilliseconds: nil, overlapWithPrevious: nil))
+        }
+        let lines = try String(contentsOf: store.speechURL, encoding: .utf8).split(separator: "\n")
+        XCTAssertEqual(lines.count, 2)
+        XCTAssertTrue(lines[0].contains("\"merged_segments\":1"))
+        XCTAssertTrue(lines[1].contains("\"pauses_ms\":[900]"))
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let last = try decoder.decode(VoiceControlSpeechTurnMetrics.self, from: Data(lines[1].utf8))
+        XCTAssertEqual(last.mergedSegments, 2)
+        let mode = try XCTUnwrap(
+            FileManager.default.attributesOfItem(atPath: store.speechURL.path)[.posixPermissions] as? NSNumber)
+        XCTAssertEqual(mode.intValue & 0o777, 0o600)
+    }
+
     func testInboxParsesJSONAndPlainText() {
         XCTAssertEqual(
             VoiceControlInboxCommand.parse("Find flights to London"),

@@ -1045,18 +1045,21 @@ extension PromptsCommand {
                 }
 
                 let transcriptText = TranscriptAIContextFormatter.format(projection: projection)
+                let sourceTranscriptHash = PromptResultFreshness.sourceTranscriptHash(for: automaticTranscript)
                 guard !transcriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                     throw PromptCLIError.emptyTranscript(transcript.fileName)
                 }
 
                 let trimmedExtra = extra?.trimmingCharacters(in: .whitespacesAndNewlines)
                 let normalizedExtra = (trimmedExtra?.isEmpty == false) ? trimmedExtra : nil
+                let outputLanguagePolicy = currentMeetingAIOutputLanguagePolicy()
                 let assembly = PromptSystemPromptAssembler.assembleDetailed(
                     promptContent: prompt.content,
                     extraInstructions: normalizedExtra,
                     includeMeetingNotes: prompt.includeMeetingNotes,
                     userNotes: transcript.userNotes,
-                    transcript: transcriptText
+                    transcript: transcriptText,
+                    outputLanguagePolicy: outputLanguagePolicy
                 )
                 let systemPrompt = assembly.systemPrompt
 
@@ -1134,7 +1137,10 @@ extension PromptsCommand {
                         userNotesSnapshot: assembly.effectiveUserNotes,
                         effectiveSettings: effectiveSettings,
                         providerSnapshot: providerSnapshot,
-                        modelSnapshot: modelSnapshot
+                        modelSnapshot: modelSnapshot,
+                        outputLanguagePolicySnapshot: outputLanguagePolicy.configurationValue,
+                        sourceCorrectionRevision: projection.correctionRevision,
+                        sourceTranscriptHash: sourceTranscriptHash
                     )
                     try resultRepo.save(result)
                     await refreshMeetingArtifacts(
@@ -1164,7 +1170,10 @@ func makeStoredPromptRunResult(
     userNotesSnapshot: String?,
     effectiveSettings: PromptInferenceSettings?,
     providerSnapshot: String? = nil,
-    modelSnapshot: String? = nil
+    modelSnapshot: String? = nil,
+    outputLanguagePolicySnapshot: String? = nil,
+    sourceCorrectionRevision: Int,
+    sourceTranscriptHash: String? = nil
 ) -> PromptResult {
     PromptResult(
         transcriptionId: transcript.id,
@@ -1178,7 +1187,10 @@ func makeStoredPromptRunResult(
         includeMeetingNotesSnapshot: prompt.includeMeetingNotes,
         inferenceSettingsSnapshot: effectiveSettings,
         providerSnapshot: providerSnapshot,
-        modelSnapshot: modelSnapshot
+        modelSnapshot: modelSnapshot,
+        outputLanguagePolicySnapshot: outputLanguagePolicySnapshot,
+        sourceCorrectionRevision: sourceCorrectionRevision,
+        sourceTranscriptHash: sourceTranscriptHash ?? PromptResultFreshness.sourceTranscriptHash(for: transcript)
     )
 }
 

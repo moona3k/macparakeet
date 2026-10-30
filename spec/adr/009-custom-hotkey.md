@@ -49,7 +49,7 @@ Community issue #17 requested modifier+key combos (e.g., Cmd+9) because Logitech
 1. **New `.chord` kind** added to `HotkeyTrigger.Kind` — stores `chordModifiers: [String]` (e.g. `["command"]`) alongside `keyCode`.
 2. **Release-any-part stops** — For hold-to-talk with Cmd+9, releasing either Cmd or 9 ends dictation.
 3. **Key swallowed, modifiers passed** — The trigger key event is swallowed; modifier flag changes pass through to the active app.
-4. **Required modifiers must be present** — Mask to 5 relevant bits (fn⌃⌥⇧⌘) before comparing. Caps Lock, NumPad, etc. are stripped.
+4. **Relevant modifier bits only** — Mask to 5 relevant bits (fn⌃⌥⇧⌘) before comparing. Caps Lock, NumPad, etc. are stripped. Exactness of modifier+key chords is settled by the 2026-10-12 amendment.
 5. **Fn allowed in key chords** — Fn+Space is supported as a custom hands-free dictation shortcut. The default dictation behavior is a shared bare-Fn gesture preset: double-tap Fn for hands-free and hold Fn for push-to-talk.
 6. **FnKeyStateMachine unchanged** — Key-agnostic. Chords generate role-specific down/up signals, including hands-free single-tap toggle and hold-to-talk.
 7. **Modifier names stored as `[String]`** — Not raw `CGEventFlags.rawValue` (has phantom bits). Readable JSON: `{"kind":"chord","keyCode":25,"chordModifiers":["command"]}`.
@@ -97,3 +97,54 @@ shortcuts. The watch stops once access is granted and restarts if it is revoked.
 ## Amendment: Optional Escape cancel (2026-09-21)
 
 Escape stays blocked as a dictation hotkey. Cancel-on-Escape remains the default (`escapeCancelsDictation`). Turning it off leaves Escape for the front app during a live take and does not cancel that take. A pending hold or second-tap window that has not started a take still clears. Idle overlay dismiss, the meeting countdown toast, and the Settings hotkey recorder are unchanged.
+
+## Amendment: Event taps off the main run loop (2026-09-24)
+
+macOS holds each keyboard event until a filtering tap's callback returns. With
+taps on the main run loop, a MacParakeet UI stall delayed typing in every other
+app (#1142). All `CGEvent` taps now run on one dedicated thread
+(`EventTapThread`, via `BackgroundEventTap`), which never waits on the main
+thread.
+
+- Auxiliary shortcuts and the Transforms registry match on the tap thread; their
+  triggers hop to the main actor.
+- `HotkeyManager` decides on the tap thread only whether to consume an event,
+  which depends on the trigger and the event stream alone. It forwards every
+  event to the main queue in order, where the gesture state machine, timers and
+  coordinator callbacks run unchanged. A per-start generation drops events a
+  stopped tap already queued.
+- The Transforms registry installs its tap only while a binding exists.
+
+Tap options, masks and consumed keys are unchanged. A main-thread stall now
+delays only gesture processing, not other apps' input.
+
+## Amendment: Additional dictation shortcuts (2026-10-02)
+
+Issue #1197 adds one optional second trigger per ordinary dictation role. Both
+pairs are active simultaneously; there is no keyboard identity detection or
+per-device profile. Settings groups these under Additional shortcuts, reusing
+the recorder, validation, and disable action. Each pair independently retains
+the existing shared-trigger hold/double-tap semantics. Overlaps across pairs are
+blocked instead of installing duplicate listeners, as are chords on one terminal
+key between the additional pair and the primary pair or AI polish. The existing
+coordinator plans and owns all managers; no second dictation engine or capture
+flow is added.
+Hold-to-talk restoration is restricted to its owning trigger; input from the
+other accepted shortcuts does not interrupt a held take, while either
+ordinary hands-free shortcut can stop a persistent take. AI-polish remains a
+separate invocation policy. See `spec/contracts/dictation-shortcuts.md`.
+
+## Amendment: Exact modifier+key chords (2026-10-12)
+
+Issue #1237. A configured dictation chord such as ⌘D also fired for ⇧⌘D, and
+the key was swallowed. Dictation had matched "required modifiers are present,"
+which also tolerated the phantom fn bit on hardware F-keys. Meeting, file, and
+YouTube shortcuts already exact-matched and ignored only that phantom bit.
+
+Modifier+key chords now use that exact match (`chordEventMatches`) for
+both starting and swallowing. Extra Control, Option, Shift, Command, or Fn
+does not fire the chord, and the key reaches the front app. A function-family
+chord that does not require fn still ignores `NX_SECONDARYFNMASK` on its own
+key event. After the chord is down, release-any-part is unchanged: losing a
+required modifier or the trigger key stops push-to-talk, and adding a modifier
+does not. Tap recovery still asks whether the required modifiers remain down.

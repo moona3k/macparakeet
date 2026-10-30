@@ -866,8 +866,9 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             guard !running, !prepared else { return }
             diagnostics.enter(.routeResolution)
             // Route observation stays active even when preparation is currently
-            // suppressed, so a later move from Bluetooth/unresolved to a safe
-            // device can proactively retry before the next dictation.
+            // suppressed, so route consumers such as the Instant Dictation warm
+            // hold still learn about a later move to a safe device. The idle
+            // preparation itself is not rebuilt on route changes (#1227).
             installRouteChangeObserversLocked()
             // Snapshot the route once. Stop at the first unresolved/Bluetooth
             // route: walking past it to a later built-in fallback would change
@@ -1620,6 +1621,10 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
 
     private func tearDownLocked(preserveRouteObservation: Bool = false) {
         activeLifecycleDiagnosticsLocked?.enter(.teardown)
+        let crashAttempt = activeLifecycleDiagnosticsLocked?.crashAttemptToken ?? CrashAudioContext.nextAttempt()
+        if activeLifecycleDiagnosticsLocked == nil {
+            recordCrashTeardownLocked(.teardown, fallbackAttempt: crashAttempt)
+        }
         cancelCallbackLivenessTimerLocked()
         prepared = false
         preparedRouteSnapshot = nil
@@ -1640,18 +1645,22 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             return
         }
         let inputNode = audioEngine.inputNode
+        recordCrashTeardownLocked(.removeTap, fallbackAttempt: crashAttempt)
         try? catchingObjCException {
             inputNode.removeTap(onBus: 0)
         }
+        recordCrashTeardownLocked(.stopEngine, fallbackAttempt: crashAttempt)
         try? catchingObjCException {
             audioEngine.stop()
         }
+        recordCrashTeardownLocked(.disableVoiceProcessing, fallbackAttempt: crashAttempt)
         try? catchingObjCException {
             try inputNode.setVoiceProcessingEnabled(false)
         }
         // Replace the engine. Releasing the old instance tears down the
         // VPAU aggregate device coreaudiod created for it, so a sibling
         // AVAudioEngine in the same process doesn't inherit duplex layout.
+        recordCrashTeardownLocked(.replaceEngine, fallbackAttempt: crashAttempt)
         audioEngine = AVAudioEngine()
         running = false
         lastSucceededAttemptLocked = nil
@@ -1665,6 +1674,10 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
 
     private func replaceEngineAfterFailureLocked() {
         activeLifecycleDiagnosticsLocked?.enter(.teardown)
+        let crashAttempt = activeLifecycleDiagnosticsLocked?.crashAttemptToken ?? CrashAudioContext.nextAttempt()
+        if activeLifecycleDiagnosticsLocked == nil {
+            recordCrashTeardownLocked(.teardown, fallbackAttempt: crashAttempt, reason: .failedAttempt)
+        }
         cancelCallbackLivenessTimerLocked()
         prepared = false
         preparedRouteSnapshot = nil
@@ -1675,12 +1688,31 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         tapHandlerBox?.clear()
         tapHandlerBox = nil
         removeConfigurationChangeObserverLocked()
+        recordCrashTeardownLocked(.stopEngine, fallbackAttempt: crashAttempt, reason: .failedAttempt)
         try? catchingObjCException {
             audioEngine.stop()
         }
+        recordCrashTeardownLocked(.replaceEngine, fallbackAttempt: crashAttempt, reason: .failedAttempt)
         audioEngine = AVAudioEngine()
         running = false
         lastSucceededAttemptLocked = nil
+    }
+
+    /// Also covers observer/probation teardown without a lifecycle observer.
+    /// Do not query HAL for missing transport: unknown is faithful and cheap.
+    private func recordCrashTeardownLocked(
+        _ phase: CrashAudioContext.Phase,
+        fallbackAttempt: UInt32,
+        reason: CrashAudioContext.Reason = .none
+    ) {
+        if let diagnostics = activeLifecycleDiagnosticsLocked {
+            diagnostics.recordCrashTeardown(phase, reason: reason)
+        } else {
+            CrashAudioContext.record(.init(
+                kind: .teardown, operation: .stop, phase: phase,
+                reason: reason, attempt: fallbackAttempt
+            ))
+        }
     }
 
     /// Observe `AVAudioEngine.configurationChangeNotification` on the
@@ -2067,6 +2099,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
 
         let diagnostics = lifecycleDiagnosticsFactory(.recovery, request.vpioEnabled, request.bufferSize)
         activeLifecycleDiagnosticsLocked = diagnostics
+        diagnostics.recordCrashRecovery(.init(trigger: trigger))
         defer { activeLifecycleDiagnosticsLocked = nil }
         do {
             try configureAndStartLocked(

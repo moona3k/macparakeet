@@ -4,6 +4,7 @@ import Foundation
 @Observable
 public final class IdlePillViewModel {
     public var isHovered: Bool = false
+    public var anchorsToTop: Bool = false
     public var onStartDictation: (() -> Void)?
 
     public init() {}

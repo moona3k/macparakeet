@@ -6,7 +6,7 @@ import os
 public enum AudioCaptureDiagnostics {
     private static let lock = OSAllocatedUnfairLock(initialState: ())
     private static let logger = Logger(subsystem: "com.macparakeet.core", category: "AudioCaptureDiagnostics")
-    private static let processSession = UUID().uuidString.lowercased()
+    private static let processSession = Observability.processSessionID
     private static let appendQueue = DispatchQueue(
         label: "com.macparakeet.audio-capture-diagnostics.append",
         qos: .utility

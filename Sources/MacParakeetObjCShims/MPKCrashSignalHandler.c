@@ -10,12 +10,17 @@
 #include <sys/ucontext.h>
 #include <time.h>
 #include <unistd.h>
+#include <mach/mach.h>
+#include <mach/mach_vm.h>
+#include <mach/task_info.h>
+#include <mach-o/dyld_images.h>
+#include <sys/sysctl.h>
 
 // Metadata is copied during startup and remains fixed during signal handling.
 // The atomic entry guard gives one handler ownership of the report buffers.
 // Minimum-report formatting uses bounded byte copies and integer arithmetic.
 
-#define MPK_REPORT_BUFFER_SIZE 4096
+#define MPK_REPORT_BUFFER_SIZE 8192
 #define MPK_PATH_BUFFER_SIZE 512
 #define MPK_APP_VERSION_SIZE 64
 #define MPK_OS_VERSION_SIZE 32
@@ -35,6 +40,70 @@ static char g_app_version[MPK_APP_VERSION_SIZE];
 static char g_os_version[MPK_OS_VERSION_SIZE];
 static char g_mach_uuid[MPK_MACH_UUID_SIZE];
 static char g_aslr_slide[MPK_ASLR_SLIDE_SIZE];
+static char g_crash_id[37];
+static char g_crash_session[37];
+static char g_os_build[32];
+static char g_cache_uuid[37];
+static char g_cache_slide[24];
+
+#define MPK_BREADCRUMB_CAPACITY 32
+_Static_assert(ATOMIC_LLONG_LOCK_FREE == 2, "Crash context requires lock-free 64-bit atomics");
+typedef struct {
+    atomic_ullong sequence;
+    atomic_ullong value;
+} MPKBreadcrumb;
+static MPKBreadcrumb g_breadcrumbs[MPK_BREADCRUMB_CAPACITY];
+static atomic_int g_breadcrumb_writer = 0;
+static atomic_ullong g_breadcrumb_sequence = 0;
+static atomic_ullong g_breadcrumb_dropped = 0;
+static atomic_uint g_registered_consumers = 0;
+static atomic_ullong g_attempt_counter = 0;
+static atomic_int g_attempts_exhausted = 0;
+
+uint32_t MPKNextCrashAttempt(void) {
+    if (atomic_load(&g_attempts_exhausted)) return 0;
+    unsigned long long token = atomic_fetch_add(&g_attempt_counter, 1) + 1;
+    if (token > UINT32_MAX) {
+        atomic_store(&g_attempts_exhausted, 1);
+        return 0;
+    }
+    return (uint32_t)token;
+}
+
+void MPKSetCrashRegisteredConsumers(uint32_t consumers) {
+    atomic_store(&g_registered_consumers, consumers <= 3 ? consumers : 0);
+}
+
+void MPKRecordCrashBreadcrumb(uint64_t value) {
+    // One try only. A preempted writer must never make capture wait for it.
+    if (atomic_exchange(&g_breadcrumb_writer, 1)) {
+        atomic_fetch_add(&g_breadcrumb_dropped, 1);
+        return;
+    }
+    unsigned long long previous = atomic_load(&g_breadcrumb_sequence);
+    if (previous == INT64_MAX) {
+        atomic_fetch_add(&g_breadcrumb_dropped, 1);
+        atomic_store(&g_breadcrumb_writer, 0);
+        return;
+    }
+    unsigned long long sequence = previous + 1;
+    MPKBreadcrumb *slot = &g_breadcrumbs[(sequence - 1) % MPK_BREADCRUMB_CAPACITY];
+    // All operations are seq_cst. Invalidate before changing the payload;
+    // publish afterward. A reader accepting the same expected sequence on
+    // both sides of its payload load cannot have observed a different writer.
+    // Sequence values never repeat, including when the ring wraps.
+    atomic_store(&slot->sequence, 0);
+#ifdef MPK_CRASH_CONTEXT_TESTING
+    // Deterministic subprocess fault injection at the publication boundary.
+    // This call is absent from every product build.
+    extern void MPKCrashContextTestWillPublish(void);
+    MPKCrashContextTestWillPublish();
+#endif
+    atomic_store(&slot->value, value);
+    atomic_store(&slot->sequence, sequence);
+    atomic_store(&g_breadcrumb_sequence, sequence);
+    atomic_store(&g_breadcrumb_writer, 0);
+}
 
 static char g_report_buffer[MPK_REPORT_BUFFER_SIZE];
 static void *g_frames[MPK_FRAME_CAPACITY];
@@ -171,12 +240,106 @@ static size_t mpk_append_hex_u64(char *buf, size_t buf_size, size_t offset, uint
     return mpk_append_bytes(buf, buf_size, offset, tmp + ti, sizeof(tmp) - ti);
 }
 
+// MARK: - Context snapshot; every read is bounded and never waits
+
+size_t MPKCopyCrashContext(char *buffer, size_t capacity) {
+    if (buffer == NULL || capacity == 0) return 0;
+    unsigned long long last = atomic_load(&g_breadcrumb_sequence);
+    unsigned int count = last < MPK_BREADCRUMB_CAPACITY ? (unsigned int)last : MPK_BREADCRUMB_CAPACITY;
+    unsigned long long first = last - count + 1;
+    unsigned long long sequences[MPK_BREADCRUMB_CAPACITY];
+    unsigned long long values[MPK_BREADCRUMB_CAPACITY];
+    unsigned int retained = 0;
+    unsigned int incomplete = atomic_load(&g_breadcrumb_writer) ? 1 : 0;
+    for (unsigned int i = 0; i < count; i++) {
+        unsigned long long expected = first + i;
+        MPKBreadcrumb *slot = &g_breadcrumbs[(expected - 1) % MPK_BREADCRUMB_CAPACITY];
+        unsigned long long before = atomic_load(&slot->sequence);
+        unsigned long long value = atomic_load(&slot->value);
+        unsigned long long after = atomic_load(&slot->sequence);
+        if (before != expected || after != expected) {
+            if (incomplete < MPK_BREADCRUMB_CAPACITY) incomplete++;
+            continue;
+        }
+        sequences[retained] = expected;
+        values[retained++] = value;
+    }
+    size_t offset = 0;
+#define MPK_CONTEXT_STRING(key, value) \
+    do { \
+        if ((value)[0] != '\0') { \
+            offset = MPK_APPEND_LIT(buffer, capacity, offset, key ": "); \
+            offset = mpk_append_cstr(buffer, capacity, offset, value, sizeof(value)); \
+            offset = MPK_APPEND_LIT(buffer, capacity, offset, "\n"); \
+        } \
+    } while (0)
+    MPK_CONTEXT_STRING("crash_id", g_crash_id);
+    MPK_CONTEXT_STRING("crash_session", g_crash_session);
+    MPK_CONTEXT_STRING("crash_os_build", g_os_build);
+    MPK_CONTEXT_STRING("shared_cache_uuid", g_cache_uuid);
+    MPK_CONTEXT_STRING("shared_cache_slide", g_cache_slide);
+#undef MPK_CONTEXT_STRING
+    offset = MPK_APPEND_LIT(buffer, capacity, offset, "crash_context_version: 1\ncrash_registered_consumers: ");
+    offset = mpk_append_i64(buffer, capacity, offset, atomic_load(&g_registered_consumers));
+    offset = MPK_APPEND_LIT(buffer, capacity, offset, "\ncrash_breadcrumbs_dropped: ");
+    unsigned long long dropped = atomic_load(&g_breadcrumb_dropped);
+    offset = mpk_append_i64(buffer, capacity, offset, dropped > UINT32_MAX ? UINT32_MAX : (int64_t)dropped);
+    offset = MPK_APPEND_LIT(buffer, capacity, offset, "\ncrash_breadcrumbs_incomplete: ");
+    offset = mpk_append_i64(buffer, capacity, offset, incomplete);
+    offset = MPK_APPEND_LIT(buffer, capacity, offset, "\n");
+    for (unsigned int i = 0; i < retained; i++) {
+        offset = MPK_APPEND_LIT(buffer, capacity, offset, "breadcrumb: ");
+        offset = mpk_append_i64(buffer, capacity, offset, (int64_t)sequences[i]);
+        offset = MPK_APPEND_LIT(buffer, capacity, offset, ",0x");
+        offset = mpk_append_hex_u64(buffer, capacity, offset, values[i]);
+        offset = MPK_APPEND_LIT(buffer, capacity, offset, "\n");
+    }
+    return offset;
+}
+
+// NORMAL startup only. No dynamic image enumeration or metadata lookup takes
+// place in the fatal handler. Cache identity is stable for this process;
+// non-cache images loaded later are deliberately outside this snapshot.
+void MPKReadCrashSystemMetadata(MPKCrashSystemMetadata *metadata) {
+    if (metadata == NULL) return;
+    memset(metadata, 0, sizeof(*metadata));
+    size_t length = sizeof(metadata->os_build);
+    if (sysctlbyname("kern.osversion", metadata->os_build, &length, NULL, 0) != 0) {
+        metadata->os_build[0] = '\0';
+    }
+    metadata->os_build[sizeof(metadata->os_build) - 1] = '\0';
+    task_dyld_info_data_t info = {0};
+    mach_msg_type_number_t count = TASK_DYLD_INFO_COUNT;
+    if (task_info(mach_task_self(), TASK_DYLD_INFO, (task_info_t)&info, &count) != KERN_SUCCESS) return;
+    struct dyld_all_image_infos snapshot = {0};
+    mach_vm_size_t copied = 0;
+    size_t required = offsetof(struct dyld_all_image_infos, sharedCacheUUID) + 16;
+    if (info.all_image_info_size < required) return;
+    if (mach_vm_read_overwrite(mach_task_self(), info.all_image_info_addr, required,
+                              (mach_vm_address_t)&snapshot, &copied) != KERN_SUCCESS
+        || copied != required || snapshot.version < 13) return;
+    unsigned int nonzero = 0;
+    for (unsigned int i = 0; i < 16; i++) nonzero |= snapshot.sharedCacheUUID[i];
+    if (!nonzero) return;
+    static const char hex[] = "0123456789abcdef";
+    size_t position = 0;
+    for (unsigned int i = 0; i < 16; i++) {
+        if (i == 4 || i == 6 || i == 8 || i == 10) metadata->shared_cache_uuid[position++] = '-';
+        metadata->shared_cache_uuid[position++] = hex[snapshot.sharedCacheUUID[i] >> 4];
+        metadata->shared_cache_uuid[position++] = hex[snapshot.sharedCacheUUID[i] & 15];
+    }
+    size_t slide_length = MPK_APPEND_LIT(metadata->shared_cache_slide, sizeof(metadata->shared_cache_slide), 0, "0x");
+    slide_length = mpk_append_hex_u64(metadata->shared_cache_slide, sizeof(metadata->shared_cache_slide),
+                                    slide_length, snapshot.sharedCacheSlide);
+    metadata->shared_cache_slide[slide_length] = '\0';
+}
+
 // MARK: - File I/O: retried on EINTR, tolerant of short writes
 
 static int mpk_open_report_file(int flags) {
     int fd;
     do {
-        fd = open(g_crash_file_path, flags, 0644);
+        fd = open(g_crash_file_path, flags | O_NOFOLLOW, 0600);
     } while (fd < 0 && errno == EINTR);
     return fd;
 }
@@ -262,6 +425,8 @@ static void mpk_signal_handler(int sig, siginfo_t *info, void *uap) {
         offset = MPK_APPEND_LIT(g_report_buffer, sizeof(g_report_buffer), offset, "\n");
     }
 
+    offset += MPKCopyCrashContext(g_report_buffer + offset, sizeof(g_report_buffer) - offset);
+
     int fd = mpk_open_report_file(O_WRONLY | O_CREAT | O_TRUNC);
     int minimum_written = 0;
     if (fd >= 0) {
@@ -313,6 +478,11 @@ void MPKInstallCrashSignalHandler(const char *crash_file_path, const MPKCrashMet
     mpk_copy_bounded(g_os_version, sizeof(g_os_version), metadata != NULL ? metadata->os_version : NULL);
     mpk_copy_bounded(g_mach_uuid, sizeof(g_mach_uuid), metadata != NULL ? metadata->mach_uuid : NULL);
     mpk_copy_bounded(g_aslr_slide, sizeof(g_aslr_slide), metadata != NULL ? metadata->aslr_slide : NULL);
+    mpk_copy_bounded(g_crash_id, sizeof(g_crash_id), metadata != NULL ? metadata->crash_id : NULL);
+    mpk_copy_bounded(g_crash_session, sizeof(g_crash_session), metadata != NULL ? metadata->crash_session : NULL);
+    mpk_copy_bounded(g_os_build, sizeof(g_os_build), metadata != NULL ? metadata->os_build : NULL);
+    mpk_copy_bounded(g_cache_uuid, sizeof(g_cache_uuid), metadata != NULL ? metadata->shared_cache_uuid : NULL);
+    mpk_copy_bounded(g_cache_slide, sizeof(g_cache_slide), metadata != NULL ? metadata->shared_cache_slide : NULL);
 
     // sigaltstack is per-thread: only the main-thread caller gets this
     // process-lifetime backing. Worker stack overflows may have no report.

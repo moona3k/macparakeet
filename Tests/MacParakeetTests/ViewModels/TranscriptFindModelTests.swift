@@ -193,4 +193,100 @@ final class TranscriptFindModelTests: XCTestCase {
         XCTAssertEqual(m.query, "")
         XCTAssertNil(m.currentMatchIndex)
     }
+
+    // MARK: - Replacement
+
+    func testReplacingCurrentReplacesOnlyThatMatch() {
+        let m = model(["the cat and the dog", "the end"], query: "the")
+        m.next()
+
+        let result = m.replacingCurrent(with: "a")
+
+        XCTAssertEqual(result, .init(blockIndex: 0, text: "the cat and a dog", count: 1))
+        XCTAssertEqual(m.matchCount, 3, "computing a replacement must not mutate the model")
+    }
+
+    func testReplacingCurrentWithoutMatchIsNil() {
+        let m = model(["the cat"], query: "zebra")
+        XCTAssertNil(m.replacingCurrent(with: "a"))
+    }
+
+    func testReplacingAllCoversEveryBlockInOrder() {
+        let m = model(["The cat saw the cat", "no match", "cat"], query: "cat")
+
+        let result = m.replacingAll(with: "dog")
+
+        XCTAssertEqual(result, [
+            .init(blockIndex: 0, text: "The dog saw the dog", count: 2),
+            .init(blockIndex: 2, text: "dog", count: 1),
+        ])
+    }
+
+    func testReplacingAllMatchesCaseAndDiacriticsInsensitively() {
+        let m = model(["Café, CAFE and cafe"], query: "cafe")
+
+        XCTAssertEqual(m.replacingAll(with: "tea").first?.text, "tea, tea and tea")
+    }
+
+    func testReplacingAllDoesNotCascadeWhenReplacementContainsQuery() {
+        let m = model(["cat cat"], query: "cat")
+
+        XCTAssertEqual(m.replacingAll(with: "cats").first?.text, "cats cats")
+    }
+
+    func testReplacingAllWithEmptyStringDeletesMatches() {
+        let m = model(["um so um yes"], query: "um ")
+
+        XCTAssertEqual(m.replacingAll(with: "").first?.text, "so yes")
+    }
+
+    func testReplacingKeepsNonASCIIRangesIntact() {
+        let m = model(["日本 👋 hello 👋 hello"], query: "hello")
+
+        XCTAssertEqual(m.replacingAll(with: "bye").first?.text, "日本 👋 bye 👋 bye")
+    }
+
+    func testMoveToFirstMatchAtOrAfterResumesPastReplacement() {
+        // After "cat" -> "cats" at offset 0, the rebuilt text still matches
+        // "cat" at 0; resuming after the inserted text skips it.
+        let m = model(["cats cat", "cat"], query: "cat")
+
+        m.moveToFirstMatch(atOrAfter: 0, utf16Offset: 4)
+
+        XCTAssertEqual(m.current, .init(blockIndex: 0, range: NSRange(location: 5, length: 3)))
+    }
+
+    func testMoveToFirstMatchAtOrAfterAdvancesToLaterBlockAndWraps() {
+        let m = model(["cat", "dog", "cat"], query: "cat")
+
+        m.moveToFirstMatch(atOrAfter: 1, utf16Offset: 0)
+        XCTAssertEqual(m.currentMatchIndex, 1)
+
+        m.moveToFirstMatch(atOrAfter: 2, utf16Offset: 3)
+        XCTAssertEqual(m.currentMatchIndex, 0, "past the last match wraps to the first")
+    }
+
+    func testResumeOffsetAccountsForTrimmedLeadingWhitespace() throws {
+        // "foo" -> " " at the line start saves "foo foo", not "  foo foo".
+        let m = model(["foo foo foo"], query: "foo")
+        let current = try XCTUnwrap(m.current)
+        let replaced = try XCTUnwrap(m.replacingCurrent(with: " "))
+
+        let offset = TranscriptFindReplaceEdit.resumeOffset(after: current, replacement: " ", in: replaced)
+        m.setBlocks(["foo foo"])
+        m.moveToFirstMatch(atOrAfter: 0, utf16Offset: offset)
+
+        XCTAssertEqual(m.current, .init(blockIndex: 0, range: NSRange(location: 0, length: 3)))
+    }
+
+    func testResumeOffsetIsZeroWhenTheLineIsOmitted() throws {
+        let m = model(["foo", "foo bar"], query: "foo")
+        let current = try XCTUnwrap(m.current)
+        let replaced = try XCTUnwrap(m.replacingCurrent(with: " "))
+
+        XCTAssertEqual(
+            TranscriptFindReplaceEdit.resumeOffset(after: current, replacement: " ", in: replaced), 0,
+            "the next line takes the omitted line's index; resume at its start"
+        )
+    }
 }

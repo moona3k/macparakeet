@@ -173,7 +173,7 @@ final class SpeakerVoiceprintWiringTests: XCTestCase {
     /// `rememberSpeakers` is meaningless without clusters to match, so it reads
     /// as off whenever meeting speaker detection is.
     func testThePreferenceRequiresMeetingSpeakerDetection() {
-        let defaults = UserDefaults(suiteName: "voiceprint-wiring-\(UUID().uuidString)")!
+        let defaults = UserDefaults(suiteName: makeIsolatedDefaultsSuite("voiceprint-wiring-"))!
         defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.rememberSpeakersKey)
         defaults.set(
             Date(), forKey: UserDefaultsAppRuntimePreferences.voiceprintConsentAcknowledgedAtKey
@@ -197,7 +197,7 @@ final class SpeakerVoiceprintWiringTests: XCTestCase {
     }
 
     func testThePreferenceIsOffUntilAsked() {
-        let defaults = UserDefaults(suiteName: "voiceprint-wiring-\(UUID().uuidString)")!
+        let defaults = UserDefaults(suiteName: makeIsolatedDefaultsSuite("voiceprint-wiring-"))!
         defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.meetingSpeakerDiarizationKey)
         XCTAssertFalse(
             UserDefaultsAppRuntimePreferences.rememberSpeakersEnabled(

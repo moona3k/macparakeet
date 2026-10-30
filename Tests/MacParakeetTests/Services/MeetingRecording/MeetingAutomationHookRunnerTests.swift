@@ -13,16 +13,13 @@ final class MeetingAutomationHookRunnerTests: XCTestCase {
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
         try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting-playback.m4a"))
 
-        suiteName = "macparakeet.test.meeting-hook.\(UUID().uuidString)"
+        suiteName = makeIsolatedDefaultsSuite("macparakeet.test.meeting-hook.")
         defaults = UserDefaults(suiteName: suiteName)
     }
 
     override func tearDownWithError() throws {
         if let folderURL {
             try? FileManager.default.removeItem(at: folderURL)
-        }
-        if let suiteName {
-            defaults?.removePersistentDomain(forName: suiteName)
         }
         folderURL = nil
         defaults = nil

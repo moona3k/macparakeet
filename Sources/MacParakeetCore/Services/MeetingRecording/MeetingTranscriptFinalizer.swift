@@ -67,10 +67,7 @@ struct MeetingTranscriptFinalizer {
         let microphoneWords = sourceReconciliation.microphoneWords
         let finalizedSystemWords: [WordTimestamp]
         if let systemDiarization {
-            finalizedSystemWords = SpeakerMerger.mergeWordTimestampsWithSpeakers(
-                words: systemWords,
-                segments: systemDiarization.segments
-            )
+            finalizedSystemWords = attributeSystemWords(systemWords, segments: systemDiarization.segments)
         } else {
             finalizedSystemWords = systemWords
         }
@@ -101,50 +98,29 @@ struct MeetingTranscriptFinalizer {
         )
     }
 
-    /// Remaps diarizer ids onto the system track without dropping embeddings
-    /// or speech durations. Provenance fields stay optional diagnostics.
-    static func systemDiarization(
-        from result: MacParakeetDiarizationResult,
-        startOffsetMs: Int = 0
-    ) -> SystemDiarization {
-        let mappedSpeakers = result.speakers.enumerated().map { index, speaker in
-            SpeakerInfo(
-                id: SpeakerID.systemSpeaker(speaker.id),
-                label: "\(AudioSource.system.displayLabel) \(index + 1)",
-                source: .system,
-                rawProviderSpeakerId: speaker.rawProviderSpeakerId ?? speaker.id,
-                labelSource: speaker.labelSource ?? .modelDefault
-            )
+    /// Assigns system-track words to diarized clusters.
+    ///
+    /// The words enter the merger unassigned, so a word that no segment
+    /// overlaps gets the same gap fill as in a file transcript. A word still
+    /// unassigned afterwards returns to the raw `system` id: it stays on the
+    /// system track rather than inheriting the preceding `Me` turn, and the
+    /// roster labels it unattributed (#1228).
+    private static func attributeSystemWords(
+        _ words: [WordTimestamp],
+        segments: [SpeakerSegment]
+    ) -> [WordTimestamp] {
+        let unassigned = words.map { word in
+            var word = word
+            word.speakerId = nil
+            return word
         }
-        let speakerIDMap = Dictionary(uniqueKeysWithValues: zip(
-            result.speakers.map(\.id),
-            mappedSpeakers.map(\.id)
-        ))
-        let mappedSegments = result.segments.map { segment in
-            SpeakerSegment(
-                speakerId: speakerIDMap[segment.speakerId] ?? SpeakerID.systemSpeaker(segment.speakerId),
-                startMs: segment.startMs + startOffsetMs,
-                endMs: segment.endMs + startOffsetMs,
-                qualityScore: segment.qualityScore
-            )
-        }
-        let mappedEmbeddings = Dictionary(
-            uniqueKeysWithValues: result.speakerEmbeddings.compactMap { id, embedding in
-                speakerIDMap[id].map { ($0, embedding) }
+        return SpeakerMerger.mergeWordTimestampsWithSpeakers(words: unassigned, segments: segments)
+            .map { word in
+                guard word.speakerId == nil else { return word }
+                var word = word
+                word.speakerId = AudioSource.system.rawValue
+                return word
             }
-        )
-        let mappedSpeechMs = Dictionary(
-            uniqueKeysWithValues: result.speechMsBySpeaker.compactMap { id, milliseconds in
-                speakerIDMap[id].map { ($0, milliseconds) }
-            }
-        )
-
-        return SystemDiarization(
-            speakers: mappedSpeakers,
-            segments: mappedSegments,
-            speakerEmbeddings: mappedEmbeddings,
-            speechMsBySpeaker: mappedSpeechMs
-        )
     }
 
     private static func shiftedWords(
@@ -174,15 +150,18 @@ struct MeetingTranscriptFinalizer {
             speakers.append(SpeakerInfo(id: AudioSource.microphone.rawValue, label: AudioSource.microphone.displayLabel))
         }
 
+        let clusters = systemDiarization?.speakers.filter { activeIDs.contains($0.id) } ?? []
+
         if activeIDs.contains(AudioSource.system.rawValue) {
-            speakers.append(SpeakerInfo(id: AudioSource.system.rawValue, label: AudioSource.system.displayLabel))
+            // Beside diarized clusters, the raw system id holds only words no
+            // cluster claimed. "Others" would read as one more participant.
+            let label = clusters.isEmpty
+                ? AudioSource.system.displayLabel
+                : SpeakerInfo.unattributedSystemLabel
+            speakers.append(SpeakerInfo(id: AudioSource.system.rawValue, label: label))
         }
 
-        if let systemDiarization {
-            for speaker in systemDiarization.speakers where activeIDs.contains(speaker.id) {
-                speakers.append(speaker)
-            }
-        }
+        speakers.append(contentsOf: clusters)
 
         return speakers
     }

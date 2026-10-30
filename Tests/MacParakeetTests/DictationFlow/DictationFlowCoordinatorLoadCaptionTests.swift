@@ -72,9 +72,11 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
     }
 
     func testFirstInstallShowsPreparingThenClearsOnSuccess() async throws {
-        // Hold transcription open until the preparing caption is observed so a
-        // congested CI main queue cannot complete first-dictation before
-        // fireCaption reads hasCompletedFirstDictation.
+        // Hold transcription open until the preparing caption is observed. On a
+        // loaded CI runner the grace timer can fire after the take already
+        // completed, which marks first-dictation done and records
+        // first_install=false. A congested main queue can also finish
+        // first-dictation before fireCaption reads hasCompletedFirstDictation.
         let transcribeGate = AsyncGate()
         let harness = try makeHarness(
             isReady: false,
@@ -466,6 +468,31 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         XCTAssertEqual(newlineClipboard.lastPastedText, "hello\nworld ")
     }
 
+    func testOnboardingPracticeUsesPasteEvenWhenStreamingCursorIsEnabled() async throws {
+        let harness = try makeHarness(
+            isReady: true,
+            transcribeDelayMs: 5,
+            streamingCursorEnabled: true
+        )
+        var isPracticeTarget = true
+        harness.coordinator.isPracticeTarget = { isPracticeTarget }
+
+        harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
+        let started = await waitUntil { harness.coordinator.overlayStateForTesting?.isRecordingForTest == true }
+        XCTAssertTrue(started)
+        // Target visibility can change before paste dispatch.
+        isPracticeTarget = false
+        harness.coordinator.stopDictation()
+        let pasted = await waitUntilAsync {
+            await harness.clipboard.snapshot().lastPastedText != nil
+        }
+
+        XCTAssertTrue(pasted)
+        XCTAssertEqual(harness.streamingInserter.snapshot(), [])
+        let clipboard = await harness.clipboard.snapshot()
+        XCTAssertEqual(clipboard.lastPastedText, "Mock transcription ")
+    }
+
     func testStreamingCursorEventFailureFallsBackToPaste() async throws {
         let inserter = RecordingStreamingInserter()
         inserter.error = StreamingCursorError.eventSourceUnavailable
@@ -496,16 +523,21 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
             streamingCursorEnabled: true,
             streamingInserter: inserter
         )
+        var delivered: [String] = []
+        harness.coordinator.onDictationDelivered = { delivered.append($0) }
 
         try await harness.startAndStop()
         let copied = await waitUntilAsync {
             await harness.clipboard.snapshot().lastCopiedText != nil
         }
+        let reported = await waitUntil { delivered.count == 1 }
         let clipboard = await harness.clipboard.snapshot()
 
         XCTAssertTrue(copied)
+        XCTAssertTrue(reported)
         XCTAssertEqual(clipboard.lastCopiedText, "Mock transcription ")
         XCTAssertEqual(clipboard.pasteCallCount, 0)
+        XCTAssertEqual(delivered, ["Mock transcription"])
     }
 
     func testStreamingCursorPartialInsertReportsClipboardFailureWithoutPasting() async throws {
@@ -584,11 +616,8 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
             transcribeGate: transcribeGate
         )
         let repo = DictationRepository(dbQueue: dbManager.dbQueue)
-        let preferencesSuiteName = "load-caption-\(UUID().uuidString)"
+        let preferencesSuiteName = makeIsolatedDefaultsSuite("load-caption-")
         let preferencesDefaults = UserDefaults(suiteName: preferencesSuiteName)!
-        addTeardownBlock {
-            UserDefaults(suiteName: preferencesSuiteName)?.removePersistentDomain(forName: preferencesSuiteName)
-        }
         preferencesDefaults.set(
             keepDictationOnClipboard, forKey: UserDefaultsAppRuntimePreferences.keepDictationOnClipboardKey)
         preferencesDefaults.set(
@@ -615,11 +644,8 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
             }
         )
 
-        let settingsSuiteName = "load-caption-settings-\(UUID().uuidString)"
+        let settingsSuiteName = makeIsolatedDefaultsSuite("load-caption-settings-")
         let settingsDefaults = UserDefaults(suiteName: settingsSuiteName)!
-        addTeardownBlock {
-            UserDefaults(suiteName: settingsSuiteName)?.removePersistentDomain(forName: settingsSuiteName)
-        }
         settingsDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.showIdlePillKey)
         let settings = SettingsViewModel(defaults: settingsDefaults)
 
@@ -642,6 +668,7 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
             settingsViewModel: settings,
             sttRuntime: stt,
             runtimePreferences: preferences,
+            permissionService: MockPermissionService(),
             captionTiming: timing ?? self.timing,
             activeSpeechEngine: { engine },
             overlayControllerFactory: { SpyDictationOverlayController(viewModel: $0) },

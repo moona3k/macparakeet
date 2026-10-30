@@ -428,11 +428,8 @@ final class MediaPlayerViewModelTests: XCTestCase {
 
 private extension MediaPlayerViewModelTests {
     func isolatedPlaybackDefaults() -> UserDefaults {
-        let suiteName = "com.macparakeet.tests.playback-rate.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("com.macparakeet.tests.playback-rate.")
         let defaults = UserDefaults(suiteName: suiteName)!
-        addTeardownBlock {
-            UserDefaults(suiteName: suiteName)?.removePersistentDomain(forName: suiteName)
-        }
         return defaults
     }
 }

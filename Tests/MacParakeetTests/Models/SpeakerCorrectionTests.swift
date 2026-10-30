@@ -44,8 +44,27 @@ final class SpeakerCorrectionTests: XCTestCase {
     }
 
     func testUnsupportedPayloadVersionIsRejected() {
-        let data = Data(#"{"version":3,"kind":"reset"}"#.utf8)
+        let data = Data(#"{"version":4,"kind":"reset"}"#.utf8)
         XCTAssertThrowsError(try JSONDecoder().decode(SpeakerCorrectionCommand.self, from: data))
+    }
+
+    func testReviseTextPayloadUsesVersionThreeAndRoundTrips() throws {
+        let target = SpeakerCorrectionTarget(
+            anchorTranscriptSegmentIDs: [UUID()],
+            wordRange: .init(startIndex: 0, endIndexExclusive: 2)
+        )
+        let command = SpeakerCorrectionCommand.reviseText(changes: [
+            .replace(target: target, text: "Kept."),
+            .omit(target: target),
+        ])
+        let data = try JSONEncoder().encode(command)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(object["version"] as? Int, 3)
+        XCTAssertEqual(object["kind"] as? String, "reviseText")
+        XCTAssertEqual(try JSONDecoder().decode(SpeakerCorrectionCommand.self, from: data), command)
+
+        let versionTwo = Data(#"{"version":2,"kind":"reviseText","changes":[]}"#.utf8)
+        XCTAssertThrowsError(try JSONDecoder().decode(SpeakerCorrectionCommand.self, from: versionTwo))
     }
 
     func testOperationMatchesCommandKind() {

@@ -385,17 +385,21 @@ final class CLIHelpersTests: XCTestCase {
     }
 
     func testMakeSharedLLMContextResolverReadsInjectedSuiteNotStandard() throws {
-        let suiteName = "cli.shared-llm.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("cli.shared-llm.")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
 
-        try LLMConfigStore(defaults: defaults).saveConfig(.localCLI())
+        let lockURL = FileManager.default.temporaryDirectory.appendingPathComponent(suiteName).appendingPathComponent(
+            "routes.lock")
+        defer { try? FileManager.default.removeItem(at: lockURL.deletingLastPathComponent()) }
+        let store = LLMConfigStore(preferencesDomain: suiteName, lockURL: lockURL)
+        try store.saveConfig(.localCLI())
         let commandTemplate = "echo macparakeet-cli-parity-\(UUID().uuidString)"
         try LocalCLIConfigStore(defaults: defaults).save(
             LocalCLIConfig(commandTemplate: commandTemplate, timeoutSeconds: 90)
         )
 
-        let context = try XCTUnwrap(try makeSharedLLMContextResolver(defaults: defaults).resolveContext())
+        let context = try XCTUnwrap(
+            try makeSharedLLMContextResolver(defaults: defaults, configStore: store).resolveContext())
         XCTAssertEqual(context.providerConfig.id, .localCLI)
         XCTAssertEqual(context.localCLIConfig?.commandTemplate, commandTemplate)
         XCTAssertEqual(context.localCLIConfig?.timeoutSeconds, 90)

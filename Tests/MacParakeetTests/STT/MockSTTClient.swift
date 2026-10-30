@@ -28,6 +28,8 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
     public var warmUpFailuresBeforeSuccess: Int = 0
     public var warmUpProgressPhases: [String]?
     public var warmUpHangIndefinitely = false
+    /// Delay before `warmUp` finishes, to hold onboarding in its loading state.
+    public var warmUpDelay: Duration?
     public var clearModelCacheCalled = false
     public var shutdownCalled = false
     public var speechEngineSwitches: [SpeechEnginePreference] = []
@@ -127,6 +129,10 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
     public func configureWarmUp(error: Error? = nil, progressPhases: [String]? = nil) {
         self.warmUpError = error
         self.warmUpProgressPhases = progressPhases
+    }
+
+    public func configureWarmUpProgressDelay(_ delay: Duration) {
+        self.warmUpDelay = delay
     }
 
     public func configureWarmUpFailuresBeforeSuccess(_ count: Int) {
@@ -363,6 +369,11 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
         if let liveBeginError {
             throw liveBeginError
         }
+        // Mirrors STTScheduler: a held append keeps the lane reserved, so a
+        // new live session is refused until it returns.
+        guard liveAppendHoldContinuations.isEmpty else {
+            throw STTError.engineBusy
+        }
         let id = UUID()
         liveSessionID = id
         livePartialHandler = onPartial
@@ -433,6 +444,10 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
             // branch deliberately leaves the state machine untouched, so the stream
             // emits nothing further — exactly the stall the watchdog must catch.
             try await Task.sleep(for: .seconds(3600))
+        }
+
+        if let warmUpDelay {
+            try await Task.sleep(for: warmUpDelay)
         }
 
         if let phases = warmUpProgressPhases {

@@ -50,7 +50,13 @@ public final class PromptResultsViewModel {
         public var userNotes: String?
         /// Per-prompt automatic meeting-note preference captured at enqueue.
         public var includeMeetingNotes: Bool
+        /// Meeting AI output-language policy captured at enqueue.
+        public var outputLanguagePolicy: MeetingAIOutputLanguagePolicy
+        public var sourceCorrectionRevision: Int?
+        public var sourceTranscriptHash: String?
         public var replacingPromptResultID: UUID?
+        public var replacingPromptResultExpectedContent: String?
+        public var replacingPromptResultExpectedContentEditedAt: Date?
         /// Completion-owned work survives navigation without selecting its meeting.
         public var runsInBackground: Bool
         public var state: State
@@ -69,7 +75,12 @@ public final class PromptResultsViewModel {
             modelSnapshot: String? = nil,
             userNotes: String? = nil,
             includeMeetingNotes: Bool = false,
+            outputLanguagePolicy: MeetingAIOutputLanguagePolicy = .default,
+            sourceCorrectionRevision: Int? = nil,
+            sourceTranscriptHash: String? = nil,
             replacingPromptResultID: UUID? = nil,
+            replacingPromptResultExpectedContent: String? = nil,
+            replacingPromptResultExpectedContentEditedAt: Date? = nil,
             runsInBackground: Bool = false,
             state: State = .queued,
             content: String = ""
@@ -86,7 +97,12 @@ public final class PromptResultsViewModel {
             self.modelSnapshot = modelSnapshot
             self.userNotes = userNotes
             self.includeMeetingNotes = includeMeetingNotes
+            self.outputLanguagePolicy = outputLanguagePolicy
+            self.sourceCorrectionRevision = sourceCorrectionRevision
+            self.sourceTranscriptHash = sourceTranscriptHash
             self.replacingPromptResultID = replacingPromptResultID
+            self.replacingPromptResultExpectedContent = replacingPromptResultExpectedContent
+            self.replacingPromptResultExpectedContentEditedAt = replacingPromptResultExpectedContentEditedAt
             self.runsInBackground = runsInBackground
             self.state = state
             self.content = content
@@ -114,6 +130,16 @@ public final class PromptResultsViewModel {
     public var onGenerationCompleted: ((UUID, UUID) -> Void)?
     public var onDeletedPromptResult: ((UUID) -> Void)?
     public var shouldMarkPromptResultUnread: ((UUID) -> Bool)?
+    /// Reads the current Settings policy. Tests override this so enqueue
+    /// snapshots do not depend on process-wide UserDefaults.
+    public var outputLanguagePolicyProvider: () -> MeetingAIOutputLanguagePolicy = {
+        MeetingAIOutputLanguagePolicy.current()
+    }
+    /// In-place editor for a saved result. Nil means the pane is read-only.
+    public var editingPromptResultID: UUID?
+    public var editingDraft: String = ""
+    // A same-recording reload may replace promptResults while this draft is open.
+    private var editingOriginalContent: String?
 
     private var llmService: LLMServiceProtocol?
     private var cardGenerator: CardGenerating?
@@ -135,6 +161,7 @@ public final class PromptResultsViewModel {
     private var currentTranscriptionID: UUID?
     private var streamingTask: Task<Void, Never>?
     private var modelListTask: Task<Void, Never>?
+    private var displayedModelRoute: LLMModelSelectionRoute?
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "PromptResultsViewModel")
 
     public var canGeneratePromptResult: Bool {
@@ -151,7 +178,9 @@ public final class PromptResultsViewModel {
 
     /// Model changes affect every queued generation, not just the visible meeting.
     public var canSelectModel: Bool {
-        configStore != nil && currentProviderID != .localCLI && !hasAnyActiveGenerations
+        configStore != nil && currentProviderID != nil
+            && currentProviderID != .localCLI && currentProviderID != .appleIntelligence
+            && !hasAnyActiveGenerations
     }
 
     /// Status shown by the current transcript's controls excludes other meetings.
@@ -201,7 +230,7 @@ public final class PromptResultsViewModel {
 
     public var selectedPromptInferenceCompatibilityMessage: String? {
         guard let prompt = selectedPrompt,
-              let config = try? configStore?.loadConfig()
+              let config = try? configStore?.loadRouteMetadata(for: .analysis)?.config
         else { return nil }
         return PromptsViewModel.inferenceCompatibilityMessage(
             settings: prompt.inferenceSettings,
@@ -274,12 +303,23 @@ public final class PromptResultsViewModel {
 
     public func refreshModelInfo() {
         modelListTask?.cancel()
-        guard let configStore, let config = try? configStore.loadConfig() else {
+        let loadedRoute: LLMModelSelectionRoute?
+        do {
+            loadedRoute = try configStore?.loadRouteMetadata(for: .analysis)
+        } catch {
+            // A brief competing writer must not permanently disable the picker.
+            // The conditional write still revalidates this retained snapshot.
+            return
+        }
+        displayedModelRoute = nil
+        guard let configStore, let route = loadedRoute else {
             currentModelName = ""
             currentProviderID = nil
             availableModels = []
             return
         }
+        displayedModelRoute = route
+        let config = route.config
         currentProviderID = config.id
         if config.id == .localCLI {
             let displayName =
@@ -294,14 +334,25 @@ public final class PromptResultsViewModel {
 
         currentModelName = config.modelName
         availableModels = LLMModelAvailability.pickerModels(for: config, discoveredModels: [])
-        refreshAvailableModels(for: config)
+        // Discovery needs credentials, but picker identity and writes never do.
+        let discoveryConfig = try? configStore.loadConfig(for: .analysis)
+        if let discoveryConfig,
+            LLMModelSelectionRoute(config: discoveryConfig, isOverride: route.isOverride) == route
+        {
+            refreshAvailableModels(for: discoveryConfig)
+        }
     }
 
     public func selectModel(_ modelName: String) {
         guard let configStore, canSelectModel else { return }
         do {
-            try configStore.updateModelName(modelName)
-            currentModelName = modelName
+            guard let displayedModelRoute,
+                try configStore.updateModelName(modelName, for: .analysis, expected: displayedModelRoute)
+            else {
+                refreshModelInfo()
+                return
+            }
+            refreshModelInfo()
             onModelChanged?()
         } catch {
             refreshModelInfo()
@@ -312,7 +363,8 @@ public final class PromptResultsViewModel {
         modelListTask = LLMModelAvailability.refreshPickerModelsTask(
             for: config,
             llmClient: llmClient,
-            configStore: configStore
+            configStore: configStore,
+            task: .analysis
         ) { [weak self] models in
             self?.availableModels = models
         }
@@ -402,22 +454,38 @@ public final class PromptResultsViewModel {
 
     public func loadPromptResults(transcriptionId: UUID) {
         if currentTranscriptionID != transcriptionId {
+            cancelEditingPromptResult()
             // User-initiated generations belong to the current visit. Quiet
             // meeting auto-prompts belong to the completed meeting instead.
             if let activeStreamingGeneration, !activeStreamingGeneration.runsInBackground {
                 streamingTask?.cancel()
             }
             pendingGenerations.removeAll { !$0.runsInBackground }
+            // Stale results from the meeting being left must not linger if the
+            // new meeting's fetch below fails.
+            promptResults = []
         }
         currentTranscriptionID = transcriptionId
         loadVisiblePrompts()
         do {
-            promptResults = try promptResultRepo?.fetchAll(transcriptionId: transcriptionId) ?? []
+            let fetched = try promptResultRepo?.fetchAll(transcriptionId: transcriptionId) ?? []
+            // Keep this visit's tab positions after regeneration, including
+            // same-recording refreshes. Newly discovered results go on the right.
+            let fetchedByID = Dictionary(uniqueKeysWithValues: fetched.map { ($0.id, $0) })
+            let knownIDs = Set(promptResults.map(\.id))
+            promptResults =
+                fetched.filter { !knownIDs.contains($0.id) }
+                + promptResults.compactMap { fetchedByID[$0.id] }
             onPromptResultsChanged?(transcriptionId, !promptResults.isEmpty)
-            errorMessage = nil
+            errorMessage =
+                isEditingRemovedPromptResult
+                ? "This result was removed. Copy or discard your draft before editing another result."
+                : nil
         } catch {
-            promptResults = []
-            onPromptResultsChanged?(transcriptionId, false)
+            // A failed read is not proof of deletion — keep the last known
+            // results (and any open draft's baseline) so a transient error
+            // cannot be mistaken for the result having been removed.
+            onPromptResultsChanged?(transcriptionId, !promptResults.isEmpty)
             errorMessage = error.localizedDescription
         }
         processNextQueuedGeneration()
@@ -429,6 +497,26 @@ public final class PromptResultsViewModel {
 
     public func hasUnreadPromptResult(_ promptResultID: UUID) -> Bool {
         unreadPromptResultIDs.contains(promptResultID)
+    }
+
+    /// A replacement occupies its saved result's slot throughout queued,
+    /// streaming, and failed states. Independent generations still append.
+    public func resultTabs(for transcriptionID: UUID) -> [TranscriptionViewModel.TranscriptTab] {
+        let generations = pendingGenerations(for: transcriptionID)
+        let results = promptResults.filter { $0.transcriptionId == transcriptionID }
+        var representedGenerationIDs: Set<UUID> = []
+        var tabs: [TranscriptionViewModel.TranscriptTab] = results.reversed().map { result in
+            if let replacement = generations.first(where: { $0.replacingPromptResultID == result.id }) {
+                representedGenerationIDs.insert(replacement.id)
+                return .generation(id: replacement.id)
+            }
+            return .result(id: result.id)
+        }
+        // Keep work reachable if its source was removed, or another attempt
+        // exists for the same saved result after a failure.
+        tabs += generations.filter { !representedGenerationIDs.contains($0.id) }
+            .map { .generation(id: $0.id) }
+        return tabs
     }
 
     public func pendingGeneration(id: UUID) -> PendingGeneration? {
@@ -453,6 +541,9 @@ public final class PromptResultsViewModel {
     }
 
     public func deletePromptResult(_ promptResult: PromptResult) {
+        if editingPromptResultID == promptResult.id {
+            cancelEditingPromptResult()
+        }
         guard let promptResultRepo else { return }
         do {
             _ = try promptResultRepo.delete(id: promptResult.id)
@@ -472,30 +563,144 @@ public final class PromptResultsViewModel {
         }
     }
 
+    public func isEditingPromptResult(_ id: UUID) -> Bool {
+        editingPromptResultID == id
+    }
+
+    public var hasUnsavedPromptResultEdits: Bool {
+        guard editingPromptResultID != nil,
+            let original = editingOriginalContent
+        else { return false }
+        return editingDraft != original
+    }
+
+    public var canSaveEditingPromptResult: Bool {
+        hasUnsavedPromptResultEdits && editingDraft.contains(where: { !$0.isWhitespace })
+    }
+
+    public var isEditingRemovedPromptResult: Bool {
+        guard let id = editingPromptResultID else { return false }
+        return !promptResults.contains(where: { $0.id == id })
+    }
+
+    public func canEditPromptResult(_ promptResult: PromptResult) -> Bool {
+        promptResults.contains(where: { $0.id == promptResult.id })
+            && !hasActiveReplacement(for: promptResult.id)
+    }
+
+    private func hasActiveReplacement(for resultID: UUID) -> Bool {
+        pendingGenerations.contains { $0.replacingPromptResultID == resultID && $0.state.isActive }
+    }
+
+    public func beginEditingPromptResult(_ promptResult: PromptResult) {
+        guard canEditPromptResult(promptResult), editingPromptResultID != promptResult.id else { return }
+        guard !hasUnsavedPromptResultEdits else {
+            let name = promptResults.first { $0.id == editingPromptResultID }?.promptName ?? "the current result"
+            errorMessage =
+                isEditingRemovedPromptResult
+                ? "This result was removed. Copy or discard your draft before editing another result."
+                : "Return to \(name) and save or cancel its edits before editing another result."
+            return
+        }
+        editingPromptResultID = promptResult.id
+        editingOriginalContent = promptResult.content
+        editingDraft = promptResult.content
+        errorMessage = nil
+    }
+
+    public func cancelEditingPromptResult() {
+        editingPromptResultID = nil
+        editingOriginalContent = nil
+        editingDraft = ""
+        errorMessage = nil
+    }
+
     @discardableResult
-    public func generatePromptResult(transcript: String, transcriptionId: UUID) -> UUID? {
+    public func saveEditingPromptResult(now: Date = Date()) -> Bool {
+        guard let promptResultRepo,
+            let id = editingPromptResultID,
+            let original = editingOriginalContent
+        else { return false }
+        guard let index = promptResults.firstIndex(where: { $0.id == id }) else {
+            errorMessage = "Result changed or was removed. Your draft has not been saved."
+            return false
+        }
+        guard editingDraft.contains(where: { !$0.isWhitespace }) else {
+            errorMessage = "Result cannot be empty."
+            return false
+        }
+        do {
+            guard
+                let updated = try promptResultRepo.updateContent(
+                    id: id,
+                    expectedContent: original,
+                    content: editingDraft,
+                    editedAt: now
+                )
+            else {
+                errorMessage = "Result changed or was removed. Your draft has not been saved."
+                return false
+            }
+            promptResults[index] = updated
+            cancelEditingPromptResult()
+            onPromptResultsChanged?(updated.transcriptionId, true)
+            Task { [weak self] in
+                await self?.refreshMeetingArtifacts(transcriptionId: updated.transcriptionId)
+            }
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    @discardableResult
+    public func generatePromptResult(
+        transcript: String,
+        transcriptionId: UUID,
+        sourceCorrectionRevision: Int? = nil,
+        sourceTranscriptHash: String? = nil
+    ) -> UUID? {
         guard let prompt = selectedPrompt else { return nil }
         return enqueueGeneration(
             transcript: transcript,
             transcriptionId: transcriptionId,
             prompt: prompt,
             extraInstructions: normalizedExtraInstructions(extraInstructions),
-            userNotes: fetchUserNotes(for: transcriptionId)
+            userNotes: fetchUserNotes(for: transcriptionId),
+            sourceCorrectionRevision: sourceCorrectionRevision,
+            sourceTranscriptHash: sourceTranscriptHash
         )
     }
 
     @discardableResult
-    public func regeneratePromptResult(_ promptResult: PromptResult, transcript: String) -> UUID? {
+    public func regeneratePromptResult(
+        _ promptResult: PromptResult,
+        transcript: String,
+        sourceCorrectionRevision: Int? = nil,
+        sourceTranscriptHash: String? = nil
+    ) -> UUID? {
+        if editingPromptResultID == promptResult.id {
+            errorMessage = "Save or cancel your result edit before regenerating."
+            return nil
+        }
+        if hasActiveReplacement(for: promptResult.id) {
+            errorMessage = "This result is already regenerating."
+            return nil
+        }
+        let config = try? configStore?.loadRouteMetadata(for: .analysis)?.config
+        let sameProvider = config.map { promptResult.providerSnapshot == $0.id.rawValue } ?? false
+        let reuseModel = sameProvider && config?.id != .localCLI && config?.id != .appleIntelligence
         let prompt = Prompt(
             id: promptResult.promptId ?? UUID(),
             name: promptResult.promptName,
             content: promptResult.promptContent,
             isBuiltIn: false,
             sortOrder: 0,
-            inferenceSettings: promptResult.inferenceSettingsSnapshot,
+            inferenceSettings: sameProvider ? promptResult.inferenceSettingsSnapshot : nil,
             includeMeetingNotes: promptResult.includeMeetingNotesSnapshot,
             activeVersionId: promptResult.promptVersionId,
-            modelOverride: promptResult.modelSnapshot
+            modelOverride: reuseModel ? promptResult.modelSnapshot : nil
         )
         // Regeneration re-snapshots from the *current* notes on the row — if
         // the user edited notes between summary generations they expect the
@@ -511,7 +716,14 @@ public final class PromptResultsViewModel {
                 promptId: promptResult.promptId,
                 promptVersionId: promptResult.promptVersionId
             ),
-            replacingPromptResultID: promptResult.id
+            replacingPromptResultID: promptResult.id,
+            replacingPromptResultExpectedContent: promptResult.content,
+            replacingPromptResultExpectedContentEditedAt: promptResult.contentEditedAt,
+            outputLanguagePolicy: promptResult.outputLanguagePolicySnapshot
+                .flatMap(MeetingAIOutputLanguagePolicy.init(configurationValue:))
+                ?? outputLanguagePolicyProvider(),
+            sourceCorrectionRevision: sourceCorrectionRevision,
+            sourceTranscriptHash: sourceTranscriptHash
         )
     }
 
@@ -521,7 +733,9 @@ public final class PromptResultsViewModel {
         transcriptionId: UUID,
         sourceType: Transcription.SourceType,
         meetingTypeId: UUID? = nil,
-        runInBackground: Bool = false
+        runInBackground: Bool = false,
+        sourceCorrectionRevision: Int? = nil,
+        sourceTranscriptHash: String? = nil
     ) -> [UUID] {
         guard transcript.contains(where: { !$0.isWhitespace }) else { return [] }
 
@@ -568,7 +782,9 @@ public final class PromptResultsViewModel {
                 prompt: prompt,
                 extraInstructions: nil,
                 userNotes: userNotes,
-                runInBackground: runInBackground
+                runInBackground: runInBackground,
+                sourceCorrectionRevision: sourceCorrectionRevision,
+                sourceTranscriptHash: sourceTranscriptHash
             ) {
                 queuedIDs.append(id)
             }
@@ -623,7 +839,12 @@ public final class PromptResultsViewModel {
         userNotesAreEffective: Bool = false,
         provenanceOverride: PromptProvenance? = nil,
         replacingPromptResultID: UUID? = nil,
-        runInBackground: Bool = false
+        replacingPromptResultExpectedContent: String? = nil,
+        replacingPromptResultExpectedContentEditedAt: Date? = nil,
+        runInBackground: Bool = false,
+        outputLanguagePolicy: MeetingAIOutputLanguagePolicy? = nil,
+        sourceCorrectionRevision: Int? = nil,
+        sourceTranscriptHash: String? = nil
     ) -> UUID? {
         guard llmService != nil else { return nil }
 
@@ -656,7 +877,12 @@ public final class PromptResultsViewModel {
                     userNotes: userNotes
                 ),
             includeMeetingNotes: prompt.includeMeetingNotes,
+            outputLanguagePolicy: outputLanguagePolicy ?? outputLanguagePolicyProvider(),
+            sourceCorrectionRevision: sourceCorrectionRevision,
+            sourceTranscriptHash: sourceTranscriptHash,
             replacingPromptResultID: replacingPromptResultID,
+            replacingPromptResultExpectedContent: replacingPromptResultExpectedContent,
+            replacingPromptResultExpectedContentEditedAt: replacingPromptResultExpectedContentEditedAt,
             runsInBackground: runInBackground
         )
         pendingGenerations.append(generation)
@@ -678,11 +904,21 @@ public final class PromptResultsViewModel {
             extraInstructions: generation.extraInstructions,
             includeMeetingNotes: generation.includeMeetingNotes,
             userNotes: generation.userNotes,
-            transcript: generation.transcript
+            transcript: generation.transcript,
+            outputLanguagePolicy: generation.outputLanguagePolicy
         )
 
         streamingTask = Task { @MainActor [weak self] in
             guard let self, let llmService = self.llmService else { return }
+            // Each published token re-renders the streaming Markdown view, so
+            // publish coalesced deltas (#1132). The remainder is always flushed
+            // before the stream is finished, failed, or cancelled.
+            var coalescer = StreamingTextCoalescer(interval: Self.streamingPublishInterval)
+            @MainActor func flushCoalesced() {
+                if let text = coalescer.flush() {
+                    self.appendStreamingToken(text, to: generationID)
+                }
+            }
             do {
                 let stream = llmService.generatePromptResultDetailedStream(
                     transcript: generation.transcript,
@@ -694,11 +930,14 @@ public final class PromptResultsViewModel {
                 for try await event in stream {
                     switch event {
                     case .text(let token):
-                        appendStreamingToken(token, to: generationID)
+                        if let text = coalescer.append(token, at: .now) {
+                            appendStreamingToken(text, to: generationID)
+                        }
                     case .completed(let receipt):
                         terminal = receipt
                     }
                 }
+                flushCoalesced()
                 guard !Task.isCancelled else {
                     finishCancelledGeneration(id: generationID)
                     return
@@ -708,12 +947,16 @@ public final class PromptResultsViewModel {
                 }
                 try await finishGeneration(id: generationID, terminal: terminal)
             } catch is CancellationError {
+                flushCoalesced()
                 finishCancelledGeneration(id: generationID)
             } catch {
+                flushCoalesced()
                 finishFailedGeneration(id: generationID, error: error)
             }
         }
     }
+
+    static let streamingPublishInterval: Duration = .milliseconds(33)
 
     private func appendStreamingToken(_ token: String, to generationID: UUID) {
         guard let index = pendingGenerations.firstIndex(where: { $0.id == generationID }) else { return }
@@ -734,6 +977,13 @@ public final class PromptResultsViewModel {
         guard generation.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
             throw LLMError.streamingError("prompt result returned an empty response")
         }
+        // An editor should be unable to open during regeneration, but keep its
+        // draft and original row if one was already open when work completed.
+        if let replacingID = generation.replacingPromptResultID,
+            editingPromptResultID == replacingID
+        {
+            throw LLMError.streamingError("Save or cancel the result edit before retrying regeneration.")
+        }
         let timestamp = Date()
         let promptResult = PromptResult(
             id: generation.id,
@@ -749,14 +999,32 @@ public final class PromptResultsViewModel {
             inferenceSettingsSnapshot: terminal.effectiveSettings,
             providerSnapshot: terminal.provider,
             modelSnapshot: terminal.model,
+            outputLanguagePolicySnapshot: generation.outputLanguagePolicy.configurationValue,
+            sourceCorrectionRevision: generation.sourceCorrectionRevision,
+            sourceTranscriptHash: generation.sourceTranscriptHash,
             createdAt: timestamp,
             updatedAt: timestamp
         )
 
+        guard let promptResultRepo else {
+            throw LLMError.streamingError("Could not save the generated result.")
+        }
         if let replacingPromptResultID = generation.replacingPromptResultID {
-            try promptResultRepo?.replace(promptResult, deletingExistingID: replacingPromptResultID)
+            guard let expectedContent = generation.replacingPromptResultExpectedContent else {
+                throw LLMError.streamingError("The original result could not be verified for regeneration.")
+            }
+            guard
+                try promptResultRepo.replaceIfUnchanged(
+                    promptResult,
+                    deletingExistingID: replacingPromptResultID,
+                    expectedContent: expectedContent,
+                    expectedContentEditedAt: generation.replacingPromptResultExpectedContentEditedAt
+                )
+            else {
+                throw LLMError.streamingError("The original result changed during regeneration. Your edit was kept.")
+            }
         } else {
-            try promptResultRepo?.save(promptResult)
+            try promptResultRepo.save(promptResult)
         }
 
         pendingGenerations.remove(at: index)
@@ -766,13 +1034,20 @@ public final class PromptResultsViewModel {
             errorMessage = nil
             if let replacingPromptResultID = generation.replacingPromptResultID {
                 unreadPromptResultIDs.remove(replacingPromptResultID)
-                promptResults.removeAll { $0.id == replacingPromptResultID }
             }
-            promptResults.insert(promptResult, at: 0)
+            if let replacingID = generation.replacingPromptResultID,
+                let resultIndex = promptResults.firstIndex(where: { $0.id == replacingID })
+            {
+                promptResults[resultIndex] = promptResult
+            } else {
+                promptResults.insert(promptResult, at: 0)
+            }
         }
 
-        await refreshMeetingArtifacts(transcriptionId: generation.transcriptionId)
-
+        // Hand the selected pending tab to its saved result in the same
+        // main-actor turn that removes the pending generation. If this waited
+        // for the artifact refresh below, SwiftUI could render the missing
+        // pending tab first and fall back to the transcript.
         onPromptResultsChanged?(generation.transcriptionId, true)
         onGenerationCompleted?(generation.id, promptResult.id)
         if let replacingPromptResultID = generation.replacingPromptResultID {
@@ -781,6 +1056,8 @@ public final class PromptResultsViewModel {
         if shouldMarkPromptResultUnread?(promptResult.id) ?? true {
             unreadPromptResultIDs.insert(promptResult.id)
         }
+
+        await refreshMeetingArtifacts(transcriptionId: generation.transcriptionId)
 
         processNextQueuedGeneration()
     }
@@ -816,6 +1093,20 @@ public final class PromptResultsViewModel {
               let index = pendingGenerations.firstIndex(where: { $0.id == id }),
               case .failed = pendingGenerations[index].state
         else { return nil }
+        if let replacingID = pendingGenerations[index].replacingPromptResultID,
+            editingPromptResultID == replacingID
+        {
+            errorMessage = "Save or cancel your result edit before retrying regeneration."
+            return nil
+        }
+        if let replacingID = pendingGenerations[index].replacingPromptResultID,
+            let current = promptResults.first(where: { $0.id == replacingID }),
+            (current.content != pendingGenerations[index].replacingPromptResultExpectedContent
+                || current.contentEditedAt != pendingGenerations[index].replacingPromptResultExpectedContentEditedAt)
+        {
+            errorMessage = "The original result changed since regeneration began. Your edit was kept."
+            return nil
+        }
         let failed = pendingGenerations.remove(at: index)
         return enqueueGeneration(
             transcript: failed.transcript,
@@ -839,7 +1130,12 @@ public final class PromptResultsViewModel {
                 promptVersionId: failed.promptVersionId
             ),
             replacingPromptResultID: failed.replacingPromptResultID,
-            runInBackground: failed.runsInBackground
+            replacingPromptResultExpectedContent: failed.replacingPromptResultExpectedContent,
+            replacingPromptResultExpectedContentEditedAt: failed.replacingPromptResultExpectedContentEditedAt,
+            runInBackground: failed.runsInBackground,
+            outputLanguagePolicy: failed.outputLanguagePolicy,
+            sourceCorrectionRevision: failed.sourceCorrectionRevision,
+            sourceTranscriptHash: failed.sourceTranscriptHash
         )
     }
 
@@ -850,8 +1146,8 @@ public final class PromptResultsViewModel {
         }
         // Local CLI selects its model in the command template rather than the
         // provider config. Its terminal receipt remains authoritative.
-        guard currentProviderID != .localCLI else { return nil }
-        let current = currentModelName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let config = try? configStore?.loadRouteMetadata(for: .analysis)?.config, config.id != .localCLI else { return nil }
+        let current = config.modelName.trimmingCharacters(in: .whitespacesAndNewlines)
         return current.isEmpty ? nil : current
     }
 
@@ -860,14 +1156,16 @@ public final class PromptResultsViewModel {
         extraInstructions: String?,
         includeMeetingNotes: Bool = false,
         userNotes: String? = nil,
-        transcript: String? = nil
+        transcript: String? = nil,
+        outputLanguagePolicy: MeetingAIOutputLanguagePolicy = .default
     ) -> String {
         PromptSystemPromptAssembler.assembleUsingEffectiveNotes(
             promptContent: promptContent,
             extraInstructions: extraInstructions,
             includeMeetingNotes: includeMeetingNotes,
             effectiveUserNotes: userNotes,
-            transcript: transcript
+            transcript: transcript,
+            outputLanguagePolicy: outputLanguagePolicy
         )
     }
 

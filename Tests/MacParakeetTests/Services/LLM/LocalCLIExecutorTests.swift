@@ -64,9 +64,8 @@ final class LocalCLIExecutorTests: XCTestCase {
     // MARK: - Config Store
 
     func testConfigStoreRoundTrip() throws {
-        let suiteName = "test.localcli.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("test.localcli.")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = LocalCLIConfigStore(defaults: defaults)
 
         XCTAssertNil(store.load())
@@ -91,9 +90,8 @@ final class LocalCLIExecutorTests: XCTestCase {
     }
 
     func testConfigStoreMigratesLegacyDefaultTimeoutOnFirstLoad() throws {
-        let suiteName = "test.localcli.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("test.localcli.")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = LocalCLIConfigStore(defaults: defaults)
 
         // Simulate a pre-#478 store: a config saved with the old 45s default,
@@ -117,9 +115,8 @@ final class LocalCLIExecutorTests: XCTestCase {
     }
 
     func testConfigStoreDoesNotMigrateNonDefaultLegacyTimeout() throws {
-        let suiteName = "test.localcli.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("test.localcli.")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = LocalCLIConfigStore(defaults: defaults)
 
         try store.save(
@@ -130,9 +127,8 @@ final class LocalCLIExecutorTests: XCTestCase {
     }
 
     func testConfigStoreEmptyLoadConsumesMigrationWindow() throws {
-        let suiteName = "test.localcli.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("test.localcli.")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = LocalCLIConfigStore(defaults: defaults)
 
         // A load with no stored config marks the store as post-#478: a 45

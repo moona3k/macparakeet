@@ -1,0 +1,374 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-02",
+  "sourceHead": "317374b55a335a5a618f5bdb0e22db62960c0ffb",
+  "bundle": "Debug Developer ID signed dev bundle via scripts/dev/run_app.sh",
+  "os": "26.7.1",
+  "input": {
+    "device": "MacBook Pro Microphone",
+    "sampleRateHz": 48000,
+    "channels": 1,
+    "volume": 60
+  },
+  "output": {
+    "device": "MacBook Pro Speakers",
+    "sampleRateHz": 48000,
+    "channels": 2,
+    "volume": 31,
+    "muted": false
+  },
+  "fixture": {
+    "generator": "say -v Samantha -r 145",
+    "reference": "This is a local audio test for Mac Parakeet. The project review starts on Monday. Please save the meeting notes and keep the original recording. The blue notebook is beside the window. This concludes the audio capture test.",
+    "durationSeconds": 14.021043,
+    "sha256": "8defd04f43cd76efb11f310e70769374cf4d2fb43daecbb8ffd55c6016fa062c"
+  },
+  "isolation": {
+    "stateDirectoryRelativeToAuditWorktree": ".build/audit-state/physical-audio",
+    "initialDatabaseRows": 0,
+    "completedRowsAfterAppExit": 3,
+    "recordingLocksAfterAppExit": 0,
+    "ownAppExitedNormally": true,
+    "personalPermissionsReset": false,
+    "telemetryEnabled": false,
+    "cloudFormatterEnabled": false,
+    "firstRun": "skipped at owner request"
+  },
+  "qualificationLimits": [
+    "Other playback was not controlled; no clean-room accuracy or WER claim.",
+    "No Bluetooth, route switching, long-call, external microphone, human-room diarization or low-memory qualification.",
+    "Dual-source captures used rawNoAECAssets; not an AEC qualification.",
+    "Raw audio, transcripts and screenshots remain private local evidence; only metadata, counts and known-fixture phrase checks are published."
+  ],
+  "runs": [
+    {
+      "label": "dual-low-gain",
+      "recordingDirectory": "F9C593DD-1E51-459D-9715-B3FF35EE2839",
+      "playerGain": 0.35,
+      "status": "completed",
+      "durationMs": 46887,
+      "wordCount": 165,
+      "wordsBySpeakerId": {
+        "microphone": 3,
+        "system:S1": 111,
+        "system:S2": 51
+      },
+      "storedSpeakerCount": 3,
+      "knownPhrasePresent": {
+        "project review": false,
+        "blue notebook": false,
+        "audio capture test": false
+      },
+      "captureReport": {
+        "captureFailed": false,
+        "capturedDurationMs": 46900,
+        "elapsedDurationMs": 46825,
+        "interruptedSources": [],
+        "quality": "healthy",
+        "sourceMode": "microphone_and_system",
+        "sources": [
+          {
+            "coverageRatio": 1,
+            "source": "microphone",
+            "status": "complete",
+            "writtenDurationMs": 46900
+          },
+          {
+            "coverageRatio": 0.998184730379071,
+            "source": "system",
+            "status": "complete",
+            "writtenDurationMs": 46740
+          }
+        ]
+      },
+      "echoSuppression": {
+        "reasonCode": "rawNoAECAssets"
+      },
+      "sourceAlignment": {
+        "meetingOriginHostTime": 840457681786,
+        "microphone": {
+          "firstHostTime": 840457681786,
+          "lastHostTime": 841580883821,
+          "sampleRate": 48000,
+          "startOffsetMs": 0,
+          "timelineFrameCount": 2251204,
+          "writtenFrameCount": 2251200
+        },
+        "system": {
+          "firstHostTime": 840460960212,
+          "lastHostTime": 841582240212,
+          "sampleRate": 48000,
+          "startOffsetMs": 137,
+          "timelineFrameCount": 2243520,
+          "writtenFrameCount": 2243520
+        }
+      },
+      "tracks": [
+        {
+          "file": "microphone-raw.m4a",
+          "decodable": true,
+          "durationSeconds": 46.954667,
+          "stream": {
+            "codec_name": "aac",
+            "sample_rate": "48000",
+            "channels": 1
+          },
+          "levelDbFS": {
+            "mean_volume": -40.1,
+            "max_volume": -17.4
+          }
+        },
+        {
+          "file": "system-raw.m4a",
+          "decodable": true,
+          "durationSeconds": 46.784,
+          "stream": {
+            "codec_name": "aac",
+            "sample_rate": "48000",
+            "channels": 1
+          },
+          "levelDbFS": {
+            "mean_volume": -20.2,
+            "max_volume": -1.3
+          }
+        },
+        {
+          "file": "meeting-playback.m4a",
+          "decodable": true,
+          "durationSeconds": 46.91,
+          "stream": {
+            "codec_name": "aac",
+            "sample_rate": "48000",
+            "channels": 2
+          },
+          "levelDbFS": {
+            "mean_volume": -23.2,
+            "max_volume": -1.5
+          }
+        }
+      ],
+      "artifactFilesPresent": {
+        "transcript.json": true,
+        "meeting.md": true,
+        "manifest.json": true,
+        "meeting-recording-metadata.json": true,
+        "meeting-playback.m4a": true
+      },
+      "fixtureCrossCorrelation": {
+        "method": "8kHz mono, mean-centered fixture, full-window normalized FFT cross-correlation; capture includes AAC and acoustic distortion",
+        "system": {
+          "absolutePeak": 0.5160369267645153,
+          "offsetSeconds": 31.802
+        },
+        "microphone": {
+          "absolutePeak": 0.2696167160998078,
+          "offsetSeconds": 31.980125
+        }
+      }
+    },
+    {
+      "label": "dual-normal-gain",
+      "recordingDirectory": "9EA20167-4215-40A4-ACE8-5BF521944203",
+      "playerGain": 1,
+      "status": "completed",
+      "durationMs": 16344,
+      "wordCount": 39,
+      "wordsBySpeakerId": {
+        "system": 1,
+        "system:S1": 37,
+        "microphone": 1
+      },
+      "storedSpeakerCount": 3,
+      "knownPhrasePresent": {
+        "project review": true,
+        "blue notebook": true,
+        "audio capture test": true
+      },
+      "captureReport": {
+        "captureFailed": false,
+        "capturedDurationMs": 16355,
+        "elapsedDurationMs": 16278,
+        "interruptedSources": [],
+        "quality": "healthy",
+        "sourceMode": "microphone_and_system",
+        "sources": [
+          {
+            "coverageRatio": 1,
+            "source": "microphone",
+            "status": "complete",
+            "writtenDurationMs": 16300
+          },
+          {
+            "coverageRatio": 0.9952082565425728,
+            "source": "system",
+            "status": "complete",
+            "writtenDurationMs": 16200
+          }
+        ]
+      },
+      "echoSuppression": {
+        "reasonCode": "rawNoAECAssets"
+      },
+      "sourceAlignment": {
+        "meetingOriginHostTime": 856095078875,
+        "microphone": {
+          "firstHostTime": 856095078875,
+          "lastHostTime": 856483879885,
+          "sampleRate": 48000,
+          "startOffsetMs": 0,
+          "timelineFrameCount": 782402,
+          "writtenFrameCount": 782400
+        },
+        "system": {
+          "firstHostTime": 856098790299,
+          "lastHostTime": 856487110299,
+          "sampleRate": 48000,
+          "startOffsetMs": 155,
+          "timelineFrameCount": 777600,
+          "writtenFrameCount": 777600
+        }
+      },
+      "tracks": [
+        {
+          "file": "microphone-raw.m4a",
+          "decodable": true,
+          "durationSeconds": 16.362667,
+          "stream": {
+            "codec_name": "aac",
+            "sample_rate": "48000",
+            "channels": 1
+          },
+          "levelDbFS": {
+            "mean_volume": -37.4,
+            "max_volume": -15.9
+          }
+        },
+        {
+          "file": "system-raw.m4a",
+          "decodable": true,
+          "durationSeconds": 16.256,
+          "stream": {
+            "codec_name": "aac",
+            "sample_rate": "48000",
+            "channels": 1
+          },
+          "levelDbFS": {
+            "mean_volume": -16.4,
+            "max_volume": -2.2
+          }
+        },
+        {
+          "file": "meeting-playback.m4a",
+          "decodable": true,
+          "durationSeconds": 16.367,
+          "stream": {
+            "codec_name": "aac",
+            "sample_rate": "48000",
+            "channels": 2
+          },
+          "levelDbFS": {
+            "mean_volume": -19.4,
+            "max_volume": -2.3
+          }
+        }
+      ],
+      "artifactFilesPresent": {
+        "transcript.json": true,
+        "meeting.md": true,
+        "manifest.json": true,
+        "meeting-recording-metadata.json": true,
+        "meeting-playback.m4a": true
+      }
+    },
+    {
+      "label": "microphone-only",
+      "recordingDirectory": "72E89BCC-5EB5-4A45-AAAE-E16C25DCBB5E",
+      "playerGain": 1,
+      "status": "completed",
+      "durationMs": 15700,
+      "wordCount": 38,
+      "wordsBySpeakerId": {
+        "microphone": 38
+      },
+      "storedSpeakerCount": 1,
+      "knownPhrasePresent": {
+        "project review": true,
+        "blue notebook": true,
+        "audio capture test": true
+      },
+      "captureReport": {
+        "captureFailed": false,
+        "capturedDurationMs": 15700,
+        "elapsedDurationMs": 15619,
+        "interruptedSources": [],
+        "quality": "healthy",
+        "sourceMode": "microphone_only",
+        "sources": [
+          {
+            "coverageRatio": 1,
+            "source": "microphone",
+            "status": "complete",
+            "writtenDurationMs": 15700
+          }
+        ]
+      },
+      "echoSuppression": {
+        "reasonCode": "rawMissingSystemReference"
+      },
+      "sourceAlignment": {
+        "meetingOriginHostTime": 858022916733,
+        "microphone": {
+          "firstHostTime": 858022916733,
+          "lastHostTime": 858397317501,
+          "sampleRate": 48000,
+          "startOffsetMs": 0,
+          "timelineFrameCount": 753602,
+          "writtenFrameCount": 753600
+        }
+      },
+      "tracks": [
+        {
+          "file": "microphone-raw.m4a",
+          "decodable": true,
+          "durationSeconds": 15.765333,
+          "stream": {
+            "codec_name": "aac",
+            "sample_rate": "48000",
+            "channels": 1
+          },
+          "levelDbFS": {
+            "mean_volume": -36.9,
+            "max_volume": -19.3
+          }
+        },
+        {
+          "file": "system-raw.m4a",
+          "bytes": 0,
+          "decodable": false,
+          "note": "Unselected system source in microphone-only capture; no audio stream."
+        },
+        {
+          "file": "meeting-playback.m4a",
+          "decodable": true,
+          "durationSeconds": 15.765333,
+          "stream": {
+            "codec_name": "aac",
+            "sample_rate": "48000",
+            "channels": 1
+          },
+          "levelDbFS": {
+            "mean_volume": -36.9,
+            "max_volume": -19.3
+          }
+        }
+      ],
+      "artifactFilesPresent": {
+        "transcript.json": true,
+        "meeting.md": true,
+        "manifest.json": true,
+        "meeting-recording-metadata.json": true,
+        "meeting-playback.m4a": true
+      }
+    }
+  ]
+}

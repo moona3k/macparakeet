@@ -3,11 +3,15 @@ import Foundation
 public enum LLMError: Error, LocalizedError, Sendable {
     case notConfigured
     case connectionFailed(String)
+    /// The provider accepted the connection, then sent no response bytes before
+    /// the request's idle timeout. This is not a network failure.
+    case requestTimedOut
     case authenticationFailed(String?)
     case rateLimited
     case modelNotFound(String)
     case invalidModelOverride(model: String, provider: LLMProviderID, reason: String)
     case contextTooLong
+    case contentFiltered(String)
     case formatterTruncated
     case formatterEmptyResponse
     case providerError(String)
@@ -21,6 +25,8 @@ public enum LLMError: Error, LocalizedError, Sendable {
             return "No LLM provider configured. Set up a provider in Settings."
         case .connectionFailed(let detail):
             return "Connection failed: \(detail)"
+        case .requestTimedOut:
+            return "The request timed out before the provider finished responding."
         case .authenticationFailed(let detail):
             if let detail, !detail.isEmpty {
                 return "Authentication failed: \(detail)"
@@ -31,9 +37,12 @@ public enum LLMError: Error, LocalizedError, Sendable {
         case .modelNotFound(let model):
             return "Model not found: \(model)"
         case .invalidModelOverride(let model, let provider, let reason):
-            return "Model override '\(model)' is not valid for \(provider.descriptor.displayName): \(reason) Choose a compatible model in the Prompt settings."
+            return
+                "Model override '\(model)' is not valid for \(provider.descriptor.displayName): \(reason) Choose a compatible model in the Prompt settings."
         case .contextTooLong:
             return "Text exceeds the model's context limit."
+        case .contentFiltered(let message):
+            return message
         case .formatterTruncated:
             return "AI formatter output was incomplete."
         case .formatterEmptyResponse:

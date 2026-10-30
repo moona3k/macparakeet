@@ -55,7 +55,7 @@ path. All four are selectable Parakeet models:
 
 Nemotron is shipped as Beta because it is fast and local but not yet proven as a default replacement on MacParakeet's real dictation/meeting corpus. It enters the same scheduler/runtime control plane as the Parakeet family and WhisperKit rather than creating a feature-owned ASR stack.
 
-Because Nemotron is a streaming engine, dictation on **both** Nemotron builds (multilingual and English) streams microphone samples into a live session: partial text appears in the dictation overlay while speaking, and the streamed final transcript is used as the dictation result. (File and meeting jobs on Nemotron still run batch-at-stop.) The recorded WAV is still always written; if the live session cannot start, fails mid-stream, drops samples under backpressure, or finishes empty, dictation transparently falls back to transcribing the recorded file (this fallback is within the Nemotron path — it is not an engine fallback, which remains explicitly user-selected per the table above).
+Dictation on **both** Nemotron builds (multilingual and English) streams microphone samples into a live session for display-only partial text. At stop, the app cancels that session and waits up to a bounded timeout for it to drain, instead of awaiting a streamed final; a session that does not drain in time is logged as unhealthy and keeps its scheduler reservation, so the recorded-WAV STT for that take can still queue behind it. The recorded WAV is always authoritative for final transcription, including when live preview could not start, failed or dropped samples. File and meeting jobs likewise transcribe recorded audio. All of these paths keep the explicitly selected Nemotron engine; they do not fall back to another speech engine.
 
 **Display-only live dictation preview.** Separately from the final paste path, an opt-in display-only preview (`AppFeatures.liveDictationStreamingEnabled`, #517) renders a stable rolling readout of in-progress text above the dictation pill. It never feeds the paste — the final inserted text always comes from the stop-time transcription path. Parakeet v2/v3 use a single-flight tail-window batch preview (reusing their `[Float]` batch path), Parakeet Unified uses FluidAudio's native `StreamingUnifiedAsrManager` (`parakeet-unified-2080ms`), Orukeet has no tail preview, the Nemotron builds reuse their native live partials, Whisper stays default-off pending a per-pass latency probe, and Cohere stays off because it is batch-only. A per-session `LiveTranscriptStabilizer` turns the raw stream into a monotonic, append-only readout (settled body committed, last few words held as a volatile hypothesis) so shown words don't jump or disappear; the overlay renders it bottom-anchored with older lines fading out at the top edge (no mid-word truncation). Full behavior and lifecycle (single-flight/native session ownership, cancel/drain, engine-switch and shutdown ordering) are specified in `spec/05-audio-pipeline.md` → "Dictation Live Preview" and `docs/research/live-dictation-streaming.md`.
 
@@ -214,17 +214,19 @@ small user vocabularies rather than full dictionaries.
 | Capability | Model | Details |
 |-----------|-------|---------|
 | Streaming ASR | Parakeet EOU 1.1B | Real-time with end-of-utterance detection, 160ms-1600ms chunks |
-| Speaker diarization (offline) | Pyannote community-1 + WeSpeaker v2 + VBx clustering | ~130 MB assets; no fixed four-speaker cap. Uses the app high-accuracy preset; current-pin DER has not been measured. See ADR-010. |
+| Speaker diarization (automatic, after ASR) | Nemotron 3, `fast128`, through FluidAudio 0.17.7 | ~199 MB pinned assets; eight-speaker limit per source; overlapping activity retained. See ADR-010 and the matched evaluation in `benchmarks/diarization/2026-09-25-nemotron-evaluation.md`. |
+| Speaker diarization (explicit count / experimental voice profiles) | Pyannote community-1 + WeSpeaker v2 + VBx clustering | Existing high-accuracy configuration and speaker-count constraints; no fixed eight-speaker cap. Also handles a calendar bound violated by Nemotron. |
 | Speaker diarization (streaming) | Sortformer (NVIDIA) | ~32% DER, 4 speaker max. Not used — see ADR-010 for rationale. |
 | Voice activity detection | Silero | 96% accuracy, 1220x RTF |
 | Custom vocabulary | CTC/TDT keyword boosting | 110M sidecar for Parakeet TDT v2/v3 enabled anchors |
 
-**Note:** ASR (Parakeet TDT) and diarization (pyannote/WeSpeaker) are entirely separate model pipelines. Parakeet does NOT include diarization. Both are bundled in the FluidAudio SDK — no additional dependencies needed.
+**Note:** ASR (Parakeet TDT) and diarization (Nemotron 3 or pyannote/WeSpeaker) are entirely separate model pipelines. Parakeet does NOT include diarization. Both are bundled in the FluidAudio SDK — no additional dependencies needed.
 
 > **Dependency surface (not shipped):** the pinned FluidAudio also exposes
 > streaming diarizers (`LSEENDDiarizer`, `SortformerDiarizer`) and
-> speaker-enrollment APIs. MacParakeet ships none of these — offline batch is
-> the only diarizer it uses. They are surveyed as a *future* tentative-live /
+> speaker-enrollment APIs. These are not the default product path. Nemotron 3 uses
+> a streaming model internally, but product diarization still runs after ASR on
+> the complete saved source; it does not change live transcription. They are surveyed as a *future* tentative-live /
 > speaker-memory option in the ADR-010 amendment (2026-06-14) and
 > `docs/research/speaker-diarization-frontier-2026-06.md`.
 
@@ -402,12 +404,12 @@ Dictation:
 
 File transcription (v0.4+):
   FFmpeg (video demux) → .wav → STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → queued background-slot selected-engine STTResult
-                                                                                                             → OfflineDiarizerManager.process() → DiarizationResult
+                                                                                                             → DiarizationServiceFactory.live() → DiarizationResult
                                                                                                              → Merge word timestamps + speaker segments
 
 YouTube (v0.4+):
   yt-dlp → .m4a → FFmpeg → .wav → STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → queued background-slot selected-engine STTResult
-                                                                                                        → OfflineDiarizerManager.process() → DiarizationResult
+                                                                                                        → DiarizationServiceFactory.live() → DiarizationResult
                                                                                                         → Merge word timestamps + speaker segments
 
   Download and metadata extraction happen before STT admission. Only the
@@ -590,11 +592,28 @@ On macOS 14 (Sonoma), Parakeet TDT long-form file, YouTube, and meeting jobs run
 
 > See [ADR-010](adr/010-speaker-diarization.md) for the full decision record.
 
-Speaker diarization ("who spoke when") uses FluidAudio's **offline diarization pipeline**, which is entirely separate from ASR. It applies to file and YouTube transcription, and may refine the isolated system side of a finalized meeting. It does not apply to dictation.
+Speaker diarization ("who spoke when") runs after ASR on the complete saved source, in model pipelines entirely separate from ASR. It applies to file and YouTube transcription, and may refine the isolated system side of a finalized meeting. The microphone side of a meeting stays **Me**. It does not apply to dictation.
 
-### Pipeline
+`DiarizationServiceFactory.live` chooses the backend per request:
 
-Three-stage pipeline, all via FluidAudio's `OfflineDiarizerManager`:
+| Request | Service | Pipeline |
+|---------|---------|----------|
+| Automatic (no explicit count) | `NemotronDiarizationService` | Nemotron 3 `fast128`, eight activity channels per source |
+| Explicit Exact/Range count, or experimental voice profiles | `DiarizationService` | FluidAudio `OfflineDiarizerManager`: Community-1 + WeSpeaker v2 + VBx |
+
+A meeting's calendar speaker bound is advisory. A Nemotron count within the bound is kept. A nonempty result outside it reruns the constrained Community-1 path, and keeps the Nemotron result if that path is unavailable.
+
+### Automatic pipeline (Nemotron 3)
+
+```
+16 kHz WAV → memory-mapped sample file → one-second feeds → Nemotron 3 fast128 → per-frame speaker probabilities (threshold 0.5) → speaker segments
+```
+
+The service stages samples in a temporary memory-mapped file rather than one whole-recording array, and checks cancellation between feeds. Inference runs off the service actor, so readiness and setup calls stay responsive. It emits activity per speaker channel, so segments from different speakers may overlap. Speaker IDs are assigned in order of first activity (`S1`, `S2`, ...). Nemotron produces no identity embeddings, which is why voice-profile builds keep Community-1.
+
+### Explicit-count pipeline (Community-1)
+
+Three stages, all via FluidAudio's `OfflineDiarizerManager`:
 
 ```
 Audio → Pyannote community-1 (WHEN) → WeSpeaker v2 (WHO) → VBx clustering (GROUP) → Speaker segments
@@ -604,16 +623,19 @@ Audio → Pyannote community-1 (WHEN) → WeSpeaker v2 (WHO) → VBx clustering 
 2. **Embedding extraction** (WeSpeaker v2): Produces 256-dim voice fingerprints for each speech segment
 3. **Clustering** (VBx + AHC warm start): Groups embeddings by voice similarity to assign consistent speaker IDs
 
+This pipeline returns exclusive segments and has no eight-speaker limit.
+
 ### Models
 
 | Component | Model | Size | License |
 |-----------|-------|------|---------|
+| Automatic diarization | Nemotron 3 `fast128` CoreML export, revision `1b0b133f` | ~199 MB | OpenMDW-1.1 |
 | Segmentation | Pyannote community-1 (powerset) | ~50 MB | CC-BY-4.0 |
 | Filter bank | Fbank feature extractor | ~1 MB | Apache 2.0 |
 | Embeddings | WeSpeaker v2 (256-dim) | ~40 MB | Apache 2.0 |
 | PLDA scoring | PLDA rho model + psi parameters | ~10 MB | Apache 2.0 |
 
-**Total**: ~130 MB (one-time download, cached at `~/Library/Application Support/FluidAudio/Models/`)
+Nemotron assets are size- and SHA-256-verified into an app-owned cache under `nemotron-diarization/`. Community-1 assets (~130 MB) use FluidAudio's revision-marked cache. Model setup prepares both, readiness covers both, and `models clear` removes both. Both caches live under `~/Library/Application Support/FluidAudio/Models/`.
 
 ### Integration with ASR
 
@@ -621,52 +643,47 @@ ASR and diarization run on the same audio, then results are merged:
 
 ```
 Audio file
-  ├─→ selected ASR engine                    → word timestamps + text
-  └─→ OfflineDiarizerManager.process()        → speaker segments + IDs
+  ├─→ selected ASR engine                          → word timestamps + text
+  └─→ DiarizationServiceFactory.live service       → speaker segments + IDs
                     ↓
-         Quality-aware word assignment
+         Merge by time overlap
                     ↓
          WordTimestamp entries with speakerId
 ```
 
-Each word's time range is compared against diarization speaker segments. Direct overlap wins only when the best speaker clears the ambiguity margin; small timestamp gaps can use a bounded, quality-gated nearest-segment fallback. Words in silence gaps, ambiguous overlap zones, or low-confidence fallback regions get no speaker assignment for file transcription, or retain source-only attribution for meeting system audio.
+Each word's time range is compared against diarization speaker segments. The speaker with the most overlap is assigned to that word, so a word under overlapping Nemotron activity still gets one label. Words in silence gaps get `speakerId = nil`, as do words in overlap zones that Community-1 trims. In a meeting, system-track words that stay unassigned after the gap fill keep `speakerId = "system"` and appear as `Unattributed` beside the diarized clusters (#1228).
 
 **Diarization is non-fatal.** If diarization fails (`noSpeechDetected`, model error, etc.), the ASR result is still persisted. Speaker fields remain nil and the transcript displays without speaker attribution.
 
 ### API
 
 ```swift
-let config = DiarizationService.highAccuracyConfig
-let manager = OfflineDiarizerManager(config: config)
-try await manager.prepareModels()
+let service = DiarizationServiceFactory.live.make(speakerConstraint: nil)  // or .exact(n) / .range(min:max:)
+try await service.prepareModels()
 
-let result = try await manager.process(url)
+let result = try await service.diarize(audioURL: wavURL)
 for segment in result.segments {
-    // segment.speakerId — e.g. "speaker_0", "speaker_1" (FluidAudio format; DiarizationService normalizes to "S1", "S2")
-    // segment.startTimeSeconds, segment.endTimeSeconds
+    // segment.speakerId — normalized "S1", "S2", ...
+    // segment.startMs, segment.endMs
 }
 ```
 
 ### Configuration and measurement status
 
-`DiarizationService.highAccuracyConfig` starts from the library default and
+The automatic path uses the `fast128` preset, a 0.5 activity threshold and no minimum segment duration. The matched 0.15.7-versus-0.17.4 evaluation in `benchmarks/diarization/2026-09-25-nemotron-evaluation.md` records where it improves and where it regresses. It is a qualified adoption, not a universal accuracy guarantee.
+
+For the explicit-count path, `DiarizationService.highAccuracyConfig` starts from the library default and
 sets segmentation `stepRatio = 0.1`, embedding
 `minSegmentDurationSeconds = 0`, and zero-vote re-embedding enabled.
-Speaker-count constraints are applied to this preset per request. After
-FluidAudio returns, isolated one-word speaker flips and unlabeled gaps are
-smoothed at word assignment only when both neighboring runs agree
-([issue #1046](https://github.com/moona3k/macparakeet/issues/1046)). This
-does not change clusters or `clustering.threshold`.
+Speaker-count constraints are applied to this preset per request.
 
-The app pins FluidAudio 0.15.7, including 0.15.6 clustering corrections and
-the 0.15.7 dual-census speaker-cap fix (FluidAudio #891). Older upstream
-VoxConverse measurements (0.25-second collar, overlap ignored) reported
-13.89% DER for the denser preset versus 15.07% for the faster default under
-0.15.4; those figures have not been re-run for the current pin. They are
-not current app accuracy or throughput guarantees. Asset sizes above also
-do not measure peak process memory. See ADR-010's 2026-09-06, 2026-09-13,
-and 2026-09-15 amendments for provenance, the 0.15.7 pin, word-assignment
-smoothing, and the remaining DER gap.
+For both paths, unlabeled words at word assignment (`SpeakerMerger`) take the
+speaker of both neighboring runs when they agree. A one-word turn of another
+speaker is kept, since it is mostly a real reply
+([issue #1046](https://github.com/moona3k/macparakeet/issues/1046)). This does
+not change diarizer output.
+
+The app pins FluidAudio 0.17.7 (ADR-010 2026-10-08 amendment). Older Community-1 measurements under 0.15.x are not current app accuracy or throughput guarantees. Asset sizes above also do not measure peak process memory. See ADR-010's 2026-09-25 Nemotron amendment and its earlier amendments for provenance and the remaining DER gap.
 
 ### What's NOT included
 

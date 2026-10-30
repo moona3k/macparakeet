@@ -13,9 +13,10 @@ public struct PromptResult: Codable, Identifiable, Sendable {
     public var promptContent: String
     public var extraInstructions: String?
     public var content: String
-    /// Exact effective notes supplied to the LLM for this result, after blank
-    /// normalization and the prompt-context word cap. Nil means no notes were
-    /// sent. Editing canonical meeting notes never changes this receipt.
+    /// Notes used in prompt assembly after blank normalization and the word
+    /// cap. Provider context limits can trim the assembled prompt further, and
+    /// legacy snapshots can be uncapped. Nil means no notes were used in assembly.
+    /// Editing canonical meeting notes never changes this receipt.
     public var userNotesSnapshot: String?
     /// Snapshot of the per-prompt automatic meeting-notes preference used for
     /// this generation. This remains meaningful when no notes existed, so a
@@ -29,8 +30,25 @@ public struct PromptResult: Codable, Identifiable, Sendable {
     /// These are receipts, not live references to the current LLM settings.
     public var providerSnapshot: String?
     public var modelSnapshot: String?
+    /// Meeting AI output-language policy captured for this generation
+    /// (`follow-transcript` or a language code). Nil for results created
+    /// before the policy existed or for imported results without a recorded
+    /// policy; regeneration then uses the current setting.
+    public var outputLanguagePolicySnapshot: String?
+    /// Correction revision of the transcript this result was generated from.
+    /// Nil means the result predates that receipt.
+    public var sourceCorrectionRevision: Int?
+    /// Hash of the canonical clean/raw transcript text this result used.
+    /// Nil means no source text receipt was available.
+    public var sourceTranscriptHash: String?
+    /// When set, `content` was last written by the user rather than by
+    /// generation. Prompt snapshots stay the generation receipt. Nil for
+    /// unedited results, including rows created before this column existed.
+    public var contentEditedAt: Date?
     public var createdAt: Date
     public var updatedAt: Date
+
+    public var isContentUserEdited: Bool { contentEditedAt != nil }
 
     /// Legacy JSON predates the meeting-notes preference. Only an absent key
     /// defaults to false; malformed or null values remain decoding errors.
@@ -52,6 +70,11 @@ public struct PromptResult: Codable, Identifiable, Sendable {
             PromptInferenceSettings.self, forKey: .inferenceSettingsSnapshot)
         providerSnapshot = try container.decodeIfPresent(String.self, forKey: .providerSnapshot)
         modelSnapshot = try container.decodeIfPresent(String.self, forKey: .modelSnapshot)
+        outputLanguagePolicySnapshot = try container.decodeIfPresent(
+            String.self, forKey: .outputLanguagePolicySnapshot)
+        sourceCorrectionRevision = try container.decodeIfPresent(Int.self, forKey: .sourceCorrectionRevision)
+        sourceTranscriptHash = try container.decodeIfPresent(String.self, forKey: .sourceTranscriptHash)
+        contentEditedAt = try container.decodeIfPresent(Date.self, forKey: .contentEditedAt)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
@@ -70,6 +93,10 @@ public struct PromptResult: Codable, Identifiable, Sendable {
         inferenceSettingsSnapshot: PromptInferenceSettings? = nil,
         providerSnapshot: String? = nil,
         modelSnapshot: String? = nil,
+        outputLanguagePolicySnapshot: String? = nil,
+        sourceCorrectionRevision: Int? = nil,
+        sourceTranscriptHash: String? = nil,
+        contentEditedAt: Date? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -86,8 +113,77 @@ public struct PromptResult: Codable, Identifiable, Sendable {
         self.inferenceSettingsSnapshot = inferenceSettingsSnapshot?.normalized
         self.providerSnapshot = providerSnapshot
         self.modelSnapshot = modelSnapshot
+        self.outputLanguagePolicySnapshot = outputLanguagePolicySnapshot
+        self.sourceCorrectionRevision = sourceCorrectionRevision
+        self.sourceTranscriptHash = sourceTranscriptHash
+        self.contentEditedAt = contentEditedAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+}
+
+/// What a saved result can truthfully say about meeting notes. Presentation
+/// only; it never changes what regeneration replays.
+public enum PromptResultMeetingNotesStatus: Equatable, Sendable {
+    /// The notes saved as this result's assembly snapshot, before provider
+    /// context trimming. Legacy snapshots can be uncapped.
+    case sent(String)
+    /// Notes were enabled for this result, but none existed when it ran.
+    case enabledWithoutNotes
+    /// A library prompt ran with notes disabled.
+    case off
+    /// Imported or unlinked result with no notes receipt.
+    case notRecorded
+}
+
+/// Quiet result-page notice when the meeting has notes this result did not use.
+/// Empty notes, sent snapshots, and results with no notes receipt stay silent.
+public enum MeetingResultNotesNotice: Equatable, Sendable {
+    /// A library prompt ran with notes disabled.
+    case disabled
+    /// Notes were enabled, but none existed when this result ran.
+    case emptyWhenGenerated
+
+    public static let title = "Notes not included"
+
+    public var explanation: String {
+        switch self {
+        case .disabled:
+            return
+                "Meeting notes are off for this result. Enable ‘Include meeting notes as context’ in Manage Prompts, then generate a new result. Regenerate keeps the original setting."
+        case .emptyWhenGenerated:
+            return "No meeting notes were recorded for this result. Regenerate to use your current notes."
+        }
+    }
+
+    public static func notice(
+        status: PromptResultMeetingNotesStatus,
+        currentNotes: String?
+    ) -> MeetingResultNotesNotice? {
+        guard currentNotes?.contains(where: { !$0.isWhitespace }) == true else { return nil }
+        switch status {
+        case .off:
+            return .disabled
+        case .enabledWithoutNotes:
+            return .emptyWhenGenerated
+        case .sent, .notRecorded:
+            return nil
+        }
+    }
+}
+
+extension PromptResult {
+    public var meetingNotesStatus: PromptResultMeetingNotesStatus {
+        let consumesNotes = PromptSystemPromptAssembler.consumesMeetingNotes(
+            promptContent: promptContent,
+            includeMeetingNotes: includeMeetingNotesSnapshot
+        )
+        if consumesNotes, let userNotesSnapshot, userNotesSnapshot.contains(where: { !$0.isWhitespace }) {
+            return .sent(userNotesSnapshot)
+        }
+        if includeMeetingNotesSnapshot { return .enabledWithoutNotes }
+        if promptId == nil { return .notRecorded }
+        return consumesNotes ? .enabledWithoutNotes : .off
     }
 }
 
@@ -98,7 +194,8 @@ extension PromptResult: FetchableRecord, PersistableRecord {
         case id, transcriptionId, promptId, promptVersionId
         case promptName, promptContent, extraInstructions, content
         case userNotesSnapshot, includeMeetingNotesSnapshot, inferenceSettingsSnapshot
-        case providerSnapshot, modelSnapshot
+        case providerSnapshot, modelSnapshot, outputLanguagePolicySnapshot
+        case sourceCorrectionRevision, sourceTranscriptHash, contentEditedAt
         case createdAt, updatedAt
     }
 }

@@ -1116,6 +1116,18 @@ func appHotkeyCollision(
             .bareModifierDictation
         ),
         (
+            "additional hands-free shortcut",
+            HotkeyTrigger.current(
+                defaults: defaults, defaultsKey: HotkeyTrigger.alternateHandsFreeDefaultsKey, fallback: .disabled),
+            .bareModifierDictation
+        ),
+        (
+            "additional push-to-talk shortcut",
+            HotkeyTrigger.current(
+                defaults: defaults, defaultsKey: HotkeyTrigger.alternatePushToTalkDefaultsKey, fallback: .disabled),
+            .bareModifierDictation
+        ),
+        (
             "meeting recording",
             HotkeyTrigger.current(
                 defaults: defaults,

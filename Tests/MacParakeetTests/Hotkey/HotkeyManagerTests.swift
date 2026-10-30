@@ -15,6 +15,52 @@ final class HotkeyManagerTests: XCTestCase {
         CGEventFlags(rawValue: masks.reduce(0, |))
     }
 
+    /// Builds a manager that sees no pre-held keys or modifiers. Built-in Fn
+    /// is admitted only when no other key is held, and the production
+    /// providers read the live session keyboard, so a key or modifier the OS
+    /// reports as held on the test machine would otherwise change results.
+    /// Tests that model held keys install their own provider afterward.
+    private func makeManager(
+        trigger: HotkeyTrigger,
+        gestureMode: HotkeyGestureController.Mode = .doubleTapAndHold
+    ) -> HotkeyManager {
+        let manager = HotkeyManager(trigger: trigger, gestureMode: gestureMode)
+        manager.setPhysicalKeyStateProviderForTesting { _ in false }
+        manager.setPhysicalFlagsProviderForTesting { [] }
+        return manager
+    }
+
+    /// #1142: dictation taps, including filtering non-Fn triggers, must not
+    /// share the UI run loop.
+    func testTapRunsOnEventTapThreadNotMainRunLoop() throws {
+        for trigger in [HotkeyTrigger.fn, .chord(modifiers: ["control", "shift"], keyCode: 15)] {
+            let manager = makeManager(trigger: trigger)
+            guard manager.start() else {
+                throw XCTSkip("Event tap creation needs Input Monitoring permission")
+            }
+            let source = try XCTUnwrap(manager.runLoopSourceForTesting)
+            XCTAssertFalse(CFRunLoopContainsSource(CFRunLoopGetMain(), source, .commonModes))
+            XCTAssertTrue(CFRunLoopContainsSource(EventTapThread.shared.runLoop, source, .commonModes))
+            manager.stop()
+            XCTAssertNil(manager.runLoopSourceForTesting)
+        }
+    }
+
+    func testStartStopCyclesDoNotAccumulateEventTaps() throws {
+        let manager = makeManager(trigger: .chord(modifiers: ["control", "shift"], keyCode: 15))
+        guard manager.start() else {
+            throw XCTSkip("Event tap creation needs Input Monitoring permission")
+        }
+        manager.stop()
+        let baseline = try XCTUnwrap(eventTapCountForThisProcess())
+        for _ in 0..<10 {
+            XCTAssertTrue(manager.start())
+            XCTAssertTrue(manager.start())
+            manager.stop()
+        }
+        XCTAssertEqual(eventTapCountForThisProcess(), baseline)
+    }
+
     func testBareFnUsesListenOnlyTapWithoutChangingOtherHotkeyTapBehavior() {
         let keyUpMask: CGEventMask = 1 << CGEventType.keyUp.rawValue
 
@@ -30,7 +76,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testPassiveFnCleanHoldReleaseStartsAndStopsExactlyOnceDespiteNoise() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .holdOnly)
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
 
         XCTAssertEqual(
@@ -70,7 +116,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testPassiveFnOtherKeyCancellationCannotStopOrRestartOnRelease() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .holdOnly)
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
 
         _ = manager.modifierFlagsChangedOutputsForTesting(
@@ -96,7 +142,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testPassiveFnPreHeldModifierBlocksEntireGesture() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .holdOnly)
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
 
         XCTAssertEqual(
@@ -120,7 +166,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testPassiveFnPreHeldOrdinaryKeyRemainingHeldBlocksEntireGesture() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .holdOnly)
         manager.setPhysicalKeyStateProviderForTesting { $0 == 0 }
 
         XCTAssertEqual(
@@ -146,7 +192,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testPassiveFnPreHeldOrdinaryKeyReleasedDuringFnRemainsCancelled() {
         var pressedKeyCodes: Set<UInt16> = [0]
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .holdOnly)
         manager.setPhysicalKeyStateProviderForTesting { pressedKeyCodes.contains($0) }
 
         XCTAssertEqual(
@@ -172,7 +218,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testPassiveFnSingleTapEscapeHeldThroughReleaseCannotStartRecording() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .singleTapToggle)
+        let manager = makeManager(trigger: .fn, gestureMode: .singleTapToggle)
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
 
         XCTAssertEqual(
@@ -207,7 +253,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testEscapeDoesNotCancelWhenSettingIsOff() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .singleTapToggle)
+        let manager = makeManager(trigger: .fn, gestureMode: .singleTapToggle)
         manager.shouldCancelOnEscape = { false }
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
 
@@ -216,7 +262,7 @@ final class HotkeyManagerTests: XCTestCase {
             [.escapeWhileIdle]
         )
 
-        let keyCodeManager = HotkeyManager(trigger: HotkeyTrigger.fromKeyCode(119), gestureMode: .singleTapToggle)
+        let keyCodeManager = makeManager(trigger: HotkeyTrigger.fromKeyCode(119), gestureMode: .singleTapToggle)
         keyCodeManager.shouldCancelOnEscape = { false }
         let decision = keyCodeManager.keyCodeEventDecisionForTesting(
             type: .keyDown,
@@ -261,7 +307,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testEscapeClearsPendingHoldWhenCancelSettingIsOff() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .holdOnly)
         manager.shouldCancelOnEscape = { false }
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
 
@@ -281,7 +327,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testEscapeClearsSecondTapWindowWhenCancelSettingIsOff() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .doubleTapAndHold)
+        let manager = makeManager(trigger: .fn, gestureMode: .doubleTapAndHold)
         manager.shouldCancelOnEscape = { false }
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
 
@@ -323,7 +369,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testPassiveFnTapRecoveryReconcilesPreHeldKeyAndFailsClosed() {
         var pressedKeyCodes: Set<UInt16> = []
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .holdOnly)
         manager.setPhysicalKeyStateProviderForTesting { pressedKeyCodes.contains($0) }
 
         XCTAssertEqual(
@@ -358,7 +404,11 @@ final class HotkeyManagerTests: XCTestCase {
         )
         XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [])
 
+        // Pressed again: the tap sees the keyDown, so Fn stays blocked. A
+        // release the tap saw survives resetToIdle (#1142 follow-up): a stale
+        // snapshot key must not block Fn after every take.
         pressedKeyCodes.insert(0)
+        _ = manager.modifierKeyDownOutputsForTesting(keyCode: 0, timestampMs: 1_180)
         manager.resetToIdle(flags: [])
         XCTAssertEqual(
             manager.modifierFlagsChangedOutputsForTesting(
@@ -371,7 +421,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testPassiveFnContaminatedAdmissionInvalidatesPendingDoubleTapWindow() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .doubleTapOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .doubleTapOnly)
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
 
         XCTAssertEqual(
@@ -437,7 +487,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testPassiveFnModifierTransitionBetweenTapsInvalidatesPendingWindow() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .doubleTapOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .doubleTapOnly)
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
 
         _ = manager.modifierFlagsChangedOutputsForTesting(
@@ -491,7 +541,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testPassiveFnKeyUpOnlyBetweenTapsInvalidatesPendingWindowOnce() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .doubleTapAndHold)
+        let manager = makeManager(trigger: .fn, gestureMode: .doubleTapAndHold)
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
 
         XCTAssertEqual(
@@ -543,7 +593,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testPassiveFnKeyUpOnlyDoesNotCancelOwnedPersistentRecording() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .doubleTapOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .doubleTapOnly)
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
 
         _ = manager.modifierFlagsChangedOutputsForTesting(
@@ -587,7 +637,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testPassiveFnContaminatedAdmissionPreservesActivePersistentOwnership() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .doubleTapOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .doubleTapOnly)
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
 
         _ = manager.modifierFlagsChangedOutputsForTesting(
@@ -652,7 +702,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testPassiveFnPreLatchedCapsLockPhysicalKeyStateDoesNotBlockHold() {
-        let holdManager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        let holdManager = makeManager(trigger: .fn, gestureMode: .holdOnly)
         holdManager.setPhysicalKeyStateProviderForTesting { $0 == 57 }
 
         XCTAssertEqual(
@@ -668,7 +718,7 @@ final class HotkeyManagerTests: XCTestCase {
             [.startRecording(mode: .holdToTalk)]
         )
 
-        let tapManager = HotkeyManager(trigger: .fn, gestureMode: .doubleTapOnly)
+        let tapManager = makeManager(trigger: .fn, gestureMode: .doubleTapOnly)
         tapManager.setPhysicalKeyStateProviderForTesting { $0 == 57 }
         XCTAssertEqual(
             tapManager.modifierFlagsChangedOutputsForTesting(
@@ -697,7 +747,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testPassiveFnPreLatchedCapsLockAllowsHoldAndDoubleTap() {
-        let holdManager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        let holdManager = makeManager(trigger: .fn, gestureMode: .holdOnly)
         holdManager.setPhysicalKeyStateProviderForTesting { _ in false }
 
         XCTAssertEqual(
@@ -721,7 +771,7 @@ final class HotkeyManagerTests: XCTestCase {
             [.cancelStartupDebounce, .cancelHoldWindow, .stopRecording]
         )
 
-        let tapManager = HotkeyManager(trigger: .fn, gestureMode: .doubleTapOnly)
+        let tapManager = makeManager(trigger: .fn, gestureMode: .doubleTapOnly)
         tapManager.setPhysicalKeyStateProviderForTesting { _ in false }
         XCTAssertEqual(
             tapManager.modifierFlagsChangedOutputsForTesting(
@@ -750,7 +800,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testPassiveFnCapsLockTransitionBetweenTapsAndDuringHoldCancels() {
-        let tapManager = HotkeyManager(trigger: .fn, gestureMode: .doubleTapOnly)
+        let tapManager = makeManager(trigger: .fn, gestureMode: .doubleTapOnly)
         tapManager.setPhysicalKeyStateProviderForTesting { _ in false }
 
         _ = tapManager.modifierFlagsChangedOutputsForTesting(
@@ -780,7 +830,7 @@ final class HotkeyManagerTests: XCTestCase {
             []
         )
 
-        let holdManager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        let holdManager = makeManager(trigger: .fn, gestureMode: .holdOnly)
         holdManager.setPhysicalKeyStateProviderForTesting { _ in false }
         _ = holdManager.modifierFlagsChangedOutputsForTesting(
             flags: [.maskSecondaryFn],
@@ -810,7 +860,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testPassiveFnRecoveryAllowsPreLatchedCapsLockWhenKeyStateReportsDown() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .holdOnly)
         manager.setPhysicalKeyStateProviderForTesting { $0 == 57 }
 
         XCTAssertEqual(
@@ -836,7 +886,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testPassiveFnRecoveryAllowsPreLatchedCapsLock() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .holdOnly)
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
 
         XCTAssertEqual(
@@ -870,7 +920,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testPassiveFnRecoveryCancelsPendingGestureWhenCapsLockTurnsOn() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .holdOnly)
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
 
         XCTAssertEqual(
@@ -910,7 +960,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testPassiveFnRecoveryCancelsPendingGestureWhenCapsLockTurnsOff() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .holdOnly)
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
 
         XCTAssertEqual(
@@ -942,7 +992,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testPassiveFnRecoveryCapsLockDeltaCancelsActiveHoldExactlyOnce() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .holdOnly)
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
 
         _ = manager.modifierFlagsChangedOutputsForTesting(
@@ -983,7 +1033,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testPassiveFnReleaseOfObservedOtherKeyCancelsGesture() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .holdOnly)
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
 
         _ = manager.modifierFlagsChangedOutputsForTesting(
@@ -1014,7 +1064,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testPassiveFnOtherModifierTransitionCancelsWithoutPostCancelStop() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .holdOnly)
 
         _ = manager.modifierFlagsChangedOutputsForTesting(
             flags: [.maskSecondaryFn],
@@ -1049,7 +1099,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testPassiveFnCapsLockTransitionCancelsPendingGesture() {
-        let manager = HotkeyManager(trigger: .fn)
+        let manager = makeManager(trigger: .fn)
 
         _ = manager.modifierFlagsChangedOutputsForTesting(
             flags: [.maskSecondaryFn],
@@ -1077,7 +1127,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testPassiveFnTapRecoveryAndResetCannotDuplicateActions() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .holdOnly)
 
         _ = manager.modifierFlagsChangedOutputsForTesting(
             flags: [.maskSecondaryFn],
@@ -1109,7 +1159,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testDoubleTapOnlyGestureModeDoesNotStartHoldRecording() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .doubleTapOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .doubleTapOnly)
 
         XCTAssertEqual(
             manager.modifierFlagsChangedOutputsForTesting(
@@ -1146,7 +1196,7 @@ final class HotkeyManagerTests: XCTestCase {
         // restart disables the CGEvent tap; on recovery (no active recording yet)
         // the manager hard-reset the gesture and cancelled the armed start, and
         // since Fn was still held no new edge re-armed it.
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .holdOnly)
 
         // Fresh Fn press arms the startup debounce; the start has not fired yet.
         XCTAssertEqual(
@@ -1174,7 +1224,7 @@ final class HotkeyManagerTests: XCTestCase {
     func testRecoverFromDisabledTapStillResetsPendingStartWhenTriggerReleased() {
         // The preserve path is gated on the trigger still being held — if it was
         // released, recovery must still clear the stale pending start (no phantom).
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .holdOnly)
 
         XCTAssertEqual(
             manager.modifierFlagsChangedOutputsForTesting(
@@ -1194,7 +1244,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testHoldOnlyGestureModeStartsAndStopsHoldRecording() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .holdOnly)
 
         XCTAssertEqual(
             manager.modifierFlagsChangedOutputsForTesting(
@@ -1221,7 +1271,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testSingleTapToggleModifierStartsOnBareReleaseAndStopsOnNextBareRelease() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .singleTapToggle)
+        let manager = makeManager(trigger: .fn, gestureMode: .singleTapToggle)
 
         XCTAssertEqual(
             manager.modifierFlagsChangedOutputsForTesting(
@@ -1254,7 +1304,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testSingleTapToggleModifierIgnoresNonBareShortcutUse() {
-        let manager = HotkeyManager(trigger: .command, gestureMode: .singleTapToggle)
+        let manager = makeManager(trigger: .command, gestureMode: .singleTapToggle)
 
         XCTAssertEqual(
             manager.modifierFlagsChangedOutputsForTesting(
@@ -1277,7 +1327,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testHoldOnlyCommandCancelsBeforeStartupWhenUsedAsChord() {
-        let manager = HotkeyManager(trigger: .command, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: .command, gestureMode: .holdOnly)
 
         XCTAssertEqual(
             manager.modifierFlagsChangedOutputsForTesting(
@@ -1307,7 +1357,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testSuppressedHoldOnlyManagerDoesNotStartUntilReset() {
-        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: .fn, gestureMode: .holdOnly)
 
         manager.suppressUntilReset()
 
@@ -1340,7 +1390,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testDoubleTapOnlyGestureModeWorksForKeyCodeTriggers() {
         let trigger = HotkeyTrigger.fromKeyCode(119)
-        let manager = HotkeyManager(trigger: trigger, gestureMode: .doubleTapOnly)
+        let manager = makeManager(trigger: trigger, gestureMode: .doubleTapOnly)
 
         let firstDown = manager.keyCodeEventDecisionForTesting(
             type: .keyDown,
@@ -1371,7 +1421,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testHoldOnlyGestureModeWorksForKeyCodeTriggers() {
         let trigger = HotkeyTrigger.fromKeyCode(119)
-        let manager = HotkeyManager(trigger: trigger, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: trigger, gestureMode: .holdOnly)
 
         let keyDown = manager.keyCodeEventDecisionForTesting(
             type: .keyDown,
@@ -1403,7 +1453,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testSingleTapToggleGestureModeWorksForKeyCodeTriggers() {
         let trigger = HotkeyTrigger.fromKeyCode(119)
-        let manager = HotkeyManager(trigger: trigger, gestureMode: .singleTapToggle)
+        let manager = makeManager(trigger: trigger, gestureMode: .singleTapToggle)
 
         let firstDown = manager.keyCodeEventDecisionForTesting(
             type: .keyDown,
@@ -1432,7 +1482,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testHoldOnlyGestureModeStopsChordWhenRequiredModifierReleasesFirst() {
         let trigger = HotkeyTrigger.chord(modifiers: ["control", "shift"], keyCode: 15)
-        let manager = HotkeyManager(trigger: trigger, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: trigger, gestureMode: .holdOnly)
 
         let keyDown = manager.chordEventDecisionForTesting(
             type: .keyDown,
@@ -1475,7 +1525,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testSingleTapToggleGestureModeWorksForFnSpaceChord() {
         let trigger = HotkeyTrigger.fnSpace
-        let manager = HotkeyManager(trigger: trigger, gestureMode: .singleTapToggle)
+        let manager = makeManager(trigger: trigger, gestureMode: .singleTapToggle)
 
         let firstDown = manager.chordEventDecisionForTesting(
             type: .keyDown,
@@ -1506,14 +1556,14 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testControlFunctionKeyChordToleratesPhantomFnFlagBit() {
-        // Characterization: chord matching is superset-based, so a clean
-        // ⌃F19 trigger fires whether or not the event carries the phantom
-        // NX_SECONDARYFNMASK bit macOS sets on hardware F-key presses.
+        // A clean ⌃F19 trigger fires whether or not the event carries the
+        // phantom NX_SECONDARYFNMASK bit macOS sets on hardware F-key presses.
         // The recorder relies on this to store F-key chords without "fn".
+        // Real extra modifiers are a different case and must not match.
         let trigger = HotkeyTrigger.chord(modifiers: ["control"], keyCode: 80)
 
         for phantomFn in [CGEventFlags.maskSecondaryFn.rawValue, 0] {
-            let manager = HotkeyManager(trigger: trigger, gestureMode: .singleTapToggle)
+            let manager = makeManager(trigger: trigger, gestureMode: .singleTapToggle)
 
             let keyDown = manager.chordEventDecisionForTesting(
                 type: .keyDown,
@@ -1526,9 +1576,117 @@ final class HotkeyManagerTests: XCTestCase {
         }
     }
 
+    func testCommandDChordDoesNotFireWhenShiftIsAlsoHeld() {
+        // #1237: ⌘D is an exact chord. ⇧⌘D must reach the front app.
+        let trigger = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 2)
+        let manager = makeManager(trigger: trigger, gestureMode: .singleTapToggle)
+
+        let shifted = manager.chordEventDecisionForTesting(
+            type: .keyDown,
+            keyCode: 2,
+            flags: trigger.chordEventFlags | CGEventFlags.maskShift.rawValue,
+            timestampMs: 1_000
+        )
+        XCTAssertEqual(shifted.outputs, [])
+        XCTAssertFalse(shifted.shouldSwallow)
+
+        let repeatAfterShiftReleased = manager.chordEventDecisionForTesting(
+            type: .keyDown,
+            keyCode: 2,
+            flags: trigger.chordEventFlags,
+            timestampMs: 1_050
+        )
+        XCTAssertEqual(repeatAfterShiftReleased.outputs, [])
+        XCTAssertFalse(repeatAfterShiftReleased.shouldSwallow)
+
+        let keyUp = manager.chordEventDecisionForTesting(
+            type: .keyUp,
+            keyCode: 2,
+            flags: trigger.chordEventFlags,
+            timestampMs: 1_080
+        )
+        XCTAssertEqual(keyUp.outputs, [])
+        XCTAssertFalse(keyUp.shouldSwallow)
+
+        let exact = manager.chordEventDecisionForTesting(
+            type: .keyDown,
+            keyCode: 2,
+            flags: trigger.chordEventFlags,
+            timestampMs: 1_100
+        )
+        XCTAssertEqual(exact.outputs, [.startRecording(mode: .persistent)])
+        XCTAssertTrue(exact.shouldSwallow)
+    }
+
+    func testControlFunctionKeyChordDoesNotFireWhenShiftIsAlsoHeld() {
+        let trigger = HotkeyTrigger.chord(modifiers: ["control"], keyCode: 80)
+        let manager = makeManager(trigger: trigger, gestureMode: .singleTapToggle)
+
+        let shifted = manager.chordEventDecisionForTesting(
+            type: .keyDown,
+            keyCode: 80,
+            flags: trigger.chordEventFlags
+                | CGEventFlags.maskShift.rawValue
+                | CGEventFlags.maskSecondaryFn.rawValue,
+            timestampMs: 1_000
+        )
+        XCTAssertEqual(shifted.outputs, [])
+        XCTAssertFalse(shifted.shouldSwallow)
+    }
+
+    func testHoldChordContinuesWhenShiftIsPressedAfterStart() {
+        let trigger = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 2)
+        let manager = makeManager(trigger: trigger, gestureMode: .holdOnly)
+
+        let keyDown = manager.chordEventDecisionForTesting(
+            type: .keyDown,
+            keyCode: 2,
+            flags: trigger.chordEventFlags,
+            timestampMs: 1_000
+        )
+        XCTAssertEqual(
+            keyDown.outputs,
+            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs)]
+        )
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
+
+        let shiftAdded = manager.chordEventDecisionForTesting(
+            type: .flagsChanged,
+            keyCode: 56,
+            flags: trigger.chordEventFlags | CGEventFlags.maskShift.rawValue,
+            timestampMs: 1_200
+        )
+        XCTAssertEqual(shiftAdded.outputs, [])
+
+        let repeated = manager.chordEventDecisionForTesting(
+            type: .keyDown,
+            keyCode: 2,
+            flags: trigger.chordEventFlags | CGEventFlags.maskShift.rawValue,
+            timestampMs: 1_250
+        )
+        XCTAssertEqual(repeated.outputs, [])
+        XCTAssertTrue(repeated.shouldSwallow)
+
+        let keyUp = manager.chordEventDecisionForTesting(
+            type: .keyUp,
+            keyCode: 2,
+            flags: trigger.chordEventFlags | CGEventFlags.maskShift.rawValue,
+            timestampMs: 1_400
+        )
+        XCTAssertEqual(
+            keyUp.outputs,
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+                .stopRecording,
+            ]
+        )
+        XCTAssertTrue(keyUp.shouldSwallow)
+    }
+
     func testControlBacktickChordStartsHandsFreeDictation() {
         let trigger = HotkeyTrigger.chord(modifiers: ["control"], keyCode: 50)
-        let manager = HotkeyManager(trigger: trigger, gestureMode: .singleTapToggle)
+        let manager = makeManager(trigger: trigger, gestureMode: .singleTapToggle)
 
         let keyDown = manager.chordEventDecisionForTesting(
             type: .keyDown,
@@ -1547,7 +1705,8 @@ final class HotkeyManagerTests: XCTestCase {
             gestureMode: .holdOnly,
             startupDebounceMs: FnKeyStateMachine.defaultTapThresholdMs
         )
-        let handsFree = HotkeyManager(trigger: .fnSpace, gestureMode: .singleTapToggle)
+        pushToTalk.setPhysicalKeyStateProviderForTesting { _ in false }
+        let handsFree = makeManager(trigger: .fnSpace, gestureMode: .singleTapToggle)
 
         XCTAssertEqual(
             pushToTalk.modifierFlagsChangedOutputsForTesting(
@@ -1578,7 +1737,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testHoldOnlyGestureModeWorksForModifierChordTriggers() {
         let trigger = HotkeyTrigger.modifierChord(modifiers: ["control", "option"])
-        let manager = HotkeyManager(trigger: trigger, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: trigger, gestureMode: .holdOnly)
 
         XCTAssertEqual(
             manager.modifierChordFlagsChangedOutputsForTesting(
@@ -1603,7 +1762,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testSingleTapToggleModifierChordStartsOnBareRelease() {
         let trigger = HotkeyTrigger.modifierChord(modifiers: ["control", "option"])
-        let manager = HotkeyManager(trigger: trigger, gestureMode: .singleTapToggle)
+        let manager = makeManager(trigger: trigger, gestureMode: .singleTapToggle)
 
         XCTAssertEqual(
             manager.modifierChordFlagsChangedOutputsForTesting(
@@ -1622,7 +1781,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testTapRecoveryResetsPendingModifierGesture() {
-        let manager = HotkeyManager(trigger: .fn)
+        let manager = makeManager(trigger: .fn)
 
         XCTAssertEqual(
             manager.modifierFlagsChangedOutputsForTesting(
@@ -1659,7 +1818,7 @@ final class HotkeyManagerTests: XCTestCase {
         // Instant-Dictation warm-mic restart disables the tap) did nothing until
         // the user released and re-pressed. Now the pending start is preserved and
         // still fires on the debounce.
-        let manager = HotkeyManager(trigger: .fn)
+        let manager = makeManager(trigger: .fn)
 
         _ = manager.modifierFlagsChangedOutputsForTesting(
             flags: [.maskSecondaryFn],
@@ -1676,7 +1835,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testTapRecoveryDuringActiveHoldToTalkStopsOnRelease() {
-        let manager = HotkeyManager(trigger: .fn)
+        let manager = makeManager(trigger: .fn)
 
         _ = manager.modifierFlagsChangedOutputsForTesting(
             flags: [.maskSecondaryFn],
@@ -1712,6 +1871,7 @@ final class HotkeyManagerTests: XCTestCase {
             trigger: .fn,
             holdToTalkStopTailMs: 20
         )
+        manager.setPhysicalKeyStateProviderForTesting { _ in false }
         var stopCount = 0
         let stopExpectation = expectation(description: "stop callback fires after tail")
         manager.onStopRecording = {
@@ -1746,8 +1906,116 @@ final class HotkeyManagerTests: XCTestCase {
         XCTAssertEqual(stopCount, 1)
     }
 
+    /// Startup finishing during the stop tail must not resume the ending take:
+    /// a re-press then starts a new gesture instead of being ignored.
+    func testSyncDuringStopTailLeavesTheEndingTakeAlone() {
+        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly, holdToTalkStopTailMs: 50)
+        manager.setPhysicalKeyStateProviderForTesting { _ in false }
+        _ = manager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn], timestampMs: 1_000)
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
+        _ = manager.recoverFromDisabledTapForTesting(flags: [], timestampMs: 1_500)
+
+        manager.syncRecordingMode(.holdToTalk)
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn], timestampMs: 1_550),
+            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs)]
+        )
+    }
+
+    func testStopTailSignalsPendingThenStops() {
+        let manager = HotkeyManager(trigger: .fn, holdToTalkStopTailMs: 20)
+        manager.setPhysicalKeyStateProviderForTesting { _ in false }
+        var pending = 0
+        var cancelled = 0
+        let stopped = expectation(description: "stop after tail")
+        manager.onStopPending = { pending += 1 }
+        manager.onStopPendingCancelled = { cancelled += 1 }
+        manager.onStopRecording = {
+            XCTAssertEqual(pending, 1, "the UI hears about the release before the stop")
+            stopped.fulfill()
+        }
+
+        _ = manager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn], timestampMs: 1_000)
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
+        _ = manager.recoverFromDisabledTapForTesting(flags: [], timestampMs: 1_500)
+        XCTAssertEqual(pending, 1)
+
+        wait(for: [stopped], timeout: 1.0)
+        XCTAssertEqual(cancelled, 0)
+    }
+
+    func testAbandonedStopTailSignalsPendingCancelled() {
+        let manager = HotkeyManager(trigger: .fn, holdToTalkStopTailMs: 50)
+        manager.setPhysicalKeyStateProviderForTesting { _ in false }
+        var pending = 0
+        var cancelled = 0
+        manager.onStopPending = { pending += 1 }
+        manager.onStopPendingCancelled = { cancelled += 1 }
+        manager.onStopRecording = { XCTFail("an abandoned tail must not stop") }
+
+        _ = manager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn], timestampMs: 1_000)
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
+        _ = manager.recoverFromDisabledTapForTesting(flags: [], timestampMs: 1_500)
+        XCTAssertEqual(pending, 1)
+
+        manager.suppressUntilReset()
+        XCTAssertEqual(cancelled, 1)
+        manager.suppressUntilReset()
+        XCTAssertEqual(cancelled, 1, "only a pending tail reports cancellation")
+
+        let settle = expectation(description: "tail window passes")
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(120)) { settle.fulfill() }
+        wait(for: [settle], timeout: 1.0)
+    }
+
+    /// Some app posted a keyDown without its keyUp, so the session snapshot
+    /// reports the key held forever. Once the tap sees that key released,
+    /// bare Fn is admitted again.
+    func testPassiveFnIgnoresSnapshotKeyTheTapSawReleased() {
+        let manager = makeManager(trigger: .fn, gestureMode: .holdOnly)
+        manager.setPhysicalKeyStateProviderForTesting { $0 == 9 }
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn], timestampMs: 1_000),
+            [],
+            "a snapshot-held key still blocks Fn"
+        )
+        _ = manager.modifierFlagsChangedOutputsForTesting(flags: [], timestampMs: 1_100)
+
+        _ = manager.modifierKeyDownOutputsForTesting(keyCode: 9, timestampMs: 1_200)
+        _ = manager.modifierKeyUpOutputsForTesting(keyCode: 9, timestampMs: 1_300)
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn], timestampMs: 2_000),
+            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs)]
+        )
+    }
+
+    func testPassiveFnTrustsSnapshotAgainAfterKeyDownOrTapRecovery() {
+        let manager = makeManager(trigger: .fn, gestureMode: .holdOnly)
+        manager.setPhysicalKeyStateProviderForTesting { $0 == 9 }
+
+        _ = manager.modifierKeyUpOutputsForTesting(keyCode: 9, timestampMs: 1_000)
+        _ = manager.modifierKeyDownOutputsForTesting(keyCode: 9, timestampMs: 1_100)
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn], timestampMs: 1_200),
+            [],
+            "a keyDown after the release means the key really is held"
+        )
+        _ = manager.modifierFlagsChangedOutputsForTesting(flags: [], timestampMs: 1_300)
+
+        _ = manager.modifierKeyUpOutputsForTesting(keyCode: 9, timestampMs: 1_400)
+        _ = manager.recoverFromDisabledTapForTesting(flags: [], timestampMs: 1_500)
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(flags: [.maskSecondaryFn], timestampMs: 1_600),
+            [],
+            "after a disabled tap, events may have been missed, so the snapshot counts again"
+        )
+    }
+
     func testTapRecoveryDuringActiveHoldWithAdditionalModifierCancelsOnRelease() {
-        let manager = HotkeyManager(trigger: .fn)
+        let manager = makeManager(trigger: .fn)
 
         _ = manager.modifierFlagsChangedOutputsForTesting(
             flags: [.maskSecondaryFn],
@@ -1777,7 +2045,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testTapRecoveryDuringSideSpecificHoldWithOppositeSideCancelsOnRelease() {
         let trigger = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         _ = manager.modifierFlagsChangedOutputsForTesting(
             flags: sideSpecificFlags(
@@ -1820,7 +2088,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testTapRecoveryDuringActiveHoldToTalkStopsIfReleaseWasMissed() {
-        let manager = HotkeyManager(trigger: .fn)
+        let manager = makeManager(trigger: .fn)
 
         _ = manager.modifierFlagsChangedOutputsForTesting(
             flags: [.maskSecondaryFn],
@@ -1855,7 +2123,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testTapRecoveryDuringPersistentRecordingPreservesStopGesture() {
-        let manager = HotkeyManager(trigger: .fn)
+        let manager = makeManager(trigger: .fn)
 
         _ = manager.modifierFlagsChangedOutputsForTesting(
             flags: [.maskSecondaryFn],
@@ -1891,7 +2159,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testTapRecoveryDuringActiveChordHoldStopsAndSuppressesLaterKeyUp() {
         let trigger = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 49)
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         manager.resumeRecording(mode: .holdToTalk)
 
@@ -1914,7 +2182,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testSyncedPersistentRecordingFromExternalSurfaceMakesFnPressStop() {
-        let manager = HotkeyManager(trigger: .fn)
+        let manager = makeManager(trigger: .fn)
 
         manager.syncRecordingMode(.persistent)
 
@@ -1928,7 +2196,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testSyncedPersistentRecordingSuppressesHoldOnlyPeerUntilReset() {
-        let manager = HotkeyManager(trigger: .option, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: .option, gestureMode: .holdOnly)
 
         manager.syncRecordingMode(.persistent)
 
@@ -1953,7 +2221,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testChordTriggerKeyUpPassesThroughWhenChordWasNotHandled() {
         let trigger = HotkeyTrigger.chord(modifiers: ["control", "shift"], keyCode: 15)
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         let keyDown = manager.chordEventDecisionForTesting(
             type: .keyDown,
@@ -1976,7 +2244,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testChordTriggerKeyUpSwallowsAfterHandledKeyDown() {
         let trigger = HotkeyTrigger.chord(modifiers: ["control", "shift"], keyCode: 15)
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         let keyDown = manager.chordEventDecisionForTesting(
             type: .keyDown,
@@ -2005,7 +2273,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testChordTriggerWithoutRequiredModifiersInterruptsPendingSecondTap() {
         let trigger = HotkeyTrigger.chord(modifiers: ["control", "shift"], keyCode: 15)
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         _ = manager.chordEventDecisionForTesting(
             type: .keyDown,
@@ -2055,7 +2323,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testChordTriggerKeyUpSwallowsAfterModifierReleasedFirst() {
         let trigger = HotkeyTrigger.chord(modifiers: ["control", "shift"], keyCode: 15)
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         let keyDown = manager.chordEventDecisionForTesting(
             type: .keyDown,
@@ -2087,7 +2355,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testAdditionalModifierInterruptsBareFnBeforeStartup() {
-        let manager = HotkeyManager(trigger: .fn)
+        let manager = makeManager(trigger: .fn)
 
         XCTAssertEqual(
             manager.modifierFlagsChangedOutputsForTesting(
@@ -2125,7 +2393,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testRegularKeyInterruptsBareFnAndCancelsPendingTimers() {
-        let manager = HotkeyManager(trigger: .fn)
+        let manager = makeManager(trigger: .fn)
 
         _ = manager.modifierFlagsChangedOutputsForTesting(
             flags: [.maskSecondaryFn],
@@ -2147,7 +2415,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testRegularKeyInterruptsConfirmedFnHoldAndCancelsImmediately() {
-        let manager = HotkeyManager(trigger: .fn)
+        let manager = makeManager(trigger: .fn)
 
         _ = manager.modifierFlagsChangedOutputsForTesting(
             flags: [.maskSecondaryFn],
@@ -2182,7 +2450,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testAdditionalModifierSilentlyDiscardsAfterProvisionalStartup() {
-        let manager = HotkeyManager(trigger: .fn)
+        let manager = makeManager(trigger: .fn)
 
         _ = manager.modifierFlagsChangedOutputsForTesting(
             flags: [.maskSecondaryFn],
@@ -2212,7 +2480,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testSideSpecificRightCommandTriggersFromChangedKeyCodeWhenSideFlagsAreMissing() {
         let trigger = HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         XCTAssertEqual(
             manager.modifierFlagsChangedOutputsForTesting(
@@ -2229,7 +2497,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testSideSpecificRightCommandIgnoresLeftCommandWhenSideFlagsAreMissing() {
         let trigger = HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         XCTAssertEqual(
             manager.modifierFlagsChangedOutputsForTesting(
@@ -2243,7 +2511,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testSideSpecificRightCommandReleaseFromChangedKeyCodeWhenSideFlagsAreMissing() {
         let trigger = HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         _ = manager.modifierFlagsChangedOutputsForTesting(
             flags: [.maskCommand],
@@ -2263,7 +2531,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testHoldOnlySideSpecificCommandCancelsBeforeStartupWhenUsedAsChord() {
         let trigger = HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
-        let manager = HotkeyManager(trigger: trigger, gestureMode: .holdOnly)
+        let manager = makeManager(trigger: trigger, gestureMode: .holdOnly)
 
         XCTAssertEqual(
             manager.modifierFlagsChangedOutputsForTesting(
@@ -2285,7 +2553,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testSideSpecificRightOptionOnlyTriggersOnRightKey() {
         let trigger = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         // Right option pressed (keyCode 61) — should trigger
         XCTAssertEqual(
@@ -2305,7 +2573,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testSideSpecificRightOptionIgnoresLeftKey() {
         let trigger = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         // Left option pressed (keyCode 58) — should NOT trigger
         XCTAssertEqual(
@@ -2322,7 +2590,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testSideSpecificRightOptionTapReleaseProducesTriggerReleased() {
         let trigger = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         // Press right option
         _ = manager.modifierFlagsChangedOutputsForTesting(
@@ -2344,7 +2612,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testSideSpecificOtherKeyInterruptsWhileHeld() {
         let trigger = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         // Press right option
         _ = manager.modifierFlagsChangedOutputsForTesting(
@@ -2369,7 +2637,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testSideSpecificOppositeSideTapCancelsPendingSecondTap() {
         let trigger = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         XCTAssertEqual(
             manager.modifierFlagsChangedOutputsForTesting(
@@ -2429,7 +2697,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testSideSpecificOppositeSideTapCancelsPendingSecondTapWhenSideFlagsAreMissing() {
         let trigger = HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         XCTAssertEqual(
             manager.modifierFlagsChangedOutputsForTesting(
@@ -2485,7 +2753,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testSideSpecificRightOptionIgnoresPressWhenLeftOptionAlreadyHeld() {
         let trigger = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         _ = manager.modifierFlagsChangedOutputsForTesting(
             flags: sideSpecificFlags(
@@ -2521,7 +2789,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testSideSpecificRightOptionReleaseWhileHeldAtStartupDoesNotInvertState() {
         let trigger = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         manager.syncModifierPressedStateForTesting(
             flags: sideSpecificFlags(
@@ -2555,7 +2823,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testSideSpecificRightOptionResyncAfterMissedReleaseAllowsNextPress() {
         let trigger = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         _ = manager.modifierFlagsChangedOutputsForTesting(
             flags: sideSpecificFlags(
@@ -2584,7 +2852,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testResetToIdleResyncsHeldSideSpecificModifierState() {
         let trigger = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         _ = manager.modifierFlagsChangedOutputsForTesting(
             flags: sideSpecificFlags(
@@ -2617,7 +2885,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testSideSpecificCapsLockDoesNotInterruptBareTap() {
         let trigger = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         // Press right option
         _ = manager.modifierFlagsChangedOutputsForTesting(
@@ -2649,7 +2917,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testGenericOptionStillTriggersOnEitherSide() {
         // Generic trigger (no modifierKeyCode) — both sides should work
-        let manager = HotkeyManager(trigger: .option)
+        let manager = makeManager(trigger: .option)
 
         // Left option pressed
         XCTAssertEqual(
@@ -2668,7 +2936,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testModifierChordTapReleaseProducesReadyForSecondTap() {
         let trigger = HotkeyTrigger.modifierChord(modifiers: ["command", "option"])
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         XCTAssertEqual(
             manager.modifierChordFlagsChangedOutputsForTesting(
@@ -2692,7 +2960,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testModifierChordDoubleTapStartsPersistentRecording() {
         let trigger = HotkeyTrigger.modifierChord(modifiers: ["command", "option"])
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         _ = manager.modifierChordFlagsChangedOutputsForTesting(
             flags: [.maskCommand, .maskAlternate],
@@ -2711,7 +2979,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testModifierChordHoldToTalkStopsOnRelease() {
         let trigger = HotkeyTrigger.modifierChord(modifiers: ["command", "option"])
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         _ = manager.modifierChordFlagsChangedOutputsForTesting(
             flags: [.maskCommand, .maskAlternate],
@@ -2737,7 +3005,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testModifierChordRegularKeyInterruptsBareTap() {
         let trigger = HotkeyTrigger.modifierChord(modifiers: ["command", "option"])
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         _ = manager.modifierChordFlagsChangedOutputsForTesting(
             flags: [.maskCommand, .maskAlternate],
@@ -2763,7 +3031,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testModifierChordExtraModifierInterruptsBareTap() {
         let trigger = HotkeyTrigger.modifierChord(modifiers: ["command", "option"])
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         _ = manager.modifierChordFlagsChangedOutputsForTesting(
             flags: [.maskCommand, .maskAlternate],
@@ -2789,7 +3057,7 @@ final class HotkeyManagerTests: XCTestCase {
 
     func testModifierChordDoesNotStartAfterSupersetModifierIsReleased() {
         let trigger = HotkeyTrigger.modifierChord(modifiers: ["command", "option"])
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         XCTAssertEqual(
             manager.modifierChordFlagsChangedOutputsForTesting(
@@ -2818,7 +3086,7 @@ final class HotkeyManagerTests: XCTestCase {
                 .init(modifierName: "command", keyCode: 54),
             ]
         )
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         XCTAssertEqual(
             manager.modifierChordFlagsChangedOutputsForTesting(
@@ -2852,7 +3120,7 @@ final class HotkeyManagerTests: XCTestCase {
                 .init(modifierName: "shift", keyCode: 60),
             ]
         )
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         XCTAssertEqual(
             manager.modifierChordFlagsChangedOutputsForTesting(
@@ -2888,7 +3156,7 @@ final class HotkeyManagerTests: XCTestCase {
                 .init(modifierName: "command", keyCode: 54),
             ]
         )
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         XCTAssertEqual(
             manager.modifierChordFlagsChangedOutputsForTesting(
@@ -2911,7 +3179,7 @@ final class HotkeyManagerTests: XCTestCase {
                 .init(modifierName: "command", keyCode: 54),
             ]
         )
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         XCTAssertEqual(
             manager.modifierChordFlagsChangedOutputsForTesting(
@@ -2953,7 +3221,7 @@ final class HotkeyManagerTests: XCTestCase {
                 .init(modifierName: "command", keyCode: 54),
             ]
         )
-        let manager = HotkeyManager(trigger: trigger)
+        let manager = makeManager(trigger: trigger)
 
         _ = manager.modifierChordFlagsChangedOutputsForTesting(
             flags: sideSpecificFlags(

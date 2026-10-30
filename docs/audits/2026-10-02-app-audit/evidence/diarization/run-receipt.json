@@ -1,0 +1,60 @@
+{
+  "startedUTC": "2026-10-02T19:10:33.604873+00:00",
+  "head": "f43f4bed2ba7d4afdb005369759afc3d6cc44d34",
+  "binarySHA256": "5672677fe58e0f00e2eee04421c97baa9cdec66cdcb678389e8c8264572689d5",
+  "buildConfiguration": "debug",
+  "networkPolicy": "sandbox-exec deny network*",
+  "performanceCaveat": "Shared development Mac; concurrent audit builds may contend. Not optimized or controlled latency measurement.",
+  "runs": [
+    {
+      "fixture": "wibky",
+      "backend": "nemotron",
+      "exitCode": 0,
+      "wallSeconds": 10.896573707999778,
+      "audioSHA256": "ccb07166a2faa29f21c399da6b6b7e51179b6846c30a339f01ceed0212a2bf00",
+      "speakerCount": 1,
+      "modelPreparationSeconds": 7.002687096595764,
+      "runtimeSeconds": 2.8234750032424927,
+      "peakResidentBytes": 496336896,
+      "intervalCount": 24
+    },
+    {
+      "fixture": "wibky",
+      "backend": "community1",
+      "exitCode": 0,
+      "wallSeconds": 2.646206041001278,
+      "audioSHA256": "ccb07166a2faa29f21c399da6b6b7e51179b6846c30a339f01ceed0212a2bf00",
+      "speakerCount": 2,
+      "modelPreparationSeconds": 0.08549797534942627,
+      "runtimeSeconds": 2.5183650255203247,
+      "peakResidentBytes": 369000448,
+      "intervalCount": 39
+    },
+    {
+      "fixture": "ouvtt",
+      "backend": "community1",
+      "exitCode": 0,
+      "wallSeconds": 6.876213166997331,
+      "audioSHA256": "be6f9b14149c0f92e4d2d928edf60e19d19671f93b27cb3409e8b3cb96f924fe",
+      "speakerCount": 4,
+      "modelPreparationSeconds": 0.09269201755523682,
+      "runtimeSeconds": 6.736950039863586,
+      "peakResidentBytes": 418758656,
+      "intervalCount": 534
+    },
+    {
+      "fixture": "ouvtt",
+      "backend": "nemotron",
+      "exitCode": 0,
+      "wallSeconds": 4.127511416001653,
+      "audioSHA256": "be6f9b14149c0f92e4d2d928edf60e19d19671f93b27cb3409e8b3cb96f924fe",
+      "speakerCount": 3,
+      "modelPreparationSeconds": 0.23360991477966309,
+      "runtimeSeconds": 3.5878400802612305,
+      "peakResidentBytes": 214138880,
+      "intervalCount": 218
+    }
+  ],
+  "sourceModelFilesUnchanged": true,
+  "copiedModelFilesUnchanged": true
+}

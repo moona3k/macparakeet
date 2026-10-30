@@ -1,5 +1,30 @@
 import Foundation
 
+public enum LLMTaskGroup: String, Sendable, Codable, CaseIterable {
+    case cleanup
+    case analysis
+    case transform
+
+    public var allowsOverride: Bool {
+        self != .transform
+    }
+}
+
+public extension LLMProviderID {
+    /// Apple Intelligence's 4,096-token window holds the input and the answer
+    /// together. That fits dictation cleanup, but a summary, chat, or card over
+    /// a meeting-length transcript would see only a fraction of it, so Apple
+    /// Intelligence serves the cleanup route only.
+    func canServe(_ task: LLMTaskGroup) -> Bool {
+        self != .appleIntelligence || task == .cleanup
+    }
+
+    /// The default route serves every task that does not override it.
+    var canServeAsDefault: Bool {
+        LLMTaskGroup.allCases.allSatisfy(canServe)
+    }
+}
+
 public struct LLMExecutionContext: Sendable, Equatable {
     public let providerConfig: LLMProviderConfig
     public let localCLIConfig: LocalCLIConfig?
@@ -12,6 +37,13 @@ public struct LLMExecutionContext: Sendable, Equatable {
 
 public protocol LLMExecutionContextResolving: Sendable {
     func resolveContext() throws -> LLMExecutionContext?
+    func resolveContext(for task: LLMTaskGroup) throws -> LLMExecutionContext?
+}
+
+extension LLMExecutionContextResolving {
+    public func resolveContext(for task: LLMTaskGroup) throws -> LLMExecutionContext? {
+        try resolveContext()
+    }
 }
 
 public struct StaticLLMExecutionContextResolver: LLMExecutionContextResolving, Sendable {
@@ -39,9 +71,15 @@ public final class StoredLLMExecutionContextResolver: LLMExecutionContextResolvi
     }
 
     public func resolveContext() throws -> LLMExecutionContext? {
-        guard let providerConfig = try configStore.loadConfig() else {
-            return nil
-        }
+        try makeContext(from: configStore.loadConfig())
+    }
+
+    public func resolveContext(for task: LLMTaskGroup) throws -> LLMExecutionContext? {
+        try makeContext(from: configStore.loadConfig(for: task))
+    }
+
+    private func makeContext(from providerConfig: LLMProviderConfig?) throws -> LLMExecutionContext? {
+        guard let providerConfig else { return nil }
 
         let localCLIConfig: LocalCLIConfig?
         if providerConfig.id == .localCLI {

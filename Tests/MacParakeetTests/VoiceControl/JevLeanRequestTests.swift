@@ -26,7 +26,7 @@ final class JevLeanRequestTests: XCTestCase {
                 let questions = body?["questions"] as? [String: [String: Any]] ?? [:]
                 var answers: [String: Any] = [:]
                 for (name, question) in questions {
-                    let keys = Array((question["criteria"] as? [String: String] ?? [:]).keys).sorted()
+                    let keys = Array((question["criteria"] as? [String: Any] ?? [:]).keys).sorted()
                     let choice = choices[name] ?? keys[0]
                     let conf = confidences[name] ?? confidence
                     var probabilities = Dictionary(
@@ -63,14 +63,21 @@ final class JevLeanRequestTests: XCTestCase {
         let bodies = await requests.bodies
         let body = try XCTUnwrap(bodies.first)
         let questions = try XCTUnwrap(body["questions"] as? [String: [String: Any]])
-        XCTAssertEqual(Set(questions.keys), ["kind", "target", "value", "consequence", "direction"])
+        XCTAssertEqual(Set(questions.keys), ["kind", "target", "value", "consequence", "direction", "scope"])
         let kinds = try XCTUnwrap(questions["kind"]?["criteria"] as? [String: String])
         XCTAssertEqual(Set(kinds.keys), ["press", "fill", "scroll", "finished", "none"])
-        let targets = try XCTUnwrap(questions["target"]?["criteria"] as? [String: String])
-        XCTAssertEqual(targets["n:1"], "combo field 'Where from?' (focused, empty)")
-        XCTAssertEqual(targets["n:3"], "button 'Search flights'")
-        XCTAssertEqual(targets["n:4"], "scroll area 'Results'")
-        XCTAssertNotNil(targets["none"])
+        let targets = try XCTUnwrap(questions["target"]?["criteria"] as? [String: Any])
+        XCTAssertEqual(Set(targets.keys), ["n:1", "n:2", "n:3", "n:4", "none"])
+        XCTAssertTrue(targets["n:1"] is NSNull, "each control is described once, in state")
+        XCTAssertNotNil(targets["none"] as? String)
+        let lines = try XCTUnwrap(
+            ((body["state"] as? [String: Any])?["observation"] as? [String: Any])?["targets"] as? [String])
+        XCTAssertEqual(
+            lines,
+            [
+                "n:1: combo field 'Where from?' (focused, empty)", "n:2: combo field 'Where to?' (empty)",
+                "n:3: button 'Search flights'", "n:4: scroll area 'Results'",
+            ])
         XCTAssertTrue(
             (questions["value"]?["instructions"] as? String)?.contains("Where from?") == true,
             "value head belongs to the focused field")
@@ -172,7 +179,7 @@ final class JevLeanRequestTests: XCTestCase {
         let bodies = await requests.bodies
         let body = try XCTUnwrap(bodies.first)
         let criteria = try XCTUnwrap(
-            (body["questions"] as? [String: [String: Any]])?["target"]?["criteria"] as? [String: String])
+            (body["questions"] as? [String: [String: Any]])?["target"]?["criteria"] as? [String: Any])
         XCTAssertEqual(criteria.count, JevDecisionClient.maxTargets + 1)
         XCTAssertNotNil(criteria["focus"]); XCTAssertNotNil(criteria["field"])
         XCTAssertNotNil(criteria["n:0"]);
@@ -289,14 +296,9 @@ final class JevLeanRequestTests: XCTestCase {
         _ = try await client(choices: ["kind": "finished"], requests: requests).decide(
             goal: "delete", snapshot: twins, history: [])
         let bodies = await requests.bodies
-        let criteria = try XCTUnwrap(
-            (bodies.first?["questions"] as? [String: [String: Any]])?["target"]?["criteria"] as? [String: String])
-        XCTAssertEqual(criteria["n:1"], "button 'Delete' (top-left)")
-        XCTAssertEqual(criteria["n:2"], "button 'Delete' (bottom-right)")
         let wire = try XCTUnwrap(
-            ((bodies.first?["state"] as? [String: Any])?["observation"] as? [String: Any])?["targets"]
-                as? [[String: Any]])
-        XCTAssertEqual(wire.first?["region"] as? String, "top-left")
+            ((bodies.first?["state"] as? [String: Any])?["observation"] as? [String: Any])?["targets"] as? [String])
+        XCTAssertEqual(wire, ["n:1: button 'Delete' (top-left)", "n:2: button 'Delete' (bottom-right)"])
     }
 
     private actor Observed {

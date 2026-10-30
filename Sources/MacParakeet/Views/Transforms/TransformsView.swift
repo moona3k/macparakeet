@@ -230,6 +230,7 @@ struct TransformsView: View {
             ForEach(viewModel.transforms) { transform in
                 TransformCard(
                     transform: transform,
+                    isVisibleInMenuBar: viewModel.isVisibleInMenuBar(transform.id),
                     onEdit: { onEdit(transform) },
                     onDelete: {
                         viewModel.pendingDeleteTransform = transform
@@ -240,6 +241,12 @@ struct TransformsView: View {
                                 onBindingsChanged()
                             }
                         }
+                    },
+                    onToggleMenuBar: {
+                        viewModel.setVisibleInMenuBar(
+                            transform.id,
+                            visible: !viewModel.isVisibleInMenuBar(transform.id)
+                        )
                     }
                 )
             }
@@ -870,9 +877,11 @@ private extension TransformHistoryEntry {
 
 private struct TransformCard: View {
     let transform: Prompt
+    let isVisibleInMenuBar: Bool
     let onEdit: () -> Void
     let onDelete: () -> Void
     let onReset: () -> Void
+    let onToggleMenuBar: () -> Void
 
     @State private var isHovered = false
 
@@ -913,6 +922,14 @@ private struct TransformCard: View {
                     UnboundShortcutChip()
                 }
                 Spacer()
+                if !isVisibleInMenuBar {
+                    Image(systemName: "menubar.rectangle")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        .opacity(0.55)
+                        .help("Hidden from Menu Bar")
+                        .accessibilityLabel("Hidden from Menu Bar")
+                }
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -945,6 +962,13 @@ private struct TransformCard: View {
     @ViewBuilder
     private var cardActions: some View {
         HStack(spacing: 4) {
+            Button(action: onToggleMenuBar) {
+                Image(systemName: isVisibleInMenuBar ? "menubar.rectangle" : "eye.slash")
+            }
+            .parakeetAction(.subtle)
+            .controlSize(.small)
+            .help(isVisibleInMenuBar ? "Hide from Menu Bar" : "Show in Menu Bar")
+            .accessibilityLabel(isVisibleInMenuBar ? "Hide from Menu Bar" : "Show in Menu Bar")
             if transform.isBuiltIn {
                 Button("Reset", action: onReset)
                     .parakeetAction(.subtle)
@@ -967,6 +991,8 @@ private struct TransformCard: View {
             Button("Reset Transform", action: onReset)
             Divider()
         }
+        Button(isVisibleInMenuBar ? "Hide from Menu Bar" : "Show in Menu Bar", action: onToggleMenuBar)
+        Divider()
         Button("Delete Transform", role: .destructive, action: onDelete)
     }
 

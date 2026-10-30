@@ -1,6 +1,6 @@
 # Issue 1046 — over-split speaker IDs and one-word bubbles
 
-> Status: **PARTIAL** (2026-09-15)
+> Status: **PARTIAL** (2026-09-15; singleton collapse reversed 2026-10-12)
 > Issue: [#1046](https://github.com/moona3k/macparakeet/issues/1046)
 > Related: ADR-010 follow-ups after [#972](https://github.com/moona3k/macparakeet/issues/972) / [#1023](https://github.com/moona3k/macparakeet/issues/1023); Auto 1:1 hole in [#944](https://github.com/moona3k/macparakeet/issues/944)
 > Decision note: [`docs/audits/2026-09-15-issue-1046-speaker-detection.md`](../../docs/audits/2026-09-15-issue-1046-speaker-detection.md)
@@ -8,7 +8,9 @@
 
 ## Verdict
 
-Keep one GitHub issue. Ship the conservative word-assignment smoothing around the current FluidAudio 0.15.7 high-accuracy labels. The evaluated centroid consolidator changed zero rosters and is not shipping. Do not retune `clustering.threshold`, fit a merge tau to this gate, auto-adjust distance, or let voice profiles steer clustering.
+> **Update (2026-10-12, [#1218](https://github.com/moona3k/macparakeet/pull/1218)):** The singleton collapse in this plan was reversed. `SpeakerMerger` still fills an unlabeled run when both neighbors agree, and it keeps a one-word turn that already has another speaker. The centroid-consolidation rejection still stands. Do not restore one-word smoothing.
+
+Keep one GitHub issue. The 2026-09-15 change shipped conservative word-assignment smoothing around the then-current FluidAudio 0.15.7 high-accuracy labels. The evaluated centroid consolidator changed zero rosters and is not shipping. Do not retune `clustering.threshold`, fit a merge tau to this gate, auto-adjust distance, or let voice profiles steer clustering.
 
 We have enough labeled public audio to reject this centroid-only consolidation attempt and to prove that smoothing preserves speaker rosters. We do not yet have a safe signal that reduces Auto over-split rosters, and we do not have enough to claim overlap / two-talker perfection.
 
@@ -42,7 +44,7 @@ CLI JSON has no centroids. Candidate quality **must** re-run diarization. Baseli
 
 After max-overlap assignment, in the same public function so file and meeting paths both get it:
 
-- A **singleton** word whose previous and next assigned IDs are equal and different from it inherits that ID.
+- A **singleton** word whose previous and next assigned IDs are equal and different from it inherits that ID. Reversed by [#1218](https://github.com/moona3k/macparakeet/pull/1218): that word keeps its speaker.
 - A **nil** word (or run of nils) whose previous and next assigned IDs are equal inherits that ID.
 - Do not fill a gap between two different speakers (`SpeakerMergerTests.testWordInGap` stays nil).
 - Do not touch a two-or-more-word run (that is clustering, not a one-word bubble).
@@ -64,7 +66,7 @@ The experiment is documented in the frozen A/B report. Its source and synthetic 
 
 Focused only:
 
-- `SpeakerMergerTests` — isolated flip; same-speaker nil-run fill; different-speaker gap unchanged; transcript edges unchanged; two-word speaker run unchanged.
+- `SpeakerMergerTests` — one-word turn kept ([#1218](https://github.com/moona3k/macparakeet/pull/1218)); same-speaker nil-run fill; different-speaker gap unchanged; transcript edges unchanged; two-word speaker run unchanged.
 - Frozen VoxConverse run — all seven speaker rosters remain identical; report isolated-flip and unlabeled-word changes separately.
 
 ## Recorded A/B

@@ -2,6 +2,29 @@ import AppKit
 import MacParakeetCore
 import SwiftUI
 
+/// The non-language row pinned above the alphabetical list, such as Whisper's
+/// "Auto-detect" or AI results' "Follow transcript".
+struct PinnedLanguageOption {
+    let code: String
+    let title: String
+    /// Lowercased terms that keep the row visible while searching.
+    let searchTerms: [String]
+
+    static let whisperAuto = PinnedLanguageOption(
+        code: WhisperLanguageCatalog.autoCode,
+        title: WhisperLanguageCatalog.auto.englishName,
+        searchTerms: ["auto", "auto-detect"]
+    )
+
+    fileprivate var row: WhisperLanguage {
+        WhisperLanguage(code: code, englishName: title, nativeName: "")
+    }
+
+    func displayLabel(for selection: String) -> String {
+        selection.lowercased() == code ? title : WhisperLanguageCatalog.displayLabel(for: selection)
+    }
+}
+
 /// Trigger button + popover wrapper used inline in settings rows.
 ///
 /// The button shows the current selection's English label and a chevron.
@@ -10,6 +33,8 @@ import SwiftUI
 struct LanguagePickerButton: View {
     @Binding var selection: String
     var isDisabled: Bool
+    var pinned: PinnedLanguageOption = .whisperAuto
+    var accessibilityName: String = "Whisper language"
 
     @State private var isShowing = false
 
@@ -18,7 +43,7 @@ struct LanguagePickerButton: View {
             isShowing = true
         } label: {
             HStack(spacing: DesignSystem.Spacing.xs) {
-                Text(WhisperLanguageCatalog.displayLabel(for: selection))
+                Text(pinned.displayLabel(for: selection))
                     .font(DesignSystem.Typography.bodySmall)
                     .lineLimit(1)
                 Spacer(minLength: DesignSystem.Spacing.xs)
@@ -30,9 +55,9 @@ struct LanguagePickerButton: View {
         }
         .parakeetAction(.secondary)
         .disabled(isDisabled)
-        .accessibilityLabel("Whisper language: \(WhisperLanguageCatalog.displayLabel(for: selection))")
+        .accessibilityLabel("\(accessibilityName): \(pinned.displayLabel(for: selection))")
         .popover(isPresented: $isShowing, arrowEdge: .bottom) {
-            LanguagePickerPopover(selection: $selection) {
+            LanguagePickerPopover(selection: $selection, pinned: pinned) {
                 isShowing = false
             }
         }
@@ -41,21 +66,27 @@ struct LanguagePickerButton: View {
 
 /// Searchable popover for the full Whisper language list.
 ///
-/// Layout: search field (autofocused) → divider → scrollable list with
-/// "Auto-detect" pinned at top, separated from the alphabetical full list.
+/// Layout: search field (autofocused) → divider → scrollable list with the
+/// pinned option ("Auto-detect" by default) at top, separated from the alphabetical full list.
 /// Selection commits and dismisses on click or ⏎; Esc dismisses (handled by
 /// the popover itself). Keyboard nav: ↑↓ moves the highlight, hover syncs it
 /// to whichever row the cursor is over so the two input modes don't fight.
 struct LanguagePickerPopover: View {
     @Binding var selection: String
+    var pinned: PinnedLanguageOption
     var onCommit: () -> Void
 
     @State private var query = ""
     @State private var highlightedCode: String
     @FocusState private var searchFocused: Bool
 
-    init(selection: Binding<String>, onCommit: @escaping () -> Void) {
+    init(
+        selection: Binding<String>,
+        pinned: PinnedLanguageOption = .whisperAuto,
+        onCommit: @escaping () -> Void
+    ) {
         self._selection = selection
+        self.pinned = pinned
         self.onCommit = onCommit
         // Seed highlight with the current selection so opening the popover
         // immediately points at the active language.
@@ -102,15 +133,14 @@ struct LanguagePickerPopover: View {
 
     // MARK: - List
 
-    /// Visible rows after applying `query`. `auto` is included whenever the
-    /// query is empty or the typed text plausibly matches "auto".
+    /// Visible rows after applying `query`. The pinned row is included
+    /// whenever the query is empty or plausibly matches one of its terms.
     private var visibleRows: [WhisperLanguage] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let results = WhisperLanguageCatalog.search(query)
-        let includesAuto = trimmed.isEmpty
-            || "auto".contains(trimmed)
-            || "auto-detect".contains(trimmed)
-        return includesAuto ? [WhisperLanguageCatalog.auto] + results : results
+        let includesPinned = trimmed.isEmpty
+            || pinned.searchTerms.contains { $0.contains(trimmed) }
+        return includesPinned ? [pinned.row] + results : results
     }
 
     private var list: some View {
@@ -124,7 +154,7 @@ struct LanguagePickerPopover: View {
                         ForEach(Array(rows.enumerated()), id: \.element.code) { index, language in
                             row(for: language)
                                 .id(language.code)
-                            if index == 0 && language.code == WhisperLanguageCatalog.autoCode && rows.count > 1 {
+                            if index == 0 && language.code == pinned.code && rows.count > 1 {
                                 Divider().padding(.horizontal, DesignSystem.Spacing.sm)
                             }
                         }

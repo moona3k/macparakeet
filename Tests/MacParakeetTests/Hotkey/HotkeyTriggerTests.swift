@@ -7,14 +7,11 @@ final class HotkeyTriggerTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        suiteName = "com.macparakeet.tests.hotkeytrigger.\(UUID().uuidString)"
+        suiteName = makeIsolatedDefaultsSuite("com.macparakeet.tests.hotkeytrigger.")
         testDefaults = UserDefaults(suiteName: suiteName)
     }
 
     override func tearDown() {
-        if let suiteName {
-            testDefaults?.removePersistentDomain(forName: suiteName)
-        }
         testDefaults = nil
         suiteName = nil
         super.tearDown()

@@ -615,12 +615,13 @@ final class MeetingSplitAudioExporterTests: XCTestCase {
     /// itself cancellable, not just the write loop: cancellation must be
     /// forwarded into its detached task, not leave it decoding unattended
     /// after the caller has already observed `CancellationError`.
+    ///
+    /// Hold the probe at chunk 2 until cancellation reaches its detached task.
+    /// The detached operation can start before its forwarding handler is registered,
+    /// so requesting cancellation of the outer task alone is not a release signal.
     func testCancellationDuringSourceProbeStopsPromptlyWithoutFinishingTheDecode() async throws {
         let folder = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: folder) }
-        // At 48kHz with the exporter's 32,768-frame chunk size, a 60s source
-        // takes ~88 probe chunks to fully decode; cancelling after 2 leaves
-        // enormous headroom to detect "kept running anyway" reliably.
         try writeToneM4A(
             to: folder.appendingPathComponent(MeetingArtifactAudioFileNames.playback),
             sampleRate: 48_000, durationMs: 60_000)
@@ -628,12 +629,12 @@ final class MeetingSplitAudioExporterTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: destination) }
         let childDestination = destination.appendingPathComponent("A")
 
-        let signal = ChunkSignal(target: 2)
+        let gate = ProbePauseGate(target: 2)
         let observedChunks = OSAllocatedUnfairLock(initialState: 0)
         let hooks = MeetingSplitAudioExporter.TestHooks(
             afterEachProbeChunk: { count in
                 observedChunks.withLock { $0 = count }
-                signal.hook(count)
+                gate.hook(count)
             })
         let exporter = MeetingSplitAudioExporter(testHooks: hooks)
 
@@ -646,7 +647,7 @@ final class MeetingSplitAudioExporterTests: XCTestCase {
                         childId: UUID(), range: .init(startMs: 0, endMs: 60_000), destinationFolderURL: childDestination)
                 ])
         }
-        await signal.wait()
+        await gate.waitUntilPaused()
         task.cancel()
         do {
             _ = try await task.value
@@ -655,10 +656,9 @@ final class MeetingSplitAudioExporterTests: XCTestCase {
             // expected
         }
 
-        let finalObservedChunkCount = observedChunks.withLock { $0 }
-        XCTAssertLessThan(
-            finalObservedChunkCount, 20,
-            "the source probe must stop promptly on cancellation, not run to completion (~88 chunks) unattended")
+        XCTAssertEqual(
+            observedChunks.withLock { $0 }, 2,
+            "the source probe must stop at the exact chunk it was paused on, never resuming the decode after cancellation")
         XCTAssertFalse(FileManager.default.fileExists(atPath: childDestination.path))
     }
 
@@ -920,6 +920,50 @@ private final class ChunkSignal: @unchecked Sendable {
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             lock.lock()
             if reachedTarget {
+                lock.unlock()
+                continuation.resume()
+            } else {
+                self.continuation = continuation
+                lock.unlock()
+            }
+        }
+    }
+}
+
+/// Holds the decoder at a known chunk until cancellation has propagated to it.
+/// The hook only observes cancellation; the production loop must still throw.
+private final class ProbePauseGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var paused = false
+    private let target: Int
+
+    init(target: Int) {
+        self.target = target
+    }
+
+    /// Called synchronously on the probe's own thread after each chunk.
+    /// Blocks that thread in place once `target` is reached.
+    func hook(_ count: Int) {
+        guard count == target else { return }
+        lock.lock()
+        let continuationToResume = continuation
+        continuation = nil
+        paused = true
+        lock.unlock()
+        continuationToResume?.resume()
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(10))
+        while !Task.isCancelled && clock.now < deadline {
+            Thread.sleep(forTimeInterval: 0.001)
+        }
+        XCTAssertTrue(Task.isCancelled, "cancellation did not reach the paused source probe within 10 seconds")
+    }
+
+    func waitUntilPaused() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            if paused {
                 lock.unlock()
                 continuation.resume()
             } else {

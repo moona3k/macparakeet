@@ -1,0 +1,21 @@
+rendered seconds=60.0 ratio=0.5 probe=EchoPathProbeResult(shouldRender: true, windowsEvaluated: 1, bestCorrelation: Optional(1.0), bestDelaySamples: Optional(0), detail: "echo_detected")
+decoded_frames=960000 decoded_pcm_sha256=fc78034c1932a2bb2bd70c7f0123e11e0f5351c012babdaea2e0fb91793ba88d
+mode=baseline input_seconds=60 no_echo=false render_elapsed=0.059225333 seconds
+        0.37 real         0.06 user         0.01 sys
+            39239680  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2726  page reclaims
+                   5  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   5  voluntary context switches
+                 503  involuntary context switches
+           943865745  instructions retired
+           303084336  cycles elapsed
+            24314552  peak memory footprint

@@ -129,7 +129,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     @Option(help: "Path to SQLite database file (defaults to the app database).")
     var database: String?
 
-    @Option(name: .long, help: "Speaker detection: app-default, on, off. Default: app-default, which follows the saved GUI/CLI preference.")
+    @Option(name: .long, help: "Speaker detection: app-default, on, off. Default: app-default, which follows the saved GUI/CLI preference. Automatic detection supports up to eight speakers; use count constraints for larger groups.")
     var speakerDetection: SpeakerDetectionOption = .appDefault
 
     @Option(name: .long, help: "Exact speaker count for this run. Mutually exclusive with --speaker-min/--speaker-max; implies speaker detection for app-default.")
@@ -140,9 +140,6 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
 
     @Option(name: .long, help: "Maximum speaker count for this run. Can be combined with --speaker-min; implies speaker detection for app-default.")
     var speakerMax: Int?
-
-    @Option(name: .long, help: "Write a content-free diarization quality report JSON for this fresh run.")
-    var diarizationReport: String?
 
     @Flag(help: "Compatibility alias for --speaker-detection off.")
     var noDiarize: Bool = false
@@ -172,12 +169,6 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         return trimmed
     }
 
-    private var resolvedDiarizationReportPath: String? {
-        guard let trimmed = diarizationReport?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !trimmed.isEmpty else { return nil }
-        return trimmed
-    }
-
     func validate() throws {
         if inputs.isEmpty && normalizedPodcastQuery == nil {
             throw ValidationError("Provide at least one file path, folder, media URL, or --podcast search query to transcribe.")
@@ -200,8 +191,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
             noDiarize: noDiarize,
             speakerCount: speakerCount,
             speakerMin: speakerMin,
-            speakerMax: speakerMax,
-            diarizationReport: diarizationReport
+            speakerMax: speakerMax
         )
     }
 
@@ -380,8 +370,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         noDiarize: Bool,
         speakerCount: Int?,
         speakerMin: Int?,
-        speakerMax: Int?,
-        forceDiarization: Bool = false
+        speakerMax: Int?
     ) -> ResolvedSpeakerDetection {
         if noDiarize { return ResolvedSpeakerDetection(enabled: false, constraint: nil) }
 
@@ -394,7 +383,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         switch option {
         case .appDefault:
             return ResolvedSpeakerDetection(
-                enabled: forceDiarization || constraint != nil || (storedEnabled ?? UserDefaultsAppRuntimePreferences.defaultSpeakerDiarizationEnabled),
+                enabled: constraint != nil || (storedEnabled ?? UserDefaultsAppRuntimePreferences.defaultSpeakerDiarizationEnabled),
                 constraint: constraint
             )
         case .on:
@@ -409,22 +398,16 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         noDiarize: Bool,
         speakerCount: Int?,
         speakerMin: Int?,
-        speakerMax: Int?,
-        diarizationReport: String? = nil
+        speakerMax: Int?
     ) throws {
-        if let diarizationReport,
-           diarizationReport.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            throw ValidationError("--diarization-report requires a non-empty path.")
-        }
         let hasConstraint = speakerCount != nil || speakerMin != nil || speakerMax != nil
-        let hasReport = diarizationReport?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-        guard hasConstraint || hasReport else { return }
+        guard hasConstraint else { return }
 
         if noDiarize {
-            throw ValidationError("--no-diarize cannot be combined with speaker count constraints or --diarization-report.")
+            throw ValidationError("--no-diarize cannot be combined with speaker count constraints.")
         }
         if speakerDetection == .off {
-            throw ValidationError("--speaker-detection off cannot be combined with speaker count constraints or --diarization-report.")
+            throw ValidationError("--speaker-detection off cannot be combined with speaker count constraints.")
         }
         if let speakerCount, speakerCount < 1 {
             throw ValidationError("--speaker-count must be at least 1.")
@@ -460,26 +443,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
 
     static func makeDiarizationService(
         for speakerDetection: ResolvedSpeakerDetection
-    ) -> DiarizationService? {
+    ) -> (any DiarizationServiceProtocol)? {
         guard speakerDetection.enabled else { return nil }
-        guard let constraint = speakerDetection.constraint else {
-            return DiarizationService()
-        }
-        return DiarizationService(speakerConstraint: constraint)
-    }
-
-    static func diarizationOptions(
-        for speakerDetection: ResolvedSpeakerDetection
-    ) -> DiarizationOptions {
-        guard speakerDetection.enabled, let constraint = speakerDetection.constraint else {
-            return .default
-        }
-        switch constraint {
-        case .exact(let count):
-            return DiarizationOptions(speakerCountHint: SpeakerCountHint(exact: count))
-        case .range(let minimum, let maximum):
-            return DiarizationOptions(speakerCountHint: SpeakerCountHint(minimum: minimum, maximum: maximum))
-        }
+        return DiarizationServiceFactory.live.make(speakerConstraint: speakerDetection.constraint)
     }
 
     static func localFileURL(for input: String) -> URL {
@@ -544,7 +510,6 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         let resolvedInputs = Self.expandInputs(
             inputs.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         )
-        let reportPath = resolvedDiarizationReportPath
         let writeToFiles = podcastQuery == nil && (resolvedInputs.count > 1 || outputDir != nil)
 
         var stdoutRedirection: StandardOutputRedirection?
@@ -556,11 +521,6 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         let runResult: Result<TranscribeStdoutEmission, Error>
         do {
             stdoutRedirection = try StandardOutputRedirection()
-            if reportPath != nil && writeToFiles {
-                throw ValidationError(
-                    "--diarization-report is only supported for a single fresh transcription, not batch or --output-dir mode."
-                )
-            }
             guard podcastQuery != nil || !resolvedInputs.isEmpty else {
                 throw ValidationError("No transcribable inputs found — pass a file/URL, or use --podcast \"<search query>\".")
             }
@@ -607,12 +567,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 noDiarize: self.noDiarize,
                 speakerCount: self.speakerCount,
                 speakerMin: self.speakerMin,
-                speakerMax: self.speakerMax,
-                forceDiarization: reportPath != nil
-            )
-            let runOptions = TranscriptionRunOptions(
-                diarizationOptions: Self.diarizationOptions(for: resolvedSpeakerDetection),
-                includeDiarizationReport: reportPath != nil
+                speakerMax: self.speakerMax
             )
             let processingMode = Self.resolveProcessingMode(
                 self.mode,
@@ -726,17 +681,15 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 let result = try await withStandardOutputRedirectedToStandardError {
                     try await transcribePodcastQuery(
                         query: podcastQuery,
-                        service: service,
-                        options: runOptions
+                        service: service
                     )
                 }
-                try writeDiarizationReportIfRequested(result)
                 if let outputDir {
                     let dir = try Self.prepareOutputDir(outputDir)
-                    let url = try await Self.writeOutput(result.transcription, to: dir, format: format)
+                    let url = try await Self.writeOutput(result, to: dir, format: format)
                     printErr("  \u{2192} \(url.path)")
                 } else {
-                    stdoutEmission = .transcription(result.transcription, format)
+                    stdoutEmission = .transcription(result, format)
                 }
             } else if writeToFiles {
                 try await withStandardOutputRedirectedToStandardError {
@@ -751,12 +704,10 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                     try await transcribeOne(
                         input: resolvedInputs[0],
                         service: service,
-                        speechEngine: speechEngine,
-                        options: runOptions
+                        speechEngine: speechEngine
                     )
                 }
-                try writeDiarizationReportIfRequested(result)
-                stdoutEmission = .transcription(result.transcription, format)
+                stdoutEmission = .transcription(result, format)
             }
             runResult = .success(stdoutEmission)
         } catch {
@@ -842,7 +793,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                     input: input,
                     service: service,
                     speechEngine: speechEngine
-                ).transcription
+                )
                 let url = try await Self.writeOutput(result, to: dir, format: format)
                 printErr("  \u{2192} \(url.path)")
                 ok += 1
@@ -866,9 +817,8 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     private func transcribeOne(
         input: String,
         service: TranscriptionService,
-        speechEngine: SpeechEngineSelection,
-        options: TranscriptionRunOptions = .default
-    ) async throws -> TranscriptionRunResult {
+        speechEngine: SpeechEngineSelection
+    ) async throws -> Transcription {
         let lastProgressLine = OSAllocatedUnfairLock(initialState: "")
         @Sendable func printProgressLine(_ line: String) {
             let shouldPrint = lastProgressLine.withLock { lastLine in
@@ -891,17 +841,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
 
         if let mediaURL = Self.downloadableURLInput(input) {
             if noHistory {
-                return try await service.transcribeURLTransient(
-                    urlString: mediaURL,
-                    options: options,
-                    onProgress: progressHandler
-                )
+                return try await service.transcribeURLTransient(urlString: mediaURL, onProgress: progressHandler)
             }
-            return try await service.transcribeURL(
-                urlString: mediaURL,
-                options: options,
-                onProgress: progressHandler
-            )
+            return try await service.transcribeURL(urlString: mediaURL, onProgress: progressHandler)
         }
 
         let url = Self.localFileURL(for: input)
@@ -927,38 +869,27 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 return try await service.transcribeTransient(
                     fileURL: url,
                     audioTrackOrdinal: audioTrackOrdinal,
-                    options: options,
                     onProgress: progressHandler
                 )
             }
             return try await service.transcribe(
                 fileURL: url,
                 audioTrackOrdinal: audioTrackOrdinal,
-                options: options,
                 onProgress: progressHandler
             )
         }
         if noHistory {
-            return try await service.transcribeTransient(
-                fileURL: url,
-                options: options,
-                onProgress: progressHandler
-            )
+            return try await service.transcribeTransient(fileURL: url, onProgress: progressHandler)
         }
-        return try await service.transcribe(
-            fileURL: url,
-            options: options,
-            onProgress: progressHandler
-        )
+        return try await service.transcribe(fileURL: url, onProgress: progressHandler)
     }
 
     /// Resolve a freetext podcast query (iTunes search → RSS feed → episode
     /// select) and transcribe the chosen episode. Progress is reported on stderr.
     private func transcribePodcastQuery(
         query: String,
-        service: TranscriptionService,
-        options: TranscriptionRunOptions = .default
-    ) async throws -> TranscriptionRunResult {
+        service: TranscriptionService
+    ) async throws -> Transcription {
         let lastProgressLine = OSAllocatedUnfairLock(initialState: "")
         let progressHandler: @Sendable (TranscriptionProgress) -> Void = { progress in
             let line: String
@@ -979,41 +910,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         }
         printErr("Searching Apple Podcasts for: \(query)")
         if noHistory {
-            return try await service.transcribePodcastQueryTransient(
-                query: query,
-                options: options,
-                onProgress: progressHandler
-            )
+            return try await service.transcribePodcastQueryTransient(query: query, onProgress: progressHandler)
         }
-        return try await service.transcribePodcastQuery(
-            query: query,
-            options: options,
-            onProgress: progressHandler
-        )
-    }
-
-    private func writeDiarizationReportIfRequested(_ result: TranscriptionRunResult) throws {
-        guard let reportPath = resolvedDiarizationReportPath else { return }
-        guard let report = result.diarizationQualityReport else {
-            throw CLIError.diarizationReportUnavailable
-        }
-        let url = try Self.writeDiarizationReport(report, to: reportPath)
-        printErr("  \u{2192} diarization report: \(url.path)")
-    }
-
-    static func writeDiarizationReport(_ report: DiarizationQualityReport, to path: String) throws -> URL {
-        let trimmedPath = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedPath.isEmpty else {
-            throw ValidationError("--diarization-report requires a non-empty path.")
-        }
-        let url = URL(fileURLWithPath: expandTilde(trimmedPath))
-        let directory = url.deletingLastPathComponent()
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let data = try encoder.encode(report)
-        try data.write(to: url, options: .atomic)
-        return url
+        return try await service.transcribePodcastQuery(query: query, onProgress: progressHandler)
     }
 
     /// Expand folder arguments into their supported audio files and
@@ -1299,7 +1198,6 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
 enum CLIError: Error, LocalizedError {
     case fileNotFound(String)
     case unsupportedFormat(String)
-    case diarizationReportUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -1307,8 +1205,6 @@ enum CLIError: Error, LocalizedError {
             return "File not found: \(path)"
         case .unsupportedFormat(let ext):
             return "Unsupported format: .\(ext). Supported: \(AudioFileConverter.supportedExtensions.sorted().joined(separator: ", "))"
-        case .diarizationReportUnavailable:
-            return "--diarization-report was requested, but diarization did not produce a report."
         }
     }
 }

@@ -2,6 +2,50 @@ import XCTest
 @testable import CLI
 
 final class SpecCommandTests: XCTestCase {
+    func testSpecIncludesRevisionCheckedEditsAndTaskRoutes() throws {
+        let commands = try XCTUnwrap(specPayload()["commands"] as? [[String: Any]])
+        for (path, readOnly, requiredOptions) in [
+            (
+                ["meetings", "results", "edit"], false,
+                ["--expected-content", "--expected-content-file", "--file", "--stdin"]
+            ),
+            (["meetings", "corrections", "revise-text"], false, ["--expected-revision", "--file", "--stdin"]),
+            (["llm", "routes", "list"], true, []),
+            (["llm", "routes", "set"], false, ["--provider", "--model", "--api-key-env"]),
+            (["llm", "routes", "reset"], false, []),
+        ] {
+            let command = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == path })
+            XCTAssertEqual(command["readOnly"] as? Bool, readOnly)
+            XCTAssertEqual(command["jsonMode"] as? String, "--json")
+            let options = try XCTUnwrap(command["options"] as? [[String: Any]])
+            for name in requiredOptions {
+                XCTAssertTrue(options.contains { ($0["name"] as? String) == name }, "Missing \(name) on \(path)")
+            }
+        }
+    }
+
+    func testEveryAskCommandDocumentsDeveloperOptInAndReleaseContainment() throws {
+        let commands = try XCTUnwrap(specPayload()["commands"] as? [[String: Any]])
+        let askCommands = commands.filter { ($0["path"] as? [String])?.first == "ask" }
+        XCTAssertEqual(
+            Set(askCommands.compactMap { ($0["path"] as? [String])?.last }),
+            ["list", "new", "show", "rename", "delete", "sources", "select", "draft", "send", "evidence"])
+        for command in askCommands {
+            let summary = try XCTUnwrap(command["summary"] as? String)
+            XCTAssertTrue(summary.contains("disabled by default"))
+            XCTAssertTrue(summary.contains("Debug builds require --enable-ask-workspace"))
+            XCTAssertTrue(summary.contains("Release builds reject Ask even with that flag"))
+            let options = try XCTUnwrap(command["options"] as? [[String: Any]])
+            let flag = try XCTUnwrap(options.first { ($0["name"] as? String) == "--enable-ask-workspace" })
+            XCTAssertNil(flag["valueName"])
+            XCTAssertTrue((flag["summary"] as? String)?.contains("Release builds always reject Ask") == true)
+            XCTAssertTrue(options.contains { ($0["name"] as? String) == "--database" })
+        }
+        for command in commands where (command["path"] as? [String])?.first != "ask" {
+            let options = try XCTUnwrap(command["options"] as? [[String: Any]])
+            XCTAssertFalse(options.contains { ($0["name"] as? String) == "--enable-ask-workspace" })
+        }
+    }
 
     func testSpecDescribesSplitCommandsAndMutationBoundaries() throws {
         let commands = try XCTUnwrap(specPayload()["commands"] as? [[String: Any]])
@@ -24,6 +68,15 @@ final class SpecCommandTests: XCTestCase {
         let options = try XCTUnwrap(command["options"] as? [[String: Any]])
         XCTAssertTrue(options.contains { ($0["name"] as? String) == "--started-at" })
         XCTAssertTrue((command["output"] as? String)?.contains("needsRetry") == true)
+    }
+
+    func testSpecDocumentsVocabularyImportPolicies() throws {
+        let commands = try XCTUnwrap(specPayload()["commands"] as? [[String: Any]])
+        let command = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["vocab", "import"] })
+        let options = try XCTUnwrap(command["options"] as? [[String: Any]])
+        let policy = try XCTUnwrap(options.first { ($0["name"] as? String) == "--policy" })
+        XCTAssertEqual(policy["valueName"] as? String, "skip|replace|replace-all")
+        XCTAssertTrue((policy["summary"] as? String)?.contains("reset manual vocabulary") == true)
     }
 
     func testSpecDocumentsPromptCollectionCommandsAndMembership() throws {
@@ -197,6 +250,7 @@ final class SpecCommandTests: XCTestCase {
         XCTAssertEqual(
             documentedTopLevelCommands,
             [
+                "ask",
                 "calendar",
                 "cards",
                 "config",

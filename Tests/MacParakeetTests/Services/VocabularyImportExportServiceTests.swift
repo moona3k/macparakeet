@@ -67,7 +67,7 @@ final class VocabularyImportExportServiceTests: XCTestCase {
     }
 
     func testSuggestedFilenameUsesUTCDate() {
-        let date = Date(timeIntervalSince1970: 1_714_003_200) // 2024-04-25 00:00:00 UTC
+        let date = Date(timeIntervalSince1970: 1_714_003_200)  // 2024-04-25 00:00:00 UTC
         let name = service.suggestedFilename(now: date)
         XCTAssertEqual(name, "MacParakeet-Vocabulary-2024-04-25.json")
     }
@@ -111,7 +111,7 @@ final class VocabularyImportExportServiceTests: XCTestCase {
             appVersion: nil,
             customWords: [
                 .init(word: "kubernetes", replacement: nil, isEnabled: true, createdAt: nil),
-                .init(word: "fresh", replacement: nil, isEnabled: true, createdAt: nil)
+                .init(word: "fresh", replacement: nil, isEnabled: true, createdAt: nil),
             ],
             textSnippets: [
                 .init(trigger: "addr", expansion: "y", isEnabled: true, action: nil, createdAt: nil)
@@ -135,11 +135,11 @@ final class VocabularyImportExportServiceTests: XCTestCase {
             appVersion: nil,
             customWords: [
                 .init(word: "Kubernetes", replacement: "A", isEnabled: true, createdAt: nil),
-                .init(word: "kubernetes", replacement: "B", isEnabled: true, createdAt: nil)
+                .init(word: "kubernetes", replacement: "B", isEnabled: true, createdAt: nil),
             ],
             textSnippets: [
                 .init(trigger: "Addr", expansion: "A", isEnabled: true, action: nil, createdAt: nil),
-                .init(trigger: "addr", expansion: "B", isEnabled: true, action: nil, createdAt: nil)
+                .init(trigger: "addr", expansion: "B", isEnabled: true, action: nil, createdAt: nil),
             ]
         )
         let data = try JSONEncoder.iso8601().encode(bundle)
@@ -213,7 +213,7 @@ final class VocabularyImportExportServiceTests: XCTestCase {
             appVersion: nil,
             customWords: [
                 .init(word: "kubernetes", replacement: nil, isEnabled: true, createdAt: nil),
-                .init(word: "centre", replacement: "centre", isEnabled: true, createdAt: nil)
+                .init(word: "centre", replacement: "centre", isEnabled: true, createdAt: nil),
             ],
             textSnippets: []
         )
@@ -232,7 +232,7 @@ final class VocabularyImportExportServiceTests: XCTestCase {
             appVersion: nil,
             customWords: [
                 .init(word: "Kubernetes", replacement: "First", isEnabled: true, createdAt: nil),
-                .init(word: "kubernetes", replacement: "Second", isEnabled: true, createdAt: nil)
+                .init(word: "kubernetes", replacement: "Second", isEnabled: true, createdAt: nil),
             ],
             textSnippets: []
         )
@@ -255,11 +255,11 @@ final class VocabularyImportExportServiceTests: XCTestCase {
             appVersion: nil,
             customWords: [
                 .init(word: "Kubernetes", replacement: "First", isEnabled: true, createdAt: nil),
-                .init(word: "kubernetes", replacement: "Second", isEnabled: false, createdAt: nil)
+                .init(word: "kubernetes", replacement: "Second", isEnabled: false, createdAt: nil),
             ],
             textSnippets: [
                 .init(trigger: "Addr", expansion: "First", isEnabled: true, action: nil, createdAt: nil),
-                .init(trigger: "addr", expansion: "Second", isEnabled: false, action: .returnKey, createdAt: nil)
+                .init(trigger: "addr", expansion: "Second", isEnabled: false, action: .returnKey, createdAt: nil),
             ]
         )
         let data = try JSONEncoder.iso8601().encode(bundle)
@@ -286,14 +286,15 @@ final class VocabularyImportExportServiceTests: XCTestCase {
     func testApplyRollsBackWholeImportWhenLaterWriteFails() throws {
         try customWordRepo.save(CustomWord(word: "Kubernetes", replacement: "Existing"))
         try manager.dbQueue.write { db in
-            try db.execute(sql: """
-            CREATE TRIGGER fail_vocab_import_insert
-            BEFORE INSERT ON custom_words
-            WHEN NEW.word = 'explode'
-            BEGIN
-                SELECT RAISE(ABORT, 'forced import failure');
-            END
-            """)
+            try db.execute(
+                sql: """
+                    CREATE TRIGGER fail_vocab_import_insert
+                    BEFORE INSERT ON custom_words
+                    WHEN NEW.word = 'explode'
+                    BEGIN
+                        SELECT RAISE(ABORT, 'forced import failure');
+                    END
+                    """)
         }
 
         let bundle = VocabularyBundle(
@@ -323,9 +324,9 @@ final class VocabularyImportExportServiceTests: XCTestCase {
 
     func testDecodeRejectsInvalidSchema() throws {
         let bogus = """
-        { "schema": "not.us", "version": 1, "exportedAt": "2026-04-28T12:00:00Z",
-          "customWords": [], "textSnippets": [] }
-        """.data(using: .utf8)!
+            { "schema": "not.us", "version": 1, "exportedAt": "2026-04-28T12:00:00Z",
+              "customWords": [], "textSnippets": [] }
+            """.data(using: .utf8)!
 
         XCTAssertThrowsError(try service.decodePreview(from: bogus)) { error in
             XCTAssertEqual(error as? VocabularyImportExportService.ImportError, .invalidSchema)
@@ -334,10 +335,10 @@ final class VocabularyImportExportServiceTests: XCTestCase {
 
     func testDecodeRejectsFutureVersion() throws {
         let future = """
-        { "schema": "macparakeet.vocabulary", "version": 999,
-          "exportedAt": "2026-04-28T12:00:00Z",
-          "customWords": [], "textSnippets": [] }
-        """.data(using: .utf8)!
+            { "schema": "macparakeet.vocabulary", "version": 999,
+              "exportedAt": "2026-04-28T12:00:00Z",
+              "customWords": [], "textSnippets": [] }
+            """.data(using: .utf8)!
 
         XCTAssertThrowsError(try service.decodePreview(from: future)) { error in
             XCTAssertEqual(
@@ -366,10 +367,12 @@ final class VocabularyImportExportServiceTests: XCTestCase {
             appVersion: nil,
             customWords: [
                 .init(word: "  kubernetes\n", replacement: " Kubernetes  ", isEnabled: true, createdAt: nil),
-                .init(word: "\tMacParakeet ", replacement: " \n ", isEnabled: true, createdAt: nil)
+                .init(word: "\tMacParakeet ", replacement: " \n ", isEnabled: true, createdAt: nil),
             ],
             textSnippets: [
-                .init(trigger: " my address ", expansion: "  123 Main\\nSF  ", isEnabled: true, action: nil, createdAt: nil)
+                .init(
+                    trigger: " my address ", expansion: "  123 Main\\nSF  ", isEnabled: true, action: nil,
+                    createdAt: nil)
             ]
         )
         let data = try JSONEncoder.iso8601().encode(bundle)
@@ -459,6 +462,193 @@ final class VocabularyImportExportServiceTests: XCTestCase {
         XCTAssertEqual(result.wordsAdded, 0)
         XCTAssertEqual(result.snippetsAdded, 0)
         XCTAssertFalse(preview.hasConflicts)
+    }
+
+    // MARK: - Replace-all
+
+    func testDecodePreviewReportsReplaceAllRemovalsAndPreservedLearned() throws {
+        try customWordRepo.save(CustomWord(word: "old-manual"))
+        try customWordRepo.save(CustomWord(word: "keep-learned", source: .learned))
+        try customWordRepo.save(CustomWord(word: "collide-learned", source: .learned))
+        try snippetRepo.save(TextSnippet(trigger: "old phrase", expansion: "gone"))
+        try snippetRepo.save(TextSnippet(trigger: "keep phrase", expansion: "stay"))
+
+        let bundle = VocabularyBundle(
+            exportedAt: fixedNow,
+            appVersion: nil,
+            customWords: [
+                .init(word: "new-manual", replacement: nil, isEnabled: true, createdAt: nil),
+                .init(word: "collide-learned", replacement: "Imported", isEnabled: true, createdAt: nil),
+            ],
+            textSnippets: [
+                .init(trigger: "keep phrase", expansion: "updated", isEnabled: true, action: nil, createdAt: nil)
+            ]
+        )
+        let data = try JSONEncoder.iso8601().encode(bundle)
+        let preview = try service.decodePreview(from: data)
+
+        XCTAssertEqual(preview.wordsRemoved, ["old-manual"])
+        XCTAssertEqual(preview.snippetsRemoved, ["old phrase"])
+        XCTAssertEqual(preview.learnedWordsPreserved, 1)
+        XCTAssertTrue(preview.hasRemovals)
+        XCTAssertEqual(preview.wordConflicts, ["collide-learned"])
+        XCTAssertEqual(preview.snippetConflicts, ["keep phrase"])
+    }
+
+    func testApplyReplaceAllRemovesAbsentManualEntriesAndPreservesLearned() throws {
+        try customWordRepo.save(CustomWord(word: "old-manual", replacement: "Old"))
+        try customWordRepo.save(CustomWord(word: "keep-learned", source: .learned))
+        try customWordRepo.save(CustomWord(word: "collide-learned", source: .learned))
+        try snippetRepo.save(TextSnippet(trigger: "old phrase", expansion: "gone"))
+        try snippetRepo.save(TextSnippet(trigger: "keep phrase", expansion: "stay"))
+
+        let bundle = VocabularyBundle(
+            exportedAt: fixedNow,
+            appVersion: nil,
+            customWords: [
+                .init(word: "new-manual", replacement: nil, isEnabled: true, createdAt: nil),
+                .init(word: "collide-learned", replacement: "Imported", isEnabled: true, createdAt: nil),
+            ],
+            textSnippets: [
+                .init(trigger: "keep phrase", expansion: "updated", isEnabled: true, action: nil, createdAt: nil)
+            ]
+        )
+        let data = try JSONEncoder.iso8601().encode(bundle)
+        let preview = try service.decodePreview(from: data)
+        let result = try service.apply(preview: preview, policy: .replaceAll)
+
+        XCTAssertEqual(result.wordsAdded, 1)
+        XCTAssertEqual(result.wordsReplaced, 1)
+        XCTAssertEqual(result.wordsRemoved, 1)
+        XCTAssertEqual(result.wordsSkipped, 0)
+        XCTAssertEqual(result.snippetsAdded, 0)
+        XCTAssertEqual(result.snippetsReplaced, 1)
+        XCTAssertEqual(result.snippetsRemoved, 1)
+
+        let words = try customWordRepo.fetchAll()
+        XCTAssertEqual(Set(words.map(\.word)), ["new-manual", "keep-learned", "collide-learned"])
+
+        let collided = try XCTUnwrap(words.first { $0.word.lowercased() == "collide-learned" })
+        XCTAssertEqual(collided.source, .manual)
+        XCTAssertEqual(collided.replacement, "Imported")
+
+        let learned = try XCTUnwrap(words.first { $0.word == "keep-learned" })
+        XCTAssertEqual(learned.source, .learned)
+
+        let snippets = try snippetRepo.fetchAll()
+        XCTAssertEqual(snippets.count, 1)
+        XCTAssertEqual(snippets[0].trigger, "keep phrase")
+        XCTAssertEqual(snippets[0].expansion, "updated")
+    }
+
+    func testApplyReplaceAllEmptyBundleLeavesVocabularyUntouched() throws {
+        try customWordRepo.save(CustomWord(word: "old-manual"))
+        try customWordRepo.save(CustomWord(word: "keep-learned", source: .learned))
+        try snippetRepo.save(TextSnippet(trigger: "gone", expansion: "x"))
+
+        let bundle = VocabularyBundle(
+            exportedAt: fixedNow,
+            appVersion: nil,
+            customWords: [],
+            textSnippets: []
+        )
+        let data = try JSONEncoder.iso8601().encode(bundle)
+        let preview = try service.decodePreview(from: data)
+        XCTAssertThrowsError(try service.apply(preview: preview, policy: .replaceAll)) { error in
+            XCTAssertEqual(error as? VocabularyImportExportService.ImportError, .emptyReplaceAll)
+        }
+        XCTAssertEqual(preview.learnedWordsPreserved, 1)
+
+        let words = try customWordRepo.fetchAll()
+        XCTAssertEqual(Set(words.map(\.word)), ["old-manual", "keep-learned"])
+        XCTAssertEqual(try snippetRepo.fetchAll().map(\.trigger), ["gone"])
+    }
+
+    func testApplyReplaceAllRejectsWordAddedAfterPreviewWithoutDeletingAnything() throws {
+        try customWordRepo.save(CustomWord(word: "old-manual"))
+        try snippetRepo.save(TextSnippet(trigger: "old snippet", expansion: "keep"))
+
+        let bundle = VocabularyBundle(
+            exportedAt: fixedNow,
+            appVersion: nil,
+            customWords: [
+                .init(word: "new-manual", replacement: nil, isEnabled: true, createdAt: nil)
+            ],
+            textSnippets: []
+        )
+        let preview = try service.decodePreview(from: JSONEncoder.iso8601().encode(bundle))
+        try customWordRepo.save(CustomWord(word: "added-after-preview"))
+
+        XCTAssertThrowsError(try service.apply(preview: preview, policy: .replaceAll)) { error in
+            XCTAssertEqual(error as? VocabularyImportExportService.ImportError, .stalePreview)
+        }
+        XCTAssertEqual(
+            Set(try customWordRepo.fetchAll().map(\.word)),
+            ["old-manual", "added-after-preview"]
+        )
+        XCTAssertEqual(try snippetRepo.fetchAll().map(\.trigger), ["old snippet"])
+    }
+
+    func testApplyReplaceAllRejectsEditedSnippetAfterPreview() throws {
+        try customWordRepo.save(CustomWord(word: "old-manual"))
+        let snippet = TextSnippet(trigger: "old snippet", expansion: "original")
+        try snippetRepo.save(snippet)
+
+        let bundle = VocabularyBundle(
+            exportedAt: fixedNow,
+            appVersion: nil,
+            customWords: [
+                .init(word: "new-manual", replacement: nil, isEnabled: true, createdAt: nil)
+            ],
+            textSnippets: []
+        )
+        let preview = try service.decodePreview(from: JSONEncoder.iso8601().encode(bundle))
+        var edited = snippet
+        edited.expansion = "edited after preview"
+        try snippetRepo.save(edited)
+
+        XCTAssertThrowsError(try service.apply(preview: preview, policy: .replaceAll)) { error in
+            XCTAssertEqual(error as? VocabularyImportExportService.ImportError, .stalePreview)
+        }
+        XCTAssertEqual(try customWordRepo.fetchAll().map(\.word), ["old-manual"])
+        XCTAssertEqual(try snippetRepo.fetch(id: snippet.id)?.expansion, "edited after preview")
+    }
+
+    func testApplyReplaceAllRollsBackRemovalsWhenLaterWriteFails() throws {
+        try customWordRepo.save(CustomWord(word: "old-manual", replacement: "Keep me"))
+        try customWordRepo.save(CustomWord(word: "keep-learned", source: .learned))
+        try snippetRepo.save(TextSnippet(trigger: "keep phrase", expansion: "stay"))
+        try manager.dbQueue.write { db in
+            try db.execute(
+                sql: """
+                    CREATE TRIGGER fail_vocab_replace_all_insert
+                    BEFORE INSERT ON custom_words
+                    WHEN NEW.word = 'explode'
+                    BEGIN
+                        SELECT RAISE(ABORT, 'forced import failure');
+                    END
+                    """)
+        }
+
+        let bundle = VocabularyBundle(
+            exportedAt: fixedNow,
+            appVersion: nil,
+            customWords: [
+                .init(word: "explode", replacement: nil, isEnabled: true, createdAt: nil)
+            ],
+            textSnippets: []
+        )
+        let data = try JSONEncoder.iso8601().encode(bundle)
+        let preview = try service.decodePreview(from: data)
+
+        XCTAssertThrowsError(try service.apply(preview: preview, policy: .replaceAll))
+
+        let storedWords = try customWordRepo.fetchAll()
+        XCTAssertEqual(Set(storedWords.map(\.word)), ["old-manual", "keep-learned"])
+        let storedManual = try XCTUnwrap(storedWords.first { $0.word == "old-manual" })
+        XCTAssertEqual(storedManual.replacement, "Keep me")
+        XCTAssertEqual(try snippetRepo.fetchAll().count, 1)
+        XCTAssertEqual(try snippetRepo.fetchAll()[0].expansion, "stay")
     }
 }
 

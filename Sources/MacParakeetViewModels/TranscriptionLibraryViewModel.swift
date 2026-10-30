@@ -204,6 +204,7 @@ public final class TranscriptionLibraryViewModel {
     public private(set) var speakerAttributionProjectionProvider:
         (@Sendable (Transcription) throws -> SpeakerAttributionProjection)?
     private var loadTask: Task<Void, Never>?
+    private var openRequestID = UUID()
     private var searchDebounceTask: Task<Void, Never>?
     private var loadGeneration = 0
     private var requestedWindowSize = 0
@@ -309,6 +310,48 @@ public final class TranscriptionLibraryViewModel {
         selectedLoadedTranscriptions
     }
 
+    /// Loaded rows omit timing data (`TranscriptionLibraryPayload.summary`).
+    /// Returns the complete stored row to open in transcript detail, or `nil`
+    /// when the row is gone, loading fails, or a later open superseded this one.
+    public func loadForOpening(_ transcription: Transcription) async -> Transcription? {
+        let requestID = UUID()
+        openRequestID = requestID
+        do {
+            let stored = try await fetchStoredTranscriptions(ids: [transcription.id]).first
+            guard openRequestID == requestID else { return nil }
+            if stored == nil {
+                errorMessage = "This recording is no longer in the Library."
+            }
+            return stored
+        } catch {
+            guard openRequestID == requestID else { return nil }
+            logger.error("Failed to open transcription: \(error.localizedDescription, privacy: .private)")
+            errorMessage = "Failed to open transcription: \(error.localizedDescription)"
+            return nil
+        }
+    }
+
+    /// Complete stored rows for `targets`, in order, for export. Rows deleted
+    /// since they were loaded are skipped.
+    public func loadForExport(_ targets: [Transcription]) async throws -> [Transcription] {
+        try await fetchStoredTranscriptions(ids: targets.map(\.id))
+    }
+
+    private func fetchStoredTranscriptions(ids: [UUID]) async throws -> [Transcription] {
+        guard let repo = transcriptionRepo else { return [] }
+        let fetch = Task.detached(priority: .userInitiated) {
+            try ids.compactMap { id in
+                try Task.checkCancellation()
+                return try repo.fetch(id: id)
+            }
+        }
+        return try await withTaskCancellationHandler {
+            try await fetch.value
+        } onCancel: {
+            fetch.cancel()
+        }
+    }
+
     private func groupByDate(_ items: [Transcription]) -> [(group: TranscriptionDateGroup, items: [Transcription])] {
         guard !items.isEmpty else { return [] }
         let now = nowProvider()
@@ -361,6 +404,7 @@ public final class TranscriptionLibraryViewModel {
                 }
                 publishLoadedItems(transcriptions, hasMore: hasMore, filter: displayedFilter)
             }
+            refreshPendingLoadAfterMutation()
             Telemetry.send(.transcriptionFavorited(isFavorite: newValue))
         } catch {
             logger.error("Failed to update transcription favorite: \(error.localizedDescription, privacy: .private)")
@@ -536,16 +580,16 @@ public final class TranscriptionLibraryViewModel {
             for _ in 0..<result.succeededIDs.count {
                 Telemetry.send(.transcriptionDeleted)
             }
+            isBulkOperationInProgress = false
             if !result.succeededIDs.isEmpty {
                 removeLoadedTranscriptions(withIDs: Set(result.succeededIDs))
+                refreshPendingLoadAfterMutation(force: true)
             }
             if !result.failedIDs.isEmpty {
-                isBulkOperationInProgress = false
                 restoreFailedSelectionIfCurrent(result.failedIDs, operationGeneration: operationGeneration)
                 errorMessage = Self.bulkDeleteFailureMessage(
                     succeeded: result.succeededIDs.count, failed: result.failedIDs.count)
             } else {
-                isBulkOperationInProgress = false
                 finishBulkSelection()
             }
             return BulkOperationResult(
@@ -557,11 +601,12 @@ public final class TranscriptionLibraryViewModel {
             let result = await Task.detached(priority: .userInitiated) {
                 Self.detachMeetingAudioTargets(targets, using: repo)
             }.value
+            isBulkOperationInProgress = false
             if !result.succeededIDs.isEmpty {
                 clearLoadedMeetingAudio(forIDs: Set(result.succeededIDs))
+                refreshPendingLoadAfterMutation(force: true)
             }
             if !result.failedIDs.isEmpty {
-                isBulkOperationInProgress = false
                 restoreFailedSelectionIfCurrent(result.failedIDs, operationGeneration: operationGeneration)
                 errorMessage = Self.bulkAudioDeleteFailureMessage(
                     succeeded: result.succeededIDs.count,
@@ -569,7 +614,6 @@ public final class TranscriptionLibraryViewModel {
                     skipped: skipped
                 )
             } else {
-                isBulkOperationInProgress = false
                 finishBulkSelection()
             }
             return BulkOperationResult(
@@ -589,6 +633,7 @@ public final class TranscriptionLibraryViewModel {
             transcriptions.removeAll { $0.id == transcription.id }
             selectedTranscriptionIDs.remove(transcription.id)
             publishLoadedItems(transcriptions, hasMore: hasMore, filter: displayedFilter)
+            refreshPendingLoadAfterMutation()
             Telemetry.send(.transcriptionDeleted)
         } catch {
             logger.error("Failed to delete transcription: \(error.localizedDescription, privacy: .private)")
@@ -616,6 +661,7 @@ public final class TranscriptionLibraryViewModel {
                 transcriptions[idx].filePath = nil
                 publishLoadedItems(transcriptions, hasMore: hasMore, filter: displayedFilter)
             }
+            refreshPendingLoadAfterMutation()
         } catch TranscriptionAssetCleanupError.meetingAudioFinalizationInProgress {
             errorMessage = TranscriptionAssetCleanup.meetingAudioFinalizationInProgressMessage
         } catch {
@@ -742,6 +788,17 @@ public final class TranscriptionLibraryViewModel {
         isLoading = false
     }
 
+    /// A detached read may already hold a pre-mutation snapshot. Replace its
+    /// entire requested window so it cannot restore old state or skip a row
+    /// when a deletion shifts the offset of an in-flight next page.
+    /// Bulk work also refreshes after a query finishes during its mutations.
+    private func refreshPendingLoadAfterMutation(force: Bool = false) {
+        guard isLoading || force else { return }
+        loadPage(
+            offset: 0, append: false, limit: max(pageSize, requestedWindowSize), preservingMutationOnFailure: true
+        )
+    }
+
     private func debounceSearchReload() {
         exitBulkSelection()
         searchDebounceTask?.cancel()
@@ -757,7 +814,12 @@ public final class TranscriptionLibraryViewModel {
     }
 
     @discardableResult
-    private func loadPage(offset: Int, append: Bool) -> Task<Void, Never> {
+    private func loadPage(
+        offset: Int,
+        append: Bool,
+        limit: Int? = nil,
+        preservingMutationOnFailure: Bool = false
+    ) -> Task<Void, Never> {
         loadTask?.cancel()
         loadGeneration += 1
         let generation = loadGeneration
@@ -768,10 +830,13 @@ public final class TranscriptionLibraryViewModel {
             publishLoadedItems([], hasMore: false, filter: requestedFilter)
             return Task {}
         }
-        guard let query = makeQuery(offset: offset) else {
+        guard var query = makeQuery(offset: offset) else {
             isLoading = false
             publishLoadedItems([], hasMore: false, filter: requestedFilter)
             return Task {}
+        }
+        if let limit {
+            query.limit = limit
         }
 
         requestedWindowSize = query.offset + query.limit
@@ -796,10 +861,20 @@ public final class TranscriptionLibraryViewModel {
                 self.isLoading = false
             } catch {
                 guard let self, !Task.isCancelled, self.loadGeneration == generation else { return }
-                self.logger.error("Failed to load transcriptions: \(error.localizedDescription, privacy: .private)")
-                self.publishLoadedItems([], hasMore: false, filter: requestedFilter)
+                if preservingMutationOnFailure {
+                    self.logger.error(
+                        "Updated Library but failed to refresh pending query: \(error.localizedDescription, privacy: .private)"
+                    )
+                    let refreshError = "Updated Library, but failed to refresh: \(error.localizedDescription)"
+                    // A partially successful bulk operation may already have a
+                    // failure summary. Retain it alongside the refresh failure.
+                    self.errorMessage = self.errorMessage.map { "\($0)\n\(refreshError)" } ?? refreshError
+                } else {
+                    self.logger.error("Failed to load transcriptions: \(error.localizedDescription, privacy: .private)")
+                    self.publishLoadedItems([], hasMore: false, filter: requestedFilter)
+                    self.errorMessage = "Failed to load transcriptions: \(error.localizedDescription)"
+                }
                 self.isLoading = false
-                self.errorMessage = "Failed to load transcriptions: \(error.localizedDescription)"
             }
         }
         loadTask = task
@@ -851,7 +926,8 @@ public final class TranscriptionLibraryViewModel {
             limit: pageSize,
             offset: offset,
             includeProcessing: false,
-            includeProcessingMeetings: true
+            includeProcessingMeetings: true,
+            payload: .summary
         )
     }
 

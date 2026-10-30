@@ -33,6 +33,7 @@ public struct TextRefinementService: Sendable {
         customWords: [CustomWord],
         snippets: [TextSnippet],
         insertionStyle: DictationInsertionStyle = .sentence,
+        spokenPunctuationEnabled: Bool = true,
         removeUmFiller: Bool = true
     ) async -> TextRefinementResult {
         guard mode.usesDeterministicPipeline else {
@@ -64,6 +65,7 @@ public struct TextRefinementService: Sendable {
             customWords: customWords,
             snippets: snippets,
             insertionStyle: insertionStyle,
+            spokenPunctuationEnabled: spokenPunctuationEnabled,
             removeUmFiller: removeUmFiller
         )
 

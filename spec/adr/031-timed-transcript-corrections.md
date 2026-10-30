@@ -1,6 +1,6 @@
 # ADR-031: Segment-Timed Transcript Corrections
 
-> Status: **Accepted; implemented in development source**
+> Status: **Accepted; segment-timed corrections ship in stable 0.8.7; reading-view amendment remains unreleased**
 > Date: 2026-09-13
 > Related: [ADR-010](010-speaker-diarization.md),
 > [ADR-027](027-product-north-star.md),
@@ -118,15 +118,16 @@ for audit but is neither replayed nor undoable on the new automatic transcript.
 
 ### Implemented surfaces
 
-The development implementation includes correction replay and migration,
+The implementation includes correction replay and migration,
 effective search/card derivation, Timed and Text views, playback highlighting,
 SRT/VTT/TXT/Markdown/PDF/DOCX and DAPT exports, AI context, encrypted-share
 projection, meeting artifacts, and CLI meeting JSON. Public JSON and artifact
 fields are additive; automatic word evidence stays present for inspection.
 
 Focused model, database, view-model, UI-layout, export, sharing, artifact, and
-CLI tests cover the projection and compatibility rules. Stable-DMG availability
-and hardware interaction remain release evidence, not consequences of this ADR.
+CLI tests cover the projection and compatibility rules. Segment-timed correction
+availability is established by the 0.8.7 DMG; the later reading-view amendment
+is development source. Hardware interaction remains a separate release gate.
 
 ## Consequences
 
@@ -155,3 +156,30 @@ gain timestamps merely because the source still has an automatic word array.
 - **Arbitrary substring and drag-based cue editing:** deferred. Whole-line text
   replacement and adjacent same-speaker merge satisfy issue #893 without
   turning MacParakeet into a subtitle editor.
+
+## Amendment (2026-09-21): reading-view edit
+
+Issue #1069 asks to change the transcript people are already reading, including
+removing a passage. The Text view is that surface. Timed mode remains the
+place for speaker assignment, splits, and merges.
+
+`reviseText` stores one reading session: non-empty replacements and omitted
+passages. Undo restores the whole session. An omitted passage leaves the
+automatic words in place and disappears from the effective transcript, so
+search, export, shares, and later AI context follow the edited reading text.
+Clearing a line is an omission. A blank replacement inside `editText` stays
+rejected.
+
+A saved prompt result records the correction revision it was generated from.
+When that revision no longer matches (or the transcript otherwise changed), a
+generic notice appears next to the result and its **Regenerate** button
+switches to primary styling; the label itself does not change. Internal
+automation freshness checks stay conservative and unchanged. Editing does not
+recall a result that already ran.
+
+The reading editor realizes passage fields lazily. An edit session owns every
+passage draft independently of row visibility, so scrolling cannot discard
+unsaved text or removals. Typing updates the active passage; the save control
+observes only whether the session has changes. The complete ordered correction
+command is assembled at save time. This presentation change leaves the journal,
+alignment, atomic save, and automatic word evidence contracts unchanged.

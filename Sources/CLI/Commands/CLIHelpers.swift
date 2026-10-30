@@ -19,14 +19,21 @@ func macParakeetAppDefaults(
     AppPaths.appDefaults(bundleIdentifier: bundleIdentifier)
 }
 
-/// LLM stores that read the same preference suite the GUI uses. Bare
-/// `LLMService()` would bind both stores to `.standard`, which misses
-/// GUI-saved provider metadata on the standalone Homebrew CLI.
-func makeSharedLLMContextResolver(
+func currentMeetingAIOutputLanguagePolicy(
     defaults: UserDefaults = macParakeetAppDefaults()
+) -> MeetingAIOutputLanguagePolicy {
+    MeetingAIOutputLanguagePolicy.current(defaults: defaults)
+}
+
+/// Pair the shared-domain provider store with a LocalCLIConfigStore opened on
+/// the GUI's preferences suite. Its bare initializer uses .standard, which is
+/// a different domain in the standalone CLI. Tests inject both stores explicitly.
+func makeSharedLLMContextResolver(
+    defaults: UserDefaults = macParakeetAppDefaults(),
+    configStore: any LLMConfigStoreProtocol = LLMConfigStore()
 ) -> StoredLLMExecutionContextResolver {
     StoredLLMExecutionContextResolver(
-        configStore: LLMConfigStore(defaults: defaults),
+        configStore: configStore,
         cliConfigStore: LocalCLIConfigStore(defaults: defaults)
     )
 }
@@ -439,10 +446,23 @@ enum CLIErrorType {
     static let rateLimit = "rate_limit"
     static let runtime = "runtime"
     static let streaming = "streaming"
+    static let timeout = "timeout"
     static let truncated = "truncated"
     static let validation = "validation"
 
     static func key(for error: Error) -> String {
+        if let importError = error as? VocabularyImportExportService.ImportError {
+            switch importError {
+            case .invalidSchema, .unsupportedVersion, .decodingFailed, .invalidEntry:
+                return importSchema
+            case .emptyReplaceAll:
+                return inputEmpty
+            case .stalePreview:
+                return conflict
+            case .ioFailed:
+                return runtime
+            }
+        }
         if let importError = error as? MeetingImportError {
             switch importError {
             case .invalidSource, .unsupportedFormat, .blankTitle:
@@ -455,10 +475,12 @@ enum CLIErrorType {
             switch llm {
             case .notConfigured: return config
             case .connectionFailed: return connection
+            case .requestTimedOut: return timeout
             case .authenticationFailed: return auth
             case .rateLimited: return rateLimit
             case .modelNotFound, .invalidModelOverride: return model
             case .contextTooLong: return context
+            case .contentFiltered: return provider
             case .formatterTruncated, .formatterEmptyResponse: return truncated
             case .providerError: return provider
             case .streamingError: return streaming
@@ -468,6 +490,7 @@ enum CLIErrorType {
         }
         if error is MeetingClassificationRepositoryError { return validation }
         if error is MeetingCorrectionCLIError { return validation }
+        if error is MeetingResultEditCLIError { return conflict }
         if let correction = error as? SpeakerCorrectionServiceError {
             switch correction {
             case .conflict:
@@ -525,8 +548,6 @@ enum CLIErrorType {
                 return inputMissing
             case .unsupportedFormat:
                 return validation
-            case .diarizationReportUnavailable:
-                return runtime
             }
         }
         if let retranscribe = error as? CLIRetranscribeError {
@@ -677,6 +698,15 @@ private func rethrowWithOptionalJSONEnvelope(_ error: Error, json: Bool) throws 
 }
 
 func isCLIValidationMisuse(_ error: Error) -> Bool {
+    if let importError = error as? VocabularyImportExportService.ImportError {
+        switch importError {
+        case .invalidSchema, .unsupportedVersion, .decodingFailed, .invalidEntry,
+            .emptyReplaceAll:
+            return true
+        case .ioFailed, .stalePreview:
+            return false
+        }
+    }
     if let importError = error as? MeetingImportError {
         switch importError {
         case .invalidSource, .unsupportedFormat, .blankTitle:

@@ -149,10 +149,20 @@ private extension CLISpecCommand {
         summary: "Use a specific MacParakeet SQLite database instead of the app default."
     )
 
+    static let askAvailabilitySummary =
+        " Experimental Ask is disabled by default. Debug builds require --enable-ask-workspace; Release builds reject Ask even with that flag, before database or provider access."
+
+    static let askDeveloperFlag = CLISpecParameter.flag(
+        "--enable-ask-workspace",
+        summary: "Opt in to experimental Ask in a Debug build. Release builds always reject Ask."
+    )
+
     static let llmInlineOptions: [CLISpecParameter] = [
         CLISpecParameter.option(
             "--provider", valueName: "ID", required: true,
-            summary: "LLM provider: anthropic, openai, openaiCompatible, gemini, openrouter, moonshot, deepseek, qwen, zai, minimax, ollama, lmstudio, or cli."),
+            summary:
+                "LLM provider: anthropic, openai, openaiCompatible, gemini, openrouter, moonshot, deepseek, qwen, zai, minimax, ollama, lmstudio, appleIntelligence, or cli."
+        ),
         CLISpecParameter.option(
             "--api-key", valueName: "KEY", summary: "API key literal; prefer --api-key-env for scripts."),
         CLISpecParameter.option(
@@ -165,6 +175,112 @@ private extension CLISpecCommand {
     ]
 
     static let catalog: [CLISpecCommand] = [
+        CLISpecCommand(
+            ["ask", "list"], summary: "List independent saved Ask conversations." + askAvailabilitySummary,
+            jsonMode: "default",
+            options: [databaseOption, askDeveloperFlag],
+            output: "Array of AskConversation objects, including revision, sections, messages and draft."
+        ),
+        CLISpecCommand(
+            ["ask", "new"],
+            summary: "Create a conversation with up to 32 explicitly selected recordings." + askAvailabilitySummary,
+            readOnly: false, jsonMode: "default",
+            options: [
+                databaseOption, askDeveloperFlag,
+                .option("--source", valueName: "UUID...", summary: "Full recording UUIDs."),
+            ],
+            output: "AskConversation object."
+        ),
+        CLISpecCommand(
+            ["ask", "show"], summary: "Read a saved conversation." + askAvailabilitySummary, jsonMode: "default",
+            arguments: [.argument("id", summary: "Full conversation UUID.")],
+            options: [databaseOption, askDeveloperFlag],
+            output: "AskConversation object."
+        ),
+        CLISpecCommand(
+            ["ask", "rename"], summary: "Rename a conversation with optimistic concurrency." + askAvailabilitySummary,
+            readOnly: false,
+            jsonMode: "default",
+            arguments: [.argument("id", summary: "Full UUID."), .argument("title", summary: "New title.")],
+            options: [
+                databaseOption, askDeveloperFlag,
+                .option("--revision", valueName: "N", required: true, summary: "Expected revision."),
+            ],
+            output: "Updated AskConversation object."
+        ),
+        CLISpecCommand(
+            ["ask", "delete"],
+            summary: "Delete an Ask conversation while preserving recordings." + askAvailabilitySummary,
+            readOnly: false,
+            jsonMode: "default", arguments: [.argument("id", summary: "Full UUID.")],
+            options: [databaseOption, askDeveloperFlag],
+            output: "Object containing deleted UUID."
+        ),
+        CLISpecCommand(
+            ["ask", "sources"], summary: "Search/filter recording metadata or list labels." + askAvailabilitySummary,
+            jsonMode: "default",
+            options: [
+                databaseOption, askDeveloperFlag, .option("--search", valueName: "TEXT", summary: "Title search."),
+                .option("--type", valueName: "KIND", summary: "meeting, file, youtube, podcast."),
+                .option("--since", valueName: "DATE", summary: "Inclusive start date."),
+                .option("--until", valueName: "DATE", summary: "Inclusive end date."),
+                .option("--label", valueName: "UUID...", summary: "Match any selected label."),
+                .option("--limit", valueName: "N", summary: "1...100; defaults to 50."),
+                .option("--offset", valueName: "N", summary: "Page offset, defaults to zero."),
+                .flag("--labels", summary: "List labels instead of recordings."),
+            ], output: "Array of AskSourceDescriptor or MeetingLabel objects."
+        ),
+        CLISpecCommand(
+            ["ask", "select"],
+            summary: "Replace the selected sources; starts a fresh context section." + askAvailabilitySummary,
+            readOnly: false,
+            jsonMode: "default", arguments: [.argument("id", summary: "Full conversation UUID.")],
+            options: [
+                databaseOption, askDeveloperFlag,
+                .option("--revision", valueName: "N", required: true, summary: "Expected revision."),
+                .option("--source", valueName: "UUID...", summary: "Full recording UUIDs; omission clears selection."),
+            ],
+            output: "Updated AskConversation object."
+        ),
+        CLISpecCommand(
+            ["ask", "draft"], summary: "Persist an unsent question." + askAvailabilitySummary, readOnly: false,
+            jsonMode: "default",
+            arguments: [.argument("id", summary: "Full UUID."), .argument("text", summary: "Draft text.")],
+            options: [
+                databaseOption, askDeveloperFlag,
+                .option("--revision", valueName: "N", required: true, summary: "Expected revision."),
+            ],
+            output: "Updated AskConversation object."
+        ),
+        CLISpecCommand(
+            ["ask", "send"],
+            summary:
+                "Investigate selected recordings through Pi and an explicit direct model provider. The cli provider is unsupported."
+                + askAvailabilitySummary,
+            readOnly: false, jsonMode: "default; --stream for NDJSON",
+            arguments: [.argument("id", summary: "Full UUID.")],
+            options: [
+                databaseOption, askDeveloperFlag,
+                .option("--revision", valueName: "N", required: true, summary: "Expected revision."),
+                .option("--question", valueName: "TEXT", required: true, summary: "Question to investigate."),
+                .flag("--allow-remote", summary: "Permit sending selected context to this remote provider."),
+                .flag("--stream", summary: "Emit activity/phase/step/text/final conversation events as NDJSON. Ignore unknown event types."),
+            ] + llmInlineOptions,
+            output:
+                "Updated AskConversation; terminal message status complete, failed, cancelled, or incomplete. Any non-complete answer exits 1."
+        ),
+        CLISpecCommand(
+            ["ask", "evidence"],
+            summary: "Resolve a citation against the current transcript revision." + askAvailabilitySummary,
+            jsonMode: "default",
+            arguments: [.argument("source", summary: "Full recording UUID.")],
+            options: [
+                databaseOption, askDeveloperFlag,
+                .option("--source-revision", valueName: "HASH", required: true, summary: "Revision from citation."),
+                .option("--segment", valueName: "N", required: true, summary: "Zero-based passage index."),
+            ],
+            output: "AskEvidence object: status plus available source/passage; missing optional fields are omitted."
+        ),
         CLISpecCommand(
             ["spec"],
             summary: "Print this machine-readable CLI contract.",
@@ -256,9 +372,6 @@ private extension CLISpecCommand {
                     "--speaker-min", valueName: "N", summary: "Minimum speaker count bound for diarization."),
                 CLISpecParameter.option(
                     "--speaker-max", valueName: "N", summary: "Maximum speaker count bound for diarization."),
-                CLISpecParameter.option(
-                    "--diarization-report", valueName: "PATH",
-                    summary: "Write a content-free diarization quality report JSON for a single fresh run."),
                 CLISpecParameter.flag("--no-diarize", summary: "Compatibility alias for --speaker-detection off."),
                 CLISpecParameter.option(
                     "--media-audio-quality", valueName: "app-default|m4a|best-available",
@@ -815,6 +928,29 @@ private extension CLISpecCommand {
             output: "LLMResult envelope when --json is used."
         ),
         CLISpecCommand(
+            ["llm", "routes", "list"],
+            summary:
+                "Inspect effective AI routes and inheritance without exposing credentials or contacting a provider.",
+            output:
+                "Object with ok and routes; each route includes task, inherited, configured and optional provider, model, isLocal and endpoint origin."
+        ),
+        CLISpecCommand(
+            ["llm", "routes", "set"],
+            summary: "Save one cleanup or analysis override using shared app preferences and provider credentials.",
+            readOnly: false,
+            arguments: [.argument("task", summary: "cleanup or analysis.")],
+            options: llmInlineOptions,
+            output:
+                "Object with ok and the effective route. Makes no LLM request; local CLI reuses the existing shared template."
+        ),
+        CLISpecCommand(
+            ["llm", "routes", "reset"],
+            summary: "Remove a task override and restore Default AI inheritance without deleting credentials.",
+            readOnly: false,
+            arguments: [.argument("task", summary: "cleanup or analysis.")],
+            output: "Object with ok and the effective route."
+        ),
+        CLISpecCommand(
             ["llm", "test-connection"],
             summary: "Test connectivity to an LLM provider.",
             readOnly: false,
@@ -1171,7 +1307,10 @@ private extension CLISpecCommand {
             options: [
                 CLISpecParameter.option(
                     "--input", valueName: "PATH", summary: "Read bundle from a file; stdin if omitted."),
-                CLISpecParameter.option("--policy", valueName: "skip|replace", summary: "Conflict policy."),
+                CLISpecParameter.option(
+                    "--policy", valueName: "skip|replace|replace-all",
+                    summary: "Skip or replace matching entries, or reset manual vocabulary before import."
+                ),
                 CLISpecParameter.flag("--dry-run", summary: "Decode and report without writing."),
                 databaseOption,
             ],
@@ -1261,7 +1400,10 @@ private extension CLISpecCommand {
             summary: "Rename a meeting type.",
             readOnly: false,
             arguments: [.argument("type", summary: "Type UUID, prefix, or exact name.")],
-            options: [CLISpecParameter.option("--name", valueName: "NAME", required: true, summary: "New name."), databaseOption],
+            options: [
+                CLISpecParameter.option("--name", valueName: "NAME", required: true, summary: "New name."),
+                databaseOption,
+            ],
             output: "MeetingType object."
         ),
         CLISpecCommand(
@@ -1275,7 +1417,9 @@ private extension CLISpecCommand {
         CLISpecCommand(
             ["meetings", "labels", "list"],
             summary: "List meeting labels.",
-            options: [CLISpecParameter.flag("--include-archived", summary: "Include archived labels."), databaseOption],
+            options: [
+                CLISpecParameter.flag("--include-archived", summary: "Include archived labels."), databaseOption,
+            ],
             output: "Array of MeetingLabel objects."
         ),
         CLISpecCommand(
@@ -1294,7 +1438,10 @@ private extension CLISpecCommand {
             summary: "Rename a meeting label.",
             readOnly: false,
             arguments: [.argument("label", summary: "Label UUID, prefix, or exact name.")],
-            options: [CLISpecParameter.option("--name", valueName: "NAME", required: true, summary: "New name."), databaseOption],
+            options: [
+                CLISpecParameter.option("--name", valueName: "NAME", required: true, summary: "New name."),
+                databaseOption,
+            ],
             output: "MeetingLabel object."
         ),
         CLISpecCommand(
@@ -1357,6 +1504,25 @@ private extension CLISpecCommand {
                 databaseOption,
             ],
             output: "MeetingTranscriptRecord object with transcriptSegments for --format json."
+        ),
+        CLISpecCommand(
+            ["meetings", "corrections", "revise-text"],
+            summary: "Apply an atomic batch of passage replacements and omissions as one Undo step.",
+            readOnly: false,
+            arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
+            options: [
+                CLISpecParameter.option(
+                    "--expected-revision", valueName: "N", required: true,
+                    summary: "Correction revision from the last transcript read."),
+                CLISpecParameter.option(
+                    "--file", valueName: "PATH",
+                    summary: "UTF-8 JSON array of segment UUIDs with text or omit:true; exclusive with --stdin."),
+                CLISpecParameter.flag("--stdin", summary: "Read the revision JSON array from stdin."),
+                CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output:
+                "Updated MeetingTranscriptRecord. Stale revisions return conflict without a write; original audio and recognition are preserved."
         ),
         CLISpecCommand(
             ["meetings", "corrections", "edit-line"],
@@ -1578,6 +1744,32 @@ private extension CLISpecCommand {
                 databaseOption,
             ],
             output: "MeetingPromptResultRecord object."
+        ),
+        CLISpecCommand(
+            ["meetings", "results", "edit"],
+            summary: "Edit saved result content in place with an exact-content precondition, preserving provenance.",
+            readOnly: false,
+            arguments: [
+                .argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title."),
+                .argument("result", summary: "Full saved-result UUID belonging to that meeting."),
+            ],
+            options: [
+                CLISpecParameter.option(
+                    "--expected-content", valueName: "TEXT",
+                    summary: "Exact previously read content; exclusive with --expected-content-file."),
+                CLISpecParameter.option(
+                    "--expected-content-file", valueName: "PATH", summary: "UTF-8 file with the exact previous content."
+                ),
+                CLISpecParameter.option(
+                    "--content", valueName: "TEXT",
+                    summary: "Replacement Markdown; exactly one of --content, --file or --stdin is required."),
+                CLISpecParameter.option("--file", valueName: "PATH", summary: "UTF-8 replacement content file."),
+                CLISpecParameter.flag("--stdin", summary: "Read replacement content from stdin."),
+                CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output:
+                "MeetingPromptResultRecord with contentEditedAt. Stale content returns conflict without overwriting the result."
         ),
         CLISpecCommand(
             ["meetings", "artifact"],

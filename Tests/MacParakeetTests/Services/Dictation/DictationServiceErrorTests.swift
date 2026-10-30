@@ -11,6 +11,9 @@ final class DictationServiceErrorTests: XCTestCase {
     func testSTTErrorDescriptions() {
         let errors: [(STTError, String)] = [
             (.engineNotRunning, "Speech engine is not running"),
+            (.engineStartFailed("initialization failed"), "Failed to start speech engine: initialization failed"),
+            (.engineBusy, "Speech engine is busy. Try again after the current transcription finishes."),
+            (.modelDownloadFailed, "Speech model isn't downloaded yet — check your internet connection and try again."),
             (.modelNotLoaded, "STT model not loaded"),
             (.outOfMemory, "Out of memory during transcription"),
             (.transcriptionFailed("bad audio"), "Transcription failed: bad audio"),
