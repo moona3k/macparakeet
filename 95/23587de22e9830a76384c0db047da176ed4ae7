@@ -1,0 +1,56 @@
+Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift
+  s_b0bea76041335f::t_ab95bd11bf057d 52-54,56-93,95-120,122-126
+  s_b0bea76041335f::t_52cb43b8fab6ef 55,94,121
+Tests/MacParakeetTests/Services/LLM/CardGenerationServiceTests.swift
+  s_b0bea76041335f::t_c97714ee96826a 30,215-256
+  s_b0bea76041335f::t_ea0286a313e6a2 645
+Tests/MacParakeetTests/Services/LLM/KnowledgeCardRecoveryTests.swift
+  s_b0bea76041335f::t_ddcedf0694449c 31-32,72-73,78-96,180-183
+  s_b0bea76041335f::t_ea0286a313e6a2 1-30,33-71,74-77,97-179,184-202
+docs/audits/2026-10-30-knowledge-card-reliability.md
+  s_b0bea76041335f::t_ddcedf0694449c 1-127
+spec/contracts/telemetry-v1.md
+  s_b0bea76041335f::t_ddcedf0694449c 336-353
+spec/contracts/saved-audio-auto-prompt-completion.md
+  s_b0bea76041335f::t_ddcedf0694449c 143-169
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_b0bea76041335f::t_c97714ee96826a 428-432,540-541,582-584
+  s_b0bea76041335f::t_9dc0ca5ab0ca1b 237,424,427,433-439,443,474-475,499-504,509,511-513,515-529,532-536,538-539,542,544-559,570-571,577-581,585-589,594,612-613,623-644,648,675-676
+  s_b0bea76041335f::t_ea0286a313e6a2 669-671
+  s_b0bea76041335f::t_de337c92ce4de9 507,537,543
+  s_b0bea76041335f::t_e12dbaab04fcf7 645-647,649
+Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
+  s_b0bea76041335f::t_de337c92ce4de9 12,19-20,41,47,49,1550,1556,1559-1562
+Tests/MacParakeetTests/Services/LLM/LLMConfigStoreTests.swift
+  s_b0bea76041335f::t_ab95bd11bf057d 26-51
+Sources/MacParakeetCore/Services/LLM/CardGenerationService.swift
+  s_b0bea76041335f::t_ea0286a313e6a2 234,241,248
+Sources/CLI/CHANGELOG.md
+  s_3db98a33207173::t_e7b4b4c1568a7a 99-103
+docs/dev/knowledge-card-reliability.html
+  s_3db98a33207173::t_c0000e0912f400 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9523587de22e9830a76384c0db047da176ed4ae7",
+  "prompts": {},
+  "sessions": {
+    "s_3db98a33207173": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "52b9cdde-3011-4bae-9250-a3514c01d8cc",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_b0bea76041335f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e4d-82c1-7933-b5d2-8c919ed88cbc",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
