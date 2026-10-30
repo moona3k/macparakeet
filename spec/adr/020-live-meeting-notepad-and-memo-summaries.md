@@ -22,13 +22,16 @@ no context block. Saved-result replay semantics remain unchanged.
 The meeting generation popover now states whether the selected prompt will include
 notes and points to **Manage Prompts → expand the prompt → Include meeting notes
 as context** when disabled. Saved meeting results expose their recorded notes
-snapshot when present, or explain that notes were enabled but none were
-recorded, that notes were off for a library prompt's result, or, for imported or
-unlinked results without a notes receipt, that the notes context was not
-recorded. That last case does not claim a disabled setting or point at a prompt
-setting. A library-prompt result with notes disabled directs users to generate
-a **new** result after changing the preference: **Regenerate** replays the original result's setting,
-even when the library prompt has since changed.
+snapshot when present. The omission notice stays quiet when the meeting's current
+notes are empty. When current notes are non-empty and the result did not use
+them, a quiet **Notes not included** control explains the remedy in a popover.
+A library-prompt result with notes disabled directs users to generate a **new**
+result after changing the preference: **Regenerate** replays the original
+result's setting, even when the library prompt has since changed. A result that
+had notes enabled but none recorded yet tells the user to **Regenerate** so the
+current notes are included. Imported or unlinked results without a notes
+receipt stay quiet and do not claim a disabled setting or point at a prompt
+setting.
 
 The automatically appended notes block instructs the model to use explicit
 name/spelling corrections when the referent is clear, preserve relevant URLs

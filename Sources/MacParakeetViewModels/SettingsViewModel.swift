@@ -1724,7 +1724,12 @@ public final class SettingsViewModel {
     public func requestScreenRecordingAccess() {
         guard let permissionService else { return }
         Telemetry.send(.permissionPrompted(permission: .screenRecording))
-        _ = permissionService.requestScreenRecordingPermission()
+        // The request prompts only while access is undetermined; after a
+        // denial it returns false silently. Access is granted in System
+        // Settings either way, so take the user there.
+        if !permissionService.requestScreenRecordingPermission() {
+            permissionService.openScreenRecordingSettings()
+        }
         refreshPermissions()
     }
 

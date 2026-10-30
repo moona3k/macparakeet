@@ -56,6 +56,35 @@ final class PromptResultMeetingNotesStatusTests: XCTestCase {
             .notRecorded)
     }
 
+    func testOmissionNoticeAppearsOnlyWhenCurrentNotesWereLeftOut() throws {
+        let off = makeResult()
+        XCTAssertNil(MeetingResultNotesNotice.notice(status: off.meetingNotesStatus, currentNotes: nil))
+        XCTAssertNil(MeetingResultNotesNotice.notice(status: off.meetingNotesStatus, currentNotes: " \n\t"))
+        let disabled = try XCTUnwrap(
+            MeetingResultNotesNotice.notice(status: off.meetingNotesStatus, currentNotes: "Spell it Siobhan.")
+        )
+        XCTAssertEqual(disabled, .disabled)
+        XCTAssertTrue(disabled.explanation.contains("Regenerate keeps the original setting"))
+
+        let enabled = makeResult(includeMeetingNotesSnapshot: true)
+        XCTAssertNil(
+            MeetingResultNotesNotice.notice(status: enabled.meetingNotesStatus, currentNotes: nil))
+        let addedLater = try XCTUnwrap(
+            MeetingResultNotesNotice.notice(status: enabled.meetingNotesStatus, currentNotes: "Agenda")
+        )
+        XCTAssertEqual(addedLater, .emptyWhenGenerated)
+        XCTAssertTrue(addedLater.explanation.contains("Regenerate to use your current notes"))
+
+        let sent = makeResult(userNotesSnapshot: "Agenda", includeMeetingNotesSnapshot: true)
+        XCTAssertNil(
+            MeetingResultNotesNotice.notice(status: sent.meetingNotesStatus, currentNotes: "Agenda"))
+
+        let imported = makeResult(promptId: nil)
+        XCTAssertNil(
+            MeetingResultNotesNotice.notice(status: imported.meetingNotesStatus, currentNotes: "Agenda"))
+        XCTAssertEqual(MeetingResultNotesNotice.title, "Notes not included")
+    }
+
     func testUnlinkedResultStillReportsKnownReceipts() {
         XCTAssertEqual(
             makeResult(promptId: nil, userNotesSnapshot: "Agenda", includeMeetingNotesSnapshot: true)

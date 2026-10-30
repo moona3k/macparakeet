@@ -28,16 +28,6 @@ struct TranscriptFormatter: Sendable {
             return .skipped
         }
 
-        // The formatter rewrites the full text, so output length tracks input
-        // length; past the cap slow providers can stall finalization until
-        // timeout before falling back anyway (issue #493).
-        if let maxInputChars = lane.maxInputChars, text.count > maxInputChars {
-            logger.info(
-                "transcription_ai_formatter_skipped reason=input_too_long chars=\(text.count, privacy: .public) cap=\(maxInputChars, privacy: .public)"
-            )
-            return .skipped
-        }
-
         if lane.postsLifecycleNotifications {
             // Notify observers (e.g. the dictation flow coordinator) that the
             // LLM formatter is about to run so the overlay pill can switch to
@@ -151,15 +141,6 @@ extension TranscriptFormatter {
                 .formatterDictation
             case .transcription:
                 .formatterTranscription
-            }
-        }
-
-        var maxInputChars: Int? {
-            switch self {
-            case .dictation:
-                nil
-            case .transcription:
-                AIFormatter.maxTranscriptionInputChars
             }
         }
 

@@ -1038,7 +1038,7 @@ Important constraints:
 - formatter skips empty or whitespace-only input before prompt resolution or any provider call, so a model response can never become transcript content when STT produces no transcript text (#855)
 - formatter routing is per-surface: "Use for transcripts" (file/URL/meeting, default off) and "Use for dictation" (default off) toggles in AI settings, each ANDed with provider availability (#408, #493). Those toggles control enablement; cleanup and meeting analysis model routes follow [ADR-032](adr/032-llm-task-group-routing.md): inherit the default AI route or pick a general LLM route per task.
 - an optional **AI-polished dictation** shortcut (default unset) requests the formatter for that utterance when an AI provider is saved. The choice is captured at recording start, so a Settings change mid-utterance cannot flip it.
-- transcription formatter input is capped at `AIFormatter.maxTranscriptionInputChars` (20k chars); longer transcripts (hour-long meetings) skip straight to deterministic cleanup because a full-rewrite response can stall slow providers until timeout (#493)
+- transcription cleanup runs for a meeting of any length. One provider response cannot hold an hour-long rewrite, so the transcript is cleaned in successive sections of at most 12,000 characters, split on a paragraph, sentence, or word boundary, then joined. Each section still has to finish inside the 300-second body wait (#493, #1253). A 30-second wait previously failed cleanups of about seven minutes or longer and reported the timeout as a connection failure. Anthropic sections that no longer fit the inherited 4096-token default ask for up to 16384. Other providers keep their own output default, so a reasoning model's hidden tokens are not squeezed into that allowance.
 - dictation formatter prompts route through local exact-app profiles, local coarse-category profiles, built-in coarse-category smart defaults, and then the dictation formatter prompt
 - built-in smart defaults are user-controllable: a master switch plus per-category switches (UserDefaults-backed `AIFormatterSmartDefaultsPolicy`), and every built-in prompt is readable in Settings even when the master switch is off; with the tier off, zero-profile prompt selection is byte-for-byte the dictation fallback-prompt behavior
 - file/URL/meeting transcription uses a separate transcript formatter prompt (paragraph-oriented built-in default). A customized pre-split shared prompt is copied into both; new installs get two different built-ins. Both remain opt-in via the routing toggles and share the cleanup model route ([ADR-032](adr/032-llm-task-group-routing.md))
@@ -1056,7 +1056,7 @@ Important constraints:
 - [x] Formatter supports dictation and file/YouTube transcription flows
 - [x] Formatter supports meeting transcription (meeting finalization shares `completeTranscription`)
 - [x] Transcripts and dictation have independent routing toggles in AI settings (#493)
-- [x] Transcription formatter skips inputs over the length cap instead of stalling finalization for the full provider timeout (#493)
+- [x] Transcription cleanup covers a meeting of any length by cleaning successive sections that each fit one provider response (#493, #1253)
 - [x] Formatter uses the configured provider or local CLI through shared LLM infrastructure
 - [x] Formatter prompt is editable and resettable from settings
 - [x] Transcripts and dictation have independent formatter prompts in AI settings

@@ -560,6 +560,7 @@ struct TranscriptResultView: View {
     @State private var copied = false
     @State private var copiedResultID: UUID?
     @State private var copiedButtonResultID: UUID?
+    @State private var omittedMeetingNotesNoticeResultID: UUID?
     @State private var copiedMessageId: UUID?
     @State private var hoveredMessageId: UUID?
     @State private var exportConfirmation: ExportConfirmation?
@@ -3481,162 +3482,163 @@ struct TranscriptResultView: View {
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
                 }
-                FlowLayout(spacing: DesignSystem.Spacing.sm) {
-                    if promptResult.isContentUserEdited && !promptResultsViewModel.isEditingPromptResult(promptResult.id) {
-                        Text("Edited")
-                            .font(DesignSystem.Typography.caption.weight(.medium))
-                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                HStack(alignment: .center, spacing: DesignSystem.Spacing.sm) {
+                    if activeTranscription.sourceType == .meeting,
+                        let notice = MeetingResultNotesNotice.notice(
+                            status: promptResult.meetingNotesStatus,
+                            currentNotes: activeTranscription.userNotes
+                        )
+                    {
+                        omittedMeetingNotesNotice(notice, resultID: promptResult.id)
                     }
 
-                    if promptResultsViewModel.isEditingPromptResult(promptResult.id) {
-                        Button("Cancel") {
-                            promptResultsViewModel.cancelEditingPromptResult()
+                    FlowLayout(spacing: DesignSystem.Spacing.sm) {
+                        if promptResult.isContentUserEdited && !promptResultsViewModel.isEditingPromptResult(promptResult.id) {
+                            Text("Edited")
+                                .font(DesignSystem.Typography.caption.weight(.medium))
+                                .foregroundStyle(DesignSystem.Colors.textSecondary)
                         }
-                        .parakeetAction(.secondary)
-                        .controlSize(.small)
 
-                        Button("Save") {
-                            _ = promptResultsViewModel.saveEditingPromptResult()
-                        }
-                        .parakeetAction(.primary)
-                        .controlSize(.small)
-                        .disabled(!promptResultsViewModel.canSaveEditingPromptResult)
-                    } else {
-                        Button {
-                            startPromptContextAction { context in
-                                if let generationID = promptResultsViewModel.regeneratePromptResult(
-                                    promptResult,
-                                    transcript: context,
-                                    sourceCorrectionRevision: currentCorrectionRevision,
-                                    sourceTranscriptHash: currentSourceTranscriptHash
-                                ) {
-                                    viewModel.selectedTab = .generation(id: generationID)
-                                }
-                            }
-                        } label: {
-                            HStack(spacing: DesignSystem.Spacing.xs) {
-                                Image(systemName: "arrow.clockwise")
-                                Text("Regenerate")
-                            }
-                            .font(DesignSystem.Typography.caption)
-                        }
-                        .parakeetAction(transcriptChanged ? .primary : .secondary)
-                        .controlSize(.small)
-                        .help(
-                            !transcriptChanged && promptResult.sourceTranscriptHash == nil
-                                ? "The transcript version used for this result wasn’t recorded. Regenerate replaces it using the current transcript."
-                                : "Replace this result using the current transcript."
-                        )
-                        .disabled(
-                            promptNotesActionGate.isRunning || richContextLoader.preparingPromptContext
-                                || !promptResultsViewModel.canGeneratePromptResult
-                                || !promptResultsViewModel.canEditPromptResult(promptResult)
-                                || transcriptText.isEmpty
-                        )
-
-                        let isCopied = copiedButtonResultID == promptResultID
-                        Button {
-                            TranscriptResultActions.copyText(promptResult.content)
-                            copiedButtonResultID = promptResultID
-                            resultButtonCopiedResetTask?.cancel()
-                            resultButtonCopiedResetTask = Task {
-                                try? await Task.sleep(for: .seconds(1))
-                                copiedButtonResultID = nil
-                            }
-                        } label: {
-                            HStack(spacing: DesignSystem.Spacing.xs) {
-                                Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
-                                Text(isCopied ? "Copied" : "Copy")
-                            }
-                            .font(DesignSystem.Typography.caption)
-                            .foregroundStyle(isCopied ? DesignSystem.Colors.successGreen : .primary)
-                        }
-                        .parakeetAction(.secondary)
-                        .controlSize(.small)
-
-                        if let sharing = shareManagement, AppFeatures.isShareLinksAvailable() {
-                            Button {
-                                prepareShare(using: sharing, selectedSummaryID: promptResult.id)
-                            } label: {
-                                Label("Share result…", systemImage: "square.and.arrow.up")
+                        if promptResultsViewModel.isEditingPromptResult(promptResult.id) {
+                            Button("Cancel") {
+                                promptResultsViewModel.cancelEditingPromptResult()
                             }
                             .parakeetAction(.secondary)
                             .controlSize(.small)
-                            .disabled(preparingShare || sharing.isBusy || !sharing.isConfigured)
-                        }
 
-                        Menu {
-                            Button("Markdown (.md)") {
-                                exportGenerationToDownloads(promptResult: promptResult, format: .md)
+                            Button("Save") {
+                                _ = promptResultsViewModel.saveEditingPromptResult()
                             }
-                            Button("Plain Text (.txt)") {
-                                exportGenerationToDownloads(promptResult: promptResult, format: .txt)
+                            .parakeetAction(.primary)
+                            .controlSize(.small)
+                            .disabled(!promptResultsViewModel.canSaveEditingPromptResult)
+                        } else {
+                            Button {
+                                startPromptContextAction { context in
+                                    if let generationID = promptResultsViewModel.regeneratePromptResult(
+                                        promptResult,
+                                        transcript: context,
+                                        sourceCorrectionRevision: currentCorrectionRevision,
+                                        sourceTranscriptHash: currentSourceTranscriptHash
+                                    ) {
+                                        viewModel.selectedTab = .generation(id: generationID)
+                                    }
+                                }
+                            } label: {
+                                HStack(spacing: DesignSystem.Spacing.xs) {
+                                    Image(systemName: "arrow.clockwise")
+                                    Text("Regenerate")
+                                }
+                                .font(DesignSystem.Typography.caption)
                             }
-                        } label: {
-                            HStack(spacing: DesignSystem.Spacing.xs) {
-                                Image(systemName: "arrow.down.doc")
-                                Text("Export")
-                            }
-                            .font(DesignSystem.Typography.caption)
-                        }
-                        .menuStyle(.borderedButton)
-                        .tint(DesignSystem.Colors.tintNeutral)
-                        .controlSize(.small)
+                            .parakeetAction(transcriptChanged ? .primary : .secondary)
+                            .controlSize(.small)
+                            .help(
+                                !transcriptChanged && promptResult.sourceTranscriptHash == nil
+                                    ? "The transcript version used for this result wasn’t recorded. Regenerate replaces it using the current transcript."
+                                    : "Replace this result using the current transcript."
+                            )
+                            .disabled(
+                                promptNotesActionGate.isRunning || richContextLoader.preparingPromptContext
+                                    || !promptResultsViewModel.canGeneratePromptResult
+                                    || !promptResultsViewModel.canEditPromptResult(promptResult)
+                                    || transcriptText.isEmpty
+                            )
 
-                        Button(role: .destructive) {
-                            promptResultsViewModel.pendingDeletePromptResult = promptResult
-                        } label: {
-                            HStack(spacing: DesignSystem.Spacing.xs) {
-                                Image(systemName: "trash")
-                                Text("Delete")
+                            let isCopied = copiedButtonResultID == promptResultID
+                            Button {
+                                TranscriptResultActions.copyText(promptResult.content)
+                                copiedButtonResultID = promptResultID
+                                resultButtonCopiedResetTask?.cancel()
+                                resultButtonCopiedResetTask = Task {
+                                    try? await Task.sleep(for: .seconds(1))
+                                    copiedButtonResultID = nil
+                                }
+                            } label: {
+                                HStack(spacing: DesignSystem.Spacing.xs) {
+                                    Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
+                                    Text(isCopied ? "Copied" : "Copy")
+                                }
+                                .font(DesignSystem.Typography.caption)
+                                .foregroundStyle(isCopied ? DesignSystem.Colors.successGreen : .primary)
                             }
-                            .font(DesignSystem.Typography.caption)
-                        }
-                        .parakeetAction(.destructive)
-                        .controlSize(.small)
+                            .parakeetAction(.secondary)
+                            .controlSize(.small)
 
-                        Button {
-                            promptResultsViewModel.beginEditingPromptResult(promptResult)
-                            if promptResultsViewModel.isEditingPromptResult(promptResult.id) {
-                                Task { @MainActor in promptResultEditorFocused = true }
+                            if let sharing = shareManagement, AppFeatures.isShareLinksAvailable() {
+                                Button {
+                                    prepareShare(using: sharing, selectedSummaryID: promptResult.id)
+                                } label: {
+                                    Label("Share result…", systemImage: "square.and.arrow.up")
+                                }
+                                .parakeetAction(.secondary)
+                                .controlSize(.small)
+                                .disabled(preparingShare || sharing.isBusy || !sharing.isConfigured)
                             }
-                        } label: {
-                            HStack(spacing: DesignSystem.Spacing.xs) {
-                                Image(systemName: "pencil")
-                                Text("Edit")
+
+                            Menu {
+                                Button("Markdown (.md)") {
+                                    exportGenerationToDownloads(promptResult: promptResult, format: .md)
+                                }
+                                Button("Plain Text (.txt)") {
+                                    exportGenerationToDownloads(promptResult: promptResult, format: .txt)
+                                }
+                            } label: {
+                                HStack(spacing: DesignSystem.Spacing.xs) {
+                                    Image(systemName: "arrow.down.doc")
+                                    Text("Export")
+                                }
+                                .font(DesignSystem.Typography.caption)
                             }
-                            .font(DesignSystem.Typography.caption)
+                            .menuStyle(.borderedButton)
+                            .tint(DesignSystem.Colors.tintNeutral)
+                            .controlSize(.small)
+
+                            Button(role: .destructive) {
+                                promptResultsViewModel.pendingDeletePromptResult = promptResult
+                            } label: {
+                                HStack(spacing: DesignSystem.Spacing.xs) {
+                                    Image(systemName: "trash")
+                                    Text("Delete")
+                                }
+                                .font(DesignSystem.Typography.caption)
+                            }
+                            .parakeetAction(.destructive)
+                            .controlSize(.small)
+
+                            Button {
+                                promptResultsViewModel.beginEditingPromptResult(promptResult)
+                                if promptResultsViewModel.isEditingPromptResult(promptResult.id) {
+                                    Task { @MainActor in promptResultEditorFocused = true }
+                                }
+                            } label: {
+                                HStack(spacing: DesignSystem.Spacing.xs) {
+                                    Image(systemName: "pencil")
+                                    Text("Edit")
+                                }
+                                .font(DesignSystem.Typography.caption)
+                            }
+                            .parakeetAction(.secondary)
+                            .controlSize(.small)
+                            .disabled(!promptResultsViewModel.canEditPromptResult(promptResult))
                         }
-                        .parakeetAction(.secondary)
-                        .controlSize(.small)
-                        .disabled(!promptResultsViewModel.canEditPromptResult(promptResult))
                     }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
-                .frame(maxWidth: .infinity, alignment: .trailing)
 
-                if transcription.sourceType == .meeting {
-                    switch promptResult.meetingNotesStatus {
-                    case .sent(let notes):
-                        DisclosureGroup("Meeting notes snapshot") {
-                            ScrollView {
-                                Text(notes)
-                                    .textSelection(.enabled)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            .frame(maxHeight: 160)
+                if activeTranscription.sourceType == .meeting,
+                    case .sent(let notes) = promptResult.meetingNotesStatus
+                {
+                    DisclosureGroup("Meeting notes snapshot") {
+                        ScrollView {
+                            Text(notes)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    case .enabledWithoutNotes:
-                        meetingNotesStatusText(
-                            "No meeting notes were recorded for this result. Regenerate to use your current notes.")
-                    case .off:
-                        meetingNotesStatusText(
-                            "Meeting notes are off for this result. Enable ‘Include meeting notes as context’ in Manage Prompts, then generate a new result. Regenerate keeps the original setting."
-                        )
-                    case .notRecorded:
-                        meetingNotesStatusText("Meeting notes context was not recorded for this result.")
+                        .frame(maxHeight: 160)
                     }
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
                 }
 
                 if promptResultsViewModel.isEditingPromptResult(promptResult.id) {
@@ -3676,11 +3678,61 @@ struct TranscriptResultView: View {
         )
     }
 
+    private func omittedMeetingNotesNotice(
+        _ notice: MeetingResultNotesNotice,
+        resultID: UUID
+    ) -> some View {
+        Button {
+            omittedMeetingNotesNoticeResultID =
+                omittedMeetingNotesNoticeResultID == resultID ? nil : resultID
+        } label: {
+            HStack(spacing: DesignSystem.Spacing.xs) {
+                Image(systemName: "info.circle")
+                Text(MeetingResultNotesNotice.title)
+            }
+            .font(DesignSystem.Typography.caption)
+            .foregroundStyle(DesignSystem.Colors.textSecondary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("meeting-notes-omitted-notice")
+        .accessibilityLabel(MeetingResultNotesNotice.title)
+        .accessibilityHint(notice.explanation)
+        .help("Why these notes were left out of this result")
+        .popover(
+            isPresented: Binding(
+                get: { omittedMeetingNotesNoticeResultID == resultID },
+                set: { isPresented in
+                    if isPresented {
+                        omittedMeetingNotesNoticeResultID = resultID
+                    } else if omittedMeetingNotesNoticeResultID == resultID {
+                        omittedMeetingNotesNoticeResultID = nil
+                    }
+                }
+            ),
+            arrowEdge: .top
+        ) {
+            // The instruction stays in the popover. A caption in the result
+            // column is measured during the window minimum-size pass and can
+            // grow the meeting page past the screen.
+            Text(notice.explanation)
+                .font(DesignSystem.Typography.body)
+                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                .multilineTextAlignment(.leading)
+                .frame(width: 320, alignment: .leading)
+                .padding(DesignSystem.Spacing.md)
+        }
+    }
+
     private func meetingNotesStatusText(_ message: String) -> some View {
+        // Do not use vertical fixedSize. A window minimum-size pass proposes a
+        // near-zero width, and fixedSize then reports the fully wrapped height
+        // of this caption. That height becomes the window minimum and the
+        // meeting page grows past the screen.
         Text(message)
             .font(DesignSystem.Typography.caption)
             .foregroundStyle(DesignSystem.Colors.textSecondary)
-            .fixedSize(horizontal: false, vertical: true)
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder

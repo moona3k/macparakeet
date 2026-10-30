@@ -423,6 +423,9 @@ final class VoiceControlCoordinator {
             speechSubmission = true
             submit(text)
             speechSubmission = false
+        case .measured(let metrics, let capture):
+            guard currentCaptureID == capture else { return }
+            Task { [traces] in await traces.noteSpeechTurn(metrics) }
         case .stopped(let capture):
             guard currentCaptureID == capture else { return }
             if wantsCapture { stop() }

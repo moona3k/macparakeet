@@ -786,8 +786,9 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
   existed yet. Retry reuses its queued snapshot; regenerate reuses this Boolean
   receipt with the meeting's current committed notes. The column defaults false
   for historical results and is installed by migration v0.33. Imported or
-  unlinked results with no notes receipt are presented as "not recorded", not
-  as a disabled setting.
+  unlinked results with no notes receipt stay quiet on the result page. Their
+  status stays distinct from a library prompt that ran with notes disabled, so
+  the page does not point them at a prompt setting.
 - `outputLanguagePolicySnapshot` (v0.47) records the meeting AI output-language
   policy used for that generation (`follow-transcript` or a language code).
   `NULL` means no policy was recorded, including results created before the

@@ -1626,7 +1626,32 @@ final class LLMClientTests: XCTestCase {
             options: .default
         )
 
-        XCTAssertEqual(capturedRequest?.timeoutInterval, 30)
+        // Non-streaming cloud calls wait for the whole body. 30s cuts off a
+        // cleanup rewrite of more than about seven minutes of speech (#1253).
+        XCTAssertEqual(capturedRequest?.timeoutInterval, 300)
+    }
+
+    func testTimedOutURLErrorIsNotAConnectionFailure() async {
+        MockURLProtocol.handler = { _ in
+            throw URLError(.timedOut)
+        }
+
+        do {
+            _ = try await llmClient.chatCompletion(
+                messages: [ChatMessage(role: .user, content: "Hi")],
+                config: .anthropic(apiKey: "sk-test", model: "claude-fable-5"),
+                options: .default
+            )
+            XCTFail("Expected the timed-out request to fail")
+        } catch let error as LLMError {
+            XCTAssertFalse(
+                error.localizedDescription.hasPrefix("Connection failed"),
+                "A timeout is not a connection failure: \(error.localizedDescription)"
+            )
+            XCTAssertTrue(error.localizedDescription.localizedCaseInsensitiveContains("timed out"))
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
 
     func testOpenAICompatibleLoopbackProviderUsesLongerTimeout() async throws {

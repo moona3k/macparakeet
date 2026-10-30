@@ -232,7 +232,7 @@ groups at different general providers or models.
   stored-config CLI commands, overlay the resolved route without replacing
   it. Inline CLI commands that pass a full provider context are
   independent configs.
-- Per-surface formatter enablement and the transcription length cap.
+- Per-surface formatter enablement. Long transcripts are cleaned in sections rather than skipped.
 - No specialist recipes and no translation product.
 
 ## Consequences

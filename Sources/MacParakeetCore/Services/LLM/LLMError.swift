@@ -3,6 +3,9 @@ import Foundation
 public enum LLMError: Error, LocalizedError, Sendable {
     case notConfigured
     case connectionFailed(String)
+    /// The provider accepted the connection, then sent no response bytes before
+    /// the request's idle timeout. This is not a network failure.
+    case requestTimedOut
     case authenticationFailed(String?)
     case rateLimited
     case modelNotFound(String)
@@ -22,6 +25,8 @@ public enum LLMError: Error, LocalizedError, Sendable {
             return "No LLM provider configured. Set up a provider in Settings."
         case .connectionFailed(let detail):
             return "Connection failed: \(detail)"
+        case .requestTimedOut:
+            return "The request timed out before the provider finished responding."
         case .authenticationFailed(let detail):
             if let detail, !detail.isEmpty {
                 return "Authentication failed: \(detail)"

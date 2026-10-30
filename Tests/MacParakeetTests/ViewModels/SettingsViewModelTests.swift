@@ -1834,6 +1834,39 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.screenRecordingGranted)
     }
 
+    func testRefusedScreenRecordingRequestOpensSystemSettings() {
+        // After a denial the system request returns false without a prompt,
+        // so Allow must lead to System Settings instead of doing nothing.
+        mockPermissions.screenRecordingPermission = false
+        mockPermissions.requestScreenRecordingResult = false
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
+
+        viewModel.requestScreenRecordingAccess()
+
+        XCTAssertEqual(mockPermissions.openScreenRecordingSettingsCallCount, 1)
+    }
+
+    func testGrantedScreenRecordingRequestStaysInApp() {
+        mockPermissions.screenRecordingPermission = false
+        mockPermissions.requestScreenRecordingResult = true
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
+
+        viewModel.requestScreenRecordingAccess()
+
+        XCTAssertTrue(mockPermissions.screenRecordingPermission, "Allow must make the system request")
+        XCTAssertEqual(mockPermissions.openScreenRecordingSettingsCallCount, 0)
+    }
+
     func testRefreshPermissionsUpdatesNotGrantedState() async throws {
         mockPermissions.microphonePermission = .denied
         mockPermissions.accessibilityPermission = false

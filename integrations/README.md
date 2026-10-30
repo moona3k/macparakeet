@@ -939,7 +939,7 @@ structured failure envelope instead of the success shape:
 `errorType` is a stable low-cardinality string; `fix` and `meta` are optional.
 Branch on the exit code, then classify the error with
 `Sources/CLI/CHANGELOG.md`. A potentially transient provider error
-(`rate_limit`, `connection`, `streaming`) does not by itself authorize replaying
+(`rate_limit`, `connection`, `timeout`, `streaming`) does not by itself authorize replaying
 a mutating command. Check whether partial output or saved results already
 exist before retrying; fix `auth`, `model`, input, lookup, and validation
 problems rather than retrying them unchanged.

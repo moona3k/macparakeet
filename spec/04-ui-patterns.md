@@ -402,10 +402,17 @@ expose the same choice (off by default); an enabled card may show a quiet
 
 On a meeting, the generation popover states whether the selected prompt will
 send notes. A saved meeting result shows its recorded notes snapshot when one
-exists. Otherwise it says that notes were enabled but none were recorded, that
-notes were off for the result's library prompt, or, for imported or unlinked
-results without a notes receipt, that the notes context was not recorded. The
-last case does not claim a disabled setting or point at a prompt setting.
+exists. The result page stays quiet when the meeting's current notes are
+empty, including when notes were off, when notes were enabled but empty at
+generation time, and for imported or unlinked results with no notes receipt.
+When current notes are non-empty and this result did not use them, the result
+toolbar shows a quiet **Notes not included** control. Its popover explains the
+remedy: generate a new result after enabling **Include meeting notes as
+context** when the result's prompt had notes off (**Regenerate** keeps that
+original setting), or **Regenerate** when notes were enabled but none existed
+yet. Imported or unlinked results without a notes receipt stay quiet even when
+notes exist now, and do not claim a disabled setting or point at a prompt
+setting.
 The primary UI does not mention `{{userNotes}}`: that variable remains an
 advanced custom-template compatibility mechanism. Chat/Ask does not gain this
 checkbox and retains its existing automatic use of committed meeting notes.

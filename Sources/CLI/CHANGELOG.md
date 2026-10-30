@@ -78,7 +78,7 @@ input, lookup miss, runtime exception, etc.:
 `errorType` is a low-cardinality stable string. Current values: `auth`,
 `config`, `connection`, `conflict`, `context`, `input_empty`, `input_missing`,
 `import_schema`, `invalid_response`, `lookup`, `model`, `provider`,
-`rate_limit`, `runtime`, `streaming`, `truncated`, `validation`. New error
+`rate_limit`, `runtime`, `streaming`, `timeout`, `truncated`, `validation`. New error
 classes get new values in minor releases; existing values are stable within a
 major.
 
@@ -93,6 +93,17 @@ agents that branch on `errorType` should also handle the parse-error case
 by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
+
+### Fixed
+
+- A provider request that hits its idle timeout reports `errorType` `timeout`
+  with "The request timed out before the provider finished responding." It was
+  previously `connection` ("Connection failed: The request timed out.").
+- Non-streaming cloud LLM requests wait 300 seconds for the response body,
+  matching local providers. AI cleanup of a transcript longer than about
+  seven minutes was failing at 30 seconds.
+- AI cleanup of a long transcript is sent in sections of at most 12,000
+  characters and joined. Meetings are no longer skipped at 20,000 characters.
 
 ## [5.1.0] — 2026-10-12 (bundled with MacParakeet 0.8.10)
 

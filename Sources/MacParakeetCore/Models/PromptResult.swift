@@ -136,6 +136,42 @@ public enum PromptResultMeetingNotesStatus: Equatable, Sendable {
     case notRecorded
 }
 
+/// Quiet result-page notice when the meeting has notes this result did not use.
+/// Empty notes, sent snapshots, and results with no notes receipt stay silent.
+public enum MeetingResultNotesNotice: Equatable, Sendable {
+    /// A library prompt ran with notes disabled.
+    case disabled
+    /// Notes were enabled, but none existed when this result ran.
+    case emptyWhenGenerated
+
+    public static let title = "Notes not included"
+
+    public var explanation: String {
+        switch self {
+        case .disabled:
+            return
+                "Meeting notes are off for this result. Enable ‘Include meeting notes as context’ in Manage Prompts, then generate a new result. Regenerate keeps the original setting."
+        case .emptyWhenGenerated:
+            return "No meeting notes were recorded for this result. Regenerate to use your current notes."
+        }
+    }
+
+    public static func notice(
+        status: PromptResultMeetingNotesStatus,
+        currentNotes: String?
+    ) -> MeetingResultNotesNotice? {
+        guard currentNotes?.contains(where: { !$0.isWhitespace }) == true else { return nil }
+        switch status {
+        case .off:
+            return .disabled
+        case .enabledWithoutNotes:
+            return .emptyWhenGenerated
+        case .sent, .notRecorded:
+            return nil
+        }
+    }
+}
+
 extension PromptResult {
     public var meetingNotesStatus: PromptResultMeetingNotesStatus {
         let consumesNotes = PromptSystemPromptAssembler.consumesMeetingNotes(

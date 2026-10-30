@@ -322,6 +322,96 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     /// Transforms and dictation cleanup answer at about the length of the source.
     /// Half the window, in the same character unit, leaves room for that rewrite.
     internal static let appleIntelligenceRoundTripBudget = 6_000
+    /// Anthropic sends this when `maxTokens` is omitted. A cleanup rewrite is
+    /// about as long as the source, so a longer transcript needs an explicit
+    /// allowance or the provider stops at `max_tokens` and the partial text
+    /// is discarded.
+    static let formatterInheritedOutputTokenLimit = 4_096
+    /// Ceiling for an Anthropic section that no longer fits the inherited
+    /// 4096-token default. Current Claude defaults accept this output window.
+    static let formatterMaximumOutputTokenLimit = 16_384
+
+    /// `nil` keeps the provider default. Anthropic turns a missing value into
+    /// 4096, so a section past that estimate asks for the ceiling instead of a
+    /// tight count. Other providers, including GPT-5 where the same field
+    /// counts reasoning tokens, are left unset.
+    static func formatterOutputTokenLimit(transcriptChars: Int) -> Int? {
+        let estimated = max(0, transcriptChars) / 3 + 256
+        guard estimated > formatterInheritedOutputTokenLimit else { return nil }
+        return formatterMaximumOutputTokenLimit
+    }
+
+    /// One cleanup section has to finish inside the 300-second body wait and
+    /// the output-token ceiling. At the pace in #1253 (~230 characters per
+    /// second) this is about a minute of generation and about 4,000 output
+    /// tokens. Longer meetings are cleaned as successive sections.
+    static let formatterMaxSectionCharacters = 12_000
+
+    /// Largest slice of `transcript` whose rendered prompt still fits
+    /// `contextBudget`, and never more than one timeout-safe section.
+    static func formatterSectionCharacterLimit(contextBudget: Int, promptTemplate: String) -> Int {
+        func renderedCount(_ characters: Int) -> Int {
+            let sample = String(repeating: "x", count: characters)
+            return Prompts.formatter.count
+                + AIFormatter.renderPrompt(template: promptTemplate, transcript: sample).count
+        }
+        guard renderedCount(1) <= contextBudget else { return 0 }
+        let ceiling = min(formatterMaxSectionCharacters, max(contextBudget, 1))
+        if renderedCount(ceiling) <= contextBudget { return ceiling }
+        var low = 1
+        var high = ceiling - 1
+        while low < high {
+            let mid = low + (high - low + 1) / 2
+            if renderedCount(mid) <= contextBudget {
+                low = mid
+            } else {
+                high = mid - 1
+            }
+        }
+        return low
+    }
+
+    /// Split on a paragraph, sentence, or word boundary. A slice with no
+    /// whitespace is cut at `limit`.
+    static func formatterSections(of transcript: String, limit: Int) -> [String] {
+        let budget = max(limit, 1)
+        let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        guard trimmed.count > budget else { return [trimmed] }
+
+        var sections: [String] = []
+        var rest = trimmed[trimmed.startIndex...]
+        while !rest.isEmpty {
+            if rest.count <= budget {
+                sections.append(String(rest))
+                break
+            }
+            let windowEnd = rest.index(rest.startIndex, offsetBy: budget)
+            let cut = preferredFormatterCut(in: rest[..<windowEnd]) ?? windowEnd
+            let piece = rest[..<cut].trimmingCharacters(in: .whitespacesAndNewlines)
+            if !piece.isEmpty {
+                sections.append(String(piece))
+            }
+            let next = rest[cut...].drop(while: \.isWhitespace)
+            if next.startIndex == rest.startIndex {
+                break
+            }
+            rest = next
+        }
+        return sections
+    }
+
+    private static func preferredFormatterCut(in window: Substring) -> String.Index? {
+        let separators = ["\n\n", "\n", ". ", "? ", "! ", " "]
+        for separator in separators {
+            if let range = window.range(of: separator, options: .backwards),
+                range.lowerBound > window.startIndex
+            {
+                return range.upperBound
+            }
+        }
+        return nil
+    }
 
     /// Largest output-token request that still leaves input under the
     /// ceil(3.5 characters per token) reservation used by prompt results.
@@ -900,45 +990,73 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         )
         let config = context.providerConfig
         let budget = contextBudget(for: config, roundTrip: true)
-        // Formatting must preserve the entire transcript. Measure the rendered
-        // request, including repeated placeholders and no-placeholder separators.
+        // A meeting of any length is cleaned. One provider response cannot hold
+        // an hour-long rewrite, so the transcript is sent in sections that each
+        // fit the context budget and the 300-second body wait. Nothing is
+        // middle-truncated.
         let inputTruncated = false
-        let renderedPrompt = AIFormatter.renderPrompt(template: promptTemplate, transcript: transcript)
-        let messages = [
-            ChatMessage(role: .system, content: Prompts.formatter),
-            ChatMessage(role: .user, content: renderedPrompt),
-        ]
+        let sectionLimit = Self.formatterSectionCharacterLimit(
+            contextBudget: budget,
+            promptTemplate: promptTemplate
+        )
 
         do {
-            guard messages.reduce(0, { $0 + $1.content.count }) <= budget else {
-                throw LLMError.formatterTruncated
-            }
-            let response: ChatCompletionResponse
-            let output: String
-            if config.id == .lmstudio {
-                response = try await client.chatCompletion(
-                    messages: messages,
-                    context: context,
-                    options: ChatCompletionOptions(
-                        temperature: 0.2,
-                        responseFormat: .jsonSchema(
-                            name: "formatter_output",
-                            schema: Self.lmStudioFormatterSchema
-                        )
-                    )
-                )
-                let formatted = parseLMStudioFormattedTranscript(response) ?? response.content
-                output = AIFormatter.normalizedFormattedOutput(formatted)
-            } else {
-                response = try await client.chatCompletion(messages: messages, context: context, options: .default)
-                output = AIFormatter.normalizedFormattedOutput(response.content)
-            }
+            guard sectionLimit > 0 else { throw LLMError.formatterTruncated }
+            let sections = Self.formatterSections(of: transcript, limit: sectionLimit)
+            guard !sections.isEmpty else { throw LLMError.formatterEmptyResponse }
 
-            if let reason = response.finishReason?.lowercased(),
-                reason == "length" || reason == "max_tokens"
-            {
-                throw LLMError.formatterTruncated
+            var pieces: [String] = []
+            var promptTokens = 0
+            var completionTokens = 0
+            var sawUsage = false
+            var missingUsage = false
+            var usageOverflow = false
+            var model = config.modelName
+            var stopReason: String?
+            for section in sections {
+                try Task.checkCancellation()
+                let response = try await completeFormatterSection(
+                    section,
+                    promptTemplate: promptTemplate,
+                    context: context,
+                    budget: budget
+                )
+                if let reason = response.finishReason?.lowercased(),
+                    reason == "length" || reason == "max_tokens"
+                {
+                    throw LLMError.formatterTruncated
+                }
+                let raw =
+                    config.id == .lmstudio
+                    ? (parseLMStudioFormattedTranscript(response) ?? response.content)
+                    : response.content
+                let piece = AIFormatter.normalizedFormattedOutput(raw)
+                if piece.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    throw LLMError.formatterEmptyResponse
+                }
+                pieces.append(piece)
+                if let usage = response.usage {
+                    sawUsage = true
+                    let prompt = promptTokens.addingReportingOverflow(usage.promptTokens)
+                    let completion = completionTokens.addingReportingOverflow(usage.completionTokens)
+                    if prompt.overflow || completion.overflow {
+                        usageOverflow = true
+                    } else {
+                        promptTokens = prompt.partialValue
+                        completionTokens = completion.partialValue
+                    }
+                } else {
+                    missingUsage = true
+                }
+                model = response.model
+                stopReason = response.finishReason
             }
+            let output = pieces.joined(separator: "\n\n")
+            let usage: TokenUsage? =
+                sawUsage && !missingUsage && !usageOverflow
+                ? TokenUsage(promptTokens: promptTokens, completionTokens: completionTokens)
+                : nil
+            let messageCount = sections.count * 2
 
             // An empty or whitespace-only response is a failure, not a
             // success: the caller will fall back to the deterministic
@@ -972,14 +1090,14 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                 outputChars: output.count,
                 inputTruncated: inputTruncated,
                 promptDefaultUsed: defaultPromptUsed,
-                messageCount: 2
+                messageCount: messageCount
             )
             let llmResult = LLMResult(
                 output: output,
                 provider: config.id.rawValue,
-                model: response.model,
-                usage: response.usage.map(LLMUsage.init),
-                stopReason: response.finishReason,
+                model: model,
+                usage: usage.map(LLMUsage.init),
+                stopReason: stopReason,
                 latencyMs: Self.latencyMs(since: startedAt)
             )
             return LLMFormatterResult(
@@ -989,7 +1107,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                 outputChars: output.count,
                 inputTruncated: inputTruncated,
                 defaultPromptUsed: defaultPromptUsed,
-                messageCount: messages.count
+                messageCount: messageCount
             )
         } catch {
             if error is CancellationError {
@@ -1619,6 +1737,46 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         return (trimmed?.isEmpty == false ? trimmed : nil) ?? Prompts.summary
     }
 
+    private func completeFormatterSection(
+        _ section: String,
+        promptTemplate: String,
+        context: LLMExecutionContext,
+        budget: Int
+    ) async throws -> ChatCompletionResponse {
+        let renderedPrompt = AIFormatter.renderPrompt(template: promptTemplate, transcript: section)
+        let messages = [
+            ChatMessage(role: .system, content: Prompts.formatter),
+            ChatMessage(role: .user, content: renderedPrompt),
+        ]
+        guard messages.reduce(0, { $0 + $1.content.count }) <= budget else {
+            throw LLMError.formatterTruncated
+        }
+        if context.providerConfig.id == .lmstudio {
+            return try await client.chatCompletion(
+                messages: messages,
+                context: context,
+                options: ChatCompletionOptions(
+                    temperature: 0.2,
+                    responseFormat: .jsonSchema(
+                        name: "formatter_output",
+                        schema: Self.lmStudioFormatterSchema
+                    )
+                )
+            )
+        }
+        let maxTokens =
+            context.providerConfig.id == .anthropic
+            ? Self.formatterOutputTokenLimit(transcriptChars: section.count) : nil
+        return try await client.chatCompletion(
+            messages: messages,
+            context: context,
+            options: ChatCompletionOptions(
+                temperature: ChatCompletionOptions.default.temperature,
+                maxTokens: maxTokens
+            )
+        )
+    }
+
     private func parseLMStudioFormattedTranscript(_ response: ChatCompletionResponse) -> String? {
         let candidates = [
             response.content,
@@ -1663,7 +1821,8 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         switch llmError {
         case .connectionFailed, .modelNotFound, .cliError, .authenticationFailed:
             return true
-        case .notConfigured, .invalidModelOverride, .rateLimited, .contextTooLong, .contentFiltered,
+        case .notConfigured, .requestTimedOut, .invalidModelOverride, .rateLimited, .contextTooLong,
+            .contentFiltered,
             .formatterTruncated,
             .formatterEmptyResponse, .providerError, .streamingError, .invalidResponse:
             return false
