@@ -1,0 +1,438 @@
+{
+  "generated_at": "2026-10-02T19:00:47.151Z",
+  "freshness": {
+    "status": "fresh",
+    "generated_at": "2026-10-02T19:00:47.151Z",
+    "expires_at": "2026-10-02T19:15:47.151Z",
+    "served_at": "2026-10-02T19:06:51.626Z",
+    "age_seconds": 364,
+    "reason": null
+  },
+  "release": {
+    "latest_published_gui": "0.8.9",
+    "classification": "published_version_allowlist"
+  },
+  "activation": {
+    "window_days": 30,
+    "window_start": "2026-09-02T19:00:47Z",
+    "first_dictation_ship_date": "2026-05-23T00:00:00Z",
+    "completers": 1839,
+    "t0_dictation_started": 868,
+    "t0_dictation_completed": 718,
+    "t0_try_rate": 47.2,
+    "t0_success_rate": 39,
+    "post_ship_completers": 1839,
+    "post_ship_first_dictation_same_session": 697,
+    "post_ship_first_dictation_rate": 37.9,
+    "onboarding_starters": 2881,
+    "onboarding_abandoned": 1042,
+    "onboarding_abandon_rate": 36.2
+  },
+  "diarization": {
+    "total": 1159,
+    "requested": 1120,
+    "applied": 1035,
+    "speaker_counts": [
+      {
+        "speakers": 0,
+        "count": 81
+      },
+      {
+        "speakers": 1,
+        "count": 351
+      },
+      {
+        "speakers": 2,
+        "count": 291
+      },
+      {
+        "speakers": 3,
+        "count": 127
+      },
+      {
+        "speakers": 4,
+        "count": 63
+      },
+      {
+        "speakers": 5,
+        "count": 48
+      },
+      {
+        "speakers": 6,
+        "count": 45
+      },
+      {
+        "speakers": 7,
+        "count": 31
+      },
+      {
+        "speakers": 8,
+        "count": 66
+      },
+      {
+        "speakers": 9,
+        "count": 1
+      },
+      {
+        "speakers": 10,
+        "count": 2
+      },
+      {
+        "speakers": 13,
+        "count": 1
+      },
+      {
+        "speakers": 14,
+        "count": 4
+      },
+      {
+        "speakers": 15,
+        "count": 3
+      },
+      {
+        "speakers": 18,
+        "count": 1
+      }
+    ]
+  },
+  "distributions": {
+    "window": "24h",
+    "floors": {
+      "percentiles": 5,
+      "p99": 100
+    },
+    "dictation_e2e_ms": {
+      "window": "24h",
+      "unit": "milliseconds",
+      "samples": 9143,
+      "mean": 729,
+      "p50": 225,
+      "p90": 1207,
+      "p99": 6645,
+      "note": "stop_to_cmd_v_posted_excludes_overlay_pause"
+    },
+    "mic_start_ms": {
+      "window": "24h",
+      "unit": "milliseconds",
+      "samples": 11207,
+      "mean": 250,
+      "p50": 175,
+      "p90": 307,
+      "p99": 1549,
+      "note": "native_engine_start_success_not_paste_latency"
+    },
+    "model_by_action": [
+      {
+        "action": "warm_up",
+        "window": "24h",
+        "unit": "seconds",
+        "samples": 672,
+        "mean": 118.4,
+        "p50": 2,
+        "p90": 71.6,
+        "p99": 598.7
+      },
+      {
+        "action": "download",
+        "window": "24h",
+        "unit": "seconds",
+        "samples": 16,
+        "mean": 162.5,
+        "p50": 51.5,
+        "p90": 649.4,
+        "p99": null
+      }
+    ],
+    "warm_up_by_engine": [
+      {
+        "engine": "parakeet",
+        "window": "24h",
+        "unit": "seconds",
+        "samples": 600,
+        "mean": 35.4,
+        "p50": 1.5,
+        "p90": 62.8,
+        "p99": 429.4
+      },
+      {
+        "engine": "whisper",
+        "window": "24h",
+        "unit": "seconds",
+        "samples": 64,
+        "mean": 904.2,
+        "p50": 6.5,
+        "p90": 205.5,
+        "p99": null
+      }
+    ],
+    "transcription_processing_seconds": {
+      "window": "24h",
+      "unit": "seconds",
+      "samples": 1159,
+      "mean": 141.3,
+      "p50": 30.5,
+      "p90": 273.3,
+      "p99": 1384.1
+    },
+    "transcription_audio_seconds": {
+      "window": "24h",
+      "unit": "seconds",
+      "samples": 1159,
+      "mean": 2043.5,
+      "p50": 1324.8,
+      "p90": 3954.5,
+      "p99": 12712.1
+    },
+    "transcription_rtf": {
+      "window": "24h",
+      "unit": "rtf",
+      "samples": 1159,
+      "mean": 64.4,
+      "p50": 45.1,
+      "p90": 140.6,
+      "p99": 174.6
+    },
+    "llm_seconds": {
+      "window": "24h",
+      "unit": "seconds",
+      "samples": 1093,
+      "mean": 37.4,
+      "p50": 7.1,
+      "p90": 48.4,
+      "p99": 280.5,
+      "note": "successful_calls"
+    }
+  },
+  "canonical_outcomes": [
+    {
+      "event": "auto_save_operation",
+      "outcome": "success",
+      "count": 505,
+      "avg_duration": 0.00019801980198019803,
+      "duration_samples": 505
+    },
+    {
+      "event": "dictation_operation",
+      "outcome": "success",
+      "count": 12374,
+      "avg_duration": 26.3739534507839,
+      "duration_samples": 12374
+    },
+    {
+      "event": "dictation_operation",
+      "outcome": "cancelled",
+      "count": 1850,
+      "avg_duration": 51.28228782287823,
+      "duration_samples": 542
+    },
+    {
+      "event": "dictation_operation",
+      "outcome": "empty",
+      "count": 601,
+      "avg_duration": 3.2920133111480867,
+      "duration_samples": 601
+    },
+    {
+      "event": "dictation_operation",
+      "outcome": "failure",
+      "count": 88,
+      "avg_duration": 11.938636363636363,
+      "duration_samples": 44
+    },
+    {
+      "event": "llm_operation",
+      "outcome": "success",
+      "count": 1093,
+      "avg_duration": 37.38307410795974,
+      "duration_samples": 1093
+    },
+    {
+      "event": "llm_operation",
+      "outcome": "failure",
+      "count": 299,
+      "avg_duration": 21.927090301003343,
+      "duration_samples": 299
+    },
+    {
+      "event": "llm_operation",
+      "outcome": "unavailable",
+      "count": 169,
+      "avg_duration": 27.08934911242604,
+      "duration_samples": 169
+    },
+    {
+      "event": "meeting_operation",
+      "outcome": "success",
+      "count": 481,
+      "avg_duration": 2808.514760914761,
+      "duration_samples": 481
+    },
+    {
+      "event": "meeting_operation",
+      "outcome": "unavailable",
+      "count": 23,
+      "avg_duration": null,
+      "duration_samples": 0
+    },
+    {
+      "event": "meeting_operation",
+      "outcome": "cancelled",
+      "count": 13,
+      "avg_duration": 937.9230769230769,
+      "duration_samples": 13
+    },
+    {
+      "event": "meeting_operation",
+      "outcome": "failure",
+      "count": 7,
+      "avg_duration": 14168,
+      "duration_samples": 5
+    },
+    {
+      "event": "model_operation",
+      "outcome": "success",
+      "count": 697,
+      "avg_duration": 117.87073170731706,
+      "duration_samples": 697
+    },
+    {
+      "event": "model_operation",
+      "outcome": "failure",
+      "count": 24,
+      "avg_duration": 28.46666666666667,
+      "duration_samples": 24
+    },
+    {
+      "event": "model_operation",
+      "outcome": "cancelled",
+      "count": 1,
+      "avg_duration": 32,
+      "duration_samples": 1
+    },
+    {
+      "event": "speech_engine_switch_operation",
+      "outcome": "failure",
+      "count": 17,
+      "avg_duration": 0.20588235294117646,
+      "duration_samples": 17
+    },
+    {
+      "event": "speech_engine_switch_operation",
+      "outcome": "success",
+      "count": 13,
+      "avg_duration": 143.7846153846154,
+      "duration_samples": 13
+    },
+    {
+      "event": "transcription_operation",
+      "outcome": "success",
+      "count": 1159,
+      "avg_duration": 142.1792924935289,
+      "duration_samples": 1159
+    },
+    {
+      "event": "transcription_operation",
+      "outcome": "cancelled",
+      "count": 10,
+      "avg_duration": 94.51,
+      "duration_samples": 10
+    },
+    {
+      "event": "transcription_operation",
+      "outcome": "failure",
+      "count": 9,
+      "avg_duration": 291.9777777777778,
+      "duration_samples": 9
+    },
+    {
+      "event": "transform_operation",
+      "outcome": "success",
+      "count": 16,
+      "avg_duration": 3.19375,
+      "duration_samples": 16
+    },
+    {
+      "event": "transform_operation",
+      "outcome": "unavailable",
+      "count": 5,
+      "avg_duration": 0,
+      "duration_samples": 5
+    },
+    {
+      "event": "transform_operation",
+      "outcome": "empty",
+      "count": 2,
+      "avg_duration": 0.55,
+      "duration_samples": 2
+    },
+    {
+      "event": "transform_operation",
+      "outcome": "failure",
+      "count": 1,
+      "avg_duration": 0.1,
+      "duration_samples": 1
+    }
+  ],
+  "crash_free_by_version": [
+    {
+      "version": "0.8.9",
+      "total_sessions": 838,
+      "crash_sessions": 13
+    },
+    {
+      "version": "0.8.7",
+      "total_sessions": 339,
+      "crash_sessions": 4
+    },
+    {
+      "version": "0.7.3",
+      "total_sessions": 193,
+      "crash_sessions": 1
+    },
+    {
+      "version": "0.8.0",
+      "total_sessions": 87,
+      "crash_sessions": 0
+    },
+    {
+      "version": "0.6.24",
+      "total_sessions": 20,
+      "crash_sessions": 0
+    },
+    {
+      "version": "0.8.1",
+      "total_sessions": 20,
+      "crash_sessions": 0
+    },
+    {
+      "version": "0.8.3",
+      "total_sessions": 19,
+      "crash_sessions": 0
+    },
+    {
+      "version": "0.8.5",
+      "total_sessions": 15,
+      "crash_sessions": 1
+    },
+    {
+      "version": "0.7.2",
+      "total_sessions": 11,
+      "crash_sessions": 0
+    },
+    {
+      "version": "0.8.4",
+      "total_sessions": 9,
+      "crash_sessions": 0
+    },
+    {
+      "version": "0.8.8",
+      "total_sessions": 9,
+      "crash_sessions": 0
+    },
+    {
+      "version": "0.7.1",
+      "total_sessions": 6,
+      "crash_sessions": 0
+    }
+  ]
+}

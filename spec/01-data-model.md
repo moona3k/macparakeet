@@ -43,6 +43,12 @@ identifiers already stored as BLOBs retain their bytes. The migration does
 not rewrite parent identifiers or re-encode their references.
 
 Prompt name and operational metadata stay on `prompts` and are not versioned.
+On first creation of the prompt library, reconciliation applies the canonical
+meeting-notes defaults after historical migrations: Summary includes notes by
+default, while other built-ins do not. Existing libraries preserve their saved
+preferences, including explicit opt-outs; no schema migration or result snapshot
+rewrite is involved (ADR-020, issue #1204).
+
 The historical `prompts.content` and `prompts.inferenceSettings` columns are
 copied into V1 during migration and dropped by
 `v0.36-drop-legacy-prompt-values`; only the active version owns those values. `summaries.promptContent` and
@@ -150,6 +156,38 @@ CREATE INDEX idx_meeting_split_operations_source ON meeting_split_operations(sou
   deletion of the source or any sibling and needs no join to read. `NULL` for
   every non-split row; existing readers are unaffected.
 
+## Ask Workspace Persistence (v0.49)
+
+`v0.49-ask-conversations` stores saved Ask threads independently from Library
+recordings. The JSON payload owns the ordered source-context sections, messages,
+draft, title and citation identities; SQL columns provide compare-and-swap
+revision and a cross-process run lease. The table deliberately has no foreign
+key to `transcriptions`, so removing a source leaves its conversation and
+historical messages intact. Deleting a conversation deletes only that Ask row.
+
+```sql
+CREATE TABLE ask_conversations (
+    id TEXT PRIMARY KEY NOT NULL,
+    payload BLOB NOT NULL,                -- bounded JSON AskConversation, <= 8 MiB
+    revision INTEGER NOT NULL,
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL,
+    runToken TEXT,
+    runLeaseUntil TEXT
+);
+CREATE INDEX idx_ask_conversations_updated_at
+    ON ask_conversations(updatedAt);
+```
+
+The repository accepts at most 32 unique source UUIDs per section and validates
+that message sections, source-revision maps and citations agree. A successful
+save increments `revision` only when `expectedRevision` still matches. Active
+runs use a 45-second maximum lease and renew every 15 seconds. A final completed
+answer supplies the source revision map to the same database write transaction,
+which rechecks current canonical transcript revisions before committing. See
+the [Ask workspace contract](contracts/ask-workspace.md) for retrieval and
+privacy behavior.
+
 ## Relationship Diagram (selected domains)
 
 ```
@@ -166,6 +204,10 @@ CREATE INDEX idx_meeting_split_operations_source ON meeting_split_operations(sou
 │                  │◄──FK──│speaker_correction_states│  v0.32 — Undo/Redo cursor
 └──────────────────┘       └─────────────────────────┘
    v0.1 — File transcription records
+
+┌────────────────────┐
+│ ask_conversations  │   v0.49 — Independent source-scoped Ask history
+└────────────────────┘   Source UUIDs are payload references, not foreign keys.
 
 ┌──────────────────┐
 │   custom_words   │   v0.2 — Vocabulary corrections
@@ -337,8 +379,8 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
 - `isTranscriptEdited` marks the legacy whole-transcript replacement path. Its text has no safe mapping to the automatic words and therefore has `untimed` alignment. Timed line corrections do not set this flag; they are journal commands projected through `transcriptSegments`. Added in v0.7.7.
 - `userNotes` stores the canonical free-form meeting notes. Live capture writes
   it at finalize; the saved-meeting Notes tab autosaves to the same field. Prompt
-  generation snapshots the exact effective notes sent
-  to assembly on `summaries.userNotesSnapshot`. Added in v0.8.
+  generation snapshots the effective notes supplied to prompt assembly on
+  `summaries.userNotesSnapshot`. Added in v0.8.
 - `engine` / `engineVariant` record the STT engine attribution for Parakeet, Nemotron Beta, Cohere, and optional WhisperKit paths. Added in v0.8; legacy rows keep `NULL`.
 - `calendarEventSnapshot` is a JSON blob for meeting rows only. It stores `confidence` (`confirmed` for calendar auto-start, `probable` for manual starts matched against the current poll cache), EventKit `eventIdentifier`, optional `externalId`, event title, scheduled start/end, attendee names/emails, organizer name/email, meeting URL/service, and capture timestamp. This is local user data and must not be sent in telemetry, including attendee counts. Added in v0.25.
 - `titleOverride` stores a user-authored display title for file transcriptions and durable explicit-title intent for meetings. File titles do not rename or move the external source or replace its original `fileName`. Meetings still display `fileName`; a meeting rename or explicit import title also sets the normalized override, preventing automatic title generation from replacing it on completion or Retry. Default/generated meeting names leave the override `NULL`. Blank overrides normalize to `NULL`. Added in v0.26; meeting intent applies with external import.
@@ -350,7 +392,7 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
 - No FTS on transcriptions in v0.1. Search by filename or scroll the list. Revisit if the list grows large.
 
 **Diarization data (v0.4):**
-- `speakerCount`: Number of detected speakers (e.g., 2). Nil if diarization not run or failed.
+- `speakerCount`: Number of detected speakers (e.g., 2). Nil if diarization not run or failed. A meeting's `Unattributed` system bucket is not counted (#1228).
 - `speakers`: JSON array of `SpeakerInfo` objects mapping stable IDs to display labels (e.g., `[{"id":"S1","label":"Speaker 1"},{"id":"S2","label":"Sarah"}]`). Rename updates the `label` field only — no word rewrite needed.
 - `diarizationSegments`: JSON array of speaker intervals (e.g., `[{"speakerId":"S1","startMs":0,"endMs":5000}]`). File completion stores audio-derived intervals; meeting finalization derives them from timed words, and effective speaker-correction projections can rebuild them from word assignments. This legacy field is not uniformly raw audio evidence. Nil when unavailable.
 - Speaker assignment per word is stored via `speakerId` on each `WordTimestamp` entry using **stable IDs** (`"S1"`, `"S2"`) — not display labels. Display labels are resolved via the `speakers` mapping.
@@ -385,7 +427,7 @@ CREATE TABLE speaker_corrections (
     operation TEXT NOT NULL CHECK (
         operation IN (
             'rename', 'add', 'assign', 'split', 'unsplit', 'merge', 'remove',
-            'editText', 'mergeSegments', 'reset'
+            'editText', 'mergeSegments', 'reviseText', 'reset'
         )
     ),
     payload TEXT NOT NULL,
@@ -421,7 +463,10 @@ marks the retained redo branch `abandoned` rather than deleting history.
 version so retranscription cannot silently replay stale ranges.
 
 `editText` replaces one current non-empty displayed line while retaining its
-segment time envelope. `mergeSegments` suppresses boundaries between adjacent
+segment time envelope. `reviseText` (v0.46) is one reading-view save: each
+change replaces a current passage with non-empty text or omits that passage
+from the effective transcript. Omitted passages keep their automatic words.
+Undo restores the whole save. `mergeSegments` suppresses boundaries between adjacent
 current ranges with one effective speaker assignment. Both commands use the
 same cursor as speaker changes. Their effective projection derives
 `transcriptTextAlignment` as `segment`; an unchanged projection with automatic
@@ -438,7 +483,9 @@ to their durable automatic segments.
 
 Migration `v0.44-timed-transcript-corrections` rebuilds both tables to widen
 the SQLite operation constraint, then copies all correction rows, parent links,
-and durable cursors before recreating the replay index.
+and durable cursors before recreating the replay index. Migration
+`v0.46-reading-transcript-corrections` rebuilds them again to admit
+`reviseText`.
 
 The state is deliberately not stored on `transcriptions`: whole-row saves of
 older `Transcription` values must not be able to overwrite correction history.
@@ -614,6 +661,22 @@ CREATE INDEX idx_chat_conversations_transcription_id ON chat_conversations(trans
 
 ---
 
+### `ask_conversations` (v0.49)
+
+Stores an independent Ask workspace conversation, not a chat owned by its first
+transcript. Sections freeze the selected Library source UUIDs for each context
+period. A section change appends a new membership snapshot; existing messages
+remain history. The model only receives complete messages from the current
+section whose saved source revisions still match the current run snapshot.
+
+The single bounded payload is a Codable `AskConversation`. `revision`,
+`createdAt`, `updatedAt`, `runToken`, and `runLeaseUntil` remain indexed SQL
+columns so GUI and CLI processes can arbitrate without decoding competing
+payloads. Citations store `(sourceID, sourceRevision, segmentIndex)` plus
+optional source title/date snapshots, not a duplicate passage quote. Source
+records are validated when evidence is read. Recording deletion marks its
+historical citations unavailable without deleting the whole conversation.
+
 ### `prompts` (v0.7)
 
 Reusable prompt templates for LLM-powered transcript processing. Built-in and
@@ -666,7 +729,10 @@ CREATE UNIQUE INDEX idx_prompts_name ON prompts(name COLLATE NOCASE);
   JSON decoding and repository writes independently reject invalid numeric
   values with the settings validation error. Current Transform execution also uses its active version settings.
 - `includeMeetingNotes` is a result-prompt-only Boolean, defaulting to false
-  for migrated, built-in and new prompts. When enabled, non-empty meeting notes
+  for migrated, built-in and new prompts, except that the built-in Summary is
+  seeded true when the prompt library is first created. Existing libraries keep
+  their saved value, including when a legacy built-in row is replaced by its
+  canonical identity. When enabled, non-empty meeting notes
   are appended as context unless explicitly placed with `{{userNotes}}`.
   Transform rows remain false. Migration `v0.33-prompt-meeting-notes-context`
   adds this column and `summaries.includeMeetingNotesSnapshot`.
@@ -689,6 +755,10 @@ CREATE TABLE summaries (
     userNotesSnapshot TEXT,                                -- v0.8: notes used when generating this result
     includeMeetingNotesSnapshot INTEGER NOT NULL DEFAULT 0, -- v0.33-prompt-meeting-notes-context
     inferenceSettingsSnapshot TEXT,                       -- v0.31: JSON effective settings actually sent
+    outputLanguagePolicySnapshot TEXT,                    -- v0.47: meeting AI output-language policy used for this result
+    contentEditedAt   TEXT,                                -- v0.45: when the user last edited `content`
+    sourceCorrectionRevision INTEGER,                      -- v0.45: transcript correction revision used
+    sourceTranscriptHash TEXT,                              -- v0.48: canonical transcript text receipt
     createdAt         TEXT NOT NULL,                       -- ISO 8601 timestamp
     updatedAt         TEXT NOT NULL                        -- ISO 8601 timestamp
 );
@@ -701,12 +771,44 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
 - `promptName` and `promptContent` are snapshots, not references to the `prompts` table. Editing or deleting a prompt after generation doesn't change the result's metadata.
 - `userNotesSnapshot` captures the exact normalized and 8,000-word-capped notes
   value supplied to prompt assembly, not the unbounded canonical DB value, so
-  later note edits do not rewrite historical prompt results.
+  later note edits do not rewrite historical prompt results. Results saved by
+  older versions can hold uncapped notes, so a legacy snapshot is not always a
+  byte-exact record of what was sent. Provider context limits can also trim the
+  assembled prompt further for current results. The UI labels it as a snapshot
+  of assembly input, not an exact network receipt.
+- `contentEditedAt` (v0.45) is set when the user saves an in-place edit of
+  `content`. Prompt snapshots stay the generation receipt. `NULL` means no
+  in-place edit is recorded, including on generated, historical, and imported
+  rows; it does not establish who wrote the content.
+  Cancel discards the draft; Save persists and refreshes meeting artifacts.
 - `includeMeetingNotesSnapshot` records the opt-in preference captured for that
   generation, including the meaningful case where it was enabled but no notes
   existed yet. Retry reuses its queued snapshot; regenerate reuses this Boolean
   receipt with the meeting's current committed notes. The column defaults false
-  for historical results and is installed by migration v0.33.
+  for historical results and is installed by migration v0.33. Imported or
+  unlinked results with no notes receipt stay quiet on the result page. Their
+  status stays distinct from a library prompt that ran with notes disabled, so
+  the page does not point them at a prompt setting.
+- `outputLanguagePolicySnapshot` (v0.47) records the meeting AI output-language
+  policy used for that generation (`follow-transcript` or a language code).
+  `NULL` means no policy was recorded, including results created before the
+  policy existed and externally imported results. Regenerate then uses the
+  current Settings value. Extra instructions still override the injected
+  language request.
+- `sourceCorrectionRevision` (v0.45) records the transcript correction
+  revision captured with the transcript input before generation, including
+  CLI and saved-audio auto-prompt runs. `NULL` means the result predates the
+  receipt. A later transcript edit can then offer an update without
+  regenerating on its own.
+- `sourceTranscriptHash` (v0.48) is SHA-256 of cue words when an unedited
+  transcript has timed cues, otherwise trimmed canonical `cleanTranscript`
+  (falling back to `rawTranscript` when automatic clean text is empty). It
+  detects retranscription even when correction revision returns to zero,
+  without changing when titles, notes, or plain/rich context presentation
+  changes. Earlier rows keep `NULL` because a result may already have become
+  stale before migration. A `NULL` receipt alone does not surface a
+  transcript-change notice; see [spec/12-processing-layer.md](12-processing-layer.md#data-model-promptresult)
+  for the conditions that do.
 - `inferenceSettingsSnapshot` (v0.31) stores the normalized effective settings
   actually sent after provider/model capability filtering, not merely the
   settings requested on the prompt. `NULL` preserves historical rows and means
@@ -1270,6 +1372,56 @@ extension ChatConversation: FetchableRecord, PersistableRecord {
 }
 ```
 
+### AskConversation
+
+```swift
+struct AskConversation: Codable, Identifiable {
+    var id: UUID
+    var title: String
+    var sections: [AskContextSection]
+    var messages: [AskMessage]
+    var draft: String
+    var revision: Int
+    var createdAt: Date
+    var updatedAt: Date
+}
+
+struct AskContextSection: Codable, Identifiable {
+    var id: UUID
+    var sourceIDs: [UUID]
+    var createdAt: Date
+}
+
+struct AskMessage: Codable, Identifiable {
+    enum Role: String, Codable { case user, assistant }
+    enum Status: String, Codable { case complete, incomplete, failed, cancelled }
+    var id: UUID
+    var sectionID: UUID
+    var role: Role
+    var status: Status
+    var content: String
+    var citations: [AskEvidenceReference]
+    var sourceRevisions: [UUID: String]
+    var failureReason: String?
+    var provider: AskProviderDisclosure?
+    var createdAt: Date
+}
+
+struct AskEvidenceReference: Codable {
+    var sourceID: UUID
+    var sourceRevision: String
+    var segmentIndex: Int
+    var sourceTitle: String?
+    var recordedAt: Date?
+}
+```
+
+`AskConversation` is stored as the payload of `ask_conversations`, not as a
+GRDB row type. An assistant placeholder is saved as `incomplete` before model
+work begins. Terminal outcomes distinguish `complete`, `failed`, and
+`cancelled`; an interrupted process may leave the durable placeholder
+`incomplete`.
+
 ### Prompt
 
 ```swift
@@ -1289,7 +1441,7 @@ struct Prompt: Codable, Identifiable, Sendable {
     var runningLabel: String?
     var appliesToSources: Set<Transcription.SourceType>?  // v0.20 auto-run scoping; nil = all sources
     var inferenceSettings: PromptInferenceSettings?       // v0.31; nil = MacParakeet defaults
-    var includeMeetingNotes: Bool                         // v0.33; result-only opt-in, defaults false
+    var includeMeetingNotes: Bool                         // v0.33; result-only opt-in, defaults false (newly seeded Summary: true)
     var createdAt: Date
     var updatedAt: Date
 
@@ -1320,6 +1472,10 @@ struct PromptResult: Codable, Identifiable, Sendable {
     var userNotesSnapshot: String?
     var includeMeetingNotesSnapshot: Bool
     var inferenceSettingsSnapshot: PromptInferenceSettings?
+    var outputLanguagePolicySnapshot: String?
+    var sourceCorrectionRevision: Int?
+    var sourceTranscriptHash: String?
+    var contentEditedAt: Date?
     var createdAt: Date
     var updatedAt: Date
 }
@@ -1685,6 +1841,12 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 // v0.42-share-publications — local sharing ledger + durable outbox
 // v0.43-meeting-audio-retention — optional managed-audio retention clock
 // v0.44-timed-transcript-corrections — widen correction operations without discarding history
+// v0.45-summary-source-correction-revision — summaries.sourceCorrectionRevision
+// v0.45-prompt-result-content-edits — summaries.contentEditedAt
+// v0.46-reading-transcript-corrections — widen correction operations for reading edits
+// v0.47-meeting-ai-output-language — summaries.outputLanguagePolicySnapshot
+// v0.48-prompt-result-source-transcript — summaries.sourceTranscriptHash
+// v0.49-ask-conversations — independent Ask history and cross-process run lease
 ```
 
 ### Migration Rules
@@ -1722,6 +1884,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `dictations.hidden` | v0.5 | Private dictation mode flag |
 | `dictations.wordCount` | v0.5 | Cached word count for voice stats |
 | `chat_conversations` | v0.5 | Multi-conversation chat per transcription (FK → transcriptions) |
+| `ask_conversations` | v0.49-ask-conversations | Independent Ask conversations; bounded Codable payload, revision and run lease; no source foreign key |
 | `transcriptions.thumbnailURL` | v0.5 | YouTube video thumbnail URL |
 | `transcriptions.channelName` | v0.5 | YouTube channel name |
 | `transcriptions.videoDescription` | v0.5 | YouTube video description |
@@ -1738,6 +1901,8 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `speaker_embedding_candidates` | v0.41-speaker-embedding-candidates | Consent-gated temporary vectors with per-row seven-day expiry |
 | `prompts.includeMeetingNotes` | v0.33-prompt-meeting-notes-context | Result-prompt opt-in for automatic meeting-notes context; non-null, default false |
 | `summaries.includeMeetingNotesSnapshot` | v0.33-prompt-meeting-notes-context | Generation-time receipt of the prompt's notes-context opt-in; non-null, default false |
+| `summaries.outputLanguagePolicySnapshot` | v0.47-meeting-ai-output-language | Generation-time receipt of the meeting AI output-language policy (`follow-transcript` or a language code); nullable when no policy was recorded, including earlier and imported results |
+| `summaries.contentEditedAt` | v0.45-prompt-result-content-edits | When the user last saved an in-place content edit; nullable when no edit is recorded, including imported rows |
 | `lifetime_dictation_stats` | v0.7.4 | Singleton lifetime voice-stat counters |
 | `daily_dictation_stats` | v0.11 | Per-day rollup powering Stats-tab heatmap + daily streaks |
 | `transcriptions.recoveredFromCrash` | v0.7.5 | Interrupted meeting recovery marker |

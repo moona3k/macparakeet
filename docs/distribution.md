@@ -95,6 +95,20 @@ SHA-256
 `14d02f1ad6dd77b3a60f82639879012c3adb4fe25c50a5a47a2c4c661daf1558`.
 It is Apache-2.0 and is not bundled in the DMG.
 
+The Ask workspace uses a private JavaScript helper bundle. The app and
+standalone CLI bundle the pinned Pi agent-core helper plus the official Node.js
+24.13.1 runtime; `scripts/build_ask_helper.sh` installs npm packages at build
+time with `npm ci` and esbuild, not when the app launches. The app places the
+helper and its generated per-package notices under
+`Contents/Resources/AskAgentHelper/Legal/`; its Node license is at
+`Contents/Resources/Legal/Node/LICENSE`. The standalone CLI uses
+`libexec/macparakeet-cli/AskAgentHelper/Legal/` and
+`libexec/macparakeet-cli/Legal/Node/LICENSE`. Keep
+`AskAgentHelper/Legal/dependencies.json` and every package license listed by it
+with the bundle. The helper receives no provider credentials; Swift retains
+provider calls and source access. See [THIRD_PARTY_LICENSES.md](../THIRD_PARTY_LICENSES.md)
+for the bundled package inventory and notice policy.
+
 `build_app_bundle.sh` automatically downloads a **statically-linked FFmpeg** from [ffmpeg.martin-riedl.de](https://ffmpeg.martin-riedl.de/) (macOS arm64, SHA256-verified). No Homebrew dependency. To use a custom binary instead, set `FFMPEG_PATH`:
 
 ```bash
@@ -272,7 +286,10 @@ Because Cloudflare may serve a cached object briefly, also verify with a cache-b
 curl -sI "https://downloads.macparakeet.com/MacParakeet.dmg?ts=$(date +%s)" | head -10
 ```
 
-Confirm `content-length`, `last-modified`, and `etag` match the newly uploaded DMG.
+Confirm `content-length` and the downloaded object's SHA-256 match the signed
+local DMG. `last-modified` and `etag` help diagnose cache behavior, but neither
+establishes artifact identity. Run the exact enclosure-URL digest check in
+Step 3 below.
 
 ## Full release workflow
 
@@ -317,6 +334,13 @@ signed/notarized archive is published, but the CLI embedded in a new app bundle
 must report the promoted semver from `Sources/CLI/CHANGELOG.md`.
 
 ### Version bumping
+
+The current app release is **0.8.9**, continuing the 0.8.x release train.
+**0.9.0 is reserved for qualified, publicly enabled Jev Voice Control.**
+This deliberate milestone policy takes precedence over the generic guidance
+below. Voice Control remains release-gated; additive improvements to the
+existing capture and Library workflows do not by themselves change that
+milestone. The CLI has its own semver and must be versioned independently.
 
 The build script accepts `VERSION` and `BUILD_NUMBER` env vars:
 
@@ -378,12 +402,20 @@ npx wrangler r2 object put macparakeet-downloads/MacParakeet.dmg \
   --remote
 ```
 
-Verify — **the file size MUST match `dist/MacParakeet.dmg` exactly:**
+Verify the bytes served through the enclosure URL's cache key. **Both size and
+SHA-256 MUST match `dist/MacParakeet.dmg` exactly:**
 ```bash
+set -o pipefail
+BUILD_NUMBER=$(plutil -extract CFBundleVersion raw -o - dist/MacParakeet.app/Contents/Info.plist)
 LOCAL_SIZE=$(stat -f%z dist/MacParakeet.dmg)
-REMOTE_SIZE=$(curl -sI "https://downloads.macparakeet.com/MacParakeet.dmg?ts=$(date +%s)" | grep -i content-length | awk '{print $2}' | tr -d '\r')
+REMOTE_SIZE=$(curl -fsSI "https://downloads.macparakeet.com/MacParakeet.dmg?v=$BUILD_NUMBER" | grep -i content-length | awk '{print $2}' | tr -d '\r')
 echo "Local: $LOCAL_SIZE  Remote: $REMOTE_SIZE"
-# These MUST be identical. If not, re-upload — another process may have overwritten the object.
+test "$LOCAL_SIZE" = "$REMOTE_SIZE" || exit 1
+LOCAL_SHA=$(shasum -a 256 dist/MacParakeet.dmg | awk '{print $1}')
+REMOTE_SHA=$(curl -fsSL "https://downloads.macparakeet.com/MacParakeet.dmg?v=$BUILD_NUMBER" | shasum -a 256 | awk '{print $1}')
+test "$LOCAL_SHA" = "$REMOTE_SHA" || exit 1
+# If either check fails, stop: the CDN may be stale or another process may
+# have overwritten the object. Do not publish an appcast for mismatched bytes.
 ```
 
 ### Step 4: Sign DMG for Sparkle
@@ -434,9 +466,16 @@ Verify appcast is live:
 curl -s "https://macparakeet.com/appcast.xml?ts=$(date +%s)" | grep "sparkle:version"
 ```
 
+Keep current website download buttons on `latestRelease.downloadUrl` from the
+website's shared release data, using the same versioned URL as the appcast.
+The unversioned URL can remain cached after an upload. Verify with a full GET:
+a HEAD response can describe the new object while a cached GET serves the old
+DMG. Do not infer artifact identity from headers alone.
+
 ### Step 7: Verify end-to-end
 
-1. Confirm R2 file size matches appcast `length`
+1. Repeat the Step 3 size and SHA-256 checks for the published enclosure URL;
+   confirm its length matches the appcast `length`.
 2. Confirm appcast `sparkle:version` is newer than the installed app's build number
 3. Launch the app → "Check for Updates..." from the menu bar → should find and validate the update
 4. Confirm the GitHub release `vX.Y.Z` includes an asset named **exactly**
@@ -612,14 +651,9 @@ Cloudflare CDN caches R2 objects with a ~4 hour TTL based on the full URL includ
 
 R2 ignores query params and serves the current object. Cloudflare CDN treats the new URL as a cache miss and fetches fresh. Each build has a unique build number, so each release gets its own cache slot.
 
-**How to verify:** After uploading, compare local and remote file sizes:
-
-```bash
-LOCAL_SIZE=$(stat -f%z dist/MacParakeet.dmg)
-REMOTE_SIZE=$(curl -sI "https://downloads.macparakeet.com/MacParakeet.dmg?v=$(plutil -extract CFBundleVersion raw dist/MacParakeet.app/Contents/Info.plist)" | grep -i content-length | awk '{print $2}' | tr -d '\r')
-echo "Local: $LOCAL_SIZE  Remote: $REMOTE_SIZE"
-# MUST be identical. If not, wait and retry — CDN propagation can take a few seconds.
-```
+**How to verify:** After uploading, run the size and SHA-256 checks in Step 3
+against the exact `?v={BUILD_NUMBER}` URL used in the appcast. If either value
+differs, stop and resolve the stale or overwritten object before publishing.
 
 #### 3. DMG must include Applications symlink
 
@@ -641,7 +675,7 @@ The Sparkle `sign_update` tool produces an EdDSA signature over the exact bytes 
 3. Run `sign_update` on **that same DMG**
 4. Put the signature in the appcast
 
-If another process or agent overwrites the R2 object between steps 2 and 3, the signature won't match. Always verify file sizes match after upload (Step 3 in the release workflow).
+If another process or agent overwrites the R2 object between steps 2 and 3, the signature won't match. Verify size and SHA-256 after upload (Step 3 in the release workflow).
 
 #### 5. `yt-dlp_macos` is PyInstaller and needs a special signing entitlement
 
@@ -747,6 +781,7 @@ These are set automatically by `build_app_bundle.sh`:
 |-----|-------|
 | `SUFeedURL` | `https://macparakeet.com/appcast.xml` |
 | `SUPublicEDKey` | `2aqRU0Agz+xxZwt0kLybmKz/SAvZUsyn+z9fU0I6ynY=` |
+| `CFBundleURLTypes` | Registers the `macparakeet` scheme for the opt-in [meeting URL controls](../spec/contracts/meeting-url-control-v1.md). Dev bundles register `macparakeet-dev` instead. |
 
 ### Privacy Strings and Entitlements
 

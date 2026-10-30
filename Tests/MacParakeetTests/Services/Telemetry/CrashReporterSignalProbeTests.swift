@@ -215,6 +215,8 @@ final class CrashReporterSignalProbeTests: XCTestCase {
         XCTAssertNotNil(report.siCode)
         XCTAssertNotNil(report.pc)
         XCTAssertNotNil(report.faultAddr)
+        XCTAssertEqual(report.diagnosticMetadata?.props["crash_context_version"], "1")
+        XCTAssertEqual(report.diagnosticMetadata?.props["crash_registered_consumers"], "none")
         XCTAssertTrue(report.stackTrace.isEmpty)
     }
 

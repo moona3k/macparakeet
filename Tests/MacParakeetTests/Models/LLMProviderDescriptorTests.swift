@@ -26,6 +26,7 @@ final class LLMProviderDescriptorTests: XCTestCase {
     func testModelListEndpointPolicy() {
         XCTAssertEqual(LLMProviderID.localCLI.modelListEndpoint, .none)
         XCTAssertEqual(LLMProviderID.inProcessLocal.modelListEndpoint, .none)
+        XCTAssertEqual(LLMProviderID.appleIntelligence.modelListEndpoint, .none)
         XCTAssertEqual(LLMProviderID.anthropic.modelListEndpoint, .anthropic)
         XCTAssertEqual(LLMProviderID.gemini.modelListEndpoint, .gemini)
         XCTAssertEqual(LLMProviderID.ollama.modelListEndpoint, .ollama)
@@ -51,20 +52,20 @@ final class LLMProviderDescriptorTests: XCTestCase {
         XCTAssertTrue(LLMProviderID.openai.fallbackModels.contains("gpt-5.4-mini"))
         XCTAssertFalse(LLMProviderID.openai.fallbackModels.contains("gpt-5.5-pro"))
         XCTAssertFalse(LLMProviderID.openai.fallbackModels.contains("gpt-5.4-pro"))
-        XCTAssertEqual(LLMProviderID.anthropic.defaultModelName, "claude-sonnet-5")
+        XCTAssertEqual(LLMProviderID.anthropic.defaultModelName, "claude-sonnet-5-5")
         XCTAssertEqual(
             LLMProviderID.anthropic.fallbackModels,
-            ["claude-sonnet-5", "claude-fable-5", "claude-opus-4-8", "claude-haiku-4-5"]
+            ["claude-sonnet-5-5", "claude-fable-5-1", "claude-opus-5-5", "claude-haiku-5-5"]
         )
         XCTAssertTrue(LLMProviderID.gemini.fallbackModels.contains("gemini-3.1-flash-lite"))
-        XCTAssertEqual(LLMProviderID.openrouter.defaultModelName, "anthropic/claude-sonnet-5")
+        XCTAssertEqual(LLMProviderID.openrouter.defaultModelName, "anthropic/claude-sonnet-5.5")
         XCTAssertEqual(
             Array(LLMProviderID.openrouter.fallbackModels.prefix(4)),
             [
-                "anthropic/claude-sonnet-5",
-                "anthropic/claude-fable-5",
-                "anthropic/claude-opus-4.8",
-                "anthropic/claude-haiku-4.5",
+                "anthropic/claude-sonnet-5.5",
+                "anthropic/claude-fable-5.1",
+                "anthropic/claude-opus-5.5",
+                "anthropic/claude-haiku-5.5",
             ]
         )
         XCTAssertTrue(LLMProviderID.openrouter.fallbackModels.contains("openai/gpt-5.5"))
@@ -96,12 +97,35 @@ final class LLMProviderDescriptorTests: XCTestCase {
         XCTAssertEqual(LLMProviderConfig.inProcessLocal().modelName, LLMProviderID.inProcessLocal.defaultModelName)
         XCTAssertEqual(
             LLMProviderConfig.inProcessLocal().baseURL.absoluteString, LLMProviderID.inProcessLocal.defaultBaseURL)
+        XCTAssertEqual(
+            LLMProviderConfig.appleIntelligence().modelName, LLMProviderID.appleIntelligence.defaultModelName)
+        XCTAssertEqual(
+            LLMProviderConfig.appleIntelligence().baseURL.absoluteString,
+            LLMProviderID.appleIntelligence.defaultBaseURL)
+        XCTAssertTrue(LLMProviderID.appleIntelligence.isLocal)
+        XCTAssertFalse(LLMProviderID.appleIntelligence.supportsAPIKey)
+    }
+
+    func testAppleIntelligenceRejectsModelOverrides() {
+        let config = LLMProviderConfig.appleIntelligence()
+        let rejected = config.resolvingModelOverride("gpt-5.5")
+        guard case .invalid(let model, let reason) = rejected else {
+            return XCTFail("Expected an invalid Apple Intelligence override")
+        }
+        XCTAssertEqual(model, "gpt-5.5")
+        XCTAssertTrue(reason.contains("on-device system model"))
+
+        let sameModel = config.resolvingModelOverride("apple-intelligence")
+        XCTAssertEqual(sameModel, .resolved(config))
     }
 
     func testInProcessLocalProviderIsHiddenWhileFeatureFlagIsOff() {
         XCTAssertFalse(AppFeatures.inProcessLocalLLMEnabled)
         XCTAssertEqual(
-            LLMProviderID.userSelectableProviderIDs(inProcessLocalLLMVisible: false),
+            LLMProviderID.userSelectableProviderIDs(
+                inProcessLocalLLMVisible: false,
+                appleIntelligenceVisible: false
+            ),
             [
                 .lmstudio,
                 .ollama,
@@ -119,13 +143,22 @@ final class LLMProviderDescriptorTests: XCTestCase {
             ]
         )
         XCTAssertFalse(
-            LLMProviderID.userSelectableProviderIDs(inProcessLocalLLMVisible: false).contains(.inProcessLocal))
+            LLMProviderID.userSelectableProviderIDs(
+                inProcessLocalLLMVisible: false,
+                appleIntelligenceVisible: false
+            ).contains(.inProcessLocal))
+        XCTAssertEqual(
+            LLMProviderID.userSelectableProviderIDs(
+                inProcessLocalLLMVisible: false,
+                appleIntelligenceVisible: true
+            ).first,
+            .appleIntelligence
+        )
     }
 
     func testDeveloperOverrideCanExposeInProcessLocalProviderWithoutFlippingPublicFlag() {
-        let suiteName = "LLMProviderDescriptorTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("LLMProviderDescriptorTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
 
         defaults.set(true, forKey: AppFeatures.inProcessLocalLLMDeveloperDefaultsKey)
 
@@ -141,9 +174,8 @@ final class LLMProviderDescriptorTests: XCTestCase {
     }
 
     func testDeveloperOverrideDoesNotExposeInProcessLocalProviderWhenRuntimeUnavailable() {
-        let suiteName = "LLMProviderDescriptorTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("LLMProviderDescriptorTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
 
         defaults.set(true, forKey: AppFeatures.inProcessLocalLLMDeveloperDefaultsKey)
 
@@ -165,9 +197,8 @@ final class LLMProviderDescriptorTests: XCTestCase {
     }
 
     func testDeveloperLaunchArgumentCanExposeInProcessLocalProviderWithoutFlippingPublicFlag() {
-        let suiteName = "LLMProviderDescriptorTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("LLMProviderDescriptorTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
 
         XCTAssertFalse(AppFeatures.inProcessLocalLLMEnabled)
         XCTAssertTrue(

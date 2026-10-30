@@ -36,7 +36,8 @@ final class PromptsCommandTests: XCTestCase {
             extraInstructions: nil,
             output: "Saved summary",
             userNotesSnapshot: input.effectiveTranscription.userNotes,
-            effectiveSettings: nil
+            effectiveSettings: nil,
+            sourceCorrectionRevision: input.correctionRevision
         )
         try results.save(result)
 
@@ -407,7 +408,8 @@ final class PromptsCommandTests: XCTestCase {
             extraInstructions: "Brief.",
             output: "Result",
             userNotesSnapshot: nil,
-            effectiveSettings: effective
+            effectiveSettings: effective,
+            sourceCorrectionRevision: 2
         )
 
         XCTAssertEqual(result.transcriptionId, transcript.id)
@@ -418,6 +420,13 @@ final class PromptsCommandTests: XCTestCase {
         XCTAssertFalse(result.includeMeetingNotesSnapshot)
         XCTAssertEqual(result.inferenceSettingsSnapshot, effective)
         XCTAssertNotEqual(result.inferenceSettingsSnapshot, requested)
+        XCTAssertEqual(result.sourceCorrectionRevision, 2)
+        XCTAssertEqual(result.sourceTranscriptHash, PromptResultFreshness.sourceTranscriptHash(for: transcript))
+        XCTAssertFalse(
+            PromptResultFreshness.summaryNeedsUpdate(
+                sourceCorrectionRevision: result.sourceCorrectionRevision,
+                currentCorrectionRevision: 2
+            ))
     }
 
     func testStoredPromptRunResultUsesExactEffectiveNotesReceiptAndPreference() {
@@ -440,7 +449,8 @@ final class PromptsCommandTests: XCTestCase {
             extraInstructions: nil,
             output: "Result",
             userNotesSnapshot: effectiveNotes,
-            effectiveSettings: nil
+            effectiveSettings: nil,
+            sourceCorrectionRevision: 0
         )
 
         XCTAssertEqual(result.userNotesSnapshot, effectiveNotes)
@@ -539,6 +549,82 @@ final class PromptsCommandTests: XCTestCase {
                 XCTAssertEqual(results.first?.content, "other-labels-preserved")
             }
         }
+    }
+
+    func testRunStoresRevisionFromCorrectedMeetingInput() async throws {
+        let databaseURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("prompt-corrected-run-\(UUID().uuidString).db")
+        defer { try? FileManager.default.removeItem(at: databaseURL) }
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("prompt-corrected-artifacts-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let database = try DatabaseManager(path: databaseURL.path)
+        let prompt = try PromptEditingService(dbQueue: database.dbQueue).create(
+            Prompt(name: "Corrected meeting", content: "Summarize.")
+        )
+        let meeting = artifactRefreshMeeting(folder: folder)
+        try TranscriptionRepository(dbQueue: database.dbQueue).save(meeting)
+        let reader = SpeakerAttributionReadService(dbQueue: database.dbQueue)
+        let original = try XCTUnwrap(reader.resolve(transcriptionId: meeting.id))
+        _ = try await SpeakerCorrectionService(dbQueue: database.dbQueue).apply(
+            transcriptionId: meeting.id,
+            command: .rename(speakerID: "S1", label: "Alice"),
+            expectedFingerprint: original.attribution.fingerprint,
+            expectedRevision: original.correctionRevision
+        )
+        let current = try XCTUnwrap(reader.resolve(transcriptionId: meeting.id))
+        XCTAssertEqual(current.correctionRevision, 1)
+
+        let command = try PromptsCommand.RunSubcommand.parse([
+            prompt.id.uuidString, "--transcription", meeting.id.uuidString,
+            "--provider", "cli", "--command", "/usr/bin/printf corrected-run",
+            "--database", databaseURL.path,
+        ])
+        try await command.run()
+
+        let results = try PromptResultRepository(dbQueue: database.dbQueue).fetchAll(transcriptionId: meeting.id)
+        let saved = try XCTUnwrap(results.first)
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(saved.content, "corrected-run")
+        XCTAssertEqual(saved.sourceCorrectionRevision, current.correctionRevision)
+        XCTAssertFalse(
+            PromptResultFreshness.summaryNeedsUpdate(
+                sourceCorrectionRevision: saved.sourceCorrectionRevision,
+                currentCorrectionRevision: current.correctionRevision
+            ))
+    }
+
+    func testRunStoresCueSourceReceiptWhenAutomaticCleanTextIsEmpty() async throws {
+        let databaseURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("prompt-empty-clean-run-\(UUID().uuidString).db")
+        defer { try? FileManager.default.removeItem(at: databaseURL) }
+        let database = try DatabaseManager(path: databaseURL.path)
+        let prompt = try PromptEditingService(dbQueue: database.dbQueue).create(
+            Prompt(name: "Empty clean text", content: "Summarize.")
+        )
+        let transcript = Transcription(
+            fileName: "Meeting",
+            rawTranscript: "Original words",
+            cleanTranscript: "",
+            wordTimestamps: [WordTimestamp(word: "Original", startMs: 0, endMs: 100, confidence: 1)],
+            status: .completed
+        )
+        try TranscriptionRepository(dbQueue: database.dbQueue).save(transcript)
+
+        let command = try PromptsCommand.RunSubcommand.parse([
+            prompt.id.uuidString, "--transcription", transcript.id.uuidString,
+            "--provider", "cli", "--command", "/usr/bin/printf generated",
+            "--database", databaseURL.path,
+        ])
+        try await command.run()
+
+        let saved = try XCTUnwrap(
+            PromptResultRepository(dbQueue: database.dbQueue).fetchAll(transcriptionId: transcript.id).first
+        )
+        XCTAssertEqual(
+            saved.sourceTranscriptHash,
+            PromptResultFreshness.sourceTranscriptHash(cleanTranscript: "Original", rawTranscript: nil)
+        )
     }
 
     func testLabelPolicyMutationsControlExecutionAndPreserveExplicitExceptions() async throws {

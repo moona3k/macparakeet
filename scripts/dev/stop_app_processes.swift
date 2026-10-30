@@ -114,6 +114,14 @@ func processSnapshot(executableNames: Set<String> = ["MacParakeet"]) throws -> [
             // failure must prevent rebuilding a potentially running executable.
             let pathError = errno
             if pathError == ESRCH || (kill(pid, 0) == -1 && errno == ESRCH) { return nil }
+            // An app can outlive an unlinked build product. AppKit retains the
+            // executable URL for that registered process, so it can still be
+            // matched against this checkout without interrupting another one.
+            if pathError == ENOENT,
+               let app = NSRunningApplication(processIdentifier: pid),
+               !app.isTerminated, let path = app.executableURL?.path {
+                return AppProcess(pid: pid, executablePath: path)
+            }
             // macOS can hide paths for unrelated protected processes. Check
             // the kernel executable name before treating that as a blocker;
             // include canonical executable names in case a supplied path is a symlink.

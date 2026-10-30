@@ -10,7 +10,7 @@ three axes: **accuracy** (English + multilingual), **speed**, and **memory**.
 Engines are the four families MacParakeet ships and evaluates: **Parakeet**
 (v2 / v3 / unified), **Nemotron** (English / multilingual, Beta), **WhisperKit**
 (large-v3-turbo), and **Cohere** Transcribe (`cohere-transcribe-03-2026`).
-Cohere remains one batch-only MacParakeet engine, but ADR-034 replaces its
+Cohere remains one batch-only MacParakeet engine, but ADR-035 replaces its
 backend and target model with pinned transcribe.cpp plus Q5_K_M GGUF.
 
 > Cohere's committed accuracy and performance rows below are historical

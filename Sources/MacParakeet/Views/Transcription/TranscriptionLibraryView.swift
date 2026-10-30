@@ -15,6 +15,11 @@ struct TranscriptionLibraryView: View {
     var showsFilterBar: Bool = true
     var primaryActionTitle: String? = nil
     var onPrimaryAction: (() -> Void)? = nil
+    /// Opens the transcript prompt manager. Library is the home for prompts
+    /// because they run on the transcripts listed here.
+    var onManagePrompts: (() -> Void)? = nil
+    var onAskSelected: (([UUID]) -> Void)? = nil
+    var onReviewAskConversations: (() -> Void)? = nil
     var emptyTitle: String = "No transcriptions yet"
     var emptyMessage: String = "Transcribe a file or video link to get started."
     var onSelect: (Transcription) -> Void
@@ -84,6 +89,10 @@ struct TranscriptionLibraryView: View {
                 .accessibilityLabel("Library layout")
                 .frame(width: 76)
                 .help(libraryLayoutMode == .grid ? "Switch to list view" : "Switch to grid view")
+
+                if let onManagePrompts {
+                    LibraryManagePromptsButton(action: onManagePrompts)
+                }
 
                 if showsSelectManyButton {
                     LibrarySelectManyButton {
@@ -177,6 +186,12 @@ struct TranscriptionLibraryView: View {
                 Button("Cancel", role: .cancel) {
                     pendingDelete = nil
                 }
+                if AppFeatures.isAskWorkspaceAvailable(), let onReviewAskConversations {
+                    Button("Review Ask conversations") {
+                        pendingDelete = nil
+                        onReviewAskConversations()
+                    }
+                }
                 Button(pendingDelete.map(singleDeleteConfirmTitle) ?? "Delete", role: .destructive) {
                     if let transcription = pendingDelete {
                         viewModel.deleteTranscription(transcription)
@@ -241,6 +256,15 @@ struct TranscriptionLibraryView: View {
             ) {
                 Button("Cancel", role: .cancel) {
                     viewModel.cancelPendingBulkOperation()
+                }
+                if AppFeatures.isAskWorkspaceAvailable(),
+                    viewModel.pendingBulkOperation?.isDeleteAudioOnly == false,
+                    let onReviewAskConversations
+                {
+                    Button("Review Ask conversations") {
+                        viewModel.cancelPendingBulkOperation()
+                        onReviewAskConversations()
+                    }
                 }
                 Button(bulkOperationConfirmTitle, role: .destructive) {
                     // Alert dismissal clears pending state before a deferred
@@ -573,6 +597,17 @@ struct TranscriptionLibraryView: View {
             onClear: { viewModel.clearSelection() },
             onCancel: { viewModel.exitBulkSelection() },
             onExport: { showingBulkExportOptions = true },
+            onAskSelected: onAskSelected.map { action in
+                {
+                    let ids = viewModel.filteredTranscriptions
+                        .map(\.id)
+                        .filter { viewModel.selectedTranscriptionIDs.contains($0) }
+                    guard !ids.isEmpty else { return }
+                    viewModel.exitBulkSelection()
+                    action(ids)
+                }
+            },
+            isAskDisabled: viewModel.selectedTranscriptionCount > AskWorkspaceViewModel.maximumSources,
             onDeleteAudioOnly: { viewModel.requestDeleteSelectedMeetingAudio() },
             onDeleteItems: { viewModel.requestDeleteSelectedItems() }
         )
@@ -837,7 +872,7 @@ struct TranscriptionLibraryView: View {
 
     private func runBulkExport() {
         guard !isBulkExportActionDisabled else { return }
-        let targets = selectedBulkExportTargets
+        let selection = selectedBulkExportTargets
 
         cancelBulkExport()
         let outcome = runBulkExportFolderPanel()
@@ -862,6 +897,10 @@ struct TranscriptionLibraryView: View {
                 await Task.yield()
                 guard bulkExportRunID == runID, !Task.isCancelled else { return }
 
+                // Library rows omit timing data; exports need complete rows.
+                let targets = try await viewModel.loadForExport(selection)
+                guard bulkExportRunID == runID, !Task.isCancelled else { return }
+
                 let exportTask = Task.detached(priority: .userInitiated) {
                     try await TranscriptResultActions.exportTranscriptsToDirectory(
                         transcriptions: targets,
@@ -877,6 +916,7 @@ struct TranscriptionLibraryView: View {
                 } onCancel: {
                     exportTask.cancel()
                 }
+                .includingUnavailable(selection.count - targets.count)
                 guard bulkExportRunID == runID else { return }
                 bulkExportWorkerTask = nil
 
@@ -1055,17 +1095,18 @@ struct TranscriptionLibraryView: View {
                 return MeetingDeletionCopy.bulkFullDeleteMessage(
                     count: operation.targetCount,
                     hasNonCompletedMeeting: operation.hasNonCompletedMeeting
-                )
+                ) + askHistoryDeletionNote
             }
             return MeetingDeletionCopy.mixedBulkFullDeleteMessage(
                 totalCount: operation.targetCount,
                 meetingCount: operation.meetingCount,
                 hasNonCompletedMeeting: operation.hasNonCompletedMeeting
-            )
+            ) + askHistoryDeletionNote
         }
 
         return
             "Delete \(operation.targetCount) \(operation.targetCount == 1 ? "item" : "items")? This permanently deletes the Library rows and app-owned files. Original local source files are not removed."
+            + askHistoryDeletionNote
     }
 
     private func singleDeleteTitle(for transcription: Transcription) -> String {
@@ -1078,9 +1119,16 @@ struct TranscriptionLibraryView: View {
 
     private func singleDeleteMessage(for transcription: Transcription) -> String {
         if transcription.sourceType == .meeting {
-            return MeetingDeletionCopy.singleFullDeleteMessage(for: transcription)
+            return MeetingDeletionCopy.singleFullDeleteMessage(for: transcription) + askHistoryDeletionNote
         }
         return "\"\(transcription.fileName)\" will be permanently deleted. Original local source files are not removed."
+            + askHistoryDeletionNote
+    }
+
+    private var askHistoryDeletionNote: String {
+        guard AppFeatures.isAskWorkspaceAvailable() else { return "" }
+        return
+            " Saved Ask answers may still contain quotations or conclusions from deleted recordings. Review and delete those conversations separately in Ask if needed."
     }
 
     private func handleSelectionKeyPress(_ press: KeyPress) -> KeyPress.Result {
@@ -1224,6 +1272,20 @@ private struct LibraryPrimaryActionButton: View {
         .pointingHandCursor(isActive: isHovered)
         .accessibilityLabel(title)
         .accessibilityHint("Starts a new transcription")
+    }
+}
+
+private struct LibraryManagePromptsButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label("Prompts", systemImage: "text.quote")
+                .font(DesignSystem.Typography.bodySmall.weight(.semibold))
+        }
+        .parakeetAction(.secondary)
+        .help("Manage the prompts that generate outputs from transcripts")
+        .accessibilityHint("Opens the transcript prompt manager")
     }
 }
 

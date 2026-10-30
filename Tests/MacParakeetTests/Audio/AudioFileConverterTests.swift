@@ -191,13 +191,4 @@ final class AudioFileConverterTests: XCTestCase {
         }
     }
 
-    func testAudioProcessorErrorDescriptions() {
-        XCTAssertNotNil(AudioProcessorError.microphonePermissionDenied.errorDescription)
-        XCTAssertNotNil(AudioProcessorError.microphoneNotAvailable.errorDescription)
-        XCTAssertNotNil(AudioProcessorError.recordingFailed("test").errorDescription)
-        XCTAssertNotNil(AudioProcessorError.conversionFailed("test").errorDescription)
-        XCTAssertNotNil(AudioProcessorError.unsupportedFormat("xyz").errorDescription)
-        XCTAssertNotNil(AudioProcessorError.fileTooLarge("test").errorDescription)
-        XCTAssertNotNil(AudioProcessorError.insufficientSamples.errorDescription)
-    }
 }

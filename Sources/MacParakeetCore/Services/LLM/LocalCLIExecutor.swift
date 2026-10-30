@@ -143,8 +143,16 @@ public final class LocalCLIConfigStore: @unchecked Sendable {
         providerConfig: LLMProviderConfig,
         configStore: any LLMConfigStoreProtocol
     ) throws {
+        try save(config) {
+            try configStore.saveConfig(providerConfig)
+        }
+    }
+
+    /// Encode the CLI command before publishing provider routes. The closure
+    /// may fail; the final CLI defaults write cannot.
+    public func save(_ config: LocalCLIConfig, afterPreparing publishRoutes: () throws -> Void) throws {
         let data = try JSONEncoder().encode(config)
-        try configStore.saveConfig(providerConfig)
+        try publishRoutes()
         defaults.set(data, forKey: Self.configKey)
     }
 
@@ -341,15 +349,8 @@ public final class LocalCLIExecutor: Sendable {
     }
 
     static func executionWorkingDirectory(fileManager: FileManager = .default) throws -> URL {
-        let appSupportDirectory = try fileManager.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
-        let workingDirectory =
-            appSupportDirectory
-            .appendingPathComponent("MacParakeet", isDirectory: true)
+        // Through AppPaths so Dev and override launches stay in their own root.
+        let workingDirectory = URL(fileURLWithPath: AppPaths.appSupportDir, isDirectory: true)
             .appendingPathComponent("LocalCLI", isDirectory: true)
         try fileManager.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
         return workingDirectory

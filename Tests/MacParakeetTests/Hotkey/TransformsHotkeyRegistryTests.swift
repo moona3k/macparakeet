@@ -176,4 +176,50 @@ final class TransformsHotkeyRegistryTests: XCTestCase {
         XCTAssertEqual(triggerCount, 2)
     }
 
+    // MARK: - Tap lifecycle (#1142)
+
+    /// An empty filtering tap would still make every keystroke wait on this
+    /// process, so none is installed until a binding exists.
+    func testStartWithoutBindingsInstallsNoTap() {
+        let registry = TransformsHotkeyRegistry()
+        XCTAssertTrue(registry.start())
+        XCTAssertFalse(registry.isTapInstalled)
+        registry.stop()
+        XCTAssertFalse(registry.isTapInstalled)
+    }
+
+    func testTapFollowsBindingsAndRunsOffMainRunLoop() throws {
+        let registry = TransformsHotkeyRegistry()
+        XCTAssertTrue(registry.start())
+        defer { registry.stop() }
+        let id = UUID()
+        registry.register(
+            promptID: id,
+            shortcut: KeyboardShortcut(
+                modifiers: KeyboardShortcut.ModifierFlag.option.rawValue,
+                keyCode: 0x12,
+                keyLabel: "1"
+            )
+        )
+        guard registry.isTapInstalled else {
+            throw XCTSkip("Event tap creation needs Input Monitoring permission")
+        }
+        let source = try XCTUnwrap(registry.runLoopSourceForTesting)
+        XCTAssertFalse(CFRunLoopContainsSource(CFRunLoopGetMain(), source, .commonModes))
+        XCTAssertTrue(CFRunLoopContainsSource(EventTapThread.shared.runLoop, source, .commonModes))
+
+        registry.unregister(promptID: id)
+        XCTAssertFalse(registry.isTapInstalled)
+
+        registry.replaceBindings([
+            id: KeyboardShortcut(
+                modifiers: KeyboardShortcut.ModifierFlag.command.rawValue,
+                keyCode: 0x13,
+                keyLabel: "2"
+            )
+        ])
+        XCTAssertTrue(registry.isTapInstalled)
+        registry.stop()
+        XCTAssertFalse(registry.isTapInstalled)
+    }
 }

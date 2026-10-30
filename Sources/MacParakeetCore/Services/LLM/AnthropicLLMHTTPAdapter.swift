@@ -286,7 +286,11 @@ struct AnthropicLLMHTTPAdapter: LLMHTTPAdapter {
         try options.validateInferenceSettings(for: config)
         let url = config.baseURL.appendingPathComponent("messages")
 
-        var request = URLRequest(url: url, timeoutInterval: stream ? 120 : 30)
+        var request = URLRequest(
+            url: url,
+            timeoutInterval: stream
+                ? LLMHTTPRequestTimeout.cloudStreamingIdle : LLMHTTPRequestTimeout.cloudNonStreaming
+        )
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         // Anthropic versions are pinned date strings. We track a single

@@ -44,6 +44,21 @@ final class FixedMeetingLiveAudioChunkerTests: XCTestCase {
         XCTAssertEqual(adapterFlush?.samples, referenceFlush?.samples)
     }
 
+    func testFlushedTailPreservesExactSamplesAfterUnevenIngests() async throws {
+        let chunker = FixedMeetingLiveAudioChunker()
+        // Distinct sample values expose dropped, duplicated, or shifted data.
+        let samples = (0..<192_496).map { Float($0) / 262_144 }
+        for offset in stride(from: 0, to: samples.count, by: 1_500) {
+            _ = await chunker.addSamples(Array(samples[offset..<min(offset + 1_500, samples.count)]))
+        }
+
+        let flushed = await chunker.flush()
+        let tail = try XCTUnwrap(flushed)
+        XCTAssertEqual(tail.startMs, 8_000)
+        XCTAssertEqual(tail.endMs, 12_031)
+        XCTAssertEqual(tail.samples, Array(samples[128_000..<192_496]))
+    }
+
     func testResetClearsState() async {
         let adapter = FixedMeetingLiveAudioChunker()
         _ = await adapter.addSamples([Float](repeating: 0.1, count: 80_000))

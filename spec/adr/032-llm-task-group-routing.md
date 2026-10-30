@@ -1,6 +1,6 @@
 # ADR-032: LLM Task-Group Routing and Specialist Recipes
 
-> Status: **ACCEPTED** (direction; not implemented)
+> Status: **ACCEPTED** (inherit/override implemented; specialist recipes not shipped)
 > Date: 2026-09-14
 > Related: [ADR-011](011-llm-cloud-and-local-providers.md) (providers and
 > shared client), [ADR-004](004-deterministic-pipeline.md) (deterministic
@@ -22,12 +22,13 @@ meeting intelligence. Those jobs want opposite LLM properties:
 
 [#408](https://github.com/moona3k/macparakeet/issues/408) asked to separate
 dictation/transform AI from meeting AI on model size, latency, and cost.
-The latency half shipped as independent formatter **enablement** toggles
+The latency half first shipped as independent formatter **enablement** toggles
 ("Use for dictation", "Use for transcripts") plus a transcription input
-cap. Settings still stores **one** default `LLMProviderConfig`.
-`StoredLLMExecutionContextResolver` is task-blind. Prompt and Transform
-`modelOverride` values, and `--model` on commands that use the saved
-Settings route, overlay that route and are not removed by this ADR.
+cap. Settings retains one default `LLMProviderConfig` and now also stores
+optional full-route overrides for cleanup and analysis. The resolver selects
+the task route. Prompt and Transform `modelOverride` values, and `--model` on
+commands that use the saved Settings route, overlay that route and are not
+removed by this ADR.
 Inline CLI commands that pass a full provider context are independent
 configs; they do not require the saved Settings route.
 
@@ -45,8 +46,8 @@ Claude/Ollama list.
 
 ## Decision
 
-If MacParakeet adds per-task model selection, it follows this ADR. This
-does not schedule the work and does not change current runtime behavior.
+The general-LLM task routes in this decision are implemented. Specialist
+recipes and translation remain future work; this ADR does not schedule them.
 
 **Product model:** define a few tasks, then a selector on each task.
 Inherit the default, pick a general LLM route, or — where the task
@@ -77,11 +78,20 @@ stored transcript in place.
 
 ### 2. One default, sparse full-route overrides
 
+The default may be None. Explicit cleanup and analysis routes remain usable
+without a default; tasks with neither a default nor an override are disabled.
+Settings always shows the task rows, so Apple Intelligence cleanup can be the
+only configured AI route. Clear removes all routes while retaining saved keys.
+Saving the default and overrides publishes one coherent metadata snapshot.
+Launch-time retirement of unsupported routes checks eligibility and removes
+metadata under the same cross-process lease as other route writers.
+
 Keep today's Default AI block (provider, credentials, model). Add at most
-two collapsed override rows for the jobs that exist today:
+two task rows for the jobs that exist today:
 **Dictation & cleanup** (`cleanup`) and **Meetings & library**
 (`analysis`). Meeting formatter still uses the cleanup row. Each row is
-"Use default" or a complete general-LLM route. A specialist recipe (see
+an inherited choice, labeled with the default provider (`Same as Google
+Gemini`), or a complete general-LLM route. A specialist recipe (see
 §5) is offered only on eligible tasks: `cleanup` now, `translate` only if
 F31 ships. The analysis row does not offer a recipe.
 
@@ -117,6 +127,44 @@ CLI uses the same policy (`summarize` / chat → `analysis`, formatter →
 stored-config commands remains an invocation overlay, not a saved
 task-group policy. Inline CLI commands that pass a full provider
 context stay independent configs.
+
+Transcript chat and result model pickers read the resolved analysis route and
+update that override when present, or the default when analysis inherits.
+An implicit GUI model snapshot must never overlay a default-provider model
+onto a different analysis provider. Explicit per-prompt overrides still win.
+If configuration or inheritance changes while a picker is open, its next
+selection refreshes the displayed route without writing the stale choice.
+The comparison and model write form one conditional store operation, including
+the displayed provider, endpoint, model and inheritance identity. All route
+metadata writers cooperate on a nonblocking cross-process lease shared by the stable
+app, development app and CLI. Metadata is refreshed after acquiring the lock
+and published before releasing it; checking only in the view model is insufficient.
+Model writes do not read or rewrite provider credentials.
+
+Credential-changing mutations acquire the same lease before touching Keychain
+and hold it through metadata publication. A competing operation fails busy
+before changing either store, including while another mutation is writing credentials.
+There is no blocking lock wait. This ordering prevents an abandoned route save
+or deletion from damaging the credentials of a retained route.
+
+Execution chooses the effective route from one coherent metadata snapshot, then
+loads only that provider's credentials outside the lock. This prevents a
+concurrent Settings save from combining the old inheritance decision with the
+new default. This coordination does not provide a shared durable transaction
+across preferences and Keychain. A publication failure after mutation is reported
+as an unconfirmed save that may have changed state; it is not a zero-write
+rejection and does not trigger blind credential rollback. Settings still saves its full draft; close and reopen
+AI Settings around CLI route changes to avoid overwriting them with a cached draft.
+
+`llm routes list` exposes the effective default, cleanup, analysis and transform
+routes without credentials. `llm routes set cleanup|analysis` stores a full
+override, and `llm routes reset cleanup|analysis` restores inheritance without
+deleting provider credentials. These commands share the GUI's preference suite
+and per-provider Keychain entries. Local CLI routes reuse the existing shared
+command template; this interface does not introduce a per-route command store.
+Listing and mutation descriptions read metadata without accessing Keychain.
+An omitted saved-route model uses the provider's current app default; existing
+one-off inline CLI model defaults retain their compatibility behavior.
 
 ### 4. Enablement stays independent of routing
 
@@ -176,19 +224,16 @@ The on-device local LLM plan's single-model invariant applies to the
 separate, optional, and task-bound. BYO users may still point task
 groups at different general providers or models.
 
-## Current behavior (unchanged until implemented)
+## Current behavior
 
 - One saved default provider config via `LLMConfigStore`.
-- Task-blind `StoredLLMExecutionContextResolver`.
+- Optional cleanup and analysis full-route overrides; Transforms inherit the default route.
 - Per-prompt and per-Transform `modelOverride`, plus `--model` on
-  stored-config CLI commands, overlay that saved route without replacing
+  stored-config CLI commands, overlay the resolved route without replacing
   it. Inline CLI commands that pass a full provider context are
   independent configs.
-- Per-surface formatter enablement and the transcription length cap.
+- Per-surface formatter enablement. Long transcripts are cleaned in sections rather than skipped.
 - No specialist recipes and no translation product.
-
-Treat those as the implemented contract. This ADR is the design to
-follow when that contract grows.
 
 ## Consequences
 

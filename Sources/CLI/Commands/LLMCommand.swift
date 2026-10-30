@@ -5,6 +5,7 @@ struct LLMCommand: AsyncParsableCommand {
         commandName: "llm",
         abstract: "LLM provider commands (test, summarize, chat, transform).",
         subcommands: [
+            LLMRoutesCommand.self,
             LLMTestCommand.self,
             LLMSummarizeCommand.self,
             LLMChatCommand.self,

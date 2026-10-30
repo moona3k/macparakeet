@@ -32,11 +32,11 @@ real release tarball and has a real `sha256`.
 
 ## Cutting a CLI release
 
-The examples below use the current release version; update it before each
-release:
+Set the version approved for the release (the example is the unreleased Ask
+CLI candidate, not a publication instruction):
 
 ```bash
-export VERSION=2.3.1
+export VERSION=4.8.0
 ```
 
 Before building, make sure the source repo is on the commit you intend to
@@ -47,50 +47,39 @@ release and the CLI version/docs are already updated:
 3. Refresh versioned examples in `README.md`, `integrations/`, and this
    scaffold if user-facing output changes.
 
-### 2. Build the standalone CLI binary
+### 2. Build the standalone CLI package
 
 In the macparakeet repo, from the commit you intend to tag:
 
 ```bash
 export MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH=/absolute/path/to/owned/transcribe.cpp/bindings/swift
-export MACPARAKEET_TRANSCRIBE_CPP_ARTIFACT_ZIP=/absolute/path/to/TranscribeCpp-macos-arm64.xcframework.zip
-scripts/dist/verify_transcribe_cpp_release.sh
-MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH="$MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH" \
-  swift build -c release --product macparakeet-cli
+export MACPARAKEET_TRANSCRIBE_CPP_ARTIFACT_ZIP=/absolute/path/to/TranscribeCpp-macOS-arm64-v0.1.3-macparakeet.1.xcframework.zip
+VERSION="$VERSION" scripts/dist/build_cli_archive.sh
 mkdir -p "dist/macparakeet-cli-${VERSION}-darwin-arm64"
-mkdir -p "dist/macparakeet-cli-${VERSION}-darwin-arm64/Frameworks"
-mkdir -p "dist/macparakeet-cli-${VERSION}-darwin-arm64/Legal"
-cp .build/release/macparakeet-cli "dist/macparakeet-cli-${VERSION}-darwin-arm64/"
-ditto \
-  "$MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH/build-apple/TranscribeCpp.xcframework/macos-arm64/CTranscribe.framework" \
-  "dist/macparakeet-cli-${VERSION}-darwin-arm64/Frameworks/CTranscribe.framework"
-install_name_tool -add_rpath @executable_path/Frameworks \
-  "dist/macparakeet-cli-${VERSION}-darwin-arm64/macparakeet-cli"
-otool -L "dist/macparakeet-cli-${VERSION}-darwin-arm64/macparakeet-cli" \
-  | grep '@rpath/CTranscribe.framework/'
-cp LICENSE THIRD_PARTY_LICENSES.md LICENSES/Apache-2.0.txt \
-  "dist/macparakeet-cli-${VERSION}-darwin-arm64/Legal/"
-cp "$MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH/build-apple/TranscribeCpp.xcframework/LICENSE" \
-  "dist/macparakeet-cli-${VERSION}-darwin-arm64/Legal/transcribe.cpp-LICENSE"
-cp "$MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH/build-apple/TranscribeCpp.xcframework/LICENSE.ggml" \
-  "dist/macparakeet-cli-${VERSION}-darwin-arm64/Legal/transcribe.cpp-LICENSE.ggml"
-cp "$MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH/build-apple/TranscribeCpp.xcframework/LICENSE.miniz" \
-  "dist/macparakeet-cli-${VERSION}-darwin-arm64/Legal/transcribe.cpp-LICENSE.miniz"
+tar -xzf "dist/macparakeet-cli-${VERSION}-darwin-arm64.tar.gz" \
+    -C "dist/macparakeet-cli-${VERSION}-darwin-arm64"
 ```
 
-The XCFramework slice directory may differ if the owned build uses a different
-identifier. Resolve it from `Info.plist`; do not guess or substitute the
-upstream reference artifact. The release archive must keep the framework next
-to the CLI under `Frameworks/` so the Homebrew formula can install both under
-`libexec`.
+The package contains the executable and `libexec/macparakeet-cli/`, including
+the pinned Node runtime, Ask helper, and notices. The verified Cohere runtime
+and its notices are retained under `Frameworks/` and `Legal/`. Keep all of
+these directories together. The
+builder needs Node/npm; the installed CLI does not. Use a fresh staging
+directory for each candidate.
 
-### 3. Sign + notarize the binary
+### 3. Sign + notarize the executable and bundled runtime
 
 Use the same Developer ID identity already set up for the `.app`. The
 exact identity is in `scripts/dist/sign_notarize.sh`.
 
 ```bash
-codesign --sign "Developer ID Application: <YOUR NAME> (<TEAMID>)" \
+codesign --force --sign "Developer ID Application: <YOUR NAME> (<TEAMID>)" \
+         --options runtime \
+         --timestamp \
+         --entitlements scripts/dist/NodeRuntime.entitlements \
+         "dist/macparakeet-cli-${VERSION}-darwin-arm64/libexec/macparakeet-cli/node"
+
+codesign --force --sign "Developer ID Application: <YOUR NAME> (<TEAMID>)" \
          --options runtime \
          --timestamp \
          "dist/macparakeet-cli-${VERSION}-darwin-arm64/Frameworks/CTranscribe.framework"
@@ -122,11 +111,10 @@ release pipeline uses `--no-progress --no-s3-acceleration` for the same reason.
 ### 4. Tar + checksum
 
 ```bash
-cd dist
-COPYFILE_DISABLE=1 tar -czf "macparakeet-cli-${VERSION}-darwin-arm64.tar.gz" \
-        "macparakeet-cli-${VERSION}-darwin-arm64"
-shasum -a 256 "macparakeet-cli-${VERSION}-darwin-arm64.tar.gz" \
-  | tee "macparakeet-cli-${VERSION}-darwin-arm64.tar.gz.sha256"
+COPYFILE_DISABLE=1 tar -czf "dist/macparakeet-cli-${VERSION}-darwin-arm64.tar.gz" \
+        -C "dist/macparakeet-cli-${VERSION}-darwin-arm64" macparakeet-cli libexec Frameworks Legal
+shasum -a 256 "dist/macparakeet-cli-${VERSION}-darwin-arm64.tar.gz" \
+  | tee "dist/macparakeet-cli-${VERSION}-darwin-arm64.tar.gz.sha256"
 # Copy the SHA256 hex into the formula's `sha256` field.
 ```
 

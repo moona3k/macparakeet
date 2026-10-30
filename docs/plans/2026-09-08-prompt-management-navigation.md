@@ -1,5 +1,7 @@
 # Clarify prompt management navigation
 
+> Superseded in part (2026-09-24): the sidebar Prompts workspace was removed. Transcript prompts are managed from Library and completed transcripts; Live Ask from Meetings. See [2026-09-24-prompts-into-library.md](2026-09-24-prompts-into-library.md).
+
 Status: implemented; PR verification pending. Base: 233b5f4d. This plan implements the user's approved separation without changing stored instructions or public CLI categories.
 
 ## Product contract

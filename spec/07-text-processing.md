@@ -68,6 +68,15 @@ Trigger phrases are replaced with their full expansion text.
 - Matching is **case-insensitive** with **whole-phrase boundaries**
 - Expanded snippet IDs are tracked so use counts can be updated after processing
 - Example: `"my signature"` → `"Best regards, David"`
+- After user snippets, Clean mode optionally converts spoken punctuation
+  commands (`question mark` → `?`, `exclamation mark` / `exclamation point` → `!`,
+  plus DE/ES/FR/PT/PL aliases). Prefix `literal` (or `wörtlich` / `littéral` /
+  `dosłownie`) keeps the words. User snippets of the same trigger still win.
+  Default on; Vocabulary and `config set spoken-punctuation` can opt out.
+  This runs on dictation only; `vocab process` also applies it because it
+  previews the dictation Clean pipeline on typed text. File, URL, and meeting
+  transcripts keep the words, because recorded speech that mentions "a
+  question mark" means them.
 
 ### Step 5: Whitespace Cleanup + Insertion Style
 
@@ -141,6 +150,22 @@ Stores trigger-to-expansion mappings.
 | isEnabled | BOOLEAN | Whether this snippet is active |
 | createdAt | DATETIME | When created |
 | updatedAt | DATETIME | When last modified |
+
+---
+
+## Optional AI Formatting
+
+AI formatting runs after deterministic cleanup. The complete rendered system and
+user messages must fit the selected provider's existing round-trip character
+budget, including repeated transcript placeholders and appended transcript
+separators. Oversized requests fail before calling the provider; formatting never
+truncates or chunks the transcript. Responses ending in `length` or `max_tokens`,
+and detailed results marked as having truncated input, also fail formatting.
+
+These failures preserve the full deterministic cleanup result. A failed attempt
+is recorded without provider output or successful prompt-profile attribution.
+Existing transcription lane caps, cancellation, and lifecycle notifications remain
+unchanged.
 
 ---
 

@@ -88,4 +88,27 @@ final class VoiceControlCommandTests: XCTestCase {
             XCTAssertTrue(error.message.contains("out of range"))
         }
     }
+
+    func testReplayJSONReportsPostParseValidationFailureOnStdout() async throws {
+        let snapshot = VoiceControlSnapshot(contextID: "ax:4:4", applicationName: "Finder", targets: [])
+        let url = try await writeSession(instruction: "open Downloads", snapshot: snapshot)
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let command = try VoiceControlReplayCommand.parse([url.path, "--observation", "4", "--json"])
+
+        var thrownError: Error?
+        let output = try await captureStandardOutput {
+            do {
+                try await command.run()
+            } catch {
+                thrownError = error
+            }
+        }
+        let error = try XCTUnwrap(thrownError)
+        XCTAssertTrue(error is CLIJSONEnvelopeExit)
+        XCTAssertEqual(CLI.normalizedExitCode(for: error), cliValidationMisuseExitCode)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(object["ok"] as? Bool, false)
+        XCTAssertEqual(object["errorType"] as? String, "validation")
+        XCTAssertTrue((object["error"] as? String)?.contains("out of range") == true)
+    }
 }

@@ -10,6 +10,37 @@ final class GlobalShortcutManagerTests: XCTestCase {
     private let leftCommandMask = UInt64(NX_DEVICELCMDKEYMASK)
     private let rightCommandMask = UInt64(NX_DEVICERCMDKEYMASK)
 
+    /// Needs Input Monitoring / Accessibility; skipped where tap creation is
+    /// denied (CI). Guards the #1132 leak against the real tap registry.
+    func testStartStopCyclesDoNotAccumulateEventTaps() throws {
+        let manager = GlobalShortcutManager(trigger: .fn)
+        guard manager.start() else {
+            throw XCTSkip("Event tap creation needs Input Monitoring permission")
+        }
+        manager.stop()
+        let baseline = try XCTUnwrap(eventTapCountForThisProcess())
+
+        for _ in 0..<20 {
+            XCTAssertTrue(manager.start())
+            manager.stop()
+        }
+
+        XCTAssertEqual(eventTapCountForThisProcess(), baseline)
+    }
+
+    /// #1142: the filtering tap must not share the UI run loop.
+    func testTapRunsOnEventTapThreadNotMainRunLoop() throws {
+        let manager = GlobalShortcutManager(trigger: .defaultMeetingRecording)
+        guard manager.start() else {
+            throw XCTSkip("Event tap creation needs Input Monitoring permission")
+        }
+        defer { manager.stop() }
+
+        let source = try XCTUnwrap(manager.runLoopSourceForTesting)
+        XCTAssertFalse(CFRunLoopContainsSource(CFRunLoopGetMain(), source, .commonModes))
+        XCTAssertTrue(CFRunLoopContainsSource(EventTapThread.shared.runLoop, source, .commonModes))
+    }
+
     private func sideSpecificFlags(_ masks: UInt64...) -> CGEventFlags {
         CGEventFlags(rawValue: masks.reduce(0, |))
     }

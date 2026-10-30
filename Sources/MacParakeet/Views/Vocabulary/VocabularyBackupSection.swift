@@ -62,10 +62,12 @@ struct VocabularyBackupSection: View {
                 hovered = hovering
             }
         }
-        .sheet(isPresented: Binding(
-            get: { viewModel.isPresentingImportSheet },
-            set: { if !$0, viewModel.pendingImport != nil { viewModel.cancelImport() } }
-        )) {
+        .sheet(
+            isPresented: Binding(
+                get: { viewModel.isPresentingImportSheet },
+                set: { if !$0, viewModel.pendingImport != nil { viewModel.cancelImport() } }
+            )
+        ) {
             if let preview = viewModel.pendingImport {
                 VocabularyImportPreviewSheet(
                     viewModel: viewModel,
@@ -110,7 +112,8 @@ struct VocabularyBackupSection: View {
             statusRow(
                 icon: "checkmark.circle.fill",
                 tint: DesignSystem.Colors.successGreen,
-                text: "Exported \(pluralize(words, "word", "words")) and \(pluralize(snippets, "snippet", "snippets")) to \(filename.isEmpty ? "your chosen file" : filename)."
+                text:
+                    "Exported \(pluralize(words, "word", "words")) and \(pluralize(snippets, "snippet", "snippets")) to \(filename.isEmpty ? "your chosen file" : filename)."
             )
         case let .imported(result):
             statusRow(
@@ -159,13 +162,21 @@ struct VocabularyBackupSection: View {
         let totalReplaced = r.wordsReplaced + r.snippetsReplaced
         let totalSkipped = r.wordsSkipped + r.snippetsSkipped
         if totalAdded > 0 {
-            parts.append("Added \(pluralize(r.wordsAdded, "word", "words")) and \(pluralize(r.snippetsAdded, "snippet", "snippets"))")
+            parts.append(
+                "Added \(pluralize(r.wordsAdded, "word", "words")) and \(pluralize(r.snippetsAdded, "snippet", "snippets"))"
+            )
         }
         if totalReplaced > 0 {
             parts.append("replaced \(totalReplaced)")
         }
         if totalSkipped > 0 {
             parts.append("skipped \(totalSkipped) duplicate\(totalSkipped == 1 ? "" : "s")")
+        }
+        let totalRemoved = r.wordsRemoved + r.snippetsRemoved
+        if totalRemoved > 0 {
+            parts.append(
+                "removed \(pluralize(r.wordsRemoved, "word", "words")) and \(pluralize(r.snippetsRemoved, "snippet", "snippets"))"
+            )
         }
         if parts.isEmpty {
             return "Nothing to import — the file matched your existing vocabulary."

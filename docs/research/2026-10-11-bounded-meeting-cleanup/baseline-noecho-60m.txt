@@ -1,0 +1,20 @@
+skipped noEchoPath(probe.BaselineCleanedMicRenderer.EchoPathProbeResult(shouldRender: false, windowsEvaluated: 0, bestCorrelation: nil, bestDelaySamples: nil, detail: "no_reference_energy"))
+mode=baseline input_seconds=3600 no_echo=true render_elapsed=0.260057542 seconds
+        0.47 real         0.08 user         0.35 sys
+           811499520  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               49774  page reclaims
+                  20  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  91  voluntary context switches
+                7476  involuntary context switches
+          4080007264  instructions retired
+          1655510392  cycles elapsed
+           803095704  peak memory footprint

@@ -9,7 +9,7 @@ process and model-load variance. Peak RSS comes from the repeated process.
 
 No language hint is passed. A result is valid only for the owned runtime and
 adapter combination that provides the automatic multilingual behavior required
-by ADR-034.
+by ADR-035.
 """
 from __future__ import annotations
 

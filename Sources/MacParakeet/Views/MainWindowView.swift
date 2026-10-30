@@ -6,10 +6,10 @@ import MacParakeetViewModels
 enum SidebarItem: String, CaseIterable, Identifiable {
     case transcribe = "Transcribe"
     case library = "Library"
+    case ask = "Ask"
     case sharedPages = "Shared pages"
     case dictations = "Dictations"
     case meetings = "Meetings"
-    case prompts = "Prompts"
     case transforms = "Transforms"
     case vocabulary = "Vocabulary"
     case feedback = "Feedback"
@@ -23,9 +23,9 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .transcribe: return "waveform"
         case .meetings: return "person.2.wave.2"
         case .library: return "square.grid.2x2"
+        case .ask: return "text.bubble"
         case .sharedPages: return "link"
         case .dictations: return "clock.arrow.circlepath"
-        case .prompts: return "text.quote"
         case .transforms: return "wand.and.stars"
         case .vocabulary: return "book.fill"
         case .feedback: return "bubble.left.and.text.bubble.right"
@@ -38,7 +38,9 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     /// universal archive; Meetings is the workflow space for live/upcoming
     /// and saved meeting work.
     static var primaryItems: [SidebarItem] {
-        var items: [SidebarItem] = [.transcribe, .library, .dictations]
+        var items: [SidebarItem] = [.transcribe, .library]
+        if AppFeatures.isAskWorkspaceAvailable() { items.append(.ask) }
+        items.append(.dictations)
         if AppFeatures.meetingRecordingEnabled {
             items.append(.meetings)
         }
@@ -46,12 +48,14 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         return items
     }
 
-    /// Automation, configuration, and support items. Prompt automation stays
-    /// above Transforms (ADR-022) when the latter feature is enabled.
+    /// Configuration and support items. Transforms (ADR-022) is inserted
+    /// here at runtime when `AppFeatures.transformsEnabled == true`.
+    /// Transcript prompts are managed from Library and completed transcripts;
+    /// Live Ask questions are managed from Meetings.
     static var configItems: [SidebarItem] {
-        var items: [SidebarItem] = [.prompts, .vocabulary, .feedback, .settings]
+        var items: [SidebarItem] = [.vocabulary, .feedback, .settings]
         if AppFeatures.transformsEnabled {
-            items.insert(.transforms, at: 1)
+            items.insert(.transforms, at: 0)
         }
         return items
     }
@@ -64,6 +68,8 @@ enum SidebarItem: String, CaseIterable, Identifiable {
 struct MainWindowView: View {
     @Bindable var state: MainWindowState
     @State private var showGlobalCancelConfirmation = false
+    @State private var showingPromptLibrary = false
+    @State private var askHandoffError: String?
 
     let transcriptionViewModel: TranscriptionViewModel
     let historyViewModel: DictationHistoryViewModel
@@ -80,6 +86,7 @@ struct MainWindowView: View {
     let feedbackViewModel: FeedbackViewModel
     let discoverViewModel: DiscoverViewModel
     let libraryViewModel: TranscriptionLibraryViewModel
+    let askWorkspaceViewModel: AskWorkspaceViewModel
     let meetingsWorkspaceViewModel: MeetingsWorkspaceViewModel
     let meetingPillViewModel: MeetingRecordingPillViewModel
     let meetingSplitViewModel: MeetingSplitViewModel
@@ -87,6 +94,7 @@ struct MainWindowView: View {
     let shareManagementViewModel: ShareManagementViewModel?
     let updater: SPUUpdater
     let onRecordMeeting: () -> Void
+    let onOpenAskSource: (UUID) -> Void
     let onRecordMeetingFromWorkspace: () -> Void
     let onPauseToggleMeeting: (() -> Void)?
     /// Routed to `AppHotkeyCoordinator.suspend` / `resume` while a hotkey
@@ -101,6 +109,8 @@ struct MainWindowView: View {
                         ForEach(SidebarItem.primaryItems) { item in
                             SidebarItemLabel(item: item)
                                 .tag(item)
+                                .accessibilityIdentifier("sidebar-\(item.rawValue)")
+                                .accessibilityAction { state.selectedItem = item }
                         }
                     }
 
@@ -159,8 +169,10 @@ struct MainWindowView: View {
                                 settingsViewModel.requestPendingMeetingRecovery()
                             },
                             onSelectMeeting: { transcription in
-                                transcriptionViewModel.currentTranscription = transcription
-                                state.navigateToTranscription(from: .meetings)
+                                state.openTranscription(from: .meetings, in: transcriptionViewModel) {
+                                    await meetingsWorkspaceViewModel.recentMeetingsViewModel.loadForOpening(
+                                        transcription)
+                                }
                             }
                         )
                     case .library:
@@ -199,10 +211,41 @@ struct MainWindowView: View {
                                 onPrimaryAction: {
                                     transcriptionViewModel.showInputPortal()
                                     state.selectedItem = .transcribe
+                                },
+                                onManagePrompts: {
+                                    showingPromptLibrary = true
+                                },
+                                onAskSelected: { ids in
+                                    guard AppFeatures.isAskWorkspaceAvailable() else { return }
+                                    let destinationBeforeHandoff = state.selectedItem
+                                    Task {
+                                        let accepted = await askWorkspaceViewModel.startFromLibrary(sourceIDs: ids)
+                                        guard state.selectedItem == destinationBeforeHandoff else { return }
+                                        if accepted {
+                                            state.navigateToAsk()
+                                        } else {
+                                            askHandoffError =
+                                                askWorkspaceViewModel.errorMessage
+                                                ?? "The selected recordings could not be opened in Ask."
+                                        }
+                                    }
+                                },
+                                onReviewAskConversations: {
+                                    state.navigateToAsk()
                                 }
                             ) { transcription in
-                                transcriptionViewModel.currentTranscription = transcription
+                                state.openTranscription(from: .library, in: transcriptionViewModel) {
+                                    await libraryViewModel.loadForOpening(transcription)
+                                }
                             }
+                        }
+                    case .ask:
+                        if AppFeatures.isAskWorkspaceAvailable() {
+                            AskWorkspaceView(
+                                model: askWorkspaceViewModel,
+                                onOpenAISettings: { state.navigateToSettings(tab: .ai) },
+                                onOpenSource: onOpenAskSource
+                            )
                         }
                     case .dictations:
                         DictationHistoryView(viewModel: historyViewModel)
@@ -210,11 +253,6 @@ struct MainWindowView: View {
                         if let sharing = shareManagementViewModel {
                             SharedSharesView(model: sharing) { state.selectedItem = .library }
                         }
-                    case .prompts:
-                        PromptsWorkspaceView(
-                            promptsViewModel: promptsViewModel,
-                            quickPromptsViewModel: meetingsWorkspaceViewModel.quickPromptsViewModel
-                        )
                     case .transforms:
                         TransformsView(
                             viewModel: transformsViewModel,
@@ -236,7 +274,8 @@ struct MainWindowView: View {
                                     Task {
                                         if await transformsViewModel.save(prompt) {
                                             state.isCreatingTransform = false
-                                            NotificationCenter.default.post(name: .transformsBindingsChanged, object: nil)
+                                            NotificationCenter.default.post(
+                                                name: .transformsBindingsChanged, object: nil)
                                         }
                                     }
                                 },
@@ -254,24 +293,27 @@ struct MainWindowView: View {
                                     Task {
                                         if await transformsViewModel.save(prompt) {
                                             state.editingTransform = nil
-                                            NotificationCenter.default.post(name: .transformsBindingsChanged, object: nil)
+                                            NotificationCenter.default.post(
+                                                name: .transformsBindingsChanged, object: nil)
                                         }
                                     }
                                 },
                                 onCancel: { state.editingTransform = nil },
-                                onReset: transform.isBuiltIn ? {
-                                    Task {
-                                        if await transformsViewModel.resetBuiltIn(
-                                            transform,
-                                            reservedHotkeys: transformReservedHotkeys
-                                        ) {
-                                            state.editingTransform = nil
-                                            NotificationCenter.default.post(name: .transformsBindingsChanged, object: nil)
-                                        } else {
-                                            state.editingTransform = nil
+                                onReset: transform.isBuiltIn
+                                    ? {
+                                        Task {
+                                            if await transformsViewModel.resetBuiltIn(
+                                                transform,
+                                                reservedHotkeys: transformReservedHotkeys
+                                            ) {
+                                                state.editingTransform = nil
+                                                NotificationCenter.default.post(
+                                                    name: .transformsBindingsChanged, object: nil)
+                                            } else {
+                                                state.editingTransform = nil
+                                            }
                                         }
-                                    }
-                                } : nil
+                                    } : nil
                             )
                         }
                     case .vocabulary:
@@ -316,11 +358,35 @@ struct MainWindowView: View {
             minHeight: DesignSystem.Layout.windowMinHeight
         )
         .environment(\.shareManagement, shareManagementViewModel)
-        .sheet(item: Binding(get: { shareManagementViewModel?.draft }, set: { shareManagementViewModel?.draft = $0 })) { draft in
+        // Presented from the window root, not the Library list: a finishing
+        // transcription or menu navigation replaces the list while the sheet
+        // may hold an unsaved prompt edit.
+        .sheet(
+            isPresented: $showingPromptLibrary,
+            onDismiss: {
+                promptsViewModel.editingPrompt = nil
+                promptResultsViewModel.loadVisiblePrompts()
+            }
+        ) {
+            PromptLibraryView(viewModel: promptsViewModel)
+        }
+        .sheet(item: Binding(get: { shareManagementViewModel?.draft }, set: { shareManagementViewModel?.draft = $0 })) {
+            draft in
             if let sharing = shareManagementViewModel {
                 ShareTranscriptSheet(draft: draft, management: sharing)
                     .onDisappear { Task { await sharing.refresh() } }
             }
+        }
+        .alert(
+            "Could not open Ask",
+            isPresented: Binding(
+                get: { askHandoffError != nil },
+                set: { if !$0 { askHandoffError = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { askHandoffError = nil }
+        } message: {
+            Text(askHandoffError ?? "")
         }
         .alert("Cancel All Transcriptions?", isPresented: $showGlobalCancelConfirmation) {
             Button("Cancel All", role: .destructive) {
@@ -371,11 +437,26 @@ struct MainWindowView: View {
                 trigger: settingsViewModel.pushToTalkHotkeyTrigger,
                 conflictMode: .bareModifierDictation
             ),
-            TransformShortcutReservedHotkey(name: "file transcription", trigger: settingsViewModel.fileTranscriptionHotkeyTrigger),
-            TransformShortcutReservedHotkey(name: "video URL transcription", trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger),
+            TransformShortcutReservedHotkey(
+                name: "additional hands-free shortcut", trigger: settingsViewModel.alternateHandsFreeHotkeyTrigger,
+                conflictMode: .bareModifierDictation),
+            TransformShortcutReservedHotkey(
+                name: "additional push-to-talk shortcut", trigger: settingsViewModel.alternatePushToTalkHotkeyTrigger,
+                conflictMode: .bareModifierDictation),
+            TransformShortcutReservedHotkey(
+                name: "file transcription", trigger: settingsViewModel.fileTranscriptionHotkeyTrigger),
+            TransformShortcutReservedHotkey(
+                name: "video URL transcription", trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger),
+            TransformShortcutReservedHotkey(
+                name: "AI-polished dictation",
+                trigger: settingsViewModel.dictationAIPolishHotkeyTrigger,
+                conflictMode: .bareModifierDictation
+            ),
         ]
         if AppFeatures.meetingRecordingEnabled {
-            reserved.append(TransformShortcutReservedHotkey(name: "meeting recording", trigger: settingsViewModel.meetingHotkeyTrigger))
+            reserved.append(
+                TransformShortcutReservedHotkey(
+                    name: "meeting recording", trigger: settingsViewModel.meetingHotkeyTrigger))
         }
         return reserved.filter { !$0.trigger.isDisabled }
     }
@@ -408,12 +489,14 @@ struct MainWindowView: View {
                 }
 
                 HStack(spacing: 6) {
-                    Text(transcriptionViewModel.isBatchActive
-                        ? transcriptionViewModel.batchStatusHeadline
-                        : transcriptionViewModel.progressHeadline)
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    Text(
+                        transcriptionViewModel.isBatchActive
+                            ? transcriptionViewModel.batchStatusHeadline
+                            : transcriptionViewModel.progressHeadline
+                    )
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
 
                     Text("\u{00B7}")
                         .foregroundStyle(.tertiary)

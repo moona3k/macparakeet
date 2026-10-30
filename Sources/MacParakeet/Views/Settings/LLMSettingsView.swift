@@ -16,6 +16,7 @@ struct LLMSettingsView: View {
 
     @State private var showAdvanced = false
     @State private var showAIFormatterPrompt = false
+    @State private var showAIResultLanguageDetails = false
     @State private var showAIFormatterDictationPrompt = false
     @State private var showAIFormatterCustomProfiles = false
     @State private var showAIFormatterAppPicker = false
@@ -52,6 +53,41 @@ struct LLMSettingsView: View {
 
             selectedAIOptionSection
 
+            Divider()
+            taskRouteSection
+
+            if let error = viewModel.credentialAccessError {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                    Text(error)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.warningAmber)
+                    Text(
+                        "In Keychain Access, find com.macparakeet.llm and allow this copy of MacParakeet access. Your saved key has not been removed."
+                    )
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    HStack {
+                        Button("Open Keychain Access") {
+                            if let url = NSWorkspace.shared.urlForApplication(
+                                withBundleIdentifier: "com.apple.keychainaccess")
+                            {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                        .parakeetAction(.secondary)
+                        Button("Retry access") {
+                            viewModel.retrySavedCredentialAccess()
+                        }
+                        .parakeetAction(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if viewModel.cleanupOverrideProviderID == .appleIntelligence {
+                appleIntelligenceStatusSection
+            }
+
             if viewModel.shouldShowInProcessLocalSetup {
                 Divider()
 
@@ -80,9 +116,18 @@ struct LLMSettingsView: View {
                             .foregroundStyle(.secondary)
                         }
                         Spacer(minLength: DesignSystem.Spacing.md)
-                        SecureField(viewModel.apiKeyPlaceholder, text: $viewModel.apiKeyInput)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 220)
+                        VStack(alignment: .trailing, spacing: 4) {
+                            SecureField(viewModel.apiKeyPlaceholder, text: $viewModel.apiKeyInput)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 220)
+                            if viewModel.canRemoveSavedAPIKey {
+                                Button("Remove saved key") {
+                                    viewModel.removeSavedAPIKey()
+                                }
+                                .parakeetAction(.secondary)
+                                .font(DesignSystem.Typography.caption)
+                            }
+                        }
                     }
 
                     Divider()
@@ -152,10 +197,6 @@ struct LLMSettingsView: View {
 
                 Divider()
 
-                privacyInfo
-
-                Divider()
-
                 // Test connection + status
                 HStack(spacing: DesignSystem.Spacing.sm) {
                     Button("Test Connection") {
@@ -168,27 +209,32 @@ struct LLMSettingsView: View {
 
                     Spacer()
                 }
+            }
 
-                if let validationMessage = viewModel.validationMessage {
-                    HStack(spacing: 4) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(DesignSystem.Colors.warningAmber)
-                        Text(validationMessage)
-                            .font(DesignSystem.Typography.caption)
-                            .foregroundStyle(DesignSystem.Colors.warningAmber)
-                    }
+            if let validationMessage = viewModel.validationMessage {
+                Text(validationMessage)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.warningAmber)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                }
             }
 
             Divider()
 
             configurationActionsRow
 
+            if viewModel.selectedProviderID != nil || viewModel.cleanupOverrideProviderID != nil
+                || viewModel.analysisOverrideProviderID != nil || viewModel.isConfigured
+            {
+                privacyInfo
+            }
+
             Divider()
 
             transcriptAIContextSection
+
+            Divider()
+
+            meetingAIOutputLanguageSection
 
             Divider()
 
@@ -199,6 +245,7 @@ struct LLMSettingsView: View {
             aiFormatterSection
         }
         .task {
+            viewModel.refreshAppleIntelligenceAvailability()
             if viewModel.shouldShowInProcessLocalSetup {
                 await viewModel.inProcessModelManager.refresh()
             }
@@ -236,7 +283,7 @@ struct LLMSettingsView: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text("AI for summaries, chat, meeting Ask, and Transforms")
+                Text("AI task availability")
                     .font(DesignSystem.Typography.body.weight(.semibold))
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
                 Text(setupStatusCopy(for: status))
@@ -248,7 +295,7 @@ struct LLMSettingsView: View {
             Spacer(minLength: DesignSystem.Spacing.md)
 
             if case .ready = status {
-                Text("Ready")
+                Text("Configured")
                     .font(DesignSystem.Typography.caption.weight(.medium))
                     .foregroundStyle(DesignSystem.Colors.successGreen)
                     .padding(.horizontal, 8)
@@ -258,15 +305,79 @@ struct LLMSettingsView: View {
         }
     }
 
+    private var taskRouteSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            taskRouteRow(
+                title: "Dictation & cleanup",
+                detail: "Formatter for dictation and transcripts.",
+                provider: $viewModel.cleanupOverrideProviderID,
+                model: $viewModel.cleanupModelName,
+                providers: viewModel.cleanupProviderIDs
+            )
+            taskRouteRow(
+                title: "Meetings & library",
+                detail: "Summaries, Ask, and knowledge cards.",
+                provider: $viewModel.analysisOverrideProviderID,
+                model: $viewModel.analysisModelName,
+                providers: providerOrder
+            )
+        }
+    }
+
+    /// Names what the task inherits, like the transcription engine's
+    /// `Same as Parakeet`, so the row previews the route it will use.
+    private var inheritedRouteLabel: String {
+        guard let provider = viewModel.selectedProviderID else { return "None" }
+        return "Same as \(provider.displayName)"
+    }
+
+    private func taskRouteRow(
+        title: String,
+        detail: String,
+        provider: Binding<LLMProviderID?>,
+        model: Binding<String>,
+        providers: [LLMProviderID]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(DesignSystem.Typography.body)
+                    Text(detail)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: DesignSystem.Spacing.md)
+                Picker(title, selection: provider) {
+                    Text(inheritedRouteLabel).tag(LLMProviderID?.none)
+                    ForEach(providers, id: \.self) { option in
+                        Text(option.displayName).tag(Optional(option))
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(width: 190)
+            }
+            if let selectedProvider = provider.wrappedValue,
+                selectedProvider != .localCLI && selectedProvider != .appleIntelligence
+            {
+                TextField("Model", text: model)
+                    .textFieldStyle(.roundedBorder)
+            }
+        }
+    }
+
     private var selectedAIOptionSection: some View {
         VStack(spacing: DesignSystem.Spacing.md) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Current choice")
+                    Text("Default AI")
                         .font(DesignSystem.Typography.body)
-                    Text("Choose a local provider, an API key, or a command-line AI tool.")
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
+                    Text(
+                        "Used unless a task below picks its own. Choose None to enable only specific tasks."
+                    )
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: DesignSystem.Spacing.md)
                 Picker("AI option", selection: $viewModel.selectedProviderID) {
@@ -281,13 +392,15 @@ struct LLMSettingsView: View {
             }
 
             if viewModel.selectedProviderID == nil {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Local providers, API keys, and command-line tools are available from this menu.")
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
-                    Text("Dictation, transcription, and meeting recording work without AI setup.")
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Local providers, API keys, and command-line tools are available from this menu.")
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(.secondary)
+                        Text("Dictation, transcription, and meeting recording work without AI setup.")
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -296,6 +409,49 @@ struct LLMSettingsView: View {
 
     private var providerOrder: [LLMProviderID] {
         viewModel.selectableProviderIDs
+    }
+
+    private var appleIntelligenceStatusSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("On-device Apple Intelligence")
+                        .font(DesignSystem.Typography.body.weight(.semibold))
+                    Text(
+                        "Runs on this Mac for dictation cleanup. Its context window is too small for meetings and summaries."
+                    )
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    Text(viewModel.appleIntelligenceStatusMessage)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 2)
+                }
+                Spacer(minLength: DesignSystem.Spacing.md)
+            }
+
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                if let url = viewModel.appleIntelligenceSettingsURL {
+                    Button("Open System Settings") {
+                        openAppleIntelligenceSettings(url)
+                    }
+                    .parakeetAction(.secondary)
+                }
+                Button("Refresh status") {
+                    viewModel.refreshAppleIntelligenceAvailability()
+                }
+                .parakeetAction(.secondary)
+            }
+        }
+    }
+
+    private func openAppleIntelligenceSettings(_ url: URL) {
+        let fallback = URL(string: "x-apple.systempreferences:")!
+        if NSWorkspace.shared.open(url) { return }
+        if url != fallback {
+            NSWorkspace.shared.open(fallback)
+        }
     }
 
     private var localAIUnavailableSection: some View {
@@ -474,7 +630,7 @@ struct LLMSettingsView: View {
                     Text(
                         manager.isLocalAISelected
                             ? "Local AI is downloaded and selected."
-                            : "Local AI is downloaded. The current AI choice can still stay on a cloud or BYO provider."
+                            : "Local AI is downloaded. Your current AI choice can still use a cloud provider or your own server."
                     )
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.secondary)
@@ -594,8 +750,8 @@ struct LLMSettingsView: View {
         case .setUpNeeded:
             return
                 "Choose how MacParakeet should run AI features. Transcription, dictation, and meeting recording still work without this."
-        case .ready(let displayName):
-            return "Ready: using \(displayName)."
+        case .ready:
+            return viewModel.configuredTasksDescription
         case .cannotConnect(let displayName, let message):
             return "MacParakeet could not reach \(displayName): \(message)"
         }
@@ -658,7 +814,8 @@ struct LLMSettingsView: View {
                 Text(errorMessage)
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(DesignSystem.Colors.warningAmber)
-                    .frame(width: 220, alignment: .leading)
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: 220, alignment: .trailing)
             }
         }
     }
@@ -669,7 +826,7 @@ struct LLMSettingsView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Transcript context for AI")
                         .font(DesignSystem.Typography.body.weight(.semibold))
-                    Text("Controls what summaries, transcript chat, and Meeting Ask send to your AI provider.")
+                    Text("Choose what summaries, transcript chat, and Meeting Ask send to your AI provider.")
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -697,7 +854,7 @@ struct LLMSettingsView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
                 Text(
-                    "When included, speaker labels are a rough reference from audio-source separation and diarization, not a high-accuracy identification of who said each line."
+                    "Speaker labels are a best guess from audio sources and voice separation, so they may not match who actually said each line."
                 )
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(.secondary)
@@ -708,13 +865,64 @@ struct LLMSettingsView: View {
         .id("ai.transcriptContext")
     }
 
+    private var meetingAIOutputLanguageSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Language of AI results")
+                        .font(DesignSystem.Typography.body.weight(.semibold))
+                    Text(
+                        """
+                        Summaries, chapters, action items, and other prompt results are written in this \
+                        language. Transcripts always stay in the language that was spoken.
+                        """
+                    )
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: DesignSystem.Spacing.md)
+
+                LanguagePickerButton(
+                    selection: aiResultLanguageSelection,
+                    isDisabled: false,
+                    pinned: .followTranscript,
+                    accessibilityName: "Language of AI results"
+                )
+            }
+
+            Text(viewModel.meetingAIOutputLanguagePolicy.detail)
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            DisclosureGroup("How it works", isExpanded: $showAIResultLanguageDetails) {
+                AIResultLanguageExplainer(policy: viewModel.meetingAIOutputLanguagePolicy)
+                    .padding(.top, DesignSystem.Spacing.sm)
+            }
+            .font(DesignSystem.Typography.caption)
+        }
+        .id("ai.meetingLanguage")
+    }
+
+    private var aiResultLanguageSelection: Binding<String> {
+        Binding(
+            get: { viewModel.meetingAIOutputLanguagePolicy.configurationValue },
+            set: { value in
+                guard let policy = MeetingAIOutputLanguagePolicy(configurationValue: value) else { return }
+                viewModel.meetingAIOutputLanguagePolicy = policy
+            }
+        )
+    }
+
     private var meetingTitlesSection: some View {
         HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Meeting titles")
                     .font(DesignSystem.Typography.body.weight(.semibold))
                 Text(
-                    "Use the saved AI provider to replace timestamp-only meeting names with short topic titles after transcription."
+                    "Replaces date-and-time meeting names with a short topic title after transcription, using your Meetings & library AI."
                 )
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(.secondary)
@@ -727,9 +935,9 @@ struct LLMSettingsView: View {
                 .toggleStyle(.switch)
                 .font(DesignSystem.Typography.caption.weight(.medium))
                 .fixedSize()
-                .disabled(!viewModel.isConfigured)
+                .disabled(!viewModel.isAnalysisConfigured)
                 .help(
-                    viewModel.isConfigured
+                    viewModel.isAnalysisConfigured
                         ? "Generate a meeting title from the completed transcript."
                         : "Set up an AI provider to generate meeting titles."
                 )
@@ -757,7 +965,7 @@ struct LLMSettingsView: View {
                                 )
                         }
                         Text(
-                            "Uses the saved LLM provider after cleanup for file and meeting transcripts. Dictation use can add latency."
+                            "Rewrites transcripts with your Dictation & cleanup AI as the last step, after cleanup. Using it for dictation adds a short wait before pasting."
                         )
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(.secondary)
@@ -1884,10 +2092,18 @@ struct LLMSettingsView: View {
     }
 
     private var privacyInfo: some View {
-        let isLocal = viewModel.isLocalConfiguration
-        let isCLI = viewModel.selectedProviderID == .localCLI
+        let hasPendingChanges = viewModel.hasUnsavedChanges
+        let taskOverrides = [viewModel.cleanupOverrideProviderID, viewModel.analysisOverrideProviderID].compactMap {
+            $0
+        }
+        let allRoutesLocal =
+            (viewModel.selectedProviderID == nil || viewModel.isLocalConfiguration)
+            && taskOverrides.allSatisfy { provider in
+                provider == viewModel.selectedProviderID ? viewModel.isLocalConfiguration : provider.isLocal
+            }
+        let isCLI = viewModel.selectedProviderID == .localCLI || taskOverrides.contains(.localCLI)
         let usesInsecureHTTP = viewModel.usesInsecureLocalNetworkHTTP
-        let usesTrustedLocal = isLocal && !usesInsecureHTTP
+        let usesTrustedLocal = !hasPendingChanges && allRoutesLocal && !usesInsecureHTTP
         let tint: Color
         let iconName: String
         if usesTrustedLocal {
@@ -1908,7 +2124,8 @@ struct LLMSettingsView: View {
 
             Text(
                 privacyInfoMessage(
-                    isLocal: isLocal,
+                    hasPendingChanges: hasPendingChanges,
+                    allRoutesLocal: allRoutesLocal,
                     isCLI: isCLI,
                     usesInsecureHTTP: usesInsecureHTTP
                 )
@@ -1925,20 +2142,26 @@ struct LLMSettingsView: View {
     }
 
     private func privacyInfoMessage(
-        isLocal: Bool,
+        hasPendingChanges: Bool,
+        allRoutesLocal: Bool,
         isCLI: Bool,
         usesInsecureHTTP: Bool
     ) -> String {
-        if usesInsecureHTTP {
-            return "Transcript text is sent to your local AI endpoint over HTTP. Use a trusted network."
-        }
-        if isLocal {
-            return "Transcript text is sent only to your local AI endpoint."
+        if hasPendingChanges {
+            return
+                "Route changes apply after Save. Until then, AI actions use the last saved configuration, which may send transcript text off this Mac."
         }
         if isCLI {
-            return "Runs a command on this Mac. The command may contact its own service."
+            return
+                "AI actions use the provider selected for each task. Local CLI commands may contact their own service."
         }
-        return "Transcription stays local. Transcript text is sent only when you run an AI action."
+        if allRoutesLocal {
+            return usesInsecureHTTP
+                ? "AI actions send transcript text only to selected local endpoints over HTTP. Use a trusted network."
+                : "AI actions send transcript text only to selected local AI routes."
+        }
+        return
+            "Transcription stays local. AI actions use the provider selected for each task; cloud routes send transcript text off this Mac."
     }
 
     private var configurationActionsRow: some View {

@@ -30,25 +30,30 @@ public struct ChatJSONSchemaProperty: Codable, Sendable, Equatable {
     public let type: String
     public let items: ChatJSONSchemaArrayItem?
     public let nullable: Bool
+    public let enumValues: [String]?
 
     public init(
         type: String,
         items: ChatJSONSchemaArrayItem? = nil,
-        nullable: Bool = false
+        nullable: Bool = false,
+        enumValues: [String]? = nil
     ) {
         self.type = type
         self.items = items
         self.nullable = nullable
+        self.enumValues = enumValues
     }
 
     private enum CodingKeys: String, CodingKey {
         case type
         case items
+        case enumValues = "enum"
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         items = try container.decodeIfPresent(ChatJSONSchemaArrayItem.self, forKey: .items)
+        enumValues = try container.decodeIfPresent([String].self, forKey: .enumValues)
 
         if let type = try? container.decode(String.self, forKey: .type) {
             self.type = type
@@ -79,6 +84,7 @@ public struct ChatJSONSchemaProperty: Codable, Sendable, Equatable {
             try container.encode(type, forKey: .type)
         }
         try container.encodeIfPresent(items, forKey: .items)
+        try container.encodeIfPresent(enumValues, forKey: .enumValues)
     }
 }
 
@@ -143,6 +149,9 @@ public struct ChatCompletionOptions: Sendable, Equatable {
     /// Opaque thread identity for provider request headers, never part of the JSON body.
     /// Nil identifies a one-shot operation; the HTTP adapter generates its request ID.
     public let conversationID: UUID?
+    /// Allow the in-process client to summarize long input with map/reduce.
+    /// Disable when a request requires the complete, unchanged conversation.
+    public let allowsLocalChunking: Bool
 
     public init(
         temperature: Double? = nil,
@@ -152,7 +161,8 @@ public struct ChatCompletionOptions: Sendable, Equatable {
         thinkingMode: PromptInferenceSettings.ThinkingMode = .providerDefault,
         reasoningEffort: PromptInferenceSettings.ReasoningEffort? = nil,
         responseFormat: ChatResponseFormat? = nil,
-        conversationID: UUID? = nil
+        conversationID: UUID? = nil,
+        allowsLocalChunking: Bool = true
     ) {
         self.temperature = temperature
         self.topP = topP
@@ -164,6 +174,7 @@ public struct ChatCompletionOptions: Sendable, Equatable {
         self.effectiveInferenceSettings = nil
         self.responseFormat = responseFormat
         self.conversationID = conversationID
+        self.allowsLocalChunking = allowsLocalChunking
     }
 
     private init(
@@ -181,10 +192,10 @@ public struct ChatCompletionOptions: Sendable, Equatable {
         self.effectiveInferenceSettings = effectiveInferenceSettings
         self.responseFormat = options.responseFormat
         self.conversationID = options.conversationID
+        self.allowsLocalChunking = options.allowsLocalChunking
     }
 
     public static let `default` = ChatCompletionOptions(temperature: 0.7, maxTokens: nil)
-
 
     /// Attach provenance only after provider filtering has resolved the request.
     func withInferenceReceipt(
@@ -201,6 +212,7 @@ public struct ChatCompletionOptions: Sendable, Equatable {
     /// Validate numeric input before dispatch, including direct client calls.
     /// Anthropic's narrower range applies only when temperature will be sent:
     /// Top P precedence and the model allow-list remain authoritative.
+    /// Apple Intelligence always uses Foundation Models' documented 0...1 range.
     func validateInferenceSettings(for config: LLMProviderConfig) throws {
         _ = try PromptInferenceSettings(
             temperature: temperature,
@@ -208,15 +220,27 @@ public struct ChatCompletionOptions: Sendable, Equatable {
             topK: topK,
             maxTokens: maxTokens
         ).validated()
-        if config.id == .anthropic,
-            AnthropicModelPolicy.acceptsSampling(model: config.modelName),
-            topP == nil,
-            let temperature,
-            temperature > 1
-        {
-            throw PromptInferenceSettings.ValidationError.outOfRange(
-                field: .temperature, minimum: 0, maximum: 1
+        if let temperature, temperature > 1 {
+            let rejectsAboveOne =
+                config.id == .appleIntelligence
+                || (config.id == .anthropic
+                    && AnthropicModelPolicy.acceptsSampling(model: config.modelName)
+                    && topP == nil)
+            if rejectsAboveOne {
+                throw PromptInferenceSettings.ValidationError.outOfRange(
+                    field: .temperature, minimum: 0, maximum: 1
+                )
+            }
+        }
+        if config.id == .appleIntelligence, let maxTokens {
+            let maximum = LLMService.maximumOutputTokensLeavingInputRoom(
+                in: LLMService.appleIntelligenceContextBudget
             )
+            if maxTokens > maximum {
+                throw PromptInferenceSettings.ValidationError.outOfRange(
+                    field: .maxTokens, minimum: 1, maximum: Double(maximum)
+                )
+            }
         }
     }
 }

@@ -1,0 +1,23 @@
+{
+  "sourceHead": "f3a8758ae7be4c0b3fdd65aa37a5a5cfea3072bd",
+  "purpose": "Verify the combined app fixes and cancellation repair after both PRs merged, from the worktree owning the integrated verification branch.",
+  "totalDistinctFocusedCases": 440,
+  "failures": 0,
+  "fullLocalSuiteRepeated": false,
+  "runs": [
+    {
+      "scope": "Library, transcription view model, GUI/Core SQLite, CLI command/persistence, Community-1, Nemotron and TranscriptionService",
+      "cases": 424,
+      "failures": 0,
+      "logPathRelativeToCancellationWorktree": ".build/audit-evidence/integrated-focused.log",
+      "sha256": "a1c83c72d95e7f2453ca664b4e274212da705b1daa0936dbf538b56500f7d65d"
+    },
+    {
+      "scope": "TranscriptionViewModelBatchTests; added separately because the first selection used a nonmatching batch suite name",
+      "cases": 16,
+      "failures": 0,
+      "logPathRelativeToCancellationWorktree": ".build/audit-evidence/integrated-batch-focused.log",
+      "sha256": "c3d0ee50c524e6e869cd4fc4d75e2b3810a01666c5e5c244cc43d1e07a230096"
+    }
+  ]
+}

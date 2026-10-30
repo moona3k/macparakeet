@@ -436,6 +436,45 @@ final class MeetingRecordingOutputTests: XCTestCase {
         XCTAssertEqual(output.durationSeconds, 12)
     }
 
+    func testArchivedSpeechEngineMatchesLoadArchivedWithoutProbingPlayback() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try MeetingRecordingMetadataStore.save(
+            MeetingRecordingMetadata(
+                sourceAlignment: dualSourceAlignment(),
+                speechEngine: SpeechEngineSelection(engine: .whisper, language: "ko")
+            ),
+            folderURL: dir
+        )
+        // No playback file at all: the engine lookup must not depend on it.
+        let mixedURL = dir.appendingPathComponent("meeting-playback.m4a")
+
+        // Missing raw sources make `loadArchived` throw; the lookup agrees.
+        XCTAssertNil(MeetingRecordingOutput.archivedSpeechEngine(mixedAudioURL: mixedURL))
+        XCTAssertThrowsError(
+            try MeetingRecordingOutput.loadArchived(
+                displayName: "Archived", mixedAudioURL: mixedURL, durationSeconds: 12))
+
+        FileManager.default.createFile(
+            atPath: dir.appendingPathComponent(MeetingArtifactAudioFileNames.rawMicrophone).path, contents: Data([1]))
+        FileManager.default.createFile(
+            atPath: dir.appendingPathComponent(MeetingArtifactAudioFileNames.rawSystem).path, contents: Data([2]))
+
+        XCTAssertEqual(
+            MeetingRecordingOutput.archivedSpeechEngine(mixedAudioURL: mixedURL),
+            SpeechEngineSelection(engine: .whisper, language: "ko")
+        )
+    }
+
+    func testArchivedSpeechEngineIsNilWithoutMetadata() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        XCTAssertNil(
+            MeetingRecordingOutput.archivedSpeechEngine(
+                mixedAudioURL: dir.appendingPathComponent("meeting-playback.m4a")))
+    }
+
     func testLoadArchivedReadsLegacyMeetingAudioFileNames() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }

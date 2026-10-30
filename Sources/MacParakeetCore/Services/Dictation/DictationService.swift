@@ -51,11 +51,11 @@ private struct LiveDictationTranscriptionState: Sendable {
     let sampleContinuation: AsyncStream<[Float]>.Continuation
     let partialContinuation: AsyncStream<String>.Continuation
     let partialTask: Task<Void, Never>
-    let task: Task<STTResult, Error>
+    let task: Task<Void, Never>
     /// Set when the live stream is no longer a faithful rendition of the
     /// recorded WAV (backpressure dropped samples, or the pre-roll was
-    /// discarded from the file after being streamed). A degraded session is
-    /// cancelled instead of flushed; the final dictation result always comes
+    /// discarded from the file after being streamed). Diagnostic only: live
+    /// partials are display-only and the final dictation result always comes
     /// from recorded-file transcription.
     let degradeReason: OSAllocatedUnfairLock<String?>
 
@@ -81,7 +81,7 @@ private struct DictationDisplayPreviewState: Sendable {
     let task: Task<Void, Never>
 }
 
-private typealias DictationPreviewDrainGate = OneShotVoidContinuation
+private typealias DictationDrainGate = OneShotContinuation<Bool>
 
 public enum AIFormatterAppContextPhase: Sendable {
     case start
@@ -111,12 +111,14 @@ public actor DictationService: DictationServiceProtocol {
     private let snippetRepo: TextSnippetRepositoryProtocol?
     private let voiceReturnTriggers: @Sendable () -> [String]
     private let processingMode: @Sendable () -> Dictation.ProcessingMode
+    private let spokenPunctuationEnabled: @Sendable () -> Bool
     private let dictationInsertionStyle: @Sendable () -> DictationInsertionStyle
     private let removeUmFiller: @Sendable () -> Bool
     private let textRefinementService: TextRefinementService
     private let llmService: LLMServiceProtocol?
     private let llmRunRecorder: LLMRunRecorder
     private let shouldUseAIFormatter: @Sendable () -> Bool
+    private let isAIFormatterEnabled: @Sendable () -> Bool
     private let aiFormatterPromptResolver: any AIFormatterPromptResolving
     private let shouldAttemptLiveDictationTranscription: @Sendable () -> Bool
     private let shouldShowDictationPreview: @Sendable () -> Bool
@@ -125,13 +127,19 @@ public actor DictationService: DictationServiceProtocol {
     private let cancelWindow: Duration
     private let dictationPreviewInterval: Duration
     private let dictationPreviewCancellationTimeout: Duration
+    private let liveDictationCancellationTimeout: Duration
+    /// Where a failed take's recording is kept for History retry. `nil`
+    /// disables preservation (the historical delete-on-failure behavior).
+    private let failedDictationAudioDirectory: URL?
     private let dictationPreviewWindowSampleCount: Int
+    private let startPermit = AsyncPermit()
 
     private var _state: DictationState = .idle
     private var cancelResetTask: Task<Void, Never>?
     private var cancelGeneration: Int = 0
     private var pendingCancelledAudioURL: URL?
     private var pendingCancelledDurationMs: Int?
+    private var pendingCancelledAIFormatterEnabled: Bool?
     private var pendingCancelledCaptureMs: Int?
     private var currentTelemetryContext = DictationTelemetryContext()
     private var recordingStartedAt: Date?
@@ -142,6 +150,9 @@ public actor DictationService: DictationServiceProtocol {
     private var currentObservabilityOperationContext: ObservabilityOperationContext?
     private var currentAIFormatterStartContext: AppPromptContext?
     private var currentAIFormatterFinishContext: AppPromptContext?
+    /// Captured at recording start so a Settings toggle mid-utterance cannot
+    /// change whether this session runs the AI Formatter.
+    private var currentSessionAIFormatterEnabled = false
     private var liveTranscriptionState: LiveDictationTranscriptionState?
     private var displayPreviewState: DictationDisplayPreviewState?
     private var liveTranscriptText: String = ""
@@ -151,6 +162,12 @@ public actor DictationService: DictationServiceProtocol {
     private var activeSessionID: Int = 0
     private var cancellationRequestedDuringStartSessionID: Int?
     private var pendingCancelReason: TelemetryDictationCancelReason?
+    private var cancellationTask: Task<StolenCancelledAudio?, Never>?
+    private var cancellationTaskGeneration = 0
+    private var cancellationWaitObserverForTesting: (@Sendable () -> Void)?
+    private var afterCancellationWaiterForTesting: (@Sendable () async -> Void)?
+    private var replacementCleanupSessionID: Int?
+    private var replacementCleanupWaiterForTesting: (@Sendable () async -> Void)?
 
     public var state: DictationState {
         _state
@@ -172,6 +189,26 @@ public actor DictationService: DictationServiceProtocol {
         successDisplayWaiter = waiter
     }
 
+    func setCancellationWaitObserverForTesting(_ observer: @escaping @Sendable () -> Void) {
+        cancellationWaitObserverForTesting = observer
+    }
+
+    func setAfterCancellationWaiterForTesting(_ waiter: @escaping @Sendable () async -> Void) {
+        afterCancellationWaiterForTesting = waiter
+    }
+
+    func pendingStartCountForTesting() -> Int {
+        startPermit.pendingWaiterCount()
+    }
+
+    func setReplacementCleanupWaiterForTesting(_ waiter: @escaping @Sendable () async -> Void) {
+        replacementCleanupWaiterForTesting = waiter
+    }
+
+    func cancellationTaskCountForTesting() -> Int {
+        cancellationTaskGeneration
+    }
+
     public init(
         audioProcessor: AudioProcessorProtocol,
         sttTranscriber: STTTranscribing,
@@ -185,11 +222,13 @@ public actor DictationService: DictationServiceProtocol {
         voiceReturnTriggers: (@Sendable () -> [String])? = nil,
         voiceReturnTrigger: (@Sendable () -> String?)? = nil,
         processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil,
+        spokenPunctuationEnabled: (@Sendable () -> Bool)? = nil,
         dictationInsertionStyle: (@Sendable () -> DictationInsertionStyle)? = nil,
         removeUmFiller: (@Sendable () -> Bool)? = nil,
         llmService: LLMServiceProtocol? = nil,
         llmRunRepo: LLMRunRepositoryProtocol? = nil,
         shouldUseAIFormatter: (@Sendable () -> Bool)? = nil,
+        isAIFormatterEnabled: (@Sendable () -> Bool)? = nil,
         aiFormatterPromptTemplate: (@Sendable () -> String)? = nil,
         aiFormatterPromptResolver: (any AIFormatterPromptResolving)? = nil,
         shouldAttemptLiveDictationTranscription: (@Sendable () -> Bool)? = nil,
@@ -199,6 +238,8 @@ public actor DictationService: DictationServiceProtocol {
         cancelWindow: Duration = .seconds(5),
         dictationPreviewInterval: Duration = .seconds(1),
         dictationPreviewCancellationTimeout: Duration = .seconds(2),
+        liveDictationCancellationTimeout: Duration = .seconds(2),
+        failedDictationAudioDirectory: URL? = nil,
         dictationPreviewWindowSeconds: Double = 15
     ) {
         self.audioProcessor = audioProcessor
@@ -221,12 +262,14 @@ public actor DictationService: DictationServiceProtocol {
             self.voiceReturnTriggers = { [] }
         }
         self.processingMode = processingMode ?? { .raw }
+        self.spokenPunctuationEnabled = spokenPunctuationEnabled ?? { true }
         self.dictationInsertionStyle = dictationInsertionStyle ?? { .sentence }
         self.removeUmFiller = removeUmFiller ?? { true }
         self.textRefinementService = TextRefinementService()
         self.llmService = llmService
         self.llmRunRecorder = LLMRunRecorder(repository: llmRunRepo)
         self.shouldUseAIFormatter = shouldUseAIFormatter ?? { false }
+        self.isAIFormatterEnabled = isAIFormatterEnabled ?? { true }
         let promptTemplate = aiFormatterPromptTemplate ?? { AIFormatter.defaultDictationPromptTemplate }
         self.aiFormatterPromptResolver =
             aiFormatterPromptResolver
@@ -238,6 +281,8 @@ public actor DictationService: DictationServiceProtocol {
         self.cancelWindow = cancelWindow
         self.dictationPreviewInterval = dictationPreviewInterval
         self.dictationPreviewCancellationTimeout = dictationPreviewCancellationTimeout
+        self.liveDictationCancellationTimeout = liveDictationCancellationTimeout
+        self.failedDictationAudioDirectory = failedDictationAudioDirectory
         self.dictationPreviewWindowSampleCount = max(1, Int((dictationPreviewWindowSeconds * 16_000).rounded()))
     }
 
@@ -281,8 +326,15 @@ public actor DictationService: DictationServiceProtocol {
 
     public func startRecording(
         context: DictationTelemetryContext = DictationTelemetryContext(),
-        sessionID: Int?
+        sessionID: Int?,
+        aiFormatterEnabled: Bool? = nil
     ) async throws {
+        // A replacement may suspend while cleaning up the prior take. Keep a
+        // later start from capturing through that cleanup's recorder stop.
+        try await startPermit.wait()
+        defer { startPermit.signal() }
+        try Task.checkCancellation()
+
         logger.debug("dictation_start_requested state=\(self.debugStateLabel(self._state), privacy: .public)")
         let operationContext = ObservabilityOperationContext()
         if let entitlements {
@@ -304,22 +356,66 @@ public actor DictationService: DictationServiceProtocol {
             }
         }
 
+        // A prior take may have cleared AudioRecorder.recording while its
+        // stopCapture() still finalizes. Do not start a replacement until that
+        // cancellation has finished using the shared recorder.
+        await waitForCancellationToSettle()
+        await afterCancellationWaiterForTesting?()
+        try Task.checkCancellation()
+        // Session IDs are reserved in request order. A queued older start
+        // must not replace a newer take that reached the recorder first.
+        if let sessionID, sessionID <= activeSessionID {
+            return
+        }
+
+        var claimedReplacementSessionID: Int?
         switch _state {
         case .idle, .cancelled:
             break
         case .recording where sessionID != nil && sessionID != activeSessionID:
             // New session replacing a stale provisional recording whose
-            // confirmCancel hasn't arrived yet. Clean up the old capture.
-            logger.notice(
-                "startRecording replacing stale recording old=\(self.activeSessionID) new=\(sessionID!, privacy: .public)"
+            // confirmCancel hasn't arrived yet. Claim the new session before
+            // cleanup suspends so a late cancel for the old take is stale.
+            let oldSessionID = activeSessionID
+            let capturedDurationMs = currentRecordingDurationMs()
+            // A late cancel for the old session will become stale as soon as
+            // the replacement claims its ID. Close its telemetry here.
+            Telemetry.send(
+                .dictationCancelled(
+                    durationSeconds: resolvedDurationSeconds(capturedMs: capturedDurationMs),
+                    reason: .ui,
+                    device: nil
+                ))
+            sendDictationOperation(
+                outcome: .cancelled,
+                durationSeconds: resolvedDurationSeconds(capturedMs: capturedDurationMs),
+                cancelReason: .ui
             )
-            await cancelLiveDictationTranscription(sessionID: activeSessionID)
-            await cancelDisplayPreview(sessionID: activeSessionID, clearText: true)
-            if await audioProcessor.isRecording,
+            clearCurrentOperation()
+            recordingStartedAt = nil
+            activeSessionID = sessionID!
+            claimedReplacementSessionID = sessionID
+            replacementCleanupSessionID = sessionID
+            logger.notice(
+                "startRecording replacing stale recording old=\(oldSessionID) new=\(sessionID!, privacy: .public)"
+            )
+            await replacementCleanupWaiterForTesting?()
+            await cancelLiveDictationTranscription(sessionID: oldSessionID)
+            await cancelDisplayPreview(sessionID: oldSessionID, clearText: true)
+            let captureStartedAt = Date()
+            if await audioProcessor.isRecording {
                 let url = try? await audioProcessor.stopCapture()
-            {
-                try? FileManager.default.removeItem(at: url)
+                postCaptureDidStop(sessionID: oldSessionID)
+                if let url {
+                    let cancelled = StolenCancelledAudio(
+                        url: url,
+                        durationMs: capturedDurationMs,
+                        captureMs: Self.elapsedMilliseconds(since: captureStartedAt)
+                    )
+                    Task { await self.persistOrDiscardCancelledAudio(cancelled) }
+                }
             }
+            replacementCleanupSessionID = nil
         case .processing where sessionID != nil && sessionID != activeSessionID,
             .success where sessionID != nil && sessionID != activeSessionID:
             // Previous transcription still in flight. The reentrancy guards in
@@ -329,6 +425,26 @@ public actor DictationService: DictationServiceProtocol {
             )
         default:
             return
+        }
+
+        // The stale-recording cleanup above suspends. A cancellation for the
+        // claimed replacement may have started during it, so wait before capture.
+        await waitForCancellationToSettle()
+        if Task.isCancelled {
+            if let claimedReplacementSessionID,
+                activeSessionID == claimedReplacementSessionID,
+                case .recording = _state
+            {
+                recordingStartedAt = nil
+                clearCurrentOperation()
+                _state = .idle
+            }
+            throw CancellationError()
+        }
+        if let claimedReplacementSessionID {
+            guard activeSessionID == claimedReplacementSessionID, case .recording = _state else {
+                return
+            }
         }
 
         // Steal before the new take starts. A hotkey restart from the cancel
@@ -348,6 +464,9 @@ public actor DictationService: DictationServiceProtocol {
         pendingCancelReason = nil
         currentAIFormatterStartContext = nil
         currentAIFormatterFinishContext = nil
+        currentSessionAIFormatterEnabled =
+            aiFormatterEnabled.map { $0 && isAIFormatterEnabled() }
+            ?? shouldUseAIFormatter()
         clearLiveTranscript()
         currentOperationID = operationContext.operationID
         currentOperationTerminalEmitted = false
@@ -470,6 +589,22 @@ public actor DictationService: DictationServiceProtocol {
     }
 
     public func stopRecording(sessionID: Int?) async throws -> DictationResult {
+        // A replacement can claim its ID while its start still owns the old
+        // recorder cleanup. Reject that provisional take without waiting for
+        // the start permit held by the cleanup owner.
+        if replacementCleanupSessionID == activeSessionID {
+            logger.notice("stopRecording rejected provisional replacement session=\(self.activeSessionID)")
+            throw DictationServiceError.notRecording
+        }
+
+        // Keep capture finalization and live-session cleanup ahead of a new
+        // start. Recorded-file transcription can still overlap that capture.
+        try await startPermit.wait()
+        var holdingStartPermit = true
+        defer { if holdingStartPermit { startPermit.signal() } }
+
+        // A cancellation may still own the shared recorder after its state check.
+        await waitForCancellationToSettle()
         if let sessionID, sessionID != activeSessionID {
             logger.notice(
                 "stopRecording ignored stale session requested=\(sessionID) active=\(self.activeSessionID)"
@@ -482,9 +617,18 @@ public actor DictationService: DictationServiceProtocol {
             )
             throw DictationServiceError.notRecording
         }
+        // A replacement can claim its session while cleanup still owns the
+        // prior take's physical capture. It cannot stop or transcribe that WAV.
+        guard replacementCleanupSessionID != activeSessionID else {
+            logger.notice(
+                "stopRecording rejected provisional replacement session=\(self.activeSessionID)"
+            )
+            throw DictationServiceError.notRecording
+        }
 
         let currentSession = activeSessionID
         let formatterContext = currentAIFormatterFinishContext ?? currentAIFormatterStartContext
+        let sessionFormatterEnabled = currentSessionAIFormatterEnabled
         _state = .processing
         logger.debug("dictation_stop_processing_started session=\(currentSession, privacy: .public)")
 
@@ -495,13 +639,24 @@ public actor DictationService: DictationServiceProtocol {
         let capturedDurationMs = currentRecordingDurationMs()
         do {
             let captureStartedAt = Date()
-            let audioURL = try await audioProcessor.stopCapture()
+            let audioURL: URL
+            do {
+                audioURL = try await audioProcessor.stopCapture()
+            } catch {
+                postCaptureDidStop(sessionID: currentSession)
+                throw error
+            }
+            postCaptureDidStop(sessionID: currentSession)
             let captureMs = Self.elapsedMilliseconds(since: captureStartedAt)
             let captureHealth = await audioProcessor.lastCaptureHealth
             try rejectUnavailableCaptureIfNeeded(captureHealth, audioURL: audioURL)
             let device = await audioProcessor.recordingDeviceInfo
             await cancelDisplayPreview(sessionID: currentSession, clearText: false)
-            _ = await finishLiveDictationTranscription(sessionID: currentSession)
+            // Live partials are display-only, so stop retires the session
+            // without a final pass. Recorded-file STT queues behind it.
+            await cancelLiveDictationTranscription(sessionID: currentSession, clearText: false)
+            startPermit.signal()
+            holdingStartPermit = false
             logger.debug(
                 "dictation_capture_stopped session=\(currentSession, privacy: .public) path=\(audioURL.path, privacy: .private)"
             )
@@ -510,6 +665,7 @@ public actor DictationService: DictationServiceProtocol {
                     audioURL: audioURL,
                     capturedDurationMs: capturedDurationMs,
                     formatterContext: formatterContext,
+                    aiFormatterEnabled: sessionFormatterEnabled,
                     captureMs: captureMs
                 )
             }
@@ -553,7 +709,13 @@ public actor DictationService: DictationServiceProtocol {
             recordingStartedAt = nil
             clearCurrentOperation()
             return result
-        } catch {
+        } catch let thrown {
+            // Telemetry classifies the real STT failure; the caller learns the
+            // recording was kept so the overlay can say so.
+            let preserved = thrown as? PreservedTranscriptionFailure
+            let error = preserved?.underlying ?? thrown
+            let surfacedError: Error =
+                preserved == nil ? thrown : DictationServiceError.transcriptionFailedAudioSaved
             await cancelDisplayPreview(sessionID: currentSession, clearText: true)
             await cancelLiveDictationTranscription(sessionID: currentSession)
             // Snapshot device before setting state to .idle — prevents reentrancy
@@ -563,7 +725,7 @@ public actor DictationService: DictationServiceProtocol {
                 logger.notice(
                     "stopRecording error discarded session=\(currentSession) replaced by=\(self.activeSessionID)"
                 )
-                throw error
+                throw surfacedError
             }
             _state = .idle
             if error is CancellationError {
@@ -602,7 +764,7 @@ public actor DictationService: DictationServiceProtocol {
             logger.error(
                 "stopRecording failed session=\(currentSession) error_type=\(Self.errorType(for: error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
-            throw error
+            throw surfacedError
         }
     }
 
@@ -624,9 +786,12 @@ public actor DictationService: DictationServiceProtocol {
             )
             return
         }
+        // The new session may be claimed while cleanup still owns the old
+        // recorder. A delayed media-pause callback must not trim that take.
+        guard replacementCleanupSessionID != activeSessionID else { return }
         // The pre-roll was already mirrored into the live STT stream, but the
-        // recorder will now trim it from the WAV. Cancel the live stream rather
-        // than flushing a final over audio that is no longer in the source file.
+        // recorder will now trim it from the WAV. Record that the live stream
+        // no longer matches the source file; its partials stay display-only.
         if let state = liveTranscriptionState, state.dictationSessionID == activeSessionID {
             state.markDegraded(reason: "preroll_discarded")
         }
@@ -643,6 +808,25 @@ public actor DictationService: DictationServiceProtocol {
         reason: TelemetryDictationCancelReason? = nil,
         sessionID: Int?
     ) async {
+        let previous = cancellationTask
+        cancellationTaskGeneration += 1
+        let generation = cancellationTaskGeneration
+        let task = Task {
+            _ = await previous?.value
+            await self.cancelRecordingInOrder(reason: reason, sessionID: sessionID)
+            return nil as StolenCancelledAudio?
+        }
+        cancellationTask = task
+        _ = await task.value
+        if cancellationTaskGeneration == generation {
+            cancellationTask = nil
+        }
+    }
+
+    private func cancelRecordingInOrder(
+        reason: TelemetryDictationCancelReason?,
+        sessionID: Int?
+    ) async {
         if let sessionID, sessionID != activeSessionID {
             logger.notice(
                 "cancelRecording ignored stale session requested=\(sessionID) active=\(self.activeSessionID)"
@@ -650,31 +834,59 @@ public actor DictationService: DictationServiceProtocol {
             return
         }
         guard case .recording = _state else { return }
+        let cancelledSession = activeSessionID
+        let cancelledAIFormatterEnabled = currentSessionAIFormatterEnabled
+        // The replacement has claimed this session but has not started its
+        // capture. Its cleanup still owns the previous take's recorder stop.
+        let replacementHasNoCapture = replacementCleanupSessionID == activeSessionID
 
         cancelGeneration += 1
         let generation = cancelGeneration
 
         pendingCancelReason = reason
-        cancellationRequestedDuringStartSessionID = activeSessionID
-        await cancelLiveDictationTranscription(sessionID: activeSessionID)
-        await cancelDisplayPreview(sessionID: activeSessionID, clearText: true)
-        let capturedDurationMs = currentRecordingDurationMs()
-        let captureStartedAt = Date()
-        let audioURL = try? await audioProcessor.stopCapture()
-        // Capture finalization ends when stopCapture returns. Do not include the
-        // later recordingDeviceInfo hop in pendingCancelledCaptureMs / undo e2e.
-        let captureMs = audioURL == nil ? nil : Self.elapsedMilliseconds(since: captureStartedAt)
+        cancellationRequestedDuringStartSessionID = cancelledSession
+        await cancelLiveDictationTranscription(sessionID: cancelledSession)
+        guard activeSessionID == cancelledSession, case .recording = _state else { return }
+        await cancelDisplayPreview(sessionID: cancelledSession, clearText: true)
+        // Keep this cancellation bound to the take checked before the awaits.
+        guard activeSessionID == cancelledSession, case .recording = _state else { return }
         let device = await audioProcessor.recordingDeviceInfo
+        guard activeSessionID == cancelledSession, case .recording = _state else { return }
+        let capturedDurationMs = replacementHasNoCapture ? nil : currentRecordingDurationMs()
+        let captureStartedAt = Date()
+        // A claimed replacement has no capture yet. Its cleanup still owes
+        // the old take's physical stop and notification.
+        let audioURL = replacementHasNoCapture ? nil : (try? await audioProcessor.stopCapture())
+        if !replacementHasNoCapture {
+            postCaptureDidStop(sessionID: cancelledSession)
+        }
+        // Capture finalization ends when stopCapture returns. Do not include the
+        // device lookup in pendingCancelledCaptureMs / undo e2e.
+        let captureMs = audioURL == nil ? nil : Self.elapsedMilliseconds(since: captureStartedAt)
+        if activeSessionID != cancelledSession {
+            if let audioURL {
+                let cancelledAudio = StolenCancelledAudio(
+                    url: audioURL,
+                    durationMs: capturedDurationMs,
+                    captureMs: captureMs
+                )
+                Task { await self.persistOrDiscardCancelledAudio(cancelledAudio) }
+            }
+            return
+        }
         pendingCancelledAudioURL = audioURL
         pendingCancelledDurationMs = capturedDurationMs
+        pendingCancelledAIFormatterEnabled = cancelledAIFormatterEnabled
         pendingCancelledCaptureMs = captureMs
         _state = .cancelled
-        Telemetry.send(
-            .dictationCancelled(
-                durationSeconds: resolvedDurationSeconds(capturedMs: capturedDurationMs),
-                reason: reason,
-                device: device
-            ))
+        if !replacementHasNoCapture {
+            Telemetry.send(
+                .dictationCancelled(
+                    durationSeconds: resolvedDurationSeconds(capturedMs: capturedDurationMs),
+                    reason: reason,
+                    device: device
+                ))
+        }
 
         cancelResetTask?.cancel()
         cancelResetTask = Task { [generation] in
@@ -688,32 +900,83 @@ public actor DictationService: DictationServiceProtocol {
     }
 
     public func confirmCancel(sessionID: Int?) async {
+        let previous = cancellationTask
+        cancellationTaskGeneration += 1
+        let generation = cancellationTaskGeneration
+        let task = Task {
+            _ = await previous?.value
+            return await self.confirmCancelInOrder(sessionID: sessionID)
+        }
+        cancellationTask = task
+        let stolen = await task.value
+        if cancellationTaskGeneration == generation {
+            cancellationTask = nil
+        }
+        if let stolen {
+            // Capture and state are settled; persistence may take much longer
+            // and must not delay a new recording.
+            await persistOrDiscardCancelledAudio(stolen)
+        }
+    }
+
+    private func confirmCancelInOrder(sessionID: Int?) async -> StolenCancelledAudio? {
         if let sessionID, sessionID != activeSessionID {
             logger.notice(
                 "confirmCancel ignored stale session requested=\(sessionID) active=\(self.activeSessionID)"
             )
-            return
+            return nil
+        }
+        let cancelledSession = activeSessionID
+        let stateAtEntry = _state
+        switch stateAtEntry {
+        case .recording, .cancelled:
+            break
+        default:
+            return nil
         }
         cancelGeneration += 1
         cancelResetTask?.cancel()
         cancelResetTask = nil
 
+        let device = await audioProcessor.recordingDeviceInfo
+        guard activeSessionID == cancelledSession else { return nil }
+        switch stateAtEntry {
+        case .recording:
+            guard case .recording = _state else { return nil }
+        case .cancelled:
+            guard case .cancelled = _state else { return nil }
+        default:
+            return nil
+        }
+        var cancelledAudio: StolenCancelledAudio?
         if case .recording = _state {
-            cancellationRequestedDuringStartSessionID = activeSessionID
-            await cancelLiveDictationTranscription(sessionID: activeSessionID)
-            await cancelDisplayPreview(sessionID: activeSessionID, clearText: true)
-            let capturedDurationMs = currentRecordingDurationMs()
+            let replacementHasNoCapture = replacementCleanupSessionID == activeSessionID
+            cancellationRequestedDuringStartSessionID = cancelledSession
+            await cancelLiveDictationTranscription(sessionID: cancelledSession)
+            guard activeSessionID == cancelledSession, case .recording = _state else { return nil }
+            await cancelDisplayPreview(sessionID: cancelledSession, clearText: true)
+            guard activeSessionID == cancelledSession, case .recording = _state else { return nil }
+            let capturedDurationMs = replacementHasNoCapture ? nil : currentRecordingDurationMs()
             let captureStartedAt = Date()
-            if let url = try? await audioProcessor.stopCapture() {
-                pendingCancelledAudioURL = url
-                pendingCancelledDurationMs = capturedDurationMs
-                pendingCancelledCaptureMs = Self.elapsedMilliseconds(since: captureStartedAt)
+            if !replacementHasNoCapture, let url = try? await audioProcessor.stopCapture() {
+                cancelledAudio = StolenCancelledAudio(
+                    url: url,
+                    durationMs: capturedDurationMs,
+                    captureMs: Self.elapsedMilliseconds(since: captureStartedAt)
+                )
             }
-            _state = .cancelled
+            if !replacementHasNoCapture {
+                postCaptureDidStop(sessionID: cancelledSession)
+            }
+            guard activeSessionID == cancelledSession else { return cancelledAudio }
         }
 
+        if let cancelledAudio {
+            pendingCancelledAudioURL = cancelledAudio.url
+            pendingCancelledDurationMs = cancelledAudio.durationMs
+            pendingCancelledCaptureMs = cancelledAudio.captureMs
+        }
         let cancelledDurationSeconds = resolvedDurationSeconds(capturedMs: pendingCancelledDurationMs)
-        let device = await audioProcessor.recordingDeviceInfo
         sendDictationOperation(
             outcome: .cancelled,
             durationSeconds: cancelledDurationSeconds,
@@ -724,9 +987,7 @@ public actor DictationService: DictationServiceProtocol {
         clearCurrentOperation()
         _state = .idle
 
-        // Persist after idle so a new take that starts during STT cannot be
-        // clobbered by this cancel's bookkeeping.
-        await persistOrDiscardPendingCancelledAudio()
+        return stealPendingCancelledAudio()
     }
 
     public func undoCancel() async throws -> DictationResult {
@@ -736,6 +997,7 @@ public actor DictationService: DictationServiceProtocol {
         guard let audioURL = pendingCancelledAudioURL else {
             pendingCancelledDurationMs = nil
             pendingCancelledCaptureMs = nil
+            pendingCancelledAIFormatterEnabled = nil
             _state = .idle
             throw DictationServiceError.noPendingCancelledAudio
         }
@@ -746,11 +1008,16 @@ public actor DictationService: DictationServiceProtocol {
         pendingCancelledAudioURL = nil
         let capturedDurationMs = pendingCancelledDurationMs
         pendingCancelledDurationMs = nil
+        if let cancelledFormatterEnabled = pendingCancelledAIFormatterEnabled {
+            currentSessionAIFormatterEnabled = cancelledFormatterEnabled
+        }
+        pendingCancelledAIFormatterEnabled = nil
         let captureMs = pendingCancelledCaptureMs
         pendingCancelledCaptureMs = nil
 
         let currentSession = activeSessionID
         let formatterContext = currentAIFormatterFinishContext ?? currentAIFormatterStartContext
+        let sessionFormatterEnabled = currentSessionAIFormatterEnabled
         let captureHealth = await audioProcessor.lastCaptureHealth
         _state = .processing
         do {
@@ -760,6 +1027,7 @@ public actor DictationService: DictationServiceProtocol {
                     audioURL: audioURL,
                     capturedDurationMs: capturedDurationMs,
                     formatterContext: formatterContext,
+                    aiFormatterEnabled: sessionFormatterEnabled,
                     captureMs: captureMs
                 )
             }
@@ -802,13 +1070,17 @@ public actor DictationService: DictationServiceProtocol {
             recordingStartedAt = nil
             clearCurrentOperation()
             return result
-        } catch {
+        } catch let thrown {
+            let preserved = thrown as? PreservedTranscriptionFailure
+            let error = preserved?.underlying ?? thrown
+            let surfacedError: Error =
+                preserved == nil ? thrown : DictationServiceError.transcriptionFailedAudioSaved
             let device = await audioProcessor.recordingDeviceInfo
             guard activeSessionID == currentSession else {
                 logger.notice(
                     "undoCancel error discarded session=\(currentSession) replaced by=\(self.activeSessionID)"
                 )
-                throw error
+                throw surfacedError
             }
             _state = .idle
             if error is CancellationError {
@@ -844,7 +1116,7 @@ public actor DictationService: DictationServiceProtocol {
             }
             recordingStartedAt = nil
             clearCurrentOperation()
-            throw error
+            throw surfacedError
         }
     }
 
@@ -872,10 +1144,20 @@ public actor DictationService: DictationServiceProtocol {
         let captureMs: Int?
     }
 
+    private func waitForCancellationToSettle() async {
+        while let task = cancellationTask {
+            cancellationWaitObserverForTesting?()
+            let generation = cancellationTaskGeneration
+            _ = await task.value
+            if generation == cancellationTaskGeneration { return }
+        }
+    }
+
     private func stealPendingCancelledAudio() -> StolenCancelledAudio? {
         guard let url = pendingCancelledAudioURL else {
             pendingCancelledDurationMs = nil
             pendingCancelledCaptureMs = nil
+            pendingCancelledAIFormatterEnabled = nil
             return nil
         }
         pendingCancelledAudioURL = nil
@@ -883,6 +1165,7 @@ public actor DictationService: DictationServiceProtocol {
         pendingCancelledDurationMs = nil
         let captureMs = pendingCancelledCaptureMs
         pendingCancelledCaptureMs = nil
+        pendingCancelledAIFormatterEnabled = nil
         return StolenCancelledAudio(url: url, durationMs: durationMs, captureMs: captureMs)
     }
 
@@ -903,6 +1186,7 @@ public actor DictationService: DictationServiceProtocol {
                 audioURL: stolen.url,
                 capturedDurationMs: stolen.durationMs,
                 formatterContext: nil,
+                aiFormatterEnabled: false,
                 status: .cancelled,
                 captureMs: stolen.captureMs
             )
@@ -912,6 +1196,89 @@ public actor DictationService: DictationServiceProtocol {
                 "discarded_dictation_persist_failed error_type=\(Self.errorType(for: error), privacy: .public)"
             )
         }
+    }
+
+    /// Transcribes a failed take kept in History and completes its row. Nothing
+    /// is pasted and the AI Formatter is not re-run; the current processing
+    /// mode, custom words, and snippets apply. The recording is removed after
+    /// success unless Save audio is on. A failure updates the row's
+    /// `errorMessage` and rethrows.
+    @discardableResult
+    public func retryFailedDictation(id: UUID) async throws -> Dictation {
+        guard let dictation = try dictationRepo.fetch(id: id),
+            dictation.status == .error,
+            let audioPath = dictation.audioPath,
+            FileManager.default.fileExists(atPath: audioPath)
+        else {
+            throw DictationServiceError.failedDictationUnavailable
+        }
+
+        let result: STTResult
+        do {
+            result = try await sttTranscriber.transcribe(audioPath: audioPath, job: .dictation)
+            guard !result.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw DictationServiceError.emptyTranscript
+            }
+        } catch {
+            recordRetryFailure(id: id, error: error)
+            throw error
+        }
+        let refined = await refineDictationText(result.text)
+
+        // The row may have been deleted or retried elsewhere during the awaits.
+        guard var completed = try dictationRepo.fetch(id: id), completed.status == .error else {
+            throw DictationServiceError.failedDictationUnavailable
+        }
+        let finalText = refined.refinement.text ?? result.text
+        completed.status = .completed
+        completed.errorMessage = nil
+        completed.rawTranscript = result.text
+        completed.cleanTranscript = refined.refinement.text
+        completed.processingMode = refined.mode
+        completed.wordCount = finalText.split(whereSeparator: \.isWhitespace).count
+        completed.durationMs = Self.computeDurationMs(
+            from: result,
+            capturedDurationMs: completed.durationMs > 0 ? completed.durationMs : nil
+        )
+        completed.engine = result.engine.rawValue
+        completed.engineVariant = result.engineVariant
+        completed.language = SpeechEnginePreference.normalizeKnownLanguage(result.language)
+        completed.updatedAt = Date()
+        // Atomic check-and-write: a delete during the awaits above wins, and
+        // the take is not re-inserted.
+        guard try dictationRepo.saveIfCurrentStatus(completed, is: .error) else {
+            throw DictationServiceError.failedDictationUnavailable
+        }
+        if !(shouldSaveAudio?() ?? false) {
+            // Clear the path only once the file is gone, so a failed removal
+            // leaves the recording owned by the row instead of orphaned.
+            do {
+                try FileManager.default.removeItem(atPath: audioPath)
+                completed.audioPath = nil
+                _ = try dictationRepo.saveIfCurrentStatus(completed, is: .completed)
+            } catch {
+                logger.error(
+                    "dictation_failed_audio_cleanup_failed error_type=\(Self.errorType(for: error), privacy: .public)"
+                )
+            }
+        }
+        markFirstDictationCompleted?()
+        if !refined.refinement.expandedSnippetIDs.isEmpty {
+            try? snippetRepo?.incrementUseCount(ids: refined.refinement.expandedSnippetIDs)
+        }
+        AudioCaptureDiagnostics.append("dictation_failed_audio_retry_complete")
+        NotificationCenter.default.post(name: .macParakeetDictationHistoryDidChange, object: nil)
+        return completed
+    }
+
+    private func recordRetryFailure(id: UUID, error: Error) {
+        AudioCaptureDiagnostics.append(
+            "dictation_failed_audio_retry_failed \(AudioCaptureDiagnostics.errorFields(error))"
+        )
+        guard var latest = try? dictationRepo.fetch(id: id), latest.status == .error else { return }
+        latest.errorMessage = error.localizedDescription
+        latest.updatedAt = Date()
+        _ = try? dictationRepo.saveIfCurrentStatus(latest, is: .error)
     }
 
     private func expireCancelIfStillCurrent(generation: Int) async {
@@ -938,6 +1305,14 @@ public actor DictationService: DictationServiceProtocol {
         return try await Observability.withOperationContext(operationContext) {
             try await operation()
         }
+    }
+
+    private func postCaptureDidStop(sessionID: Int) {
+        NotificationCenter.default.post(
+            name: .macParakeetDictationCaptureDidStop,
+            object: self,
+            userInfo: [DictationCaptureNotificationKey.sessionID: sessionID]
+        )
     }
 
     private func rejectUnavailableCaptureIfNeeded(
@@ -993,6 +1368,9 @@ public actor DictationService: DictationServiceProtocol {
             let sttSessionID = try await liveTranscriber.beginLiveDictationTranscription { partial in
                 partialContinuation.yield(partial)
             }
+            // The session is always cancelled, never flushed. A live final
+            // would be discarded (the recorded WAV is the final source), and
+            // flushing it cost an inference pass that could stall stop.
             let task = Task { [liveTranscriber, sttSessionID] in
                 do {
                     for await samples in stream {
@@ -1002,21 +1380,13 @@ public actor DictationService: DictationServiceProtocol {
                             sessionID: sttSessionID
                         )
                     }
-                    if degradeReason.withLock({ $0 != nil }) {
-                        await liveTranscriber.cancelLiveDictationTranscription(sessionID: sttSessionID)
-                        throw CancellationError()
-                    }
-                    try Task.checkCancellation()
-                    return try await liveTranscriber.finishLiveDictationTranscription(
-                        sessionID: sttSessionID
-                    )
                 } catch is CancellationError {
-                    await liveTranscriber.cancelLiveDictationTranscription(sessionID: sttSessionID)
-                    throw CancellationError()
                 } catch {
-                    await liveTranscriber.cancelLiveDictationTranscription(sessionID: sttSessionID)
-                    throw error
+                    AudioCaptureDiagnostics.append(
+                        "dictation_live_transcribe_failed \(AudioCaptureDiagnostics.errorFields(error))"
+                    )
                 }
+                await liveTranscriber.cancelLiveDictationTranscription(sessionID: sttSessionID)
             }
 
             liveTranscriptionState = LiveDictationTranscriptionState(
@@ -1255,89 +1625,60 @@ public actor DictationService: DictationServiceProtocol {
         if let previewTranscriber = sttTranscriber as? any STTDictationPreviewTranscribing {
             await previewTranscriber.cancelDictationPreview()
         }
-        await waitForDisplayPreviewCancellation(state.task)
+        _ = await Self.waitForDrain(state.task, timeout: dictationPreviewCancellationTimeout)
     }
 
-    private func waitForDisplayPreviewCancellation(_ task: Task<Void, Never>) async {
-        let timeout = dictationPreviewCancellationTimeout
+    /// Waits for `task` to finish, up to `timeout`. Returns false on timeout;
+    /// the task keeps running and is not awaited again.
+    private static func waitForDrain(_ task: Task<Void, Never>, timeout: Duration) async -> Bool {
         await withCheckedContinuation { continuation in
-            let gate = DictationPreviewDrainGate(continuation)
+            let gate = DictationDrainGate(continuation)
             Task {
-                _ = await task.result
-                gate.resume()
+                await task.value
+                gate.resume(returning: true)
             }
             Task {
                 try? await Task.sleep(for: timeout)
-                gate.resume()
+                gate.resume(returning: false)
             }
         }
     }
 
-    private func finishLiveDictationTranscription(sessionID: Int) async -> STTResult? {
-        guard let state = liveTranscriptionState,
-            state.dictationSessionID == sessionID
-        else {
-            return nil
-        }
-        liveTranscriptionState = nil
-        state.sampleContinuation.finish()
-        state.partialContinuation.finish()
-        state.partialTask.cancel()
-
-        // Capture stopped before this runs, so no further degrade writes can
-        // race this read.
-        if let reason = state.degradeReason.withLock({ $0 }) {
-            AudioCaptureDiagnostics.append(
-                "dictation_live_transcribe_degraded reason=\(reason)"
-            )
-            state.task.cancel()
-            if let liveTranscriber = sttTranscriber as? any STTLiveDictationTranscribing {
-                await liveTranscriber.cancelLiveDictationTranscription(sessionID: state.sttSessionID)
-            }
-            _ = await state.task.result
-            return nil
-        }
-
-        do {
-            let result = try await state.task.value
-            let trimmedText = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmedText.isEmpty else {
-                // An empty live final is indistinguishable from a streaming
-                // hiccup. The recorded-file final remains the source of truth.
-                AudioCaptureDiagnostics.append("dictation_live_transcribe_empty_fallback")
-                return nil
-            }
-            AudioCaptureDiagnostics.append(
-                "dictation_live_transcribe_complete chars=\(result.text.count)"
-            )
-            return result
-        } catch is CancellationError {
-            AudioCaptureDiagnostics.append("dictation_live_transcribe_cancelled")
-            return nil
-        } catch {
-            AudioCaptureDiagnostics.append(
-                "dictation_live_transcribe_failed \(AudioCaptureDiagnostics.errorFields(error))"
-            )
-            return nil
-        }
-    }
-
-    private func cancelLiveDictationTranscription(sessionID: Int) async {
+    /// Retires the take's live session. The wait is bounded: a native append
+    /// or cancel that never returns must not hold stop, dismiss, or restart
+    /// (issue #1131). A stalled session keeps its scheduler reservation, so a
+    /// replacement take records without live partials and recorded-file STT
+    /// queues behind it rather than failing.
+    private func cancelLiveDictationTranscription(sessionID: Int, clearText: Bool = true) async {
         guard let state = liveTranscriptionState,
             state.dictationSessionID == sessionID
         else {
             return
         }
         liveTranscriptionState = nil
-        clearLiveTranscript()
+        if clearText {
+            clearLiveTranscript()
+        }
         state.task.cancel()
         state.sampleContinuation.finish()
         state.partialContinuation.finish()
         state.partialTask.cancel()
-        if let liveTranscriber = sttTranscriber as? any STTLiveDictationTranscribing {
-            await liveTranscriber.cancelLiveDictationTranscription(sessionID: state.sttSessionID)
+        if let reason = state.degradeReason.withLock({ $0 }) {
+            AudioCaptureDiagnostics.append("dictation_live_transcribe_degraded reason=\(reason)")
         }
-        _ = await state.task.result
+        let liveTranscriber = sttTranscriber as? any STTLiveDictationTranscribing
+        let sttSessionID = state.sttSessionID
+        let liveTask = state.task
+        let drain = Task {
+            await liveTranscriber?.cancelLiveDictationTranscription(sessionID: sttSessionID)
+            await liveTask.value
+        }
+        let drained = await Self.waitForDrain(drain, timeout: liveDictationCancellationTimeout)
+        if !drained {
+            logger.warning("dictation_live_cancel_timeout session=\(sessionID, privacy: .public)")
+            AudioCaptureDiagnostics.append("dictation_live_transcribe_cancel_timeout")
+            Telemetry.send(.sttRuntimeUnhealthy(reason: "dictation_live_cancel_drain"))
+        }
     }
 
     private static func combinedSampleSink(
@@ -1367,54 +1708,76 @@ public actor DictationService: DictationServiceProtocol {
         }
     }
 
-    private func processCapturedAudio(
+    /// Moves a failed take's WAV into dictation storage and records it as an
+    /// `.error` row that History can retry. Returns false when the take should
+    /// be discarded as before: cancellation, no speech, history off, or a
+    /// storage failure.
+    private func preserveFailedDictation(
         audioURL: URL,
         capturedDurationMs: Int?,
-        formatterContext: AppPromptContext?,
-        status: Dictation.DictationStatus = .completed,
-        captureMs: Int? = nil
-    ) async throws -> DictationResult {
-        let transcribeStartedAt = Date()
-        // Track whether the audio file is consumed (moved or explicitly deleted).
-        // If an error occurs before that point, clean up the temp file.
-        var audioConsumed = false
-        defer {
-            if !audioConsumed {
-                try? FileManager.default.removeItem(at: audioURL)
-            }
+        error: Error
+    ) -> Bool {
+        guard let directory = failedDictationAudioDirectory,
+            !(error is CancellationError),
+            !Self.isNoSpeechError(error),
+            shouldSaveDictationHistory?() ?? true
+        else {
+            return false
         }
-
-        AudioCaptureDiagnostics.append(
-            "dictation_transcribe_begin file_bytes=\(Self.fileSizeBytes(at: audioURL).map(String.init) ?? "unknown")"
-        )
-        let result = try await sttTranscriber.transcribe(audioPath: audioURL.path, job: .dictation)
-        logger.debug("dictation_transcription_complete chars=\(result.text.count, privacy: .public)")
-        let transcriptWordCount =
-            result.words.isEmpty
-            ? Observability.wordCount(result.text)
-            : result.words.count
-        AudioCaptureDiagnostics.append(
-            [
-                "dictation_transcribe_complete",
-                "chars=\(result.text.count)",
-                "words=\(transcriptWordCount)",
-                "engine=\(result.engine.rawValue)",
-                "variant=\(result.engineVariant ?? "none")",
-                Self.transcriptionTimingDiagnosticFields(
-                    words: result.words,
-                    capturedDurationMs: capturedDurationMs
-                ),
-            ].joined(separator: " ")
-        )
-
-        let trimmed = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            // defer will clean up audioURL
-            logger.warning("dictation_transcription_empty")
-            AudioCaptureDiagnostics.append("dictation_transcribe_empty")
-            throw DictationServiceError.emptyTranscript
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        } catch let directoryError {
+            logger.error(
+                "dictation_directory_create_failed error_type=\(Self.errorType(for: directoryError), privacy: .public)"
+            )
+            return false
         }
+        let dictation = Dictation(
+            durationMs: max(0, capturedDurationMs ?? 0),
+            rawTranscript: "",
+            processingMode: processingMode(),
+            status: .error,
+            errorMessage: error.localizedDescription
+        )
+        let destURL = directory.appendingPathComponent("\(dictation.id.uuidString).wav")
+        do {
+            try FileManager.default.moveItem(at: audioURL, to: destURL)
+        } catch let moveError {
+            logger.error(
+                "dictation_failed_audio_move_failed error_type=\(Self.errorType(for: moveError), privacy: .public)"
+            )
+            return false
+        }
+        var persisted = dictation
+        persisted.audioPath = destURL.path
+        do {
+            try dictationRepo.save(persisted)
+        } catch let saveError {
+            logger.error(
+                "dictation_failed_audio_save_failed error_type=\(Self.errorType(for: saveError), privacy: .public)"
+            )
+            // Hand the file back so the caller's cleanup owns it again.
+            try? FileManager.default.moveItem(at: destURL, to: audioURL)
+            return false
+        }
+        AudioCaptureDiagnostics.append(
+            "dictation_failed_audio_preserved \(AudioCaptureDiagnostics.errorFields(error))"
+        )
+        NotificationCenter.default.post(name: .macParakeetDictationHistoryDidChange, object: nil)
+        return true
+    }
 
+    private struct DictationTextRefinement {
+        let mode: Dictation.ProcessingMode
+        let insertionStyle: DictationInsertionStyle
+        let words: [CustomWord]
+        let snippets: [TextSnippet]
+        let refinement: TextRefinementResult
+    }
+
+    /// Applies the current processing mode, custom words, snippets, and Voice
+    /// Return triggers to raw STT text. Shared by stop and History retry.
+    private func refineDictationText(_ rawText: String) async -> DictationTextRefinement {
         let mode = processingMode()
         let insertionStyle = mode.usesDeterministicPipeline ? dictationInsertionStyle() : .sentence
         let shouldRemoveUmFiller = removeUmFiller()
@@ -1444,13 +1807,107 @@ public actor DictationService: DictationServiceProtocol {
                 ))
         }
         let refinement = await textRefinementService.refine(
-            rawText: result.text,
+            rawText: rawText,
             mode: mode,
             customWords: words,
             snippets: snippets,
             insertionStyle: insertionStyle,
+            spokenPunctuationEnabled: spokenPunctuationEnabled(),
             removeUmFiller: shouldRemoveUmFiller
         )
+        return DictationTextRefinement(
+            mode: mode,
+            insertionStyle: insertionStyle,
+            words: words,
+            snippets: snippets,
+            refinement: refinement
+        )
+    }
+
+    private func processingCompletionStatus(
+        _ requested: Dictation.DictationStatus
+    ) throws -> Dictation.DictationStatus {
+        guard requested == .completed, Task.isCancelled else { return requested }
+        guard shouldPreserveDiscardedDictations?() ?? false,
+            shouldSaveDictationHistory?() ?? true
+        else { throw CancellationError() }
+        return .cancelled
+    }
+
+    private func processCapturedAudio(
+        audioURL: URL,
+        capturedDurationMs: Int?,
+        formatterContext: AppPromptContext?,
+        aiFormatterEnabled: Bool,
+        status: Dictation.DictationStatus = .completed,
+        captureMs: Int? = nil
+    ) async throws -> DictationResult {
+        let transcribeStartedAt = Date()
+        // Track whether the audio file is consumed (moved or explicitly deleted).
+        // If an error occurs before that point, clean up the temp file.
+        var audioConsumed = false
+        defer {
+            if !audioConsumed {
+                try? FileManager.default.removeItem(at: audioURL)
+            }
+        }
+
+        AudioCaptureDiagnostics.append(
+            "dictation_transcribe_begin file_bytes=\(Self.fileSizeBytes(at: audioURL).map(String.init) ?? "unknown")"
+        )
+        let result: STTResult
+        do {
+            result = try await sttTranscriber.transcribe(audioPath: audioURL.path, job: .dictation)
+        } catch {
+            if status == .completed { try Task.checkCancellation() }
+            // A normal stop keeps its recording in History when STT fails, so
+            // the take can be retried instead of lost (#1131).
+            if status == .completed,
+                preserveFailedDictation(
+                    audioURL: audioURL,
+                    capturedDurationMs: capturedDurationMs,
+                    error: error
+                )
+            {
+                audioConsumed = true
+                throw PreservedTranscriptionFailure(underlying: error)
+            }
+            throw error
+        }
+        _ = try processingCompletionStatus(status)
+        logger.debug("dictation_transcription_complete chars=\(result.text.count, privacy: .public)")
+        let transcriptWordCount =
+            result.words.isEmpty
+            ? Observability.wordCount(result.text)
+            : result.words.count
+        AudioCaptureDiagnostics.append(
+            [
+                "dictation_transcribe_complete",
+                "chars=\(result.text.count)",
+                "words=\(transcriptWordCount)",
+                "engine=\(result.engine.rawValue)",
+                "variant=\(result.engineVariant ?? "none")",
+                Self.transcriptionTimingDiagnosticFields(
+                    words: result.words,
+                    capturedDurationMs: capturedDurationMs
+                ),
+            ].joined(separator: " ")
+        )
+
+        let trimmed = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            // defer will clean up audioURL
+            logger.warning("dictation_transcription_empty")
+            AudioCaptureDiagnostics.append("dictation_transcribe_empty")
+            throw DictationServiceError.emptyTranscript
+        }
+
+        let refined = await refineDictationText(result.text)
+        let mode = refined.mode
+        let insertionStyle = refined.insertionStyle
+        let words = refined.words
+        let snippets = refined.snippets
+        let refinement = refined.refinement
         let cleanTranscript = refinement.text
         let expandedSnippetIDs = refinement.expandedSnippetIDs
         let protectedLeadingTerms = TextProcessingPipeline().protectedLeadingTerms(
@@ -1461,27 +1918,39 @@ public actor DictationService: DictationServiceProtocol {
         let baseText = cleanTranscript ?? result.text
         let saveHistory = shouldSaveDictationHistory?() ?? true
         let dictationID = UUID()
-        let formatterOutcome: FormatterOutcome
-        if status == .cancelled {
+        var completionStatus = try processingCompletionStatus(status)
+        var formatterOutcome: FormatterOutcome
+        if completionStatus == .cancelled {
             // Recovery only: don't send discarded speech to a cloud formatter.
             formatterOutcome = .skipped
         } else {
             let transcriptFormatter = TranscriptFormatter(
                 llmService: llmService,
-                shouldUseAIFormatter: shouldUseAIFormatter,
+                shouldUseAIFormatter: { aiFormatterEnabled },
                 logger: logger
             )
             let promptResolver = aiFormatterPromptResolver
-            formatterOutcome = try await transcriptFormatter.format(
-                baseText,
-                runSource: saveHistory ? LLMRunSource(dictationId: dictationID) : nil,
-                lane: .dictation,
-                resolvePrompt: {
-                    let resolution = await promptResolver.resolvePrompt(for: formatterContext)
-                    return (resolution.promptTemplate, resolution)
-                }
-            )
+            do {
+                formatterOutcome = try await transcriptFormatter.format(
+                    baseText,
+                    runSource: saveHistory ? LLMRunSource(dictationId: dictationID) : nil,
+                    lane: .dictation,
+                    resolvePrompt: {
+                        let resolution = await promptResolver.resolvePrompt(for: formatterContext)
+                        return (resolution.promptTemplate, resolution)
+                    }
+                )
+            } catch {
+                guard Task.isCancelled, status == .completed else { throw error }
+                formatterOutcome = .skipped
+            }
         }
+        // STT and formatter implementations may return after task cancellation.
+        // Resolve retention before the synchronous persistence commit, not only
+        // in the coordinator's later delivery guard.
+        completionStatus = try processingCompletionStatus(status)
+        if completionStatus == .cancelled { formatterOutcome = .skipped }
+
         let formattedTranscript = formatterOutcome.text.map {
             guard insertionStyle == .inline else { return $0 }
             let normalizedFormatterText = $0.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1500,7 +1969,7 @@ public actor DictationService: DictationServiceProtocol {
             rawTranscript: result.text,
             cleanTranscript: formattedTranscript ?? cleanTranscript,
             processingMode: mode,
-            status: status,
+            status: completionStatus,
             hidden: !saveHistory,
             wordCount: wc,
             engine: result.engine.rawValue,
@@ -1533,7 +2002,7 @@ public actor DictationService: DictationServiceProtocol {
 
         if saveHistory {
             try dictationRepo.save(dictation)
-            if status != .cancelled {
+            if completionStatus != .cancelled {
                 await llmRunRecorder.record(formatterOutcome.run)
             }
         } else {
@@ -1542,11 +2011,15 @@ public actor DictationService: DictationServiceProtocol {
             privateCopy.cleanTranscript = nil
             try dictationRepo.save(privateCopy)
         }
-        if status == .completed {
+        if status == .completed, completionStatus == .cancelled {
+            NotificationCenter.default.post(name: .macParakeetDictationHistoryDidChange, object: nil)
+            throw CancellationError()
+        }
+        if completionStatus == .completed {
             markFirstDictationCompleted?()
         }
 
-        if status == .completed, !expandedSnippetIDs.isEmpty {
+        if completionStatus == .completed, !expandedSnippetIDs.isEmpty {
             try? snippetRepo?.incrementUseCount(ids: refinement.expandedSnippetIDs)
         }
 
@@ -1674,6 +2147,7 @@ public actor DictationService: DictationServiceProtocol {
         currentObservabilityOperationContext = nil
         currentAIFormatterStartContext = nil
         currentAIFormatterFinishContext = nil
+        currentSessionAIFormatterEnabled = false
         clearLiveTranscript()
         pendingCancelReason = nil
     }
@@ -1741,6 +2215,10 @@ public enum DictationServiceError: Error, LocalizedError {
     case notCancelled
     case noPendingCancelledAudio
     case emptyTranscript
+    /// STT failed after capture; the recording was kept in History for retry.
+    case transcriptionFailedAudioSaved
+    /// A History retry target is gone, already transcribed, or missing audio.
+    case failedDictationUnavailable
 
     public var errorDescription: String? {
         switch self {
@@ -1748,6 +2226,15 @@ public enum DictationServiceError: Error, LocalizedError {
         case .notCancelled: return "Not currently in the cancel window"
         case .noPendingCancelledAudio: return "No cancelled recording to process"
         case .emptyTranscript: return "Couldn't hear you — try speaking closer to the microphone."
+        case .transcriptionFailedAudioSaved:
+            return "Transcription failed. Your recording is saved in History, where you can retry it."
+        case .failedDictationUnavailable: return "This recording can no longer be retried."
         }
     }
+}
+
+/// Carries the original STT error out of `processCapturedAudio` after the
+/// take's recording was preserved, so telemetry still classifies the real cause.
+private struct PreservedTranscriptionFailure: Error {
+    let underlying: Error
 }

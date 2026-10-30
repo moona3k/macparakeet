@@ -1,0 +1,48 @@
+{
+  "pr": 1206,
+  "testedHead": "ef461c9498aa0398e403ee13673164dd35a27562",
+  "runId": 37061023797,
+  "url": "https://github.com/moona3k/macparakeet/actions/runs/37061023797",
+  "status": "completed",
+  "conclusion": "success",
+  "createdAt": "2026-10-02T20:30:29Z",
+  "updatedAt": "2026-10-02T20:57:00Z",
+  "jobs": [
+    {
+      "name": "Tests and Swift 6",
+      "conclusion": "success",
+      "startedAt": "2026-10-02T20:30:36Z",
+      "completedAt": "2026-10-02T20:52:45Z"
+    },
+    {
+      "name": "Release and Bundle",
+      "conclusion": "success",
+      "startedAt": "2026-10-02T20:30:37Z",
+      "completedAt": "2026-10-02T20:56:52Z"
+    },
+    {
+      "name": "swift-test",
+      "conclusion": "success",
+      "startedAt": "2026-10-02T20:56:54Z",
+      "completedAt": "2026-10-02T20:56:58Z"
+    },
+    {
+      "name": "Build Cache Invalidation",
+      "conclusion": "skipped",
+      "startedAt": "2026-10-02T20:56:53Z",
+      "completedAt": "2026-10-02T20:56:52Z"
+    }
+  ],
+  "xunitCases": 7929,
+  "xunitFailures": 0,
+  "xunitErrors": 0,
+  "swiftTestingCases": 30,
+  "caveats": [
+    "xUnit XML does not report skipped-case counts.",
+    "Telemetry allowlist step explicitly skipped receiver comparison.",
+    "Build Cache Invalidation is opt-in workflow_dispatch coverage and was skipped on this ordinary PR run."
+  ],
+  "mergeCommit": "f3a8758ae7be4c0b3fdd65aa37a5a5cfea3072bd",
+  "mergedAt": "2026-10-02T20:57:17Z",
+  "resolvedReviewThreadsAtMerge": 4
+}

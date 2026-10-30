@@ -141,7 +141,17 @@ final class DictationFlowCoordinator {
 
     /// Set after init; updated when dictation hotkey managers are recreated.
     var hotkeyManagers: [HotkeyManager] = []
+    var onSyncHotkeyRecordingMode: ((FnKeyStateMachine.RecordingMode) -> Void)?
+    var onHotkeyRecordingEnded: (() -> Void)?
     var onInteractionBusy: (() -> Void)?
+    /// Observes every flow state change. Onboarding's practice box uses it to
+    /// light the key and show listening/transcribing while it is the target.
+    var onFlowStateChanged: ((DictationFlowState) -> Void)?
+    /// Called with the transcript after a successful insert or clipboard copy.
+    var onDictationDelivered: ((String) -> Void)?
+    /// Sampled when a take starts. Practice can lose its target during Skip or
+    /// close, so it cannot use streaming cursor's drain-on-cancel insertion.
+    var isPracticeTarget: () -> Bool = { false }
 
     // MARK: - Dependencies
 
@@ -163,11 +173,13 @@ final class DictationFlowCoordinator {
     /// same source the menu bar reads.
     private let activeSpeechEngine: @MainActor () -> SpeechEnginePreference
     private let mediaPauseCoordinator: any DictationMediaPauseCoordinating
+    private let playCaptureCue: @MainActor (AppSound) -> Void
     private let overlayControllerFactory: @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling
     private let shouldSuppressIdlePill: () -> Bool
     /// When true, `startDictation` is a no-op. Used to gate real dictation while
-    /// onboarding is visible (the model isn't ready yet and the hotkey step runs
-    /// its own no-STT rehearsal). Covers both the hotkey and idle-pill paths.
+    /// onboarding is visible, except while its practice box is listening (the
+    /// model may not be ready, and the Try It card runs its own no-STT key
+    /// rehearsal). Covers both the hotkey and idle-pill paths.
     private let isStartSuppressed: () -> Bool
     private let onMenuBarIconUpdate: (BreathWaveIcon.MenuBarState) -> Void
     private let onHistoryReload: () -> Void
@@ -186,7 +198,10 @@ final class DictationFlowCoordinator {
     private var readyDismissTimer: DispatchWorkItem?
     private var recordingTask: Task<Void, Never>?
     private var actionTask: Task<Void, Never>?
+    private var insertionTask: (generation: Int, task: Task<Void, Never>)?
     private var cancelCountdownTask: Task<Void, Never>?
+    /// The pill shows processing during a push-to-talk stop tail.
+    private var isShowingStopPending = false
     private var displayDismissTask: Task<Void, Never>?
     private var captionGraceTimer: DispatchWorkItem?
     private var captionEscalationTimer: DispatchWorkItem?
@@ -202,6 +217,9 @@ final class DictationFlowCoordinator {
 
     /// Telemetry trigger for the current dictation flow.
     private var currentTrigger: TelemetryDictationTrigger = .hotkey
+    /// Per-invocation AI Formatter intent. `nil` follows Settings.
+    private var sessionAIFormatterEnabled: Bool?
+    private var sessionIsPractice = false
     private let mutationArbiter: GUIMutationArbiter
     private var interactionLease: GUIMutationArbiter.Lease?
     private var foregroundInsertions = 0
@@ -243,6 +261,7 @@ final class DictationFlowCoordinator {
         captionTiming: DictationProcessingLoadCaptionTiming = .production,
         activeSpeechEngine: @escaping @MainActor () -> SpeechEnginePreference = { SpeechEnginePreference.current() },
         mediaPauseCoordinator: (any DictationMediaPauseCoordinating)? = nil,
+        playCaptureCue: @escaping @MainActor (AppSound) -> Void = { SoundManager.shared.play($0) },
         overlayControllerFactory: @escaping @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling = {
             DictationOverlayController(viewModel: $0)
         },
@@ -267,6 +286,7 @@ final class DictationFlowCoordinator {
         self.captionTiming = captionTiming
         self.activeSpeechEngine = activeSpeechEngine
         self.mediaPauseCoordinator = mediaPauseCoordinator ?? NoOpDictationMediaPauseCoordinator()
+        self.playCaptureCue = playCaptureCue
         self.overlayControllerFactory = overlayControllerFactory
         self.shouldSuppressIdlePill = shouldSuppressIdlePill
         self.mutationArbiter = mutationArbiter ?? GUIMutationArbiter()
@@ -276,6 +296,8 @@ final class DictationFlowCoordinator {
         self.onPresentEntitlementsAlert = onPresentEntitlementsAlert
         observeFormatterNotifications()
         observePreviewTextSizeNotifications()
+        observeDictationCaptureSoundNotifications(from: dictationService)
+        observeOverlayPlacementNotifications()
     }
 
     // MARK: - AI Formatter pill transitions
@@ -339,9 +361,77 @@ final class DictationFlowCoordinator {
         }
     }
 
-    // NOTE: no `deinit` cleanup for `formatterDidStartObserver` or
-    // `previewTextSizeObserver`. This coordinator is effectively a singleton
-    // for the app's lifetime, both observer blocks capture `[weak self]`, and
+    private var dictationCaptureDidStopObserver: NSObjectProtocol?
+    /// Session whose start cue played and still owes its stop cue. Each
+    /// start cue gets at most one stop cue, and a take that never played a
+    /// start cue (released during start, sounds off) never plays a stop cue.
+    /// A newer take's start cue replaces an older take's unpaid stop cue, so
+    /// a late Pop never tells the user the mic closed while a take is live.
+    private var captureCueSessionID: Int?
+
+    private func observeDictationCaptureSoundNotifications(from dictationService: DictationService) {
+        // `queue: nil` runs on the posting actor and returns at once; a main
+        // queue here would hold DictationService until main drains, before STT.
+        dictationCaptureDidStopObserver = NotificationCenter.default.addObserver(
+            forName: .macParakeetDictationCaptureDidStop,
+            object: dictationService,
+            queue: nil
+        ) { [weak self] note in
+            let sessionID = note.userInfo?[DictationCaptureNotificationKey.sessionID] as? Int
+            Task { @MainActor [weak self] in
+                self?.playStopCueIfOwed(sessionID: sessionID)
+            }
+        }
+    }
+
+    private func playStartCueIfEnabled(sessionID: Int) {
+        guard runtimePreferences.playDictationCaptureSounds else { return }
+        captureCueSessionID = sessionID
+        playCaptureCue(.recordStart)
+    }
+
+    private func playStopCueIfOwed(sessionID: Int?) {
+        guard let sessionID, sessionID == captureCueSessionID else { return }
+        captureCueSessionID = nil
+        playCaptureCue(.recordStop)
+    }
+
+    /// Move idle + live overlays when Settings placement changes or displays
+    /// are added, removed, or rearranged.
+    private var overlayPlacementObserver: NSObjectProtocol?
+    private var screenParametersObserver: NSObjectProtocol?
+
+    private func observeOverlayPlacementNotifications() {
+        overlayPlacementObserver = NotificationCenter.default.addObserver(
+            forName: .macParakeetDictationOverlayPlacementDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.repositionDictationOverlays()
+            }
+        }
+        screenParametersObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.repositionDictationOverlays()
+            }
+        }
+    }
+
+    private func repositionDictationOverlays() {
+        idlePillController?.reposition()
+        overlayController?.reposition()
+    }
+
+    // NOTE: no `deinit` cleanup for `formatterDidStartObserver`,
+    // `previewTextSizeObserver`, `dictationCaptureDidStopObserver`,
+    // `overlayPlacementObserver`, or `screenParametersObserver`. This
+    // coordinator is effectively a singleton for the app's lifetime, every
+    // observer block captures `[weak self]`, and
     // Swift 6 forbids touching `@MainActor`-isolated stored properties from a
     // nonisolated deinit. NotificationCenter cleans up automatically when the
     // tokens drop.
@@ -355,7 +445,7 @@ final class DictationFlowCoordinator {
         guard !shouldSuppressIdlePill() else { return }
         let vm = IdlePillViewModel()
         vm.onStartDictation = { [weak self] in
-            self?.startDictation(mode: .persistent, trigger: .pillClick)
+            _ = self?.startDictation(mode: .persistent, trigger: .pillClick)
         }
         let controller = IdlePillController(viewModel: vm)
         controller.show()
@@ -371,23 +461,67 @@ final class DictationFlowCoordinator {
         sendEvent(.readyPillRequested)
     }
 
+    @discardableResult
     func startDictation(
         mode: FnKeyStateMachine.RecordingMode,
-        trigger: TelemetryDictationTrigger = .hotkey
-    ) {
-        // Suppressed while onboarding is up — the speech model isn't ready and
-        // the hotkey step runs its own no-STT rehearsal. Covers hotkey + pill.
-        guard !isStartSuppressed() else { return }
+        trigger: TelemetryDictationTrigger = .hotkey,
+        aiFormatterEnabled: Bool? = nil
+    ) -> Bool {
+        // Suppressed while onboarding is up, unless its practice box is the
+        // dictation target. Covers hotkey + pill.
+        guard !isStartSuppressed() else { return false }
+        var acquiredLease: GUIMutationArbiter.Lease?
         if interactionLease == nil {
-            guard let lease = mutationArbiter.acquire(.dictation) else { onInteractionBusy?(); return }
+            guard let lease = mutationArbiter.acquire(.dictation) else { onInteractionBusy?(); return false }
             interactionLease = lease
+            acquiredLease = lease
+        }
+        let stateBeforeStart = stateMachine.state
+        sendEvent(.startRequested(mode: mode))
+        guard stateMachine.state != stateBeforeStart else {
+            if let acquiredLease, interactionLease == acquiredLease {
+                mutationArbiter.release(acquiredLease)
+                interactionLease = nil
+            }
+            return false
+        }
+        if trigger != .hotkey {
+            onHotkeyRecordingEnded?()
         }
         currentTrigger = trigger
-        sendEvent(.startRequested(mode: mode))
+        sessionIsPractice = isPracticeTarget()
+        sessionAIFormatterEnabled = aiFormatterEnabled
+        return true
     }
 
     func stopDictation() {
         sendEvent(.stopRequested)
+    }
+
+    /// Push-to-talk release. The hotkey keeps recording a short tail so the
+    /// last word is not clipped (#632), then calls `stopDictation()`. Show
+    /// the processing pill now so the release feels immediate; the flow state
+    /// stays `.recording` until the real stop arrives.
+    func showStopPending() {
+        guard case .recording(.holdToTalk) = stateMachine.state,
+            let vm = overlayViewModel,
+            case .recording = vm.state
+        else { return }
+        vm.stopTimer()
+        vm.state = .processing
+        isShowingStopPending = true
+    }
+
+    /// The tail was abandoned without a stop; put the recording pill back.
+    func cancelStopPending() {
+        guard isShowingStopPending else { return }
+        isShowingStopPending = false
+        guard case .recording = stateMachine.state,
+            let vm = overlayViewModel,
+            case .processing = vm.state
+        else { return }
+        vm.state = .recording
+        vm.resumeTimer()
     }
 
     func cancelDictation(reason: TelemetryDictationCancelReason = .ui) {
@@ -395,6 +529,15 @@ final class DictationFlowCoordinator {
         let flowReason: DictationFlowCancelReason = reason == .ui ? .ui : .escape
         stateMachine.undoCountdownSeconds = runtimePreferences.dictationUndoCountdown.seconds
         sendEvent(.cancelRequested(reason: flowReason))
+    }
+
+    /// Leaving onboarding practice abandons its active take immediately,
+    /// without offering the normal undo window after the target disappears.
+    func dismissPracticeDictation() {
+        guard sessionIsPractice else { return }
+        insertionTask?.task.cancel()
+        insertionTask = nil
+        sendEvent(.dismissRequested)
     }
 
     func discardProvisionalRecording(showReadyPill: Bool) {
@@ -423,6 +566,7 @@ final class DictationFlowCoordinator {
 
     private func sendEvent(_ event: DictationFlowEvent) {
         let oldState = stateMachine.state
+        let hadActiveHotkeyMode = hotkeyRecordingMode != nil
         let effects = stateMachine.handle(event)
 
         if !effects.isEmpty {
@@ -432,6 +576,12 @@ final class DictationFlowCoordinator {
         }
 
         executeEffects(effects)
+        if stateMachine.state != oldState {
+            onFlowStateChanged?(stateMachine.state)
+        }
+        if hadActiveHotkeyMode && hotkeyRecordingMode == nil {
+            onHotkeyRecordingEnded?()
+        }
 
         switch stateMachine.state {
         case .idle, .ready, .finishing:
@@ -517,8 +667,10 @@ final class DictationFlowCoordinator {
             vm.previewTextSize = runtimePreferences.dictationPreviewTextSize
             vm.state = .recording
             vm.startTimer()
+            isShowingStopPending = false
 
         case .showProcessingState:
+            isShowingStopPending = false
             overlayViewModel?.stopTimer()
             overlayViewModel?.processingMessage = nil
             overlayViewModel?.busyProcessingMessage = nil
@@ -673,7 +825,8 @@ final class DictationFlowCoordinator {
             // IME/Reduce Motion are sampled once at dispatch. A layout switch
             // during the short stream is accepted risk; paste remains the fallback
             // when capability is unknown.
-            let shouldStream = self.runtimePreferences.dictationStreamingCursorEnabled
+            let shouldStream = !sessionIsPractice
+                && self.runtimePreferences.dictationStreamingCursorEnabled
                 && !self.shouldReduceMotion()
                 && self.inputSourceAllowsStreaming()
                 && transcriptHasText
@@ -682,6 +835,7 @@ final class DictationFlowCoordinator {
             foregroundInsertions += 1
             let work = { @MainActor in
                 defer {
+                    if self.insertionTask?.generation == gen { self.insertionTask = nil }
                     self.foregroundInsertions -= 1
                     switch self.stateMachine.state {
                     case .idle, .ready, .finishing:
@@ -695,6 +849,7 @@ final class DictationFlowCoordinator {
                 var completedDictation = dictation
                 let pastedToAppAtDispatch = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
                 let keepDictationOnClipboard = self.runtimePreferences.shouldKeepDictationOnClipboard
+                guard !Task.isCancelled else { return }
 
                 do {
                     if action == nil && !transcriptHasText {
@@ -714,6 +869,7 @@ final class DictationFlowCoordinator {
                         keepDictationOnClipboard: keepDictationOnClipboard,
                         shouldStream: shouldStream
                     )
+                    guard !Task.isCancelled else { return }
 
                     // Cmd+V-posted breadcrumb. Action-only Voice Return (empty text +
                     // Return keystroke) is not a paste and must not enter e2e_ms.
@@ -744,7 +900,11 @@ final class DictationFlowCoordinator {
                     guard self.stateMachine.generation == gen else { return }
                     self.dismissCaption(outcome: .success)
                     self.sendEvent(.pasteSucceeded(generation: gen))
+                    if transcriptHasText {
+                        self.onDictationDelivered?(transcript)
+                    }
                 } catch {
+                    guard !Task.isCancelled else { return }
                     let bucket = Self.commandFailureBucket(for: error)
                     self.dictationLog.error("dictation_paste_failed gen=\(gen) bucket=\(bucket, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
                     self.pendingInsertTimings = nil
@@ -755,15 +915,18 @@ final class DictationFlowCoordinator {
                         self.sendEvent(.pasteFailed(generation: gen, message: "Keystroke failed. Check Accessibility permissions."))
                     } else if error as? StreamingCursorError == .partialInsert {
                         let copied = await self.clipboardService.copyToClipboard(insertText)
+                        guard !Task.isCancelled, self.stateMachine.generation == gen else { return }
                         self.sendEvent(
                             .pasteFailed(
                                 generation: gen,
                                 message: Self.streamingPartialInsertMessage(copiedToClipboard: copied)
                             )
                         )
+                        if copied { self.onDictationDelivered?(transcript) }
                     } else {
                         let fallbackText = keepDictationOnClipboard && action == nil ? normalPasteText : transcript
                         let copied = await self.clipboardService.copyToClipboard(fallbackText)
+                        guard !Task.isCancelled, self.stateMachine.generation == gen else { return }
                         let message = Self.pasteFailureMessage(for: error, copiedToClipboard: copied)
 
                         self.sendEvent(
@@ -772,19 +935,14 @@ final class DictationFlowCoordinator {
                                 message: message
                             )
                         )
+                        if copied { self.onDictationDelivered?(transcript) }
                     }
                 }
             }
 
-            if shouldStream {
-                actionTask = Task { @MainActor in
-                    await work()
-                }
-            } else {
-                Task { @MainActor in
-                    await work()
-                }
-            }
+            let task = Task { @MainActor in await work() }
+            insertionTask = (generation: gen, task: task)
+            if shouldStream { actionTask = task }
 
         // MARK: History
 
@@ -806,12 +964,14 @@ final class DictationFlowCoordinator {
             onMenuBarIconUpdate(iconState)
 
         case .syncHotkeyRecordingMode(let mode):
-            hotkeyManagers.forEach { $0.syncRecordingMode(mode) }
+            onSyncHotkeyRecordingMode?(mode)
 
         case .resetHotkeyStateMachine:
+            onHotkeyRecordingEnded?()
             hotkeyManagers.forEach { $0.resetToIdle() }
 
         case .notifyHotkeyCancelledByUI:
+            onHotkeyRecordingEnded?()
             hotkeyManagers.forEach { $0.notifyCancelledByUI() }
 
         case .presentEntitlementsAlert:
@@ -887,6 +1047,10 @@ final class DictationFlowCoordinator {
     }
 
     // MARK: - Private Helpers
+
+    // Snapshot before cancelling: cancellation clears actionTask, but tests
+    // must join the owned continuation before asserting that no delivery ran.
+    var processingTaskForTesting: Task<Void, Never>? { actionTask }
 
     var processingLoadCaptionForTesting: DictationOverlayViewModel.ProcessingLoadCaption? {
         overlayViewModel?.processingLoadCaption
@@ -1075,6 +1239,7 @@ final class DictationFlowCoordinator {
         sessionID: Int
     ) {
         let trigger = currentTrigger
+        let aiFormatterOverride = sessionAIFormatterEnabled
         recordingTask = Task { @MainActor in
             do {
                 try Task.checkCancellation()
@@ -1104,7 +1269,8 @@ final class DictationFlowCoordinator {
                     context: DictationTelemetryContext(
                         trigger: trigger,
                         mode: self.telemetryMode(for: mode)
-                    )
+                    ),
+                    aiFormatterEnabled: aiFormatterOverride
                 )
                 await self.serviceSession.updateAIFormatterAppContext(
                     startContext,
@@ -1123,6 +1289,11 @@ final class DictationFlowCoordinator {
                 }
                 guard !Task.isCancelled else { return }
                 self.sendEvent(.recordingStarted(generation: generation))
+                if case .recording = self.stateMachine.state,
+                    self.stateMachine.generation == generation
+                {
+                    self.playStartCueIfEnabled(sessionID: sessionID)
+                }
                 await self.runRecordingLevelLoop()
             } catch is CancellationError {
                 await self.mediaPauseCoordinator.resumeAfterDictationCapture()

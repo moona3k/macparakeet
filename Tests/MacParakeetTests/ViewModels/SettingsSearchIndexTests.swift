@@ -80,6 +80,23 @@ final class SettingsSearchIndexTests: XCTestCase {
         )
     }
 
+    func testPillPositionQueriesFindDictationPlacementSetting() {
+        for query in ["pill position", "overlay position", "top of screen", "move pill"] {
+            let ids = Set(SettingsSearchIndex.matches(query).map(\.id))
+            XCTAssertTrue(ids.contains("dictation.overlay.position"), "Query \(query) should find pill position")
+        }
+    }
+
+    func testCaptureSoundQueriesFindDictationToggle() {
+        for query in ["start sound", "stop sound", "tink"] {
+            let results = SettingsSearchIndex.matches(query)
+            XCTAssertTrue(
+                results.contains(where: { $0.id == "dictation.capture.sounds" }),
+                "Query \(query) should find dictation capture sounds"
+            )
+        }
+    }
+
     func testDarkModeQueryFindsAppearanceSetting() {
         let results = SettingsSearchIndex.matches("dark mode")
 
@@ -273,6 +290,18 @@ final class SettingsSearchIndexTests: XCTestCase {
         }
     }
 
+    func testMeetingURLControlQueriesFindConsentToggle() {
+        for query in ["links", "url", "automation", "recording control"] {
+            let entry = SettingsSearchIndex.matches(query).first { $0.id == "meeting.urlControl" }
+            if AppFeatures.meetingRecordingEnabled {
+                XCTAssertEqual(entry?.tab, .capture, "Query \(query) should find the link control consent toggle")
+                XCTAssertEqual(entry?.cardAnchor, "meeting")
+            } else {
+                XCTAssertNil(entry)
+            }
+        }
+    }
+
     func testMeetingSpeakerDetectionQueriesFindMeetingSetting() {
         let queries = ["system audio", "participants", "others", "speaker labels"]
 
@@ -337,6 +366,16 @@ final class SettingsSearchIndexTests: XCTestCase {
         }
     }
 
+    func testMeetingAILanguageQueriesFindMeetingLanguageEntry() throws {
+        let entry = try XCTUnwrap(SettingsSearchIndex.entries.first { $0.id == "ai.meetingLanguage" })
+        XCTAssertEqual(entry.cardAnchor, "ai.meetingLanguage")
+
+        for query in ["ai result language", "meeting ai language", "follow transcript", "summary language", "output language", "korean"] {
+            let ids = Set(SettingsSearchIndex.matches(query).map(\.id))
+            XCTAssertTrue(ids.contains("ai.meetingLanguage"), "Query \(query) should find Language of AI Results")
+        }
+    }
+
     func testMeetingTitleQueriesFindMeetingTitlesEntry() throws {
         let entry = try XCTUnwrap(SettingsSearchIndex.entries.first { $0.id == "ai.meetingTitles" })
         XCTAssertEqual(entry.cardAnchor, "ai.meetingTitles")
@@ -397,6 +436,7 @@ final class SettingsSearchIndexTests: XCTestCase {
             "meeting.speakerDetection",
             "meeting.liveTranscription",
             "meeting.startMuted",
+            "meeting.urlControl",
             "meeting.autoStop",
             "meeting.calendar",
             "system.permissions.screen"

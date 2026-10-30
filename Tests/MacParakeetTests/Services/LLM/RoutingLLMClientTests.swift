@@ -47,6 +47,20 @@ final class RoutingLLMClientTests: XCTestCase {
 
         XCTAssertEqual(response.content, "in-process")
     }
+
+    func testAppleIntelligenceContextRoutesToInjectedClient() async throws {
+        let expected = ChatCompletionResponse(content: "on-device", model: "apple-intelligence")
+        let client = StubLLMClient(response: expected)
+        let router = RoutingLLMClient(appleIntelligenceClient: client)
+
+        let response = try await router.chatCompletion(
+            messages: [ChatMessage(role: .user, content: "test")],
+            context: LLMExecutionContext(providerConfig: .appleIntelligence()),
+            options: .default
+        )
+
+        XCTAssertEqual(response.content, "on-device")
+    }
 }
 
 private final class StubLLMClient: LLMClientProtocol, @unchecked Sendable {

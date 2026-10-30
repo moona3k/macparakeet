@@ -123,7 +123,7 @@ minor historical wart, not a design statement.
   is the implementation.
 - ADR-021 — WhisperKit as optional multilingual engine; engine
   routing and meeting engine leases live in `STTScheduler`.
-- ADR-034 defines the Cohere transcribe.cpp backend boundary, exact pins,
+- ADR-035 defines the Cohere transcribe.cpp backend boundary, exact pins,
   lifecycle, supply-chain gate, and immutable owned-artifact release.
 - ADR-009 — custom hotkey support (relevant to the hotkey files
   above).
@@ -173,15 +173,23 @@ session via `beginLiveDictationTranscription` / `appendLiveDictationSamples` /
 `finishLiveDictationTranscription` / `cancelLiveDictationTranscription`. The
 runtime routes the session to the active native streaming build through
 `NativeLiveDictating`.
-The session owns the interactive slot for its duration: competing
-dictation transcribe jobs are rejected with `engineBusy`, engine-switch
-availability reports `transcribing`, and quiesce/shutdown cancels the
-session (or waits out an in-flight finish). Meeting live chunks and
-finalize are unaffected — they stay on the background slot.
+The session owns the interactive slot for its duration: a new live session
+is rejected with `engineBusy`, recorded-file dictation jobs wait in the
+interactive queue until the session finishes or cancels (rejecting them
+would cost the caller its WAV, #1131), engine-switch availability reports
+`transcribing`, and quiesce/shutdown cancels the session (or waits out an
+in-flight finish). Meeting live chunks and finalize are unaffected — they
+stay on the background slot. A cancel keeps the reservation until any
+in-flight append returns, so a late append never shares the native manager
+with the next interactive job.
 `DictationService` always records the WAV alongside the live stream and uses
 recorded-file transcription for the final paste/history result. Native live
-partials remain display-only; if the live stream fails, drops samples, or
-finishes empty, only the preview is degraded.
+partials remain display-only, so stop, dismiss, and restart cancel the
+session and never flush a live final. That wait is bounded: if a native
+append or cancel does not return, the take continues, a replacement take
+records without live partials, and its recorded-file job queues behind the
+stalled session. If the live stream fails or drops samples, only the preview
+is degraded.
 
 **Display-only dictation preview (Parakeet/Whisper-capable path).**
 Dictation can request a single-flight tail-window preview via

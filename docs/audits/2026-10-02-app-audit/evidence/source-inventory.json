@@ -1,0 +1,294 @@
+{
+  "source_files": 643,
+  "source_lines": 227336,
+  "test_files": 467,
+  "largest": [
+    {
+      "path": "Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift",
+      "lines": 6814,
+      "main_actor": true,
+      "unchecked_sendable": 0,
+      "try_optional": 8,
+      "task_detached": 3
+    },
+    {
+      "path": "Sources/MacParakeet/Views/Settings/SettingsView.swift",
+      "lines": 4313,
+      "main_actor": true,
+      "unchecked_sendable": 0,
+      "try_optional": 2,
+      "task_detached": 0
+    },
+    {
+      "path": "Sources/MacParakeetViewModels/TranscriptionViewModel.swift",
+      "lines": 3290,
+      "main_actor": true,
+      "unchecked_sendable": 0,
+      "try_optional": 10,
+      "task_detached": 8
+    },
+    {
+      "path": "Sources/MacParakeetCore/Database/DatabaseManager.swift",
+      "lines": 2745,
+      "main_actor": false,
+      "unchecked_sendable": 0,
+      "try_optional": 2,
+      "task_detached": 0
+    },
+    {
+      "path": "Sources/MacParakeetCore/STT/STTRuntime.swift",
+      "lines": 2700,
+      "main_actor": false,
+      "unchecked_sendable": 1,
+      "try_optional": 6,
+      "task_detached": 1
+    },
+    {
+      "path": "Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift",
+      "lines": 2560,
+      "main_actor": false,
+      "unchecked_sendable": 1,
+      "try_optional": 6,
+      "task_detached": 0
+    },
+    {
+      "path": "Sources/MacParakeetCore/Services/TranscriptionService.swift",
+      "lines": 2437,
+      "main_actor": false,
+      "unchecked_sendable": 0,
+      "try_optional": 12,
+      "task_detached": 5
+    },
+    {
+      "path": "Sources/MacParakeetCore/Audio/MicrophoneEnginePlatform.swift",
+      "lines": 2412,
+      "main_actor": false,
+      "unchecked_sendable": 2,
+      "try_optional": 9,
+      "task_detached": 0
+    },
+    {
+      "path": "Sources/MacParakeetViewModels/SettingsViewModel.swift",
+      "lines": 2252,
+      "main_actor": true,
+      "unchecked_sendable": 1,
+      "try_optional": 9,
+      "task_detached": 3
+    },
+    {
+      "path": "Sources/MacParakeetCore/Services/Dictation/DictationService.swift",
+      "lines": 2240,
+      "main_actor": false,
+      "unchecked_sendable": 0,
+      "try_optional": 18,
+      "task_detached": 0
+    },
+    {
+      "path": "Sources/MacParakeet/Views/Settings/LLMSettingsView.swift",
+      "lines": 2229,
+      "main_actor": true,
+      "unchecked_sendable": 0,
+      "try_optional": 3,
+      "task_detached": 2
+    },
+    {
+      "path": "Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift",
+      "lines": 2086,
+      "main_actor": false,
+      "unchecked_sendable": 0,
+      "try_optional": 0,
+      "task_detached": 0
+    },
+    {
+      "path": "Sources/MacParakeet/Views/Transcription/PromptLibraryView.swift",
+      "lines": 2037,
+      "main_actor": false,
+      "unchecked_sendable": 0,
+      "try_optional": 0,
+      "task_detached": 0
+    },
+    {
+      "path": "Sources/CLI/Commands/MeetingsCommand.swift",
+      "lines": 1982,
+      "main_actor": false,
+      "unchecked_sendable": 0,
+      "try_optional": 0,
+      "task_detached": 0
+    },
+    {
+      "path": "Sources/MacParakeet/Views/Meetings/MeetingsView.swift",
+      "lines": 1931,
+      "main_actor": true,
+      "unchecked_sendable": 0,
+      "try_optional": 0,
+      "task_detached": 0
+    },
+    {
+      "path": "Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift",
+      "lines": 1920,
+      "main_actor": true,
+      "unchecked_sendable": 0,
+      "try_optional": 6,
+      "task_detached": 2
+    },
+    {
+      "path": "Sources/MacParakeetCore/Services/LLM/LLMService.swift",
+      "lines": 1895,
+      "main_actor": false,
+      "unchecked_sendable": 0,
+      "try_optional": 3,
+      "task_detached": 0
+    },
+    {
+      "path": "Sources/CLI/Commands/SpecCommand.swift",
+      "lines": 1869,
+      "main_actor": false,
+      "unchecked_sendable": 0,
+      "try_optional": 0,
+      "task_detached": 0
+    },
+    {
+      "path": "Sources/MacParakeetViewModels/LLMSettingsViewModel.swift",
+      "lines": 1726,
+      "main_actor": true,
+      "unchecked_sendable": 0,
+      "try_optional": 15,
+      "task_detached": 0
+    },
+    {
+      "path": "Sources/MacParakeetCore/Audio/MeetingAudioCaptureService.swift",
+      "lines": 1719,
+      "main_actor": false,
+      "unchecked_sendable": 6,
+      "try_optional": 0,
+      "task_detached": 0
+    },
+    {
+      "path": "Sources/MacParakeetCore/Audio/AudioRecorder.swift",
+      "lines": 1700,
+      "main_actor": false,
+      "unchecked_sendable": 3,
+      "try_optional": 9,
+      "task_detached": 0
+    },
+    {
+      "path": "Sources/MacParakeetViewModels/EngineSettingsViewModel.swift",
+      "lines": 1692,
+      "main_actor": true,
+      "unchecked_sendable": 0,
+      "try_optional": 1,
+      "task_detached": 6
+    },
+    {
+      "path": "Sources/MacParakeet/App/DictationFlowCoordinator.swift",
+      "lines": 1684,
+      "main_actor": true,
+      "unchecked_sendable": 0,
+      "try_optional": 5,
+      "task_detached": 0
+    },
+    {
+      "path": "Sources/CLI/Commands/PromptsCommand.swift",
+      "lines": 1488,
+      "main_actor": false,
+      "unchecked_sendable": 0,
+      "try_optional": 0,
+      "task_detached": 0
+    },
+    {
+      "path": "Sources/MacParakeetViewModels/OnboardingViewModel.swift",
+      "lines": 1452,
+      "main_actor": true,
+      "unchecked_sendable": 0,
+      "try_optional": 3,
+      "task_detached": 0
+    },
+    {
+      "path": "Sources/MacParakeet/Hotkey/HotkeyManager.swift",
+      "lines": 1444,
+      "main_actor": false,
+      "unchecked_sendable": 1,
+      "try_optional": 0,
+      "task_detached": 0
+    },
+    {
+      "path": "Sources/MacParakeet/Views/MeetingRecording/MeetingClassificationControls.swift",
+      "lines": 1387,
+      "main_actor": true,
+      "unchecked_sendable": 0,
+      "try_optional": 0,
+      "task_detached": 0
+    },
+    {
+      "path": "Sources/MacParakeet/AppDelegate.swift",
+      "lines": 1337,
+      "main_actor": true,
+      "unchecked_sendable": 0,
+      "try_optional": 6,
+      "task_detached": 3
+    },
+    {
+      "path": "Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift",
+      "lines": 1304,
+      "main_actor": true,
+      "unchecked_sendable": 0,
+      "try_optional": 0,
+      "task_detached": 1
+    },
+    {
+      "path": "Sources/CLI/Commands/ModelsCommand.swift",
+      "lines": 1274,
+      "main_actor": false,
+      "unchecked_sendable": 0,
+      "try_optional": 0,
+      "task_detached": 0
+    },
+    {
+      "path": "Sources/MacParakeetViewModels/PromptResultsViewModel.swift",
+      "lines": 1235,
+      "main_actor": true,
+      "unchecked_sendable": 0,
+      "try_optional": 4,
+      "task_detached": 2
+    },
+    {
+      "path": "Sources/CLI/Commands/TranscribeCommand.swift",
+      "lines": 1221,
+      "main_actor": true,
+      "unchecked_sendable": 0,
+      "try_optional": 0,
+      "task_detached": 0
+    },
+    {
+      "path": "Sources/MacParakeetViewModels/PromptsViewModel.swift",
+      "lines": 1201,
+      "main_actor": true,
+      "unchecked_sendable": 0,
+      "try_optional": 1,
+      "task_detached": 1
+    },
+    {
+      "path": "Sources/MacParakeetCore/Services/LLM/LocalCLIExecutor.swift",
+      "lines": 1191,
+      "main_actor": false,
+      "unchecked_sendable": 5,
+      "try_optional": 12,
+      "task_detached": 0
+    },
+    {
+      "path": "Sources/CLI/Commands/TransformsCommand.swift",
+      "lines": 1153,
+      "main_actor": false,
+      "unchecked_sendable": 0,
+      "try_optional": 0,
+      "task_detached": 0
+    }
+  ],
+  "modules": {
+    "MacParakeetViewModels": 51,
+    "CLI": 42,
+    "MacParakeet": 172,
+    "MacParakeetCore": 377,
+    "MacParakeetLocalLLM": 1
+  }
+}

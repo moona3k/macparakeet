@@ -41,15 +41,11 @@ final class BinaryBootstrapTests: XCTestCase {
         super.setUp()
         rootDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("binary-bootstrap-tests-\(UUID().uuidString)", isDirectory: true)
-        suiteName = "BinaryBootstrapTests.\(UUID().uuidString)"
+        suiteName = makeIsolatedDefaultsSuite("BinaryBootstrapTests.")
     }
 
     override func tearDown() {
         MockBinaryBootstrapURLProtocol.requestHandler = nil
-
-        if let suiteName {
-            UserDefaults(suiteName: suiteName)?.removePersistentDomain(forName: suiteName)
-        }
 
         if let rootDir {
             try? FileManager.default.removeItem(at: rootDir)

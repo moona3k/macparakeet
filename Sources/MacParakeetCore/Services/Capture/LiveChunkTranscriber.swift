@@ -84,7 +84,7 @@ actor LiveChunkTranscriber {
                     sessionID: context.id
                 )
             } catch is CancellationError {
-                // Expected during stop/cancel.
+                await self.handleCancellation(source: source, sequence: sequence, sessionID: context.id)
             } catch {
                 await self.handleFailure(
                     error,
@@ -157,18 +157,22 @@ actor LiveChunkTranscriber {
     }
 
     private func writeChunkAudio(samples: [Float], to url: URL) throws {
-        guard let format = AVAudioFormat(
-            commonFormat: .pcmFormatFloat32,
-            sampleRate: 16000,
-            channels: 1,
-            interleaved: false
-        ) else {
+        guard
+            let format = AVAudioFormat(
+                commonFormat: .pcmFormatFloat32,
+                sampleRate: 16000,
+                channels: 1,
+                interleaved: false
+            )
+        else {
             throw MeetingAudioError.storageFailed("invalid chunk format")
         }
-        guard let buffer = AVAudioPCMBuffer(
-            pcmFormat: format,
-            frameCapacity: AVAudioFrameCount(samples.count)
-        ) else {
+        guard
+            let buffer = AVAudioPCMBuffer(
+                pcmFormat: format,
+                frameCapacity: AVAudioFrameCount(samples.count)
+            )
+        else {
             throw MeetingAudioError.storageFailed("failed to allocate chunk buffer")
         }
         buffer.frameLength = AVAudioFrameCount(samples.count)
@@ -195,7 +199,8 @@ actor LiveChunkTranscriber {
         sessionID: UUID
     ) async {
         guard sessionContext?.id == sessionID else { return }
-        let transcriptWordCount = result.words.isEmpty
+        let transcriptWordCount =
+            result.words.isEmpty
             ? Observability.wordCount(result.text)
             : result.words.count
         logger.info(
@@ -210,6 +215,22 @@ actor LiveChunkTranscriber {
         )
         guard !readyResults.isEmpty else { return }
 
+        let ordered = readyResults.map {
+            OrderedResult(source: source, chunk: $0.chunk, result: $0.result)
+        }
+        await emit(.orderedResults(ordered))
+    }
+
+    private func handleCancellation(source: AudioSource, sequence: Int, sessionID: UUID) async {
+        // A backend-cancelled job must not strand later results behind its sequence.
+        // Session-owned cancellation still discards pending preview without emitting it.
+        guard !Task.isCancelled, sessionContext?.id == sessionID else { return }
+
+        logger.info(
+            "meeting_live_chunk_cancelled source=\(source.rawValue, privacy: .public) seq=\(sequence)"
+        )
+        let readyResults = chunkResultBuffer.receiveFailure(sequence: sequence, source: source)
+        guard !readyResults.isEmpty else { return }
         let ordered = readyResults.map {
             OrderedResult(source: source, chunk: $0.chunk, result: $0.result)
         }

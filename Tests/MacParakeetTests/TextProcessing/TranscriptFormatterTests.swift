@@ -62,10 +62,11 @@ final class TranscriptFormatterTests: XCTestCase {
         XCTAssertEqual(mockLLMService.formatTranscriptCallCount, 0)
     }
 
-    func testTranscriptionLaneSkipsWhenInputExceedsMaxInputChars() async throws {
+    func testTranscriptionLaneFormatsInputLongerThanOneSection() async throws {
         let mockLLMService = MockLLMService()
+        mockLLMService.formatTranscriptResult = "cleaned long transcript"
         let formatter = makeFormatter(llmService: mockLLMService)
-        let longText = String(repeating: "a", count: AIFormatter.maxTranscriptionInputChars + 1)
+        let longText = String(repeating: "a", count: LLMService.formatterMaxSectionCharacters + 1)
 
         let outcome = try await format(
             formatter,
@@ -73,17 +74,17 @@ final class TranscriptFormatterTests: XCTestCase {
             lane: .transcription
         )
 
-        XCTAssertNil(outcome.text)
-        XCTAssertNil(outcome.run)
-        XCTAssertNil(outcome.resolution)
-        XCTAssertEqual(mockLLMService.formatTranscriptCallCount, 0)
+        XCTAssertEqual(outcome.text, "cleaned long transcript")
+        XCTAssertNotNil(outcome.run)
+        XCTAssertEqual(mockLLMService.formatTranscriptCallCount, 1)
+        XCTAssertEqual(mockLLMService.lastFormattedTranscript, longText)
     }
 
     func testDictationLaneFormatsLongInputWithoutCap() async throws {
         let mockLLMService = MockLLMService()
         mockLLMService.formatTranscriptResult = "  formatted long transcript  "
         let formatter = makeFormatter(llmService: mockLLMService)
-        let longText = String(repeating: "a", count: AIFormatter.maxTranscriptionInputChars + 1)
+        let longText = String(repeating: "a", count: LLMService.formatterMaxSectionCharacters + 1)
 
         let outcome = try await format(
             formatter,
@@ -169,6 +170,55 @@ final class TranscriptFormatterTests: XCTestCase {
         XCTAssertEqual(run.outputChars, 0)
         XCTAssertEqual(run.defaultPromptUsed, true)
         XCTAssertNotNil(run.errorType)
+    }
+
+    func testTruncatedDetailedResultFallsBackWithoutOutputOrProfileAttribution() async throws {
+        let mock = MockLLMService()
+        mock.formatTranscriptInputTruncated = true
+        mock.formatTranscriptResult = "Partial output"
+        let formatter = makeFormatter(llmService: mock)
+        let cleaned = "Beginning. " + String(repeating: "full text ", count: 100) + "Important ending."
+        let resolution = AIFormatterPromptResolution(
+            promptTemplate: "Rewrite for Slack.", matchKind: .exactApp,
+            profileID: UUID(), profileName: "Slack", profileOrigin: .custom
+        )
+        for lane in [TranscriptFormatter.Lane.dictation, .transcription] {
+            let outcome = try await format(
+                formatter, text: cleaned, lane: lane,
+                promptTemplate: resolution.promptTemplate, resolution: resolution
+            )
+            XCTAssertEqual(outcome.text ?? cleaned, cleaned)
+            XCTAssertNil(outcome.text)
+            XCTAssertNil(outcome.resolution)
+            let run = try XCTUnwrap(outcome.run)
+            XCTAssertEqual(run.status, .failed)
+            XCTAssertEqual(run.inputChars, cleaned.count)
+            XCTAssertEqual(run.outputChars, 0)
+            XCTAssertNotNil(run.errorType)
+        }
+    }
+
+    func testRealServiceSectionsLongAppleIntelligenceInputInsideBudget() async throws {
+        let client = MockLLMClient()
+        let store = MockLLMConfigStore()
+        store.config = .appleIntelligence()
+        let service = LLMService(client: client, contextResolver: MockLLMExecutionContextResolver(configStore: store))
+        let formatter = makeFormatter(llmService: service)
+        let cleaned = String(repeating: "complete text ", count: 1_000) + "Important ending."
+        let outcome = try await format(formatter, text: cleaned)
+        XCTAssertGreaterThan(client.chatCompletionCallCount, 1)
+        XCTAssertEqual(
+            outcome.text,
+            Array(repeating: "Mock response", count: client.chatCompletionCallCount).joined(separator: "\n\n")
+        )
+        for batch in client.capturedMessageBatches {
+            let rendered = batch.reduce(0) { $0 + $1.content.count }
+            XCTAssertLessThanOrEqual(rendered, LLMService.appleIntelligenceRoundTripBudget)
+        }
+        let run = try XCTUnwrap(outcome.run)
+        XCTAssertEqual(run.status, .succeeded)
+        XCTAssertEqual(run.inputChars, cleaned.count)
+        XCTAssertGreaterThan(run.outputChars ?? 0, 0)
     }
 
     func testCancellationErrorIsRethrown() async throws {

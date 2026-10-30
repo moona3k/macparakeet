@@ -29,7 +29,25 @@ private enum TranscriptFindBlockID: Hashable {
 
 private struct TranscriptFindBlock: Equatable, Identifiable {
     let id: TranscriptFindBlockID
+    /// The owning speaker card, or nil for a block that is already a direct row.
+    let row: TranscriptFindBlockID?
     let text: String
+
+    init(id: TranscriptFindBlockID, row: TranscriptFindBlockID? = nil, text: String) {
+        self.id = id
+        self.row = row
+        self.text = text
+    }
+}
+
+/// A saved find-and-replace, kept while it is the transcript's latest
+/// correction so the find bar can report it and offer Undo.
+private struct TranscriptFindReplacementReceipt: Equatable {
+    let transcriptionID: UUID
+    let correctionRevision: Int
+    /// The find query it replaced; the status only describes that search.
+    let query: String
+    let count: Int
 }
 
 /// Invisible scroll target inside the full-text transcript. Text mode keeps one
@@ -62,7 +80,7 @@ private struct RetranscriptionConfirmation: Identifiable {
     let id = UUID()
     let transcriptionID: UUID
     let speechEngineOverride: SpeechEngineSelection?
-    let speakerSelection: RetranscriptionSpeakerSelection?
+    let speakerSelection: SpeakerCountSelection?
     let countsOtherSpeakers: Bool
     let resetsSpeakerCorrections: Bool
     let purpose: Purpose
@@ -70,7 +88,7 @@ private struct RetranscriptionConfirmation: Identifiable {
     init(
         transcriptionID: UUID,
         speechEngineOverride: SpeechEngineSelection?,
-        speakerSelection: RetranscriptionSpeakerSelection?,
+        speakerSelection: SpeakerCountSelection?,
         countsOtherSpeakers: Bool,
         resetsSpeakerCorrections: Bool,
         purpose: Purpose = .standard
@@ -418,7 +436,7 @@ final class TranscriptNotesActionGate {
 private struct RetranscribePick: Sendable {
     let transcriptionID: UUID
     let override: SpeechEngineSelection?
-    let speakerSelection: RetranscriptionSpeakerSelection?
+    let speakerSelection: SpeakerCountSelection?
     let countsOtherSpeakers: Bool
 }
 
@@ -529,7 +547,7 @@ struct TranscriptResultView: View {
     var meetingSplitViewModel: MeetingSplitViewModel? = nil
     var onBack: (() -> Void)?
     var onStartNew: (() -> Void)?
-    var onRetranscribe: ((Transcription, SpeechEngineSelection?, RetranscriptionSpeakerSelection?) -> Void)?
+    var onRetranscribe: ((Transcription, SpeechEngineSelection?, SpeakerCountSelection?) -> Void)?
     var onSetUpAI: (() -> Void)?
 
     @AppStorage(UserDefaultsAppRuntimePreferences.transcriptAIContextModeKey)
@@ -542,6 +560,7 @@ struct TranscriptResultView: View {
     @State private var copied = false
     @State private var copiedResultID: UUID?
     @State private var copiedButtonResultID: UUID?
+    @State private var omittedMeetingNotesNoticeResultID: UUID?
     @State private var copiedMessageId: UUID?
     @State private var hoveredMessageId: UUID?
     @State private var exportConfirmation: ExportConfirmation?
@@ -552,15 +571,19 @@ struct TranscriptResultView: View {
     @State private var copiedResetTask: Task<Void, Never>?
     @State private var resultCopiedResetTask: Task<Void, Never>?
     @State private var resultButtonCopiedResetTask: Task<Void, Never>?
-    @State private var notesCopied = false
-    @State private var notesCopiedResetTask: Task<Void, Never>?
+    @State private var meetingNotesCopyFeedback = SavedMeetingNotesCopyFeedback()
     @State private var savedMeetingNotesViewModel = SavedMeetingNotesViewModel()
     @State private var savedMeetingNotesSaveStatus = SavedMeetingNotesSaveStatusPresentation()
     @State private var dismissTask: Task<Void, Never>?
     @State private var editingTitle = false
     @State private var titleDraft = ""
     @State private var editingTranscript = false
+    @State private var editingReadingTranscript = false
+    @State private var readingEditSession: TranscriptReadingEditSession?
+    @State private var savingReadingTranscript = false
+    @State private var readingSaveID: UUID?
     @State private var transcriptDraft = ""
+    @State private var transcriptEditSnapshot: TranscriptEditSnapshot?
     @State private var transcriptEditError: String?
     @State private var transcriptDisplayMode: TranscriptDisplayMode = .text
     @State private var transcriptDisplayModeBeforeEdit: TranscriptDisplayMode?
@@ -581,6 +604,15 @@ struct TranscriptResultView: View {
     /// re-aim `scrollTo` at the current match (even when the cursor index is
     /// unchanged but the matched block moved).
     @State private var findScrollToken = 0
+    /// Second, precise hop of a find jump into a lazy row (see `revealFindMatch`).
+    @State private var findRevealTask: Task<Void, Never>?
+    @State private var findReplaceExpanded = false
+    @State private var findReplaceText = ""
+    @State private var findReplaceSaving = false
+    @State private var findReplacementReceipt: TranscriptFindReplacementReceipt?
+    /// Changes each time the find bar opens, so a save that finishes after the
+    /// bar was closed and reopened leaves the new session alone.
+    @State private var findSessionID = UUID()
     /// True once find-navigation has taken over the auto-scroll pause, so closing
     /// the bar resumes playback-follow — without clobbering an unrelated
     /// manual-scroll pause when find never navigated.
@@ -591,6 +623,7 @@ struct TranscriptResultView: View {
     /// of the transcript the user is already looking at.
     @State private var voiceProfileRenameContexts: [String: String] = [:]
     @State private var editingSpeakers = false
+    @State private var pendingResetEditsTranscriptionID: UUID?
     @State private var speakerSelection = SpeakerEditSelectionModel()
     @State private var showingNewSpeakerPrompt = false
     @State private var newSpeakerLabel = ""
@@ -629,6 +662,7 @@ struct TranscriptResultView: View {
     @FocusState private var titleFocused: Bool
     @FocusState private var transcriptEditorFocused: Bool
     @FocusState private var meetingNotesEditorFocused: Bool
+    @FocusState private var promptResultEditorFocused: Bool
     @FocusState private var focusedSpeakerRenameContext: String?
     @FocusState private var findFieldFocused: Bool
 
@@ -722,6 +756,30 @@ struct TranscriptResultView: View {
                 }
             ) {
                 PromptLibraryView(viewModel: promptsViewModel)
+            }
+            .alert(
+                "Reset all transcript edits?",
+                isPresented: Binding(
+                    get: { pendingResetEditsTranscriptionID != nil },
+                    set: { if !$0 { pendingResetEditsTranscriptionID = nil } }
+                ),
+                presenting: pendingResetEditsTranscriptionID
+            ) { transcriptionID in
+                Button("Cancel", role: .cancel) {
+                    pendingResetEditsTranscriptionID = nil
+                }
+                Button("Reset edits", role: .destructive) {
+                    guard activeTranscription.id == transcriptionID,
+                        viewModel.currentTranscription?.id == transcriptionID,
+                        !viewModel.isApplyingSpeakerCorrection
+                    else { return }
+                    viewModel.applySpeakerCorrection(.reset)
+                }
+                .disabled(viewModel.isApplyingSpeakerCorrection)
+            } message: { _ in
+                Text(
+                    "Restore the original transcript text and speaker assignments, including speaker names and segment boundaries. You can undo this reset with Undo edit."
+                )
             }
             .alert("New speaker", isPresented: $showingNewSpeakerPrompt) {
                 TextField("Speaker name", text: $newSpeakerLabel)
@@ -835,6 +893,10 @@ struct TranscriptResultView: View {
         editingTitle = false
         titleDraft = ""
         editingTranscript = false
+        editingReadingTranscript = false
+        readingEditSession = nil
+        savingReadingTranscript = false
+        readingSaveID = nil
         transcriptDraft = ""
         transcriptEditError = nil
         configureSavedMeetingNotes(for: activeTranscription)
@@ -845,6 +907,7 @@ struct TranscriptResultView: View {
         // would anchor a prompt to whoever happens to be `S1` here.
         voiceProfileRenameContexts.removeAll()
         editingSpeakers = false
+        pendingResetEditsTranscriptionID = nil
         speakerSelection.clear()
         showingNewSpeakerPrompt = false
         newSpeakerLabel = ""
@@ -859,6 +922,9 @@ struct TranscriptResultView: View {
         scrollPauseTask?.cancel()
         findBarVisible = false
         findFieldFocused = false
+        findRevealTask?.cancel()
+        findRevealTask = nil
+        resetFindReplace()
         findModel.clear()
         findBlocks = []
         findPausedAutoScroll = false
@@ -1066,6 +1132,7 @@ struct TranscriptResultView: View {
                 Label("Export", systemImage: "arrow.down.doc")
             }
             .parakeetAction(.secondary)
+            .accessibilityIdentifier("transcript-export-options")
             .popover(isPresented: $showingExportOptions, arrowEdge: .top) {
                 exportOptionsPopover
             }
@@ -1073,7 +1140,10 @@ struct TranscriptResultView: View {
             if let sharing = shareManagement, AppFeatures.isShareLinksAvailable() {
                 Button { prepareShare(using: sharing) } label: { Label("Share…", systemImage: "square.and.arrow.up") }
                     .parakeetAction(.secondary)
-                    .disabled(preparingShare || sharing.isBusy || !sharing.isConfigured || editingTranscript || editingTitle)
+                    .disabled(
+                        preparingShare || sharing.isBusy || !sharing.isConfigured
+                            || editingTranscript || editingReadingTranscript || editingTitle
+                    )
                     .help("Preview and publish an encrypted, expiring text-only page")
             }
 
@@ -1183,8 +1253,8 @@ struct TranscriptResultView: View {
                         if engineOption != nil || canConfigureSpeakers {
                             selectedRetranscriptionSpeechEngineOverride = nil
                             retranscriptionExactSpeakerCount = min(
-                                max(defaultRetranscriptionSpeakerCount, RetranscriptionSpeakerSelection.supportedExactCount.lowerBound),
-                                RetranscriptionSpeakerSelection.supportedExactCount.upperBound
+                                max(defaultRetranscriptionSpeakerCount, SpeakerCountSelection.supportedExactCount.lowerBound),
+                                SpeakerCountSelection.supportedExactCount.upperBound
                             )
                             showingRetranscribeOptions.toggle()
                         } else {
@@ -1402,7 +1472,7 @@ struct TranscriptResultView: View {
                     transcriptionID: transcription.id,
                     override: selectedRetranscriptionSpeechEngineOverride,
                     speakerSelection: canConfigureSpeakers
-                        ? selectedRetranscriptionSpeakerSelection
+                        ? selectedSpeakerCountSelection
                         : nil,
                     countsOtherSpeakers: activeTranscription.sourceType == .meeting
                 )
@@ -1430,10 +1500,17 @@ struct TranscriptResultView: View {
             }
             .pickerStyle(.segmented)
 
+            if !retranscriptionUsesExactSpeakerCount, !AppFeatures.isVoiceProfilesAvailable() {
+                Text("Auto detects up to eight speakers. Choose Exact for a larger group.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             if retranscriptionUsesExactSpeakerCount {
                 Stepper(
                     value: $retranscriptionExactSpeakerCount,
-                    in: RetranscriptionSpeakerSelection.supportedExactCount
+                    in: SpeakerCountSelection.supportedExactCount
                 ) {
                     Text("Exact: \(retranscriptionExactSpeakerCount)")
                 }
@@ -1445,7 +1522,7 @@ struct TranscriptResultView: View {
         }
     }
 
-    private var selectedRetranscriptionSpeakerSelection: RetranscriptionSpeakerSelection {
+    private var selectedSpeakerCountSelection: SpeakerCountSelection {
         retranscriptionUsesExactSpeakerCount
             ? .exact(retranscriptionExactSpeakerCount)
             : .automatic
@@ -1559,7 +1636,8 @@ struct TranscriptResultView: View {
     }
 
     private var speakerCountValue: Int {
-        activeTranscription.speakers?.count ?? activeTranscription.speakerCount ?? 0
+        activeTranscription.speakers.map { SpeakerInfo.participants(in: $0).count }
+            ?? activeTranscription.speakerCount ?? 0
     }
 
     /// Meeting retranscription configures the diarized participants captured
@@ -1567,7 +1645,8 @@ struct TranscriptResultView: View {
     private var defaultRetranscriptionSpeakerCount: Int {
         guard activeTranscription.sourceType == .meeting else { return speakerCountValue }
         if let speakers = activeTranscription.speakers, !speakers.isEmpty {
-            return speakers.filter { $0.id != AudioSource.microphone.rawValue }.count
+            return SpeakerInfo.participants(in: speakers)
+                .filter { $0.id != AudioSource.microphone.rawValue }.count
         }
         return max(0, speakerCountValue - 1)
     }
@@ -1686,9 +1765,27 @@ struct TranscriptResultView: View {
                 Text(errorMessage)
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(DesignSystem.Colors.errorRed)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(3)
+                    .help(errorMessage)
                     .padding(.horizontal, DesignSystem.Spacing.md)
                     .padding(.bottom, DesignSystem.Spacing.sm)
+            }
+
+            if promptResultsViewModel.isEditingRemovedPromptResult {
+                HStack {
+                    Button("Copy Draft") {
+                        TranscriptResultActions.copyText(promptResultsViewModel.editingDraft)
+                        showCopiedFeedback()
+                    }
+                    .parakeetAction(.secondary)
+
+                    Button("Discard Draft") {
+                        promptResultsViewModel.cancelEditingPromptResult()
+                    }
+                    .parakeetAction(.secondary)
+                }
+                .padding(.horizontal, DesignSystem.Spacing.md)
+                .padding(.bottom, DesignSystem.Spacing.sm)
             }
 
             // Expanded details section
@@ -2032,29 +2129,13 @@ struct TranscriptResultView: View {
                         meetingTranscriptProcessingState(presentation)
                     }
 
-                    if editingTranscript {
-                        transcriptEditor
-                    } else if transcriptDisplayMode == .timed,
-                              let timestamps = activeTranscription.wordTimestamps,
-                              !timestamps.isEmpty {
-                        if let attribution = viewModel.speakerAttribution {
-                            speakerSummaryPanel(speakers: attribution.speakers)
-                        } else if let speakers = activeTranscription.speakers, !speakers.isEmpty {
-                            speakerSummaryPanel(speakers: speakers)
-                        }
-                        timestampedView(words: timestamps)
-                    } else if !transcriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        transcriptTextBlock
-                    } else if meetingTranscriptProcessingPresentation == nil {
-                        Text("No transcript available")
-                            .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    }
+                    transcriptDocumentBody
                 }
                 .padding(DesignSystem.Spacing.lg)
             }
             .onChange(of: playerViewModel.currentTimeMs) { oldValue, newValue in
                 guard playerViewModel.isPlaying else { return }
-                guard !editingSpeakers else { return }
+                guard !editingSpeakers, !editingReadingTranscript else { return }
                 // Detect seek (large time jump) — re-sync transcript regardless of pause state
                 if autoScrollPaused && abs(newValue - oldValue) > 2000 {
                     autoScrollPaused = false
@@ -2086,19 +2167,11 @@ struct TranscriptResultView: View {
             // Find navigation: scroll the current match into view. Pausing
             // auto-scroll keeps playback-follow from yanking the view back.
             .onChange(of: findScrollToken) {
-                guard findBarVisible else { return }
+                guard findBarVisible, let block = findCurrentBlock else { return }
                 autoScrollPaused = true
                 findPausedAutoScroll = true
                 scrollPauseTask?.cancel()
-                if let target = findCurrentEffectiveScrollTargetID {
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        proxy.scrollTo(target, anchor: .center)
-                    }
-                } else if let target = findCurrentLegacyScrollTargetID {
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        proxy.scrollTo(target, anchor: .center)
-                    }
-                }
+                revealFindMatch(in: block, proxy: proxy)
             }
             }
         }
@@ -2117,6 +2190,8 @@ struct TranscriptResultView: View {
             }
             if findBarVisible { rebuildFindBlocks() }
             if transcriptDisplayMode != .timed {
+                // Replace edits timed segments; see `findReplaceAvailable`.
+                findReplaceExpanded = false
                 editingSpeakers = false
                 speakerSelection.clear()
             }
@@ -2124,11 +2199,15 @@ struct TranscriptResultView: View {
         .onChange(of: editingTranscript) {
             if editingTranscript, findBarVisible { closeFindBar() }
         }
+        .onChange(of: editingReadingTranscript) {
+            if editingReadingTranscript, findBarVisible { closeFindBar() }
+        }
         .onAppear {
             if let existing = scrollMonitor {
                 NSEvent.removeMonitor(existing)
             }
             scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
+                self.findRevealTask?.cancel()
                 if self.playerViewModel.isPlaying {
                     if self.findPausedAutoScroll {
                         // Manual scroll takes ownership and should start the
@@ -2159,6 +2238,7 @@ struct TranscriptResultView: View {
                 scrollMonitor = nil
             }
             scrollPauseTask?.cancel()
+            findRevealTask?.cancel()
             autoScrollPaused = false
         }
     }
@@ -2188,6 +2268,7 @@ struct TranscriptResultView: View {
             isFocused: $findFieldFocused,
             position: findModel.displayPosition,
             hasQueryButNoMatches: findHasQueryNoMatches,
+            replace: findReplaceControls,
             onNext: {
                 findModel.next(); findScrollToken &+= 1
             },
@@ -2204,6 +2285,10 @@ struct TranscriptResultView: View {
         ZStack {
             Button("") { openFindBar() }
                 .keyboardShortcut("f", modifiers: .command)
+            if findReplaceAvailable {
+                Button("") { openFindBar(showingReplace: true) }
+                    .keyboardShortcut("f", modifiers: [.command, .option])
+            }
             if findBarVisible, findModel.hasMatches {
                 Button("") {
                     findModel.next(); findScrollToken &+= 1
@@ -2255,28 +2340,38 @@ struct TranscriptResultView: View {
         return (id: findBlocks[current.blockIndex].id, range: current.range)
     }
 
-    /// The scroll target for the current match. Timed mode scrolls to the
-    /// owning segment. Text mode keeps one selectable transcript body, so it
-    /// scrolls to the hidden prefix anchor for the current match range.
-    private var findCurrentEffectiveScrollTargetID: SpeakerEditableSegmentID? {
+    /// The block that owns the current match.
+    private var findCurrentBlock: TranscriptFindBlock? {
         guard findBarVisible, let current = findModel.current,
               findBlocks.indices.contains(current.blockIndex) else { return nil }
-        if case .effective(let id) = findBlocks[current.blockIndex].id {
-            return id
-        }
-        return nil
+        return findBlocks[current.blockIndex]
     }
 
-    private var findCurrentLegacyScrollTargetID: Int? {
-        guard findBarVisible, let current = findModel.current,
-              findBlocks.indices.contains(current.blockIndex) else { return nil }
-        switch findBlocks[current.blockIndex].id {
-        case .effective:
-            return nil
-        case .legacy(let id):
-            return id
+    /// Scrolls the current match's block to the center of the reading pane.
+    ///
+    /// Find jumps rather than animates, like a browser: an animated `scrollTo`
+    /// through a lazy stack stops short of rows it has not realized yet.
+    /// `revealTranscriptFindSegment` owns the card-then-line hop.
+    private func revealFindMatch(in block: TranscriptFindBlock, proxy: ScrollViewProxy) {
+        findRevealTask?.cancel()
+        findRevealTask = nil
+        switch block.id {
+        case .effective(let id):
+            let cardID: SpeakerEditableSegmentID?
+            if case .effective(let rowID) = block.row { cardID = rowID } else { cardID = nil }
+            findRevealTask = revealTranscriptFindSegment(
+                id, cardID: cardID, usesLazyStack: transcriptBodyUsesLazyStack, proxy: proxy
+            )
+        case .legacy(let startMs):
+            let cardID: Int?
+            if case .legacy(let rowID) = block.row { cardID = rowID } else { cardID = nil }
+            findRevealTask = revealTranscriptFindSegment(
+                startMs, cardID: cardID, usesLazyStack: transcriptBodyUsesLazyStack, proxy: proxy
+            )
         case .text:
-            return currentTextFindAnchor?.id
+            if let anchor = currentTextFindAnchor {
+                proxy.scrollTo(anchor.id, anchor: .center)
+            }
         }
     }
 
@@ -2296,22 +2391,159 @@ struct TranscriptResultView: View {
             && !findModel.hasMatches
     }
 
-    private func openFindBar() {
+    private func openFindBar(showingReplace: Bool = false) {
         // Find is a reading affordance; editing uses the raw text editor.
-        guard !editingTranscript else { return }
+        guard !editingTranscript, !editingReadingTranscript else { return }
         if !findBarVisible {
+            findSessionID = UUID()
             withAnimation(DesignSystem.Animation.contentSwap) { findBarVisible = true }
         }
+        if showingReplace { setFindReplaceExpanded(true) }
         rebuildFindBlocks()
         Task { @MainActor in findFieldFocused = true }
     }
 
     private func closeFindBar() {
         withAnimation(DesignSystem.Animation.contentSwap) { findBarVisible = false }
+        findRevealTask?.cancel()
+        findRevealTask = nil
+        resetFindReplace()
         findFieldFocused = false
         findModel.clear()
         findBlocks = []
         releaseFindOwnedAutoScrollPause()
+    }
+
+    // MARK: Find and replace
+
+    /// Replace saves text corrections to timed segments through the speaker
+    /// correction ledger, like the reading editor, so it is offered exactly
+    /// where that editor is and every replacement is one undoable correction.
+    /// It runs on the Timed surface, whose find blocks are those segments;
+    /// Text mode shows a formatted transcript that need not match them.
+    private var findReplaceAvailable: Bool {
+        readingTranscriptEditEnabled
+    }
+
+    private var findReplaceControls: TranscriptFindReplaceControls? {
+        guard findReplaceAvailable else { return nil }
+        let receipt = currentFindReplacementReceipt
+        let onUndo: (() -> Void)? =
+            receipt != nil && viewModel.canUndoSpeakerCorrection ? { undoFindReplacement() } : nil
+        return TranscriptFindReplaceControls(
+            text: $findReplaceText,
+            isExpanded: Binding(
+                get: { findReplaceExpanded },
+                set: { setFindReplaceExpanded($0) }
+            ),
+            isBusy: findReplaceSaving || viewModel.isApplyingSpeakerCorrection,
+            status: receipt.flatMap { $0.query == findModel.query ? "Replaced \($0.count)" : nil },
+            onReplace: { performFindReplace(all: false) },
+            onReplaceAll: { performFindReplace(all: true) },
+            onUndo: onUndo
+        )
+    }
+
+    /// The last replacement while it is still the transcript's latest
+    /// correction; any later edit, undo, or reload retires it.
+    private var currentFindReplacementReceipt: TranscriptFindReplacementReceipt? {
+        guard let receipt = findReplacementReceipt,
+            receipt.transcriptionID == transcription.id,
+            receipt.correctionRevision == currentCorrectionRevision
+        else { return nil }
+        return receipt
+    }
+
+    private func setFindReplaceExpanded(_ expanded: Bool) {
+        guard !expanded || findReplaceAvailable else { return }
+        findReplaceExpanded = expanded
+        if expanded, transcriptDisplayMode != .timed {
+            transcriptDisplayMode = .timed
+        }
+    }
+
+    private func resetFindReplace() {
+        findReplaceExpanded = false
+        findReplaceText = ""
+        findReplacementReceipt = nil
+    }
+
+    /// Replaces the current match (then moves past it) or every match, and
+    /// saves the changed segments as one text correction.
+    private func performFindReplace(all: Bool) {
+        guard findReplaceAvailable, findBarVisible, transcriptDisplayMode == .timed,
+            !findReplaceSaving, !viewModel.isApplyingSpeakerCorrection,
+            viewModel.currentTranscription?.id == transcription.id,
+            let segments = viewModel.speakerAttribution?.editableSegments
+        else { return }
+        let replacement = findReplaceText
+        let replacements = all
+            ? findModel.replacingAll(with: replacement)
+            : findModel.replacingCurrent(with: replacement).map { [$0] } ?? []
+        // Blocks must still be these segments, in order.
+        for change in replacements {
+            guard segments.indices.contains(change.blockIndex),
+                findBlocks.indices.contains(change.blockIndex),
+                findBlocks[change.blockIndex].id == .effective(segments[change.blockIndex].id)
+            else { return }
+        }
+        // Resume after the inserted text, so a replacement that contains the
+        // query is not matched again.
+        let resume: (blockIndex: Int, offset: Int)? =
+            all
+            ? nil
+            : findModel.current.flatMap { current in
+                replacements.first.map {
+                    (
+                        blockIndex: current.blockIndex,
+                        offset: TranscriptFindReplaceEdit.resumeOffset(
+                            after: current, replacement: replacement, in: $0
+                        )
+                    )
+                }
+            }
+        guard let command = TranscriptFindReplaceEdit.command(for: replacements, in: segments) else {
+            // Nothing would change (for example, the same text): just advance.
+            if !all, findModel.hasMatches {
+                findModel.next()
+                findScrollToken &+= 1
+            }
+            return
+        }
+        let count = replacements.reduce(0) { $0 + $1.count }
+        let transcriptionID = transcription.id
+        let query = findModel.query
+        let sessionID = findSessionID
+        findReplaceSaving = true
+        findReplacementReceipt = nil
+        transcriptEditError = nil
+        Task { @MainActor in
+            let succeeded = await viewModel.applySpeakerCorrectionAndWait(command)
+            findReplaceSaving = false
+            guard viewModel.currentTranscription?.id == transcriptionID else { return }
+            guard succeeded else {
+                transcriptEditError = "Couldn't replace. The transcript is unchanged."
+                return
+            }
+            guard findBarVisible, findSessionID == sessionID else { return }
+            findReplacementReceipt = TranscriptFindReplacementReceipt(
+                transcriptionID: transcriptionID,
+                correctionRevision: currentCorrectionRevision,
+                query: query,
+                count: count
+            )
+            rebuildFindBlocks()
+            if let resume {
+                findModel.moveToFirstMatch(atOrAfter: resume.blockIndex, utf16Offset: resume.offset)
+                findScrollToken &+= 1
+            }
+        }
+    }
+
+    private func undoFindReplacement() {
+        guard currentFindReplacementReceipt != nil else { return }
+        findReplacementReceipt = nil
+        viewModel.undoSpeakerCorrection()
     }
 
     /// Resume playback-follow only if find navigation owns the pause; manual
@@ -2325,6 +2557,7 @@ struct TranscriptResultView: View {
     }
 
     private func setFindQuery(_ newValue: String) {
+        findRevealTask?.cancel()
         findModel.setQuery(newValue)
         if !findModel.hasMatches {
             releaseFindOwnedAutoScrollPause()
@@ -2338,7 +2571,8 @@ struct TranscriptResultView: View {
     /// searches the full transcript string so native selection can span line and
     /// paragraph breaks; the current-match scroll anchor is derived on demand.
     private func rebuildFindBlocks() {
-        guard findBarVisible, !editingTranscript else {
+        findRevealTask?.cancel()
+        guard findBarVisible, !editingTranscript, !editingReadingTranscript else {
             findBlocks = []
             findModel.setBlocks([])
             releaseFindOwnedAutoScrollPause()
@@ -2347,12 +2581,25 @@ struct TranscriptResultView: View {
         let blocks: [TranscriptFindBlock]
         if transcriptDisplayMode == .timed, hasTimestamps {
             if let attribution = viewModel.speakerAttribution {
+                let rows = effectiveTranscriptRowIDs(for: attribution)
                 blocks = attribution.editableSegments.map {
-                    TranscriptFindBlock(id: .effective($0.id), text: $0.text)
+                    TranscriptFindBlock(
+                        id: .effective($0.id),
+                        row: rows[$0.id].map(TranscriptFindBlockID.effective),
+                        text: $0.text
+                    )
                 }
             } else {
+                let rows = legacyTranscriptRowIDs(
+                    hasSpeakers: cachedHasSpeakers,
+                    cards: cachedIdentifiedTurnCards
+                )
                 blocks = cachedSegments.map {
-                    TranscriptFindBlock(id: .legacy($0.startMs), text: $0.text)
+                    TranscriptFindBlock(
+                        id: .legacy($0.startMs),
+                        row: rows[$0.startMs].map(TranscriptFindBlockID.legacy),
+                        text: $0.text
+                    )
                 }
             }
         } else {
@@ -2453,7 +2700,7 @@ struct TranscriptResultView: View {
 
             // Show whenever word timestamps exist: Timed renders from word data,
             // and Text falls back to the raw transcript when clean text is absent.
-            if !editingTranscript, hasTimestamps {
+            if !editingTranscript, !editingReadingTranscript, hasTimestamps {
                 Picker("Transcript view", selection: $transcriptDisplayMode) {
                     ForEach(TranscriptDisplayMode.allCases, id: \.self) { mode in
                         Text(mode.rawValue).tag(mode)
@@ -2464,11 +2711,27 @@ struct TranscriptResultView: View {
                 .frame(width: 150)
             }
 
-            if !editingTranscript {
+            if !editingTranscript, !editingReadingTranscript {
                 transcriptFontSizeControl
             }
 
-            if editingTranscript {
+            if editingReadingTranscript {
+                Button {
+                    cancelReadingEdit()
+                } label: {
+                    Label("Cancel", systemImage: "xmark")
+                }
+                .parakeetAction(.secondary)
+                .disabled(savingReadingTranscript)
+
+                Button {
+                    commitReadingEdit()
+                } label: {
+                    Label(savingReadingTranscript ? "Saving…" : "Done", systemImage: "checkmark")
+                }
+                .parakeetAction(.primaryProminent)
+                .disabled(savingReadingTranscript || readingEditSession?.hasChanges != true)
+            } else if editingTranscript {
                 if hasEditedTranscript {
                     Button {
                         revertTranscriptEdit()
@@ -2493,24 +2756,26 @@ struct TranscriptResultView: View {
                 .parakeetAction(.primaryProminent)
                 .disabled(transcriptDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             } else {
-                if speakerEditingAvailable {
-                    Button {
-                        editingSpeakers.toggle()
-                        if !editingSpeakers {
-                            speakerSelection.clear()
-                        } else if findBarVisible {
-                            closeFindBar()
-                        }
-                    } label: {
+                if speakerEditingAvailable, !editingSpeakers {
+                    Button(action: beginSpeakerEditing) {
                         Label(
-                            editingSpeakers
-                                ? "Done"
-                                : timedTextEditingAvailable ? "Edit transcript" : "Edit speakers",
+                            timedTextEditingAvailable ? "Edit transcript" : "Edit speakers",
                             systemImage: "pencil"
                         )
                     }
-                    .parakeetAction(editingSpeakers ? .primary : .secondary)
+                    .parakeetAction(.secondary)
                     .disabled(activeTranscription.status == .processing)
+                }
+
+                if transcriptDisplayMode == .text, readingTranscriptEditAvailable {
+                    Button {
+                        beginReadingEdit()
+                    } label: {
+                        Label("Edit", systemImage: "pencil")
+                    }
+                    .parakeetAction(.secondary)
+                    .disabled(!readingTranscriptEditEnabled)
+                    .help("Edit or remove passages in this transcript")
                 }
 
                 if transcriptDisplayMode == .text, wholeTranscriptEditingAvailable {
@@ -2539,6 +2804,26 @@ struct TranscriptResultView: View {
             return "Add transcript text manually."
         }
         return "Edit the full transcript. This legacy edit is not aligned to timestamps."
+    }
+
+    private var readingTranscriptEditAvailable: Bool {
+        activeTranscription.status == .completed
+            && activeTranscription.transcriptTextAlignment != .untimed
+            && hasTimestamps
+    }
+
+    private var readingTranscriptEditEnabled: Bool {
+        readingTranscriptEditAvailable
+            && !(viewModel.speakerAttribution?.editableSegments.isEmpty ?? true)
+    }
+
+    private var currentCorrectionRevision: Int {
+        viewModel.speakerAttribution?.correctionRevision ?? 0
+    }
+
+    private var currentSourceTranscriptHash: String {
+        let source = viewModel.currentTranscription.flatMap { $0.id == transcription.id ? $0 : nil } ?? transcription
+        return PromptResultFreshness.sourceTranscriptHash(for: source)
     }
 
     private var wholeTranscriptEditingAvailable: Bool {
@@ -2616,6 +2901,33 @@ struct TranscriptResultView: View {
         !viewModel.llmAvailable
             && !viewModel.hasPromptResultTabs
             && !viewModel.hasConversations
+    }
+
+    @ViewBuilder
+    private var transcriptDocumentBody: some View {
+        if editingReadingTranscript {
+            if let readingEditSession {
+                TranscriptReadingEditor(session: readingEditSession, font: scaledTranscriptFont)
+                    .disabled(savingReadingTranscript)
+            }
+        } else if editingTranscript {
+            transcriptEditor
+        } else if transcriptDisplayMode == .timed,
+            let timestamps = activeTranscription.wordTimestamps,
+            !timestamps.isEmpty
+        {
+            if let attribution = viewModel.speakerAttribution {
+                speakerSummaryPanel(speakers: attribution.speakers)
+            } else if let speakers = activeTranscription.speakers, !speakers.isEmpty {
+                speakerSummaryPanel(speakers: speakers)
+            }
+            timestampedView(words: timestamps)
+        } else if !transcriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            transcriptTextBlock
+        } else if meetingTranscriptProcessingPresentation == nil {
+            Text("No transcript available")
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+        }
     }
 
     @ViewBuilder
@@ -2731,58 +3043,76 @@ struct TranscriptResultView: View {
     private var meetingNotesSection: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             HStack(spacing: DesignSystem.Spacing.xs) {
-                Label("Your notes", systemImage: "note.text")
-                    .font(DesignSystem.Typography.caption.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                Text("Your notes")
+                    .font(DesignSystem.Typography.sectionTitle)
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
 
                 Spacer()
 
-                if let notes = normalizedMeetingNotesDraft {
-                    Button {
+                Button {
+                    if let notes = normalizedMeetingNotesDraft {
                         TranscriptResultActions.copyText(notes)
-                        notesCopied = true
-                        notesCopiedResetTask?.cancel()
-                        notesCopiedResetTask = Task {
-                            try? await Task.sleep(for: .seconds(1))
-                            if !Task.isCancelled {
-                                notesCopied = false
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: DesignSystem.Spacing.xs) {
-                            Image(systemName: notesCopied ? "checkmark" : "doc.on.doc")
-                            Text(notesCopied ? "Copied" : "Copy")
-                        }
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(notesCopied ? DesignSystem.Colors.successGreen : .primary)
+                        meetingNotesCopyFeedback.noteCopied()
                     }
-                    .parakeetAction(.secondary)
-                    .controlSize(.small)
-                    .accessibilityLabel(notesCopied ? "Notes copied" : "Copy your notes")
+                } label: {
+                    HStack(spacing: DesignSystem.Spacing.xs) {
+                        Image(systemName: meetingNotesCopyFeedback.isCopied ? "checkmark" : "doc.on.doc")
+                        Text(meetingNotesCopyFeedback.isCopied ? "Copied" : "Copy")
+                    }
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(
+                        normalizedMeetingNotesDraft == nil
+                            ? DesignSystem.Colors.textSecondary
+                            : (meetingNotesCopyFeedback.isCopied ? DesignSystem.Colors.successGreen : .primary)
+                    )
                 }
+                .parakeetAction(.secondary)
+                .controlSize(.small)
+                .disabled(normalizedMeetingNotesDraft == nil)
+                .accessibilityLabel(meetingNotesCopyFeedback.isCopied ? "Notes copied" : "Copy your notes")
             }
+            // Align with the native text container’s 5 pt line-fragment inset.
+            .padding(.horizontal, 5)
 
             TextEditor(text: savedMeetingNotesViewModel.textBinding(for: activeTranscription.id))
                 .disabled(
-                    savedMeetingNotesViewModel.meetingID != activeTranscription.id
-                        || savedMeetingNotesViewModel.saveState == .deleted
+                    !SavedMeetingNotesEditorPresentation.isEditorEnabled(
+                        meetingID: savedMeetingNotesViewModel.meetingID,
+                        displayedMeetingID: activeTranscription.id,
+                        saveState: savedMeetingNotesViewModel.saveState
+                    )
                 )
-                .font(DesignSystem.Typography.body)
+                .font(DesignSystem.Typography.bodyLarge)
+                .lineSpacing(5)
                 .foregroundStyle(DesignSystem.Colors.textPrimary)
                 .scrollContentBackground(.hidden)
                 .focused($meetingNotesEditorFocused)
-                .frame(minHeight: 280, maxHeight: .infinity)
-                .padding(DesignSystem.Spacing.sm)
-                .background(
-                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                        .fill(DesignSystem.Colors.surface)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                        .strokeBorder(DesignSystem.Colors.border.opacity(0.7), lineWidth: 1)
-                )
+                .overlay(alignment: .topLeading) {
+                    if SavedMeetingNotesEditorPresentation.showsWritingPrompt(
+                        meetingID: savedMeetingNotesViewModel.meetingID,
+                        displayedMeetingID: activeTranscription.id,
+                        saveState: savedMeetingNotesViewModel.saveState,
+                        draft: savedMeetingNotesViewModel.text
+                    ) {
+                        Text(SavedMeetingNotesEditorPresentation.writingPrompt)
+                            .font(DesignSystem.Typography.bodyLarge)
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                            .padding(.horizontal, 5)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .frame(minHeight: 0, maxHeight: .infinity)
+                .padding(.vertical, DesignSystem.Spacing.sm)
                 .accessibilityLabel("Meeting notes")
-                .accessibilityHint("Add private context, decisions, or reminders for this meeting. Changes save automatically.")
+                .accessibilityIdentifier("meeting-notes-editor")
+                .accessibilityHint(
+                    SavedMeetingNotesEditorPresentation.accessibilityHint(
+                        meetingID: savedMeetingNotesViewModel.meetingID,
+                        displayedMeetingID: activeTranscription.id,
+                        saveState: savedMeetingNotesViewModel.saveState
+                    )
+                )
 
             HStack(spacing: DesignSystem.Spacing.sm) {
                 if savedMeetingNotesViewModel.wordCount >= MeetingNotesViewModel.softCapWarningWordCount {
@@ -2802,8 +3132,8 @@ struct TranscriptResultView: View {
                     "\(savedMeetingNotesViewModel.wordCount.formatted()) "
                         + (savedMeetingNotesViewModel.wordCount == 1 ? "word" : "words")
                 )
-                    .font(DesignSystem.Typography.caption.monospacedDigit())
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                .font(DesignSystem.Typography.caption.monospacedDigit())
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
             }
 
             if let warning = viewModel.meetingNotesArtifactWarning {
@@ -2822,12 +3152,8 @@ struct TranscriptResultView: View {
                 }
             }
         }
-        .padding(DesignSystem.Spacing.md)
+        .padding(.horizontal, DesignSystem.Spacing.sm)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                .fill(DesignSystem.Colors.surfaceElevated.opacity(0.25))
-        )
     }
 
     @ViewBuilder
@@ -2838,15 +3164,16 @@ struct TranscriptResultView: View {
         } else {
             switch savedMeetingNotesViewModel.saveState {
             case .deleted:
-                Label("Meeting deleted — notes were not saved", systemImage: "trash")
+                Label(SavedMeetingNotesEditorPresentation.deletedStatus, systemImage: "trash")
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    .help("Meeting deleted — notes were not saved")
+                    .help(SavedMeetingNotesEditorPresentation.deletedStatus)
             case .saved where savedMeetingNotesSaveStatus.showsSaveConfirmation:
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(DesignSystem.Colors.successGreen.opacity(0.7))
                     .help("Saved")
                     .accessibilityLabel("Saved")
+                    .accessibilityIdentifier("meeting-notes-saved")
                     .frame(width: 16, alignment: .leading)
             case .saved:
                 Color.clear
@@ -2901,28 +3228,30 @@ struct TranscriptResultView: View {
 
     private var meetingNotesPane: some View {
         meetingNotesSection
-            .padding(DesignSystem.Spacing.lg)
             .onAppear(perform: beginMeetingNotesSaveStatusPresentation)
+            .onChange(of: activeTranscription.id) {
+                meetingNotesCopyFeedback.reset()
+            }
+            .onChange(of: savedMeetingNotesViewModel.text) {
+                meetingNotesCopyFeedback.reset()
+            }
             .onChange(of: savedMeetingNotesViewModel.meetingID) {
                 beginMeetingNotesSaveStatusPresentation()
             }
             .onChange(of: savedMeetingNotesViewModel.saveState) { previousState, saveState in
                 observeMeetingNotesSaveState(from: previousState, to: saveState)
             }
-            .onDisappear(perform: resetMeetingNotesSaveStatusPresentation)
+            .onDisappear {
+                resetMeetingNotesSaveStatusPresentation()
+                meetingNotesCopyFeedback.reset()
+            }
     }
 
     // MARK: - Tab Bar
 
     private var orderedTabs: [TranscriptionViewModel.TranscriptTab] {
         var tabs = TranscriptResultTabOrdering.leadingTabs(for: activeTranscription.sourceType)
-        // Generated content after transcript, oldest first so new tabs appear on the right
-        for promptResult in promptResultsViewModel.promptResults.reversed() {
-            tabs.append(.result(id: promptResult.id))
-        }
-        for generation in promptResultsViewModel.pendingGenerations(for: transcription.id) {
-            tabs.append(.generation(id: generation.id))
-        }
+        tabs += promptResultsViewModel.resultTabs(for: transcription.id)
         tabs.append(.chat)
         return tabs
     }
@@ -2992,16 +3321,16 @@ struct TranscriptResultView: View {
         .contentShape(Capsule())
         .foregroundStyle(isSelected ? DesignSystem.Colors.accent : DesignSystem.Colors.textSecondary)
         .animation(.easeInOut(duration: 0.3), value: isCopiedTab)
-        .onTapGesture {
-            guard viewModel.selectedTab != tab else { return }
-            if case .notes = viewModel.selectedTab {
-                startMeetingNotesNavigation(isCurrent: { viewModel.selectedTab == .notes }) {
-                    viewModel.selectedTab = tab
-                }
-                return
-            }
-            viewModel.selectedTab = tab
-        }
+        .onTapGesture { selectTab(tab) }
+        // A tap gesture alone exposes no press action, so VoiceOver, Voice
+        // Control, and other assistive clients could not switch tabs. These
+        // come before .contextMenu so the combined element keeps its menu.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(tabLabel(tab))
+        .accessibilityIdentifier(tab == .notes ? "meeting-notes-tab" : "transcript-tab-\(tabLabel(tab))")
+        .accessibilityValue(tabAccessibilityValue(tab, isStreaming: isStreamingTab))
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction { selectTab(tab) }
         .contextMenu {
             if case .result(let id) = tab,
                 let promptResult = promptResultsViewModel.promptResults.first(where: { $0.id == id })
@@ -3029,14 +3358,32 @@ struct TranscriptResultView: View {
             }
             if case .generation(let id) = tab {
                 Button("Remove", role: .destructive) {
-                    promptResultsViewModel.cancelGeneration(id: id)
+                    cancelGenerationAndRestoreResult(id: id)
                 }
             }
         }
-        .accessibilityAddTraits(.isButton)
         .onHover { hovering in
             if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
         }
+    }
+
+    /// Speaks the state the capsule shows visually: the streaming pulse and
+    /// the unread dot.
+    private func tabAccessibilityValue(_ tab: TranscriptionViewModel.TranscriptTab, isStreaming: Bool) -> String {
+        if isStreaming { return "Generating" }
+        if case .result(let id) = tab, promptResultsViewModel.hasUnreadPromptResult(id) { return "Unread" }
+        return ""
+    }
+
+    private func selectTab(_ tab: TranscriptionViewModel.TranscriptTab) {
+        guard viewModel.selectedTab != tab else { return }
+        if case .notes = viewModel.selectedTab {
+            startMeetingNotesNavigation(isCurrent: { viewModel.selectedTab == .notes }) {
+                viewModel.selectedTab = tab
+            }
+            return
+        }
+        viewModel.selectedTab = tab
     }
 
     private var generateTabButton: some View {
@@ -3122,103 +3469,205 @@ struct TranscriptResultView: View {
 
     private func promptResultContentPane(promptResultID: UUID) -> some View {
         let promptResult = promptResultsViewModel.promptResults.first(where: { $0.id == promptResultID })
-        return ScrollView {
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-                if let promptResult {
-                    HStack {
-                        Spacer()
-
-                        Button {
-                            startPromptContextAction { context in
-                                if let generationID = promptResultsViewModel.regeneratePromptResult(
-                                    promptResult,
-                                    transcript: context
-                                ) {
-                                    viewModel.selectedTab = .generation(id: generationID)
-                                }
-                            }
-                        } label: {
-                            HStack(spacing: DesignSystem.Spacing.xs) {
-                                Image(systemName: "arrow.clockwise")
-                                Text("Regenerate")
-                            }
-                            .font(DesignSystem.Typography.caption)
-                        }
-                        .parakeetAction(.secondary)
-                        .controlSize(.small)
-                        .disabled(
-                            promptNotesActionGate.isRunning || richContextLoader.preparingPromptContext
-                                || !promptResultsViewModel.canGeneratePromptResult
-                                || transcriptText.isEmpty
+        return VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            if let promptResult {
+                let transcriptChanged = PromptResultFreshness.hasKnownTranscriptChange(
+                    sourceCorrectionRevision: promptResult.sourceCorrectionRevision,
+                    currentCorrectionRevision: currentCorrectionRevision,
+                    sourceTranscriptHash: promptResult.sourceTranscriptHash,
+                    currentTranscriptHash: currentSourceTranscriptHash
+                )
+                if transcriptChanged {
+                    Text("The transcript changed after this result was generated. Regenerate to use the current transcript.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                }
+                HStack(alignment: .center, spacing: DesignSystem.Spacing.sm) {
+                    if activeTranscription.sourceType == .meeting,
+                        let notice = MeetingResultNotesNotice.notice(
+                            status: promptResult.meetingNotesStatus,
+                            currentNotes: activeTranscription.userNotes
                         )
+                    {
+                        omittedMeetingNotesNotice(notice, resultID: promptResult.id)
+                    }
 
-                        let isCopied = copiedButtonResultID == promptResultID
-                        Button {
-                            TranscriptResultActions.copyText(promptResult.content)
-                            copiedButtonResultID = promptResultID
-                            resultButtonCopiedResetTask?.cancel()
-                            resultButtonCopiedResetTask = Task {
-                                try? await Task.sleep(for: .seconds(1))
-                                copiedButtonResultID = nil
-                            }
-                        } label: {
-                            HStack(spacing: DesignSystem.Spacing.xs) {
-                                Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
-                                Text(isCopied ? "Copied" : "Copy")
-                            }
-                            .font(DesignSystem.Typography.caption)
-                            .foregroundStyle(isCopied ? DesignSystem.Colors.successGreen : .primary)
+                    FlowLayout(spacing: DesignSystem.Spacing.sm) {
+                        if promptResult.isContentUserEdited && !promptResultsViewModel.isEditingPromptResult(promptResult.id) {
+                            Text("Edited")
+                                .font(DesignSystem.Typography.caption.weight(.medium))
+                                .foregroundStyle(DesignSystem.Colors.textSecondary)
                         }
-                        .parakeetAction(.secondary)
-                        .controlSize(.small)
 
-                        if let sharing = shareManagement, AppFeatures.isShareLinksAvailable() {
-                            Button { prepareShare(using: sharing, selectedSummaryID: promptResult.id) } label: {
-                                Label("Share result…", systemImage: "square.and.arrow.up")
+                        if promptResultsViewModel.isEditingPromptResult(promptResult.id) {
+                            Button("Cancel") {
+                                promptResultsViewModel.cancelEditingPromptResult()
                             }
                             .parakeetAction(.secondary)
                             .controlSize(.small)
-                            .disabled(preparingShare || sharing.isBusy || !sharing.isConfigured)
-                        }
 
-                        Menu {
-                            Button("Markdown (.md)") {
-                                exportGenerationToDownloads(promptResult: promptResult, format: .md)
+                            Button("Save") {
+                                _ = promptResultsViewModel.saveEditingPromptResult()
                             }
-                            Button("Plain Text (.txt)") {
-                                exportGenerationToDownloads(promptResult: promptResult, format: .txt)
+                            .parakeetAction(.primary)
+                            .controlSize(.small)
+                            .disabled(!promptResultsViewModel.canSaveEditingPromptResult)
+                        } else {
+                            Button {
+                                startPromptContextAction { context in
+                                    if let generationID = promptResultsViewModel.regeneratePromptResult(
+                                        promptResult,
+                                        transcript: context,
+                                        sourceCorrectionRevision: currentCorrectionRevision,
+                                        sourceTranscriptHash: currentSourceTranscriptHash
+                                    ) {
+                                        viewModel.selectedTab = .generation(id: generationID)
+                                    }
+                                }
+                            } label: {
+                                HStack(spacing: DesignSystem.Spacing.xs) {
+                                    Image(systemName: "arrow.clockwise")
+                                    Text("Regenerate")
+                                }
+                                .font(DesignSystem.Typography.caption)
                             }
-                        } label: {
-                            HStack(spacing: DesignSystem.Spacing.xs) {
-                                Image(systemName: "arrow.down.doc")
-                                Text("Export")
-                            }
-                            .font(DesignSystem.Typography.caption)
-                        }
-                        .menuStyle(.borderedButton)
-                        .tint(DesignSystem.Colors.tintNeutral)
-                        .controlSize(.small)
+                            .parakeetAction(transcriptChanged ? .primary : .secondary)
+                            .controlSize(.small)
+                            .help(
+                                !transcriptChanged && promptResult.sourceTranscriptHash == nil
+                                    ? "The transcript version used for this result wasn’t recorded. Regenerate replaces it using the current transcript."
+                                    : "Replace this result using the current transcript."
+                            )
+                            .disabled(
+                                promptNotesActionGate.isRunning || richContextLoader.preparingPromptContext
+                                    || !promptResultsViewModel.canGeneratePromptResult
+                                    || !promptResultsViewModel.canEditPromptResult(promptResult)
+                                    || transcriptText.isEmpty
+                            )
 
-                        Button(role: .destructive) {
-                            promptResultsViewModel.pendingDeletePromptResult = promptResult
-                        } label: {
-                            HStack(spacing: DesignSystem.Spacing.xs) {
-                                Image(systemName: "trash")
-                                Text("Delete")
+                            let isCopied = copiedButtonResultID == promptResultID
+                            Button {
+                                TranscriptResultActions.copyText(promptResult.content)
+                                copiedButtonResultID = promptResultID
+                                resultButtonCopiedResetTask?.cancel()
+                                resultButtonCopiedResetTask = Task {
+                                    try? await Task.sleep(for: .seconds(1))
+                                    copiedButtonResultID = nil
+                                }
+                            } label: {
+                                HStack(spacing: DesignSystem.Spacing.xs) {
+                                    Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
+                                    Text(isCopied ? "Copied" : "Copy")
+                                }
+                                .font(DesignSystem.Typography.caption)
+                                .foregroundStyle(isCopied ? DesignSystem.Colors.successGreen : .primary)
                             }
-                            .font(DesignSystem.Typography.caption)
+                            .parakeetAction(.secondary)
+                            .controlSize(.small)
+
+                            if let sharing = shareManagement, AppFeatures.isShareLinksAvailable() {
+                                Button {
+                                    prepareShare(using: sharing, selectedSummaryID: promptResult.id)
+                                } label: {
+                                    Label("Share result…", systemImage: "square.and.arrow.up")
+                                }
+                                .parakeetAction(.secondary)
+                                .controlSize(.small)
+                                .disabled(preparingShare || sharing.isBusy || !sharing.isConfigured)
+                            }
+
+                            Menu {
+                                Button("Markdown (.md)") {
+                                    exportGenerationToDownloads(promptResult: promptResult, format: .md)
+                                }
+                                Button("Plain Text (.txt)") {
+                                    exportGenerationToDownloads(promptResult: promptResult, format: .txt)
+                                }
+                            } label: {
+                                HStack(spacing: DesignSystem.Spacing.xs) {
+                                    Image(systemName: "arrow.down.doc")
+                                    Text("Export")
+                                }
+                                .font(DesignSystem.Typography.caption)
+                            }
+                            .menuStyle(.borderedButton)
+                            .tint(DesignSystem.Colors.tintNeutral)
+                            .controlSize(.small)
+
+                            Button(role: .destructive) {
+                                promptResultsViewModel.pendingDeletePromptResult = promptResult
+                            } label: {
+                                HStack(spacing: DesignSystem.Spacing.xs) {
+                                    Image(systemName: "trash")
+                                    Text("Delete")
+                                }
+                                .font(DesignSystem.Typography.caption)
+                            }
+                            .parakeetAction(.destructive)
+                            .controlSize(.small)
+
+                            Button {
+                                promptResultsViewModel.beginEditingPromptResult(promptResult)
+                                if promptResultsViewModel.isEditingPromptResult(promptResult.id) {
+                                    Task { @MainActor in promptResultEditorFocused = true }
+                                }
+                            } label: {
+                                HStack(spacing: DesignSystem.Spacing.xs) {
+                                    Image(systemName: "pencil")
+                                    Text("Edit")
+                                }
+                                .font(DesignSystem.Typography.caption)
+                            }
+                            .parakeetAction(.secondary)
+                            .controlSize(.small)
+                            .disabled(!promptResultsViewModel.canEditPromptResult(promptResult))
                         }
-                        .parakeetAction(.destructive)
-                        .controlSize(.small)
                     }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                }
 
-                    MarkdownContentView(promptResult.content, font: DesignSystem.Typography.bodyLarge)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                if activeTranscription.sourceType == .meeting,
+                    case .sent(let notes) = promptResult.meetingNotesStatus
+                {
+                    DisclosureGroup("Meeting notes snapshot") {
+                        ScrollView {
+                            Text(notes)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxHeight: 160)
+                    }
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                }
+
+                if promptResultsViewModel.isEditingPromptResult(promptResult.id) {
+                    TextEditor(text: $promptResultsViewModel.editingDraft)
+                        .focused($promptResultEditorFocused)
+                        .font(DesignSystem.Typography.body)
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+                        .scrollContentBackground(.hidden)
+                        .frame(minHeight: 120, maxHeight: .infinity)
+                        .padding(DesignSystem.Spacing.sm)
+                        .background(
+                            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                                .fill(DesignSystem.Colors.surface)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                                .strokeBorder(DesignSystem.Colors.border.opacity(0.7), lineWidth: 1)
+                        )
+                        .accessibilityLabel("Edit \(promptResult.promptName)")
+                } else {
+                    ScrollView {
+                        MarkdownContentView(promptResult.content, font: DesignSystem.Typography.bodyLarge)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(DesignSystem.Spacing.lg)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(DesignSystem.Spacing.lg)
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
                 .fill(DesignSystem.Colors.surface)
@@ -3227,6 +3676,63 @@ struct TranscriptResultView: View {
             RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
                 .strokeBorder(DesignSystem.Colors.border.opacity(0.75), lineWidth: 0.5)
         )
+    }
+
+    private func omittedMeetingNotesNotice(
+        _ notice: MeetingResultNotesNotice,
+        resultID: UUID
+    ) -> some View {
+        Button {
+            omittedMeetingNotesNoticeResultID =
+                omittedMeetingNotesNoticeResultID == resultID ? nil : resultID
+        } label: {
+            HStack(spacing: DesignSystem.Spacing.xs) {
+                Image(systemName: "info.circle")
+                Text(MeetingResultNotesNotice.title)
+            }
+            .font(DesignSystem.Typography.caption)
+            .foregroundStyle(DesignSystem.Colors.textSecondary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("meeting-notes-omitted-notice")
+        .accessibilityLabel(MeetingResultNotesNotice.title)
+        .accessibilityHint(notice.explanation)
+        .help("Why these notes were left out of this result")
+        .popover(
+            isPresented: Binding(
+                get: { omittedMeetingNotesNoticeResultID == resultID },
+                set: { isPresented in
+                    if isPresented {
+                        omittedMeetingNotesNoticeResultID = resultID
+                    } else if omittedMeetingNotesNoticeResultID == resultID {
+                        omittedMeetingNotesNoticeResultID = nil
+                    }
+                }
+            ),
+            arrowEdge: .top
+        ) {
+            // The instruction stays in the popover. A caption in the result
+            // column is measured during the window minimum-size pass and can
+            // grow the meeting page past the screen.
+            Text(notice.explanation)
+                .font(DesignSystem.Typography.body)
+                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                .multilineTextAlignment(.leading)
+                .frame(width: 320, alignment: .leading)
+                .padding(DesignSystem.Spacing.md)
+        }
+    }
+
+    private func meetingNotesStatusText(_ message: String) -> some View {
+        // Do not use vertical fixedSize. A window minimum-size pass proposes a
+        // near-zero width, and fixedSize then reports the fully wrapped height
+        // of this caption. That height becomes the window minimum and the
+        // meeting page grows past the screen.
+        Text(message)
+            .font(DesignSystem.Typography.caption)
+            .foregroundStyle(DesignSystem.Colors.textSecondary)
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -3299,14 +3805,24 @@ struct TranscriptResultView: View {
         ) {
             Button("Keep", role: .cancel) {}
             Button(generation.state == .queued ? "Remove" : "Cancel", role: .destructive) {
-                promptResultsViewModel.cancelGeneration(id: generation.id)
-                viewModel.selectedTab = .transcript
+                cancelGenerationAndRestoreResult(id: generation.id)
             }
         } message: {
             Text(
                 generation.state == .queued
                     ? "This will remove the prompt from the generation queue."
                     : "This will stop the AI from generating the result.")
+        }
+    }
+
+    private func cancelGenerationAndRestoreResult(id: UUID) {
+        let replacingID = promptResultsViewModel.pendingGeneration(id: id)?.replacingPromptResultID
+        promptResultsViewModel.cancelGeneration(id: id)
+        guard viewModel.selectedTab == .generation(id: id) else { return }
+        if let replacingID, promptResultsViewModel.promptResults.contains(where: { $0.id == replacingID }) {
+            viewModel.selectedTab = .result(id: replacingID)
+        } else {
+            viewModel.selectedTab = .transcript
         }
     }
 
@@ -3337,9 +3853,7 @@ struct TranscriptResultView: View {
                 .controlSize(.regular)
 
                 Button("Dismiss") {
-                    let replacingID = generation.replacingPromptResultID
-                    promptResultsViewModel.cancelGeneration(id: generation.id)
-                    viewModel.selectedTab = replacingID.map { .result(id: $0) } ?? .transcript
+                    cancelGenerationAndRestoreResult(id: generation.id)
                 }
                 .parakeetAction(.secondary)
                 .controlSize(.regular)
@@ -3384,6 +3898,16 @@ struct TranscriptResultView: View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
             // Prompt chips
             promptChips
+
+            if transcription.sourceType == .meeting, let prompt = promptResultsViewModel.selectedPrompt {
+                meetingNotesStatusText(
+                    PromptSystemPromptAssembler.consumesMeetingNotes(
+                        promptContent: prompt.content,
+                        includeMeetingNotes: prompt.includeMeetingNotes)
+                        ? "Meeting notes will be sent to your selected AI provider when present."
+                        : "Meeting notes are off for this prompt. Enable ‘Include meeting notes as context’ in Manage Prompts to include them."
+                )
+            }
 
             if promptResultsViewModel.selectedPromptInferenceSummary != nil
                 || promptResultsViewModel.selectedPromptInferenceCompatibilityMessage != nil
@@ -3444,7 +3968,9 @@ struct TranscriptResultView: View {
                     startPromptContextAction { context in
                         if let generationID = promptResultsViewModel.generatePromptResult(
                             transcript: context,
-                            transcriptionId: transcription.id
+                            transcriptionId: transcription.id,
+                            sourceCorrectionRevision: currentCorrectionRevision,
+                            sourceTranscriptHash: currentSourceTranscriptHash
                         ) {
                             viewModel.selectedTab = .generation(id: generationID)
                         }
@@ -3684,7 +4210,7 @@ struct TranscriptResultView: View {
                                     currentModel: chatVM.currentModelName,
                                     displayName: chatVM.modelDisplayName,
                                     availableModels: chatVM.availableModels,
-                                    disabled: chatVM.isStreaming,
+                                    disabled: !chatVM.canSelectModel,
                                     onSelect: { chatVM.selectModel($0) }
                                 )
                             }
@@ -4474,7 +5000,7 @@ struct TranscriptResultView: View {
             editableSegments: attribution?.editableSegments ?? [],
             effectiveTurnCards: (attribution?.speakers.isEmpty ?? true)
                 ? [] : identifiedEffectiveSpeakerTurnCards(attribution?.turns ?? []),
-            availableSpeakers: attribution?.speakers ?? [],
+            availableSpeakers: SpeakerInfo.participants(in: attribution?.speakers ?? []),
             isSpeakerEditing: editingSpeakers,
             isTimedTextEditingAvailable: timedTextEditingAvailable,
             isSpeakerActionDisabled: viewModel.isApplyingSpeakerCorrection,
@@ -4509,64 +5035,135 @@ struct TranscriptResultView: View {
     }
 
     private var speakerEditingActionBar: some View {
-        HStack(spacing: DesignSystem.Spacing.sm) {
-            Text("\(speakerSelection.count) selected")
-                .font(DesignSystem.Typography.caption)
-                .foregroundStyle(DesignSystem.Colors.textSecondary)
-
-            if !speakerSelection.isEmpty {
-                Button("Clear") {
-                    speakerSelection.clear()
+        // Keep completion beside history outside the transcript's ScrollView.
+        // At narrow widths, move selection tools to a second row instead of
+        // compressing or pushing Done beyond the visible pane.
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: DesignSystem.Spacing.md) {
+                speakerSelectionActions
+                Spacer(minLength: DesignSystem.Spacing.sm)
+                speakerEditCompletionActions
+            }
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                HStack {
+                    Spacer(minLength: 0)
+                    speakerEditCompletionActions
                 }
-                .parakeetAction(.subtle)
-                .foregroundStyle(DesignSystem.Colors.textSecondary)
-                .disabled(viewModel.isApplyingSpeakerCorrection)
-                .help("Deselect all transcript segments")
+                speakerSelectionActions
             }
-
-            Menu("Assign to…") {
-                ForEach(viewModel.speakerAttribution?.speakers ?? [], id: \.id) { speaker in
-                    Button(speaker.label) {
-                        assignSelectedSegments(to: .speaker(id: speaker.id))
-                    }
+            VStack(alignment: .trailing, spacing: DesignSystem.Spacing.sm) {
+                finishSpeakerEditingButton
+                Menu {
+                    Text("\(speakerSelection.count) selected")
+                    speakerSelectionControls
+                    Divider()
+                    speakerHistoryControls
+                } label: {
+                    Label("Edit actions", systemImage: "ellipsis")
+                        .labelStyle(.iconOnly)
                 }
+                .parakeetAction(.secondary)
+                .help("Selection, speaker assignment, and edit history")
             }
-            .disabled(speakerSelection.isEmpty || viewModel.isApplyingSpeakerCorrection)
-
-            Button("New speaker…") {
-                presentNewSpeaker(for: selectedSpeakerSegments)
-            }
-            .disabled(speakerSelection.isEmpty || viewModel.isApplyingSpeakerCorrection)
-
-            Button("Unassigned") {
-                assignSelectedSegments(to: .unassigned)
-            }
-            .disabled(speakerSelection.isEmpty || viewModel.isApplyingSpeakerCorrection)
-
-            Spacer()
-
-            Button(action: viewModel.undoSpeakerCorrection) {
-                Label("Undo edit", systemImage: "arrow.uturn.backward")
-            }
-            .disabled(!viewModel.canUndoSpeakerCorrection || viewModel.isApplyingSpeakerCorrection)
-
-            Button(action: viewModel.redoSpeakerCorrection) {
-                Label("Redo edit", systemImage: "arrow.uturn.forward")
-            }
-            .disabled(!viewModel.canRedoSpeakerCorrection || viewModel.isApplyingSpeakerCorrection)
-
-            if viewModel.speakerCorrectionsApplied {
-                Button("Reset edits") {
-                    viewModel.applySpeakerCorrection(.reset)
-                }
-                .disabled(viewModel.isApplyingSpeakerCorrection)
-            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding(DesignSystem.Spacing.sm)
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
                 .fill(DesignSystem.Colors.surfaceElevated)
         )
+    }
+
+    private var speakerSelectionActions: some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            Text("\(speakerSelection.count) selected")
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+            speakerSelectionControls
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    @ViewBuilder
+    private var speakerSelectionControls: some View {
+        if !speakerSelection.isEmpty {
+            Button("Clear") {
+                speakerSelection.clear()
+            }
+            .parakeetAction(.subtle)
+            .foregroundStyle(DesignSystem.Colors.textSecondary)
+            .disabled(viewModel.isApplyingSpeakerCorrection)
+            .help("Deselect all transcript segments")
+        }
+
+        Menu("Assign to…") {
+            ForEach(SpeakerInfo.participants(in: viewModel.speakerAttribution?.speakers ?? []), id: \.id) { speaker in
+                Button(speaker.label) {
+                    assignSelectedSegments(to: .speaker(id: speaker.id))
+                }
+            }
+        }
+        .parakeetAction(.secondary)
+        .disabled(speakerSelection.isEmpty || viewModel.isApplyingSpeakerCorrection)
+
+        Button("New speaker…") {
+            presentNewSpeaker(for: selectedSpeakerSegments)
+        }
+        .parakeetAction(.secondary)
+        .disabled(speakerSelection.isEmpty || viewModel.isApplyingSpeakerCorrection)
+
+        Button("Unassigned") {
+            assignSelectedSegments(to: .unassigned)
+        }
+        .parakeetAction(.secondary)
+        .disabled(speakerSelection.isEmpty || viewModel.isApplyingSpeakerCorrection)
+    }
+
+    private var speakerEditCompletionActions: some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            speakerHistoryControls
+            Divider()
+                .frame(height: 20)
+                .padding(.horizontal, DesignSystem.Spacing.xs)
+            finishSpeakerEditingButton
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    @ViewBuilder
+    private var speakerHistoryControls: some View {
+        Button(action: viewModel.undoSpeakerCorrection) {
+            Label("Undo edit", systemImage: "arrow.uturn.backward")
+        }
+        .parakeetAction(.secondary)
+        .disabled(!viewModel.canUndoSpeakerCorrection || viewModel.isApplyingSpeakerCorrection)
+
+        Button(action: viewModel.redoSpeakerCorrection) {
+            Label("Redo edit", systemImage: "arrow.uturn.forward")
+        }
+        .parakeetAction(.secondary)
+        .disabled(!viewModel.canRedoSpeakerCorrection || viewModel.isApplyingSpeakerCorrection)
+
+        if viewModel.speakerCorrectionsApplied {
+            Button("Reset edits…") {
+                pendingResetEditsTranscriptionID = activeTranscription.id
+            }
+            .parakeetAction(.secondary)
+            .disabled(viewModel.isApplyingSpeakerCorrection)
+        }
+    }
+
+    private var finishSpeakerEditingButton: some View {
+        Button {
+            editingSpeakers = false
+            speakerSelection.clear()
+        } label: {
+            Label("Done", systemImage: "checkmark")
+        }
+        .parakeetAction(.primaryProminent)
+        .fixedSize()
+        .help("Finish editing the transcript")
+        .accessibilityIdentifier("transcript-edit-done")
     }
 
     private var selectedSpeakerSegments: [SpeakerEditableSegment] {
@@ -4809,7 +5406,10 @@ struct TranscriptResultView: View {
                             }
 
                             Menu("Merge into…") {
-                                ForEach(speakers.filter { $0.id != speaker.id }, id: \.id) { target in
+                                ForEach(
+                                    SpeakerInfo.participants(in: speakers).filter { $0.id != speaker.id },
+                                    id: \.id
+                                ) { target in
                                     Button(target.label) {
                                         viewModel.applySpeakerCorrection(
                                             .merge(
@@ -5174,10 +5774,11 @@ struct TranscriptResultView: View {
     }
 
     private var normalizedMeetingNotesDraft: String? {
-        guard savedMeetingNotesViewModel.meetingID == activeTranscription.id else { return nil }
-        let notes = savedMeetingNotesViewModel.text
-        guard !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        return notes
+        SavedMeetingNotesEditorPresentation.copyPayload(
+            meetingID: savedMeetingNotesViewModel.meetingID,
+            displayedMeetingID: activeTranscription.id,
+            draft: savedMeetingNotesViewModel.text
+        )
     }
 
     private func requestMeetingNotesNavigation(_ action: MeetingNotesNavigationAction) {
@@ -5273,7 +5874,69 @@ struct TranscriptResultView: View {
         }
     }
 
+    private func beginReadingEdit() {
+        guard let segments = viewModel.speakerAttribution?.editableSegments, !segments.isEmpty else { return }
+        let drafts = segments.map { segment in
+            TranscriptReadingDraft(
+                target: correctionTarget(for: segment),
+                originalText: segment.text,
+                text: segment.text
+            )
+        }
+        readingEditSession = TranscriptReadingEditSession(drafts: drafts)
+        transcriptEditError = nil
+        editingReadingTranscript = true
+    }
+
+    private func cancelReadingEdit() {
+        guard !savingReadingTranscript else { return }
+        readingEditSession = nil
+        editingReadingTranscript = false
+        transcriptEditError = nil
+    }
+
+    private func commitReadingEdit() {
+        guard !savingReadingTranscript else { return }
+        guard viewModel.currentTranscription?.id == transcription.id else {
+            transcriptEditError = "Transcript changed. Reopen it to save your edits."
+            return
+        }
+        guard let command = readingEditSession?.command() else {
+            cancelReadingEdit()
+            return
+        }
+        savingReadingTranscript = true
+        let saveID = UUID()
+        let savingTranscriptionID = transcription.id
+        readingSaveID = saveID
+        transcriptEditError = nil
+        Task { @MainActor in
+            guard readingSaveID == saveID else { return }
+            guard viewModel.currentTranscription?.id == savingTranscriptionID else {
+                readingSaveID = nil
+                savingReadingTranscript = false
+                return
+            }
+            let succeeded = await viewModel.applySpeakerCorrectionAndWait(command)
+            guard readingSaveID == saveID else { return }
+            readingSaveID = nil
+            savingReadingTranscript = false
+            guard viewModel.currentTranscription?.id == savingTranscriptionID else { return }
+            if succeeded {
+                readingEditSession = nil
+                editingReadingTranscript = false
+            } else {
+                transcriptEditError = "Couldn't save. Your edits are still here."
+            }
+        }
+    }
+
     private func beginTranscriptEdit() {
+        guard let snapshot = viewModel.makeTranscriptEditSnapshot() else {
+            transcriptEditError = viewModel.transcriptEditFailure ?? "Could not open transcript editor."
+            return
+        }
+        transcriptEditSnapshot = snapshot
         transcriptDraft = transcriptText
         transcriptEditError = nil
         transcriptDisplayModeBeforeEdit = transcriptDisplayMode
@@ -5305,8 +5968,9 @@ struct TranscriptResultView: View {
             return
         }
 
-        guard viewModel.updateCurrentTranscriptText(to: transcriptDraft) else {
-            transcriptEditError = "Could not save transcript edits."
+        guard let snapshot = transcriptEditSnapshot,
+            viewModel.updateCurrentTranscriptText(to: transcriptDraft, expected: snapshot) else {
+            transcriptEditError = viewModel.transcriptEditFailure ?? "Could not save transcript edits."
             SoundManager.shared.play(.errorSoft)
             return
         }
@@ -5322,7 +5986,11 @@ struct TranscriptResultView: View {
     }
 
     private func revertTranscriptEdit() {
-        guard viewModel.revertCurrentTranscriptToOriginal() else { return }
+        guard let snapshot = transcriptEditSnapshot,
+            viewModel.revertCurrentTranscriptToOriginal(expected: snapshot) else {
+            transcriptEditError = viewModel.transcriptEditFailure ?? "Could not revert transcript edits."
+            return
+        }
         chatViewModel.loadTranscript(transcriptText, transcriptionId: viewModel.currentTranscription?.id)
         scheduleRichAIContextLoad()
         transcriptDraft = ""
@@ -5512,6 +6180,7 @@ struct TranscriptResultView: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("transcript-export-format-\(format.rawValue)")
                     }
                 }
             }
@@ -5554,6 +6223,7 @@ struct TranscriptResultView: View {
                 }
                 .parakeetAction(.primaryProminent)
                 .keyboardShortcut(.defaultAction)
+                .accessibilityIdentifier("transcript-export-confirm")
             }
         }
         .padding(DesignSystem.Spacing.md)

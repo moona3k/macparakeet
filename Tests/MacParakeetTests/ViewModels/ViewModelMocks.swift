@@ -21,6 +21,15 @@ final class MockDictationRepository: DictationRepositoryProtocol, @unchecked Sen
         }
     }
 
+    func saveIfCurrentStatus(_ dictation: Dictation, is expected: Dictation.DictationStatus) throws -> Bool {
+        guard let idx = dictations.firstIndex(where: { $0.id == dictation.id }),
+            dictations[idx].status == expected
+        else { return false }
+        savedDictations.append(dictation)
+        dictations[idx] = dictation
+        return true
+    }
+
     func fetch(id: UUID) throws -> Dictation? {
         dictations.first(where: { $0.id == id })
     }
@@ -142,6 +151,7 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
     var fetchAllCalls: [Int?] = []
     var fetchAllError: Error?
     var fetchError: Error?
+    var fetchHandler: (@Sendable (UUID) throws -> Transcription?)?
     var fetchAllHandler: (@Sendable (Int?) throws -> [Transcription])?
     var fetchMeetingsWithStatusHandler: (@Sendable (Transcription.TranscriptionStatus) throws -> [Transcription])?
     var updateTitleOverrideError: Error?
@@ -165,6 +175,25 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
         return merged
     }
 
+    func transcriptEditSnapshot(for expected: Transcription) throws -> TranscriptEditSnapshot {
+        guard let current = try fetch(id: expected.id) else { throw TranscriptEditError.deleted }
+        guard TranscriptEditSnapshot(transcription: expected).matches(current), current.status != .processing else {
+            throw TranscriptEditError.changed
+        }
+        return TranscriptEditSnapshot(transcription: current)
+    }
+
+    func updateTranscriptText(_ text: String?, expected: TranscriptEditSnapshot) throws -> Transcription {
+        guard var current = try fetch(id: expected.transcription.id) else { throw TranscriptEditError.deleted }
+        guard expected.matches(current), current.status != .processing else { throw TranscriptEditError.changed }
+        guard !current.hasWordTimestamps || current.isTranscriptEdited else { throw TranscriptEditError.timed }
+        current.cleanTranscript = text == current.rawTranscript ? nil : text
+        current.isTranscriptEdited = current.cleanTranscript != nil
+        current.updatedAt = max(current.updatedAt, Date())
+        try save(current)
+        return current
+    }
+
     func save(_ transcription: Transcription) throws {
         if let saveError {
             throw saveError
@@ -177,6 +206,7 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
     }
 
     func fetch(id: UUID) throws -> Transcription? {
+        if let fetchHandler { return try fetchHandler(id) }
         if let fetchError { throw fetchError }
         if failNextUserNotesReadBack, let userNotesReadBackError {
             failNextUserNotesReadBack = false
@@ -450,8 +480,13 @@ final class MockLaunchAtLoginService: LaunchAtLoginControlling {
 
 // MARK: - MockTranscriptionService
 
-actor MockTranscriptionService: SpeakerConfiguredRetranscriptionService {
+actor MockTranscriptionService: SpeakerConfiguredRetranscriptionService, SpeakerConfiguredTranscriptionService {
     private var transcribeHook: (@Sendable () async -> Void)?
+    private let retranscriptionRepository: (any TranscriptionRepositoryProtocol)?
+
+    init(retranscriptionRepository: (any TranscriptionRepositoryProtocol)? = nil) {
+        self.retranscriptionRepository = retranscriptionRepository
+    }
 
     func setTranscribeHook(_ hook: @escaping @Sendable () async -> Void) {
         transcribeHook = hook
@@ -465,7 +500,10 @@ actor MockTranscriptionService: SpeakerConfiguredRetranscriptionService {
     var lastSource: TelemetryTranscriptionSource?
     var lastMeetingRecording: MeetingRecordingOutput?
     var lastSpeechEngineOverride: SpeechEngineSelection?
-    var lastRetranscriptionSpeakerSelection: RetranscriptionSpeakerSelection?
+    var lastRetranscriptionSpeakerSelection: SpeakerCountSelection?
+    /// One entry per first-run file or URL call that carried a speaker count.
+    var transcriptionSpeakerSelections: [SpeakerCountSelection] = []
+    var transcriptionSpeakerAudioTrackOrdinals: [Int?] = []
     var transcribeProgressPhases: [TranscriptionProgress] = []
     var transcribeDelayMs: UInt64 = 0
     var transcribeURLCallCount = 0
@@ -697,21 +735,23 @@ actor MockTranscriptionService: SpeakerConfiguredRetranscriptionService {
         existing transcription: Transcription,
         fileURL: URL,
         source: TelemetryTranscriptionSource,
-        speechEngineOverride: SpeechEngineSelection?,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription {
-        lastSpeechEngineOverride = speechEngineOverride
-        return try await transcribe(fileURL: fileURL, source: source, onProgress: onProgress)
+        try await retranscribe(
+            existing: transcription, fileURL: fileURL, source: source,
+            speechEngineOverride: nil, onProgress: onProgress
+        )
     }
 
     func retranscribeMeeting(
         existing transcription: Transcription,
         recording: MeetingRecordingOutput,
-        speechEngineOverride: SpeechEngineSelection?,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription {
-        lastSpeechEngineOverride = speechEngineOverride
-        return try await transcribeMeeting(recording: recording, onProgress: onProgress)
+        try await retranscribeMeeting(
+            existing: transcription, recording: recording,
+            speechEngineOverride: nil, onProgress: onProgress
+        )
     }
 
     func retranscribe(
@@ -719,24 +759,77 @@ actor MockTranscriptionService: SpeakerConfiguredRetranscriptionService {
         fileURL: URL,
         source: TelemetryTranscriptionSource,
         speechEngineOverride: SpeechEngineSelection?,
-        speakerSelection: RetranscriptionSpeakerSelection,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription {
         lastSpeechEngineOverride = speechEngineOverride
-        lastRetranscriptionSpeakerSelection = speakerSelection
-        return try await transcribe(fileURL: fileURL, source: source, onProgress: onProgress)
+        let result = try await transcribe(fileURL: fileURL, source: source, onProgress: onProgress)
+        return try completeRetranscription(result, original: transcription)
     }
 
     func retranscribeMeeting(
         existing transcription: Transcription,
         recording: MeetingRecordingOutput,
         speechEngineOverride: SpeechEngineSelection?,
-        speakerSelection: RetranscriptionSpeakerSelection,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription {
+        lastSpeechEngineOverride = speechEngineOverride
+        let result = try await transcribeMeeting(recording: recording, onProgress: onProgress)
+        return try completeRetranscription(result, original: transcription)
+    }
+
+    func retranscribe(
+        existing transcription: Transcription,
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        speechEngineOverride: SpeechEngineSelection?,
+        speakerSelection: SpeakerCountSelection,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription {
         lastSpeechEngineOverride = speechEngineOverride
         lastRetranscriptionSpeakerSelection = speakerSelection
-        return try await transcribeMeeting(recording: recording, onProgress: onProgress)
+        let result = try await transcribe(fileURL: fileURL, source: source, onProgress: onProgress)
+        return try completeRetranscription(result, original: transcription)
+    }
+
+    func retranscribeMeeting(
+        existing transcription: Transcription,
+        recording: MeetingRecordingOutput,
+        speechEngineOverride: SpeechEngineSelection?,
+        speakerSelection: SpeakerCountSelection,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription {
+        lastSpeechEngineOverride = speechEngineOverride
+        lastRetranscriptionSpeakerSelection = speakerSelection
+        let result = try await transcribeMeeting(recording: recording, onProgress: onProgress)
+        return try completeRetranscription(result, original: transcription)
+    }
+
+    /// Model Core's in-place completion contract. A configured repository owns
+    /// the save, including metadata merging and rejection of a deleted row.
+    private func completeRetranscription(_ result: Transcription, original: Transcription) throws -> Transcription {
+        var updated = original
+        updated.durationMs = original.sourceType == .meeting ? original.durationMs : result.durationMs
+        updated.fileSizeBytes = result.fileSizeBytes
+        updated.rawTranscript = result.rawTranscript
+        updated.cleanTranscript = result.cleanTranscript
+        updated.wordTimestamps = result.wordTimestamps
+        updated.language = result.language
+        updated.speakerCount = result.speakerCount
+        updated.speakers = result.speakers
+        updated.diarizationSegments = result.diarizationSegments
+        updated.transcriptSegments = result.transcriptSegments
+        updated.status = result.status
+        updated.errorMessage = result.errorMessage
+        updated.exportPath = result.exportPath
+        updated.engine = result.engine
+        updated.engineVariant = result.engineVariant
+        updated.derivedTitle = result.derivedTitle
+        updated.derivedSnippet = result.derivedSnippet
+        updated.isTranscriptEdited = result.isTranscriptEdited
+        updated.updatedAt = result.updatedAt
+        return try retranscriptionRepository?.savePreservingUserMetadata(
+            updated, originalFileName: original.fileName
+        ) ?? updated
     }
 
     func transcribeURL(urlString: String, onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil) async throws
@@ -771,6 +864,27 @@ actor MockTranscriptionService: SpeakerConfiguredRetranscriptionService {
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
         try await transcribeURL(urlString: urlString, onProgress: onProgress)
+    }
+
+    func transcribe(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        audioTrackOrdinal: Int?,
+        speakerSelection: SpeakerCountSelection,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription {
+        transcriptionSpeakerSelections.append(speakerSelection)
+        transcriptionSpeakerAudioTrackOrdinals.append(audioTrackOrdinal)
+        return try await transcribe(fileURL: fileURL, source: source, onProgress: onProgress)
+    }
+
+    func transcribeURL(
+        urlString: String,
+        speakerSelection: SpeakerCountSelection,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription {
+        transcriptionSpeakerSelections.append(speakerSelection)
+        return try await transcribeURL(urlString: urlString, onProgress: onProgress)
     }
 }
 
@@ -882,6 +996,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var formatTranscriptStopReason: String?
     var formatTranscriptLatencyMs = 0
     var streamTokens: [String] = ["Hello", " world"]
+    var chatStreamOverride: AsyncThrowingStream<String, Error>?
     var streamTokenBatches: [[String]] = []
     var streamDelayNs: UInt64 = 0
     var streamEffectiveSettings: PromptInferenceSettings?
@@ -890,6 +1005,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var summarizeCallCount = 0
     var chatCallCount = 0
     var formatTranscriptCallCount = 0
+    var formatTranscriptHook: (@Sendable () async -> Void)?
     var lastChatQuestion: String?
     var lastSummaryTranscript: String?
     var lastChatTranscript: String?
@@ -991,6 +1107,8 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         ).output
     }
 
+    var formatTranscriptInputTruncated = false
+
     func formatTranscriptDetailed(
         transcript: String,
         promptTemplate: String,
@@ -998,6 +1116,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         defaultPromptUsed: Bool
     ) async throws -> LLMFormatterResult {
         formatTranscriptCallCount += 1
+        await formatTranscriptHook?()
         lastFormattedTranscript = transcript
         lastFormatterPromptTemplate = promptTemplate
         lastFormatterSource = source
@@ -1015,7 +1134,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
             operationID: "mock-format-operation",
             inputChars: transcript.count,
             outputChars: formatTranscriptResult.count,
-            inputTruncated: false,
+            inputTruncated: formatTranscriptInputTruncated,
             defaultPromptUsed: defaultPromptUsed,
             messageCount: 2
         )
@@ -1123,6 +1242,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         lastChatHistory = history
         lastChatUserNotes = userNotes
         lastChatSource = source
+        if let chatStreamOverride { return chatStreamOverride }
         let tokens = streamTokens
         let error = errorToThrow
         let delay = streamDelayNs
@@ -1432,8 +1552,11 @@ final class MockPromptMeetingPolicyRepository: PromptMeetingPolicyRepositoryProt
 final class MockPromptResultRepository: PromptResultRepositoryProtocol, @unchecked Sendable {
     var promptResults: [PromptResult] = []
     var saveCalls: [PromptResult] = []
+    var updateContentCalls: [PromptResult] = []
     var replaceCalls: [(promptResult: PromptResult, deletingExistingID: UUID?)] = []
+    var conditionalReplaceCalls: [(promptResult: PromptResult, deletingExistingID: UUID, expectedContent: String, expectedContentEditedAt: Date?)] = []
     var deleteCalls: [UUID] = []
+    var fetchAllError: Error?
 
     func save(_ promptResult: PromptResult) throws {
         saveCalls.append(promptResult)
@@ -1444,6 +1567,18 @@ final class MockPromptResultRepository: PromptResultRepositoryProtocol, @uncheck
         }
     }
 
+    func updateContent(id: UUID, expectedContent: String, content: String, editedAt: Date) throws -> PromptResult? {
+        guard let index = promptResults.firstIndex(where: { $0.id == id && $0.content == expectedContent }) else {
+            return nil
+        }
+        promptResults[index].content = content
+        promptResults[index].contentEditedAt = editedAt
+        promptResults[index].updatedAt = editedAt
+        let updated = promptResults[index]
+        updateContentCalls.append(updated)
+        return updated
+    }
+
     func replace(_ promptResult: PromptResult, deletingExistingID: UUID?) throws {
         replaceCalls.append((promptResult: promptResult, deletingExistingID: deletingExistingID))
         try save(promptResult)
@@ -1452,8 +1587,33 @@ final class MockPromptResultRepository: PromptResultRepositoryProtocol, @uncheck
         }
     }
 
+    func replaceIfUnchanged(
+        _ replacement: PromptResult,
+        deletingExistingID: UUID,
+        expectedContent: String,
+        expectedContentEditedAt: Date?
+    ) throws -> Bool {
+        conditionalReplaceCalls.append((replacement, deletingExistingID, expectedContent, expectedContentEditedAt))
+        guard let existing = promptResults.first(where: { $0.id == deletingExistingID }),
+              existing.content == expectedContent,
+              existing.contentEditedAt == expectedContentEditedAt,
+              existing.transcriptionId == replacement.transcriptionId,
+              replacement.id != deletingExistingID,
+              !promptResults.contains(where: { $0.id == replacement.id })
+        else {
+            return false
+        }
+        replaceCalls.append((promptResult: replacement, deletingExistingID: deletingExistingID))
+        try save(replacement)
+        _ = try delete(id: deletingExistingID)
+        return true
+    }
+
     func fetchAll(transcriptionId: UUID) throws -> [PromptResult] {
-        promptResults
+        if let fetchAllError {
+            throw fetchAllError
+        }
+        return promptResults
             .filter { $0.transcriptionId == transcriptionId }
             .sorted { $0.createdAt > $1.createdAt }
     }
@@ -1563,6 +1723,7 @@ final class MockPermissionService: PermissionServiceProtocol, @unchecked Sendabl
     var checkScreenRecordingPermissionCallCount = 0
     var checkAccessibilityPermissionCallCount = 0
     var openMicrophoneSettingsCallCount = 0
+    var openScreenRecordingSettingsCallCount = 0
     var screenRecordingPermissionSequence: [Bool] = []
 
     func checkMicrophonePermission() async -> PermissionStatus {
@@ -1593,7 +1754,9 @@ final class MockPermissionService: PermissionServiceProtocol, @unchecked Sendabl
         openMicrophoneSettingsCallCount += 1
     }
 
-    func openScreenRecordingSettings() {}
+    func openScreenRecordingSettings() {
+        openScreenRecordingSettingsCallCount += 1
+    }
 
     func checkAccessibilityPermission() -> Bool {
         checkAccessibilityPermissionCallCount += 1

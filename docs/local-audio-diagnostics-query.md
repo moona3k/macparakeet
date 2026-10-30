@@ -12,8 +12,11 @@ It reads `~/Library/Logs/MacParakeet/dictation-audio.log`, performs no network
 requests, and never modifies the source. `--path` overrides
 `MACPARAKEET_AUDIO_DIAGNOSTICS_LOG_PATH`, which overrides the usual location.
 When `MACPARAKEET_DEBUG_APP_STATE_DIR` is set, the default is
-`<state-root>/logs/dictation-audio.log`. Explicit paths are useful for copied
-support attachments. The utility does not open audio, transcripts, or databases.
+`<state-root>/logs/dictation-audio.log`. A Dev build (`com.macparakeet.dev`)
+launched without that variable writes under the default Dev root, so query it
+with `--path "$HOME/Library/Application Support/MacParakeet-Dev/logs/dictation-audio.log"`;
+with an explicit override, use `<state-root>/logs/dictation-audio.log`.
+Explicit paths are also useful for copied support attachments. The utility does not open audio, transcripts, or databases.
 
 JSON output has `schema_version: 1`. `records` contains timestamp, event, and
 parsed `fields`; field values stay strings, including booleans and numbers.
@@ -49,8 +52,8 @@ Always inspect `status` and the scan counters before drawing conclusions:
 New records carry `process_id`, a random per-launch `process_session`, and
 monotonic `uptime_ns`. Filter by `process_session` to separate app/CLI launches.
 Use `uptime_ns` within a process to reason about wall-clock corrections or
-delayed writes. This local ID is distinct from the network telemetry session
-UUID. It is not a user ID or a capture-operation ID.
+delayed writes. New builds share this ID with the network telemetry session UUID; older
+builds used separate IDs. It is not a user ID or a capture-operation ID.
 
 For a dictation incident, inspect `dictation_capture_start`,
 `dictation_capture_first_buffer`, `dictation_capture_stop`, and terminal
@@ -91,6 +94,16 @@ See the [lifecycle catalog](telemetry.md#5e-microphone-engine-lifecycle) and
 for field semantics and evidence limits. Do not sum checkpoints into operation
 failure rates or upload the complete local log as a telemetry event.
 
+For a saved meeting whose remote side is missing, compare the log with decoded
+source audio using `python3 scripts/dev/analyze_audio_signal.py /path/system-raw.m4a`.
+This separate, offline utility requires FFmpeg and emits per-second levels and
+exact-zero durations across every channel. It does not transcribe or modify the
+file. A nonzero lifetime peak can be only a ringtone; successful decoding and
+buffer coverage do not establish remote-speech capture. See the
+[issue #912 investigation](research/2026-09-27-issue-912-system-audio-root-cause.md)
+for commands, field semantics, measured evidence, and the required live-call
+qualification before selecting a different capture backend.
+
 The log retains only about 5 MB and best-effort writes can fail. New file sink
 failures are reported through OSLog's `AudioCaptureDiagnostics` category as
 `audio_diagnostic_write_failed`. Shareable file error fields contain classified
@@ -113,3 +126,29 @@ Run the deterministic synthetic-file tests with:
 ```sh
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/dev/tests -p 'test_query_audio_diagnostics.py'
 ```
+
+## Recovered crash context
+
+```sh
+python3 scripts/dev/query_audio_diagnostics.py --event crash_context_recovered --limit 20
+```
+
+The relaunch archives validated local-only lifecycle history before deleting a
+successfully delivered crash report. `process_session`, the line timestamp and
+`uptime_ns` describe that relaunch. `crash_session` and `crash_timestamp` describe
+the original process and incident; join other lines using the original ID.
+`crash_id` can repeat when delivery is retried.
+
+`crash_records` contains at most 32 `sequence:0xPAYLOAD` entries, separated by
+semicolons. The stable numeric layout and finite enums live in
+`CrashAudioContext.Record` (context version 1); its strict decoder is also used
+before archival. Sequences order observed transitions. Attempt tokens identify
+lifecycle observers, not engine generations. There are no per-record clocks,
+and missing records do not prove missing actions. Registered consumers mean
+workflow ownership, not successful audio.
+
+Archival never initiates log rotation or waits for another writer, and it is
+best effort. If it cannot append, that report's local history is lost once
+telemetry delivers the report or drops it for opt-out; archival failure never
+keeps a report pending. Existing log rotation may remove old recovered
+history. This utility's JSON schema and read-only behavior are unchanged.

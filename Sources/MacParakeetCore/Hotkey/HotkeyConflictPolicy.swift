@@ -63,10 +63,13 @@ public enum SettingsDictationHotkeyConflictPolicy {
 public enum HotkeyConflictPolicy {
     public enum Surface: Equatable, Sendable {
         case handsFreeDictation
+        case alternateHandsFree
+        case alternatePushToTalk
         case pushToTalk
         case meetingRecording
         case fileTranscription
         case youtubeTranscription
+        case dictationAIPolish
     }
 
     public struct Candidate: Equatable, Sendable {
@@ -110,10 +113,13 @@ public enum HotkeyConflictPolicy {
 
     public struct SettingsSnapshot: Sendable {
         public let handsFree: HotkeyTrigger
+        public let alternateHandsFree: HotkeyTrigger
+        public let alternatePushToTalk: HotkeyTrigger
         public let pushToTalk: HotkeyTrigger
         public let meeting: HotkeyTrigger
         public let fileTranscription: HotkeyTrigger
         public let youtubeTranscription: HotkeyTrigger
+        public let dictationAIPolish: HotkeyTrigger
         public let transformHotkeys: [Prompt]
         public let meetingRecordingEnabled: Bool
 
@@ -123,14 +129,20 @@ public enum HotkeyConflictPolicy {
             meeting: HotkeyTrigger,
             fileTranscription: HotkeyTrigger,
             youtubeTranscription: HotkeyTrigger,
+            dictationAIPolish: HotkeyTrigger = .disabled,
+            alternateHandsFree: HotkeyTrigger = .disabled,
+            alternatePushToTalk: HotkeyTrigger = .disabled,
             transformHotkeys: [Prompt],
             meetingRecordingEnabled: Bool
         ) {
+            self.alternateHandsFree = alternateHandsFree
+            self.alternatePushToTalk = alternatePushToTalk
             self.handsFree = handsFree
             self.pushToTalk = pushToTalk
             self.meeting = meeting
             self.fileTranscription = fileTranscription
             self.youtubeTranscription = youtubeTranscription
+            self.dictationAIPolish = dictationAIPolish
             self.transformHotkeys = transformHotkeys
             self.meetingRecordingEnabled = meetingRecordingEnabled
         }
@@ -190,12 +202,66 @@ public enum HotkeyConflictPolicy {
         surface: Surface,
         snapshot: SettingsSnapshot
     ) -> Conflict? {
+        let alternates = [
+            NamedCandidate(
+                name: "additional hands-free shortcut", trigger: snapshot.alternateHandsFree,
+                mode: .bareModifierDictation),
+            NamedCandidate(
+                name: "additional push-to-talk shortcut", trigger: snapshot.alternatePushToTalk,
+                mode: .bareModifierDictation),
+        ]
         switch surface {
+        case .alternateHandsFree, .alternatePushToTalk:
+            for peer in [
+                NamedCandidate(name: "hands-free mode", trigger: snapshot.handsFree),
+                NamedCandidate(name: "push to talk", trigger: snapshot.pushToTalk),
+                NamedCandidate(name: "AI-polished dictation", trigger: snapshot.dictationAIPolish),
+            ] {
+                if let conflict = acrossPairsConflict(candidate: trigger, peer: peer.trigger, peerName: peer.name) {
+                    return conflict
+                }
+            }
+            // Reuse the primary role policy after checking the other pair.
+            let swapped = SettingsSnapshot(
+                handsFree: snapshot.alternateHandsFree, pushToTalk: snapshot.alternatePushToTalk,
+                meeting: snapshot.meeting, fileTranscription: snapshot.fileTranscription,
+                youtubeTranscription: snapshot.youtubeTranscription, dictationAIPolish: snapshot.dictationAIPolish,
+                transformHotkeys: snapshot.transformHotkeys, meetingRecordingEnabled: snapshot.meetingRecordingEnabled
+            )
+            guard
+                let conflict = settingsConflict(
+                    for: trigger, surface: surface == .alternateHandsFree ? .handsFreeDictation : .pushToTalk,
+                    snapshot: swapped)
+            else { return nil }
+            switch conflict.name {
+            case "hands-free mode": return Conflict(name: "additional hands-free shortcut", trigger: conflict.trigger)
+            case "push to talk": return Conflict(name: "additional push-to-talk shortcut", trigger: conflict.trigger)
+            default: return conflict
+            }
+        case .handsFreeDictation, .pushToTalk, .dictationAIPolish:
+            for peer in alternates {
+                if let conflict = acrossPairsConflict(candidate: trigger, peer: peer.trigger, peerName: peer.name) {
+                    return conflict
+                }
+            }
+        default:
+            if let conflict = firstConflict(for: trigger, among: alternates) { return conflict }
+        }
+        switch surface {
+        case .alternateHandsFree, .alternatePushToTalk:
+            return nil  // Handled by the pair swap above.
         case .handsFreeDictation:
             if let conflict = dictationPeerConflict(
                 candidate: trigger,
                 peer: snapshot.pushToTalk,
                 peerName: "push to talk"
+            ) {
+                return conflict
+            }
+            if let conflict = overlappingConflict(
+                candidate: trigger,
+                peer: snapshot.dictationAIPolish,
+                peerName: "AI-polished dictation"
             ) {
                 return conflict
             }
@@ -213,6 +279,13 @@ public enum HotkeyConflictPolicy {
             ) {
                 return conflict
             }
+            if let conflict = overlappingConflict(
+                candidate: trigger,
+                peer: snapshot.dictationAIPolish,
+                peerName: "AI-polished dictation"
+            ) {
+                return conflict
+            }
             return firstConflict(
                 for: trigger,
                 selfMode: .bareModifierDictation,
@@ -227,6 +300,11 @@ public enum HotkeyConflictPolicy {
                     NamedCandidate(name: "push to talk", trigger: snapshot.pushToTalk, mode: .bareModifierDictation),
                     NamedCandidate(name: "file transcription", trigger: snapshot.fileTranscription),
                     NamedCandidate(name: "video URL transcription", trigger: snapshot.youtubeTranscription),
+                    NamedCandidate(
+                        name: "AI-polished dictation",
+                        trigger: snapshot.dictationAIPolish,
+                        mode: .bareModifierDictation
+                    ),
                 ] + transformCandidates(snapshot.transformHotkeys)
             )
 
@@ -249,6 +327,27 @@ public enum HotkeyConflictPolicy {
                     snapshot: snapshot
                 )
             )
+
+        case .dictationAIPolish:
+            if let conflict = overlappingConflict(
+                candidate: trigger,
+                peer: snapshot.handsFree,
+                peerName: "hands-free mode"
+            ) {
+                return conflict
+            }
+            if let conflict = overlappingConflict(
+                candidate: trigger,
+                peer: snapshot.pushToTalk,
+                peerName: "push to talk"
+            ) {
+                return conflict
+            }
+            return firstConflict(
+                for: trigger,
+                selfMode: .bareModifierDictation,
+                among: dictationPeerCandidates(snapshot: snapshot)
+            )
         }
     }
 
@@ -261,6 +360,30 @@ public enum HotkeyConflictPolicy {
         if HotkeyTrigger.isSharedDictationGesture(handsFree: candidate, pushToTalk: peer) {
             return nil
         }
+        return Conflict(name: peerName, trigger: peer)
+    }
+
+    /// Runtime dictation managers use this strict overlap check too. Unlike
+    /// shared hands-free/push-to-talk, dedicated shortcuts cannot share a trigger.
+    private static func overlappingConflict(
+        candidate: HotkeyTrigger,
+        peer: HotkeyTrigger,
+        peerName: String
+    ) -> Conflict? {
+        guard candidate.overlaps(with: peer) else { return nil }
+        return Conflict(name: peerName, trigger: peer)
+    }
+
+    /// The additional pair against the primary pair and AI polish. Chords on one
+    /// terminal key collide across pairs even with different modifiers, so one
+    /// pair's key release cannot be mistaken for the other's. Within a pair the
+    /// ordinary role policy applies.
+    private static func acrossPairsConflict(
+        candidate: HotkeyTrigger,
+        peer: HotkeyTrigger,
+        peerName: String
+    ) -> Conflict? {
+        guard candidate.overlaps(with: peer) || candidate.sharesChordKey(with: peer) else { return nil }
         return Conflict(name: peerName, trigger: peer)
     }
 
@@ -299,7 +422,16 @@ public enum HotkeyConflictPolicy {
         surface: Surface,
         conflict: Conflict
     ) -> Bool {
-        !(surface == .handsFreeDictation && conflict.name == "push to talk")
+        switch surface {
+        case .handsFreeDictation:
+            return conflict.name != "push to talk" && !conflict.name.hasPrefix("additional ")
+        case .pushToTalk, .dictationAIPolish:
+            return !conflict.name.hasPrefix("additional ")
+        case .alternateHandsFree:
+            return conflict.name != "additional push-to-talk shortcut"
+        default:
+            return true
+        }
     }
 
     private static func dictationPeerCandidates(snapshot: SettingsSnapshot) -> [NamedCandidate] {
@@ -326,6 +458,13 @@ public enum HotkeyConflictPolicy {
             candidates.append(NamedCandidate(name: "meeting recording", trigger: snapshot.meeting))
         }
         candidates.append(NamedCandidate(name: otherTranscriptionName, trigger: otherTranscriptionTrigger))
+        candidates.append(
+            NamedCandidate(
+                name: "AI-polished dictation",
+                trigger: snapshot.dictationAIPolish,
+                mode: .bareModifierDictation
+            )
+        )
         candidates.append(contentsOf: transformCandidates(snapshot.transformHotkeys))
         return candidates
     }

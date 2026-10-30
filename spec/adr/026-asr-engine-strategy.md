@@ -4,7 +4,7 @@
 > implementation record archived at
 > `plans/completed/2026-07-03-stt-capability-registry.md`)
 > Date: 2026-07-03
-> Amendment 2026-07-25: ADR-034 approves one narrow third-runtime exception for
+> Amendment 2026-07-25: ADR-035 approves one narrow third-runtime exception for
 > the existing Cohere engine. The engine roster and capability-registry rules do
 > not change.
 > Related: ADR-001 (Parakeet primary STT + benchmark amendment), ADR-002
@@ -17,7 +17,7 @@
 
 MacParakeet ships four speech engines across three narrowly scoped runtimes:
 Parakeet and Nemotron use FluidAudio CoreML, Whisper uses WhisperKit, and
-Cohere uses the pinned transcribe.cpp adapter approved by ADR-034. The roster has grown one
+Cohere uses the pinned transcribe.cpp adapter approved by ADR-035. The roster has grown one
 engine at a time (ADR-001 → ADR-021 → Nemotron → Cohere) without a
 standing rule for *how* it grows. Each addition has re-answered the same
 questions ad hoc: which runtime, which UI surface, which capability gaps
@@ -63,7 +63,7 @@ product's identity, not a temporary posture.
 ### 2. Two general runtimes plus one narrow Cohere adapter
 
 FluidAudio is the primary runtime and center of gravity; WhisperKit is a
-maintained legacy fallback. ADR-034 approves a small pinned transcribe.cpp
+maintained legacy fallback. ADR-035 approves a small pinned transcribe.cpp
 adapter only for the existing Cohere engine because it replaces a backend
 without adding a product engine. Any other runtime still requires a new ADR
 with evidence that a needed model cannot reach an existing runtime.

@@ -24,16 +24,21 @@ public struct VoiceControlTarget: Codable, Sendable, Equatable, Identifiable {
     /// `bottom-right`). Cheap to compute, and the one thing that tells two
     /// identically labelled controls apart in a criteria string.
     public let region: String?
+    /// Global screen rectangle (top-left origin), for the on-screen highlight
+    /// and number badges only. Kept in memory: it is not encoded, so it never
+    /// reaches Jev or a trace.
+    public let frame: CGRect?
     public init(
         id: String, label: String, role: String, value: String? = nil,
         operations: Set<VoiceControlOperation>, isNavigation: Bool = false,
         isFocused: Bool = false, selectedText: String? = nil, valueIsComplete: Bool = true,
-        consequence: VoiceControlConsequence? = nil, isOffscreen: Bool = false, region: String? = nil
+        consequence: VoiceControlConsequence? = nil, isOffscreen: Bool = false, region: String? = nil,
+        frame: CGRect? = nil
     ) {
         self.id = id; self.label = label; self.role = role; self.value = value
         self.operations = operations; self.isNavigation = isNavigation
         self.isFocused = isFocused; self.selectedText = selectedText; self.valueIsComplete = valueIsComplete
-        self.consequence = consequence; self.isOffscreen = isOffscreen; self.region = region
+        self.consequence = consequence; self.isOffscreen = isOffscreen; self.region = region; self.frame = frame
     }
     private enum CodingKeys: String, CodingKey {
         case id, label, role, value, operations, isNavigation, isFocused, selectedText, valueIsComplete, consequence,
@@ -54,6 +59,7 @@ public struct VoiceControlTarget: Codable, Sendable, Equatable, Identifiable {
         consequence = try container.decodeIfPresent(VoiceControlConsequence.self, forKey: .consequence)
         isOffscreen = try container.decodeIfPresent(Bool.self, forKey: .isOffscreen) ?? false
         region = try container.decodeIfPresent(String.self, forKey: .region)
+        frame = nil
     }
 
     /// Nine-cell grid position of `frame` inside `window`; nil without both.
@@ -116,16 +122,29 @@ public struct VoiceControlAction: Codable, Sendable, Equatable {
     public let modelID: String?
     public let decisionConfidence: Double?
     public let postcondition: VoiceControlPostcondition
+    /// Jev judged, on the task's first decision, that this one action completes
+    /// the whole request. Once it verifies or moves the interface the task ends
+    /// instead of asking again, which costs a round trip and can repeat a press
+    /// (`go to the next page`). `nil` when nobody judged it.
+    public let completesRequest: Bool?
     public init(
         operation: VoiceControlOperation, targetID: String, value: String? = nil, targetLabel: String? = nil,
         requiresConfirmation: Bool = false, receiptStatus: VoiceControlReceipt.Status? = nil,
         consequence: VoiceControlConsequence? = nil, modelID: String? = nil, decisionConfidence: Double? = nil,
-        postcondition: VoiceControlPostcondition = .unknown
+        postcondition: VoiceControlPostcondition = .unknown, completesRequest: Bool? = nil
     ) {
         self.operation = operation; self.targetID = targetID; self.value = value; self.targetLabel = targetLabel;
         self.requiresConfirmation = requiresConfirmation; self.receiptStatus = receiptStatus;
         self.consequence = consequence; self.modelID = modelID; self.decisionConfidence = decisionConfidence
-        self.postcondition = postcondition
+        self.postcondition = postcondition; self.completesRequest = completesRequest
+    }
+
+    func completingRequest() -> VoiceControlAction {
+        VoiceControlAction(
+            operation: operation, targetID: targetID, value: value, targetLabel: targetLabel,
+            requiresConfirmation: requiresConfirmation, receiptStatus: receiptStatus, consequence: consequence,
+            modelID: modelID, decisionConfidence: decisionConfidence, postcondition: postcondition,
+            completesRequest: true)
     }
 
     func referring(to target: VoiceControlTarget) -> Bool {
@@ -199,4 +218,116 @@ public enum VoiceControlEvent: Sendable, Equatable {
     case cancelled
     /// Ephemeral task content for the panel, deliberately excluded from diagnostic traces.
     case activity(String)
+    /// What to outline on screen: the control about to be acted on, the one a
+    /// confirmation is about, or the numbered choices of a pick. Panel and
+    /// overlay only; never traced.
+    case highlight(VoiceControlHighlight)
+}
+
+public struct VoiceControlHighlight: Sendable, Equatable {
+    public enum Style: String, Sendable, Equatable { case acting, confirming, numbered }
+    public struct Mark: Sendable, Equatable {
+        public let label: String
+        /// Nil when the control has no usable on-screen frame; the panel still lists it.
+        public let frame: CGRect?
+        public let number: Int?
+        public init(label: String, frame: CGRect?, number: Int? = nil) {
+            self.label = label; self.frame = frame; self.number = number
+        }
+    }
+    public let style: Style
+    public let marks: [Mark]
+    public init(style: Style, marks: [Mark]) { self.style = style; self.marks = marks }
+}
+
+/// The runner's amended-goal text. Only the user's own words in it are
+/// candidates for a field value: scaffold sentences and manually entered field
+/// values are context, never text to type.
+public enum VoiceControlGoalText {
+    static let header = "Continue this task using the latest corrections. Original goal: "
+    static let correction = "User correction (overrides earlier conflicting requirements): "
+    static let clarification = "User clarification: "
+    static let manualHeader =
+        "The user manually changed these fields. Preserve their current values; these override earlier conflicting requirements:"
+    static let uncertainNote =
+        "Some executed effects have unknown outcomes. Inspect the current state; never repeat those effects. Ask if their outcome is necessary but cannot be determined."
+
+    enum SegmentKind { case original, correction, clarification }
+
+    /// User-authored segments with their kind, oldest first. A goal without
+    /// the scaffold is one original segment. The runner writes every
+    /// amendment before the manual-field and uncertain-effect metadata, so
+    /// parsing stops at the first metadata line: a hand-edited field value
+    /// that happens to start with `User clarification:` is never read as
+    /// the user's words. Scaffold lines match case-insensitively, because
+    /// routers read a lowercased goal.
+    static func kindedSegments(_ goal: String) -> [(kind: SegmentKind, text: String)] {
+        guard goal.dropPrefix(header) != nil else { return goal.isEmpty ? [] : [(.original, goal)] }
+        var segments: [(kind: SegmentKind, text: String)] = []
+        let prefixes: [(String, SegmentKind)] = [
+            (header, .original), (correction, .correction), (clarification, .clarification),
+        ]
+        for line in goal.components(separatedBy: "\n") {
+            if [manualHeader, uncertainNote].contains(where: { line.caseInsensitiveCompare($0) == .orderedSame }) {
+                break
+            }
+            if let (rest, kind) = prefixes.lazy.compactMap({ prefix, kind in
+                line.dropPrefix(prefix).map { ($0, kind) }
+            }).first {
+                segments.append((kind, rest))
+            } else if !segments.isEmpty {
+                segments[segments.count - 1].text += "\n" + line
+            }
+        }
+        return segments.filter { !$0.text.isEmpty }
+    }
+
+    /// User-authored segments, oldest first.
+    static func userSegments(_ goal: String) -> [String] { kindedSegments(goal).map(\.text) }
+
+    /// What the person is asking for now: the newest correction, else the
+    /// original goal. Clarifications answer questions (`2`, `Rome, Italy`) and
+    /// never restate the request. A correction that names no site abandons an
+    /// earlier one (`actually reply to the email instead`).
+    static func currentRequest(_ goal: String) -> String? {
+        let segments = kindedSegments(goal)
+        if let correction = segments.last(where: { $0.kind == .correction }) {
+            return withoutLeadingFiller(correction.text)
+        }
+        return segments.first { $0.kind == .original }?.text
+    }
+
+    /// `actually play blues` -> `play blues`: a correction's opening filler
+    /// hides the verb that anchors a route.
+    static func withoutLeadingFiller(_ text: String) -> String {
+        let fillers: Set<String> = ["actually", "no", "sorry", "wait", "instead", "rather", "oh", "um", "uh"]
+        var rest = Substring(text)
+        while let word = rest.split(whereSeparator: { $0.isWhitespace }).first,
+            fillers.contains(word.lowercased().trimmingCharacters(in: .punctuationCharacters))
+        {
+            rest = rest[word.endIndex...].drop { $0.isWhitespace || $0.isPunctuation }
+        }
+        return rest.isEmpty ? text : String(rest)
+    }
+
+    /// The original goal while every amendment is a clarification. Nil when a
+    /// correction overrides earlier words, the person changed fields by hand,
+    /// or an effect's outcome is uncertain: a deterministic plan cannot honour
+    /// those, so they belong to the model. Clarifications are never merged into
+    /// the goal, because an answer is not a `from … to … on …` frame.
+    static func unrevisedGoal(_ goal: String) -> String? {
+        guard goal.dropPrefix(header) != nil else { return goal }
+        let lines = goal.components(separatedBy: "\n")
+        let overriding = [correction, manualHeader, uncertainNote]
+        guard !lines.contains(where: { line in overriding.contains { line.dropPrefix($0) != nil } }) else {
+            return nil
+        }
+        return userSegments(goal).first
+    }
+}
+
+private extension String {
+    func dropPrefix(_ prefix: String) -> String? {
+        range(of: prefix, options: [.caseInsensitive, .anchored]).map { String(self[$0.upperBound...]) }
+    }
 }

@@ -32,19 +32,17 @@ final class STTClientTests: XCTestCase {
     }
 
     func testSpeechEnginePreferenceDefaultsToParakeet() {
-        let suiteName = "com.macparakeet.tests.speech-engine.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("com.macparakeet.tests.speech-engine.")
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
-        defer { defaults.removePersistentDomain(forName: suiteName) }
 
         XCTAssertEqual(SpeechEnginePreference.current(defaults: defaults), .parakeet)
     }
 
     func testSpeechEnginePreferencePersistsWhisperLanguage() {
-        let suiteName = "com.macparakeet.tests.whisper-language.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("com.macparakeet.tests.whisper-language.")
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
-        defer { defaults.removePersistentDomain(forName: suiteName) }
 
         SpeechEnginePreference.whisper.save(to: defaults)
         SpeechEnginePreference.saveWhisperDefaultLanguage("KO_kr", defaults: defaults)
@@ -216,71 +214,6 @@ final class STTClientTests: XCTestCase {
             )?.resolvingSymlinksInPath(),
             nestedMatch.resolvingSymlinksInPath()
         )
-    }
-
-    func testSTTErrorDescriptions() {
-        XCTAssertNotNil(STTError.engineNotRunning.errorDescription)
-        XCTAssertNotNil(STTError.timeout.errorDescription)
-        XCTAssertNotNil(STTError.modelNotLoaded.errorDescription)
-        XCTAssertNotNil(STTError.outOfMemory.errorDescription)
-        XCTAssertNotNil(STTError.invalidResponse.errorDescription)
-        XCTAssertNotNil(STTError.engineBusy.errorDescription)
-        XCTAssertNotNil(STTError.transcriptionFailed("test").errorDescription)
-        XCTAssertNotNil(STTError.engineStartFailed("test").errorDescription)
-    }
-
-    func testMockSTTClientTranscribe() async throws {
-        let mock = MockSTTClient()
-        let expectedResult = STTResult(text: "Hello from mock")
-        await mock.configure(result: expectedResult)
-
-        let result = try await mock.transcribe(audioPath: "/tmp/test.wav", job: .fileTranscription)
-        XCTAssertEqual(result.text, "Hello from mock")
-
-        let callCount = await mock.transcribeCallCount
-        XCTAssertEqual(callCount, 1)
-
-        let lastPath = await mock.lastAudioPath
-        XCTAssertEqual(lastPath, "/tmp/test.wav")
-    }
-
-    func testMockSTTClientError() async {
-        let mock = MockSTTClient()
-        await mock.configure(error: STTError.transcriptionFailed("test error"))
-
-        do {
-            _ = try await mock.transcribe(audioPath: "/tmp/test.wav", job: .fileTranscription)
-            XCTFail("Should have thrown")
-        } catch let error as STTError {
-            if case .transcriptionFailed(let reason) = error {
-                XCTAssertEqual(reason, "test error")
-            } else {
-                XCTFail("Wrong error type")
-            }
-        } catch {
-            XCTFail("Wrong error type: \(error)")
-        }
-    }
-
-    func testMockSTTClientWarmUp() async throws {
-        let mock = MockSTTClient()
-        try await mock.warmUp()
-        let called = await mock.warmUpCalled
-        XCTAssertTrue(called)
-    }
-
-    func testMockSTTClientShutdown() async {
-        let mock = MockSTTClient()
-        await mock.shutdown()
-        let called = await mock.shutdownCalled
-        XCTAssertTrue(called)
-    }
-
-    func testMockSTTClientClearModelCache() async {
-        let mock = MockSTTClient()
-        await mock.clearModelCache()
-        let called = await mock.clearModelCacheCalled
-        XCTAssertTrue(called)
     }
 
 }

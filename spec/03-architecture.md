@@ -1,6 +1,6 @@
 # MacParakeet: Architecture
 
-> Status: **ACTIVE** — implementation map, audited 2026-09-07.
+> Status: **ACTIVE** — implementation map, refreshed for the independent 2026-10-02 audit.
 > Source presence describes development capability. The
 > [release and flag table](README.md#release-channels-and-feature-flags)
 > governs availability; this document is not release qualification.
@@ -18,6 +18,11 @@ flowchart TD
     App --> Core[MacParakeetCore services]
     VM --> Core
     CLI[macparakeet-cli] --> Core
+    App --> AskVM[AskWorkspaceViewModel]
+    AskVM --> Ask[AskWorkspaceService]
+    CLI --> Ask
+    Ask --> Pi[Private Pi agent-core helper]
+    Ask --> DB
     Core --> DB[GRDB repositories and SQLite]
     Core --> Files[Local audio and meeting artifacts]
     Core --> Speech[STTScheduler and STTRuntime]
@@ -25,6 +30,7 @@ flowchart TD
     Speech --> Whisper[WhisperKit]
     Speech --> CohereCpp[transcribe.cpp: Cohere]
     Core --> AI[RoutingLLMClient: configured HTTP or Local CLI]
+    AI --> AppleAI[Apple Intelligence: on-device Foundation Models when selected]
     App -. opt-in build and developer gate .-> MLX[MacParakeetLocalLLM]
 ```
 
@@ -59,6 +65,9 @@ own downstream copies.
 `AudioProcessor` wraps the dictation recorder and `AudioFileConverter`; feature
 services do not install independent microphone engines. System meeting audio
 comes through `SystemAudioStream` using ScreenCaptureKit.
+The default-off Voice Control experiment shares the microphone stream and STT
+scheduler but owns an ephemeral command session; see
+[ADR-033](adr/033-explicit-voice-control.md).
 
 Meeting source selection is mic, system, or both. Mic-only recording requires
 no Screen Recording permission. The shipping microphone processing mode is
@@ -81,7 +90,7 @@ runtime for app features.
 
 | Lane | Work and policy |
 |---|---|
-| Interactive | Reserved for dictation. Native live dictation sessions occupy it for their lifetime. |
+| Interactive | Reserved for dictation. Native live dictation sessions occupy it for their lifetime; recorded-file dictation jobs queue behind them instead of failing. |
 | Background | `meetingFinalize` > `meetingLiveChunk` > `fileTranscription` among pending work. An already running file job is not preempted by meeting stop. |
 | Display preview | Parakeet TDT tail-window preview uses a bounded single-flight path outside those job slots; it has cancellation/drain and engine-switch guards. |
 
@@ -148,8 +157,21 @@ Completion uses `TranscriptionRepository.savePreservingUserMetadata`: merge
 against current user notes, names, favorites, artifact/audio pointers and other
 user metadata inside the write transaction. Publish the returned row. A missing
 row aborts completion instead of recreating an item deleted during processing.
+GUI and CLI callers must return that merged row without a later full-row save
+from their pre-recognition snapshot. The same ownership rule applies to
+presentation: a successful Library favorite/delete/audio-detach mutation
+invalidates an older in-flight page snapshot before it can publish, retaining
+the requested pagination window.
 See the [database guide](../Sources/MacParakeetCore/Database/README.md) and
 [file audio-track contract](contracts/file-transcription-audio-tracks.md).
+
+Cancellation is checked after optional speaker detection and awaited text
+processing, with a final cooperative check before search invalidation and
+canonical publication. A late backend success or ordinary error cannot bypass
+that check. A cancelled replacement preserves the old row/index when observed
+at this boundary; cancellation arriving after it does not roll back committed
+work. Genuine optional diarization failures still allow successful ASR. See the
+[diarization cancellation amendment](adr/010-speaker-diarization.md#cancellation-boundary-amendment-2026-10-02).
 
 `MeetingImportService` is the shared app/CLI boundary for turning one external
 recording into a managed meeting. It normalizes the first/default audio stream
@@ -223,8 +245,25 @@ and file/URL transcripts. Dictation history remains a separate search surface.
 `CardGenerationService` validates bounded JSON and citations, then checks source
 freshness again after provider latency and inside persistence. Failed generation
 does not erase the previous valid card. `KnowledgeLayerMutationService` owns
-cross-table invalidation/replacement. Corpus-wide Ask, semantic retrieval and
-cross-file speaker identity are not implied by these components.
+cross-table invalidation/replacement. The Ask workspace adds explicit,
+conversation-owned source selection for up to 32 Library transcriptions. Its
+source service reads current corrected passages lexically, freezes their
+content revisions per run, and resolves stored citations against those
+revisions. This is bounded selected-source Ask, not implicit whole-corpus Ask,
+semantic retrieval, or cross-file speaker identity.
+
+`AskConversationRepository` persists one bounded conversation payload with SQL
+revision and run-lease columns but no source foreign key. `AskWorkspaceService`
+shares the native and CLI lifecycle: it verifies provider consent, snapshots
+source revisions, filters active-section history to completed question-and-
+answer pairs with matching revision maps, records an assistant placeholder,
+runs the agent, and atomically revalidates source revisions and used summary
+receipts with the final completed write. The private Node helper uses Pi agent-core's
+`runAgentLoop`; Swift handles model requests through a validated one-action JSON
+bridge and streams final text through the configured client. The helper
+receives no credentials and exposes only four read-only source tools. See
+[ADR-034](adr/034-meeting-ask-workspace.md) and the
+[Ask contract](contracts/ask-workspace.md).
 
 Saved meeting notes are user-authored SQLite state. `SavedMeetingNotesViewModel`
 and `SavedMeetingNotesCoordinator` debounce saves and flush before dependent
@@ -252,7 +291,10 @@ legacy meeting-type policies are compatibility data only.
 Prompt definitions and versions remain in the same GRDB database; completed `PromptResult` values retain
 the compatibility table name `summaries`. Result prompts snapshot prompt
 content, included notes and effective inference settings so a later edit does
-not rewrite a historical request receipt. Default/unsupported provider settings
+not rewrite a historical request receipt. A source-text hash and correction
+revision let the reading view identify results needing an update; regeneration
+replaces an earlier result only if its content and edit timestamp still match
+the generation snapshot. Default/unsupported provider settings
 follow [spec 14](14-per-prompt-inference-settings.md), not arbitrary passthrough.
 Transforms have separate selected-text capture/replacement and history semantics.
 See [LLM integration](11-llm-integration.md), [processing layer](12-processing-layer.md)
@@ -280,6 +322,7 @@ is untimed. The
 | Dictation/file/media retained audio | App-managed paths and workflow-specific retention preferences; see `AppPaths` and storage contracts. |
 | Speech models and downloaded helper binaries | FluidAudio-managed Parakeet and Nemotron caches, MacParakeet's Cohere GGUF and Whisper caches, and app `bin/` paths. |
 | Optional local LLM models | Explicitly downloaded `LLMModels/` directory; no model bundled or automatically downloaded. |
+| Ask runtime | Private bundled JavaScript helper plus official Node runtime in app/CLI packaging; model credentials and source access stay in Swift. |
 | Diagnostics | Bounded local audio log, OSLog and explicit exports; governed separately from transmitted telemetry. |
 
 SQLite is the canonical structured record store, not a complete backup of all
@@ -310,8 +353,8 @@ Package requirements below describe this audited revision; `Package.swift` and
 
 | Dependency | Requirement and use |
 |---|---|
-| FluidAudio | Exact `0.15.7`; Parakeet, Nemotron, and offline diarization. Deliberate upgrades require speech/diarization validation. |
-| transcribe.cpp Swift wrapper | Opt-in local package plus pinned arm64 XCFramework; Cohere Transcribe only. Exact source, wrapper, owned artifact, model, and license gates are in [ADR-034](adr/034-cohere-transcribe-cpp-backend.md). |
+| FluidAudio | Exact `0.17.7`; local STT, automatic Nemotron 3 diarization and Community-1 for explicit speaker constraints. Deliberate upgrades require speech/diarization validation; see ADR-010's matched evaluation. |
+| transcribe.cpp Swift wrapper | Opt-in local package plus pinned arm64 XCFramework; Cohere Transcribe only. Exact source, wrapper, owned artifact, model, and license gates are in [ADR-035](adr/035-cohere-transcribe-cpp-backend.md). |
 | GRDB.swift | From `7.0.0`; database access and migrations. |
 | swift-argument-parser | From `1.3.0`; public CLI. |
 | Sparkle | From `2.9.0`; app updates and embedded framework packaging. |
@@ -349,3 +392,8 @@ Run from the worktree that owns the change. The development script owns GUI
 bundle preparation and `-skipMacroValidation` for the Markdown dependency; do
 not reconstruct a partial Xcode invocation from an old architecture example.
 Use isolated app state for QA as documented in the distribution/testing guides.
+An AppPaths override alone does not isolate shared UserDefaults, Keychain or
+TCC. Full app qualification requires the disposable account described in
+[native Library E2E](../docs/testing/native-library-e2e.md). Isolated SwiftUI
+renders with fake services can inspect actual view layout without launching
+the app, but do not prove first-launch permission or delivery behavior.

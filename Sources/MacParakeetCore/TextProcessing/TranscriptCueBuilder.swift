@@ -26,11 +26,13 @@ public enum TranscriptCueBuilder {
             return []
         }
         guard transcription.transcriptTextAlignment == .segment,
-              let segments = transcription.transcriptSegments,
-              !segments.isEmpty
+              let segments = transcription.transcriptSegments
         else {
             return build(from: words)
         }
+        // Every passage was omitted. An empty segment list is the transcript;
+        // falling through to the automatic words would restore the removed text.
+        if segments.isEmpty { return [] }
 
         return segments.flatMap { segment in
             if segment.isTextEdited == true {

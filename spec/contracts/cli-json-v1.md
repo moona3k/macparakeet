@@ -8,6 +8,12 @@
 agents, and external tools. JSON modes must remain machine-readable on stdout,
 with human progress/status kept off stdout.
 
+`voice-control replay` is the sole experimental output-shape exception. It
+routes a saved Voice Control observation for diagnosis and never observes or
+acts on the live screen. Its report fields may change while Voice Control is
+release-gated; the shared stdout, stderr, and failure-envelope rules below
+still apply.
+
 ## Producers
 
 - `CLIHelpers.printJSON`
@@ -67,6 +73,18 @@ with human progress/status kept off stdout.
   `Transcription` object. It is zero-based and non-null only when a local-file
   audio stream was selected explicitly; this additive field does not change
   stdout/stderr or envelope shapes.
+- `retranscribe --update` returns the completed row already committed by the
+  shared transcription service for saved transcriptions and meetings. Concurrent
+  notes/chat edits or clears, renames, favorites and audio metadata changes
+  merged by that service remain authoritative. The CLI performs no second save
+  after completion, including when the row is deleted before output is emitted.
+  A recording deleted before the completion transaction cannot be recreated.
+  Dictation reruns require the row still to exist with its original status;
+  for non-empty results, deletion or a status change yields the existing
+  `lookup` error with exit `1`. A blank failed-dictation retry is rejected as
+  `emptyTranscript` before the completion status guard.
+  That status check is not a general revision check for same-status dictation
+  edits. These rules do not change JSON fields or exit-code meanings.
 - Transcription-shaped JSON payloads include nullable `splitProvenance`. It is
   non-null only for a saved child created by Split and transcribe, with
   `operationId`, `sourceId`, the snapshotted `sourceTitle`, approved
@@ -113,7 +131,10 @@ with human progress/status kept off stdout.
   that every field is supported by the provider selected for a later run.
 - The same prompt JSON objects include additive Boolean
   `includeMeetingNotes`, the result prompt's automatic meeting-notes context
-  preference. Its default is `false`. The `--include-meeting-notes` flag on
+  preference. Its generic default is `false`; newly seeded built-in Summary
+  prompts set it to `true`. Existing saved settings and historical result
+  snapshots are preserved. `prompts restore-defaults` preserves this preference.
+  The `--include-meeting-notes` flag on
   `prompts set <prompt>` enables it and `--no-include-meeting-notes` disables
   it; the flags are mutually exclusive and rejected for Transform prompts.
   Explicit `{{userNotes}}` custom-template substitution remains
@@ -166,7 +187,9 @@ with human progress/status kept off stdout.
   its model identifiers and aliases during generation. Model discovery results
   are not an exhaustive allow-list. For the Local CLI provider, an override
   differing from the configured model is rejected before command execution:
-  changing a model string cannot reconfigure its command template.
+  changing a model string cannot reconfigure its command template. Apple
+  Intelligence likewise rejects a model override before generation; it always
+  uses the on-device system model.
 - LLM result JSON envelopes include additive optional `effectiveSettings` with
   the same object shape. For `prompts run --json`, a present value is the
   normalized adapter receipt after provider/model filtering. Absence means no
@@ -185,7 +208,7 @@ with human progress/status kept off stdout.
   Optional usage totals are derived from two reported component counts only
   when the sum is representable; otherwise the total remains unknown while
   reported components are preserved.
-- `meetings results list|add --json` prompt-result objects include additive
+- `meetings results list|add|edit --json` prompt-result objects include additive
   optional `inferenceSettingsSnapshot` with the same settings shape. When
   present it is the effective receipt stored with the result; imported results
   created by `meetings results add` omit it.
@@ -194,11 +217,84 @@ with human progress/status kept off stdout.
   that generation. `false` covers migrated and externally imported results.
   Nullable `userNotesSnapshot` contains the exact normalized, bounded notes
   value supplied to prompt assembly, not necessarily the full canonical note.
+  Results saved by older versions can hold uncapped notes.
+  Provider context limits can further trim the assembled prompt before dispatch;
+  this snapshot records assembly input, not byte-exact network payloads.
+- `meetings results list|add|edit --json` prompt-result objects may include
+  `sourceTranscriptHash`, a
+  SHA-256 receipt of cue words when timed cues are available on an unedited
+  transcript, otherwise trimmed automatic clean/raw text. The field is
+  omitted when the source is unknown; existing rows retain that unknown
+  source on migration because the transcript may already have changed.
+- Saved prompt-result JSON objects include additive nullable
+  `outputLanguagePolicySnapshot` (`follow-transcript` or a language code).
+  Omission means no meeting AI language policy was recorded, including earlier
+  and externally imported results; regeneration then uses the current setting.
 - Prompt-result objects may additionally include nullable `promptId`,
   `promptVersionId`, `providerSnapshot`, and `modelSnapshot`. Library-driven
   CLI/app generation populates those execution receipts. Historical and
   externally imported results may omit them; omission never means the current
   prompt/provider/model should be inferred.
+- Saved prompt-result JSON objects include additive nullable `contentEditedAt`.
+  When present it is the timestamp of the last in-place user edit of `content`.
+  Omission means no in-place edit is recorded. Generated, historical, and
+  externally imported results can all omit it; absence does not establish who
+  wrote the content.
+- `meetings results edit <meeting> <result-uuid>` changes the existing result's
+  content without changing its ID or generation provenance. Supply exactly one
+  `--content`, `--file` or `--stdin` input and exactly one `--expected-content`
+  or `--expected-content-file` precondition. The precondition is compared
+  exactly, including whitespace, in the conditional database write. Blank new
+  content is rejected. A stale content precondition returns `conflict`, exit
+  `1`, without overwriting the result. Success returns a
+  `MeetingPromptResultRecord` and sets `contentEditedAt`. Artifact refresh is
+  best-effort: a failure warns on stderr without rolling back the saved database
+  edit. The
+  command never deletes audio. Missing/wrong-meeting result IDs fail
+  instead of editing another recording's result.
+  The GUI follows the same exact-content precondition, captured when its editor
+  opens. Reloading that recording cannot replace the editor's original baseline
+  with a newer CLI edit; a conflicting save keeps the draft without overwriting
+  the current result.
+- Task overrides may exist without a default provider. In that state the
+  default and unconfigured inherited tasks report `configured:false`, while an
+  explicit cleanup or analysis route reports `configured:true` and
+  `inherited:false`. `llm routes reset` returns an unconfigured route if there
+  is no default. Apple Intelligence is accepted for `cleanup` only by
+  `llm routes set`; analysis selection fails validation before persistence.
+- `llm routes list --json` returns `{ok:true,routes:[...]}`. Each entry has
+  `task` (`default`, `cleanup`, `analysis`, `transform`), `inherited` and
+  `configured`; configured entries also include `provider`, `model`, `isLocal`
+  and a redacted `endpoint` origin. Credentials, URL userinfo, path, query and
+  fragment are never emitted. `llm routes set|reset <cleanup|analysis> --json`
+  returns `{ok:true,route:{...}}` with the same entry shape. Listing and route
+  descriptions do not read Keychain. Set accepts the
+  inline provider options but saves a task override instead of making an LLM
+  request; when `--model` is omitted it uses the provider's current GUI default.
+  Apple Intelligence can serve only `cleanup`; setting an `analysis` override
+  with `--provider appleIntelligence` fails validation before credentials or
+  route metadata are changed.
+  Explicit inline Apple Intelligence requests for summaries, chat, Ask, and Transforms
+  also fail before dispatch through the shared service, including streams. They
+  use the existing runtime-error envelope and exit code 1.
+  Explicit models and custom-provider model requirements remain unchanged;
+  one-off inline commands keep their historical compatibility defaults.
+  Reset removes only that override. Explicit credential flags win,
+  then saved provider credentials, then provider environment variables. Keys
+  remain shared per provider, so an explicitly supplied replacement key applies
+  to every route using that provider. Local CLI reuses the configured shared
+  template and rejects a different `--command`. A running GUI may cache
+  configuration until refreshed or relaunched. `configured` describes saved
+  route configuration, not provider reachability. App availability is determined
+  per task route; Default AI may be None when an explicit task route is configured. An already-open AI Settings draft can overwrite CLI
+  changes when saved; close it before CLI mutations and reopen afterward.
+  GUI model selection conditionally updates the route it displayed and refreshes
+  instead of applying a stale choice to a concurrently changed route. Route
+  metadata writers coordinate across app and CLI processes; this does not make
+  credential changes and preference writes a single transaction.
+  A busy rejection occurs before credential or route changes. A publication
+  failure after mutation reports an unconfirmed save; read the current routes
+  before deciding whether to retry, because the attempted change may have applied.
 - `meetings show --json` and `meetings transcript --format json` expose
   `transcriptSegments` when the meeting row has durable segments. Each segment
   contains `id`, `startMs`, `endMs`, `speakerId`, `speakerLabel`, `text`, and
@@ -237,7 +333,7 @@ with human progress/status kept off stdout.
   whole-text edits. The same payload's `wordTimestamps` retain the
   automatic recognized text and timing as immutable evidence, so consumers
   must not substitute them for corrected-word timing.
-- `meetings corrections edit-line|merge-lines|rename|assign|merge-speakers|undo|redo|reset`
+- `meetings corrections edit-line|revise-text|merge-lines|rename|assign|merge-speakers|undo|redo|reset`
   mutates the
   same reversible correction journal as the app. Every command requires
   `--expected-revision` from the last transcript read; edit/merge/assign
@@ -252,6 +348,15 @@ with human progress/status kept off stdout.
   `validation` for stale/unsupported segment targets and correction commands,
   and `input_empty` for blank replacement text. Conflict exits `1`; validation
   and empty-input misuse exit `2`.
+- `meetings corrections revise-text` takes `--file PATH` or `--stdin` JSON:
+  an array of `{"segment":"UUID","text":"replacement"}` or
+  `{"segment":"UUID","omit":true}` entries. It requires
+  `--expected-revision` and targets current effective segment IDs. Empty
+  batches, duplicate IDs, unknown fields, blank replacements and ambiguous
+  text/omit entries are rejected before a write. The batch is one atomic
+  correction and one Undo step, matching the GUI reading editor. Omission
+  removes a passage from the effective transcript, exports and AI context;
+  automatic text, timings and audio remain intact.
 - `history favorite|unfavorite --json` returns `ok`, `id`, and `isFavorite`.
 - `history rename --title --json` returns `ok`, `kind` (`meeting` or `file`),
   `id`, and `title` (the effective display title). An identical title still
@@ -372,6 +477,11 @@ stdout:
 The process exit code remains the source of truth for branching. The envelope
 explains why the command failed.
 
+For `vocab import`, malformed or unsupported bundles use `import_schema` and
+exit `2`; an empty `replace-all` bundle uses `input_empty` and exit `2`.
+A stale import preview uses `conflict` and exit `1`; file I/O failures remain
+runtime errors.
+
 ## Exit Codes
 
 - `0`: success
@@ -416,6 +526,7 @@ version/changelog treatment.
 
 - `SpecCommandTests`
 - `LLMJSONOutputTests`
+- `LLMRoutesCommandTests`
 - `MeetingsCommandTests`
 - `MeetingVADSimCommandTests`
 - `TranscribeCommandTests`
@@ -444,3 +555,14 @@ segments and additive artifact paths, command-level JSON failure envelopes, and
 Update this file, `Sources/CLI/CHANGELOG.md`, `docs/cli-testing.md`,
 `integrations/README.md` if external callers are affected, and the focused CLI
 tests in the same PR.
+
+### Experimental Ask streaming progress
+
+Developer-gated `ask send --stream` retains its existing `activity`, `text`,
+and terminal `conversation` NDJSON records and adds `phase` and `step` records.
+Phase records contain `phase` (`planning`, `writing`, `validating`). Step
+records contain `step`, an `AskActivity`; upsert by its `id`. Completed
+conversations expose optional `messages[].activities`, preserving compatibility
+with older messages. Limits, count semantics, and fields are defined in
+[the Ask workspace contract](ask-workspace.md). Consumers should ignore unknown
+event types and optional fields.

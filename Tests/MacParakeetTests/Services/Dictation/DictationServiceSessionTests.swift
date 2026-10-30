@@ -49,7 +49,8 @@ final class DictationServiceSessionTests: XCTestCase {
         XCTAssertTrue(captureStopped)
 
         let state = await session.state
-        if case .idle = state {} else {
+        if case .idle = state {
+        } else {
             XCTFail("Expected idle state after confirm cancel, got \(state)")
         }
     }
@@ -65,7 +66,7 @@ final class DictationServiceSessionTests: XCTestCase {
         XCTAssertTrue(captureStopped, "Confirm cancel should target the captured session, not the latest reserved one")
     }
 
-    func testStaleStartFailureDoesNotClearReplacementSession() async throws {
+    func testCancelledStartSettlesBeforeReplacementSession() async throws {
         let audio = DictationRaceAudioProcessor()
         service = DictationService(
             audioProcessor: audio,
@@ -86,23 +87,24 @@ final class DictationServiceSessionTests: XCTestCase {
         let secondStart = Task {
             try await session.startRecording(sessionID: secondSessionID, context: DictationTelemetryContext())
         }
-        await audio.waitForStartCall(2)
+        let clock = ContinuousClock()
+        let deadline = clock.now + .seconds(2)
+        while await service.pendingStartCountForTesting() == 0 && clock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let queuedStarts = await service.pendingStartCountForTesting()
+        XCTAssertEqual(queuedStarts, 1, "The replacement must wait for the first start to settle")
 
         await audio.releaseStartCall(1)
-        do {
-            try await firstStart.value
-            XCTFail("First start should fail after being replaced")
-        } catch AudioProcessorError.recordingFailed(let reason) {
-            XCTAssertEqual(reason, "interrupted during subscribe")
-        } catch {
-            XCTFail("Unexpected first start error: \(error)")
-        }
+        try await firstStart.value
 
+        await audio.waitForStartCall(2)
         await audio.releaseStartCall(2)
         try await secondStart.value
 
         let state = await session.state
-        if case .recording = state {} else {
+        if case .recording = state {
+        } else {
             XCTFail("Expected replacement session to still be recording, got \(state)")
         }
     }

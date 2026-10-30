@@ -36,6 +36,8 @@ starts no artifact refresh.
 - `MeetingRecordingService`: creates session folders and source audio.
 - `MeetingTranscriptFinalizer` / meeting finalization: completes the DB row and
   final transcript.
+- `MeetingRecordingRecoveryService`: refreshes artifacts from the final recovered
+  row before lock settlement; failed refresh remains retryable without rerunning STT.
 - `MeetingArtifactStore`: materializes `manifest.json`, `meeting.md`,
   `transcript.json`, `notes.md`, `prompt-results.json`, and
   `prompt-results/*.md`.
@@ -69,9 +71,14 @@ A late source retains its actual offset rather than moving meeting time zero.
 
 The first usable buffer establishes capture, including valid silence. After
 12 seconds, a selected source with no callbacks is shown as unavailable; it may
-join the same live session later. With neither source delivering, startup fails
-and retires that session. Native microphone execution itself is not cancelled
-by this deadline. Existing bounded system teardown is additional settlement
+join the same live session later. In a combined meeting, a microphone whose
+start failed with a retryable error, or stalled before delivering audio, is
+retried in the background for the rest of the session (#1223; permission denial
+and required-VPIO failures are not retried) and joins with its actual offset when a
+retry delivers its first buffer; it stays unavailable until then, so losing the system source
+still stops capture. With neither source delivering, startup fails and retires
+that session. Native microphone execution itself is not cancelled by this
+deadline. Existing bounded system teardown is additional settlement
 work. No deadline permits deleting captured audio: failed-start cleanup removes
 only proven-empty, finalized attempts; otherwise media and the recovery lock
 remain. Explicit user discard retains its existing deletion authority.
@@ -79,7 +86,8 @@ remain. Explicit user discard retains its existing deletion authority.
 Meeting Stop does not await a stuck microphone's native start/unsubscription.
 The singleton microphone remains leased until both settle; later system-only
 meetings can record, combined meetings report microphone unavailable, and a
-microphone-only request fails with a cleanup-pending error. Retired callbacks
+microphone-only request fails with a cleanup-pending error. A combined meeting
+retries the microphone once the earlier lease settles. Retired callbacks
 and late processing reports cannot write into a replacement meeting. This
 contains the impact of native delay; it does not establish or repair its cause.
 
@@ -104,6 +112,10 @@ The v1 folder can contain these stable filenames:
   Absent for single-source meetings, missing/unloaded AEC assets, render
   failures, and when the echo-path probe finds no system-audio bleed to cancel.
   Removed with the other managed audio by retention/detach.
+  Renderer PCM scratch is never a folder entry (see
+  `spec/05-audio-pipeline.md`). Scratch or encode failure preserves raw sources
+  and uses the existing skip/fallback provenance; incomplete derived output is
+  removed on encoding failure or cooperative cancellation.
 - `meeting-recording-metadata.json`: optional source-alignment and speech-route
   sidecar. `speechEngine` is the authoritative final-transcription selection;
   optional additive `previewSpeechEngine` records the live-preview route when
@@ -145,9 +157,19 @@ The v1 folder can contain these stable filenames:
 
 Each `prompt-results.json` record preserves `userNotesSnapshot` and the
 additive Boolean `includeMeetingNotesSnapshot` (false for legacy/imported rows).
-The per-result Markdown view states whether automatic notes context was enabled.
+An edited result also includes `contentEditedAt` as an ISO-8601 timestamp of
+the last in-place user edit. An absent or null key means no in-place edit is
+recorded, including for generated, historical, and imported results; it does
+not establish who wrote the content.
+The per-result Markdown view states whether automatic notes context was enabled
+and whether an in-place edit is recorded (`Content edited:`). It
+also shows the output language policy (`not recorded` when absent).
 It also preserves the remaining prompt-result snapshots,
-including additive optional `inferenceSettingsSnapshot`. When present, this is
+including additive optional `inferenceSettingsSnapshot` and additive nullable
+`outputLanguagePolicySnapshot` (`follow-transcript` or a language code).
+`NULL` or omission means no policy was recorded, including for earlier and
+imported results.
+When present, `inferenceSettingsSnapshot` is
 the normalized effective provider/model-filtered inference receipt stored on
 the canonical database row. Its optional `reasoningEffort` is one of `low`,
 `medium`, `high`, or `xhigh` and appears only with enabled thinking; legacy and

@@ -48,17 +48,23 @@ public struct VoiceControlDecisionTrace: Codable, Sendable, Equatable {
     /// Controls dropped to stay under the request ceiling. Non-zero explains an
     /// `insufficient_evidence` or `none` that a fuller page would not have given.
     public let truncatedTargets: Int
+    /// Billed input tokens Jev reported for this decision (all requests), when it reported them.
+    public let inputTokens: Int?
+    /// HTTP attempts beyond the first, after a rate limit or overload.
+    public let retries: Int
     public init(
         at: Date = Date(), model: String, kind: String, situation: String?, heads: [String: Head],
-        requestBytes: Int, latencyMilliseconds: Int, resolution: String, truncatedTargets: Int = 0
+        requestBytes: Int, latencyMilliseconds: Int, resolution: String, truncatedTargets: Int = 0,
+        inputTokens: Int? = nil, retries: Int = 0
     ) {
         self.at = at; self.model = model; self.kind = kind; self.situation = situation
         self.heads = heads; self.requestBytes = requestBytes
         self.latencyMilliseconds = latencyMilliseconds; self.resolution = resolution
-        self.truncatedTargets = truncatedTargets
+        self.truncatedTargets = truncatedTargets; self.inputTokens = inputTokens; self.retries = retries
     }
     private enum CodingKeys: String, CodingKey {
         case at, model, kind, situation, heads, requestBytes, latencyMilliseconds, resolution, truncatedTargets
+        case inputTokens, retries
     }
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -71,6 +77,8 @@ public struct VoiceControlDecisionTrace: Codable, Sendable, Equatable {
         latencyMilliseconds = try container.decode(Int.self, forKey: .latencyMilliseconds)
         resolution = try container.decode(String.self, forKey: .resolution)
         truncatedTargets = try container.decodeIfPresent(Int.self, forKey: .truncatedTargets) ?? 0
+        inputTokens = try container.decodeIfPresent(Int.self, forKey: .inputTokens)
+        retries = try container.decodeIfPresent(Int.self, forKey: .retries) ?? 0
     }
 }
 
@@ -324,19 +332,8 @@ public enum VoiceControlConsequencePolicy {
             // model labels it ordinary. Only focused text editing is exempt.
             return target.isFocused && target.operations.contains(.insertText) ? .ordinary : .destructive
         }
-        let label = target.label.lowercased()
-        let words = Set(label.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init))
-        let shortLabel = words.count <= 5
         // Reviewed local evidence always wins over model-proposed ordinary risk.
-        if shortLabel,
-            !words.isDisjoint(with: ["pay", "purchase", "checkout", "buy", "payment", "subscribe", "order", "booking"])
-        {
-            return .payment
-        }
-        if shortLabel, !words.isDisjoint(with: ["delete", "erase", "trash", "destroy"]) { return .destructive }
-        if shortLabel, !words.isDisjoint(with: ["send", "publish", "post", "transfer", "invite", "share"]) {
-            return .externalCommitment
-        }
+        if let floor = floorConsequence(label: target.label) { return floor }
         // A model's ordinary label cannot downgrade metadata the adapter already set.
         if let known = target.consequence, known != .unknown && known != .ordinary { return known }
         if action.operation == .press, target.consequence == .unknown, !target.isNavigation { return .unknown }
@@ -356,5 +353,51 @@ public enum VoiceControlConsequencePolicy {
         }
         if target.consequence == .ordinary || action.consequence == .ordinary { return .ordinary }
         return .unknown
+    }
+
+    /// Fails closed. A short label holding a pay/delete/send word confirms,
+    /// unless that word reads as a noun or as a step toward another page:
+    /// before a noun (`Order history`, `Booking details`, `Payment methods`,
+    /// `Checkout page`), after `new` or a sorting word (`New post`, `Sort order`), as a destination
+    /// (`Proceed to checkout`, `Continue to payment`, `Secure checkout`), or a
+    /// `Share` that only opens a sheet (`Share`, `Share options`). Everything
+    /// else confirms: `Bulk delete`, `Save & Purchase`, `Process payment`,
+    /// `Click to share`. `pay` always confirms (`Apple Pay`).
+    static func floorConsequence(label: String) -> VoiceControlConsequence? {
+        let words = label.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
+        // The cap counts spoken words, so a price (`Buy now for $1,200.00`) is one.
+        guard !words.isEmpty, label.split(whereSeparator: \.isWhitespace).count <= 5 else { return nil }
+        let floors: [(VoiceControlConsequence, Set<String>)] = [
+            (.payment, ["pay", "purchase", "checkout", "buy", "payment", "subscribe", "order", "booking", "donate"]),
+            (.destructive, ["delete", "erase", "trash", "destroy", "discard", "uninstall"]),
+            (.externalCommitment, ["send", "publish", "post", "transfer", "invite", "share"]),
+        ]
+        let nouns: Set<String> = ["order", "booking", "payment", "purchase", "checkout"]
+        let nounContext: Set<String> = [
+            "history", "details", "detail", "summary", "methods", "method", "status", "number", "id",
+            "confirmation", "list", "settings", "options", "info", "information", "page", "view", "screen",
+        ]
+        let destinations: Set<String> = ["proceed", "continue", "go", "return", "back"]
+        func exempt(_ index: Int) -> Bool {
+            let word = words[index]
+            let next = words.indices.contains(index + 1) ? words[index + 1] : nil
+            let previous = index > 0 ? words[index - 1] : nil
+            if word == "share" {
+                guard index == 0 else { return false }
+                return next.map { nounContext.contains($0) || ["menu", "sheet"].contains($0) } ?? true
+            }
+            // `New post`, `New order`: opens a blank one to fill in.
+            if previous == "new" { return true }
+            guard nouns.contains(word) else { return false }
+            if let next, nounContext.contains(next) { return true }
+            if previous == "sort" { return true }
+            if previous == "secure", word == "checkout" { return true }
+            return previous == "to" && index >= 2 && destinations.contains(words[index - 2])
+        }
+        // The first floor word the label leads with decides: `Delete order` deletes.
+        for index in words.indices where !exempt(index) {
+            if let match = floors.first(where: { $0.1.contains(words[index]) }) { return match.0 }
+        }
+        return nil
     }
 }

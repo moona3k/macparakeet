@@ -186,9 +186,9 @@ final class SpeakerMergerTests: XCTestCase {
         XCTAssertEqual(result[0].speakerId, "S1")
     }
 
-    // MARK: - Isolated assignment smoothing
+    // MARK: - One-word turns and unlabeled gaps
 
-    func testIsolatedOneWordFlipInheritsNeighborSpeaker() {
+    func testIsolatedOneWordTurnKeepsItsSpeaker() {
         let words = [
             WordTimestamp(word: "Hello", startMs: 0, endMs: 400, confidence: 0.9),
             WordTimestamp(word: "yeah", startMs: 400, endMs: 480, confidence: 0.9),
@@ -201,7 +201,7 @@ final class SpeakerMergerTests: XCTestCase {
         ]
 
         let result = SpeakerMerger.mergeWordTimestampsWithSpeakers(words: words, segments: segments)
-        XCTAssertEqual(result.map(\.speakerId), ["S1", "S1", "S1"])
+        XCTAssertEqual(result.map(\.speakerId), ["S1", "S2", "S1"])
     }
 
     func testTwoWordFlipIsNotSmoothed() {

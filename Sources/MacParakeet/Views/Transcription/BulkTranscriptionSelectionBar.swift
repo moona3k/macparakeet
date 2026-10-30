@@ -1,4 +1,5 @@
 import SwiftUI
+import MacParakeetCore
 
 struct BulkTranscriptionSelectionBar: View {
     let selectedCount: Int
@@ -12,6 +13,8 @@ struct BulkTranscriptionSelectionBar: View {
     let onClear: () -> Void
     let onCancel: () -> Void
     var onExport: (() -> Void)?
+    var onAskSelected: (() -> Void)?
+    var isAskDisabled = false
     let onDeleteAudioOnly: () -> Void
     let onDeleteItems: () -> Void
 
@@ -23,7 +26,8 @@ struct BulkTranscriptionSelectionBar: View {
         if isMeetingContext {
             return "Remove Audio Only..."
         }
-        return "Remove Audio for \(selectedMeetingAudioCount) \(selectedMeetingAudioCount == 1 ? "Meeting" : "Meetings")..."
+        return
+            "Remove Audio for \(selectedMeetingAudioCount) \(selectedMeetingAudioCount == 1 ? "Meeting" : "Meetings")..."
     }
 
     private var deleteItemsTitle: String {
@@ -119,6 +123,7 @@ struct BulkTranscriptionSelectionBar: View {
             selectVisibleAction
             clearAction
             exportAction
+            askAction
         }
     }
 
@@ -137,6 +142,7 @@ struct BulkTranscriptionSelectionBar: View {
             selectVisibleAction
             clearAction
             exportAction
+            askAction
             if showsAudioAction {
                 deleteAudioAction
             }
@@ -190,6 +196,20 @@ struct BulkTranscriptionSelectionBar: View {
                 isDisabled: isExportDisabled,
                 action: onExport
             )
+        }
+    }
+
+    @ViewBuilder
+    private var askAction: some View {
+        if AppFeatures.isAskWorkspaceAvailable(), let onAskSelected {
+            SelectionBarActionButton(
+                title: "Ask selected",
+                systemImage: "text.bubble",
+                tone: .utility,
+                isDisabled: selectedCount == 0 || isAskDisabled || isPerformingOperation,
+                action: onAskSelected
+            )
+            .help(isAskDisabled ? "Choose up to 32 recordings for Ask" : "Start Ask with selected recordings")
         }
     }
 
