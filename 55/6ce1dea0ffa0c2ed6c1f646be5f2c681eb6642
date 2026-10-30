@@ -1,0 +1,43 @@
+Tests/MacParakeetTests/Services/System/StreamingCursorInserterTests.swift
+  s_7788d1c08e1bb0::t_0bdec18becd185 154,163,165,312-331
+  s_7788d1c08e1bb0::t_c0064afbb0f7da 128-146,282,284,287-291,295-311
+  s_7788d1c08e1bb0::t_4a133827b11131 38-62,147,153,158,235-281,283,285-286,292-294
+  s_7788d1c08e1bb0::t_bff2b6b86e12ff 148
+  s_7788d1c08e1bb0::t_468226cef84853 332
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorLoadCaptionTests.swift
+  s_7788d1c08e1bb0::t_4f16de3a9065bd 557
+spec/contracts/dictation-shortcuts.md
+  s_7788d1c08e1bb0::t_8067deb732d0d9 162-163
+  s_7788d1c08e1bb0::t_32b01837fb8976 165-168
+Sources/MacParakeetCore/Services/System/README.md
+  s_7788d1c08e1bb0::t_32b01837fb8976 76-79
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_7788d1c08e1bb0::t_4f16de3a9065bd 797,804
+Sources/MacParakeetCore/Services/System/StreamingCursorInserter.swift
+  s_7788d1c08e1bb0::t_4a133827b11131 294-296,306,308-309
+  s_7788d1c08e1bb0::t_0bdec18becd185 30,200-204,257-258,261,263
+  s_7788d1c08e1bb0::t_c0064afbb0f7da 237,259-260,262,276,297,307
+  s_7788d1c08e1bb0::t_8067deb732d0d9 138-139
+  s_7788d1c08e1bb0::t_1e7f1c71bf179b 264-265
+docs/research/2026-10-30-1286-quartz-state/fresh-eye-review.md
+  s_7788d1c08e1bb0::t_ca4e705757f158 33-34
+  s_7788d1c08e1bb0::t_b707426ada7b79 73
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_7788d1c08e1bb0::t_4f16de3a9065bd 137,139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "556ce1dea0ffa0c2ed6c1f646be5f2c681eb6642",
+  "prompts": {},
+  "sessions": {
+    "s_7788d1c08e1bb0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e2a-e6db-73e2-812b-c7e92b308260",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
