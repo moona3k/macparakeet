@@ -1119,28 +1119,21 @@ Important constraints:
 - Add, edit, delete, enable/disable custom words
 - Add, edit, delete text snippets
 - Use count tracking for snippets (helps users know which are active)
-- Accessible from Settings view ("Manage Custom Words...", "Manage Text Snippets...")
+- Accessible at the top of Vocabulary in both Raw and Clean modes. Word corrections opens Manage words; Text snippets opens Manage snippets.
 - Import/export the combined vocabulary backup (custom words + snippets) from
   the Vocabulary panel and CLI.
 
-**Settings integration (v0.2 additions):**
-
-```
-│ PROCESSING                                                       │
-│ ┌──────────────────────────────────────────────────────────────┐ │
-│ │ Default mode:  ( ) Raw  (•) Clean  ( ) Formal               │ │
-│ │                                                              │ │
-│ │ [Manage Custom Words...]        12 words                     │ │
-│ │ [Manage Text Snippets...]       5 snippets                   │ │
-│ └──────────────────────────────────────────────────────────────┘ │
-```
+**Vocabulary integration:** saved words and snippets lead the page, followed by
+Backup & Restore and processing settings. Opening a manager does not enable
+Clean mode. Word loading distinguishes unknown, failed, and successfully empty
+states; failed reads offer Retry and preserve the last loaded rows.
 
 **Acceptance criteria:**
 - [x] Can add/edit/delete/toggle custom words
 - [x] Can add/edit/delete text snippets
 - [x] Use count displayed and updated for snippets
 - [x] Changes take effect immediately for next dictation
-- [x] Settings link opens management views
+- [x] Vocabulary management remains accessible in Raw and Clean modes
 - [x] Default processing mode configurable
 - [x] Combined vocabulary import/export is available from the Vocabulary panel and CLI
 - [x] Import can replace the entire vocabulary in one transaction, with a preview of removals and rollback on failure

@@ -4,7 +4,7 @@
 
 Stop currently awaits playback mixing before queue admission. Release capture only after callbacks/writers settle and source metadata/notes/lock are durable. Queue owns derived playback and final transcription. A must never clear B's capture, notes, selected engine, lease, or UI. Preserve source audio and retry/recovery ownership on failure, canonical row identity, source alignment/fallback, and completed playback duration.
 
-Out of scope: activity detection, a pending-start queue, new capture engines, new generic schedulers, changes to STT priority, merging or releasing.
+Out of scope: activity detection, a pending-start queue, new capture engines, new generic schedulers, changes to STT priority, or releasing. The user subsequently authorized merging after final review and verification.
 
 ## Work
 
@@ -15,9 +15,9 @@ Out of scope: activity detection, a pending-start queue, new capture engines, ne
 - [x] Open [PR #1295](https://github.com/moona3k/macparakeet/pull/1295).
 - [ ] Assess final GitHub compilation/test results before declaring merge readiness.
 
-Validation: fresh local dependency builds are avoided (7 GB disk available). GitHub CI compiles/tests the complete change. Local parsing/format and focused checks that do not require a new build are permitted. Native long-meeting/device testing remains a separate qualification gate.
+Validation: initial local disk pressure constrained fresh dependency builds. GitHub CI compiles/tests the complete change. Local parsing/format and focused checks that do not require a new build are permitted. Native long-meeting/device testing remains a separate qualification gate.
 
-Initial base: a388b7d449c722875f24e26df35acecf881dd35e. The original dirty checkout is untouched. no-mistakes is not on PATH; use the documented review workflow.
+Initial base: a388b7d449c722875f24e26df35acecf881dd35e. Unrelated work in the original dirty checkout is preserved. no-mistakes is not on PATH; use the documented review workflow.
 
 ## Implemented shape
 
@@ -110,3 +110,18 @@ PR #1294 subsequently landed the runner and shared fixture corrections on
 `main`, with green CI. The merge adopts those fixture files unchanged, removing
 their duplicate changes and the CI-runner migration from this PR's final diff.
 The meeting-specific persisted-lock assertion remains here.
+
+CI run 41133395750 on `bd0d0082d` passed all 8,236 XCTest cases and 30 Swift
+Testing cases, Swift 6, CLI qualification/persistence, meeting process recovery,
+and release/bundle checks. While it ran, PRs #1296 and #1297 advanced main.
+Integration retains both changelog and telemetry additions; meeting production
+code and tests are unchanged. Independent review confirmed that processing rows
+remain excluded from upstream knowledge-card generation. The integrated head
+requires its own CI result before merge.
+
+CodeRabbit's mixed legacy/current raw-filename salvage suggestion was declined:
+the existing contract falls back only when the current name is absent, and no
+normal capture/import/split/recovery path creates both raw-name generations.
+Changing only eligibility and recovery would diverge from other artifact readers.
+All review threads have documented dispositions. The implementation walkthrough
+is published at <https://macparakeet.com/dev/pr/1295/>.

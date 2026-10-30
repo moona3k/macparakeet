@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>Knowledge-card reliability</title>
+<style>body{font:17px/1.6 system-ui,sans-serif;max-width:900px;margin:48px auto;padding:0 24px;color:#17252c;background:#faf9f5}h1{font-size:40px;line-height:1.15}h2{margin-top:36px}table{border-collapse:collapse;width:100%}th,td{padding:10px;border-bottom:1px solid #c9cecb;text-align:left}aside{padding:18px 24px;background:#e9f0ec;border-left:4px solid #336454}code{background:#e9ece8;padding:2px 5px}footer{margin:40px 0;font-size:14px}a{color:#185e67}</style>
+<main><p>MacParakeet · Engineering walkthrough · October 30, 2026</p>
+<h1>Complete the card.<br>Keep the previous good result.</h1>
+<p>The reviewed stable-build telemetry recorded 696 failures among 1,677 knowledge-card LLM-stage outcomes. This repair addresses specific request and recovery defects without changing capture or generic formatter behavior.</p>
+<aside><strong>What the numbers mean.</strong> LLM success happens before citation resolution and the database save. It is not a saved-card counter. A process session is not a person.</aside>
+<h2>Evidence separates the causes</h2>
+<table><tr><th>Failure category</th><th>Count</th><th>Interpretation</th></tr>
+<tr><td>Invalid response</td><td>482</td><td>205 reached the old 700/1,400-token ceiling; other causes remain.</td></tr>
+<tr><td>Busy AI settings</td><td>98</td><td>Nonblocking configuration lock; no brief wait before failing.</td></tr>
+<tr><td>Provider error</td><td>61</td><td>Typed reason unavailable; no speculative schema fallback.</td></tr>
+<tr><td>Rate limit / timeout</td><td>32 / 22</td><td>Remain terminal; no blind replay.</td></tr>
+<tr><td>Context too long</td><td>1</td><td>Provider windows must reserve room for output.</td></tr></table>
+<h2>One bounded recovery request</h2>
+<p>Previously, embedded-schema failures repeated identical input and a 700-token request. Native-schema failures had no retry. Finish reasons were ignored.</p>
+<p>Now, an explicit output-limit finish permits one fresh, shorter response with more output room. Malformed or empty-synopsis JSON gets one corrective prompt. Partial model text is never replayed as instructions or saved. Cloud and other unknown-window routes keep the successful 700-token initial allowance and permit 4,096 only after explicit truncation, including manually named models and overridden endpoints. Native Ollama uses 2,048/4,096; LM Studio uses 1,024/1,536. Custom OpenAI-compatible endpoints use 700/2,048. Capped cloud responses may need an extra round trip.</p>
+<p>Ollama previously ignored the raw card token setting. The card caller now uses the existing option resolver and reserves input inside the adapter's real 8,192-token window. Generic requests retain their prior behavior.</p>
+<h2>Waiting is different from regenerating</h2>
+<p>A configuration lock is local contention before a provider call. Four reads at most, separated by cancellable 100/300/600 ms waits, allow a short settings update to finish. No settings are written and no model request is made while setup remains blocked.</p>
+<h2>The safety boundary stays in the database</h2>
+<p>After model latency, the generator checks the transcript, speaker attribution and correction revision. The repository repeats freshness checks in the save transaction. A stale, deleted, malformed or cancelled result cannot replace a valid card or recreate deleted source data.</p>
+<h2>Verification and remaining gates</h2>
+<p>Regression fixtures exercise real HTTP adapters, a real configuration file lock and in-memory repositories. Consult the PR for exact-head review and CI evidence; local syntax parsing is not a build or test result.</p>
+<p>The related Ollama/Gemma report needs an actual-model synthetic canary. This machine has no installed Ollama model. No claim of production improvement or resolution of every historical failure is made. Post-release comparison must use exact-build, comparable cohorts.</p>
+<footer>Source of truth: <a href="https://github.com/moona3k/macparakeet/blob/main/docs/audits/2026-10-30-knowledge-card-reliability.md">diagnosis and evidence limits</a>. This companion is prepared for review; website deployment is outside this repair.</footer></main></html>

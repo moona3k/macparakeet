@@ -9,14 +9,18 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
     var capturedMessageBatches: [[ChatMessage]] = []
     var capturedContext: LLMExecutionContext?
     var capturedOptions: ChatCompletionOptions?
+    var capturedOptionBatches: [ChatCompletionOptions] = []
     var responseContent = "Mock response"
     var responseContents: [String] = []
     var chatCompletionCallCount = 0
     var chatCompletionStreamCallCount = 0
     var responseReasoningContent: String?
     var responseFinishReason: String?
+    var responseFinishReasons: [String?] = []
+    var responseUsages: [TokenUsage?] = []
     var responseModel = "mock-model"
     var responseUsage: TokenUsage?
+    var onChatCompletion: (@Sendable () -> Void)?
     var streamTokens: [String]?
     var testConnectionError: Error?
     var testConnectionDelayNs: UInt64 = 0
@@ -35,14 +39,16 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
         capturedMessageBatches.append(messages)
         capturedContext = context
         capturedOptions = options
+        capturedOptionBatches.append(options)
         if let chatCompletionError { throw chatCompletionError }
         let content = responseContents.isEmpty ? responseContent : responseContents.removeFirst()
+        onChatCompletion?()
         return ChatCompletionResponse(
             content: content,
             reasoningContent: responseReasoningContent,
-            finishReason: responseFinishReason,
+            finishReason: responseFinishReasons.isEmpty ? responseFinishReason : responseFinishReasons.removeFirst(),
             model: responseModel,
-            usage: responseUsage,
+            usage: responseUsages.isEmpty ? responseUsage : responseUsages.removeFirst(),
             effectiveInferenceSettings: options.effectiveInferenceSettings
         )
     }
@@ -1543,18 +1549,19 @@ final class LLMServiceTests: XCTestCase {
         }
     }
 
-    func testOllamaKnowledgeCardKeepsTheLocalBudget() async throws {
+    func testOllamaKnowledgeCardReservesOutputInsideNativeContextWindow() async throws {
         mockConfigStore.config = .ollama(model: "llama3.2")
         mockClient.responseContent = """
             {"synopsis":"Short card.","topics":[],"decisions":[],"actions":[]}
             """
 
-        let text = String(repeating: "word ", count: 8_000)  // 40_000 chars, inside 80k local budget
+        let text = String(repeating: "word ", count: 8_000)
         _ = try await service.generateKnowledgeCard(transcript: text, source: .file)
 
-        XCTAssertFalse(
-            mockClient.capturedMessages.contains { $0.content.contains("[... content truncated ...]") }
-        )
+        XCTAssertTrue(mockClient.capturedMessages.contains { $0.content.contains("[... content truncated ...]") })
+        let inputChars = mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }
+        let outputTokens = try XCTUnwrap(mockClient.capturedOptions?.maxTokens)
+        XCTAssertLessThanOrEqual(inputChars + outputTokens * 7 / 2, OllamaLLMHTTPAdapter.contextWindowTokens * 7 / 2)
     }
 
     func testLocalProviderUsesLocalBudget() async throws {

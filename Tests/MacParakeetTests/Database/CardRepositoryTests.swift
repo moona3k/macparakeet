@@ -70,6 +70,27 @@ final class CardRepositoryTests: XCTestCase {
             ))
     }
 
+    func testConditionalSaveRejectsDeletionAfterGenerationSnapshot() throws {
+        let transcription = makeTranscription(source: .meeting)
+        try transcriptions.save(transcription)
+        let segments = SegmentRepository(dbQueue: manager.dbQueue)
+        try segments.replaceSegments(for: transcription)
+        let expected = CardGenerationSnapshot(
+            transcriptHash: CardContentFingerprint.transcriptHash(for: transcription),
+            segmentsHash: CardContentFingerprint.segmentsHash(try segments.fetch(transcriptionId: transcription.id)),
+            attributionFingerprint: SpeakerAttributionResolver.fingerprint(for: transcription),
+            correctionRevision: 0
+        )
+        let card = try makeCard(transcriptionId: transcription.id)
+        XCTAssertNotNil(try cards.saveIfCurrent(card, expected: expected))
+
+        _ = try transcriptions.delete(id: transcription.id)
+
+        XCTAssertNil(try cards.saveIfCurrent(card, expected: expected))
+        XCTAssertNil(try cards.fetch(transcriptionId: transcription.id))
+        XCTAssertNil(try transcriptions.fetch(id: transcription.id))
+    }
+
     func testConditionalSaveRejectsChangedSegmentSnapshot() throws {
         let transcription = makeTranscription(source: .meeting)
         try transcriptions.save(transcription)
