@@ -1,0 +1,27 @@
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_6f26576d2ce855::t_f6f15a09c5c994 140,176,210-211,219,227-229,241-242,252-253,316-317,319-321,381-384,414-415,454,464-465,468-469,576-581
+  s_6f26576d2ce855::t_5cc0c1fa168e48 546-575,582-594
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_6f26576d2ce855::t_1992be54e3ed50 166-170,190-194
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_6f26576d2ce855::t_1992be54e3ed50 75-76,123-125,127-133,144-148,151,1176-1178,1181-1185
+  s_6f26576d2ce855::t_0b64f956a41259 154-155
+spec/04-ui-patterns.md
+  s_6f26576d2ce855::t_5cc0c1fa168e48 1168
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "197014defffef8efa8dedb6620bd6f43ab46ee39",
+  "prompts": {},
+  "sessions": {
+    "s_6f26576d2ce855": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e58-eaa6-7583-abd5-6aec9f43cba6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
