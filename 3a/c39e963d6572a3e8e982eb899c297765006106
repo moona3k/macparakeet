@@ -1,0 +1,23 @@
+Tests/MacParakeetTests/Services/VideoStreamServiceTests.swift
+  s_a7db50ec1095f1::t_05b9c4227a28f8 2,167-177,179-198,205,212-225,230-232
+  s_a7db50ec1095f1::t_36de4bdc596ab1 178,199-204,206-211,226-229
+  s_a7db50ec1095f1::t_11828ad87f3577 233-235
+spec/contracts/youtube-video-playback.md
+  s_a7db50ec1095f1::t_215177cfebb9c8 61-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3ac39e963d6572a3e8e982eb899c297765006106",
+  "prompts": {},
+  "sessions": {
+    "s_a7db50ec1095f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18ee2-1964-7e31-bb46-e22abcc88701",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
