@@ -1,0 +1,56 @@
+integrations/README.md
+  s_6f26576d2ce855::t_f432c339d8c718 301-302,325
+spec/contracts/cli-json-v1.md
+  s_6f26576d2ce855::t_21d46bdfef44c9 72
+  s_6f26576d2ce855::t_aca46df2a757e6 73-81
+benchmarks/asr/cohere_multilingual_speed.py
+  s_6f26576d2ce855::t_ab76bc759cb508 19,23,29-33,104-134,141-148,154-158,160,168-180,186-188,190-211,213-240,401,426,443-446,474-475,505-506,508-511,521,539-601,605
+  s_6f26576d2ce855::t_a7dd338434a815 135-140,181-185,189,212
+benchmarks/asr/README.md
+  s_6f26576d2ce855::t_f432c339d8c718 18-20,83,154,156
+benchmarks/asr/results/cohere-transcribe-cpp-migration.md
+  s_6f26576d2ce855::t_f432c339d8c718 3,5-12,25-27,73,91-99,103-109
+  s_6f26576d2ce855::t_741da35884b577 100-102
+benchmarks/asr/test_cohere_multilingual_speed.py
+  s_6f26576d2ce855::t_21d46bdfef44c9 175-176,178-180,184,186-187
+  s_6f26576d2ce855::t_0de6c992e5638e 7-11,16,162-174,177,181-183,185,188-277,279-337
+  s_6f26576d2ce855::t_abc9de80f3495f 278,338
+spec/06-stt-engine.md
+  s_6f26576d2ce855::t_f432c339d8c718 303
+docs/cli-testing.md
+  s_6f26576d2ce855::t_f432c339d8c718 144-145
+scripts/dist/verify_transcribe_cpp_release.sh
+  s_6f26576d2ce855::t_f432c339d8c718 34
+  s_6f26576d2ce855::t_21d46bdfef44c9 45
+  s_6f26576d2ce855::t_ab76bc759cb508 41-44,46-47
+spec/adr/026-asr-engine-strategy.md
+  s_6f26576d2ce855::t_f432c339d8c718 74,101-106,165
+spec/adr/035-cohere-transcribe-cpp-backend.md
+  s_6f26576d2ce855::t_f432c339d8c718 171-177
+scripts/dist/homebrew-tap-scaffold/macparakeet-cli.rb
+  s_6f26576d2ce855::t_21d46bdfef44c9 45-49
+.github/workflows/ci.yml
+  s_6f26576d2ce855::t_18df361057094f 83-85
+docs/distribution.md
+  s_6f26576d2ce855::t_5c970c2fd2f162 34-35,43-49
+scripts/ci/test_cli_archive.py
+  s_6f26576d2ce855::t_5891871a02a043 1-103
+scripts/dist/homebrew-tap-scaffold/HOWTO.md
+  s_6f26576d2ce855::t_250d98f5347ffd 66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a9459a3e0f31c3e562c117ec39d437b4c81c40a8",
+  "prompts": {},
+  "sessions": {
+    "s_6f26576d2ce855": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e58-eaa6-7583-abd5-6aec9f43cba6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
