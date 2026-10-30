@@ -1,0 +1,102 @@
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_6f26576d2ce855::t_0a6902af7c0deb 65-88
+Sources/MacParakeet/Views/Settings/Components/CloudSpeechServiceCard.swift
+  s_6f26576d2ce855::t_6685ea5bdbb0c0 11-14,131-133,182-183,185,187-188,190,192-195,248-284,286-293
+  s_6f26576d2ce855::t_28ae2472b32cab 285
+  s_6f26576d2ce855::t_b63d4026c67b9d 99
+  s_6f26576d2ce855::t_c10ede1dc4f9b8 294
+Sources/MacParakeetCore/STT/CloudTranscribeEngine.swift
+  s_6f26576d2ce855::t_d1701615c49a2c 187-196,318,320,384,388,392
+spec/02-features.md
+  s_6f26576d2ce855::t_c4d86db00c50a2 2406
+  s_6f26576d2ce855::t_6de19c14e346ab 2373,2376,2385,2394,2396
+Sources/MacParakeetCore/STT/README.md
+  s_6f26576d2ce855::t_a85d3934ac320f 85-88,93-94
+Tests/MacParakeetTests/Services/LiveCaptionSessionTests.swift
+  s_6f26576d2ce855::t_f794cdc1169f10 106-121,214,220,226-294,297,301,304-311,316-319
+  s_6f26576d2ce855::t_717297f3051931 295-296,298-300,302-303,312-315
+  s_6f26576d2ce855::t_8367afbdce92e0 320
+Sources/MacParakeet/Views/Settings/Components/UsageCard.swift
+  s_6f26576d2ce855::t_b6fd3abde0eeab 101
+Tests/MacParakeetTests/Database/UsageEventRepositoryTests.swift
+  s_6f26576d2ce855::t_b287360889a8b3 110-111
+  s_6f26576d2ce855::t_e6ef9e70615fc7 191-212
+Sources/MacParakeetViewModels/LiveTranslationViewModel.swift
+  s_6f26576d2ce855::t_448609287b48a0 27,113,191-192,200-213,226,242,283
+Sources/MacParakeetCore/Models/UsageEvent.swift
+  s_6f26576d2ce855::t_b6fd3abde0eeab 151-152,159,255
+Sources/CLI/CHANGELOG.md
+  s_6f26576d2ce855::t_d1701615c49a2c 106-108
+spec/contracts/cli-json-v1.md
+  s_6f26576d2ce855::t_d1701615c49a2c 572-576
+Tests/MacParakeetTests/ViewModels/TranslationViewModelTests.swift
+  s_6f26576d2ce855::t_0a6902af7c0deb 653-711
+Sources/MacParakeetCore/Services/LLM/TranscriptTranslationService.swift
+  s_6f26576d2ce855::t_d1701615c49a2c 258-264
+Tests/MacParakeetTests/Views/CloudSpeechCatalogStateTests.swift
+  s_6f26576d2ce855::t_0a6902af7c0deb 1-40
+Sources/CLI/Commands/TranscribeCommand.swift
+  s_6f26576d2ce855::t_e709ad5d63d6b3 653-655
+  s_6f26576d2ce855::t_d1701615c49a2c 257-260
+Sources/MacParakeet/App/DictationLiveTranslator.swift
+  s_6f26576d2ce855::t_448609287b48a0 18,22,43-44,46-50,54-63,76-77,96
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_6f26576d2ce855::t_b287360889a8b3 6-18
+Tests/MacParakeetTests/ViewModels/UsageViewModelTests.swift
+  s_6f26576d2ce855::t_e6ef9e70615fc7 127-168
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_6f26576d2ce855::t_d1701615c49a2c 568-583
+Tests/MacParakeetTests/Services/TranscriptTranslationServiceTests.swift
+  s_6f26576d2ce855::t_b287360889a8b3 62-63,65
+Sources/MacParakeetCore/Services/LiveCaptionSession.swift
+  s_6f26576d2ce855::t_81cb4fc11c8e4b 43,48,50-54,72-83,89,166-168,188-190,203-206,246,249,253-260,301-307,311,317-323,336-342,363,380-381,384-388,395-397
+  s_6f26576d2ce855::t_717297f3051931 324-325
+  s_6f26576d2ce855::t_1e2f15b002b825 343-356,390,393
+Sources/MacParakeet/Views/MeetingRecording/MeetingCaptionView.swift
+  s_6f26576d2ce855::t_6685ea5bdbb0c0 10,180-196,199-208,272-275
+  s_6f26576d2ce855::t_95c6a08584c844 276
+Tests/MacParakeetTests/STT/CloudTranscribeEngineTests.swift
+  s_6f26576d2ce855::t_b287360889a8b3 78,80,82-87,296-340
+  s_6f26576d2ce855::t_ce9d75b7a104d2 341
+Tests/MacParakeetTests/STT/RealtimeTranscribeEngineTests.swift
+  s_6f26576d2ce855::t_717297f3051931 70-72,294-298,333-335,355-359,380-382
+  s_6f26576d2ce855::t_1e42bfcf4ace9a 11,13-14,26-29,63-69,73-75,77-103,193,263-293,299-332,336-354,360-379,383-395,405-411
+  s_6f26576d2ce855::t_b4a0059d9945d9 52-58,76,166-192
+  s_6f26576d2ce855::t_dec1386fe31edb 104,194
+Sources/CLI/Commands/ModelsCommand.swift
+  s_6f26576d2ce855::t_d1701615c49a2c 741-742
+Tests/MacParakeetTests/DictationFlow/DictationLiveTranslatorTests.swift
+  s_6f26576d2ce855::t_0a6902af7c0deb 74-112
+Sources/MacParakeetViewModels/LiveCaptionsViewModel.swift
+  s_6f26576d2ce855::t_448609287b48a0 76,102,109
+  s_6f26576d2ce855::t_2bfd4986d213f9 51
+Tests/MacParakeetTests/Views/MeetingCaptionScrollTests.swift
+  s_6f26576d2ce855::t_0a6902af7c0deb 1-18
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_6f26576d2ce855::t_448609287b48a0 674-677,1626-1627
+Sources/MacParakeetViewModels/UsageViewModel.swift
+  s_6f26576d2ce855::t_b6fd3abde0eeab 138-150,153
+Sources/MacParakeetCore/STT/RealtimeTranscribeEngine.swift
+  s_6f26576d2ce855::t_5d7e27a2e91a72 154-161
+  s_6f26576d2ce855::t_717297f3051931 267-268
+  s_6f26576d2ce855::t_e0110994f40df4 103,116,118,121-124,132-136,138-147,165,186,226,228,239,242-243,252-253,263-264,270,272-273,276-283,286-287,325-332,340-342,344,355,357,361-362,384-397,418,423-424,428,459,465-481,485,497-502
+  s_6f26576d2ce855::t_b4a0059d9945d9 137,169
+Tests/CLITests/TranscribeCommandTests.swift
+  s_6f26576d2ce855::t_2a4eabd4ec66ea 7-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "17b15b965d47813d45a0c1c0a425335058dacf4b",
+  "prompts": {},
+  "sessions": {
+    "s_6f26576d2ce855": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e58-eaa6-7583-abd5-6aec9f43cba6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
