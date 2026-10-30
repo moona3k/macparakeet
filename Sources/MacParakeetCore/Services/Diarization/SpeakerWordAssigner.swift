@@ -48,6 +48,9 @@ public struct SpeakerWordAssignmentResult: Sendable, Equatable {
     }
 }
 
+/// Experimental attribution policy used only by diarization evaluation.
+/// Production transcription continues to use SpeakerMerger until a labelled
+/// corpus demonstrates that this policy improves assignment accuracy.
 public struct SpeakerWordAssigner: Sendable {
     public let fallbackToleranceMs: Int
     public let ambiguityMarginMs: Int
@@ -74,7 +77,8 @@ public struct SpeakerWordAssigner: Sendable {
             .sourceOnly: 0,
             .unassigned: 0,
         ]
-        let eligibleSegments = segments
+        let eligibleSegments =
+            segments
             .filter {
                 isEligible(segment: $0, sourceOnlySpeakerId: sourceOnlySpeakerId)
             }
@@ -163,21 +167,25 @@ public struct SpeakerWordAssigner: Sendable {
         let windowMs = max(0, fallbackToleranceMs + ambiguityMarginMs)
         let earliestEndMs = word.startMs - windowMs
         while firstCandidateIndex < segments.count,
-              segments[firstCandidateIndex].endMs < earliestEndMs {
+            segments[firstCandidateIndex].endMs < earliestEndMs
+        {
             firstCandidateIndex += 1
         }
 
         let latestStartMs = word.endMs + windowMs
         var endIndex = firstCandidateIndex
         while endIndex < segments.count,
-              segments[endIndex].startMs <= latestStartMs {
+            segments[endIndex].startMs <= latestStartMs
+        {
             endIndex += 1
         }
 
         return segments[firstCandidateIndex..<endIndex]
     }
 
-    private func sourceOnlyAssignment(_ sourceOnlySpeakerId: String?) -> (speakerId: String?, method: WordSpeakerAssignmentMethod) {
+    private func sourceOnlyAssignment(_ sourceOnlySpeakerId: String?) -> (
+        speakerId: String?, method: WordSpeakerAssignmentMethod
+    ) {
         if let sourceOnlySpeakerId {
             return (sourceOnlySpeakerId, .sourceOnly)
         }
@@ -193,7 +201,8 @@ public struct SpeakerWordAssigner: Sendable {
             guard overlap > 0 else { return }
             overlaps[segment.speakerId, default: 0] += overlap
         }
-        let ranked = overlapsBySpeaker
+        let ranked =
+            overlapsBySpeaker
             .map { (speakerId: $0.key, overlapMs: $0.value) }
             .sorted { lhs, rhs in
                 if lhs.overlapMs == rhs.overlapMs {
@@ -205,7 +214,8 @@ public struct SpeakerWordAssigner: Sendable {
             return (nil, false)
         }
         if let runnerUp = ranked.dropFirst().first,
-           best.overlapMs - runnerUp.overlapMs <= ambiguityMarginMs {
+            best.overlapMs - runnerUp.overlapMs <= ambiguityMarginMs
+        {
             return (nil, true)
         }
         return (best.speakerId, false)
@@ -215,15 +225,17 @@ public struct SpeakerWordAssigner: Sendable {
         let candidates = segments.map { segment in
             (segment: segment, gapMs: gapMs(word: word, segment: segment))
         }
-        guard let best = candidates.min(by: { lhs, rhs in
-            if lhs.gapMs == rhs.gapMs {
-                if lhs.segment.startMs == rhs.segment.startMs {
-                    return lhs.segment.speakerId < rhs.segment.speakerId
+        guard
+            let best = candidates.min(by: { lhs, rhs in
+                if lhs.gapMs == rhs.gapMs {
+                    if lhs.segment.startMs == rhs.segment.startMs {
+                        return lhs.segment.speakerId < rhs.segment.speakerId
+                    }
+                    return lhs.segment.startMs < rhs.segment.startMs
                 }
-                return lhs.segment.startMs < rhs.segment.startMs
-            }
-            return lhs.gapMs < rhs.gapMs
-        }) else {
+                return lhs.gapMs < rhs.gapMs
+            })
+        else {
             return nil
         }
         guard best.gapMs <= fallbackToleranceMs else { return nil }

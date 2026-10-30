@@ -1,5 +1,7 @@
 import Foundation
 
+/// Content-free evaluation diagnostics, not a claim of speaker accuracy.
+/// Word-assignment counts describe the experimental evaluation policy only.
 public struct DiarizationQualityReport: Codable, Sendable, Equatable {
     public var transcriptionSourceType: Transcription.SourceType
     public var diarizedAudioSource: AudioSource?
@@ -40,19 +42,24 @@ public struct DiarizationQualityReport: Codable, Sendable, Equatable {
         diarizationResult: MacParakeetDiarizationResult,
         assignmentSummary: WordSpeakerAssignmentSummary
     ) {
+        // Never serialize provider ids: an adapter or fixture may use a name.
+        let ids = Set(diarizationResult.segments.map(\.speakerId)).sorted()
+        let anonymousIDs = Dictionary(uniqueKeysWithValues: ids.enumerated().map { ($0.element, "S\($0.offset + 1)") })
+        let segments = diarizationResult.segments.map {
+            SpeakerSegment(speakerId: anonymousIDs[$0.speakerId]!, startMs: $0.startMs, endMs: $0.endMs)
+        }
         self.init(
             transcriptionSourceType: transcriptionSourceType,
             diarizedAudioSource: diarizedAudioSource,
             requestedSpeakerHint: requestedSpeakerHint,
             detectedSpeakerCount: diarizationResult.speakerCount,
             rawDiarizationSegmentCount: diarizationResult.segments.count,
-            segmentsPerSpeaker: Self.segmentsPerSpeaker(diarizationResult.segments),
-            speakingTimeMsPerSpeaker: Self.speakingTimeMsPerSpeaker(diarizationResult.segments),
+            segmentsPerSpeaker: Self.segmentsPerSpeaker(segments),
+            speakingTimeMsPerSpeaker: Self.speakingTimeMsPerSpeaker(segments),
             assignmentSummary: assignmentSummary,
             warnings: Self.warnings(
                 requestedSpeakerHint: requestedSpeakerHint,
                 detectedSpeakerCount: diarizationResult.speakerCount,
-                diarizedAudioSource: diarizedAudioSource,
                 assignmentSummary: assignmentSummary
             )
         )
@@ -73,80 +80,62 @@ public struct DiarizationQualityReport: Codable, Sendable, Equatable {
     private static func warnings(
         requestedSpeakerHint: SpeakerCountHint?,
         detectedSpeakerCount: Int,
-        diarizedAudioSource: AudioSource?,
         assignmentSummary: WordSpeakerAssignmentSummary
     ) -> [DiarizationQualityWarning] {
         var warnings: [DiarizationQualityWarning] = []
 
         if let exact = requestedSpeakerHint?.exact {
             if detectedSpeakerCount < exact {
-                warnings.append(.init(
-                    kind: .speakerCountBelowHint,
-                    observed: Double(detectedSpeakerCount),
-                    threshold: Double(exact),
-                    denominator: nil
-                ))
+                warnings.append(
+                    .init(
+                        kind: .speakerCountBelowHint,
+                        observed: Double(detectedSpeakerCount),
+                        threshold: Double(exact),
+                        denominator: nil
+                    ))
             } else if detectedSpeakerCount > exact {
-                warnings.append(.init(
-                    kind: .speakerCountAboveHint,
-                    observed: Double(detectedSpeakerCount),
-                    threshold: Double(exact),
-                    denominator: nil
-                ))
+                warnings.append(
+                    .init(
+                        kind: .speakerCountAboveHint,
+                        observed: Double(detectedSpeakerCount),
+                        threshold: Double(exact),
+                        denominator: nil
+                    ))
             }
         } else {
             if let minimum = requestedSpeakerHint?.minimum, detectedSpeakerCount < minimum {
-                warnings.append(.init(
-                    kind: .speakerCountBelowHint,
-                    observed: Double(detectedSpeakerCount),
-                    threshold: Double(minimum),
-                    denominator: nil
-                ))
+                warnings.append(
+                    .init(
+                        kind: .speakerCountBelowHint,
+                        observed: Double(detectedSpeakerCount),
+                        threshold: Double(minimum),
+                        denominator: nil
+                    ))
             }
             if let maximum = requestedSpeakerHint?.maximum, detectedSpeakerCount > maximum {
-                warnings.append(.init(
-                    kind: .speakerCountAboveHint,
-                    observed: Double(detectedSpeakerCount),
-                    threshold: Double(maximum),
-                    denominator: nil
-                ))
+                warnings.append(
+                    .init(
+                        kind: .speakerCountAboveHint,
+                        observed: Double(detectedSpeakerCount),
+                        threshold: Double(maximum),
+                        denominator: nil
+                    ))
             }
         }
 
-        let eligibleDiarizedWords = max(assignmentSummary.totalWords, 0)
+        let eligibleDiarizedWords =
+            assignmentSummary.directOverlapWords
+            + assignmentSummary.fallbackNearestWords + assignmentSummary.unassignedWords
         if eligibleDiarizedWords > 0 {
             let fallbackRate = Double(assignmentSummary.fallbackNearestWords) / Double(eligibleDiarizedWords)
             if fallbackRate > DiarizationQualityWarningThresholds.highFallbackAssignmentRate {
-                warnings.append(.init(
-                    kind: .highFallbackAssignmentRate,
-                    observed: fallbackRate,
-                    threshold: DiarizationQualityWarningThresholds.highFallbackAssignmentRate,
-                    denominator: .init(name: "eligibleDiarizedWords", count: eligibleDiarizedWords)
-                ))
-            }
-        }
-
-        if diarizedAudioSource == .system, assignmentSummary.totalWords > 0 {
-            let totalSystemWords = Double(assignmentSummary.totalWords)
-            let diarizedSystemWords = assignmentSummary.directOverlapWords + assignmentSummary.fallbackNearestWords
-            let systemCoverage = Double(diarizedSystemWords) / totalSystemWords
-            if systemCoverage < DiarizationQualityWarningThresholds.lowSystemDiarizedCoverage {
-                warnings.append(.init(
-                    kind: .lowSystemDiarizedCoverage,
-                    observed: systemCoverage,
-                    threshold: DiarizationQualityWarningThresholds.lowSystemDiarizedCoverage,
-                    denominator: .init(name: "totalSystemWords", count: assignmentSummary.totalWords)
-                ))
-            }
-
-            let sourceOnlyRate = Double(assignmentSummary.sourceOnlyWords) / totalSystemWords
-            if sourceOnlyRate > DiarizationQualityWarningThresholds.highSourceOnlyWordRate {
-                warnings.append(.init(
-                    kind: .highSourceOnlyWordRate,
-                    observed: sourceOnlyRate,
-                    threshold: DiarizationQualityWarningThresholds.highSourceOnlyWordRate,
-                    denominator: .init(name: "totalSystemWords", count: assignmentSummary.totalWords)
-                ))
+                warnings.append(
+                    .init(
+                        kind: .highFallbackAssignmentRate,
+                        observed: fallbackRate,
+                        threshold: DiarizationQualityWarningThresholds.highFallbackAssignmentRate,
+                        denominator: .init(name: "eligibleDiarizedWords", count: eligibleDiarizedWords)
+                    ))
             }
         }
 
@@ -186,13 +175,9 @@ public struct DiarizationQualityWarningDenominator: Codable, Sendable, Equatable
 public enum DiarizationQualityWarningKind: String, Codable, Sendable, Equatable {
     case speakerCountBelowHint
     case speakerCountAboveHint
-    case lowSystemDiarizedCoverage
     case highFallbackAssignmentRate
-    case highSourceOnlyWordRate
 }
 
 enum DiarizationQualityWarningThresholds {
-    static let lowSystemDiarizedCoverage = 0.70
     static let highFallbackAssignmentRate = 0.30
-    static let highSourceOnlyWordRate = 0.30
 }

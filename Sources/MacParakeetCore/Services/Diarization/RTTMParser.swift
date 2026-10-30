@@ -1,9 +1,14 @@
 import Foundation
 
 public enum RTTMParser {
+    /// Evaluation fixtures support up to about 24.8 days. This also bounds
+    /// downstream millisecond arithmetic for malformed external annotations.
+    public static let maximumTimestampMs = Int(Int32.max)
+
     public enum ParseError: Error, Equatable, LocalizedError {
         case invalidSpeakerLine(lineNumber: Int)
         case invalidTime(lineNumber: Int)
+        case multipleRecordings
 
         public var errorDescription: String? {
             switch self {
@@ -11,6 +16,8 @@ public enum RTTMParser {
                 return "Invalid RTTM SPEAKER line at line \(lineNumber)."
             case .invalidTime(let lineNumber):
                 return "Invalid RTTM timing at line \(lineNumber)."
+            case .multipleRecordings:
+                return "Each fixture RTTM must describe only one recording."
             }
         }
     }
@@ -30,25 +37,34 @@ public enum RTTMParser {
             }
 
             guard let startSeconds = Double(fields[3]),
-                  let durationSeconds = Double(fields[4]),
-                  startSeconds >= 0,
-                  durationSeconds > 0
+                let durationSeconds = Double(fields[4]),
+                startSeconds.isFinite,
+                durationSeconds.isFinite,
+                startSeconds >= 0,
+                durationSeconds > 0
             else {
                 throw ParseError.invalidTime(lineNumber: lineNumber)
             }
 
-            let startMs = Int((startSeconds * 1000).rounded())
-            let endMs = Int(((startSeconds + durationSeconds) * 1000).rounded())
-            guard endMs > startMs else {
+            guard let startMs = Int(exactly: (startSeconds * 1000).rounded()),
+                let endMs = Int(exactly: ((startSeconds + durationSeconds) * 1000).rounded()),
+                endMs <= maximumTimestampMs,
+                endMs > startMs
+            else {
                 throw ParseError.invalidTime(lineNumber: lineNumber)
             }
 
-            segments.append(LabeledSegment(
-                recordingId: fields[1],
-                speakerId: fields[7],
-                startMs: startMs,
-                endMs: endMs
-            ))
+            if let recordingID = segments.first?.recordingId, recordingID != fields[1] {
+                throw ParseError.multipleRecordings
+            }
+
+            segments.append(
+                LabeledSegment(
+                    recordingId: fields[1],
+                    speakerId: fields[7],
+                    startMs: startMs,
+                    endMs: endMs
+                ))
         }
 
         return segments.sorted {

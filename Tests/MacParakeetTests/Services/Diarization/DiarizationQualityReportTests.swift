@@ -41,26 +41,19 @@ final class DiarizationQualityReportTests: XCTestCase {
         XCTAssertEqual(report.speakingTimeMsPerSpeaker, ["S1": 700, "S2": 400])
 
         let warningKinds = Set(report.warnings.map(\.kind))
-        XCTAssertEqual(warningKinds, [
-            .speakerCountBelowHint,
-            .lowSystemDiarizedCoverage,
-            .highFallbackAssignmentRate,
-            .highSourceOnlyWordRate,
-        ])
+        XCTAssertEqual(
+            warningKinds,
+            [
+                .speakerCountBelowHint,
+                .highFallbackAssignmentRate,
+            ])
 
         let fallbackWarning = try XCTUnwrap(report.warnings.first { $0.kind == .highFallbackAssignmentRate })
-        XCTAssertEqual(fallbackWarning.observed, 0.4, accuracy: 0.0001)
+        XCTAssertEqual(fallbackWarning.observed, 4.0 / 6.0, accuracy: 0.0001)
         XCTAssertEqual(fallbackWarning.threshold, 0.3, accuracy: 0.0001)
         XCTAssertEqual(
             fallbackWarning.denominator,
-            DiarizationQualityWarningDenominator(name: "eligibleDiarizedWords", count: 10)
-        )
-
-        let coverageWarning = try XCTUnwrap(report.warnings.first { $0.kind == .lowSystemDiarizedCoverage })
-        XCTAssertEqual(coverageWarning.observed, 0.6, accuracy: 0.0001)
-        XCTAssertEqual(
-            coverageWarning.denominator,
-            DiarizationQualityWarningDenominator(name: "totalSystemWords", count: 10)
+            DiarizationQualityWarningDenominator(name: "eligibleDiarizedWords", count: 6)
         )
     }
 
@@ -71,11 +64,11 @@ final class DiarizationQualityReportTests: XCTestCase {
             requestedSpeakerHint: nil,
             diarizationResult: MacParakeetDiarizationResult(
                 segments: [
-                    SpeakerSegment(speakerId: "S1", startMs: 0, endMs: 500),
+                    SpeakerSegment(speakerId: "Alice Example", startMs: 0, endMs: 500)
                 ],
                 speakerCount: 1,
                 speakers: [
-                    SpeakerInfo(id: "S1", label: "Alice Example"),
+                    SpeakerInfo(id: "Alice Example", label: "Alice Example")
                 ]
             ),
             assignmentSummary: WordSpeakerAssignmentSummary(
@@ -97,5 +90,29 @@ final class DiarizationQualityReportTests: XCTestCase {
         XCTAssertFalse(payload.contains("/tmp/secret.wav"))
         XCTAssertFalse(payload.contains("https://example.com/watch"))
         XCTAssertFalse(payload.contains("Alice Example"))
+        XCTAssertEqual(report.segmentsPerSpeaker, ["S1": 1])
+    }
+
+    func testSourceOnlyWordsCannotDiluteFallbackWarning() throws {
+        for sourceOnly in [0, 90] {
+            let report = makeReport(direct: 4, fallback: 4, sourceOnly: sourceOnly, unassigned: 2)
+            let warning = try XCTUnwrap(report.warnings.first { $0.kind == .highFallbackAssignmentRate })
+            XCTAssertEqual(warning.observed, 0.4, accuracy: 0.0001)
+            XCTAssertEqual(warning.denominator?.count, 10)
+        }
+        XCTAssertTrue(makeReport(direct: 0, fallback: 0, sourceOnly: 90, unassigned: 0).warnings.isEmpty)
+    }
+
+    private func makeReport(direct: Int, fallback: Int, sourceOnly: Int, unassigned: Int) -> DiarizationQualityReport {
+        DiarizationQualityReport(
+            transcriptionSourceType: .file, diarizedAudioSource: nil, requestedSpeakerHint: nil,
+            diarizationResult: MacParakeetDiarizationResult(segments: [], speakerCount: 0, speakers: []),
+            assignmentSummary: WordSpeakerAssignmentSummary(
+                totalWords: direct + fallback + sourceOnly + unassigned,
+                directOverlapWords: direct, fallbackNearestWords: fallback,
+                sourceOnlyWords: sourceOnly, unassignedWords: unassigned,
+                fallbackToleranceMs: 250, ambiguityMarginMs: 150, minFallbackQualityScore: 0.60
+            )
+        )
     }
 }

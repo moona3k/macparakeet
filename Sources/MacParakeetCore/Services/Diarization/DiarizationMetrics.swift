@@ -106,7 +106,7 @@ public enum DiarizationMetrics {
 
             let correctCount = activeHypothesis.reduce(into: Set<String>()) { matches, hypothesisSpeaker in
                 guard let referenceSpeaker = mapping[hypothesisSpeaker],
-                      activeReference.contains(referenceSpeaker)
+                    activeReference.contains(referenceSpeaker)
                 else {
                     return
                 }
@@ -268,7 +268,8 @@ public enum DiarizationMetrics {
             let activeHypothesis = activeSpeakers(in: hypothesis, startMs: region.startMs, endMs: region.endMs)
             for referenceSpeaker in activeReference {
                 for hypothesisSpeaker in activeHypothesis {
-                    overlaps[SpeakerPair(reference: referenceSpeaker, hypothesis: hypothesisSpeaker), default: 0] += durationMs
+                    overlaps[SpeakerPair(reference: referenceSpeaker, hypothesis: hypothesisSpeaker), default: 0] +=
+                        durationMs
                 }
             }
         }
@@ -304,7 +305,8 @@ public enum DiarizationMetrics {
                 var nextColumn = 0
 
                 for column in 1...columnCount where !usedColumns[column] {
-                    let reducedCost = costs[currentRow - 1][column - 1]
+                    let reducedCost =
+                        costs[currentRow - 1][column - 1]
                         - rowPotential[currentRow]
                         - columnPotential[column]
                     if reducedCost < minCost[column] {
@@ -378,15 +380,18 @@ public enum DiarizationMetrics {
             let region = Interval(startMs: sorted[index], endMs: sorted[index + 1])
             guard region.endMs > region.startMs else { continue }
             while collarIndex < collarIntervals.count,
-                  collarIntervals[collarIndex].endMs <= region.startMs {
+                collarIntervals[collarIndex].endMs <= region.startMs
+            {
                 collarIndex += 1
             }
             if collarIndex < collarIntervals.count,
-               overlapDuration(region, collarIntervals[collarIndex]) > 0 {
+                overlapDuration(region, collarIntervals[collarIndex]) > 0
+            {
                 continue
             }
             if options.skipOverlap,
-               activeSpeakers(in: reference, startMs: region.startMs, endMs: region.endMs).count > 1 {
+                activeSpeakers(in: reference, startMs: region.startMs, endMs: region.endMs).count > 1
+            {
                 continue
             }
             regions.append(region)
@@ -440,9 +445,10 @@ public enum DiarizationMetrics {
         startMs: Int,
         endMs: Int
     ) -> Set<String> {
-        Set(segments.compactMap { segment in
-            segment.startMs < endMs && segment.endMs > startMs ? segment.speakerId : nil
-        })
+        Set(
+            segments.compactMap { segment in
+                segment.startMs < endMs && segment.endMs > startMs ? segment.speakerId : nil
+            })
     }
 
     private static func overlapDuration(_ lhs: Interval, _ rhs: Interval) -> Int {

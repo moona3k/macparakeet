@@ -33,6 +33,42 @@ still apply.
 
 ## Stable Conventions
 
+### Diarization evaluation
+
+`diarization-eval <fixtures-dir> --json` emits one version-1 report with
+`schemaVersion`, `scoringOptions` (`collarMs`, `skipOverlap`), `fixtureCount`,
+`runCount`, and `fixtures`. Model logging and progress go to stderr. Each
+fixture has an ordinal `fixture` identifier, optional `expectedRemoteSpeakers`,
+`referenceAvailable`, and `runs`. Directory and audio path fields are omitted.
+
+Each run contains `variant` and optional `requestedSpeakers`,
+`requestedSpeakerHint`, `detectedSpeakers`, `speakerCountDelta`, `segmentCount`,
+`segmentSpeechMs`, `der`, `coverage`, `qualityReport`, and `error`.
+`requestedSpeakers` means an exact requested count only; min/max bounds remain
+in `requestedSpeakerHint` even when a run fails. The table's `spk` column is
+the detected count, not the requested count. Failure omits measured fields and
+uses the stable code `diarization_failed`; raw provider errors are excluded.
+Cancellation terminates the command through the normal failure envelope.
+
+`der` contains missed/false-alarm/confusion/reference milliseconds, `der`,
+`collarMs`, and `skipOverlap`. DER uses optimal speaker mapping and speaker-time
+accounting; coverage measures union speech time. Without a reference, or with
+no reference speech left after exclusions, both fields are omitted.
+
+`qualityReport` contains source type, optional diarized source and full requested
+hint, detected/segment counts, anonymous per-speaker counts/durations,
+`assignmentSummary`, and structured `warnings` (kind, observed, threshold,
+optional named denominator). Names, raw provider IDs, transcript text, and
+word timings are excluded. Optional timing-only `words.json` drives the
+experimental assignment summary; absent annotations produce zero counts.
+Fallback rate is fallback / (direct overlap + fallback + unassigned), excluding
+source-only words. Warning kinds are `speakerCountBelowHint`,
+`speakerCountAboveHint`, and `highFallbackAssignmentRate`; mixed-source meeting
+warnings and `transcribe --diarization-report` are not part of this contract.
+The production transcription/meeting assignment policies are unchanged.
+
+### Shared output rules
+
 - JSON payloads are written to stdout for the command's documented JSON stdout
   mode.
 - Export-style commands can also write JSON files. For those commands,

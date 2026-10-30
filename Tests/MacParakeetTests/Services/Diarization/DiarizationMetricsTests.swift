@@ -53,7 +53,7 @@ final class DiarizationMetricsTests: XCTestCase {
             segment("B", 1000, 2000),
         ]
         let hypothesis = [
-            segment("H1", 0, 2000),
+            segment("H1", 0, 2000)
         ]
 
         let result = DiarizationMetrics.der(reference: reference, hypothesis: hypothesis)
@@ -98,7 +98,7 @@ final class DiarizationMetricsTests: XCTestCase {
             segment("H3", 1400, 2000),
         ]
         let underSplit = [
-            segment("H1", 0, 2000),
+            segment("H1", 0, 2000)
         ]
 
         XCTAssertEqual(
@@ -141,7 +141,7 @@ final class DiarizationMetricsTests: XCTestCase {
             segment("B", 500, 1000),
         ]
         let hypothesis = [
-            segment("H1", 0, 1000),
+            segment("H1", 0, 1000)
         ]
 
         let result = DiarizationMetrics.der(reference: reference, hypothesis: hypothesis)
@@ -161,7 +161,7 @@ final class DiarizationMetricsTests: XCTestCase {
             segment("B", 500, 1000),
         ]
         let hypothesis = [
-            segment("H1", 0, 1000),
+            segment("H1", 0, 1000)
         ]
 
         let result = DiarizationMetrics.der(
@@ -206,10 +206,10 @@ final class DiarizationMetricsTests: XCTestCase {
 
     func testDERDoesNotCountFalseAlarmInsideFullyExcludedCollar() {
         let reference = [
-            segment("A", 100, 200),
+            segment("A", 100, 200)
         ]
         let hypothesis = [
-            segment("H1", 100, 200),
+            segment("H1", 100, 200)
         ]
 
         let result = DiarizationMetrics.der(
@@ -231,7 +231,7 @@ final class DiarizationMetricsTests: XCTestCase {
             segment("B", 500, 1000),
         ]
         let hypothesis = [
-            segment("H1", 0, 500),
+            segment("H1", 0, 500)
         ]
 
         let defaultCoverage = DiarizationMetrics.coverage(reference: reference, hypothesis: hypothesis)

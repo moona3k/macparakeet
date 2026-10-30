@@ -1,6 +1,15 @@
 # Speaker Diarization Quality Plan
 
-> Status: ACTIVE PLAN
+> Status: PARTIALLY SUPERSEDED — evaluation slice only (2026-10-30)
+> Current PR #537 scope: RTTM/DER evaluation and content-free evaluation reports,
+> with optional timing-only word-assignment experiments. Current main's
+> production transcription, meeting attribution, speaker priors, and existing
+> speaker-count CLI remain authoritative. The production assigner,
+> `transcribe --diarization-report`, source-aware meeting warnings, and label
+> provenance changes below are historical proposals, not implemented claims.
+> No labelled-corpus accuracy gain has been established. See
+> `fixtures/README.md` and `spec/contracts/cli-json-v1.md` for the implemented
+> scope; the phases below are retained as design history.
 > Date: 2026-05-27 (refreshed 2026-06-14 against FluidAudio 0.15.2)
 > Review: revised after two ChatGPT Pro reviews and local fresh-eye review to
 > reduce overengineering and avoid brittle heuristics. The 2026-06-14 refresh
