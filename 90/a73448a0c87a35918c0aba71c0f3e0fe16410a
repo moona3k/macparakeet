@@ -1,0 +1,56 @@
+Sources/MacParakeetCore/Services/Diarization/DiarizationMetrics.swift
+  s_6f26576d2ce855::t_3307b1b3e6de62 109,271-272,308-309,383-384,388-389,393-394,448-451
+Tests/MacParakeetTests/Services/Diarization/DiarizationMetricsTests.swift
+  s_6f26576d2ce855::t_3307b1b3e6de62 56,101,144,164,209,212,234
+Tests/MacParakeetTests/Services/Diarization/RTTMParserTests.swift
+  s_6f26576d2ce855::t_42a23c7d9c7fd3 8-11,16-19,25-28,32-36,54-58,66-68
+  s_6f26576d2ce855::t_80535cdc221c4b 52-53,59-65,69-72
+Tests/CLITests/DiarizationEvalCommandTests.swift
+  s_6f26576d2ce855::t_1bcdc220175525 206-213
+  s_6f26576d2ce855::t_7b9609e7086776 65,78-80,117,123,146-159,165,168-187,192,195-198,201-205,214-225,228-261,264-267
+  s_6f26576d2ce855::t_42a23c7d9c7fd3 23-28,45-53,67-74,81-85,90-97,127-132,160-164,166-167,188-191,193-194,199-200,226-227,262-263,288-289
+Sources/MacParakeetCore/Services/Diarization/DiarizationQualityReport.swift
+  s_6f26576d2ce855::t_42a23c7d9c7fd3 89-95,97-103,107-113,116-122,126-127,132-138
+  s_6f26576d2ce855::t_9bef30ad93d0a3 3-4,45-50,57-58,128
+Tests/MacParakeetTests/Services/Diarization/DiarizationQualityReportTests.swift
+  s_6f26576d2ce855::t_80535cdc221c4b 52,56,93-116
+  s_6f26576d2ce855::t_42a23c7d9c7fd3 44-49,67,71
+Sources/CLI/Commands/DiarizationEvalCommand.swift
+  s_6f26576d2ce855::t_42a23c7d9c7fd3 20-22,60,79-89,92-99,137-142,191,195-199,203-207,211-215,244-245,266-267,279-280
+  s_6f26576d2ce855::t_92287259b40f88 33-35,62,69,73-75,119,121,123-124,129,131,134-136,143-144,148,151,169-170,183-184,264-265,268-278,281-284,395-397
+  s_6f26576d2ce855::t_f9da1275ba988d 398-399
+Sources/MacParakeetCore/Services/Diarization/SpeakerWordAssigner.swift
+  s_6f26576d2ce855::t_9bef30ad93d0a3 51-53
+  s_6f26576d2ce855::t_42a23c7d9c7fd3 80-81,170-171,178-179,186-188,204-205,217-218,228-234,236-238
+fixtures/README.md
+  s_6f26576d2ce855::t_5e7a5f2902d1c2 16,27-42,57-76
+  s_6f26576d2ce855::t_5de5d03c07cc66 24-26
+  s_6f26576d2ce855::t_704a2e8b2a1c59 77
+Sources/MacParakeetCore/Services/Diarization/RTTMParser.swift
+  s_6f26576d2ce855::t_9bef30ad93d0a3 11,19-20,49,57-58
+  s_6f26576d2ce855::t_5de5d03c07cc66 4-7
+  s_6f26576d2ce855::t_42a23c7d9c7fd3 40-44,50-53,61-67
+  s_6f26576d2ce855::t_a22bbb8f732e3c 59-60
+spec/contracts/cli-json-v1.md
+  s_6f26576d2ce855::t_5e7a5f2902d1c2 36-71
+Sources/CLI/CHANGELOG.md
+  s_6f26576d2ce855::t_5e7a5f2902d1c2 97-106
+plans/active/2026-05-speaker-diarization-quality.md
+  s_6f26576d2ce855::t_5e7a5f2902d1c2 3-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "90a73448a0c87a35918c0aba71c0f3e0fe16410a",
+  "prompts": {},
+  "sessions": {
+    "s_6f26576d2ce855": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e58-eaa6-7583-abd5-6aec9f43cba6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
