@@ -1,0 +1,51 @@
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_6f26576d2ce855::t_c1bf338b7caf3d 1321-1322
+docs/telemetry.md
+  s_6f26576d2ce855::t_d61563379d1373 421
+Sources/MacParakeetCore/Services/System/ClipboardService.swift
+  s_6f26576d2ce855::t_fcba1b0e3f4172 365-367,379-381
+  s_6f26576d2ce855::t_c1bf338b7caf3d 373
+  s_6f26576d2ce855::t_ecb78986d5788f 382-383
+spec/contracts/dictation-insertion.md
+  s_6f26576d2ce855::t_230132e20bcce2 1-63
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_6f26576d2ce855::t_c1bf338b7caf3d 847-848,938-940,946-947
+  s_6f26576d2ce855::t_fcba1b0e3f4172 841
+spec/contracts/README.md
+  s_6f26576d2ce855::t_230132e20bcce2 44
+docs/audits/2026-07-27-crt123-codex-fn-auto-submit-acceptance.md
+  s_6f26576d2ce855::t_fcba1b0e3f4172 3-6
+Tests/MacParakeetTests/DictationFlow/DictationFlowStateMachineTests.swift
+  s_6f26576d2ce855::t_fcba1b0e3f4172 773-774
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_6f26576d2ce855::t_c1bf338b7caf3d 279-283
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_6f26576d2ce855::t_53c3abcb781fb1 42-44,46,62
+  s_6f26576d2ce855::t_c1bf338b7caf3d 12-41,45,47-61,110-114,141-145
+  s_6f26576d2ce855::t_fcba1b0e3f4172 181-197
+  s_6f26576d2ce855::t_d3f791675af16c 176-180
+Sources/MacParakeet/Hotkey/HotkeyManager.swift
+  s_6f26576d2ce855::t_fcba1b0e3f4172 430
+spec/contracts/telemetry-v1.md
+  s_6f26576d2ce855::t_230132e20bcce2 12-15
+spec/02-features.md
+  s_6f26576d2ce855::t_fcba1b0e3f4172 277-278,281
+Tests/MacParakeetTests/Services/System/ClipboardServiceTests.swift
+  s_6f26576d2ce855::t_9f51979e7910fe 246-284,286-315,317-323
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "eb6f651344280d4e2b1cba2761a30ea1491c2302",
+  "prompts": {},
+  "sessions": {
+    "s_6f26576d2ce855": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e58-eaa6-7583-abd5-6aec9f43cba6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
