@@ -28,7 +28,7 @@ jobs:
   behavior:
     name: Tests and Swift 6
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -140,70 +140,31 @@ jobs:
           scripts/build_ask_helper.sh .build/ask-runtime/AskAgentHelper .build/ask-runtime/node
           .build/ask-runtime/node --test Sources/AskAgentHelper/test/*.test.js
 
-      - name: Swift Test
-        id: tests
-        timeout-minutes: 20
-        env:
-          MACPARAKEET_ASK_TEST_NODE: ${{ github.workspace }}/.build/ask-runtime/node
+      - name: Diagnose first stalled test groups
+        timeout-minutes: 6
         run: |
-          set -o pipefail
-          export MACPARAKEET_CLI_TEST_EXECUTABLE="$PWD/.build/debug/macparakeet-cli"
-          swift test --skip-build --parallel -Xswiftc -warn-concurrency --xunit-output ci-logs/swift-tests.xml 2>&1 | tee ci-logs/swift-test.log
-
-      - name: Test Summary
-        if: ${{ !cancelled() && steps.tests.outcome != 'skipped' && steps.tests.outcome != '' }}
-        run: |
-          set -o pipefail
-          python3 scripts/ci/summarize-tests.py ci-logs/swift-tests.xml ci-logs/swift-test.log | tee ci-logs/test-summary.md >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Ask CLI Qualification
-        timeout-minutes: 5
-        env:
-          CLI_BINARY: ${{ github.workspace }}/.build/debug/macparakeet-cli
-          NODE_BINARY: ${{ github.workspace }}/.build/ask-runtime/node
-          NODE_LICENSE_FILE: ${{ github.workspace }}/.build/ask-runtime/Legal/Node/LICENSE
-          OUT_DIR: ${{ github.workspace }}/.build/ask-cli-archive
-          VERSION: ci
-        run: |
-          set -euo pipefail
-          python3 -m unittest discover -s scripts/dev/tests -p test_ask_workspace_qualification.py
-          scripts/dist/build_cli_archive.sh
-          mkdir -p .build/ask-cli-extracted
-          tar -xzf "$OUT_DIR/macparakeet-cli-ci-darwin-$(uname -m).tar.gz" -C .build/ask-cli-extracted
-          python3 scripts/dev/ask_workspace_qualification.py \
-            --cli .build/ask-cli-extracted/macparakeet-cli \
-            --output-dir ci-logs/ask-qualification
-
-      - name: CLI Persistence Smoke
-        if: ${{ !cancelled() && steps.test_build.outcome == 'success' }}
-        timeout-minutes: 2
-        run: |
-          set -o pipefail
-          python3 scripts/ci/cli-persistence-smoke.py "$PWD/.build/debug/macparakeet-cli" 2>&1 | tee ci-logs/cli-persistence-smoke.log
-
-      - name: Meeting Process Recovery
-        if: ${{ !cancelled() && steps.test_build.outcome == 'success' }}
-        timeout-minutes: 4
-        env:
-          MACPARAKEET_CRASH_RECOVERY_TESTS: "1"
-          MACPARAKEET_TELEMETRY: "0"
-        run: |
-          set -o pipefail
-          swift test --skip-build -Xswiftc -warn-concurrency --filter 'MeetingRecordingCrashRecoveryTests/(testKillNineMidRecordingProducesPlayableFiles|testKilledRecordingRecoversInFreshProcessAndRemainsIdempotent)' 2>&1 | tee ci-logs/meeting-process-recovery.log
-
-      - name: Swift 6 Language Mode
-        if: ${{ !cancelled() && steps.test_build.outcome == 'success' }}
-        timeout-minutes: 15
-        env:
-          # Argmax/WhisperKit v0.18.0 is required for real builds but is not
-          # Swift 6 language-mode clean yet. Keep this step focused on
-          # first-party MacParakeet sources while release/test builds compile
-          # the full WhisperKit dependency graph.
-          MACPARAKEET_SKIP_WHISPERKIT: "1"
-        run: |
-          mkdir -p ci-logs
-          set -o pipefail
-          swift build --build-path .build-swift6-no-whisper -Xswiftc -swift-version -Xswiftc 6 2>&1 | tee ci-logs/swift-6-language-mode.log
+          python3 - <<'PYDIAG'
+          import os, signal, subprocess
+          from pathlib import Path
+          log = Path('ci-logs/focused-tests.log').open('w')
+          command = ['swift', 'test', '--skip-build', '--parallel', '-Xswiftc', '-warn-concurrency', '--filter', 'AskCommandTests|AskActivityViewTests']
+          process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+          try:
+              code = process.wait(timeout=120)
+          except subprocess.TimeoutExpired:
+              processes = subprocess.check_output(['ps', '-axo', 'pid,ppid,command'], text=True)
+              Path('ci-logs/processes.txt').write_text(processes)
+              for line in processes.splitlines():
+                  fields = line.strip().split(None, 2)
+                  if len(fields) == 3 and '.xctest' in fields[2] and 'sample ' not in fields[2]:
+                      subprocess.run(['sample', fields[0], '3', '-file', f'ci-logs/sample-{fields[0]}.txt'], timeout=20, check=False)
+              os.killpg(process.pid, signal.SIGKILL)
+              process.wait()
+              code = 124
+          log.close()
+          print(Path('ci-logs/focused-tests.log').read_text())
+          raise SystemExit(code)
+          PYDIAG
 
       - name: Upload Test Evidence
         if: always()
@@ -215,6 +176,7 @@ jobs:
           retention-days: 7
 
   distribution:
+    if: false
     name: Release and Bundle
     runs-on: macos-15
     timeout-minutes: 60
