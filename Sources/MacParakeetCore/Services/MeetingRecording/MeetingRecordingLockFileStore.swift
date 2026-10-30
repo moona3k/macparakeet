@@ -422,13 +422,19 @@ public final class MeetingRecordingLockFileStore:
     /// Make it discoverable in this process as well as after a restart. Never
     /// revoke a queue/recovery lease or an active recording's ownership.
     @discardableResult
-    public func relinquishUnqueuedCapture(folderURL: URL, sessionID: UUID) throws -> Bool {
+    public func relinquishUnqueuedCapture(
+        folderURL: URL, sessionID: UUID,
+        beforeRelinquishing: () throws -> Void = {}
+    ) throws -> Bool {
         try Self.withFinalizationOwnershipMutex(folderURL: folderURL) {
             guard let lock = try read(folderURL: folderURL),
                 lock.sessionId == sessionID, lock.pid == processID,
                 lock.state == .awaitingTranscription, lock.finalizationLeaseId == nil,
                 !MeetingAudioWriterFinalizationRegistry.contains(folderURL: folderURL)
             else { return false }
+            // Publish any row failure while recovery admission is excluded.
+            // Once PID 0 is visible, this owner must never mutate that row again.
+            try beforeRelinquishing()
             try write(lock.withFinalizationOwner(pid: 0, leaseID: UUID()), folderURL: folderURL)
             return true
         }

@@ -19,6 +19,29 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         tempRoot = nil
     }
 
+    func testFailedRowTransitionDoesNotPublishUnownedCapture() throws {
+        let folder = tempRoot.appendingPathComponent("failed-handoff")
+        let lock = MeetingRecordingLockFile(
+            sessionId: UUID(), startedAt: Date(), displayName: "A", state: .awaitingTranscription, folderURL: folder
+        )
+        let store = MeetingRecordingLockFileStore()
+        try store.write(lock, folderURL: folder)
+        XCTAssertThrowsError(
+            try store.relinquishUnqueuedCapture(folderURL: folder, sessionID: lock.sessionId) {
+                throw CocoaError(.fileWriteOutOfSpace)
+            })
+        XCTAssertEqual(try store.read(folderURL: folder), lock)
+        XCTAssertTrue(try store.discoverOrphans(meetingsRoot: tempRoot).isEmpty)
+        var transitioned = false
+        XCTAssertTrue(
+            try store.relinquishUnqueuedCapture(folderURL: folder, sessionID: lock.sessionId) {
+                XCTAssertEqual(try store.read(folderURL: folder)?.pid, lock.pid)
+                transitioned = true
+            })
+        XCTAssertTrue(transitioned)
+        XCTAssertEqual(try store.discoverOrphans(meetingsRoot: tempRoot).count, 1)
+    }
+
     func testUnqueuedCaptureBecomesRecoverableWithoutReleasingAnotherOwner() throws {
         let folder = tempRoot.appendingPathComponent("unqueued")
         let lock = MeetingRecordingLockFile(

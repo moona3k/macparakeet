@@ -480,9 +480,16 @@ files and matches that canonical path to reuse an existing row.
 
 A failed row save or queue admission explicitly relinquishes an unleased,
 awaiting-transcription lock belonging to the same session/process: under the
-ownership mutex it writes a dead owner PID (0) and a fresh token. This makes
+ownership mutex it first marks a still-processing row retryable, then writes a
+dead owner PID (0) and a fresh token. No row mutation follows that release. This makes
 Pending Recovery discover it without restarting. It never revokes an active
 lease, a recording-state lock, or pending writer finalization. If relinquishing
 also fails, source data stays retained and restart recovery remains available.
 A failed prepared job restores its previous ownership and marks its existing
 row retryable. Retry rebuilds absent/undecodable playback before STT.
+
+Cleaned-microphone rendering is also deferred until playback and final metadata
+succeed under queue ownership. Capture settlement snapshots its dependencies
+without starting a writer. Unknown row duration remains an incomplete-preparation
+signal even when a failed attempt installed a decodable playback file; Retry
+repeats preparation to commit fallback/source truth before accepting that file.

@@ -1187,24 +1187,14 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         }
         currentLockFile = awaitingLock
 
-        // The render guard models audio work, so use captured media duration
-        // rather than user-facing wall-clock meeting duration.
-        let renderDurationSeconds = sourceAlignment.cleanedMicrophoneRenderDurationSeconds
-        let cleanedMicScheduleStartedAt = Date()
-        let cleanedMicrophoneReadiness = scheduleCleanedMicrophoneRender(
-            session: session,
-            availableSources: availableSources,
-            sourceAlignment: sourceAlignment,
-            renderDuration: renderDurationSeconds
-        )
-        appendStopStage("cleaned_mic_schedule", startedAt: cleanedMicScheduleStartedAt)
+        let cleanedMicrophonePreparation = makeCleanedMicrophonePreparation(session: session)
         let output = MeetingRecordingCapture(
             lock: awaitingLock,
             metadata: recordingMetadata,
             folderURL: session.folderURL,
             microphoneAudioURL: session.microphoneAudioURL,
             systemAudioURL: session.systemAudioURL,
-            cleanedMicrophoneReadiness: cleanedMicrophoneReadiness
+            cleanedMicrophonePreparation: cleanedMicrophonePreparation
         )
 
         let cleanupStartedAt = Date()
@@ -2208,39 +2198,34 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         return .system
     }
 
-    /// Schedule `microphone-cleaned.m4a` derivation from the raw mic + system
-    /// sources. The returned readiness handle is the final-STT gate; stop must
-    /// not wait for model-backed render work.
-    private func scheduleCleanedMicrophoneRender(
-        session: Session,
-        availableSources: Set<AudioSource>,
-        sourceAlignment: MeetingSourceAlignment,
-        renderDuration: TimeInterval
-    ) -> MeetingCleanedMicrophoneReadiness {
-        let outputURL = session.folderURL.appendingPathComponent(
-            MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
-        guard
-            MeetingCleanedMicrophoneReadinessPolicy.production.shouldAttemptRender(
-                for: renderDuration
-            )
-        else {
-            return MeetingCleanedMicrophoneRenderScheduler.skipPredictedRenderTimeout(
-                outputURL: outputURL,
-                sessionID: session.id,
-                fileManager: fileManager,
-                eventName: "meeting_cleaned_mic"
+    /// Snapshot dependencies without launching another writer. The queue starts
+    /// derivation only after playback/metadata succeed under its folder lease.
+    private func makeCleanedMicrophonePreparation(
+        session: Session
+    ) -> @Sendable (MeetingSourceAlignment) -> MeetingCleanedMicrophoneReadiness {
+        let fileManager = MeetingPlaybackArtifactBuilder.SendableFileManager(fileManager)
+        let scheduler = cleanedMicrophoneReadinessScheduler
+        let conditionerFactory = cleanedMicConditionerFactory
+        return { sourceAlignment in
+            let outputURL = session.folderURL.appendingPathComponent(
+                MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
+            guard
+                MeetingCleanedMicrophoneReadinessPolicy.production.shouldAttemptRender(
+                    for: sourceAlignment.cleanedMicrophoneRenderDurationSeconds
+                )
+            else {
+                return MeetingCleanedMicrophoneRenderScheduler.skipPredictedRenderTimeout(
+                    outputURL: outputURL, sessionID: session.id, fileManager: fileManager.value,
+                    eventName: "meeting_cleaned_mic"
+                )
+            }
+            return scheduler(
+                outputURL,
+                sourceAlignment.microphone != nil ? session.microphoneAudioURL : nil,
+                sourceAlignment.system != nil ? session.systemAudioURL : nil,
+                sourceAlignment, session.id, conditionerFactory, fileManager.value, "meeting_cleaned_mic"
             )
         }
-        return cleanedMicrophoneReadinessScheduler(
-            outputURL,
-            availableSources.contains(.microphone) ? session.microphoneAudioURL : nil,
-            availableSources.contains(.system) ? session.systemAudioURL : nil,
-            sourceAlignment,
-            session.id,
-            cleanedMicConditionerFactory,
-            fileManager,
-            "meeting_cleaned_mic"
-        )
     }
 
     private func buildSourceAlignment(

@@ -33,3 +33,21 @@ relinquishment, pending-audio eligibility, and CLI optional-duration output.
 Existing settlement/writer-failure coverage remains intact. Compilation and
 behavioral results are pending GitHub CI; local Swift syntax parsing and format
 checks passed. No native audio qualification is claimed.
+
+## Fresh-review findings addressed
+
+- Defer cleaned-microphone writer creation until playback and final metadata
+  succeed under queue ownership; stop snapshots only its configuration.
+- A decodable artifact is insufficient preparation evidence: a row with unknown
+  duration retries preparation even if a previous attempt installed playback.
+- Reconcile missing/corrupt/truncated source media before building the output
+  alignment and capture report, so STT does not retry vanished sources.
+- Update the failed processing row while holding the folder ownership mutex,
+  before publishing an unowned lock to recovery. Never demote a completed row.
+
+The first hosted run was cancelled before compilation by the scheduled macOS 14
+runner brownout. CI now uses macOS 15 with the same pinned Xcode 16.1 and all
+existing lanes. GitHub documents both the [retirement](https://github.com/actions/runner-images/issues/13518)
+and [installed Xcode versions](https://github.com/actions/runner-images/blob/main/images/macos/macos-15-Readme.md).
+Local Greptile was attempted but refused because it is not signed in; independent
+agent reviews supplement GitHub review feedback.

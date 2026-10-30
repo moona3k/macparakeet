@@ -1098,7 +1098,7 @@ final class MeetingRecordingFlowCoordinator {
                     self.currentMeetingTrigger = nil
                     self.sendEvent(.recordingQueued(generation: gen, transcriptionID: prepared.id))
                 } catch {
-                    if case .capture(let capture) = stoppedInput {
+                    if let stoppedInput, case .capture(let capture) = stoppedInput {
                         await self.relinquishUnqueuedCapture(capture, transcriptionID: preparedTranscriptionID)
                     }
                     // Saved sources remain discoverable even when row/admission failed.
@@ -1852,14 +1852,15 @@ final class MeetingRecordingFlowCoordinator {
         let repo = transcriptionRepo
         do {
             try await Task.detached(priority: .utility) {
-                let released = try MeetingRecordingLockFileStore().relinquishUnqueuedCapture(
+                try MeetingRecordingLockFileStore().relinquishUnqueuedCapture(
                     folderURL: capture.folderURL, sessionID: capture.sessionID
-                )
-                if released, let transcriptionID {
-                    try repo.updateStatus(
-                        id: transcriptionID, status: .error,
-                        errorMessage: "Audio saved. Meeting preparation could not be queued. Retry this meeting."
-                    )
+                ) {
+                    if let transcriptionID, try repo.fetch(id: transcriptionID)?.status == .processing {
+                        try repo.updateStatus(
+                            id: transcriptionID, status: .error,
+                            errorMessage: "Audio saved. Meeting preparation could not be queued. Retry this meeting."
+                        )
+                    }
                 }
             }.value
         } catch {
@@ -1894,7 +1895,7 @@ final class MeetingRecordingFlowCoordinator {
                 ?? folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.playback)
             let durationSeconds = latest.durationMs.map { max(0, Double($0) / 1000.0) } ?? 0
             let input: MeetingFinalizationInput
-            if !MeetingRecordingOutput.isViablePlaybackFile(at: mixedAudioURL) {
+            if latest.durationMs == nil || !MeetingRecordingOutput.isViablePlaybackFile(at: mixedAudioURL) {
                 input = .capture(try MeetingRecordingCapture.load(from: folderURL))
             } else {
                 input = .prepared(

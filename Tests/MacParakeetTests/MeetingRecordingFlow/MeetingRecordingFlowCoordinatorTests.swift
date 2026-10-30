@@ -541,84 +541,92 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(snapshot.finalizeMeetingCallCount, 1)
         XCTAssertEqual(snapshot.finalizedMeetingTranscriptionIDs, [failed.id])
         XCTAssertEqual(snapshot.finalizedMeetingRecordings.first?.displayName, failed.fileName)
-        XCTAssertEqual(snapshot.finalizedMeetingRecordings.first?.durationSeconds, 12)
+        XCTAssertEqual(try XCTUnwrap(snapshot.finalizedMeetingRecordings.first?.durationSeconds), 1, accuracy: 0.1)
         XCTAssertEqual(ownershipClaimer.claimedFolderURLs, [folderURL.standardizedFileURL])
     }
 
-    func testRetryRebuildsMissingPlaybackBeforeReusingPersistedRow() async throws {
-        let transcriptionService = MockTranscriptionService()
-        await transcriptionService.holdMeetingFinalization()
-        let settlementHarness = await makeSettlementHarness(transcriptionService: transcriptionService)
-        let folderURL = try makeArchivedRetryFolder()
-        defer { try? FileManager.default.removeItem(at: folderURL) }
-        let playbackURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.playback)
-        let sourceURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawMicrophone)
-        try FileManager.default.moveItem(at: playbackURL, to: sourceURL)
-        let track = MeetingSourceAlignment.Track(
-            firstHostTime: nil, lastHostTime: nil, startOffsetMs: 0,
-            writtenFrameCount: 48_000, sampleRate: 48_000
-        )
-        try MeetingRecordingMetadataStore.save(
-            MeetingRecordingMetadata(
-                sourceAlignment: MeetingSourceAlignment(meetingOriginHostTime: nil, microphone: track, system: nil)
-            ), folderURL: folderURL)
-        try MeetingRecordingLockFileStore().write(
-            MeetingRecordingLockFile(
-                sessionId: UUID(), startedAt: Date(), displayName: "Retry meeting",
-                state: .awaitingTranscription, folderURL: folderURL
-            ), folderURL: folderURL)
-        let failed = Transcription(
-            id: UUID(),
-            fileName: "Retry meeting",
-            filePath: playbackURL.path,
-            meetingArtifactFolderPath: folderURL.path,
-            durationMs: 12_000,
-            status: .error,
-            errorMessage: "Previous failure",
-            sourceType: .meeting
-        )
-        try settlementHarness.transcriptionRepo.save(failed)
-        let ownershipClaimer = FlowFinalizationOwnershipClaimer()
-        let coordinator = MeetingRecordingFlowCoordinator(
-            meetingRecordingService: MeetingRecordingServiceSpy(output: makeRecordingOutput()),
-            transcriptionService: transcriptionService,
-            permissionService: MockPermissionService(),
-            transcriptionRepo: settlementHarness.transcriptionRepo,
-            conversationRepo: MockChatConversationRepository(),
-            quickPromptRepo: NoOpQuickPromptRepository(),
-            configStore: NoOpLLMConfigStore(),
-            llmService: nil,
-            pillViewModel: MeetingRecordingPillViewModel(),
-            meetingRecordingSettlement: settlementHarness.settlement,
-            finalizationOwnershipClaimer: ownershipClaimer,
-            onMenuBarIconUpdate: { _ in },
-            onTranscriptionReady: { _ in }
-        )
+    func testRetryRepreparesSourceOnlyRowsWithMissingOrInstalledPlayback() async throws {
+        for installedPlayback in [false, true] {
+            let transcriptionService = MockTranscriptionService()
+            await transcriptionService.holdMeetingFinalization()
+            let settlementHarness = await makeSettlementHarness(transcriptionService: transcriptionService)
+            let folderURL = try makeArchivedRetryFolder()
+            defer { try? FileManager.default.removeItem(at: folderURL) }
+            let playbackURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.playback)
+            let sourceURL = folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawMicrophone)
+            if installedPlayback {
+                try FileManager.default.copyItem(at: playbackURL, to: sourceURL)
+            } else {
+                try FileManager.default.moveItem(at: playbackURL, to: sourceURL)
+            }
+            let track = MeetingSourceAlignment.Track(
+                firstHostTime: nil, lastHostTime: nil, startOffsetMs: 0,
+                writtenFrameCount: 48_000, sampleRate: 48_000
+            )
+            try MeetingRecordingMetadataStore.save(
+                MeetingRecordingMetadata(
+                    sourceAlignment: MeetingSourceAlignment(meetingOriginHostTime: nil, microphone: track, system: nil)
+                ), folderURL: folderURL)
+            try MeetingRecordingLockFileStore().write(
+                MeetingRecordingLockFile(
+                    sessionId: UUID(), startedAt: Date(), displayName: "Retry meeting",
+                    state: .awaitingTranscription, folderURL: folderURL
+                ), folderURL: folderURL)
+            let capturedSessionID = try XCTUnwrap(MeetingRecordingLockFileStore().read(folderURL: folderURL)?.sessionId)
+            let failed = Transcription(
+                id: UUID(),
+                fileName: "Retry meeting",
+                filePath: playbackURL.path,
+                meetingArtifactFolderPath: folderURL.path,
+                durationMs: nil,
+                status: .error,
+                errorMessage: "Previous failure",
+                sourceType: .meeting
+            )
+            try settlementHarness.transcriptionRepo.save(failed)
+            let ownershipClaimer = FlowFinalizationOwnershipClaimer()
+            let coordinator = MeetingRecordingFlowCoordinator(
+                meetingRecordingService: MeetingRecordingServiceSpy(output: makeRecordingOutput()),
+                transcriptionService: transcriptionService,
+                permissionService: MockPermissionService(),
+                transcriptionRepo: settlementHarness.transcriptionRepo,
+                conversationRepo: MockChatConversationRepository(),
+                quickPromptRepo: NoOpQuickPromptRepository(),
+                configStore: NoOpLLMConfigStore(),
+                llmService: nil,
+                pillViewModel: MeetingRecordingPillViewModel(),
+                meetingRecordingSettlement: settlementHarness.settlement,
+                finalizationOwnershipClaimer: ownershipClaimer,
+                onMenuBarIconUpdate: { _ in },
+                onTranscriptionReady: { _ in }
+            )
 
-        try await coordinator.retryMeetingFinalization(failed)
-        try await waitForTranscriptionStatus(
-            id: failed.id,
-            in: settlementHarness.transcriptionRepo,
-            status: .processing
-        )
+            try await coordinator.retryMeetingFinalization(failed)
+            try await waitForTranscriptionStatus(
+                id: failed.id,
+                in: settlementHarness.transcriptionRepo,
+                status: .processing
+            )
 
-        await transcriptionService.releaseMeetingFinalization()
-        await coordinator.testHook_waitForMeetingTranscriptionQueue()
+            await transcriptionService.releaseMeetingFinalization()
+            await coordinator.testHook_waitForMeetingTranscriptionQueue()
 
-        let completed = try XCTUnwrap(settlementHarness.transcriptionRepo.fetch(id: failed.id))
-        XCTAssertEqual(completed.status, .completed)
-        XCTAssertNil(completed.errorMessage)
-        XCTAssertEqual(settlementHarness.transcriptionRepo.transcriptions.map(\.id), [failed.id])
-        XCTAssertTrue(MeetingRecordingOutput.isViablePlaybackFile(at: playbackURL))
-        XCTAssertEqual(settlementHarness.lockStore.deletes, [folderURL.standardizedFileURL])
+            let completed = try XCTUnwrap(settlementHarness.transcriptionRepo.fetch(id: failed.id))
+            XCTAssertEqual(completed.status, .completed)
+            XCTAssertNil(completed.errorMessage)
+            XCTAssertEqual(settlementHarness.transcriptionRepo.transcriptions.map(\.id), [failed.id])
+            XCTAssertTrue(MeetingRecordingOutput.isViablePlaybackFile(at: playbackURL))
+            XCTAssertEqual(settlementHarness.lockStore.deletes, [folderURL.standardizedFileURL])
 
-        let snapshot = await transcriptionService.meetingFlowSnapshot()
-        XCTAssertEqual(snapshot.prepareMeetingCallCount, 0)
-        XCTAssertEqual(snapshot.finalizeMeetingCallCount, 1)
-        XCTAssertEqual(snapshot.finalizedMeetingTranscriptionIDs, [failed.id])
-        XCTAssertEqual(snapshot.finalizedMeetingRecordings.first?.displayName, failed.fileName)
-        XCTAssertEqual(snapshot.finalizedMeetingRecordings.first?.durationSeconds, 12)
-        XCTAssertEqual(ownershipClaimer.claimedFolderURLs, [folderURL.standardizedFileURL])
+            let snapshot = await transcriptionService.meetingFlowSnapshot()
+            XCTAssertEqual(snapshot.prepareMeetingCallCount, 0)
+            XCTAssertEqual(snapshot.finalizeMeetingCallCount, 1)
+            XCTAssertEqual(snapshot.finalizedMeetingTranscriptionIDs, [failed.id])
+            XCTAssertEqual(snapshot.finalizedMeetingRecordings.first?.displayName, failed.fileName)
+            XCTAssertEqual(snapshot.finalizedMeetingRecordings.first?.sessionID, capturedSessionID)
+            XCTAssertEqual(try XCTUnwrap(snapshot.finalizedMeetingRecordings.first?.durationSeconds), 1, accuracy: 0.1)
+            XCTAssertEqual(ownershipClaimer.claimedFolderURLs, [folderURL.standardizedFileURL])
+        }
     }
 
     func testRetryMeetingFinalizationDoesNotQueueWithoutOwnership() async throws {
@@ -2103,6 +2111,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         let format = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1))
         let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 48_000))
         buffer.frameLength = 48_000
+        buffer.floatChannelData?[0].initialize(repeating: 0.25, count: 48_000)
         let file = try AVAudioFile(
             forWriting: playbackURL,
             settings: [
@@ -2119,6 +2128,11 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             ),
             folderURL: folder
         )
+        try MeetingRecordingLockFileStore().write(
+            MeetingRecordingLockFile(
+                sessionId: UUID(), startedAt: Date(), displayName: "Retry meeting",
+                state: .awaitingTranscription, folderURL: folder
+            ), folderURL: folder)
         return folder
     }
 }

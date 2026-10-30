@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 
 /// Finalized source audio and durable session metadata. Playback is deliberately
@@ -8,7 +9,7 @@ public struct MeetingRecordingCapture: Sendable, Equatable {
     public let folderURL: URL
     public let microphoneAudioURL: URL
     public let systemAudioURL: URL
-    let cleanedMicrophoneReadiness: MeetingCleanedMicrophoneReadiness?
+    private let cleanedMicrophonePreparation: (@Sendable (MeetingSourceAlignment) -> MeetingCleanedMicrophoneReadiness)?
 
     public var sessionID: UUID { lock.sessionId }
     public var displayName: String { lock.titleOverride ?? lock.displayName }
@@ -20,14 +21,14 @@ public struct MeetingRecordingCapture: Sendable, Equatable {
         folderURL: URL,
         microphoneAudioURL: URL,
         systemAudioURL: URL,
-        cleanedMicrophoneReadiness: MeetingCleanedMicrophoneReadiness? = nil
+        cleanedMicrophonePreparation: (@Sendable (MeetingSourceAlignment) -> MeetingCleanedMicrophoneReadiness)? = nil
     ) {
         self.lock = lock
         self.metadata = metadata
         self.folderURL = folderURL
         self.microphoneAudioURL = microphoneAudioURL
         self.systemAudioURL = systemAudioURL
-        self.cleanedMicrophoneReadiness = cleanedMicrophoneReadiness
+        self.cleanedMicrophonePreparation = cleanedMicrophonePreparation
     }
 
     /// Retry reconstructs work from durable facts, never from an old Task handle.
@@ -78,20 +79,21 @@ public struct MeetingRecordingCapture: Sendable, Equatable {
         fileManager: MeetingPlaybackArtifactBuilder.SendableFileManager
     ) async throws -> MeetingRecordingOutput {
         let startedAt = Date()
+        let sourceAlignment = retainedSourceAlignment()
         let candidates = [(AudioSource.microphone, microphoneAudioURL), (.system, systemAudioURL)]
             .compactMap { source, url -> MeetingPlaybackArtifactBuilder.Candidate? in
-                guard let track = metadata.sourceAlignment.track(for: source) else { return nil }
+                guard let track = sourceAlignment.track(for: source) else { return nil }
                 return .init(source: source, url: url, track: track)
             }
         let playback = try await MeetingPlaybackArtifactBuilder(
             audioConverter: audioConverter, fileManager: fileManager
         ).build(
-            candidates: candidates, outputURL: mixedAudioURL, sourceAlignment: metadata.sourceAlignment
+            candidates: candidates, outputURL: mixedAudioURL, sourceAlignment: sourceAlignment
         )
         let report = metadata.captureReport.map {
             MeetingCaptureReport(
                 sourceMode: $0.sourceMode,
-                sourceAlignment: metadata.sourceAlignment,
+                sourceAlignment: sourceAlignment,
                 elapsedDurationMs: $0.elapsedDurationMs,
                 interruptedSources: Set($0.interruptedSources),
                 silentSources: Set($0.sources.filter { $0.status == .silent }.map(\.source)),
@@ -99,10 +101,18 @@ public struct MeetingRecordingCapture: Sendable, Equatable {
                 playbackFallbackSource: playback.method == .bestSourceFallback ? playback.source : nil
             )
         }
-        if report != metadata.captureReport {
-            try MeetingRecordingMetadataStore.save(
-                metadata.withCaptureReport(report), folderURL: folderURL, fileManager: fileManager.value)
+        let finalMetadata = MeetingRecordingMetadata(
+            sourceAlignment: sourceAlignment, captureReport: report,
+            speechEngine: metadata.speechEngine, speechEngineWasCaptured: metadata.speechEngineWasCaptured,
+            previewSpeechEngine: metadata.previewSpeechEngine, startContext: metadata.startContext,
+            echoSuppression: metadata.echoSuppression, calendarEventSnapshot: metadata.calendarEventSnapshot,
+            meetingTypeId: metadata.meetingTypeId
+        )
+        if finalMetadata != metadata {
+            try MeetingRecordingMetadataStore.save(finalMetadata, folderURL: folderURL, fileManager: fileManager.value)
         }
+        try Task.checkCancellation()
+        let cleanedMicrophoneReadiness = cleanedMicrophonePreparation?(sourceAlignment)
         AudioCaptureDiagnostics.append(
             "meeting_playback_prepared session=\(sessionID.uuidString) duration_ms=\(Int(Date().timeIntervalSince(startedAt) * 1_000)) outcome=\(playback.method.rawValue)"
         )
@@ -114,10 +124,11 @@ public struct MeetingRecordingCapture: Sendable, Equatable {
             microphoneAudioURL: microphoneAudioURL,
             systemAudioURL: systemAudioURL,
             cleanedMicrophoneAudioURL: cleanedMicrophoneReadiness?.outputURL
-                ?? retainedCleanedMicrophoneURL,
+                ?? (sourceAlignment.microphone != nil && sourceAlignment.system != nil
+                    ? retainedCleanedMicrophoneURL : nil),
             cleanedMicrophoneReadiness: cleanedMicrophoneReadiness,
             durationSeconds: playback.durationSeconds,
-            sourceAlignment: metadata.sourceAlignment,
+            sourceAlignment: sourceAlignment,
             captureReport: report,
             speechEngine: metadata.speechEngine,
             speechEngineWasCaptured: metadata.speechEngineWasCaptured,
@@ -126,6 +137,35 @@ public struct MeetingRecordingCapture: Sendable, Equatable {
             userNotes: lock.notes,
             calendarEventSnapshot: metadata.calendarEventSnapshot,
             meetingTypeId: metadata.meetingTypeId
+        )
+    }
+
+    /// A queued/retried source can disappear or become truncated. Preserve the
+    /// original timeline for intact media, but never send a vanished track to STT.
+    private func retainedSourceAlignment() -> MeetingSourceAlignment {
+        func retainedTrack(_ source: AudioSource, at url: URL) -> MeetingSourceAlignment.Track? {
+            guard let track = metadata.sourceAlignment.track(for: source),
+                let file = try? AVAudioFile(forReading: url), file.length > 0,
+                file.processingFormat.sampleRate.isFinite, file.processingFormat.sampleRate > 0,
+                track.sampleRate.isFinite, track.sampleRate > 0
+            else { return nil }
+            let duration = Double(file.length) / file.processingFormat.sampleRate
+            let savedFrames = max(0, track.timelineFrameCount ?? track.writtenFrameCount)
+            // AAC packet rounding must not inflate or slightly shorten the
+            // exact writer-derived timeline of an intact capture.
+            if duration + 0.1 >= Double(savedFrames) / track.sampleRate { return track }
+            let availableFrames = Int64((duration * track.sampleRate).rounded())
+            return MeetingSourceAlignment.Track(
+                firstHostTime: track.firstHostTime, lastHostTime: track.lastHostTime,
+                startOffsetMs: track.startOffsetMs,
+                writtenFrameCount: min(track.writtenFrameCount, availableFrames),
+                timelineFrameCount: availableFrames, sampleRate: track.sampleRate
+            )
+        }
+        return MeetingSourceAlignment(
+            meetingOriginHostTime: metadata.sourceAlignment.meetingOriginHostTime,
+            microphone: retainedTrack(.microphone, at: microphoneAudioURL),
+            system: retainedTrack(.system, at: systemAudioURL)
         )
     }
 
