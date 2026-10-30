@@ -96,3 +96,12 @@ hid pending-playback copy for failed/cancelled rows, aligned the earlier pipelin
 diagram, and extended Artifact/Export coverage. Its proposed live `createdAt`
 change was declined: the merge base also timestamps live rows at settlement;
 changing chronology and retention fallback is separate from this fix.
+
+Hosted CI on `b7f55890c` completed 8,235 XCTest cases and 30 Swift Testing cases.
+Seven XCTest fixtures failed: the new lock assertion compared an in-memory Date
+with its encoded round trip, four existing layout assertions hit macOS 15's
+screen-fitting behavior, and two voice-control tests exhausted fixed yield loops
+before the required event (one also failed on the merge base). The fixtures now
+compare persisted bytes, preserve requested offscreen window geometry, and await
+actual STT/transcript events. Original behavioral assertions remain. Release,
+bundle, process-recovery, and Swift 6 checks passed; final-head CI is still required.

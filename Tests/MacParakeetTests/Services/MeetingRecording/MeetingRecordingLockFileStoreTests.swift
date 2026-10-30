@@ -26,11 +26,13 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         )
         let store = MeetingRecordingLockFileStore()
         try store.write(lock, folderURL: folder)
+        let lockURL = MeetingRecordingLockFileStore.lockFileURL(for: folder)
+        let persistedLock = try Data(contentsOf: lockURL)
         XCTAssertThrowsError(
             try store.relinquishUnqueuedCapture(folderURL: folder, sessionID: lock.sessionId) {
                 throw CocoaError(.fileWriteOutOfSpace)
             })
-        XCTAssertEqual(try store.read(folderURL: folder), lock)
+        XCTAssertEqual(try Data(contentsOf: lockURL), persistedLock)
         XCTAssertTrue(try store.discoverOrphans(meetingsRoot: tempRoot).isEmpty)
         var transitioned = false
         XCTAssertTrue(
