@@ -5,6 +5,28 @@ import XCTest
 
 @MainActor
 final class DictationFlowCoordinatorTests: XCTestCase {
+    func testURLStartRecordsURLControlTelemetry() async throws {
+        let harness = try await makeRecordingHarness()
+        let telemetry = URLDictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer {
+            // Cancel the take, then dismiss its undo countdown.
+            harness.coordinator.cancelDictation()
+            harness.coordinator.cancelDictation()
+            Telemetry.configure(NoOpTelemetryService())
+        }
+
+        harness.coordinator.handleURLCommand(.start)
+
+        let recordedStart = await waitUntil {
+            telemetry.snapshot().contains { event in
+                if case .dictationStarted(trigger: .urlControl, mode: .persistent) = event { return true }
+                return false
+            }
+        }
+        XCTAssertTrue(recordedStart, "URL start must record its own trigger and persistent mode")
+    }
+
     func testURLRepeatedStartPreservesTakeAndStopDeliversOnce() async throws {
         let harness = try await makeRecordingHarness()
         await harness.stt.configure(result: STTResult(text: "URL dictation"))
@@ -1129,6 +1151,37 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         let clipboard: MockClipboardService
         let repo: DictationRepository
         let cues: CaptureCueSpy
+    }
+}
+
+private final class URLDictationTelemetrySpy: TelemetryServiceProtocol, @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [TelemetryEventSpec] = []
+
+    func send(_ event: TelemetryEventSpec) {
+        lock.lock()
+        events.append(event)
+        lock.unlock()
+    }
+
+    func sendAndFlush(_ event: TelemetryEventSpec) async -> Bool {
+        send(event)
+        return true
+    }
+
+    func flush() async {}
+    func flushForTermination() {}
+
+    func clearQueue() {
+        lock.lock()
+        events.removeAll()
+        lock.unlock()
+    }
+
+    func snapshot() -> [TelemetryEventSpec] {
+        lock.lock()
+        defer { lock.unlock() }
+        return events
     }
 }
 
