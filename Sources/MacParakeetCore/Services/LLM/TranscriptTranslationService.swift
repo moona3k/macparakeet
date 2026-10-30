@@ -254,10 +254,14 @@ public struct TranscriptTranslationService: TranscriptTranslating {
                     currentIndex = nil
                     continue
                 }
-                currentIndex = number - 1
                 // First occurrence wins so a repeated marker cannot overwrite
-                // an earlier, correctly placed line.
-                if results[number - 1] == nil, !text.isEmpty {
+                // or extend an earlier, correctly placed line.
+                guard results[number - 1] == nil else {
+                    currentIndex = nil
+                    continue
+                }
+                currentIndex = number - 1
+                if !text.isEmpty {
                     results[number - 1] = text
                 }
             } else if let index = currentIndex, let existing = results[index] {

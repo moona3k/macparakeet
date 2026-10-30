@@ -15,9 +15,11 @@ final class DictationLiveTranslator {
 
     var translatorProvider: (() -> TranscriptTranslating?)?
     var onTranslation: ((String, TranslationLanguage) -> Void)?
+    var onClearTranslation: (() -> Void)?
     var settingsProvider: () -> DictationTranslationSettings? = { DictationTranslationSettings.current() }
 
     private var latest = ""
+    private var observedLanguage: TranslationLanguage?
     private var lastChangedAt: ContinuousClock.Instant
     private var lastTranslatedSource = ""
     private var lastTranslatedLanguage: TranslationLanguage?
@@ -38,13 +40,27 @@ final class DictationLiveTranslator {
         lastChangedAt = now()
     }
 
-    /// Call whenever the live transcript changes.
+    /// Sampled by the recording loop even when the transcript is unchanged,
+    /// so enabling, changing, or disabling translation takes effect promptly.
     func update(_ text: String) {
-        if text != latest {
+        let language = settingsProvider()?.language
+        let textChanged = text != latest
+        let languageChanged = language != observedLanguage
+        guard textChanged || languageChanged else { return }
+        if textChanged {
             latest = text
             lastChangedAt = now()
         }
-        guard task == nil, settingsProvider() != nil else { return }
+        if languageChanged {
+            observedLanguage = language
+            generation += 1
+            task?.cancel()
+            task = nil
+            lastTranslatedSource = ""
+            lastTranslatedLanguage = nil
+            onClearTranslation?()
+        }
+        guard task == nil, language != nil else { return }
         let current = generation
         task = Task { [weak self] in
             await self?.run(generation: current)
@@ -57,6 +73,8 @@ final class DictationLiveTranslator {
         task?.cancel()
         task = nil
         latest = ""
+        observedLanguage = nil
+        onClearTranslation?()
         lastTranslatedSource = ""
         lastTranslatedLanguage = nil
     }
@@ -75,6 +93,7 @@ final class DictationLiveTranslator {
                 let translator = translatorProvider?()
             else { return }
 
+            observedLanguage = settings.language
             let source = Self.tail(of: latest)
             guard !source.isEmpty, source != lastTranslatedSource || settings.language != lastTranslatedLanguage
             else { return }

@@ -71,6 +71,45 @@ final class DictationLiveTranslatorTests: XCTestCase {
         translator.reset()
     }
 
+    func testStableTextRefreshesForEnableLanguageChangeAndDisable() async {
+        let provider = DictationTranslationProbe()
+        let translator = DictationLiveTranslator(debounce: .zero)
+        var settings: DictationTranslationSettings?
+        translator.settingsProvider = { settings }
+        translator.translatorProvider = { provider }
+        var displayed = ""
+        translator.onTranslation = { text, language in displayed = language.rawValue + ":" + text }
+        translator.onClearTranslation = { displayed = "" }
+        translator.update("Stable words")
+        XCTAssertTrue(provider.requests.isEmpty)
+
+        settings = DictationTranslationSettings(language: .german, output: .translation)
+        translator.update("Stable words")
+        await waitFor { provider.requests.count == 1 }
+        provider.finish(0)
+        await waitFor { !displayed.isEmpty }
+        for _ in 0..<20 { translator.update("Stable words") }
+        await Task.yield()
+        XCTAssertEqual(provider.requests.count, 1, "Polling unchanged words/settings must not repeat work")
+
+        settings?.language = .persian
+        translator.update("Stable words")
+        XCTAssertTrue(displayed.isEmpty, "The previous language must not remain under the new selection")
+        await waitFor { provider.requests.count == 2 }
+        settings = nil
+        translator.update("Stable words")
+        provider.finish(1)
+        await waitFor { provider.returned.contains(1) }
+        XCTAssertTrue(displayed.isEmpty, "Disabling must revoke a noncooperative provider result")
+
+        settings = DictationTranslationSettings(language: .persian, output: .translation)
+        translator.update("Stable words")
+        await waitFor { provider.requests.count == 3 }
+        provider.finish(2)
+        await waitFor { displayed == "fa:translated:Stable words" }
+        translator.reset()
+    }
+
     private func waitFor(_ condition: () -> Bool) async {
         let deadline = ContinuousClock.now + .seconds(2)
         while !condition(), ContinuousClock.now < deadline { await Task.yield() }

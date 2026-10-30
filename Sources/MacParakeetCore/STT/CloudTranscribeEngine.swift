@@ -184,6 +184,16 @@ public final class CloudSTTConfigStore: @unchecked Sendable {
         return loadMetadata().isUsable
     }
 
+    /// Local readiness includes reading the saved credential. A missing key is
+    /// valid for anonymous endpoints; unreadable or mismatched keys are not.
+    /// This does not contact the service or validate the credential remotely.
+    public var isReady: Bool {
+        Self.configurationLock.withLock {
+            guard isConfigured, let config = try? load() else { return false }
+            return config.isUsable
+        }
+    }
+
     public var hasAPIKey: Bool {
         ((try? keychain.getString(Self.apiKeyKeychainKey)) ?? nil)?.isEmpty == false
     }
@@ -305,9 +315,9 @@ public actor CloudTranscribeEngine: STTTranscribing {
         retryDelay = .seconds(1)
     }
 
-    /// Ready means configured; there is no model to load.
+    /// Ready means the saved configuration and credential can be loaded.
     public func isReady() -> Bool {
-        configStore.isConfigured
+        configStore.isReady
     }
 
     public func transcribe(
@@ -371,14 +381,15 @@ public actor CloudTranscribeEngine: STTTranscribing {
                     audioMs: count * 1000 / Self.sampleRate
                 ))
             let offsetMs = offset * 1000 / Self.sampleRate
+            let chunkMs = count * 1000 / Self.sampleRate
             let text = response.text.trimmingCharacters(in: .whitespacesAndNewlines)
             if !text.isEmpty { texts.append(text) }
             words.append(
-                contentsOf: response.words.map {
+                contentsOf: response.words.filter { $0.startMs < chunkMs }.map {
                     TimestampedWord(
                         word: $0.word,
                         startMs: $0.startMs + offsetMs,
-                        endMs: $0.endMs + offsetMs,
+                        endMs: min($0.endMs, chunkMs) + offsetMs,
                         confidence: $0.confidence
                     )
                 })

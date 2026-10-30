@@ -107,7 +107,8 @@ final class UsageEventRepositoryTests: XCTestCase {
             promptTokens: 1_000_000, completionTokens: 1_000_000, tokensEstimated: false, audioMs: 0)
 
         XCTAssertEqual(
-            book.price(for: row)?.cost(for: row) ?? 0, 0.75, accuracy: 0.0001, "Longest prefix wins: mini, not gpt-4o")
+            book.price(for: row)?.cost(for: row) ?? 0, 0.75, accuracy: 0.0001,
+            "The documented snapshot has an exact price")
 
         book.setOverride(UsagePrice(inputPerMillion: 1, outputPerMillion: 2), for: row)
         XCTAssertEqual(book.price(for: row)?.cost(for: row) ?? 0, 3, accuracy: 0.0001)
@@ -185,6 +186,28 @@ final class UsageEventRepositoryTests: XCTestCase {
         row.kind = .cloudSpeech
         row.provider = "api.openai.com"
         XCTAssertEqual(book.price(for: row)?.audioPerMinute, 0.006)
+    }
+
+    func testUnknownVariantsDoNotInheritKnownModelPrices() {
+        var row = UsageSummaryRow(
+            kind: .llm, provider: "gemini", model: "gemini-2.5-flash", isLocal: false, requests: 1,
+            promptTokens: 1, completionTokens: 1, tokensEstimated: false, audioMs: 0)
+        XCTAssertEqual(UsagePriceBook.builtInPrice(for: row)?.inputPerMillion, 0.30)
+        for model in ["gemini-2.5-flash-future", "gemini-2.5-flash-preview-unknown", "gemini-2.5-flash-lite-future"] {
+            row.model = model
+            XCTAssertNil(UsagePriceBook.builtInPrice(for: row), model)
+        }
+        row.provider = "openai"
+        row.model = "gpt-4o-mini-2024-07-18"
+        XCTAssertEqual(UsagePriceBook.builtInPrice(for: row)?.inputPerMillion, 0.15)
+        for model in ["gpt-4o-mini-future", "gpt-4o-mini-2099-01-01", "gpt-4o-finetuned"] {
+            row.model = model
+            XCTAssertNil(UsagePriceBook.builtInPrice(for: row), model)
+        }
+        row.kind = .cloudSpeech
+        row.provider = "api.openai.com"
+        row.model = "gpt-4o-transcribe-future"
+        XCTAssertNil(UsagePriceBook.builtInPrice(for: row))
     }
 
     func testInvalidPricesCannotOverwriteAValidScopedPrice() {

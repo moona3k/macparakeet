@@ -40,13 +40,18 @@ public actor LiveCaptionSession {
     private let capture: any MeetingAudioCapturing
     private let configStore: CloudSTTConfigStore
     private let connect: RealtimeSTTConnect
+    private let makeConverter: @Sendable (AVAudioFormat) -> (any LiveCaptionAudioConverting)?
     private let uploadBufferSampleLimit: Int
     private var generation = 0
     private var historyGeneration = 0
     private var engines: [AudioSource: RealtimeTranscribeEngine] = [:]
-    private var converters: [AudioSource: LiveCaptionResampler] = [:]
+    private var converters: [AudioSource: any LiveCaptionAudioConverting] = [:]
     private var linesBySource: [AudioSource: [RealtimeCaptionLine]] = [:]
-    private var order: [String] = []
+    private var lineRevisions: [AudioSource: Int] = [:]
+    private var seenLineIDs: Set<String> = []
+    /// Preserve the arrival slots of each source while its own phrases are
+    /// reordered by the provider's committed-item chain.
+    private var sourceSlots: [AudioSource] = []
     private var eventTask: Task<Void, Never>?
     private var uploadTasks: [AudioSource: Task<Void, Never>] = [:]
     private var queuedAudio: [AudioSource: [[Float]]] = [:]
@@ -65,10 +70,23 @@ public actor LiveCaptionSession {
             URLSessionRealtimeSTTSocket(url: url, apiKey: apiKey)
         }
     ) {
+        self.init(
+            capture: capture, configStore: configStore, uploadBufferSampleLimit: uploadBufferSampleLimit,
+            makeConverter: { LiveCaptionResampler(inputFormat: $0) }, connect: connect)
+    }
+
+    init(
+        capture: any MeetingAudioCapturing,
+        configStore: CloudSTTConfigStore,
+        uploadBufferSampleLimit: Int = 48_000,
+        makeConverter: @escaping @Sendable (AVAudioFormat) -> (any LiveCaptionAudioConverting)?,
+        connect: @escaping RealtimeSTTConnect
+    ) {
         self.capture = capture
         self.configStore = configStore
         self.uploadBufferSampleLimit = max(1, uploadBufferSampleLimit)
         self.connect = connect
+        self.makeConverter = makeConverter
     }
 
     public func start(
@@ -145,7 +163,9 @@ public actor LiveCaptionSession {
         captureRequested = false
         converters = [:]
         linesBySource = [:]
-        order = []
+        lineRevisions = [:]
+        seenLineIDs = []
+        sourceSlots = []
         historyGeneration += 1
         onUpdate = nil
         onFailure = nil
@@ -165,7 +185,9 @@ public actor LiveCaptionSession {
         historyGeneration += 1
         let history = historyGeneration
         linesBySource = [:]
-        order = []
+        lineRevisions = [:]
+        seenLineIDs = []
+        sourceSlots = []
         let activeEngines = engines
         for (source, engine) in activeEngines {
             await engine.clearCaptionHistory()
@@ -178,8 +200,10 @@ public actor LiveCaptionSession {
     private func installLineObserver(
         _ engine: RealtimeTranscribeEngine, source: AudioSource, generation: Int, history: Int
     ) async {
-        await engine.setLineObserver { [weak self] lines in
-            Task { await self?.receive(lines, from: source, generation: generation, history: history) }
+        await engine.setLineObserver { [weak self] lines, revision in
+            Task {
+                await self?.receive(lines, from: source, revision: revision, generation: generation, history: history)
+            }
         }
     }
 
@@ -219,16 +243,23 @@ public actor LiveCaptionSession {
     /// audio. Overflow stops visibly rather than silently losing caption audio.
     private func enqueue(_ buffer: AVAudioPCMBuffer, source: AudioSource, generation: Int) async {
         guard let engine = engines[source] else { return }
-        let converter: LiveCaptionResampler
+        let converter: any LiveCaptionAudioConverting
         if let existing = converters[source], existing.matches(buffer.format) {
             converter = existing
-        } else if let created = LiveCaptionResampler(inputFormat: buffer.format) {
+        } else if let created = makeConverter(buffer.format) {
             converters[source] = created
             converter = created
         } else {
+            await fail("Audio conversion failed. Live captions stopped.", generation: generation)
             return
         }
-        let samples = converter.convert(buffer)
+        let samples: [Float]
+        do {
+            samples = try converter.convert(buffer)
+        } catch {
+            await fail("Audio conversion failed. Live captions stopped.", generation: generation)
+            return
+        }
         guard !samples.isEmpty else { return }
         let buffered = bufferedSamples[source, default: 0]
         guard samples.count <= uploadBufferSampleLimit - buffered else {
@@ -267,25 +298,32 @@ public actor LiveCaptionSession {
         }
     }
 
-    private func receive(_ lines: [RealtimeCaptionLine], from source: AudioSource, generation: Int, history: Int) {
-        guard self.generation == generation, historyGeneration == history, engines[source] != nil else { return }
+    private func receive(
+        _ lines: [RealtimeCaptionLine], from source: AudioSource, revision: Int, generation: Int, history: Int
+    ) {
+        guard self.generation == generation, historyGeneration == history, engines[source] != nil,
+            revision > lineRevisions[source, default: -1]
+        else { return }
+        lineRevisions[source] = revision
         linesBySource[source] = lines
         for line in lines {
             let id = Self.lineID(source: source, itemID: line.id)
-            if !order.contains(id) { order.append(id) }
+            if seenLineIDs.insert(id).inserted { sourceSlots.append(source) }
         }
         onUpdate?(currentLines())
     }
 
     private func currentLines() -> [LiveCaptionLine] {
-        var byID: [String: LiveCaptionLine] = [:]
-        for (lineSource, sourceLines) in linesBySource {
-            for line in sourceLines {
-                let id = Self.lineID(source: lineSource, itemID: line.id)
-                byID[id] = LiveCaptionLine(id: id, source: lineSource, text: line.text, isFinal: line.isFinal)
-            }
+        var positions: [AudioSource: Int] = [:]
+        return sourceSlots.compactMap { source in
+            let index = positions[source, default: 0]
+            guard let lines = linesBySource[source], index < lines.count else { return nil }
+            positions[source] = index + 1
+            let line = lines[index]
+            return LiveCaptionLine(
+                id: Self.lineID(source: source, itemID: line.id), source: source, text: line.text, isFinal: line.isFinal
+            )
         }
-        return order.compactMap { byID[$0] }
     }
 
     static func lineID(source: AudioSource, itemID: String) -> String {
@@ -295,13 +333,34 @@ public actor LiveCaptionSession {
 
 /// Converts capture buffers (any rate, any channel count) to 24 kHz mono
 /// Float32, the format realtime transcription sessions take.
-final class LiveCaptionResampler {
+protocol LiveCaptionAudioConverting {
+    func matches(_ format: AVAudioFormat) -> Bool
+    func convert(_ buffer: AVAudioPCMBuffer) throws -> [Float]
+}
+
+final class LiveCaptionResampler: LiveCaptionAudioConverting {
+    enum ConversionError: Error { case invalidFormat, allocationFailed, conversionFailed }
+    /// The converter invokes this input block synchronously on the session's
+    /// actor. Keep its one-call state behind the SDK's @Sendable boundary.
+    private final class Input: @unchecked Sendable {
+        let buffer: AVAudioPCMBuffer
+        var supplied = false
+        init(_ buffer: AVAudioPCMBuffer) { self.buffer = buffer }
+
+        func supply(_ status: UnsafeMutablePointer<AVAudioConverterInputStatus>) -> AVAudioBuffer? {
+            guard !supplied else { status.pointee = .noDataNow; return nil }
+            supplied = true
+            status.pointee = .haveData
+            return buffer
+        }
+    }
     private let converter: AVAudioConverter
     private let inputFormat: AVAudioFormat
     private let outputFormat: AVAudioFormat
 
     init?(inputFormat: AVAudioFormat) {
         guard
+            inputFormat.sampleRate.isFinite, inputFormat.sampleRate > 0,
             let outputFormat = AVAudioFormat(
                 commonFormat: .pcmFormatFloat32,
                 sampleRate: Double(RealtimeTranscribeEngine.outputSampleRate),
@@ -318,24 +377,24 @@ final class LiveCaptionResampler {
         format == inputFormat
     }
 
-    func convert(_ buffer: AVAudioPCMBuffer) -> [Float] {
+    func convert(_ buffer: AVAudioPCMBuffer) throws -> [Float] {
+        guard matches(buffer.format) else { throw ConversionError.invalidFormat }
         guard buffer.frameLength > 0 else { return [] }
         let ratio = outputFormat.sampleRate / inputFormat.sampleRate
-        let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 64
-        guard let output = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: capacity) else { return [] }
+        let size = (Double(buffer.frameLength) * ratio).rounded(.up) + 64
+        guard let capacity = AVAudioFrameCount(exactly: size), capacity > 0 else { throw ConversionError.invalidFormat }
+        guard let output = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: capacity) else {
+            throw ConversionError.allocationFailed
+        }
 
-        var supplied = false
+        let input = Input(buffer)
         var conversionError: NSError?
         let status = converter.convert(to: output, error: &conversionError) { _, inputStatus in
-            if supplied {
-                inputStatus.pointee = .noDataNow
-                return nil
-            }
-            supplied = true
-            inputStatus.pointee = .haveData
-            return buffer
+            input.supply(inputStatus)
         }
-        guard status != .error, conversionError == nil, let channel = output.floatChannelData?[0] else { return [] }
+        guard status != .error, conversionError == nil else { throw ConversionError.conversionFailed }
+        guard output.frameLength > 0 else { return [] }
+        guard let channel = output.floatChannelData?[0] else { throw ConversionError.conversionFailed }
         return Array(UnsafeBufferPointer(start: channel, count: Int(output.frameLength)))
     }
 }

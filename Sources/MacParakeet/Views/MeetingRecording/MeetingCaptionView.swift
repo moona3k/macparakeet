@@ -7,6 +7,7 @@ import SwiftUI
 struct MeetingCaptionView: View {
     @Bindable var viewModel: MeetingRecordingPanelViewModel
     var onClose: () -> Void
+    @State private var scrollFollow = AskScrollFollowState()
 
     @AppStorage(UserDefaultsAppRuntimePreferences.meetingCaptionFontSizeKey)
     private var fontSize: Double = MeetingCaptionView.defaultFontSize
@@ -176,23 +177,35 @@ struct MeetingCaptionView: View {
                 .foregroundStyle(DesignSystem.Colors.textTertiary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: rowSpacing) {
-                        columnHeaders
-                        ForEach(rows) { row in
-                            captionRow(row)
+            GeometryReader { viewport in
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: rowSpacing) {
+                            columnHeaders
+                            ForEach(rows) { row in
+                                captionRow(row)
+                            }
+                            Color.clear.frame(height: 1).id(Self.bottomID)
                         }
-                        Color.clear.frame(height: 1).id(Self.bottomID)
+                        .padding(DesignSystem.Spacing.md)
+                        .background {
+                            GeometryReader { content in
+                                Color.clear.preference(
+                                    key: CaptionContentFrameKey.self,
+                                    value: content.frame(in: .named("meetingCaptions")))
+                            }
+                        }
                     }
-                    .padding(DesignSystem.Spacing.md)
-                }
-                // Follow the live edge as lines grow and translations arrive.
-                .onChange(of: rows) {
-                    proxy.scrollTo(Self.bottomID, anchor: .bottom)
-                }
-                .onAppear {
-                    proxy.scrollTo(Self.bottomID, anchor: .bottom)
+                    .coordinateSpace(name: "meetingCaptions")
+                    .onPreferenceChange(CaptionContentFrameKey.self) { frame in
+                        if scrollFollow.update(content: frame, viewportHeight: viewport.size.height) {
+                            proxy.scrollTo(Self.bottomID, anchor: .bottom)
+                        }
+                    }
+                    .onAppear {
+                        scrollFollow.resume()
+                        proxy.scrollTo(Self.bottomID, anchor: .bottom)
+                    }
                 }
             }
         }
@@ -255,4 +268,9 @@ struct MeetingCaptionView: View {
     private var translationIsRightToLeft: Bool {
         translation.language?.isRightToLeft ?? false
     }
+}
+
+private struct CaptionContentFrameKey: PreferenceKey {
+    static let defaultValue = CGRect.zero
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
 }

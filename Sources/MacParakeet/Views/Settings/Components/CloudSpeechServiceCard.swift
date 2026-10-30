@@ -8,9 +8,10 @@ struct CloudSpeechServiceCard: View {
     @State private var model = ""
     @State private var apiKey = ""
     @State private var realtimeModel = ""
-    @State private var catalog = CloudSTTModelCatalog.fallback
-    @State private var isLoadingModels = false
-    @State private var modelListNote: String?
+    @State private var catalogState = CloudSpeechCatalogState()
+    private var catalog: CloudSTTModelCatalog { catalogState.catalog }
+    private var isLoadingModels: Bool { catalogState.isLoading }
+    private var modelListNote: String? { catalogState.note }
     @State private var savedMessage: String?
     @State private var errorMessage: String?
     @State private var hasSavedKey = false
@@ -95,7 +96,7 @@ struct CloudSpeechServiceCard: View {
                 }
 
                 Text(
-                    "Whisper-family models (for example whisper-1, or whisper-large-v3 on Groq at https://api.groq.com/openai/v1) return word timings, which speaker labels and the live meeting preview need. Other models give a plain-text transcript."
+                    "Whisper-family models (for example whisper-1, or whisper-large-v3 on Groq at https://api.groq.com/openai/v1) can supply word timings for the final transcript and speaker labels. Other models give a plain-text transcript. Online speech does not support the live meeting preview."
                 )
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
@@ -127,6 +128,9 @@ struct CloudSpeechServiceCard: View {
             }
         }
         .onAppear(perform: load)
+        .onChange(of: draft.normalizedEndpoint) { _, endpoint in
+            catalogState.endpointChanged(endpoint)
+        }
     }
 
     private func field<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
@@ -175,23 +179,20 @@ struct CloudSpeechServiceCard: View {
     /// Fetches the server's model list using the key in the field, or the
     /// saved key for the same endpoint when empty. Keeps the list on failure.
     private func loadModels() {
-        isLoadingModels = true
-        modelListNote = nil
+        let requested = draft
+        let request = catalogState.beginRequest(endpoint: requested.normalizedEndpoint)
         Task {
+            let result: Result<CloudSTTModelCatalog, Error>
             do {
-                let config = try store.resolvingSavedAPIKey(for: draft)
-                let loaded = try await CloudSTTModelCatalog.load(config: config)
-                if loaded.fileModels.isEmpty && loaded.realtimeModels.isEmpty {
-                    modelListNote =
-                        "The server listed no speech models. Showing common models; you can also type a name."
-                } else {
-                    catalog = loaded
-                }
+                let config = try store.resolvingSavedAPIKey(for: requested)
+                result = .success(try await CloudSTTModelCatalog.load(config: config))
             } catch {
-                modelListNote =
-                    "Could not load the list: \(error.localizedDescription) You can still type a model name."
+                result = .failure(error)
             }
-            isLoadingModels = false
+            // Recheck the live draft as well as the request generation: SwiftUI
+            // may not have delivered the endpoint's onChange callback yet.
+            catalogState.endpointChanged(draft.normalizedEndpoint)
+            catalogState.finish(request, result: result)
         }
     }
 
@@ -241,6 +242,53 @@ struct CloudSpeechServiceCard: View {
             savedMessage = hasSavedKey ? "Saved — key stored in Keychain" : "Saved (no API key)"
         } catch {
             errorMessage = "Could not save: \(error.localizedDescription)"
+        }
+    }
+}
+
+/// Endpoint-scoped request state shared by the view's success and error paths.
+struct CloudSpeechCatalogState {
+    struct Request {
+        fileprivate let generation: Int
+        fileprivate let endpoint: String?
+    }
+
+    private(set) var catalog = CloudSTTModelCatalog.fallback
+    private(set) var isLoading = false
+    private(set) var note: String?
+    private var endpoint: String?
+    private var generation = 0
+
+    mutating func endpointChanged(_ endpoint: String?) {
+        guard self.endpoint != endpoint else { return }
+        self.endpoint = endpoint
+        generation += 1
+        catalog = .fallback
+        note = nil
+        isLoading = false
+    }
+
+    mutating func beginRequest(endpoint: String?) -> Request {
+        endpointChanged(endpoint)
+        generation += 1
+        isLoading = true
+        note = nil
+        return Request(generation: generation, endpoint: endpoint)
+    }
+
+    mutating func finish(_ request: Request, result: Result<CloudSTTModelCatalog, Error>) {
+        guard request.generation == generation, request.endpoint == endpoint else { return }
+        isLoading = false
+        switch result {
+        case .success(let loaded):
+            if loaded.fileModels.isEmpty && loaded.realtimeModels.isEmpty {
+                catalog = .fallback
+                note = "The server listed no speech models. Showing common models; you can also type a name."
+            } else {
+                catalog = loaded
+            }
+        case .failure(let error):
+            note = "Could not load the list: \(error.localizedDescription) You can still type a model name."
         }
     }
 }

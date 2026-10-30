@@ -738,8 +738,8 @@ func loadSpeechStackStatus(
         case .cohere:
             cohereDownloaded
         case .cloud:
-            // Nothing to download; usable once a server and model are set.
-            CloudSTTConfigStore(defaults: defaults).isConfigured
+            // Nothing to download; the saved credential must also be readable.
+            CloudSTTConfigStore(defaults: defaults).isReady
         }
 
     async let speechRuntimeReady = sttClient.isReady()

@@ -254,7 +254,10 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         let language: String?
         switch engine {
         case .appDefault:
-            let storedPreference = SpeechEnginePreference(rawValue: storedEngine ?? "") ?? .parakeet
+            let savedPreference = SpeechEnginePreference(rawValue: storedEngine ?? "") ?? .parakeet
+            // Existing scripts must keep their local-only default. Selecting
+            // Online in the app does not authorize CLI audio uploads.
+            let storedPreference = savedPreference == .cloud ? .parakeet : savedPreference
             preference = shouldFallbackCohereAppDefaultToParakeet(
                 requestedEngine: engine,
                 storedEngine: storedEngine,
@@ -647,11 +650,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 cohereEngine = createdCohereEngine
                 sttTranscriber = createdCohereEngine
             case .cloud:
-                // Only reachable when the app's saved engine is the online
-                // service; the CLI has no flag that selects it.
-                printErr("Note: using the online speech service configured in the app. Audio is uploaded to it.")
-                sttTranscriber = CloudTranscribeEngine(
-                    configStore: CloudSTTConfigStore(defaults: defaults))
+                // The resolver keeps app-default local and exposes no cloud flag.
+                // Fail closed if a future route bypasses that boundary.
+                throw ValidationError("Online speech is not available through the CLI. Select a local speech engine.")
             }
             let audioProcessor = AudioProcessor()
             let youtubeDownloader = YouTubeDownloader(audioQuality: {

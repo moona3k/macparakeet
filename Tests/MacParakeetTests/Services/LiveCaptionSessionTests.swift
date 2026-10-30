@@ -103,6 +103,22 @@ private final class CaptionMemoryKeys: KeyValueStore, @unchecked Sendable {
     func delete(_ key: String) throws { lock.withLock { values[key] = nil } }
 }
 
+private final class ScriptedCaptionConverter: LiveCaptionAudioConverting, @unchecked Sendable {
+    private let lock = NSLock()
+    private var outcomes: [Result<[Float], LiveCaptionResampler.ConversionError>]
+    private var _calls = 0
+    var calls: Int { lock.withLock { _calls } }
+
+    init(_ outcomes: [Result<[Float], LiveCaptionResampler.ConversionError>]) { self.outcomes = outcomes }
+    func matches(_ format: AVAudioFormat) -> Bool { true }
+    func convert(_ buffer: AVAudioPCMBuffer) throws -> [Float] {
+        try lock.withLock {
+            _calls += 1
+            return try outcomes.removeFirst().get()
+        }
+    }
+}
+
 final class LiveCaptionSessionTests: XCTestCase {
     private var defaults: UserDefaults!
     private var suiteName: String!
@@ -195,16 +211,111 @@ final class LiveCaptionSessionTests: XCTestCase {
         XCTAssertEqual(stops, 1)
     }
 
-    func testResamplerConvertsStereo48kToMono24k() {
+    func testResamplerConvertsStereo48kToMono24k() throws {
         let input = buffer()
         let resampler = LiveCaptionResampler(inputFormat: input.format)
         // The converter holds back a few samples at the start of a stream, so
         // the rate is checked over several buffers rather than the first one.
         var samples: [Float] = []
-        for _ in 0..<10 { samples += resampler?.convert(input) ?? [] }
+        for _ in 0..<10 { samples += try resampler?.convert(input) ?? [] }
 
         XCTAssertEqual(Double(samples.count), 24_000, accuracy: 600, "Half the frames: 48 kHz to 24 kHz")
         XCTAssertTrue(samples.dropFirst(600).allSatisfy { abs($0 - 0.2) < 0.05 }, "Stereo is mixed to mono, not summed")
+    }
+
+    func testValidEmptyConversionKeepsSessionAliveForTheNextBuffer() async throws {
+        try configureRealtime()
+        let capture = FakeCaptionCapture()
+        let socket = CaptionSocket()
+        let converter = ScriptedCaptionConverter([.success([]), .success(Array(repeating: 0.2, count: 2_400))])
+        let session = LiveCaptionSession(
+            capture: capture, configStore: store, makeConverter: { _ in converter }, connect: { _, _ in socket })
+        try await session.start(
+            sourceMode: .systemOnly, onUpdate: { _ in }, onFailure: { _ in XCTFail("Priming is not a failure") })
+        await capture.emit(.systemBuffer(buffer(), AVAudioTime(hostTime: 0)))
+        await waitUntil { converter.calls == 1 }
+        XCTAssertFalse(socket.isClosed)
+        XCTAssertFalse(socket.sent.contains { $0.contains("input_audio_buffer.append") })
+        await capture.emit(.systemBuffer(buffer(), AVAudioTime(hostTime: 0)))
+        await waitUntil { socket.sent.contains { $0.contains("input_audio_buffer.append") } }
+        await session.stop()
+        XCTAssertEqual(converter.calls, 2)
+    }
+
+    func testConversionFailureOrUnavailableConverterStopsVisibly() async throws {
+        try configureRealtime()
+        for unavailable in [false, true] {
+            let capture = FakeCaptionCapture()
+            let socket = CaptionSocket()
+            let failed = expectation(description: "Conversion failure is visible")
+            let converter = ScriptedCaptionConverter([.failure(.conversionFailed)])
+            let session = LiveCaptionSession(
+                capture: capture, configStore: store,
+                makeConverter: { _ in unavailable ? nil : converter }, connect: { _, _ in socket })
+            try await session.start(
+                sourceMode: .systemOnly, onUpdate: { _ in },
+                onFailure: { message in
+                    XCTAssertTrue(message.contains("conversion failed"))
+                    failed.fulfill()
+                })
+            await capture.emit(.systemBuffer(buffer(), AVAudioTime(hostTime: 0)))
+            await fulfillment(of: [failed], timeout: 2)
+            await session.stop()
+            XCTAssertTrue(socket.isClosed)
+            XCTAssertFalse(socket.sent.contains { $0.contains("input_audio_buffer.append") })
+            let stops = await capture.stopCount
+            XCTAssertEqual(stops, 1)
+        }
+    }
+
+    func testNativeResamplerDistinguishesEmptyAudioFromWrongFormat() throws {
+        let input = buffer()
+        let converter = try XCTUnwrap(LiveCaptionResampler(inputFormat: input.format))
+        input.frameLength = 0
+        XCTAssertTrue(try converter.convert(input).isEmpty)
+        let different = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: 24_000, channels: 1))
+        let other = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: different, frameCapacity: 10))
+        other.frameLength = 10
+        XCTAssertThrowsError(try converter.convert(other)) {
+            guard case LiveCaptionResampler.ConversionError.invalidFormat = $0 else {
+                return XCTFail("Wrong format must be an explicit conversion failure")
+            }
+        }
+    }
+
+    func testCommittedSourceOrderReusesCrossSourceArrivalSlots() async throws {
+        try configureRealtime()
+        let capture = FakeCaptionCapture()
+        let pool = SocketPool()
+        let box = LineBox()
+        let session = LiveCaptionSession(capture: capture, configStore: store) { _, _ in pool.make() }
+        try await session.start(sourceMode: .microphoneAndSystem, onUpdate: box.set, onFailure: { _ in })
+        let mic = try XCTUnwrap(pool.sockets.first)
+        let system = try XCTUnwrap(pool.sockets.last)
+        system.push(
+            #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"b","transcript":"Second"}"#)
+        await waitUntil { box.lines.map(\.id) == ["sys:b"] }
+        mic.push(
+            #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"x","transcript":"Microphone"}"#
+        )
+        await waitUntil { box.lines.map(\.id) == ["sys:b", "mic:x"] }
+        system.push(
+            #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"a","transcript":"First"}"#)
+        await waitUntil { box.lines.map(\.id) == ["sys:b", "mic:x", "sys:a"] }
+        system.push(#"{"type":"input_audio_buffer.committed","item_id":"b","previous_item_id":"a"}"#)
+        system.push(#"{"type":"input_audio_buffer.committed","item_id":"a","previous_item_id":null}"#)
+        await waitUntil { box.lines.map(\.id) == ["sys:a", "mic:x", "sys:b"] }
+        XCTAssertEqual(box.lines.map(\.text), ["First", "Microphone", "Second"])
+        XCTAssertEqual(box.lines.map(\.source), [.system, .microphone, .system])
+        _ = await session.clearHistory()
+        system.push(#"{"type":"input_audio_buffer.committed","item_id":"c","previous_item_id":"b"}"#)
+        system.push(
+            #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"b","transcript":"Old"}"#)
+        system.push(
+            #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"c","transcript":"New"}"#)
+        await waitUntil { box.lines.map(\.id) == ["sys:c"] }
+        XCTAssertEqual(box.lines.map(\.text), ["New"])
+        await session.stop()
     }
 
     private func configureRealtime() throws {

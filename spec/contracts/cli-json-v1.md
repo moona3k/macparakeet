@@ -569,8 +569,10 @@ event types and optional fields.
 
 ### Translation and file engine routing
 
-`transcribe --engine app-default` follows the saved final/file transcription engine,
-including its existing inheritance rule when no final override is stored. A live
-Cloud engine does not override an explicitly selected local final engine. The
+`transcribe --engine app-default` follows the saved final/file transcription engine
+when it is local, including inheritance when no final override is stored. A saved
+Cloud engine falls back to Parakeet; the CLI does not expose a cloud speech flag
+or upload audio because Online was selected in the app. A live Cloud engine does
+not override an explicitly selected local final engine. The
 `translate` LLM route is listed as inherited from the default route and cannot be
 configured as an independent override.

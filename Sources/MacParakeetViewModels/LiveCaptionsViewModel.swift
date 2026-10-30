@@ -48,6 +48,7 @@ public final class LiveCaptionsViewModel {
         self.sourceMode =
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.liveCaptionsSourceModeKey)
             .flatMap(MeetingAudioSourceMode.init(rawValue:)) ?? .systemOnly
+        self.liveTranslation.stop()
     }
 
     public var isRunning: Bool { state == .running }
@@ -72,7 +73,7 @@ public final class LiveCaptionsViewModel {
         self.session = session
         lines = []
         notice = nil
-        liveTranslation.reset()
+        liveTranslation.start()
         acceptingUpdates = true
         state = .starting
 
@@ -98,12 +99,14 @@ public final class LiveCaptionsViewModel {
                 guard let self, self.generation == current else { return }
                 self.session = nil
                 self.startTask = nil
+                self.liveTranslation.stop()
                 self.state = .failed(error.localizedDescription)
             }
         }
     }
 
     public func stop() {
+        liveTranslation.stop()
         generation += 1
         startTask?.cancel()
         startTask = nil

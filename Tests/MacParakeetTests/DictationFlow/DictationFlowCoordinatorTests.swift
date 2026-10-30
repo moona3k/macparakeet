@@ -62,6 +62,30 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         await harness.service.confirmCancel()
     }
 
+    func testRecordingPollRefreshesTranslationSettingsWithStableWords() async throws {
+        let translator = DictationLiveTranslator(debounce: .zero)
+        let provider = DictationTranslationProbe()
+        var settings: DictationTranslationSettings?
+        var snapshots = 0
+        translator.settingsProvider = { settings }
+        translator.translatorProvider = { provider }
+        let harness = try await makeRecordingHarness(liveTranslator: translator)
+        harness.coordinator.testHook_recordingSnapshot = {
+            snapshots += 1
+            return (.recording, 0.5, "Stable words")
+        }
+        harness.coordinator.startDictation(mode: .persistent)
+        let firstPolls = await waitUntil { snapshots >= 2 }
+        XCTAssertTrue(firstPolls)
+        XCTAssertTrue(provider.requests.isEmpty)
+        settings = DictationTranslationSettings(language: .german, output: .translation)
+        let requested = await waitUntil { provider.requests.count == 1 }
+        XCTAssertTrue(requested, "A settings change must be noticed without another transcript change")
+        harness.coordinator.cancelDictation()
+        provider.finish(0)
+        await harness.service.confirmCancel()
+    }
+
     func testBusyDictationStartIsRefusedAndNextStartCanProceed() async throws {
         let arbiter = GUIMutationArbiter()
         let harness = try await makeRecordingHarness(mutationArbiter: arbiter)

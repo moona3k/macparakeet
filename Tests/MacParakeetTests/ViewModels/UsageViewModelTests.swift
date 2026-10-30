@@ -124,6 +124,48 @@ final class UsageViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isLoading)
     }
 
+    func testCostOverflowIsDistinctFromMissingPrices() async {
+        let suite = "UsageOverflow.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var first = row("first")
+        first.promptTokens = 1_000_000
+        first.completionTokens = 0
+        var second = first
+        second.model = "second"
+        let rows = [first, second, row("unknown")]
+        let reader = UsageReadStub { _ in rows }
+        let viewModel = UsageViewModel(readerProvider: { reader }, priceBook: UsagePriceBook(defaults: defaults))
+        await viewModel.reload()
+        for row in rows.prefix(2) {
+            XCTAssertTrue(viewModel.setPrice(UsagePrice(inputPerMillion: .greatestFiniteMagnitude), for: row))
+            XCTAssertTrue(viewModel.estimatedCost(for: row)?.isFinite == true)
+        }
+        XCTAssertTrue(viewModel.hasCostOverflow)
+        XCTAssertEqual(viewModel.estimatedTotalText, "Amount too large")
+        XCTAssertEqual(viewModel.modelsMissingPrice, ["custom · unknown"])
+
+        for row in rows.prefix(2) { XCTAssertTrue(viewModel.setPrice(UsagePrice(inputPerMillion: 1), for: row)) }
+        XCTAssertFalse(viewModel.hasCostOverflow)
+        XCTAssertEqual(viewModel.estimatedTotalText, "$2.00")
+    }
+
+    func testSingleRowOverflowAlsoLabelsTheTotal() async {
+        let suite = "UsageRowOverflow.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var value = row("overflow")
+        value.promptTokens = 2_000_000
+        let rows = [value]
+        let reader = UsageReadStub { _ in rows }
+        let viewModel = UsageViewModel(readerProvider: { reader }, priceBook: UsagePriceBook(defaults: defaults))
+        await viewModel.reload()
+        XCTAssertTrue(viewModel.setPrice(UsagePrice(inputPerMillion: .greatestFiniteMagnitude), for: value))
+        XCTAssertNil(viewModel.estimatedCost(for: value))
+        XCTAssertEqual(viewModel.estimatedTotalText, "Amount too large")
+        XCTAssertTrue(viewModel.modelsMissingPrice.isEmpty)
+    }
+
     func testPriceInputRequiresAnExplicitFiniteNonnegativeDecimal() {
         for invalid in ["", " ", ".", "1.", "0,", "-1", "NaN", "inf", "1e309", "1.2.3", "one", "1,000.5"] {
             XCTAssertNil(UsageViewModel.parsePrice(invalid), invalid)

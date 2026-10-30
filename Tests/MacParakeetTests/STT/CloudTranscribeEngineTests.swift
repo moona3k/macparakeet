@@ -75,9 +75,16 @@ private final class MemoryKeyValueStore: KeyValueStore, @unchecked Sendable {
     private let lock = NSLock()
     private var values: [String: String] = [:]
     private var rejectsWrites = false
+    private var rejectsReads = false
     func rejectWrites() { lock.withLock { rejectsWrites = true } }
+    func rejectReads() { lock.withLock { rejectsReads = true } }
 
-    func getString(_ key: String) throws -> String? { lock.withLock { values[key] } }
+    func getString(_ key: String) throws -> String? {
+        try lock.withLock {
+            if rejectsReads { throw CloudSTTError.unauthorized }
+            return values[key]
+        }
+    }
     func setString(_ value: String, forKey key: String) throws {
         try lock.withLock {
             if rejectsWrites { throw CloudSTTError.unauthorized }
@@ -284,6 +291,52 @@ final class CloudTranscribeEngineTests: XCTestCase {
         XCTAssertNotEqual(try keys.getString(CloudSTTConfigStore.apiKeyKeychainKey), "legacy-secret")
         defaults.set("https://provider-b.example/v1", forKey: CloudSTTConfigStore.baseURLKey)
         XCTAssertThrowsError(try store.load())
+    }
+
+    func testReadinessRequiresReadableEndpointBoundCredentialsButAllowsAnonymousServers() async throws {
+        let keys = MemoryKeyValueStore()
+        let store = CloudSTTConfigStore(defaults: defaults, keychain: keys)
+        let engine = CloudTranscribeEngine(configStore: store)
+        XCTAssertFalse(store.isReady)
+        try store.save(CloudSTTConfig(baseURL: "https://anonymous.example/v1", model: "m"))
+        XCTAssertTrue(store.isReady)
+        let anonymousReady = await engine.isReady()
+        XCTAssertTrue(anonymousReady)
+        try store.save(CloudSTTConfig(baseURL: "https://provider.example/v1", model: "m", apiKey: "secret"))
+        XCTAssertTrue(store.isReady)
+        defaults.set("https://other.example/v1", forKey: CloudSTTConfigStore.baseURLKey)
+        XCTAssertTrue(store.isConfigured, "Saved metadata alone remains usable")
+        XCTAssertFalse(store.isReady)
+        let mismatchedReady = await engine.isReady()
+        XCTAssertFalse(mismatchedReady)
+        defaults.set("https://provider.example/v1", forKey: CloudSTTConfigStore.baseURLKey)
+        keys.rejectReads()
+        XCTAssertFalse(store.isReady)
+        let unreadableReady = await engine.isReady()
+        XCTAssertFalse(unreadableReady)
+    }
+
+    func testWordTimingsCannotExtendPastShortUploadedChunks() async throws {
+        try store.save(CloudSTTConfig(baseURL: "https://example.com/v1", model: "whisper-1"))
+        let reader = PullCloudReader(samples: Array(repeating: 0.2, count: 24_000))
+        let transport = RecordingCloudTransport(responses: [
+            (
+                200,
+                #"{"text":"first","words":[{"word":"clipped","start":0.5,"end":2},{"word":"outside","start":1,"end":2}]}"#
+            ),
+            (
+                200,
+                #"{"text":"last","words":[{"word":"tail","start":0.1,"end":0.9},{"word":"outside","start":0.5,"end":0.6}]}"#
+            ),
+        ])
+        let engine = CloudTranscribeEngine(
+            configStore: store, transport: transport, makeSampleReader: { _ in reader },
+            maxChunkSamples: 16_000, splitSearchSamples: 1)
+        let result = try await engine.transcribe(audioURL: audioURL, job: .fileTranscription, language: nil)
+        XCTAssertEqual(result.words.map(\.word), ["clipped", "tail"])
+        XCTAssertEqual(result.words.map(\.startMs), [500, 1_100])
+        XCTAssertEqual(result.words.map(\.endMs), [1_000, 1_500])
+        XCTAssertEqual(result.text, "first last")
     }
 
     func testMalformedProviderTimesAreDiscardedWithoutTrapping() throws {

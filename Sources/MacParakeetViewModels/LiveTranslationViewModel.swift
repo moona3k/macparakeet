@@ -24,6 +24,7 @@ public final class LiveTranslationViewModel {
     private struct Entry {
         let source: String
         let text: String
+        let language: TranslationLanguage
     }
 
     static let maxLinesPerRequest = 8
@@ -109,6 +110,7 @@ public final class LiveTranslationViewModel {
     private var worker: Task<Void, Never>?
     private var workerGeneration = 0
     private var isWaitingForSettle = false
+    private var isStopped = false
     private var translator: TranscriptTranslating?
     private var translationRoute: LLMModelSelectionRoute?
     private var hasTranslationRoute = false
@@ -186,8 +188,8 @@ public final class LiveTranslationViewModel {
     /// re-translated, its previous translation is returned so text does not
     /// flicker away.
     public func translation(forLineID id: String) -> String? {
-        guard language != nil else { return nil }
-        return entries[id]?.text
+        guard let language, let entry = entries[id], entry.language == language else { return nil }
+        return entry.text
     }
 
     /// Try again after repeated provider failures paused translation.
@@ -195,7 +197,20 @@ public final class LiveTranslationViewModel {
         restart()
     }
 
-    /// Clears per-meeting state. The chosen language is kept.
+    /// Starts a new caption session after a stop, dropping the prior session's lines.
+    public func start() {
+        isStopped = false
+        reset()
+    }
+
+    /// Cancels provider work while keeping already visible translations.
+    /// Settings and retries remain inert until a new session starts.
+    public func stop() {
+        isStopped = true
+        cancelWorker()
+    }
+
+    /// Clears per-meeting state. The chosen language and stopped state are kept.
     public func reset() {
         cancelWorker()
         lines = []
@@ -208,6 +223,7 @@ public final class LiveTranslationViewModel {
 
     private func restart() {
         cancelWorker()
+        guard !isStopped else { return }
         entries = [:]
         errorMessage = nil
         consecutiveFailures = 0
@@ -223,7 +239,7 @@ public final class LiveTranslationViewModel {
     }
 
     private func startWorkerIfNeeded() {
-        guard worker == nil, isActive, consecutiveFailures < Self.maxConsecutiveFailures else { return }
+        guard !isStopped, worker == nil, isActive, consecutiveFailures < Self.maxConsecutiveFailures else { return }
         guard !pendingLines().isEmpty || lastLineNeedsTranslation else { return }
         workerGeneration &+= 1
         let generation = workerGeneration
@@ -264,7 +280,7 @@ public final class LiveTranslationViewModel {
                 )
                 guard !Task.isCancelled, workerGeneration == generation, self.language == language else { return }
                 for (line, result) in zip(batch, translated) {
-                    entries[line.id] = Entry(source: line.text, text: result.text)
+                    entries[line.id] = Entry(source: line.text, text: result.text, language: language)
                 }
                 errorMessage = nil
                 consecutiveFailures = 0

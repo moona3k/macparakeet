@@ -566,6 +566,22 @@ public enum SettingsSearchIndex {
             cardAnchor: "ai.meetingLanguage"
         ),
         SettingsSearchEntry(
+            id: "ai.dictationTranslation",
+            tab: .ai,
+            title: "Dictation translation",
+            subtitle: "Translate dictation and its live preview into another language.",
+            keywords: ["dictation translation", "translate dictation", "translation", "translate"],
+            cardAnchor: "ai.dictationTranslation"
+        ),
+        SettingsSearchEntry(
+            id: "ai.subtitleTranslation",
+            tab: .ai,
+            title: "Subtitle translation",
+            subtitle: "Automatically translate video subtitles with your default AI.",
+            keywords: ["subtitle translation", "translate subtitles", "subtitles", "translation"],
+            cardAnchor: "ai.subtitleTranslation"
+        ),
+        SettingsSearchEntry(
             id: "ai.meetingTitles",
             tab: .ai,
             title: "Meeting Titles",

@@ -650,6 +650,65 @@ final class LiveTranslationViewModelTests: XCTestCase {
         viewModel.reset()
     }
 
+    func testStopRetainsEntriesAndBlocksEveryRestartUntilNewSession() async {
+        let controlled = ControlledTranscriptTranslator()
+        let viewModel = makeViewModel()
+        viewModel.updateTranslator(controlled)
+        viewModel.language = .german
+        viewModel.update(lines: [line("1", "Saved")])
+        await waitUntil { controlled.requestCount == 1 }
+        controlled.finish(0, result: .success([TranslatedSegment(text: "Gespeichert")]))
+        await waitUntil { viewModel.translation(forLineID: "1") == "Gespeichert" }
+        viewModel.update(lines: [line("1", "Saved"), line("2", "Pending")])
+        await waitUntil { controlled.requestCount == 2 }
+
+        viewModel.stop()
+        XCTAssertEqual(viewModel.translation(forLineID: "1"), "Gespeichert")
+        viewModel.speed = .fast
+        viewModel.retry()
+        viewModel.updateTranslator(controlled)
+        viewModel.language = .persian
+        XCTAssertNil(viewModel.translation(forLineID: "1"), "Retained German must not be labelled Persian")
+        viewModel.language = .german
+        viewModel.update(lines: [line("1", "Saved"), line("2", "Pending"), line("3", "Later")])
+        controlled.finish(1, result: .success([TranslatedSegment(text: "Late")]))
+        await waitUntil { controlled.returnedRequests.contains(1) }
+        XCTAssertEqual(controlled.requestCount, 2)
+        XCTAssertFalse(viewModel.isTranslating)
+        XCTAssertNil(viewModel.translation(forLineID: "2"))
+        XCTAssertEqual(viewModel.translation(forLineID: "1"), "Gespeichert")
+
+        viewModel.start()
+        XCTAssertNil(viewModel.translation(forLineID: "1"))
+        viewModel.update(lines: [line("new", "New session")])
+        await waitUntil { controlled.requestCount == 3 }
+        controlled.finish(2, result: .success([TranslatedSegment(text: "Neu")]))
+        await waitUntil { viewModel.translation(forLineID: "new") == "Neu" }
+        viewModel.stop()
+    }
+
+    func testCaptionStopAndClearKeepTranslationStopped() async {
+        let translation = makeViewModel()
+        let captions = LiveCaptionsViewModel(
+            sessionFactory: { nil }, liveTranslation: translation, defaults: defaults)
+        translation.language = .german
+        translation.start()
+        translation.update(lines: [line("1", "Saved")])
+        await waitUntil { translation.translation(forLineID: "1") == "de:Saved" }
+        captions.stop()
+        XCTAssertEqual(translation.translation(forLineID: "1"), "de:Saved")
+        captions.clear()
+        translation.update(lines: [line("2", "Must wait")])
+        translation.retry()
+        await Task.yield()
+        XCTAssertEqual(translator.requests.count, 1)
+        XCTAssertNil(translation.translation(forLineID: "2"))
+        captions.start()  // No session is available; translation must stay stopped.
+        translation.retry()
+        await Task.yield()
+        XCTAssertEqual(translator.requests.count, 1)
+    }
+
     func testTranslationOnlyModeReplacesLineTextOnceTranslated() async {
         let panel = MeetingRecordingPanelViewModel()
         let translation = panel.liveTranslation

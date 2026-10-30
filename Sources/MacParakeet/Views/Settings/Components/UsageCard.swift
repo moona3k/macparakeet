@@ -98,7 +98,7 @@ struct UsageCard: View {
                 Text("Estimated total")
                     .font(DesignSystem.Typography.body.weight(.semibold))
                 Spacer()
-                Text(UsageViewModel.formatCost(viewModel.estimatedTotal))
+                Text(viewModel.estimatedTotalText)
                     .font(DesignSystem.Typography.body.weight(.semibold))
                     .monospacedDigit()
             }

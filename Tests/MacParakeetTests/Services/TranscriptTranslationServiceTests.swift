@@ -59,10 +59,10 @@ final class TranscriptTranslationServiceTests: XCTestCase {
 
     func testParseNumberedLinesKeepsFirstOccurrenceOfRepeatedMarker() {
         let parsed = TranscriptTranslationService.parseNumberedLines(
-            "[1] Hallo\n[1] Nochmal",
-            expectedCount: 1
+            "[1] Hallo\n[1] Nochmal\nextra detail\n[2] Welt\ncontinued",
+            expectedCount: 2
         )
-        XCTAssertEqual(parsed, [0: "Hallo"])
+        XCTAssertEqual(parsed, [0: "Hallo", 1: "Welt continued"])
     }
 
     // MARK: - Batching

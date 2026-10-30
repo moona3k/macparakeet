@@ -100,6 +100,7 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
 
     private let configStore: CloudSTTConfigStore
     private let connect: RealtimeSTTConnect
+    private let recordUsage: @Sendable (UsageEvent) -> Void
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "RealtimeTranscribeEngine")
 
     private var socket: RealtimeSTTSocket?
@@ -112,11 +113,15 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
     private var model = ""
     private var provider = "online"
 
-    /// Phrase texts in the order the service first mentioned them.
+    /// Arrival is the fallback when a compatible provider supplies no chain.
     private var itemOrder: [String] = []
+    private var itemPredecessors: [String: String] = [:]
     private var itemTexts: [String: String] = [:]
     private var finalItems: Set<String> = []
-    private var onLines: (@Sendable ([RealtimeCaptionLine]) -> Void)?
+    /// Canonical source order plus a revision so asynchronous delivery cannot
+    /// restore an older ordering after a committed predecessor arrives.
+    private var onLines: (@Sendable ([RealtimeCaptionLine], Int) -> Void)?
+    private var lineRevision = 0
     /// Server event types already written to the diagnostics log this session.
     private var loggedEventTypes: Set<String> = []
     private var hasLoggedFirstText = false
@@ -124,9 +129,22 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
 
     private var resampleCarry: [Float] = []
     private var hasSpeechSinceCommit = false
-    private var silenceMs = 0
-    private var uncommittedMs = 0
-    private var totalAudioMs = 0
+    private var silenceSamples = 0
+    private var uncommittedSamples = 0
+    private var usage: SessionUsage?
+
+    /// Actor-confined reference retained across an append's await, even when
+    /// teardown replaces the current session. A late successful send upserts
+    /// the original row, never the replacement session's provider or model.
+    private final class SessionUsage {
+        var event: UsageEvent
+        var sentSamples = 0
+        var retired = false
+
+        init(provider: String, model: String) {
+            event = UsageEvent(kind: .cloudSpeech, provider: provider, model: model)
+        }
+    }
 
     init(
         configStore: CloudSTTConfigStore = CloudSTTConfigStore(),
@@ -134,12 +152,21 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
             URLSessionRealtimeSTTSocket(url: url, apiKey: apiKey)
         }
     ) {
+        self.init(configStore: configStore, recordUsage: { UsageLedger.shared.record($0) }, connect: connect)
+    }
+
+    init(
+        configStore: CloudSTTConfigStore,
+        recordUsage: @escaping @Sendable (UsageEvent) -> Void,
+        connect: @escaping RealtimeSTTConnect
+    ) {
         self.configStore = configStore
         self.connect = connect
+        self.recordUsage = recordUsage
     }
 
     func isReady() -> Bool {
-        configStore.isConfigured && configStore.loadMetadata().hasRealtimeModel
+        configStore.isReady && configStore.loadMetadata().hasRealtimeModel
     }
 
     func beginLiveDictation(
@@ -156,6 +183,7 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
 
         model = config.realtimeModel.trimmingCharacters(in: .whitespacesAndNewlines)
         provider = url.host ?? "online"
+        usage = SessionUsage(provider: provider, model: model)
         self.onPartial = onPartial
 
         let socket = try await connect(url, config.apiKey)
@@ -195,9 +223,9 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
     }
 
     /// Per-phrase updates for caption views. Dictation uses `onPartial`.
-    func setLineObserver(_ observer: (@Sendable ([RealtimeCaptionLine]) -> Void)?) {
+    func setLineObserver(_ observer: (@Sendable ([RealtimeCaptionLine], Int) -> Void)?) {
         onLines = observer
-        observer?(captionLines())
+        observer?(captionLines(), lineRevision)
     }
 
     func setFailureObserver(_ observer: (@Sendable (String) -> Void)?) throws {
@@ -208,9 +236,11 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
     func clearCaptionHistory() {
         clearedItems.formUnion(itemOrder)
         itemOrder = []
+        itemPredecessors = [:]
         itemTexts = [:]
         finalItems = []
-        onLines?([])
+        lineRevision += 1
+        onLines?([], lineRevision)
     }
 
     func processLiveDictationSamples(_ samples: [Float]) async throws {
@@ -218,18 +248,9 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
         try requireCurrent(current)
         guard let socket, !samples.isEmpty else { return }
 
-        let chunkMs = samples.count * 1000 / Self.inputSampleRate
-        totalAudioMs += chunkMs
-        uncommittedMs += chunkMs
-        if Self.rms(samples) >= Self.speechRMSThreshold {
-            hasSpeechSinceCommit = true
-            silenceMs = 0
-        } else {
-            silenceMs += chunkMs
-        }
-
         let resampled = Self.resample16kTo24k(samples, carry: &resampleCarry)
-        try await send(resampled, to: socket, generation: current)
+        try await send(
+            resampled, isSpeech: Self.rms(samples) >= Self.speechRMSThreshold, to: socket, generation: current)
     }
 
     /// Feeds audio that is already 24 kHz mono (live captions convert capture
@@ -239,27 +260,31 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
         try requireCurrent(current)
         guard let socket, !samples.isEmpty else { return }
 
-        let chunkMs = samples.count * 1000 / Self.outputSampleRate
-        totalAudioMs += chunkMs
-        uncommittedMs += chunkMs
-        if Self.rms(samples) >= Self.speechRMSThreshold {
-            hasSpeechSinceCommit = true
-            silenceMs = 0
-        } else {
-            silenceMs += chunkMs
-        }
-        try await send(samples, to: socket, generation: current)
+        try await send(
+            samples, isSpeech: Self.rms(samples) >= Self.speechRMSThreshold, to: socket, generation: current)
     }
 
-    private func send(_ samples24k: [Float], to socket: RealtimeSTTSocket, generation: Int) async throws {
+    private func send(_ samples24k: [Float], isSpeech: Bool, to socket: RealtimeSTTSocket, generation: Int) async throws
+    {
         try requireCurrent(generation)
+        guard !samples24k.isEmpty, let usage else { return }
         try await socket.send(Self.appendEvent(samples: samples24k))
+        usage.sentSamples += samples24k.count
+        recordRetiredUsage(usage)
         try requireCurrent(generation)
+
+        uncommittedSamples += samples24k.count
+        if isSpeech {
+            hasSpeechSinceCommit = true
+            silenceSamples = 0
+        } else {
+            silenceSamples += samples24k.count
+        }
 
         // The service does no turn detection for transcription sessions, so
         // the client marks the end of each phrase to receive its final text.
-        let phraseEnded = hasSpeechSinceCommit && silenceMs >= Self.phraseEndSilenceMs
-        if phraseEnded || (hasSpeechSinceCommit && uncommittedMs >= Self.maxPhraseMs) {
+        let phraseEnded = hasSpeechSinceCommit && silenceSamples >= Self.phraseEndSilenceMs * 24
+        if phraseEnded || (hasSpeechSinceCommit && uncommittedSamples >= Self.maxPhraseMs * 24) {
             try await commit()
         }
     }
@@ -297,8 +322,14 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
         try requireCurrent(current)
         pendingFinals += 1
         hasSpeechSinceCommit = false
-        silenceMs = 0
-        uncommittedMs = 0
+        silenceSamples = 0
+        uncommittedSamples = 0
+    }
+
+    private func recordRetiredUsage(_ usage: SessionUsage) {
+        guard usage.retired, usage.sentSamples >= 24 else { return }
+        usage.event.audioMs = usage.sentSamples / 24
+        recordUsage(usage.event)
     }
 
     private func teardown() {
@@ -306,10 +337,11 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
         receiveTask?.cancel()
         receiveTask = nil
         socket?.close()
-        if socket != nil, totalAudioMs > 0 {
-            UsageLedger.shared.record(
-                UsageEvent(kind: .cloudSpeech, provider: provider, model: model, audioMs: totalAudioMs))
+        if let usage {
+            usage.retired = true
+            recordRetiredUsage(usage)
         }
+        usage = nil
         socket = nil
         onPartial = nil
         onLines = nil
@@ -320,13 +352,14 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
         loggedEventTypes = []
         hasLoggedFirstText = false
         itemOrder = []
+        itemPredecessors = [:]
         itemTexts = [:]
+        lineRevision = 0
         pendingFinals = 0
         resampleCarry = []
         hasSpeechSinceCommit = false
-        silenceMs = 0
-        uncommittedMs = 0
-        totalAudioMs = 0
+        silenceSamples = 0
+        uncommittedSamples = 0
     }
 
     private func requireCurrent(_ expected: Int) throws {
@@ -348,6 +381,20 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
         logEventTypeOnce(message)
         guard let event = Self.parseEvent(message) else { return }
         switch event {
+        case .committed(let itemID, let previousItemID):
+            guard !clearedItems.contains(itemID) else { return }
+            noteItem(itemID)
+            if let previousItemID, !clearedItems.contains(previousItemID) { noteItem(previousItemID) }
+            // Ignore malformed cycles instead of hanging or inventing a new
+            // order from an invalid predecessor chain.
+            var predecessor = previousItemID
+            var visited: Set<String> = [itemID]
+            while let id = predecessor {
+                guard visited.insert(id).inserted else { return }
+                predecessor = itemPredecessors[id]
+            }
+            itemPredecessors[itemID] = previousItemID
+            publish()
         case .delta(let itemID, let text):
             guard !clearedItems.contains(itemID) else { return }
             noteItem(itemID)
@@ -368,16 +415,17 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
     }
 
     private func publish() {
-        if !hasLoggedFirstText {
+        if !hasLoggedFirstText, !currentText().isEmpty {
             hasLoggedFirstText = true
             AudioCaptureDiagnostics.append("realtime_stt_first_text")
         }
         onPartial?(currentText())
-        onLines?(captionLines())
+        lineRevision += 1
+        onLines?(captionLines(), lineRevision)
     }
 
     private func captionLines() -> [RealtimeCaptionLine] {
-        itemOrder.compactMap { id in
+        orderedItems().compactMap { id in
             guard let text = itemTexts[id]?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty
             else { return nil }
             return RealtimeCaptionLine(id: id, text: text, isFinal: finalItems.contains(id))
@@ -408,15 +456,33 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
     }
 
     private func currentText() -> String {
-        itemOrder
+        orderedItems()
             .compactMap { itemTexts[$0]?.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
             .joined(separator: " ")
     }
 
+    private func orderedItems() -> [String] {
+        let known = Set(itemOrder)
+        var emitted: Set<String> = []
+        var ordered: [String] = []
+        for item in itemOrder {
+            var chain: [String] = []
+            var visiting: Set<String> = []
+            var next: String? = item
+            while let id = next, known.contains(id), !emitted.contains(id), visiting.insert(id).inserted {
+                chain.append(id)
+                next = itemPredecessors[id]
+            }
+            for id in chain.reversed() where emitted.insert(id).inserted { ordered.append(id) }
+        }
+        return ordered
+    }
+
     // MARK: - Pure helpers
 
     enum ServerEvent: Equatable {
+        case committed(itemID: String, previousItemID: String?)
         case delta(itemID: String, text: String)
         case completed(itemID: String, transcript: String)
         case error(code: String, message: String)
@@ -428,6 +494,12 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
         else { return nil }
         let itemID = object["item_id"] as? String ?? "item"
         switch type {
+        case "input_audio_buffer.committed":
+            guard let itemID = object["item_id"] as? String, !itemID.isEmpty,
+                object["previous_item_id"] == nil || object["previous_item_id"] is NSNull
+                    || object["previous_item_id"] is String
+            else { return nil }
+            return .committed(itemID: itemID, previousItemID: object["previous_item_id"] as? String)
         case "conversation.item.input_audio_transcription.delta":
             guard let delta = object["delta"] as? String else { return nil }
             return .delta(itemID: itemID, text: delta)

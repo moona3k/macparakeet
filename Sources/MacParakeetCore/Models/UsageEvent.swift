@@ -148,14 +148,15 @@ public struct UsagePriceBook: Sendable {
 
     /// List prices in US dollars as known when this was written. They are a
     /// starting point only; the user can correct any of them in the panel.
-    /// Matched by model-name prefix, longest prefix first.
-    static let builtIn: [(prefix: String, price: UsagePrice)] = [
+    /// Exact model IDs only; unknown variants require a user-supplied price.
+    static let builtIn: [(model: String, price: UsagePrice)] = [
         ("gpt-4o-mini-transcribe", UsagePrice(audioPerMinute: 0.003)),
         ("gpt-4o-transcribe", UsagePrice(audioPerMinute: 0.006)),
         ("whisper-large-v3-turbo", UsagePrice(audioPerMinute: 0.000667)),
         ("whisper-large-v3", UsagePrice(audioPerMinute: 0.00185)),
         ("whisper-1", UsagePrice(audioPerMinute: 0.006)),
         ("gpt-4o-mini", UsagePrice(inputPerMillion: 0.15, outputPerMillion: 0.60)),
+        ("gpt-4o-mini-2024-07-18", UsagePrice(inputPerMillion: 0.15, outputPerMillion: 0.60)),
         ("gpt-4o", UsagePrice(inputPerMillion: 2.50, outputPerMillion: 10.00)),
         ("gpt-4.1-nano", UsagePrice(inputPerMillion: 0.10, outputPerMillion: 0.40)),
         ("gpt-4.1-mini", UsagePrice(inputPerMillion: 0.40, outputPerMillion: 1.60)),
@@ -251,13 +252,7 @@ public struct UsagePriceBook: Sendable {
         default: vendorMatches = false
         }
         guard vendorMatches else { return nil }
-        guard
-            let price =
-                builtIn
-                .filter({ name == $0.prefix || name.hasPrefix($0.prefix + "-") })
-                .max(by: { $0.prefix.count < $1.prefix.count })?
-                .price
-        else { return nil }
+        guard let price = builtIn.first(where: { name == $0.model })?.price else { return nil }
         guard row.kind == .cloudSpeech ? price.audioPerMinute > 0 : price.audioPerMinute == 0 else { return nil }
         return price
     }

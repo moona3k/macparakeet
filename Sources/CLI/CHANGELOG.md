@@ -103,10 +103,9 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Changed
 
-- When the app's saved speech engine is the opt-in online service,
-  `transcribe` without `--engine` uses it and prints a stderr note that audio
-  is uploaded. No CLI flag selects the online service, and JSON shapes are
-  unchanged apart from `engine: "cloud"` on those results.
+- `transcribe --engine app-default` follows the saved final/file engine when
+  it is local. A saved Online engine falls back to Parakeet, preserving the
+  CLI's local-only default. No CLI flag selects the online speech service.
 
 ### Fixed
 

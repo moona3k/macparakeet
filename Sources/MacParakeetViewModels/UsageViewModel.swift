@@ -135,9 +135,22 @@ public final class UsageViewModel {
         (aiRows + onlineSpeechRows).compactMap(estimatedCost(for:)).reduce(0, +)
     }
 
+    /// Keep arithmetic overflow distinct from models whose prices are unknown.
+    public var hasCostOverflow: Bool {
+        !estimatedTotal.isFinite
+            || (aiRows + onlineSpeechRows).contains { row in
+                guard let price = price(for: row) else { return false }
+                return !price.cost(for: row).isFinite
+            }
+    }
+
+    public var estimatedTotalText: String {
+        hasCostOverflow ? "Amount too large" : Self.formatCost(estimatedTotal)
+    }
+
     /// Paid models that have usage but no price yet, so the total omits them.
     public var modelsMissingPrice: [String] {
-        (aiRows + onlineSpeechRows).filter { estimatedCost(for: $0) == nil }
+        (aiRows + onlineSpeechRows).filter { price(for: $0) == nil }
             .map { "\($0.provider) · \($0.model)" }
     }
 

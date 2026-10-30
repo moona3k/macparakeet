@@ -671,6 +671,10 @@ final class DictationFlowCoordinator {
             vm.liveTranscript = ""
             vm.liveTranslation = ""
             liveTranslator.reset()
+            liveTranslator.onClearTranslation = { [weak vm] in
+                vm?.liveTranslation = ""
+                vm?.liveTranslationIsRightToLeft = false
+            }
             liveTranslator.onTranslation = { [weak vm] text, language in
                 vm?.liveTranslation = text
                 vm?.liveTranslationIsRightToLeft = language.isRightToLeft
@@ -1618,8 +1622,9 @@ final class DictationFlowCoordinator {
             // overlay's live-readout view tree every frame.
             if let overlayViewModel, overlayViewModel.liveTranscript != snapshot.liveTranscript {
                 overlayViewModel.liveTranscript = snapshot.liveTranscript
-                liveTranslator.update(snapshot.liveTranscript)
             }
+            // Also notices translation setting changes while the words are stable.
+            liveTranslator.update(snapshot.liveTranscript)
 
             if autoStopEnabled {
                 let now = Date()

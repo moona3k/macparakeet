@@ -82,13 +82,16 @@ meeting preview warm-up and inference without changing capture or final STT.
 - `CloudTranscribeEngine.swift` — opt-in online engine (fork amendment to
   ADR-026). Uploads 16 kHz mono WAV to a user-configured OpenAI-compatible
   `audio/transcriptions` server; **sends recorded audio off the device**.
-  Holds no model: "ready" means a server address and model are
-  saved (`CloudSTTConfigStore`; API key in the Keychain). Batch-only like
+  Holds no model: "ready" means a server address and model are saved and the
+  endpoint-bound credential can be read (`CloudSTTConfigStore`; API key in
+  the Keychain). Anonymous endpoints remain valid. This checks local
+  configuration, not remote authentication or service availability. Batch-only like
   Cohere. File decoding is bounded and demand-driven: one upload window plus
   one sample of lookahead, with a short quiet-point tail retained between
   uploads. No next window is decoded until the current upload settles.
   Audio longer than ten minutes is split at quiet points and word times are
-  re-offset from actual emitted sample counts. Requests `verbose_json` word timings and retries as
+  clipped to each uploaded chunk's duration and re-offset from actual emitted
+  sample counts. Requests `verbose_json` word timings and retries as
   plain `json` for models that reject it. Never selected by default and
   never used as a fallback for a local engine.
 - `RealtimeTranscribeEngine.swift` — streaming half of the online engine.
