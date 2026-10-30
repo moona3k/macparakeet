@@ -1,0 +1,33 @@
+plans/active/2026-10-30-1291-capture-finalization.md
+  s_e22d9d41797ef3::t_d0ea9458decefd 65-70
+Sources/MacParakeet/Views/Meetings/MeetingsView.swift
+  s_e22d9d41797ef3::t_d0ea9458decefd 717-718
+Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift
+  s_e22d9d41797ef3::t_d0ea9458decefd 478-480
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingAudioFile.swift
+  s_e22d9d41797ef3::t_d0ea9458decefd 110-111
+spec/contracts/cli-json-v1.md
+  s_e22d9d41797ef3::t_d0ea9458decefd 412-414,574-578
+Tests/MacParakeetTests/Audio/MeetingAudioFileTests.swift
+  s_e22d9d41797ef3::t_d0ea9458decefd 22-34
+Tests/CLITests/MeetingsCommandTests.swift
+  s_e22d9d41797ef3::t_d0ea9458decefd 33
+spec/contracts/meeting-artifacts-v1.md
+  s_e22d9d41797ef3::t_ebc54b8b6d59af 307-311,313
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e525fc507ab9f93afa7e7c55be0f6cdf5185f4c0",
+  "prompts": {},
+  "sessions": {
+    "s_e22d9d41797ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18dfb-ae53-7c60-9a4e-a3aa4f722892",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
