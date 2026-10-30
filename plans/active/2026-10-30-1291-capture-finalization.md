@@ -84,3 +84,9 @@ playback no longer blocks new capture. It identified the same cleanup overlap
 and a lost meeting-type selection during asynchronous startup. Startup now
 writes the current selection after capture starts, and a focused flow regression
 pins that ordering. The duplicate CLI Unreleased heading is consolidated.
+
+Opus's delta review also traced the same early-render overlap through recovery
+of a source-only row. Recovery now uses the shared deferred readiness handle.
+Its regression preserves canonical and candidate artifacts across rejected
+preflight, then verifies one successful renderer on recovery retry. This keeps
+the same ownership rule across Stop, Retry, and recovery without a new scheduler.
