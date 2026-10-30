@@ -107,7 +107,8 @@ public enum MeetingAudioFile {
         if exists && !isDirectory.boolValue {
             return .saved
         }
-        if let folderURL = MeetingArtifactStore.sessionFolderURL(for: transcription),
+        if transcription.status != .completed,
+            let folderURL = MeetingArtifactStore.sessionFolderURL(for: transcription),
             hasRetainedSources(in: folderURL, fileManager: fileManager)
         {
             return .sourcesSaved

@@ -62,3 +62,9 @@ At the user's suggestion, p-stack's Separate Before Serializing Shared State,
 Minimize Reader Load, and Prove It Works principles were applied to the final
 review. They support separate per-session artifact ownership and the existing
 queue. No broader scheduler or capture redesign is needed for this defect.
+
+Boundary review aligned both Library and Meetings context-menu Retry actions
+with the card's shared source-audio eligibility. Completed meetings with missing
+playback retain the existing missing-audio state; they do not promise pending
+preparation. CLI tests and documentation explicitly cover both canonical path
+fields being present before playback exists.

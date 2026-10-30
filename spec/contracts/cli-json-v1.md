@@ -409,8 +409,9 @@ still apply.
   additive artifact path fields for meeting rows when the session folder can be
   resolved: `artifactMarkdownPath` points to `meeting.md`, and optional
   `rawMicrophoneAudioPath`, `cleanedMicrophoneAudioPath`,
-  `rawSystemAudioPath`, and `playbackAudioPath` point to retained meeting
-  audio artifacts.
+  and `rawSystemAudioPath` point to retained meeting audio artifacts.
+  `playbackAudioPath` is the canonical expected playback path and may precede
+  preparation; its presence does not prove the file is available.
 - `meetings artifact --json` and `--envelope` return additive
   `MeetingArtifactSnapshot` fields `markdownPath`, optional
   `rawMicrophoneAudioPath`, optional `cleanedMicrophoneAudioPath`, optional
@@ -570,9 +571,10 @@ event types and optional fields.
 ### Meetings awaiting playback preparation
 
 A processing meeting may have durable source audio before its canonical
-playback file exists (#1291). Its `filePath` remains the intended canonical path
-for identity/recovery; optional `durationMs` is absent while unknown. Consumers
-must not infer file availability from the presence of that path. Artifact paths
-continue to report retained files under their existing rules. Completed meetings
+playback file exists (#1291). Its `filePath` and `playbackAudioPath` remain the
+intended canonical path for identity/recovery; optional `durationMs` is absent
+while unknown. Consumers must not infer file availability from either path.
+This also applies to `playbackAudioPath` in artifact snapshots and exports;
+source artifact paths continue to report retained files under their existing rules. Completed meetings
 retain measured playback durations and the existing schema. There are no new
 CLI capture start/stop commands.

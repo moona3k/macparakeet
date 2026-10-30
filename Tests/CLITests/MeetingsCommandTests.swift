@@ -30,6 +30,7 @@ final class MeetingsCommandTests: XCTestCase {
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
         XCTAssertEqual(object["status"] as? String, "processing")
         XCTAssertEqual(object["filePath"] as? String, playback.path)
+        XCTAssertEqual(object["playbackAudioPath"] as? String, playback.path)
         XCTAssertNil(object["durationMs"])
         XCTAssertEqual(object["rawMicrophoneAudioPath"] as? String, source.path)
         XCTAssertFalse(FileManager.default.fileExists(atPath: playback.path))

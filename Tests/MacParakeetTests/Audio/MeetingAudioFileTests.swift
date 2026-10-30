@@ -19,6 +19,19 @@ final class MeetingAudioFileTests: XCTestCase {
         }
     }
 
+    func testCompletedMeetingWithLostPlaybackDoesNotClaimPreparationIsPending() throws {
+        let folder = makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try Data([1, 2, 3]).write(to: folder.appendingPathComponent("microphone-raw.m4a"))
+        let row = Transcription(
+            fileName: "A", filePath: folder.appendingPathComponent("meeting-playback.m4a").path,
+            meetingArtifactFolderPath: folder.path, status: .completed, sourceType: .meeting
+        )
+        XCTAssertEqual(MeetingAudioFile.state(for: row), .missing)
+        XCTAssertFalse(MeetingAudioFile.canRetryFinalization(for: row))
+        XCTAssertFalse(MeetingAudioFile.isAvailable(for: row))
+    }
+
     // MARK: - mixedAudioURL
 
     func testMixedAudioURLReturnsNilForFileSource() {
