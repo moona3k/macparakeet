@@ -1,0 +1,29 @@
+Tests/MacParakeetTests/Audio/MeetingAudioFileTests.swift
+  s_e22d9d41797ef3::t_c670d9bcb8242a 22-37
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingAudioFile.swift
+  s_e22d9d41797ef3::t_c670d9bcb8242a 127-129
+spec/05-audio-pipeline.md
+  s_e22d9d41797ef3::t_c670d9bcb8242a 240,242-243,281-286,410
+Tests/CLITests/MeetingsCommandTests.swift
+  s_e22d9d41797ef3::t_cf20ef8b86e6ec 31,37-67,69
+plans/active/2026-10-30-1291-capture-finalization.md
+  s_e22d9d41797ef3::t_0f64a83b35b179 93-98
+Sources/MacParakeet/Views/MeetingRecording/MeetingRowCard.swift
+  s_e22d9d41797ef3::t_c670d9bcb8242a 201-203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ad1be24f9cc04d43cb75e61f5441afa56a011bc0",
+  "prompts": {},
+  "sessions": {
+    "s_e22d9d41797ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18dfb-ae53-7c60-9a4e-a3aa4f722892",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
