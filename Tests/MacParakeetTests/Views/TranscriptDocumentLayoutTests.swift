@@ -11,6 +11,13 @@ import XCTest
 /// Parsing is awaited explicitly so assertions cannot pass on an empty view.
 @MainActor
 final class TranscriptDocumentLayoutTests: XCTestCase {
+    /// Exercise the offered pane size independently of the test machine's display.
+    private final class LayoutWindow: NSWindow {
+        override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+            frameRect
+        }
+    }
+
     private final class Host<Content: View>: NSHostingView<Content> {
         var layouts = 0
         override func layout() {
@@ -73,7 +80,7 @@ final class TranscriptDocumentLayoutTests: XCTestCase {
                 chatViewModel: TranscriptChatViewModel(), promptResultsViewModel: results,
                 promptsViewModel: PromptsViewModel()
             ).defaultAppStorage(defaults))
-        let window = NSWindow(
+        let window = LayoutWindow(
             contentRect: NSRect(x: -20_000, y: -20_000, width: 1_100, height: 650),
             styleMask: [.titled, .resizable], backing: .buffered, defer: false
         )
@@ -89,10 +96,16 @@ final class TranscriptDocumentLayoutTests: XCTestCase {
         host.layoutSubtreeIfNeeded()
         RunLoop.main.run(until: Date().addingTimeInterval(0.2))
         let editor = try XCTUnwrap(descendants(host).compactMap { $0 as? NSTextView }.first(where: \.isEditable))
+        let smallContent = window.contentRect(forFrameRect: window.frame)
+        XCTAssertEqual(smallContent.width, 1_100, accuracy: 1)
+        XCTAssertEqual(smallContent.height, 650, accuracy: 1)
         let smallHeight = try XCTUnwrap(editor.enclosingScrollView).contentView.bounds.height
         window.setContentSize(NSSize(width: 1_100, height: 950))
         host.layoutSubtreeIfNeeded()
         RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        let largeContent = window.contentRect(forFrameRect: window.frame)
+        XCTAssertEqual(largeContent.width, 1_100, accuracy: 1)
+        XCTAssertEqual(largeContent.height, 950, accuracy: 1)
         let largeHeight = try XCTUnwrap(editor.enclosingScrollView).contentView.bounds.height
         print("Result editor viewport: \(smallHeight) -> \(largeHeight) for +300 pt window height")
         XCTAssertGreaterThan(
@@ -208,7 +221,7 @@ final class TranscriptDocumentLayoutTests: XCTestCase {
                 chatViewModel: TranscriptChatViewModel(), promptResultsViewModel: results,
                 promptsViewModel: PromptsViewModel()
             ).defaultAppStorage(defaults))
-        let window = NSWindow(
+        let window = LayoutWindow(
             contentRect: NSRect(x: -20_000, y: -20_000, width: 1_100, height: 650),
             styleMask: [.titled, .resizable], backing: .buffered, defer: false
         )
@@ -253,7 +266,7 @@ final class TranscriptDocumentLayoutTests: XCTestCase {
                 }
                 .padding(24)
             })
-        let window = NSWindow(
+        let window = LayoutWindow(
             contentRect: NSRect(x: -20_000, y: -20_000, width: width, height: 650),
             styleMask: [.titled, .resizable], backing: .buffered, defer: false
         )

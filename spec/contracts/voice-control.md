@@ -168,6 +168,14 @@ an energy endpointer with these current tuning values:
 - 900 ms of silence to commit an utterance.
 - A 30-second utterance bound and a 10-minute explicit listening-session bound.
 
+If speech resumes after an endpoint but before that segment's final transcript
+is delivered, the earlier segment's audio is merged into the resumed utterance
+and transcribed once at the next endpoint, within the 30-second bound. The
+earlier segment's own final is discarded. A mid-command pause longer than the
+endpoint therefore does not drop the first words. Once a final transcript has
+been delivered, new speech starts a fresh utterance and barge-in revocation
+applies as before.
+
 These values are implementation tuning, not proven accuracy or latency claims.
 Energy is not a speech classifier. Keyboard noise, quiet voices, Bluetooth and
 background speech require microphone qualification. Hold-to-talk remains the
@@ -287,6 +295,13 @@ decision, dispatch, verification) and the last Jev request's top options per
 head. `events.jsonl` streams the same step records, one `type=decision` line per
 model request, plus one `type=turn` line when the turn stops. Field values and
 selected text stay out. End clears the panel and does not delete the log.
+
+`speech.jsonl` in the same folder records hands-free endpointer timing, one line
+per endpointed utterance across sessions (the newest 1,000): voiced duration,
+in-utterance pauses of at least 200 ms (a merged gap at its full length), merged
+segment count, the endpoint silence, transcription latency, time since the
+previous delivered command, and word overlap with it as a repeat signal. It
+holds no text or audio and exists to tune the endpointer from real use.
 
 `macparakeet-cli voice-control replay <session.json> [--goal …] [--observation N]
 [--history …] [--jev]` routes an instruction against a persisted observation
@@ -459,7 +474,8 @@ Focused enforcement lives in `VoiceControlSpeechTests`, `VoiceControlCoreTests`,
 `DictationFlowCoordinatorTests`, and `TransformRunSerializerTests`, alongside the
 native qualification tools. Speech regressions include
 raw-final preservation, owned-file cleanup, late noncooperative STT after Stop,
-queued-event revocation, hands-free Finish not replaying prior commands, pending
+queued-event revocation, hands-free Finish not replaying prior commands,
+mid-command pauses merging into one command (and delivered commands never merging), pending
 confirmation/clarification surviving listening presentation, literal payload
 preservation and the dictation Undo-window lease.
 

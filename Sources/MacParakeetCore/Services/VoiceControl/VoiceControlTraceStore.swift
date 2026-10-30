@@ -83,10 +83,13 @@ public actor VoiceControlTraceStore: VoiceControlTraceSink {
     public nonisolated var latestURL: URL { directory.appendingPathComponent("latest.json") }
     public nonisolated var latestMarkdownURL: URL { directory.appendingPathComponent("latest.md") }
     public nonisolated var eventsURL: URL { directory.appendingPathComponent("events.jsonl") }
+    /// Hands-free endpointer timing, one line per utterance, across tasks.
+    public nonisolated var speechURL: URL { directory.appendingPathComponent("speech.jsonl") }
     public nonisolated var sessionsDirectory: URL { directory.appendingPathComponent("sessions", isDirectory: true) }
 
     private let pointerDirectory: URL?
     private let retention: Int
+    private let speechRetention: Int
     private let fileManager: FileManager
     private var session: VoiceControlPersistedSession?
     private var sessionURL: URL?
@@ -96,11 +99,13 @@ public actor VoiceControlTraceStore: VoiceControlTraceSink {
         directory: URL = VoiceControlTraceStore.defaultDirectory,
         pointerDirectory: URL? = VoiceControlTraceStore.agentPointerDirectory,
         retention: Int = 20,
+        speechRetention: Int = 1_000,
         fileManager: FileManager = .default
     ) {
         self.directory = directory
         self.pointerDirectory = pointerDirectory
         self.retention = max(1, retention)
+        self.speechRetention = max(1, speechRetention)
         self.fileManager = fileManager
     }
 
@@ -171,6 +176,23 @@ public actor VoiceControlTraceStore: VoiceControlTraceSink {
         session?.phase = Self.clip(phase, 64)
         session?.status = Self.clip(message, 500)
         persist()
+    }
+
+    /// Utterances that never become a task (a stop phrase, an empty transcript)
+    /// count too, so this log is independent of the per-task session files.
+    public func noteSpeechTurn(_ metrics: VoiceControlSpeechTurnMetrics) async {
+        prepareIfNeeded()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        guard let data = try? encoder.encode(metrics) else { return }
+        var lines =
+            ((try? String(contentsOf: speechURL, encoding: .utf8)) ?? "")
+            .split(separator: "\n").map(String.init)
+        lines.append(String(decoding: data, as: UTF8.self))
+        if lines.count > speechRetention { lines.removeFirst(lines.count - speechRetention) }
+        try? (lines.joined(separator: "\n") + "\n").data(using: .utf8)?.write(to: speechURL, options: .atomic)
+        protect(speechURL, directory: false)
     }
 
     public func loadLatest() -> VoiceControlPersistedSession? {
@@ -449,6 +471,12 @@ public actor VoiceControlTraceStore: VoiceControlTraceSink {
         probability (`decisions`). events.jsonl is the streaming form: one JSON
         object per step, one `type=decision` per model request, plus one
         `type=turn` line when the turn stops.
+
+        speech.jsonl keeps hands-free endpointer timing across sessions, one
+        line per utterance (last 1000): speech_ms, pauses_ms, merged_segments,
+        endpoint_silence_ms, transcribe_ms, since_previous_ms and
+        overlap_previous (word overlap with the previous command, a repeat
+        signal). It holds no text or audio.
 
         Replay an observation offline without touching the screen:
           macparakeet-cli voice-control replay latest.json --goal "..."
