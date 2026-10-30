@@ -1,0 +1,43 @@
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingCapture.swift
+  s_e22d9d41797ef3::t_45daf6f51c2d65 127-128
+  s_e22d9d41797ef3::t_1aadd896581326 1,12,24,31,82,85,91,96,104-112,114-115,131,143-169
+  s_e22d9d41797ef3::t_2eb3d182c6f919 170-171
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingLockFileStoreTests.swift
+  s_e22d9d41797ef3::t_45daf6f51c2d65 29-32,36-40
+  s_e22d9d41797ef3::t_5b6c29e83757f2 22-28,33-35,41-44
+spec/contracts/meeting-recovery-retention.md
+  s_e22d9d41797ef3::t_45daf6f51c2d65 483-484,490-495
+plans/active/2026-10-30-1291-capture-finalization.md
+  s_e22d9d41797ef3::t_45daf6f51c2d65 36-53
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift
+  s_e22d9d41797ef3::t_45daf6f51c2d65 2210-2216
+  s_e22d9d41797ef3::t_1aadd896581326 1190,1197,2201-2209,2217-2226
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingLockFileStore.swift
+  s_e22d9d41797ef3::t_77b8c8da73b9c8 425-428,435-437
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_e22d9d41797ef3::t_45daf6f51c2d65 34-35,67-68,6160-6162
+  s_e22d9d41797ef3::t_5b6c29e83757f2 7-33,36-66,69-71,6158-6159,6163-6165
+  s_e22d9d41797ef3::t_bb10c5f31611fb 6166
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_e22d9d41797ef3::t_45daf6f51c2d65 544,548-602,604-609,611-612,614-629,2114,2131-2135
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_e22d9d41797ef3::t_5b6c29e83757f2 1858
+  s_e22d9d41797ef3::t_77b8c8da73b9c8 1855,1857,1859-1863
+  s_e22d9d41797ef3::t_1aadd896581326 1101,1898
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c4eba9fcced73cdafb01ca56a651b28068580d9f",
+  "prompts": {},
+  "sessions": {
+    "s_e22d9d41797ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18dfb-ae53-7c60-9a4e-a3aa4f722892",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
