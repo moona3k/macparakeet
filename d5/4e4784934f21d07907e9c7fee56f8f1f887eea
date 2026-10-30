@@ -1,0 +1,37 @@
+Sources/MacParakeet/Views/Vocabulary/CustomWordsView.swift
+  s_1c27a2b4c8cc77::t_3680c04088655a 106
+Tests/MacParakeetTests/ViewModels/VocabularyBackupViewModelTests.swift
+  s_1c27a2b4c8cc77::t_93ba57fbdf1648 132,139-182
+  s_9acf0b68f7f81b::t_3258c4427d4551 183-184
+Sources/MacParakeet/Views/Vocabulary/VocabularyView.swift
+  s_1c27a2b4c8cc77::t_a566566295cb65 230-231
+  s_1c27a2b4c8cc77::t_bf1b6fc76448f1 104
+  s_1c27a2b4c8cc77::t_940e5368ef67f9 87
+spec/04-ui-patterns.md
+  s_1c27a2b4c8cc77::t_4acf765e320b7e 1209-1214
+  s_1c27a2b4c8cc77::t_b29c0f104a1ca1 1271-1275
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d54e4784934f21d07907e9c7fee56f8f1f887eea",
+  "prompts": {},
+  "sessions": {
+    "s_1c27a2b4c8cc77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d1d0450f-f407-4585-8e28-b99322e48f58",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_9acf0b68f7f81b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e2a-e4f4-7330-be9f-30aa395c1c1e",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
