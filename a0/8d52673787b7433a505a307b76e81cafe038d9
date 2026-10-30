@@ -1,0 +1,23 @@
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_38e5722b9dd02a::t_69c7314a975811 668-674
+Tests/MacParakeetTests/Services/LLM/CardGenerationServiceTests.swift
+  s_38e5722b9dd02a::t_917d55d8b5c9e9 854
+Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift
+  s_38e5722b9dd02a::t_15531ee35fbf46 104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a08d52673787b7433a505a307b76e81cafe038d9",
+  "prompts": {},
+  "sessions": {
+    "s_38e5722b9dd02a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18df1-f109-71c3-9889-878dba2f138e",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
