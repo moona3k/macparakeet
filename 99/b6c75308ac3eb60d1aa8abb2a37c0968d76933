@@ -1,0 +1,45 @@
+.github/workflows/ci.yml
+  s_6f26576d2ce855::t_8e9359e7c7862a 350-353
+  s_6f26576d2ce855::t_f7b81205f58a0a 256-261
+scripts/ci/swift-cache-key.sh
+  s_6f26576d2ce855::t_f7b81205f58a0a 14-16
+benchmarks/asr/test_cohere_multilingual_speed.py
+  s_6f26576d2ce855::t_8e9359e7c7862a 238,241,364
+  s_6f26576d2ce855::t_b714058d7aa64b 196-222,240,252-253,361-363,365-369
+scripts/ci/test_prepare_cohere_runtime.py
+  s_6f26576d2ce855::t_9260119d5995fa 1-124
+docs/distribution.md
+  s_6f26576d2ce855::t_8e34ded27b51b4 11-24
+benchmarks/asr/README.md
+  s_6f26576d2ce855::t_8e34ded27b51b4 154
+scripts/ci/test_swift_cache_key.py
+  s_6f26576d2ce855::t_c353710a990944 32
+  s_6f26576d2ce855::t_8e9359e7c7862a 25-27,61-62,70-74
+  s_6f26576d2ce855::t_13ccb6a0ea4bbf 75
+scripts/ci/prepare_cohere_runtime.sh
+  s_6f26576d2ce855::t_f7b81205f58a0a 1-36
+benchmarks/asr/results/cohere-transcribe-cpp-migration.md
+  s_6f26576d2ce855::t_9260119d5995fa 102-106
+  s_6f26576d2ce855::t_8e34ded27b51b4 71-73
+benchmarks/asr/cohere_multilingual_speed.py
+  s_6f26576d2ce855::t_2e4b7a06e86728 175,183,448,471,491-503,508,513-520,576,585,600,610
+  s_6f26576d2ce855::t_8e9359e7c7862a 169
+scripts/dist/verify_transcribe_cpp_release.sh
+  s_6f26576d2ce855::t_2e4b7a06e86728 45,81-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "99b6c75308ac3eb60d1aa8abb2a37c0968d76933",
+  "prompts": {},
+  "sessions": {
+    "s_6f26576d2ce855": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e58-eaa6-7583-abd5-6aec9f43cba6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
