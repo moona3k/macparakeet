@@ -1,0 +1,22 @@
+spec/04-ui-patterns.md
+  s_9acf0b68f7f81b::t_7c3725e98a1b8d 1212
+  s_9acf0b68f7f81b::t_f9225f7fcd41ec 1260-1261
+Sources/MacParakeet/Views/Vocabulary/VocabularyView.swift
+  s_9acf0b68f7f81b::t_7c3725e98a1b8d 31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "89b62b9016b325b32b2c6adf9409b4dfc346fdc2",
+  "prompts": {},
+  "sessions": {
+    "s_9acf0b68f7f81b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e2a-e4f4-7330-be9f-30aa395c1c1e",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
