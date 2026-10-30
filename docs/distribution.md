@@ -8,6 +8,20 @@ asset catalogs and generates resource lookups that work after installation on
 another Mac. `BUILD_SYSTEM=swiftpm` is rejected for app distribution; ordinary
 `swift build`, `swift test`, and SwiftPM CLI builds remain supported.
 
+## Native Cohere CI gate
+
+The `Release and Bundle` job prepares the pinned native wrapper and 4.46 MB
+XCFramework with `scripts/ci/prepare_cohere_runtime.sh` before its existing
+release and Xcode bundle builds. It requires an arm64 runner, refuses to replace
+an existing task checkout, verifies source/archive/installed bytes, and exports
+the native package only after verification succeeds. It downloads no model.
+Cache identities include the native mode, preparation helper, verifier, and pins.
+The packaged CLI is ad-hoc signed after rpath changes before its help/spec smoke.
+
+This gate compiles the native adapter and checks loader/bundle integration.
+It does not establish transcription quality, performance, Developer ID signing,
+notarization, or native model execution; those remain release acceptance gates.
+
 ## 1) Build the app bundle
 
 From the repo root:

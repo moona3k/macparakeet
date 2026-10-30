@@ -193,6 +193,33 @@ class CohereMultilingualSpeedTests(unittest.TestCase):
                 benchmark.positive_seconds(value)
         self.assertEqual(benchmark.positive_seconds("1.5"), 1.5)
 
+    def test_measured_json_binds_transcripts_to_actual_compute_backend(self) -> None:
+        for backend in ("cpu", "metal"):
+            with self.subTest(backend=backend), tempfile.TemporaryDirectory() as temporary:
+                source = Path(temporary) / "source.wav"
+                source.write_bytes(b"audio")
+                def run(command, description, **options):
+                    self.assertEqual(command[command.index("--format") + 1], "json")
+                    self.assertEqual(options["env"], {"TEST": "1"})
+                    output = Path(command[command.index("--output-dir") + 1])
+                    for index in range(2):
+                        (output / f"transcript-{index}.json").write_text(json.dumps({
+                            "engine": "cohere", "engineVariant": backend,
+                            "cleanTranscript": " ", "rawTranscript": " expected text ",
+                        }))
+                    return subprocess.CompletedProcess(command, 0, "", "1048576 maximum resident set size")
+                with patch.object(benchmark, "run_process", side_effect=run):
+                    _, rss, texts, actual = benchmark.run_cli(
+                        Path("/unused/cli"), source, 2, timeout=5, environment={"TEST": "1"},
+                    )
+                self.assertEqual((rss, texts, actual), (1.0, ["expected text"] * 2, backend))
+
+    def test_rejects_missing_unknown_or_mixed_compute_backends(self) -> None:
+        for variants in ([], [None], ["ane"], ["metal", "cpu"]):
+            with self.subTest(variants=variants), self.assertRaises(SystemExit):
+                benchmark.uniform_compute_backend(variants)
+        self.assertEqual(benchmark.uniform_compute_backend(["cpu", "cpu"]), "cpu")
+
     def test_fresh_build_receipt_and_post_measurement_integrity(self) -> None:
         for mutate in (False, True):
             with self.subTest(mutate=mutate), tempfile.TemporaryDirectory() as temporary:
@@ -208,8 +235,10 @@ class CohereMultilingualSpeedTests(unittest.TestCase):
                         cli.write_bytes(b"freshly built executable")
                         cli.chmod(0o755)
                         built["cli"] = cli
-                        self.assertEqual(options["env"]["MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH"], str(package))
+                        self.assertEqual(options["env"]["MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH"], str(package.resolve()))
                         self.assertNotIn("DYLD_LIBRARY_PATH", options["env"])
+                        self.assertEqual(options["env"]["TRANSCRIBE_XCFRAMEWORK_PATH"],
+                                         str(package.resolve() / "build-apple/TranscribeCpp.xcframework"))
                         return ""
                     if description == "verified CLI build path":
                         return str(built["cli"].parent)
@@ -220,7 +249,8 @@ class CohereMultilingualSpeedTests(unittest.TestCase):
                 with patch.object(benchmark, "checked_output", side_effect=build_command), \
                      patch.object(benchmark, "adapter_commit", return_value="adapter-commit"), \
                      patch.object(benchmark, "verify_native_package") as verify, \
-                     patch.dict(os.environ, {"DYLD_LIBRARY_PATH": "/unverified"}):
+                     patch.dict(os.environ, {"DYLD_LIBRARY_PATH": "/unverified",
+                                             "TRANSCRIBE_XCFRAMEWORK_PATH": "/unverified/framework"}):
                     def measure():
                         with benchmark.build_verified_cli(package, artifact, 10) as (cli, receipt, environment):
                             self.assertEqual(receipt["cli_sha256"], benchmark.sha256_file(cli))
@@ -328,6 +358,15 @@ class CohereMultilingualSpeedTests(unittest.TestCase):
                 return benchmark.checked_output([str(verifier)], "fixture native verification",
                                                 env=environment, timeout=10)
             self.assertIn("Verified owned transcribe.cpp artifact", verify())
+            environment["TRANSCRIBE_XCFRAMEWORK_PATH"] = "/unverified/framework"
+            with self.assertRaisesRegex(SystemExit, "must not override"):
+                verify()
+            environment["TRANSCRIBE_XCFRAMEWORK_PATH"] = str(framework.resolve())
+            versioned_manifest = package / "Package@swift-6.0.swift"
+            versioned_manifest.write_text("// untracked manifest override\n")
+            with self.assertRaisesRegex(SystemExit, "untracked build inputs"):
+                verify()
+            versioned_manifest.unlink()
             binary.write_bytes(b"different linked runtime")
             with self.assertRaisesRegex(SystemExit, "differs from the checksum-verified archive"):
                 verify()

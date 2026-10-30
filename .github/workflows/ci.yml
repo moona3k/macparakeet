@@ -253,6 +253,12 @@ jobs:
             bash "scripts/dist/${fixture}.sh" 2>&1 | tee "ci-logs/${fixture}.log"
           done
 
+      - name: Prepare Verified Cohere Runtime
+        timeout-minutes: 7
+        run: |
+          set -o pipefail
+          bash scripts/ci/prepare_cohere_runtime.sh 2>&1 | tee ci-logs/cohere-native-prepare.log
+
       - name: SwiftPM Cache Identity
         id: swift_cache
         run: |
@@ -341,6 +347,10 @@ jobs:
         run: |
           mkdir -p ci-logs
           set -o pipefail
+          # Native framework rpath edits invalidate the linker's ad-hoc signature.
+          # This smoke is local-only; Developer ID signing remains a release gate.
+          codesign --force --sign - dist/MacParakeet.app/Contents/MacOS/macparakeet-cli
+          codesign --verify --strict dist/MacParakeet.app/Contents/MacOS/macparakeet-cli
           dist/MacParakeet.app/Contents/MacOS/macparakeet-cli --help > ci-logs/cli-help.txt
           dist/MacParakeet.app/Contents/MacOS/macparakeet-cli spec --json > ci-logs/cli-spec.json
           python3 -m json.tool ci-logs/cli-spec.json > /dev/null

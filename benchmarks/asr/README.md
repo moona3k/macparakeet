@@ -151,7 +151,7 @@ harness conventions.
 | `score_multi.py` | Multilingual scorer — WER (en/EU) or CER (ko/ja/zh) via `BasicTextNormalizer`; `--ci N`. |
 | `paired_delta.py` | Paired bootstrap CI on the WER/CER *difference* between two engines (the significance test). |
 | `speed_bench.py` | Speed/memory — steady RTFx, cold-start, peak RSS, one engine at a time. Uses `macparakeet-cli` for shipping engines, including Cohere; `cohere-fa-reference` is legacy-only. |
-| `cohere_multilingual_speed.py` | Required release comparison for English, German, Japanese, and Chinese without language hints. Builds a fresh CLI from the verified immutable artifact/package, checks fixtures and transcript references, and bounds child processes before recording cold first transcript, warm transcription, realtime factor, and peak RSS. |
+| `cohere_multilingual_speed.py` | Required release comparison for English, German, Japanese, and Chinese without language hints. Builds a fresh CLI from the verified immutable artifact/package, checks fixtures and transcript references, and records the actual CPU/Metal backend with cold first transcript, warm transcription, realtime factor, and peak RSS. Child processes are bounded. |
 | `cohere_transcribe_cpp_release.json` | Immutable Cohere benchmark provenance: owned runtime/release, artifact, compatible model, fixture digests, and exact transcript references. |
 | `test_cohere_multilingual_speed.py` | Repo-only tests for Cohere release-pin drift, immutable attestation metadata, fixture/transcript validation, timeout cleanup, native byte mismatches, build receipts, and committed-result path redaction. |
 | `test_scorers.py` | Scorer correctness tests (run: `python3 test_scorers.py`). |

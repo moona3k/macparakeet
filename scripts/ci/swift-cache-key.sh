@@ -11,4 +11,7 @@ set -euo pipefail
   swift --version
   xcrun --show-sdk-build-version
   shasum -a 256 Package.swift Package.resolved .github/workflows/ci.yml scripts/ci/swift-cache-key.sh
+  shasum -a 256 scripts/ci/prepare_cohere_runtime.sh scripts/dist/transcribe_cpp_release_pins.sh \
+    scripts/dist/verify_transcribe_cpp_release.sh
+  printf 'cohere-native=%s\n' "${MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH:-disabled}"
 } | shasum -a 256 | awk '{print $1}'

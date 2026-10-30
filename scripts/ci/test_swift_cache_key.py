@@ -22,12 +22,14 @@ class SwiftCacheIdentityTests(unittest.TestCase):
             path = self.bin / name
             path.write_text(f'#!/bin/sh\nprintf "%s\\n" "${{FAKE_{name.upper()}:-baseline}}"\n')
             path.chmod(0o755)
-        for name in ("Package.swift", "Package.resolved", ".github/workflows/ci.yml"):
+        for name in ("Package.swift", "Package.resolved", ".github/workflows/ci.yml",
+                     "scripts/ci/prepare_cohere_runtime.sh", "scripts/dist/transcribe_cpp_release_pins.sh",
+                     "scripts/dist/verify_transcribe_cpp_release.sh"):
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("baseline\n")
         target = self.root / "scripts/ci/swift-cache-key.sh"
-        target.parent.mkdir(parents=True)
+        target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(SCRIPT, target)
         self.env = dict(os.environ, PATH=f"{self.bin}:{os.environ['PATH']}")
 
@@ -56,13 +58,20 @@ class SwiftCacheIdentityTests(unittest.TestCase):
     def test_dependency_graph_workflow_and_key_policy_invalidate(self):
         before = self.key()
         for name in ("Package.swift", "Package.resolved", ".github/workflows/ci.yml",
-                     "scripts/ci/swift-cache-key.sh"):
+                     "scripts/ci/swift-cache-key.sh", "scripts/ci/prepare_cohere_runtime.sh",
+                     "scripts/dist/transcribe_cpp_release_pins.sh", "scripts/dist/verify_transcribe_cpp_release.sh"):
             with self.subTest(file=name):
                 path = self.root / name
                 original = path.read_text()
                 path.write_text(original + "\n# changed\n")
                 self.assertNotEqual(before, self.key())
                 path.write_text(original)
+
+    def test_native_package_mode_and_location_separate_build_state(self):
+        disabled = self.key(MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH="")
+        native = self.key(MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH="/tmp/verified/bindings/swift")
+        self.assertNotEqual(disabled, native)
+        self.assertNotEqual(native, self.key(MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH="/different/bindings/swift"))
 
     def test_missing_lockfile_fails_instead_of_using_partial_identity(self):
         (self.root / "Package.resolved").unlink()

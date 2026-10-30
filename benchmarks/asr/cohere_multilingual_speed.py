@@ -166,11 +166,13 @@ def command_json(command: list[str], description: str) -> dict:
 
 
 def native_environment(package: Path, artifact: Path) -> dict[str, str]:
+    package, artifact = package.resolve(), artifact.resolve()
     # A developer's dyld override must not substitute another measured runtime.
     environment = {key: value for key, value in os.environ.items()
                    if not key.startswith("DYLD_")}
     environment["MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH"] = str(package)
     environment["MACPARAKEET_TRANSCRIBE_CPP_ARTIFACT_ZIP"] = str(artifact)
+    environment["TRANSCRIBE_XCFRAMEWORK_PATH"] = str(package / "build-apple/TranscribeCpp.xcframework")
     environment["MACPARAKEET_TELEMETRY"] = "0"
     return environment
 
@@ -178,7 +180,7 @@ def native_environment(package: Path, artifact: Path) -> dict[str, str]:
 def adapter_commit() -> str:
     changes = checked_output(
         ["git", "-C", str(_ROOT), "status", "--porcelain", "--untracked-files=all",
-         "--", "Package.swift", "Package.resolved", "Sources",
+         "--", "Package*.swift", "Package.resolved", "Sources",
          "scripts/dist/verify_transcribe_cpp_release.sh",
          "scripts/dist/transcribe_cpp_release_pins.sh",
          "benchmarks/asr/cohere_transcribe_cpp_release.json",
@@ -443,7 +445,7 @@ def audio_seconds(path: Path) -> float:
 def run_cli(
     cli: Path, source: Path, count: int, *, timeout: float,
     environment: dict[str, str],
-) -> tuple[float, float, list[str]]:
+) -> tuple[float, float, list[str], str]:
     work = Path(tempfile.mkdtemp(prefix=f"cohere-{source.stem}-{count}-"))
     try:
         inputs: list[Path] = []
@@ -466,7 +468,7 @@ def run_cli(
             "off",
             "--no-history",
             "--format",
-            "transcript",
+            "json",
             "--output-dir",
             str(output),
         ]
@@ -486,17 +488,34 @@ def run_cli(
             raise SystemExit("macOS peak RSS was not present in /usr/bin/time output")
         peak_rss_mb = int(match.group(1)) / 1024 / 1024
 
-        transcripts = [
-            path.read_text(encoding="utf-8").strip()
-            for path in sorted(output.glob("*.txt"))
-        ]
+        transcripts, variants = [], []
+        for path in sorted(output.glob("*.json")):
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as error:
+                raise SystemExit("Cohere benchmark returned invalid transcription JSON") from error
+            if not isinstance(payload, dict) or payload.get("engine") != "cohere":
+                raise SystemExit("Cohere benchmark output did not identify the Cohere engine")
+            variants.append(payload.get("engineVariant"))
+            text = next((value.strip() for value in (
+                payload.get("cleanTranscript"), payload.get("rawTranscript")
+            ) if isinstance(value, str) and value.strip()), "")
+            transcripts.append(text)
         if len(transcripts) != count or any(not text for text in transcripts):
             raise SystemExit(
                 f"expected {count} non-empty transcript files, got {len(transcripts)}"
             )
-        return wall, peak_rss_mb, transcripts
+        return wall, peak_rss_mb, transcripts, uniform_compute_backend(variants)
     finally:
         shutil.rmtree(work, ignore_errors=True)
+
+
+def uniform_compute_backend(variants: list[str | None]) -> str:
+    if not variants or any(value not in ("metal", "cpu") for value in variants):
+        raise SystemExit("Cohere benchmark output has no recognized compute backend")
+    if len(set(variants)) != 1:
+        raise SystemExit("Cohere compute backend changed during measurement")
+    return variants[0]
 
 
 def main() -> int:
@@ -554,7 +573,7 @@ def main() -> int:
             )
             expected_transcript = fixture_reference["expected_transcript"]
             duration = audio_seconds(fixture)
-            cold_wall, _, cold_transcripts = run_cli(
+            cold_wall, _, cold_transcripts, cold_backend = run_cli(
                 cli, fixture, 1, timeout=arguments.transcription_timeout, environment=environment,
             )
             validate_transcripts(
@@ -563,7 +582,7 @@ def main() -> int:
                 cold_transcripts,
                 expected_transcript,
             )
-            repeated_wall, peak_rss_mb, repeated_transcripts = run_cli(
+            repeated_wall, peak_rss_mb, repeated_transcripts, warm_backend = run_cli(
                 cli,
                 fixture,
                 arguments.warm_repetitions,
@@ -578,6 +597,7 @@ def main() -> int:
             warm_wall = (repeated_wall - cold_wall) / (
                 arguments.warm_repetitions - 1
             )
+            compute_backend = uniform_compute_backend([cold_backend, warm_backend])
             if warm_wall <= 0:
                 raise SystemExit(
                     f"invalid warm estimate for {language}: "
@@ -587,6 +607,7 @@ def main() -> int:
             records.append(
                 {
                     "language": language,
+                    "compute_backend": compute_backend,
                     "fixture_id": fixture_reference["id"],
                     "fixture_sha256": fixture_reference["sha256"],
                     "reference_transcript_sha256": sha256_text(expected_transcript),

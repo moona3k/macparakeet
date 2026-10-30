@@ -68,6 +68,9 @@ as transcribe.cpp performance:
 
 ## Reproduction command
 
+Use a recent GitHub CLI that supports `gh release verify` and immutable-release
+metadata. Older clients, including 2.73.0, cannot run this provenance gate.
+
 ```bash
 python3 benchmarks/asr/cohere_multilingual_speed.py \
   --package-path /absolute/path/to/transcribe.cpp/bindings/swift \
@@ -96,6 +99,11 @@ XCFramework must match the verified archive byte for byte. The CLI's linkage,
 SHA-256, and adapter commit are recorded in `build_receipt`; source and artifact
 verification run again after the build and after measurement. Dynamic-loader
 overrides are removed. The temporary build is deleted when the run finishes.
+The wrapper's XCFramework override is pinned to the verified artifact too.
+Each measurement records `compute_backend` from the actual transcription JSON
+`engineVariant` (`metal` or `cpu`). Mixed/missing variants fail qualification,
+including a change between the cold and repeated process. Saved compute
+preferences are not modified by the harness.
 Install the pinned model and budget enough disk for a fresh SwiftPM build before
 running. Resolve and commit `Package.resolved` with the native package enabled
 first; the measured build only uses those resolved dependency versions and may

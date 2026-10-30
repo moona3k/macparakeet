@@ -42,7 +42,7 @@ ACTUAL_COMMIT="$(git -C "$PACKAGE_ROOT" rev-parse HEAD)"
   fail "the pinned Swift package must be at bindings/swift in the owned checkout."
 git -C "$PACKAGE_ROOT" diff --quiet HEAD -- ||
   fail "the pinned transcribe.cpp checkout contains modified tracked files."
-[[ -z "$(git -C "$PACKAGE_PATH" ls-files --others -- Package.swift Package.resolved Sources)" ]] ||
+[[ -z "$(git -C "$PACKAGE_PATH" ls-files --others -- 'Package*.swift' Package.resolved Sources)" ]] ||
   fail "the pinned Swift package contains untracked build inputs."
 
 SWIFT_PINS="$ROOT_DIR/Sources/MacParakeetCore/STT/CohereTranscribeModel.swift"
@@ -78,6 +78,8 @@ ACTUAL_ARTIFACT_SHA="$(shasum -a 256 "$ARTIFACT_ZIP" | awk '{print $1}')"
   fail "transcribe.cpp artifact checksum mismatch, expected $TRANSCRIBE_CPP_OWNED_ARTIFACT_SHA256, got $ACTUAL_ARTIFACT_SHA."
 
 XCFRAMEWORK_PATH="$PACKAGE_PATH/build-apple/TranscribeCpp.xcframework"
+[[ -z "${TRANSCRIBE_XCFRAMEWORK_PATH:-}" || "$TRANSCRIBE_XCFRAMEWORK_PATH" == "$XCFRAMEWORK_PATH" ]] ||
+  fail "TRANSCRIBE_XCFRAMEWORK_PATH must not override the verified package artifact."
 [[ -d "$XCFRAMEWORK_PATH" ]] ||
   fail "the verified XCFramework must be installed at $XCFRAMEWORK_PATH."
 
