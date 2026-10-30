@@ -1,0 +1,21 @@
+.github/workflows/quartz-key-state-probe.yml
+  s_e22d9d41797ef3::t_bcb2eb2d7f9b38 45-66
+scripts/ci/quartz-paste-probe.m
+  s_e22d9d41797ef3::t_27c375feafcdc8 5,12-32,71-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2c8cd30df92f4572d2260627833e682822be8aa8",
+  "prompts": {},
+  "sessions": {
+    "s_e22d9d41797ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18dfb-ae53-7c60-9a4e-a3aa4f722892",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
