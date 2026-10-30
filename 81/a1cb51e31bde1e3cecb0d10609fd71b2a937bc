@@ -1,0 +1,63 @@
+Tests/MacParakeetTests/Hotkey/SyntheticPasteHotkeyTests.swift
+  s_7788d1c08e1bb0::t_278a6489e1c280 52-62
+spec/contracts/dictation-shortcuts.md
+  s_7788d1c08e1bb0::t_16685840896df6 161-164
+  s_7788d1c08e1bb0::t_278a6489e1c280 143-144,149
+  s_7788d1c08e1bb0::t_19451486b895d5 151-153
+  s_7788d1c08e1bb0::t_73f1a114ecf561 150
+docs/research/2026-10-30-1286-quartz-state/fresh-eye-review.md
+  s_7788d1c08e1bb0::t_fb8f5632449cf6 1-29,68-80,84,88-102,105-106
+  s_7788d1c08e1bb0::t_4babf0eaabcf69 85-87
+  s_7788d1c08e1bb0::t_5f475c7971e399 30-67,81-83,103-104
+docs/research/2026-10-30-1286-quartz-state/README.md
+  s_7788d1c08e1bb0::t_73f1a114ecf561 47
+  s_7788d1c08e1bb0::t_16685840896df6 112-118
+  s_7788d1c08e1bb0::t_278a6489e1c280 46,52
+  s_7788d1c08e1bb0::t_19451486b895d5 48-51
+  s_7788d1c08e1bb0::t_6cef44c71950b6 120-124,126-127
+  s_6f26576d2ce855::t_ffa1502f59daf9 119
+.github/workflows/quartz-key-state-probe.yml
+  s_7788d1c08e1bb0::t_16685840896df6 52-55
+plans/active/2026-10-30-1286-synthetic-paste-state.md
+  s_7788d1c08e1bb0::t_6cef44c71950b6 28-30
+scripts/ci/quartz-key-state-probe.c
+  s_7788d1c08e1bb0::t_f3ea6c401cedb4 176,180-181,187,191,194,201
+  s_7788d1c08e1bb0::t_e7658a23143f51 167-175,177-179,186,188-190,192-193,199-200,202-211
+  s_7788d1c08e1bb0::t_c23b74c202a36f 182-185,195-198
+Sources/MacParakeetCore/Services/System/README.md
+  s_7788d1c08e1bb0::t_16685840896df6 73-76
+Sources/MacParakeetCore/Services/System/StreamingCursorInserter.swift
+  s_7788d1c08e1bb0::t_16685840896df6 41,43-52,137-139,227
+  s_7788d1c08e1bb0::t_f3ea6c401cedb4 42
+Tests/MacParakeetTests/Services/System/AppGeneratedKeyboardEventsTests.swift
+  s_7788d1c08e1bb0::t_16685840896df6 60-62,65-70,79-84,87-92
+  s_7788d1c08e1bb0::t_e7658a23143f51 71,78
+  s_7788d1c08e1bb0::t_278a6489e1c280 99-100
+  s_7788d1c08e1bb0::t_16390e268510ae 63-64,72-77,85-86
+spec/02-features.md
+  s_7788d1c08e1bb0::t_16685840896df6 194,196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "81a1cb51e31bde1e3cecb0d10609fd71b2a937bc",
+  "prompts": {},
+  "sessions": {
+    "s_6f26576d2ce855": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e58-eaa6-7583-abd5-6aec9f43cba6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_7788d1c08e1bb0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e2a-e6db-73e2-812b-c7e92b308260",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
