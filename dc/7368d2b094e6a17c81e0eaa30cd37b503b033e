@@ -1,0 +1,21 @@
+scripts/ci/quartz-paste-probe.m
+  s_7788d1c08e1bb0::t_007adf6225a172 22-34,36-38,40-46,48-49,75-78
+Tests/MacParakeetTests/Hotkey/SyntheticPasteHotkeyTests.swift
+  s_7788d1c08e1bb0::t_1d9b9125173933 132-151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dc7368d2b094e6a17c81e0eaa30cd37b503b033e",
+  "prompts": {},
+  "sessions": {
+    "s_7788d1c08e1bb0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e2a-e6db-73e2-812b-c7e92b308260",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
