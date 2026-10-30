@@ -198,7 +198,9 @@ struct MeetingRowCard<MenuContent: View>: View {
 
     @ViewBuilder
     private var audioInline: some View {
-        if audioState == .missing || audioState == .sourcesSaved {
+        if audioState == .missing
+            || (audioState == .sourcesSaved && transcription.status == .processing)
+        {
             MeetingAudioStateChip(state: audioState)
         }
     }

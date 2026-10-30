@@ -124,7 +124,9 @@ public enum MeetingAudioFile {
             MeetingArtifactAudioFileNames.resolveRawSystemURL(in: folderURL, fileManager: fileManager),
         ]
         return sources.contains { source in
-            guard source.exists,
+            var isDirectory: ObjCBool = false
+            guard fileManager.fileExists(atPath: source.url.path, isDirectory: &isDirectory),
+                !isDirectory.boolValue,
                 let size = try? fileManager.attributesOfItem(atPath: source.url.path)[.size] as? NSNumber
             else { return false }
             return size.int64Value > 0

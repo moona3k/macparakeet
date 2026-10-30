@@ -19,6 +19,22 @@ final class MeetingAudioFileTests: XCTestCase {
         }
     }
 
+    func testDirectoriesAtRawAudioPathsDoNotCountAsRetainedSources() throws {
+        let folder = makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        for name in ["microphone-raw.m4a", "system-raw.m4a"] {
+            let directory = folder.appendingPathComponent(name)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try Data([1, 2, 3]).write(to: directory.appendingPathComponent("not-audio"))
+        }
+        let row = Transcription(
+            fileName: "A", filePath: folder.appendingPathComponent("meeting-playback.m4a").path,
+            meetingArtifactFolderPath: folder.path, status: .error, sourceType: .meeting
+        )
+        XCTAssertEqual(MeetingAudioFile.state(for: row), .missing)
+        XCTAssertFalse(MeetingAudioFile.canRetryFinalization(for: row))
+    }
+
     func testCompletedMeetingWithLostPlaybackDoesNotClaimPreparationIsPending() throws {
         let folder = makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: folder) }

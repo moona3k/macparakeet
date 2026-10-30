@@ -28,12 +28,45 @@ final class MeetingsCommandTests: XCTestCase {
         ])
         let output = try await captureStandardOutput { try await command.run() }
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(object["id"] as? String, row.id.uuidString)
         XCTAssertEqual(object["status"] as? String, "processing")
         XCTAssertEqual(object["filePath"] as? String, playback.path)
         XCTAssertEqual(object["playbackAudioPath"] as? String, playback.path)
         XCTAssertNil(object["durationMs"])
         XCTAssertEqual(object["rawMicrophoneAudioPath"] as? String, source.path)
+
+        let artifactCommand = try MeetingsCommand.ArtifactSubcommand.parse([
+            row.id.uuidString, "--json", "--database", dbURL.path,
+        ])
+        let artifactOutput = try await captureStandardOutput { try await artifactCommand.run() }
+        let snapshot = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(artifactOutput.utf8)) as? [String: Any])
+        XCTAssertEqual(snapshot["meetingID"] as? String, row.id.uuidString)
+        XCTAssertEqual(snapshot["playbackAudioPath"] as? String, playback.path)
+        XCTAssertEqual(snapshot["rawMicrophoneAudioPath"] as? String, source.path)
+        // Duration belongs to the manifest's meeting summary, not the artifact snapshot.
+        let manifestPath = try XCTUnwrap(snapshot["manifestPath"] as? String)
+        let manifestData = try Data(contentsOf: URL(fileURLWithPath: manifestPath))
+        let manifest = try XCTUnwrap(JSONSerialization.jsonObject(with: manifestData) as? [String: Any])
+        let manifestMeeting = try XCTUnwrap(manifest["meeting"] as? [String: Any])
+        XCTAssertEqual(manifestMeeting["id"] as? String, row.id.uuidString)
+        XCTAssertEqual(manifestMeeting["status"] as? String, "processing")
+        XCTAssertNil(manifestMeeting["durationMs"])
+
+        let exportCommand = try MeetingsCommand.ExportSubcommand.parse([
+            row.id.uuidString, "--format", "json", "--stdout", "--database", dbURL.path,
+        ])
+        let exportOutput = try await captureStandardOutput { try await exportCommand.run() }
+        let exported = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(exportOutput.utf8)) as? [String: Any])
+        XCTAssertEqual(exported["id"] as? String, row.id.uuidString)
+        XCTAssertEqual(exported["status"] as? String, "processing")
+        XCTAssertEqual(exported["filePath"] as? String, playback.path)
+        XCTAssertEqual(exported["playbackAudioPath"] as? String, playback.path)
+        XCTAssertNil(exported["durationMs"])
+        XCTAssertEqual(exported["rawMicrophoneAudioPath"] as? String, source.path)
         XCTAssertFalse(FileManager.default.fileExists(atPath: playback.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: source.path))
         XCTAssertEqual(try repo.fetchAll(limit: nil).map(\.id), [row.id])
     }
 

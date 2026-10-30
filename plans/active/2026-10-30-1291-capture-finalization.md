@@ -90,3 +90,9 @@ of a source-only row. Recovery now uses the shared deferred readiness handle.
 Its regression preserves canonical and candidate artifacts across rejected
 preflight, then verifies one successful renderer on recovery retry. This keeps
 the same ownership rule across Stop, Retry, and recovery without a new scheduler.
+
+CodeRabbit's final pass tightened source-presence checks to reject directories,
+hid pending-playback copy for failed/cancelled rows, aligned the earlier pipeline
+diagram, and extended Artifact/Export coverage. Its proposed live `createdAt`
+change was declined: the merge base also timestamps live rows at settlement;
+changing chronology and retention fallback is separate from this fix.
