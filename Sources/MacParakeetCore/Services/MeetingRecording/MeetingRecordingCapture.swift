@@ -64,8 +64,8 @@ public struct MeetingRecordingCapture: Sendable, Equatable {
         )
     }
 
-    /// Snapshot dependencies only. Derived writers start after playback and
-    /// metadata preparation succeed while the queue owns the folder lease.
+    /// Snapshot dependencies only. Derived writers start when final STT
+    /// consumes readiness after preflight, while the queue owns the folder lease.
     static func makeCleanedMicrophonePreparation(
         folderURL: URL,
         microphoneURL: URL,
@@ -164,7 +164,18 @@ public struct MeetingRecordingCapture: Sendable, Equatable {
             try MeetingRecordingMetadataStore.save(finalMetadata, folderURL: folderURL, fileManager: fileManager.value)
         }
         try Task.checkCancellation()
-        let cleanedMicrophoneReadiness = cleanedMicrophonePreparation?(sourceAlignment)
+        let canRenderCleanedMicrophone =
+            sourceAlignment.microphone != nil && sourceAlignment.system != nil
+            && MeetingCleanedMicrophoneReadinessPolicy.production.shouldAttemptRender(
+                for: sourceAlignment.cleanedMicrophoneRenderDurationSeconds)
+        let cleanedMicrophoneReadiness = cleanedMicrophonePreparation.map { prepare in
+            MeetingCleanedMicrophoneReadiness.deferred(
+                outputURL: canRenderCleanedMicrophone
+                    ? folderURL.appendingPathComponent(MeetingCleanedMicRenderer.cleanedMicrophoneFileName) : nil
+            ) {
+                prepare(sourceAlignment)
+            }
+        }
         AudioCaptureDiagnostics.append(
             "meeting_playback_prepared session=\(sessionID.uuidString) duration_ms=\(Int(Date().timeIntervalSince(startedAt) * 1_000)) outcome=\(playback.method.rawValue)"
         )

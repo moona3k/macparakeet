@@ -3710,6 +3710,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let renderRelease = MeetingTestAsyncSignal()
         defer { renderRelease.signal() }
         let outputCapture = StopOutputCapture()
+        let schedulerProbe = MeetingCleanedMicSchedulerProbe()
         let service = MeetingRecordingService(
             audioCaptureService: captureService,
             audioConverter: MockMeetingAudioFileConverter(),
@@ -3718,6 +3719,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
                 ZeroingMicConditioner()
             },
             cleanedMicrophoneReadinessScheduler: { outputURL, microphoneURL, _, _, _, _, fileManager, _ in
+                schedulerProbe.recordCall()
                 let fileManagerBox = UncheckedSendableBox(fileManager)
                 let task = Task<MeetingCleanedMicrophoneRenderCompletion, Never> {
                     await renderRelease.wait()
@@ -3763,6 +3765,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
         }
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
 
+        XCTAssertEqual(schedulerProbe.callCount, 0)
         let cleanedURL = try XCTUnwrap(output.cleanedMicrophoneAudioURL)
         XCTAssertFalse(
             FileManager.default.fileExists(atPath: cleanedURL.path),
@@ -3773,6 +3776,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let decision = try await output.resolvedMicrophoneTranscriptionSource(
             policy: .init(floorSeconds: 2, durationMultiplier: 0, capSeconds: 2)
         )
+        XCTAssertEqual(schedulerProbe.callCount, 1)
         XCTAssertEqual(decision.reason, .cleanedUsed)
         XCTAssertEqual(decision.url, cleanedURL)
     }
@@ -3897,14 +3901,13 @@ final class MeetingRecordingServiceTests: XCTestCase {
             threshold + 1,
             accuracy: 0.001
         )
-        XCTAssertNil(output.cleanedMicrophoneAudioURL)
+        XCTAssertNotNil(output.cleanedMicrophoneAudioURL)
+        XCTAssertEqual(schedulerProbe.callCount, 0)
+        let decision = try await output.resolvedMicrophoneTranscriptionSource()
         XCTAssertEqual(
-            schedulerProbe.callCount,
-            1,
+            schedulerProbe.callCount, 1,
             "above-threshold wall-clock duration must not skip a short captured media render"
         )
-
-        let decision = try await output.resolvedMicrophoneTranscriptionSource()
         XCTAssertEqual(decision.reason, .rawRenderFailed)
         XCTAssertEqual(decision.url, output.microphoneAudioURL)
         let metadata = try MeetingRecordingMetadataStore.load(from: output.folderURL)

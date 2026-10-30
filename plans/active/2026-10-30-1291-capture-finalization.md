@@ -68,3 +68,19 @@ with the card's shared source-audio eligibility. Completed meetings with missing
 playback retain the existing missing-audio state; they do not promise pending
 preparation. CLI tests and documentation explicitly cover both canonical path
 fields being present before playback exists.
+
+## Final review before merge
+
+Fresh review found that successful playback followed by failed entitlement
+preflight could leave an unconsumed cleaned-mic renderer alive. Source-only
+Retry would then start another renderer using the same session candidate path.
+Cleaned readiness now starts its writer only when final STT consumes it after
+preflight and row persistence. A small private actor shares one resolution across
+handle copies, preserving cancellation and preventing duplicate publication.
+Regression coverage checks early failure, deferred starts, and repeated resolution.
+
+Opus 5.5 independently reviewed e525fc507 via `claude -p` and confirmed that
+playback no longer blocks new capture. It identified the same cleanup overlap
+and a lost meeting-type selection during asynchronous startup. Startup now
+writes the current selection after capture starts, and a focused flow regression
+pins that ordering. The duplicate CLI Unreleased heading is consolidated.

@@ -544,6 +544,21 @@ private struct FailingEntitlements: EntitlementsChecking {
     }
 }
 
+private struct MeetingPreflightPlaybackConverter: AudioFileConverting {
+    func convert(fileURL: URL) async throws -> URL { fileURL }
+
+    func mixToM4A(
+        inputURLs: [URL],
+        outputURL: URL,
+        sourceAlignment: MeetingSourceAlignment?
+    ) async throws {
+        // Both fixture tracks have the same timeline; copying one provides
+        // decodable playback without requiring an external FFmpeg process.
+        let sourceURL = try XCTUnwrap(inputURLs.first)
+        try FileManager.default.copyItem(at: sourceURL, to: outputURL)
+    }
+}
+
 private enum SegmentReplacementTestError: Error {
     case replacementFailed
 }
@@ -1937,6 +1952,111 @@ final class TranscriptionServiceTests: XCTestCase {
             sessionID: recording.sessionID,
             reason: .cleanedUsed
         )
+    }
+
+    func testPreparedCaptureEntitlementFailureDefersCleanedMicRendererUntilRetry() async throws {
+        let folderURL = URL(fileURLWithPath: AppPaths.tempDir)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+        let microphoneURL = folderURL.appendingPathComponent("microphone-raw.m4a")
+        let systemURL = folderURL.appendingPathComponent("system-raw.m4a")
+        try await MeetingCleanedMicRenderer.encodeMonoFloat(
+            [Float](repeating: 0.05, count: 16_000),
+            sampleRate: 16_000,
+            to: microphoneURL,
+            fileManager: .default
+        )
+        try FileManager.default.copyItem(at: microphoneURL, to: systemURL)
+        let track = MeetingSourceAlignment.Track(
+            firstHostTime: nil, lastHostTime: nil, startOffsetMs: 0,
+            writtenFrameCount: 16_000, sampleRate: 16_000
+        )
+        let sessionID = UUID()
+        let renderStarts = OSAllocatedUnfairLock(initialState: 0)
+        let capture = MeetingRecordingCapture(
+            lock: MeetingRecordingLockFile(
+                sessionId: sessionID, startedAt: Date(), displayName: "Preflight Retry",
+                state: .awaitingTranscription
+            ),
+            metadata: MeetingRecordingMetadata(
+                sourceAlignment: .init(meetingOriginHostTime: nil, microphone: track, system: track)
+            ),
+            folderURL: folderURL,
+            microphoneAudioURL: microphoneURL,
+            systemAudioURL: systemURL,
+            cleanedMicrophonePreparation: MeetingRecordingCapture.makeCleanedMicrophonePreparation(
+                folderURL: folderURL, microphoneURL: microphoneURL, systemURL: systemURL,
+                sessionID: sessionID, conditionerFactory: { PassthroughMicConditioner() },
+                scheduler: { outputURL, _, _, _, _, _, _, _ in
+                    renderStarts.withLock { $0 += 1 }
+                    let task = Task<MeetingCleanedMicrophoneRenderCompletion, Never> {
+                        do {
+                            try FileManager.default.copyItem(at: microphoneURL, to: outputURL)
+                            return .rendered(outputURL)
+                        } catch {
+                            return .fallback(.rawRenderFailed)
+                        }
+                    }
+                    return .scheduled(outputURL: outputURL, task: task)
+                }
+            )
+        )
+        let stub = capture.makeProcessingTranscription()
+        try transcriptionRepo.save(stub)
+        XCTAssertNil(try transcriptionRepo.fetch(id: stub.id)?.durationMs)
+
+        // Exercise the production capture handoff: a synthetic deferred handle
+        // would miss a renderer accidentally started during playback preparation.
+        let recording = try await capture.preparePlayback(using: MeetingPreflightPlaybackConverter())
+        XCTAssertTrue(MeetingRecordingOutput.isViablePlaybackFile(at: recording.mixedAudioURL))
+        XCTAssertGreaterThan(recording.durationSeconds, 0)
+        XCTAssertNotNil(recording.sourceAlignment.microphone)
+        XCTAssertNotNil(recording.sourceAlignment.system)
+        let cleanedURL = try XCTUnwrap(recording.cleanedMicrophoneAudioURL)
+        let blockedService = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            entitlements: FailingEntitlements(error: EntitlementsError.trialExpired),
+            meetingArtifactStore: nil,
+            meetingAutomationHookRunner: nil
+        )
+
+        do {
+            _ = try await blockedService.finalizeMeetingTranscription(recording: recording, updating: stub.id)
+            XCTFail("Expected entitlement preflight to reject finalization")
+        } catch EntitlementsError.trialExpired {}
+
+        XCTAssertEqual(renderStarts.withLock { $0 }, 0, "Preflight failure must leave no cleaned-mic writer running")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: cleanedURL.path))
+        let conversionCount = await mockAudio.convertCallCount
+        let sttCount = await mockSTT.transcribeCallCount
+        XCTAssertEqual(conversionCount, 0)
+        XCTAssertEqual(sttCount, 0)
+        let pending = try XCTUnwrap(transcriptionRepo.fetch(id: stub.id))
+        XCTAssertNil(pending.durationMs)
+        XCTAssertNil(pending.rawTranscript)
+
+        let retryRecording = try await capture.preparePlayback(using: MeetingPreflightPlaybackConverter())
+        XCTAssertEqual(renderStarts.withLock { $0 }, 0, "Retry preparation must also defer its writer")
+        await mockSTT.configureSequence(results: meetingSourceSTTResults())
+        let retryService = makeTranscriptionService(cleanedMicTimeoutSeconds: 5)
+        let completed = try await retryService.finalizeMeetingTranscription(
+            recording: retryRecording, updating: stub.id
+        )
+
+        XCTAssertEqual(completed.id, stub.id)
+        XCTAssertEqual(completed.status, .completed)
+        XCTAssertEqual(completed.durationMs, retryRecording.playableDurationMs)
+        XCTAssertEqual(try transcriptionRepo.count(), 1)
+        let conversionURLs = await mockAudio.convertURLs
+        XCTAssertEqual(conversionURLs, [cleanedURL, systemURL])
+        let repeatedDecision = try await retryRecording.resolvedMicrophoneTranscriptionSource(
+            policy: .init(floorSeconds: 5, durationMultiplier: 0, capSeconds: 5)
+        )
+        XCTAssertEqual(repeatedDecision.reason, .cleanedUsed)
+        XCTAssertEqual(renderStarts.withLock { $0 }, 1, "Successful consumption must start exactly one renderer")
     }
 
     func testTranscribeMeetingFallsBackToRawMicWhenCleanedMicDeadlineExpires() async throws {

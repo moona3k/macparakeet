@@ -765,6 +765,75 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         await coordinator.discardRecordingAndWaitForCompletion()
     }
 
+    func testMeetingTypeSelectedDuringSuspendedStartSurvivesCaptureHandoff() async throws {
+        let output = makeRecordingOutput()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+        let lock = MeetingRecordingLockFile(
+            sessionId: output.sessionID, startedAt: Date(), displayName: output.displayName,
+            state: .awaitingTranscription, folderURL: output.folderURL
+        )
+        try MeetingRecordingLockFileStore().write(lock, folderURL: output.folderURL)
+        let capture = MeetingRecordingCapture(
+            lock: lock, metadata: MeetingRecordingMetadata(sourceAlignment: output.sourceAlignment),
+            folderURL: output.folderURL, microphoneAudioURL: output.microphoneAudioURL,
+            systemAudioURL: output.systemAudioURL
+        )
+        let service = MeetingRecordingServiceSpy(output: output, blocksStart: true)
+        await service.setFinalizationInput(.capture(capture))
+        let transcriptionService = MockTranscriptionService()
+        await transcriptionService.holdMeetingFinalization()
+        let harness = await makeSettlementHarness(transcriptionService: transcriptionService)
+        let queue = MeetingTranscriptionQueue(
+            transcriptionService: transcriptionService, transcriptionRepo: harness.transcriptionRepo,
+            meetingRecordingSettlement: harness.settlement,
+            preparePlayback: { _ in output }
+        )
+        let meetingType = MeetingType(name: "Planning")
+        let selection = MeetingTypeSelectionProbe()
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: service, transcriptionService: transcriptionService,
+            permissionService: MockPermissionService(), transcriptionRepo: harness.transcriptionRepo,
+            conversationRepo: MockChatConversationRepository(), quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            meetingTypeIDProvider: { selection.selectedID },
+            meetingTypesProvider: { [meetingType] },
+            meetingTypeIDSetter: { selection.selectedID = $0 },
+            shouldShowFloatingMeetingPill: { false }, llmService: nil,
+            pillViewModel: MeetingRecordingPillViewModel(), meetingRecordingSettlement: harness.settlement,
+            meetingTranscriptionQueue: queue,
+            onMenuBarIconUpdate: { _ in }, onTranscriptionReady: { _ in }
+        )
+
+        XCTAssertNotNil(coordinator.startRecording())
+        await service.waitUntilStartCalled()
+        let activeSessionID = await service.activeSessionID
+        XCTAssertEqual(activeSessionID, output.sessionID)
+        let panel = try XCTUnwrap(coordinator.testHook_panelViewModel)
+        XCTAssertEqual(panel.state, .starting)
+        let selectionPersisted = expectation(description: "Type selected before start settles")
+        await service.observeNextMeetingTypeUpdate(reached: selectionPersisted)
+        panel.selectMeetingType(meetingType.id)
+        await fulfillment(of: [selectionPersisted], timeout: 5)
+        XCTAssertEqual(selection.selectedID, meetingType.id)
+
+        await service.releaseStart()
+        await coordinator.testHook_waitForActionTask()
+        XCTAssertEqual(coordinator.testHook_state, .recording)
+        XCTAssertTrue(coordinator.stopRecording())
+        await coordinator.testHook_waitForActionTask()
+        let queuedRows = harness.transcriptionRepo.transcriptions
+        await transcriptionService.releaseMeetingFinalization()
+        await queue.waitUntilIdle()
+
+        XCTAssertEqual(queuedRows.count, 1)
+        let row = try XCTUnwrap(queuedRows.first)
+        XCTAssertEqual(row.status, .processing)
+        XCTAssertEqual(row.meetingTypeId, meetingType.id)
+        XCTAssertNil(row.durationMs)
+        let snapshot = await transcriptionService.meetingFlowSnapshot()
+        XCTAssertEqual(snapshot.prepareMeetingCallCount, 0)
+    }
+
     func testStartMeetingsMutedShowsMutedDuringStarting() async throws {
         let service = MeetingRecordingServiceSpy(output: makeRecordingOutput(), blocksStart: true)
         let pill = MeetingRecordingPillViewModel()
@@ -2149,6 +2218,11 @@ private enum FlowTestError: LocalizedError {
 }
 
 @MainActor
+private final class MeetingTypeSelectionProbe {
+    var selectedID: UUID?
+}
+
+@MainActor
 private final class FloatingPillVisibilityProbe {
     var shouldShow: Bool
 
@@ -2391,6 +2465,34 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
     }
 
     func updateNotes(_ notes: String) async {}
+
+    private var meetingTypeUpdateReached: XCTestExpectation?
+
+    func observeNextMeetingTypeUpdate(reached: XCTestExpectation) {
+        meetingTypeUpdateReached = reached
+    }
+
+    func updateMeetingType(_ meetingTypeId: UUID?) async {
+        if let finalizationInput, case .capture(let capture) = finalizationInput {
+            let metadata = capture.metadata
+            self.finalizationInput = .capture(
+                MeetingRecordingCapture(
+                    lock: capture.lock.withMeetingTypeId(meetingTypeId),
+                    metadata: MeetingRecordingMetadata(
+                        sourceAlignment: metadata.sourceAlignment, captureReport: metadata.captureReport,
+                        speechEngine: metadata.speechEngine, speechEngineWasCaptured: metadata.speechEngineWasCaptured,
+                        previewSpeechEngine: metadata.previewSpeechEngine, startContext: metadata.startContext,
+                        echoSuppression: metadata.echoSuppression,
+                        calendarEventSnapshot: metadata.calendarEventSnapshot,
+                        meetingTypeId: meetingTypeId
+                    ),
+                    folderURL: capture.folderURL, microphoneAudioURL: capture.microphoneAudioURL,
+                    systemAudioURL: capture.systemAudioURL
+                ))
+        }
+        meetingTypeUpdateReached?.fulfill()
+        meetingTypeUpdateReached = nil
+    }
 
     var isRecording: Bool { true }
 

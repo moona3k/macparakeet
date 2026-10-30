@@ -488,8 +488,10 @@ also fails, source data stays retained and restart recovery remains available.
 A failed prepared job restores its previous ownership and marks its existing
 row retryable. Retry rebuilds absent/undecodable playback before STT.
 
-Cleaned-microphone rendering is also deferred until playback and final metadata
-succeed under queue ownership. Capture settlement snapshots its dependencies
-without starting a writer. Unknown row duration remains an incomplete-preparation
+Cleaned-microphone rendering starts only when final STT consumes its readiness
+handle, after entitlement preflight and row persistence, under queue ownership.
+Capture settlement and playback preparation snapshot its dependencies without
+starting a writer. Copies of the handle share one render and its published result.
+An early finalization failure therefore leaves no renderer for Retry to overlap. Unknown row duration remains an incomplete-preparation
 signal even when a failed attempt installed a decodable playback file; Retry
 repeats preparation to commit fallback/source truth before accepting that file.

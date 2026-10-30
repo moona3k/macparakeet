@@ -10,12 +10,6 @@ appcast at <https://macparakeet.com/appcast.xml>.
 The format is based on [Keep a Changelog](https://keepachangelog.com), and the
 CLI adheres to [Semantic Versioning](https://semver.org).
 
-## Unreleased
-
-- Processing meetings may appear before playback preparation completes, with
-  unknown duration and an expected playback path. Source audio is already saved;
-  completed meeting schemas and durations are unchanged (#1291).
-
 ## Compatibility policy
 
 The CLI surface is a public contract. We follow semver:
@@ -101,6 +95,10 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 ## [Unreleased]
 
 ### Fixed
+
+- Processing meetings may appear before playback preparation completes, with
+  unknown duration and an expected playback path. Source audio is already saved;
+  completed meeting schemas and durations are unchanged (#1291).
 
 - A provider request that hits its idle timeout reports `errorType` `timeout`
   with "The request timed out before the provider finished responding." It was
