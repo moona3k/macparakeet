@@ -10,10 +10,16 @@ public extension Notification.Name {
     static let macParakeetMeetingHotkeyTriggerDidChange = Notification.Name("macparakeet.meetingHotkeyTriggerDidChange")
     static let macParakeetFileTranscriptionHotkeyTriggerDidChange = Notification.Name("macparakeet.fileTranscriptionHotkeyTriggerDidChange")
     static let macParakeetYouTubeTranscriptionHotkeyTriggerDidChange = Notification.Name("macparakeet.youtubeTranscriptionHotkeyTriggerDidChange")
+    static let macParakeetDictationAIPolishHotkeyTriggerDidChange = Notification.Name("macparakeet.dictationAIPolishHotkeyTriggerDidChange")
     static let macParakeetAppearanceModeDidChange = Notification.Name("macparakeet.appearanceModeDidChange")
     static let macParakeetMenuBarOnlyModeDidChange = Notification.Name("macparakeet.menuBarOnlyModeDidChange")
     static let macParakeetMenuBarIconVisibilityDidChange = Notification.Name("macparakeet.menuBarIconVisibilityDidChange")
     static let macParakeetShowIdlePillDidChange = Notification.Name("macparakeet.showIdlePillDidChange")
+    /// Posted when idle-pill / live-overlay screen placement changes so both
+    /// panels can move without waiting for the next show.
+    static let macParakeetDictationOverlayPlacementDidChange = Notification.Name(
+        "macparakeet.dictationOverlayPlacementDidChange"
+    )
     static let macParakeetShowDiscoverDidChange = Notification.Name("macparakeet.showDiscoverDidChange")
     static let macParakeetShowMeetingRecordingPillDidChange = Notification.Name("macparakeet.showMeetingRecordingPillDidChange")
     static let macParakeetInstantDictationDidChange = Notification.Name("macparakeet.instantDictationDidChange")
@@ -49,6 +55,17 @@ public extension Notification.Name {
     /// flow coordinator re-reads the preference and updates the on-screen
     /// preview live, so a size change is visible mid-dictation.
     static let macParakeetDictationPreviewTextSizeDidChange = Notification.Name("macparakeet.dictationPreviewTextSizeDidChange")
+    /// Posted by `DictationService` (as `object`) each time a live microphone
+    /// capture ends: stop (before STT, usable or not), cancel, discard, or a
+    /// stale take replaced by a new start.
+    /// `userInfo[DictationCaptureNotificationKey.sessionID]` is the `Int`
+    /// session whose capture ended. Observers pair it with their own start
+    /// cue; the service does not know whether a cue played.
+    static let macParakeetDictationCaptureDidStop = Notification.Name("macparakeet.dictationCaptureDidStop")
     /// Posted after a cancelled dictation is transcribed and saved to History.
     static let macParakeetDictationHistoryDidChange = Notification.Name("macparakeet.dictationHistoryDidChange")
+}
+
+public enum DictationCaptureNotificationKey {
+    public static let sessionID = "sessionID"
 }

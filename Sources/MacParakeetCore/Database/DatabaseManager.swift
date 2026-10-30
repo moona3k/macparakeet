@@ -69,17 +69,6 @@ public final class DatabaseManager: Sendable {
         }
     }
 
-    #if DEBUG
-    func recordAppliedMigrationIdentifierForTesting(_ identifier: String) throws {
-        try dbQueue.write { db in
-            try db.execute(
-                sql: "INSERT INTO grdb_migrations (identifier) VALUES (?)",
-                arguments: [identifier]
-            )
-        }
-    }
-    #endif
-
     private static func makeConfiguration() -> Configuration {
         var config = Configuration()
         config.foreignKeysEnabled = true
@@ -121,8 +110,12 @@ public final class DatabaseManager: Sendable {
     #endif
 
     private func migrate() throws {
+        // Historical migrations seed built-ins before newer preference columns
+        // exist. Apply today's defaults only when creating the prompt library;
+        // an existing library's saved preferences belong to the user.
+        let hadPromptLibrary = try dbQueue.read { try $0.tableExists("prompts") }
         try Self.makeMigrator().migrate(dbQueue)
-        try reconcileBuiltInPrompts()
+        try reconcileBuiltInPrompts(initializeMeetingNotesDefaults: !hadPromptLibrary)
         try reconcileBuiltInQuickPrompts()
     }
 
@@ -2317,6 +2310,145 @@ public final class DatabaseManager: Sendable {
                     """)
         }
 
+        // v0.45 — Receipt for the correction revision a prompt result was
+        // generated from, so the summary can offer an update after an edit.
+        migrator.registerMigration("v0.45-summary-source-correction-revision") { db in
+            let columns = try db.columns(in: "summaries").map(\.name)
+            if !columns.contains("sourceCorrectionRevision") {
+                try db.alter(table: "summaries") { t in
+                    t.add(column: "sourceCorrectionRevision", .integer)
+                }
+            }
+        }
+
+        // v0.45 — User edits of saved prompt-result content (issue #884).
+        // Prompt snapshots stay the generation receipt; contentEditedAt marks
+        // that `content` was last written by the user.
+        migrator.registerMigration("v0.45-prompt-result-content-edits") { db in
+            let summaryColumns = try db.columns(in: "summaries").map(\.name)
+            if !summaryColumns.contains("contentEditedAt") {
+                try db.alter(table: "summaries") { t in
+                    t.add(column: "contentEditedAt", .text)
+                }
+            }
+        }
+
+        // v0.46 — Reading-view saves store one `reviseText` command so Undo
+        // restores the whole session. SQLite cannot widen the operation CHECK
+        // in place.
+        migrator.registerMigration("v0.46-reading-transcript-corrections") { db in
+            try db.execute(sql: "ALTER TABLE speaker_correction_states RENAME TO speaker_correction_states_v044")
+            try db.execute(sql: "ALTER TABLE speaker_corrections RENAME TO speaker_corrections_v044")
+            try db.execute(
+                sql: """
+                    CREATE TABLE speaker_corrections (
+                        id TEXT PRIMARY KEY NOT NULL,
+                        transcriptionId TEXT NOT NULL
+                            REFERENCES transcriptions(id) ON DELETE CASCADE,
+                        parentId TEXT,
+                        sequence INTEGER NOT NULL CHECK (sequence > 0),
+                        transcriptFingerprint TEXT NOT NULL,
+                        operation TEXT NOT NULL CHECK (
+                            operation IN (
+                                'rename', 'add', 'assign', 'split', 'unsplit',
+                                'merge', 'remove', 'editText', 'mergeSegments',
+                                'reviseText', 'reset'
+                            )
+                        ),
+                        payload TEXT NOT NULL,
+                        branchState TEXT NOT NULL CHECK (
+                            branchState IN ('current', 'redo', 'abandoned')
+                        ),
+                        createdAt TEXT NOT NULL,
+                        UNIQUE (transcriptionId, sequence),
+                        UNIQUE (id, transcriptionId),
+                        FOREIGN KEY (parentId, transcriptionId)
+                            REFERENCES speaker_corrections(id, transcriptionId)
+                            ON DELETE CASCADE
+                    )
+                    """)
+            try db.execute(
+                sql: """
+                    INSERT INTO speaker_corrections
+                    SELECT * FROM speaker_corrections_v044
+                    ORDER BY transcriptionId, sequence
+                    """)
+            try db.execute(
+                sql: """
+                    CREATE TABLE speaker_correction_states (
+                        transcriptionId TEXT PRIMARY KEY NOT NULL
+                            REFERENCES transcriptions(id) ON DELETE CASCADE,
+                        transcriptFingerprint TEXT NOT NULL,
+                        headId TEXT,
+                        revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
+                        updatedAt TEXT NOT NULL,
+                        FOREIGN KEY (headId, transcriptionId)
+                            REFERENCES speaker_corrections(id, transcriptionId)
+                            ON DELETE CASCADE
+                    )
+                    """)
+            try db.execute(
+                sql: """
+                    INSERT INTO speaker_correction_states
+                    SELECT * FROM speaker_correction_states_v044
+                    """)
+            try db.execute(sql: "DROP TABLE speaker_correction_states_v044")
+            try db.execute(sql: "DROP TABLE speaker_corrections_v044")
+            try db.execute(
+                sql: """
+                    CREATE INDEX idx_speaker_corrections_replay
+                    ON speaker_corrections (
+                        transcriptionId,
+                        transcriptFingerprint,
+                        branchState,
+                        sequence
+                    )
+                    """)
+        }
+
+        // v0.47 — Snapshot the language policy used to generate a result so
+        // regeneration can replay it after Settings change (issue #975).
+        migrator.registerMigration("v0.47-meeting-ai-output-language") { db in
+            let columns = try db.columns(in: "summaries").map(\.name)
+            if !columns.contains("outputLanguagePolicySnapshot") {
+                try db.alter(table: "summaries") { t in
+                    t.add(column: "outputLanguagePolicySnapshot", .text)
+                }
+            }
+        }
+
+        // v0.48 — New results persist their source text receipt. Earlier
+        // results keep NULL: the transcript may already have changed, so
+        // assigning its current hash would falsely certify an old result.
+        migrator.registerMigration("v0.48-prompt-result-source-transcript") { db in
+            let columns = try db.columns(in: "summaries").map(\.name)
+            if !columns.contains("sourceTranscriptHash") {
+                try db.alter(table: "summaries") { t in
+                    t.add(column: "sourceTranscriptHash", .text)
+                }
+            }
+        }
+
+        // Independent Ask history keeps historical source identities after a
+        // Library recording is removed. The lease coordinates app and CLI runs
+        // through the same SQLite row; there is deliberately no source FK.
+        migrator.registerMigration("v0.49-ask-conversations") { db in
+            try db.create(table: "ask_conversations") { t in
+                t.column("id", .text).primaryKey()
+                t.column("payload", .blob).notNull()
+                t.column("revision", .integer).notNull()
+                t.column("createdAt", .datetime).notNull()
+                t.column("updatedAt", .datetime).notNull()
+                t.column("runToken", .text)
+                t.column("runLeaseUntil", .datetime)
+            }
+            try db.create(
+                index: "idx_ask_conversations_updated_at",
+                on: "ask_conversations",
+                columns: ["updatedAt"]
+            )
+        }
+
         return migrator
     }
 
@@ -2341,7 +2473,7 @@ public final class DatabaseManager: Sendable {
         try repo.seedIfNeeded()
     }
 
-    private func reconcileBuiltInPrompts() throws {
+    private func reconcileBuiltInPrompts(initializeMeetingNotesDefaults: Bool) throws {
         let builtInPrompts = Prompt.builtInPrompts(now: Date())
         let canonicalIDs = builtInPrompts.map { $0.id }
 
@@ -2364,6 +2496,13 @@ public final class DatabaseManager: Sendable {
                     // history without an explicit user action.
                     guard existing.deletedAt == nil, existing.userCustomizedAt == nil else {
                         continue
+                    }
+
+                    if initializeMeetingNotesDefaults {
+                        try db.execute(
+                            sql: "UPDATE prompts SET includeMeetingNotes = ? WHERE id = ?",
+                            arguments: [prompt.includeMeetingNotes, existing.id]
+                        )
                     }
 
                     let canonicalRevision = prompt.lastAppliedCanonicalRevision ?? 1
@@ -2449,10 +2588,11 @@ public final class DatabaseManager: Sendable {
                     continue
                 }
 
-                if let legacyPromptID = try String.fetchOne(
+                var legacyIncludeMeetingNotes: Bool?
+                if let legacyPrompt = try Row.fetchOne(
                     db,
                     sql: """
-                        SELECT id
+                        SELECT id, includeMeetingNotes
                         FROM prompts
                         WHERE name = ? COLLATE NOCASE
                           AND isBuiltIn = 1
@@ -2462,10 +2602,14 @@ public final class DatabaseManager: Sendable {
                 ) {
                     // Preserve the legacy row and its history, but retire it so
                     // the stable canonical identity can be inserted safely.
+                    let legacyPromptID: DatabaseValue = legacyPrompt["id"]
                     try db.execute(
                         sql: "UPDATE prompts SET deletedAt = ?, updatedAt = ? WHERE id = ?",
                         arguments: [prompt.updatedAt, prompt.updatedAt, legacyPromptID]
                     )
+                    if !initializeMeetingNotesDefaults {
+                        legacyIncludeMeetingNotes = legacyPrompt["includeMeetingNotes"]
+                    }
                 }
 
                 // A custom prompt already owns this name. Preserve the user's prompt and
@@ -2494,6 +2638,9 @@ public final class DatabaseManager: Sendable {
                 var promptToInsert = prompt
                 if promptToInsert.isAutoRun && !userHasAnyAutoRunPrompt {
                     promptToInsert.isAutoRun = false
+                }
+                if let legacyIncludeMeetingNotes {
+                    promptToInsert.includeMeetingNotes = legacyIncludeMeetingNotes
                 }
                 try Self.insertCanonicalPrompt(promptToInsert, db: db)
             }

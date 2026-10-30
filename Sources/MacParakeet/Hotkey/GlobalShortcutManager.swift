@@ -5,16 +5,17 @@ import MacParakeetCore
 /// Lightweight global shortcut listener for immediate actions like toggling
 /// meeting recording. Unlike `HotkeyManager`, this does not model hold or
 /// dictation gesture handling.
+///
+/// **Threading.** Matching runs entirely on `EventTapThread`, so a stalled
+/// main thread cannot delay other apps' keystrokes (#1142). `onTrigger` is
+/// called on the tap thread; set it before `start()` and hop to the main actor
+/// for any UI work. `start()` and `stop()` are called from the main thread;
+/// matching state is only touched while no tap is running or from the tap.
 public final class GlobalShortcutManager {
     public var onTrigger: (() -> Void)?
 
     private let trigger: HotkeyTrigger
-    private let requiredChordFlags: UInt64
-    private let ignoredChordEventFlags: UInt64
-    private var eventTap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
-    private var retainedSelf: Unmanaged<GlobalShortcutManager>?
-    private var installedRunLoop: CFRunLoop?
+    private var backgroundTap: BackgroundEventTap?
     private var targetModifierWasPressed = false
     private var triggerKeyIsPressed = false
     private var modifierChordRequiredWasPressed = false
@@ -23,22 +24,14 @@ public final class GlobalShortcutManager {
 
     public init(trigger: HotkeyTrigger) {
         self.trigger = trigger
-        self.requiredChordFlags = trigger.chordEventFlags
-        self.ignoredChordEventFlags = trigger.ignoredChordEventFlags
     }
 
     deinit {
-        if let tap = eventTap {
-            CGEvent.tapEnable(tap: tap, enable: false)
-        }
-        if let source = runLoopSource, let runLoop = installedRunLoop {
-            CFRunLoopRemoveSource(runLoop, source, .commonModes)
-        }
-        retainedSelf?.release()
+        backgroundTap?.stop()
     }
 
     public func start() -> Bool {
-        if eventTap != nil {
+        if backgroundTap != nil {
             stop()
         }
 
@@ -46,49 +39,26 @@ public final class GlobalShortcutManager {
             | (1 << CGEventType.keyDown.rawValue)
             | (1 << CGEventType.keyUp.rawValue)
 
-        guard let tap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
-            place: .headInsertEventTap,
+        // No tap is running yet, so this cannot race the tap thread.
+        recoverFromDisabledTap()
+        guard let tap = BackgroundEventTap.start(
             options: .defaultTap,
             eventsOfInterest: eventMask,
-            callback: { _, type, event, refcon -> Unmanaged<CGEvent>? in
-                guard let refcon else { return Unmanaged.passUnretained(event) }
-                let manager = Unmanaged<GlobalShortcutManager>.fromOpaque(refcon).takeUnretainedValue()
-                return manager.handleEvent(type: type, event: event)
-            },
-            userInfo: {
-                let retained = Unmanaged.passRetained(self)
-                self.retainedSelf = retained
-                return retained.toOpaque()
-            }()
+            handler: { [weak self] type, event in
+                guard let self else { return Unmanaged.passUnretained(event) }
+                return self.handleEvent(type: type, event: event)
+            }
         ) else {
-            retainedSelf?.release()
-            retainedSelf = nil
             return false
         }
-
-        eventTap = tap
-        runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        let runLoop = CFRunLoopGetCurrent()
-        installedRunLoop = runLoop
-        CFRunLoopAddSource(runLoop, runLoopSource, .commonModes)
-        CGEvent.tapEnable(tap: tap, enable: true)
-        recoverFromDisabledTap()
+        backgroundTap = tap
         return true
     }
 
     public func stop() {
-        if let tap = eventTap {
-            CGEvent.tapEnable(tap: tap, enable: false)
-        }
-        if let source = runLoopSource, let runLoop = installedRunLoop {
-            CFRunLoopRemoveSource(runLoop, source, .commonModes)
-        }
-        retainedSelf?.release()
-        retainedSelf = nil
-        eventTap = nil
-        runLoopSource = nil
-        installedRunLoop = nil
+        // Returns only after the tap thread has stopped calling back.
+        backgroundTap?.stop()
+        backgroundTap = nil
         targetModifierWasPressed = false
         triggerKeyIsPressed = false
         modifierChordRequiredWasPressed = false
@@ -96,11 +66,14 @@ public final class GlobalShortcutManager {
         modifierChordBlockedUntilRelease = false
     }
 
+    var runLoopSourceForTesting: CFRunLoopSource? {
+        backgroundTap?.runLoopSourceForTesting
+    }
+
+    /// Runs on the tap thread.
     private func handleEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if let tap = eventTap {
-                CGEvent.tapEnable(tap: tap, enable: true)
-            }
+            // `BackgroundEventTap` already re-enabled the tap.
             recoverFromDisabledTap()
             return Unmanaged.passUnretained(event)
         }
@@ -322,7 +295,7 @@ public final class GlobalShortcutManager {
         switch type {
         case .keyDown:
             guard keyCode == triggerCode else { return false }
-            guard flags & ~ignoredChordEventFlags == requiredChordFlags else { return false }
+            guard trigger.chordEventMatches(flags: flags) else { return false }
             guard !triggerKeyIsPressed else { return true }
             triggerKeyIsPressed = true
             onTrigger?()

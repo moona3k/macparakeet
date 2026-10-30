@@ -1,0 +1,30 @@
+{
+  "sourceSHA256": "8e7d0adf4be502a78adf6cd23d6ddd026009ddec42ca6fa857a3e7cc567340f1",
+  "source": "Sources/MacParakeetCore/Services/Diarization/SpeakerMerger.swift",
+  "runs": [
+    {
+      "case": "one-word-answer-with-two-second-own-activity",
+      "labels": [
+        "A",
+        "A",
+        "A"
+      ]
+    },
+    {
+      "case": "unassigned-word-in-two-minute-gap",
+      "labels": [
+        "A",
+        "A",
+        "A"
+      ]
+    },
+    {
+      "case": "meeting-fallback-word-with-no-overlap",
+      "labels": [
+        "system:A",
+        "system:A",
+        "system:A"
+      ]
+    }
+  ]
+}

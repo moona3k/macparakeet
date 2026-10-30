@@ -1,0 +1,20 @@
+rendered seconds=3600.0 ratio=0.5 probe=EchoPathProbeResult(shouldRender: true, windowsEvaluated: 1, bestCorrelation: Optional(1.0), bestDelaySamples: Optional(0), detail: "echo_detected")
+mode=baseline input_seconds=3600 no_echo=false render_elapsed=2.270429959 seconds
+        3.45 real         2.27 user         0.60 sys
+          1050394624  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               64444  page reclaims
+                   1  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 437  voluntary context switches
+               23261  involuntary context switches
+         38797304510  instructions retired
+         11091340622  cycles elapsed
+          1036158344  peak memory footprint

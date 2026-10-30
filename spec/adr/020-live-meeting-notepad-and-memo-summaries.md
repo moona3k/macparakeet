@@ -1,9 +1,50 @@
 # ADR-020: Live Meeting Notepad + Memo-Steered Summaries
 
 > Status: Implemented (live notepad, saved-note editing, template plumbing, and opt-in prompt context are locally verified; release availability follows the normal channel process)
-> Date: 2026-04-25 (proposed) · Amended 2026-04-25 (post-review) · Implemented 2026-04-25 (Phases 1–4) · Amended 2026-05-02 (Notes + Transcript tab badges dropped — all three tabs plain) · Amended 2026-05-02 ("Memo-Steered Notes" built-in prompt reverted) · Amended 2026-09-05 (saved-note editing + per-prompt opt-in context specified)
+> Date: 2026-04-25 (proposed) · Amended 2026-04-25 (post-review) · Implemented 2026-04-25 (Phases 1–4) · Amended 2026-05-02 (Notes + Transcript tab badges dropped — all three tabs plain) · Amended 2026-05-02 ("Memo-Steered Notes" built-in prompt reverted) · Amended 2026-09-05 (saved-note editing + per-prompt opt-in context specified) · Amended 2026-10-02 (Summary notes default on for new prompt libraries; spelling/URL guidance)
 > Related: ADR-013 (prompt library + multi-summary), ADR-014 (meeting recording), ADR-017 (calendar auto-start), ADR-018 (live meeting Ask tab), ADR-019 (crash-resilient meeting recording)
 > Naming Note (2026-04-28): The persisted table remains `summaries`, but the current Swift names are `PromptResult`, `PromptResultRepository`, and `PromptResultsViewModel`.
+
+## Amendment (2026-10-02, Summary default and notes guidance — issue #1204)
+
+Newly seeded built-in **Summary** prompts enable `includeMeetingNotes` by
+default. Users can turn the checkbox off. Existing saved preferences, including
+false values, are preserved: older databases cannot distinguish an untouched
+default from a deliberate opt-out. Other built-in prompts, new custom prompts,
+legacy decoding, and the database column default remain false. The existing
+Restore Defaults action still re-shows prompts and clears source scoping without
+resetting notes preferences. No data migration is required.
+
+When Summary runs with notes, the selected AI provider receives them along with
+the transcript. Notes do not trigger an AI run independently. Empty notes add
+no context block. Saved-result replay semantics remain unchanged.
+
+The meeting generation popover now states whether the selected prompt will include
+notes and points to **Manage Prompts → expand the prompt → Include meeting notes
+as context** when disabled. Saved meeting results expose their recorded notes
+snapshot when present. The omission notice stays quiet when the meeting's current
+notes are empty. When current notes are non-empty and the result did not use
+them, a quiet **Notes not included** control explains the remedy in a popover.
+A library-prompt result with notes disabled directs users to generate a **new**
+result after changing the preference: **Regenerate** replays the original
+result's setting, even when the library prompt has since changed. A result that
+had notes enabled but none recorded yet tells the user to **Regenerate** so the
+current notes are included. Imported or unlinked results without a notes
+receipt stay quiet and do not claim a disabled setting or point at a prompt
+setting.
+
+The automatically appended notes block instructs the model to use explicit
+name/spelling corrections when the referent is clear, preserve relevant URLs
+exactly, and avoid inferring attendance, speaker identity, decisions, or
+commitments from a name or link alone. It asks the model to prefer transcript
+evidence for other factual conflicts and state material uncertainty. No URL
+fetch is added. Explicit `{{userNotes}}` templates continue to own
+their own framing and are not given a duplicate automatic block.
+
+This amendment corrects the earlier blanket instruction that all factual
+conflicts favor the transcript, which could defeat the user's spelling hints.
+Tests verify emitted requests and receipts; those tests do not establish that
+every AI provider will obey the guidance or include every note in its output.
 
 ## Amendment (2026-09-05, saved notes and opt-in prompt context)
 
@@ -26,10 +67,12 @@ stale files after a newer commit. Cross-process conflict UI is out of scope.
 
 Result prompts gain an `includeMeetingNotes` preference, exposed as an
 **Include meeting notes as context** checkbox for built-in and custom result
-prompts. It defaults to `false`, is unavailable for Transforms, and never opts
-existing prompts in implicitly. When enabled and non-empty meeting notes exist,
-the shared prompt assembler adds one delimited notes-context block while
-keeping the transcript as factual source of truth.
+prompts. Its general default is `false`, with the newly seeded built-in Summary
+exception described in the 2026-10-02 amendment. It is unavailable for
+Transforms and never opts existing prompts in implicitly. When enabled and non-empty meeting notes exist,
+the shared prompt assembler adds one delimited notes-context block. The
+transcript stays the factual source of truth, except for the explicit
+spelling-correction guidance in the 2026-10-02 amendment.
 
 `{{userNotes}}` remains a case-sensitive advanced custom-template variable.
 It substitutes notes even when the checkbox is off; when the checkbox is on,
@@ -333,10 +376,11 @@ The Notes surface contains exactly what the user typed. Ask responses live in th
 
 The corollary: there is no "insert this Ask response into Notes" affordance. If the user wants Ask output in Notes, they retype it (which is friction by design — it forces the user to commit to what's worth keeping).
 
-**Code-level enforcement.** `Transcription.userNotes` is set on the row by exactly two call sites:
+**Code-level enforcement.** `Transcription.userNotes` is seeded from `MeetingRecordingOutput.userNotes` at exactly one call site, for a genuinely new row:
 
-1. `TranscriptionService.transcribeMeeting(...)` — called at finalize, reads `MeetingRecordingOutput.userNotes` which the recording service captured from the in-memory notes state at stop time
-2. `MeetingRecordingRecoveryService.completeRecovery(...)` — called at launch when a recoverable session has `notes` in its lock file; copies directly onto the row without involving any live VM
+1. `TranscriptionService.makeMeetingTranscriptionStub(...)` (used by `transcribeMeeting(...)`/`prepareMeetingTranscription(...)`) — called when a row is first created, reads `MeetingRecordingOutput.userNotes`, which the recording service captured from the in-memory notes state at stop time, or which crash recovery seeded from the recoverable session's lock file `notes`
+
+An already-known row's `userNotes` is canonical, including an explicit clear to nil/empty: `TranscriptionService.finalizeMeetingTranscription(...)` and `MeetingRecordingRecoveryService.completeRecovery(...)` both update an existing row without involving any live VM, and neither copies stale lock/recording notes back onto it.
 
 `MeetingNotesViewModel.notesText` is a single property bound exclusively to the `TextEditor` in `LiveNotesPaneView` via `$notesText`. The view model exposes no public mutator that writes to `notesText` from anywhere else. A future engineer who wants to insert AI-generated content into notes would have to either bypass `MeetingNotesViewModel` (caught in code review) or add a programmatic setter to it (which the type guards against by keeping the property `private(set)` for external readers). Either change is a visible signal that the invariant is being touched.
 

@@ -2,6 +2,7 @@ import Foundation
 
 public protocol AppRuntimePreferencesProtocol: Sendable {
     var processingMode: Dictation.ProcessingMode { get }
+    var spokenPunctuationEnabled: Bool { get }
     var dictationInsertionStyle: DictationInsertionStyle { get }
     var removeUmFiller: Bool { get }
     var voiceReturnTriggers: [String] { get }
@@ -22,6 +23,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var aiFormatterPrompt: String { get }
     var aiFormatterDictationPrompt: String { get }
     var transcriptAIContextMode: TranscriptAIContextMode { get }
+    var meetingAIOutputLanguagePolicy: MeetingAIOutputLanguagePolicy { get }
     var selectedMicrophoneDeviceUID: String? { get }
     var meetingAudioSourceMode: MeetingAudioSourceMode { get }
     var startMeetingsMuted: Bool { get }
@@ -29,6 +31,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var openAppAfterMeetingEnd: Bool { get }
     var notifyOnMeetingEnd: Bool { get }
     var pauseMediaDuringDictation: Bool { get }
+    var playDictationCaptureSounds: Bool { get }
     var escapeCancelsDictation: Bool { get }
     var preserveDiscardedDictations: Bool { get }
     var instantDictationEnabled: Bool { get }
@@ -493,6 +496,7 @@ public enum VoiceReturnTriggerPhrases: Sendable {
 public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProtocol, @unchecked Sendable {
     public static let defaultVoiceReturnTrigger = VoiceReturnTriggerPhrases.defaultTrigger
     public static let showIdlePillKey = "showIdlePill"
+    public static let dictationOverlayPlacementKey = "dictationOverlayPlacement"
     public static let showDiscoverKey = "showDiscover"
     public static let showMeetingRecordingPillKey = "showMeetingRecordingPill"
     /// Open the main window on the finished meeting when its transcription
@@ -509,6 +513,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let voiceReturnTriggerKey = "voiceReturnTrigger"
     public static let voiceReturnTriggersKey = "voiceReturnTriggers"
     public static let processingModeKey = "processingMode"
+    public static let spokenPunctuationEnabledKey = "spokenPunctuationEnabled"
     public static let dictationInsertionStyleKey = "dictationInsertionStyle"
     /// Clean processing strips standalone English hesitation `um` (default on).
     /// Portuguese and German speakers can turn this off; `um` is a real word.
@@ -553,15 +558,27 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     /// turned off individually (default empty).
     public static let aiFormatterDisabledSmartDefaultCategoriesKey = "aiFormatterDisabledSmartDefaultCategories"
     public static let transcriptAIContextModeKey = "transcriptAIContextMode"
+    public static let meetingAIOutputLanguagePolicyKey = "meetingAIOutputLanguagePolicy"
     public static let transcriptFontScaleKey = "com.macparakeet.transcriptFontScale"
     public static let selectedMicrophoneDeviceUIDKey = "selectedMicrophoneDeviceUID"
     public static let meetingAudioSourceModeKey = "meetingAudioSourceMode"
+    /// Consent for `macparakeet://meeting/...` links to start, stop, pause,
+    /// or resume meeting recording (default off). While on, any app or
+    /// website can send those links.
+    public static let meetingURLControlEnabledKey = "meetingURLControlEnabled"
+
+    public static func meetingURLControlEnabled(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: meetingURLControlEnabledKey) as? Bool ?? false
+    }
+
     /// Start microphone-capturing meetings muted (default off) until this
     /// setting is turned off. Unmute from the live panel; system-only
     /// capture ignores this.
     public static let startMeetingsMutedKey = "startMeetingsMuted"
     public static let meetingAutoStopEnabledKey = "meetingAutoStopEnabled"
     public static let pauseMediaDuringDictationKey = "pauseMediaDuringDictation"
+    /// Short start/stop cues when dictation capture is live (default off).
+    public static let playDictationCaptureSoundsKey = "playDictationCaptureSounds"
     public static let escapeCancelsDictationKey = "escapeCancelsDictation"
     public static let preserveDiscardedDictationsKey = "preserveDiscardedDictations"
     public static let instantDictationEnabledKey = "instantDictationEnabled"
@@ -576,6 +593,9 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     /// Play a chime (and, when backgrounded, post a banner) when a file/URL
     /// transcription or a batch finishes. Default on; opt-out in Settings.
     public static let notifyOnTranscriptionCompleteKey = "notifyOnTranscriptionComplete"
+    /// Transform IDs hidden from the menu-bar submenu. Missing key = show all
+    /// visible Transforms (issue #821 default).
+    public static let hiddenMenuBarTransformIDsKey = "hiddenMenuBarTransformIDs"
 
     private let defaults: UserDefaults
 
@@ -655,9 +675,43 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
         defaults.object(forKey: notifyOnMeetingEndKey) as? Bool ?? true
     }
 
+    public static func hiddenMenuBarTransformIDs(defaults: UserDefaults = .standard) -> Set<UUID> {
+        let raw = defaults.stringArray(forKey: hiddenMenuBarTransformIDsKey) ?? []
+        return Set(raw.compactMap(UUID.init(uuidString:)))
+    }
+
+    public static func isTransformVisibleInMenuBar(
+        _ id: UUID,
+        defaults: UserDefaults = .standard
+    ) -> Bool {
+        !hiddenMenuBarTransformIDs(defaults: defaults).contains(id)
+    }
+
+    public static func setTransformVisibleInMenuBar(
+        _ id: UUID,
+        visible: Bool,
+        defaults: UserDefaults = .standard
+    ) {
+        var hidden = hiddenMenuBarTransformIDs(defaults: defaults)
+        if visible {
+            hidden.remove(id)
+        } else {
+            hidden.insert(id)
+        }
+        defaults.set(hidden.map(\.uuidString).sorted(), forKey: hiddenMenuBarTransformIDsKey)
+    }
+
     public var processingMode: Dictation.ProcessingMode {
         let raw = defaults.string(forKey: Self.processingModeKey)
         return Dictation.ProcessingMode(rawValue: raw ?? Dictation.ProcessingMode.raw.rawValue) ?? .raw
+    }
+
+    public var spokenPunctuationEnabled: Bool {
+        Self.spokenPunctuationEnabled(defaults: defaults)
+    }
+
+    public static func spokenPunctuationEnabled(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: spokenPunctuationEnabledKey) as? Bool ?? true
     }
 
     public var dictationInsertionStyle: DictationInsertionStyle {
@@ -786,6 +840,10 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
         TranscriptAIContextMode.current(defaults: defaults)
     }
 
+    public var meetingAIOutputLanguagePolicy: MeetingAIOutputLanguagePolicy {
+        MeetingAIOutputLanguagePolicy.current(defaults: defaults)
+    }
+
     public var selectedMicrophoneDeviceUID: String? {
         AudioDeviceManager.normalizedUID(defaults.string(forKey: Self.selectedMicrophoneDeviceUIDKey))
     }
@@ -808,6 +866,14 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public var pauseMediaDuringDictation: Bool {
         defaults.object(forKey: Self.pauseMediaDuringDictationKey) as? Bool ?? false
+    }
+
+    public var playDictationCaptureSounds: Bool {
+        Self.playDictationCaptureSounds(defaults: defaults)
+    }
+
+    public static func playDictationCaptureSounds(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: playDictationCaptureSoundsKey) as? Bool ?? false
     }
 
     public var escapeCancelsDictation: Bool {

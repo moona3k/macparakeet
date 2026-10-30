@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-public struct TextSnippet: Codable, Identifiable, Sendable {
+public struct TextSnippet: Codable, Equatable, Identifiable, Sendable {
     public var id: UUID
     public var trigger: String
     public var expansion: String

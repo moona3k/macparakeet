@@ -269,6 +269,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private let writerFinalizationReportTransform:
         @Sendable (MeetingAudioStorageWriter.FinalizationReport) -> MeetingAudioStorageWriter.FinalizationReport
 
+    private let sourceAudioFrameCount: @Sendable (URL) throws -> AVAudioFramePosition
+
     private var currentSession: Session?
     /// Buffer-discard flag for pause/resume. Reset in `cleanupState`.
     private var paused = false
@@ -310,6 +312,17 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private var sourceStartupStates: [AudioSource: MeetingAudioCaptureSourceStartupState] = [:]
     private var writer: MeetingAudioStorageWriter?
     private var processingTask: Task<Void, Never>?
+    /// Live-preview samples waiting behind the durable writer. The capture
+    /// loop must not await preview ingest: that await is what let native PCM
+    /// pile up in the unbounded capture stream (#1199).
+    private let previewIngressMaxRetainedBytes: Int
+    private var previewIngress: MeetingPreviewIngressQueue
+    /// Test seam. Production leaves this nil so preview ingest has no extra
+    /// suspension point. Tests hold it to prove capture keeps writing while
+    /// one preview batch is in flight.
+    private let previewIngestDelay: (@Sendable () async -> Void)?
+    private var previewDrainActive = false
+    private var previewDrainTask: Task<Void, Never>?
     private var captureOrchestrator = CaptureOrchestrator()
     private var micConditioner: any MicConditioning = PassthroughMicConditioner()
     /// Reused across meetings so the Silero VAD model (CoreML) is loaded at most
@@ -424,6 +437,11 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 eventName: eventName
             )
         },
+        sourceAudioFrameCount: @escaping @Sendable (URL) throws -> AVAudioFramePosition = {
+            try AVAudioFile(forReading: $0).length
+        },
+        previewIngressMaxRetainedBytes: Int = MeetingPreviewIngressQueue.defaultMaxRetainedBytes,
+        previewIngestDelay: (@Sendable () async -> Void)? = nil,
         writerFinalizationReportTransform:
             @escaping @Sendable (
                 MeetingAudioStorageWriter.FinalizationReport
@@ -443,6 +461,12 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         self.wallClockNow = wallClockNow
         self.audioHostTimeNow = audioHostTimeNow
         self.cleanedMicrophoneReadinessScheduler = cleanedMicrophoneReadinessScheduler
+        self.sourceAudioFrameCount = sourceAudioFrameCount
+        self.previewIngressMaxRetainedBytes = previewIngressMaxRetainedBytes
+        self.previewIngress = MeetingPreviewIngressQueue(
+            maxRetainedBytes: previewIngressMaxRetainedBytes
+        )
+        self.previewIngestDelay = previewIngestDelay
         self.writerFinalizationReportTransform = writerFinalizationReportTransform
         self.liveChunkTranscriber = LiveChunkTranscriber(sttTranscriber: sttTranscriber)
         self.speechEngineSessionManager = sttTranscriber as? any SpeechEngineSessionManaging
@@ -817,6 +841,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         let folderURL = session.folderURL
         await audioCaptureService.stop()
         await drainProcessingTaskAfterCaptureStop()
+        await finishPreviewIngress()
         await liveChunkTranscriber.finishSession()
         let writer = self.writer
         self.writer = nil
@@ -925,6 +950,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         appendStopStage("capture_stop", startedAt: captureStopStartedAt)
         let drainStartedAt = Date()
         await drainProcessingTaskAfterCaptureStop()
+        await finishPreviewIngress()
         appendStopStage("processing_drain", startedAt: drainStartedAt)
         let writerFinalizeStartedAt = Date()
         let finalizedWriter = writer
@@ -964,6 +990,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                     session: session,
                     durationSeconds: captureElapsedDurationSeconds,
                     writerMetrics: writerMetrics,
+                    pendingSources: writerFinalization.timedOutSources,
                     captureFailed: true,
                     captureReport: nil
                 )
@@ -980,7 +1007,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         do {
             inputURLs = try existingSourceURLs(
                 for: session,
-                excluding: writerFinalization.timedOutSources
+                excluding: writerFinalization.timedOutSources,
+                writerMetrics: writerMetrics
             )
             appendStopStage("source_urls", startedAt: sourceURLsStartedAt)
         } catch {
@@ -991,6 +1019,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 outcome: "failure",
                 detail: "error_type=\(AudioCaptureDiagnostics.errorType(error))"
             )
+            await liveChunkTranscriber.finishSession()
+            await releaseSpeechEngineLease()
+            cleanupState()
             throw error
         }
         guard !inputURLs.isEmpty else {
@@ -999,6 +1030,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                     session: session,
                     durationSeconds: captureElapsedDurationSeconds,
                     writerMetrics: writerMetrics,
+                    pendingSources: writerFinalization.timedOutSources,
                     captureFailed: captureFailed,
                     captureReport: nil
                 )
@@ -1247,6 +1279,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 session: session,
                 durationSeconds: captureElapsedDurationSeconds,
                 writerMetrics: writerMetrics,
+                pendingSources: writerFinalization.timedOutSources,
                 captureFailed: captureFailed,
                 captureReport: captureReport
             )
@@ -1417,6 +1450,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
         await audioCaptureService.stop()
         await drainProcessingTaskAfterCaptureStop()
+        await discardPreviewIngress()
         await liveChunkTranscriber.cancelPendingTasks(waitForCancellation: true)
         await liveChunkTranscriber.finishSession()
         let finalizedWriter = writer
@@ -1546,13 +1580,15 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 )
                 if handling == .recordAndProcess {
                     latestLevels.microphone = microphoneLevel
-                    updateMicrophoneRms(with: latestLevels.microphone)
                     if let samples = AudioChunker.extractAndResample(from: recordingBuffer) {
-                        await ingestResampledSamples(
-                            samples,
+                        scheduleLivePreview(
+                            samples: samples,
                             source: .microphone,
-                            hostTime: time.isHostTimeValid ? time.hostTime : nil
+                            hostTime: time.isHostTimeValid ? time.hostTime : nil,
+                            bufferRms: microphoneLevel
                         )
+                    } else {
+                        updateMicrophoneRms(with: microphoneLevel)
                     }
                 }
             } catch {
@@ -1575,13 +1611,15 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                     writer?.metrics(for: .system).peakSampleMagnitude ?? 0
                 if handling == .recordAndProcess {
                     latestLevels.system = buffer.rmsLevel
-                    updateSystemRms(with: latestLevels.system)
                     if let samples = AudioChunker.extractAndResample(from: buffer) {
-                        await ingestResampledSamples(
-                            samples,
+                        scheduleLivePreview(
+                            samples: samples,
                             source: .system,
-                            hostTime: time.isHostTimeValid ? time.hostTime : nil
+                            hostTime: time.isHostTimeValid ? time.hostTime : nil,
+                            bufferRms: buffer.rmsLevel
                         )
+                    } else {
+                        updateSystemRms(with: buffer.rmsLevel)
                     }
                 }
             } catch {
@@ -1769,6 +1807,134 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         guard let service = await MeetingVADService.makeIfModelCached() else { return nil }
         sharedVADService = service
         return service
+    }
+
+    /// Hands preview samples to a single drain task. File writing has already
+    /// finished for this buffer, so a slow preview cannot retain the native
+    /// capture queue. One drain task preserves the chunker's single-caller
+    /// invariant across its VAD awaits.
+    private func scheduleLivePreview(
+        samples: [Float],
+        source: AudioSource,
+        hostTime: UInt64?,
+        bufferRms: Float
+    ) {
+        let droppedBefore = previewIngress.droppedBatchCount
+        let admitted = previewIngress.enqueue(
+            MeetingPreviewIngressQueue.Batch(
+                source: source,
+                samples: samples,
+                hostTime: hostTime,
+                bufferRms: bufferRms
+            )
+        )
+        guard admitted else {
+            if previewIngress.droppedBatchCount != droppedBefore {
+                notePreviewIngressDrop(source: source)
+            }
+            return
+        }
+        startPreviewDrainIfNeeded()
+    }
+
+    /// A refused preview copy is already in the source file. Tell the panel
+    /// once per drop streak so a stalled live transcript does not look current.
+    private func notePreviewIngressDrop(source: AudioSource) {
+        if previewIngress.droppedBatchCount == 1 || previewIngress.droppedBatchCount.isMultiple(of: 50) {
+            AudioCaptureDiagnostics.append(
+                "meeting_preview_ingress_dropped session=\(currentSession?.id.uuidString ?? "nil") source=\(source.rawValue) dropped_batches=\(previewIngress.droppedBatchCount) dropped_bytes=\(previewIngress.droppedBytes) retained_bytes=\(previewIngress.retainedBytes)"
+            )
+        }
+        guard currentSession?.supportsLiveChunkTranscription == true else { return }
+        guard !isTranscriptionLagging else { return }
+        isTranscriptionLagging = true
+        yieldTranscriptUpdate(transcriptAssembler.currentUpdate)
+        // The yield publishes the notice and clears the flag. Keep it set so
+        // the next real word still says preview is behind, then clears.
+        isTranscriptionLagging = true
+    }
+
+    private func startPreviewDrainIfNeeded() {
+        guard !previewDrainActive else { return }
+        previewDrainActive = true
+        // Detached so Stop's capture-drain timeout cannot cancel preview work
+        // that already has a durable copy. `finishPreviewIngress` waits for it.
+        previewDrainTask = Task.detached { [weak self] in
+            await self?.drainPreviewIngress()
+        }
+    }
+
+    private func drainPreviewIngress() async {
+        while let batch = previewIngress.dequeue() {
+            if let previewIngestDelay {
+                await previewIngestDelay()
+            }
+            switch batch.source {
+            case .microphone:
+                updateMicrophoneRms(with: batch.bufferRms)
+            case .system:
+                updateSystemRms(with: batch.bufferRms)
+            }
+            await ingestResampledSamples(
+                batch.samples,
+                source: batch.source,
+                hostTime: batch.hostTime
+            )
+        }
+        previewDrainActive = false
+        previewDrainTask = nil
+        if !previewIngress.isEmpty {
+            startPreviewDrainIfNeeded()
+        }
+    }
+
+    /// Cancel throws the recording away. Pending preview would be transcribed
+    /// and then deleted, so drop it. The batch already in flight has left the
+    /// queue; wait for that one so it cannot touch the next session.
+    private func discardPreviewIngress() async {
+        let droppedBefore = previewIngress.droppedBatchCount
+        previewIngress.discardPending()
+        if previewIngress.droppedBatchCount != droppedBefore {
+            AudioCaptureDiagnostics.append(
+                "meeting_preview_ingress_cancel_discarded session=\(currentSession?.id.uuidString ?? "nil") dropped_batches=\(previewIngress.droppedBatchCount) dropped_bytes=\(previewIngress.droppedBytes)"
+            )
+        }
+        while let previewDrainTask {
+            await previewDrainTask.value
+        }
+    }
+
+    /// Observation seam for tests that hold one preview batch in flight and
+    /// need to see the next batch waiting behind it.
+    func previewIngressRetainedBytes() async -> Int {
+        previewIngress.retainedBytes
+    }
+
+    /// After the capture stream has been fully written, finish the preview
+    /// tail when it is small. A large backlog is preview-only debt; dropping
+    /// it keeps Stop from replaying that debt through VAD. The byte cap is
+    /// the bound: Stop waits out at most that tail plus the one in-flight
+    /// batch, and it waits so the drain is idle before the next session.
+    private func finishPreviewIngress() async {
+        if previewIngress.retainedBytes > MeetingPreviewIngressQueue.stopDrainByteLimit {
+            let droppedBefore = previewIngress.droppedBatchCount
+            previewIngress.discardPending()
+            if previewIngress.droppedBatchCount != droppedBefore {
+                AudioCaptureDiagnostics.append(
+                    "meeting_preview_ingress_stop_discarded session=\(currentSession?.id.uuidString ?? "nil") dropped_batches=\(previewIngress.droppedBatchCount) dropped_bytes=\(previewIngress.droppedBytes)"
+                )
+            }
+        }
+        while previewDrainTask != nil || !previewIngress.isEmpty {
+            if previewDrainTask == nil {
+                startPreviewDrainIfNeeded()
+            }
+            if let previewDrainTask {
+                await previewDrainTask.value
+            } else {
+                break
+            }
+        }
     }
 
     private func ingestResampledSamples(
@@ -2023,31 +2189,61 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         return false
     }
 
+    private enum SourceAudioInspection {
+        case usable
+        case empty
+    }
+
     private func existingSourceURLs(
         for session: Session,
-        excluding pendingSources: Set<AudioSource>
+        excluding pendingSources: Set<AudioSource>,
+        writerMetrics: [AudioSource: MeetingAudioStorageWriter.SourceWriteMetrics?]
     ) throws -> [URL] {
-        // Preserve deterministic channel mapping for dual-source sessions:
-        // input[0] = microphone (L), input[1] = system (R).
-        let candidates = [session.microphoneAudioURL, session.systemAudioURL]
-        return try candidates.filter { url in
-            guard !pendingSources.contains(source(for: url)) else { return false }
-            guard fileManager.fileExists(atPath: url.path) else { return false }
-            let size = try fileManager.attributesOfItem(atPath: url.path)[.size] as? NSNumber
-            guard (size?.intValue ?? 0) > 0 else { return false }
-            return hasDecodableAudioFrames(at: url)
+        // Keep microphone (L), system (R) ordering. An inspection error from
+        // either source preserves the whole session, even with a usable sibling.
+        try [session.microphoneAudioURL, session.systemAudioURL].filter { url in
+            let source = source(for: url)
+            guard !pendingSources.contains(source) else { return false }
+            return try inspectSourceAudio(
+                at: url,
+                writtenFrames: (writerMetrics[source] ?? nil)?.writtenFrameCount
+            ) == .usable
         }
     }
 
-    private func hasDecodableAudioFrames(at url: URL) -> Bool {
+    private func inspectSourceAudio(at url: URL, writtenFrames: Int64?) throws -> SourceAudioInspection {
+        func provenEmpty() throws -> SourceAudioInspection {
+            guard writtenFrames == 0 else {
+                throw MeetingAudioError.storageFailed(
+                    "Recorded audio could not be verified. The recording was kept for recovery."
+                )
+            }
+            return .empty
+        }
         do {
-            let file = try AVAudioFile(forReading: url)
-            return file.length > 0
+            let attributes: [FileAttributeKey: Any]
+            do {
+                attributes = try fileManager.attributesOfItem(atPath: url.path)
+            } catch let error as NSError
+                where error.domain == NSCocoaErrorDomain
+                && (error.code == NSFileNoSuchFileError || error.code == NSFileReadNoSuchFileError)
+            {
+                return try provenEmpty()
+            }
+            guard let size = attributes[.size] as? NSNumber else {
+                throw MeetingAudioError.storageFailed("Recorded audio size could not be verified.")
+            }
+            if size.int64Value == 0 { return try provenEmpty() }
+            let frames = try sourceAudioFrameCount(url)
+            if frames > 0 { return .usable }
+            return try provenEmpty()
         } catch {
             logger.error(
                 "meeting_recorded_source_audio_inspect_failed error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
-            return false
+            throw MeetingAudioError.storageFailed(
+                "Recorded audio could not be verified. The recording was kept for recovery."
+            )
         }
     }
 
@@ -2195,6 +2391,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         session: Session,
         durationSeconds: TimeInterval,
         writerMetrics: [AudioSource: MeetingAudioStorageWriter.SourceWriteMetrics?],
+        pendingSources: Set<AudioSource>,
         captureFailed: Bool,
         captureReport: MeetingCaptureReport?
     ) -> String {
@@ -2214,6 +2411,11 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         func statusLabel(for source: AudioSource) -> String {
             captureReport?.source(for: source)?.status.rawValue ?? "unknown"
         }
+        func sourceSizeLabel(for source: AudioSource, at url: URL) -> String {
+            // Diagnostics must honor the same writer ownership as playback.
+            guard !pendingSources.contains(source) else { return "pending" }
+            return String(fileSize(at: url))
+        }
         func levelLabel(_ level: Float) -> String {
             String(format: "%.3f", level)
         }
@@ -2230,8 +2432,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             "effective_mic_mode=\(captureHealthMetrics.effectiveMicMode?.rawValue ?? "unknown")",
             "mic_first_buffer=\(captureHealthMetrics.microphoneFirstBufferSeen)",
             "system_first_buffer=\(captureHealthMetrics.systemFirstBufferSeen)",
-            "mic_bytes=\(fileSize(at: session.microphoneAudioURL))",
-            "system_bytes=\(fileSize(at: session.systemAudioURL))",
+            "mic_bytes=\(sourceSizeLabel(for: .microphone, at: session.microphoneAudioURL))",
+            "system_bytes=\(sourceSizeLabel(for: .system, at: session.systemAudioURL))",
             "mixed_bytes=\(fileSize(at: session.mixedAudioURL))",
             "mic_frames=\(microphoneMetrics?.writtenFrameCount ?? 0)",
             "system_frames=\(systemMetrics?.writtenFrameCount ?? 0)",
@@ -2440,6 +2642,11 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         syncLagWarningActive = false
         lastLoggedSyncLagBucketMs = nil
         transcriptAssembler.reset()
+        previewIngress = MeetingPreviewIngressQueue(
+            maxRetainedBytes: previewIngressMaxRetainedBytes
+        )
+        previewDrainActive = false
+        previewDrainTask = nil
         isTranscriptionLagging = false
         captureFailed = false
         transcriptContinuation?.finish()

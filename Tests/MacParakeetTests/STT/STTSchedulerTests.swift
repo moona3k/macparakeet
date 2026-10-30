@@ -53,16 +53,10 @@ final class STTSchedulerTests: XCTestCase {
         let busyAvailability = await scheduler.engineSwitchAvailability()
         XCTAssertEqual(busyAvailability, .transcribing)
 
-        do {
-            _ = try await scheduler.transcribe(audioPath: "dictation", job: .dictation)
-            XCTFail("Expected live dictation to occupy the interactive slot")
-        } catch let error as STTError {
-            if case .engineBusy = error {
-            } else {
-                XCTFail("Expected engineBusy, got \(error)")
-            }
-        } catch {
-            XCTFail("Unexpected error: \(error)")
+        // A recorded-file dictation job waits for the live session instead of
+        // failing, so its caller never loses the WAV to engineBusy (#1131).
+        let dictationTask = Task {
+            try await scheduler.transcribe(audioPath: "dictation", job: .dictation)
         }
 
         let meetingLiveResult = try await scheduler.transcribe(
@@ -70,6 +64,8 @@ final class STTSchedulerTests: XCTestCase {
             job: .meetingLiveChunk
         )
         XCTAssertEqual(meetingLiveResult.text, "meetingLiveChunk:meeting-live")
+        let startedWhileLive = await runtime.startedPaths()
+        XCTAssertEqual(startedWhileLive, ["meeting-live"])
 
         try await scheduler.appendLiveDictationSamples([0.1, 0.2], sessionID: sessionID)
         let result = try await scheduler.finishLiveDictationTranscription(sessionID: sessionID)
@@ -78,8 +74,103 @@ final class STTSchedulerTests: XCTestCase {
         XCTAssertEqual(result.engine, .nemotron)
         let liveDictationSamples = await runtime.liveDictationSamples
         XCTAssertEqual(liveDictationSamples, [[0.1, 0.2]])
+        let dictationResult = try await dictationTask.value
+        XCTAssertEqual(dictationResult.text, "dictation:dictation")
         let finalAvailability = await scheduler.engineSwitchAvailability()
         XCTAssertEqual(finalAvailability, .available)
+    }
+
+    func testDictationJobQueuedBehindStalledLiveFinishRunsWhenItReturns() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.setCurrentSelection(SpeechEngineSelection(engine: .nemotron))
+        await runtime.blockNextLiveFinish()
+        let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 8)
+
+        let sessionID = try await scheduler.beginLiveDictationTranscription { _ in }
+        let finishTask = Task {
+            try await scheduler.finishLiveDictationTranscription(sessionID: sessionID)
+        }
+        await runtime.waitForLiveFinishStart()
+
+        let dictationTask = Task {
+            try await scheduler.transcribe(audioPath: "dictation", job: .dictation)
+        }
+        try await Task.sleep(for: .milliseconds(50))
+        let startedWhileFinishing = await runtime.startedPaths()
+        XCTAssertEqual(startedWhileFinishing, [], "The held finish still owns the interactive lane")
+
+        // A new live session must not claim the lane ahead of the queued job.
+        do {
+            _ = try await scheduler.beginLiveDictationTranscription { _ in }
+            XCTFail("Expected the retiring session to block a new live session")
+        } catch let error as STTError {
+            XCTAssertEqual(error.localizedDescription, STTError.engineBusy.localizedDescription)
+        }
+
+        await runtime.resumeLiveFinish()
+        _ = try await finishTask.value
+        let dictationResult = try await dictationTask.value
+        XCTAssertEqual(dictationResult.text, "dictation:dictation")
+    }
+
+    func testDictationJobQueuedBehindStalledLiveCancelRunsWhenItReturns() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.setCurrentSelection(SpeechEngineSelection(engine: .nemotron))
+        await runtime.blockNextLiveCancel()
+        let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 8)
+
+        let sessionID = try await scheduler.beginLiveDictationTranscription { _ in }
+        let cancelTask = Task {
+            await scheduler.cancelLiveDictationTranscription(sessionID: sessionID)
+        }
+        await runtime.waitForLiveCancelStart()
+
+        let dictationTask = Task {
+            try await scheduler.transcribe(audioPath: "dictation", job: .dictation)
+        }
+        try await Task.sleep(for: .milliseconds(50))
+        let startedWhileCancelling = await runtime.startedPaths()
+        XCTAssertEqual(startedWhileCancelling, [])
+
+        await runtime.resumeLiveCancel()
+        await cancelTask.value
+        let dictationResult = try await dictationTask.value
+        XCTAssertEqual(dictationResult.text, "dictation:dictation")
+        let finalAvailability = await scheduler.engineSwitchAvailability()
+        XCTAssertEqual(finalAvailability, .available)
+    }
+
+    func testLiveCancelKeepsLaneReservedUntilInFlightAppendReturns() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.setCurrentSelection(SpeechEngineSelection(engine: .nemotron))
+        await runtime.blockNextLiveAppend()
+        let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 8)
+
+        let sessionID = try await scheduler.beginLiveDictationTranscription { _ in }
+        let appendTask = Task {
+            try await scheduler.appendLiveDictationSamples([0.1], sessionID: sessionID)
+        }
+        await runtime.waitForLiveAppendStart()
+
+        // Native cancel returns promptly, but the append is still inside the
+        // runtime. The next interactive job must not share the manager with it.
+        let cancelTask = Task {
+            await scheduler.cancelLiveDictationTranscription(sessionID: sessionID)
+        }
+        let dictationTask = Task {
+            try await scheduler.transcribe(audioPath: "dictation", job: .dictation)
+        }
+        let cancelReachedRuntime = await waitUntilLiveCancelCount(runtime: runtime, count: 1)
+        XCTAssertTrue(cancelReachedRuntime)
+        try await Task.sleep(for: .milliseconds(50))
+        let startedWhileAppendInFlight = await runtime.startedPaths()
+        XCTAssertEqual(startedWhileAppendInFlight, [])
+
+        await runtime.resumeLiveAppend()
+        try await appendTask.value
+        await cancelTask.value
+        let dictationResult = try await dictationTask.value
+        XCTAssertEqual(dictationResult.text, "dictation:dictation")
     }
 
     func testLiveDictationBeginAllowsParakeetSelectionForUnifiedRuntime() async throws {
@@ -1194,6 +1285,19 @@ final class STTSchedulerTests: XCTestCase {
         _ = try await blockerTask.value
     }
 
+    private func waitUntilLiveCancelCount(
+        runtime: MockSTTRuntime,
+        count: Int,
+        timeout: Duration = .seconds(2)
+    ) async -> Bool {
+        let start = ContinuousClock.now
+        while await runtime.liveCancelCallCount < count {
+            if start.duration(to: .now) > timeout { return false }
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        return true
+    }
+
     private func waitForStartedPaths(
         runtime: MockSTTRuntime,
         count: Int,
@@ -1478,6 +1582,13 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     private var liveDictationSessionID: UUID?
     private(set) var liveDictationSamples: [[Float]] = []
     private(set) var liveCancelCallCount = 0
+    private var shouldBlockNextLiveCancel = false
+    private var shouldBlockNextLiveAppend = false
+    private var liveAppendContinuation: CheckedContinuation<Void, Never>?
+    private var liveAppendStartContinuation: CheckedContinuation<Void, Never>?
+    private var liveAppendStartedCount = 0
+    private var liveCancelContinuation: CheckedContinuation<Void, Never>?
+    private var liveCancelStartContinuation: CheckedContinuation<Void, Never>?
     private var shouldBlockNextLiveFinish = false
     private var liveFinishContinuation: CheckedContinuation<Void, Never>?
     private var liveFinishStartContinuation: CheckedContinuation<Void, Never>?
@@ -1594,6 +1705,31 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
             throw STTLiveDictationTranscriptionError.sessionNotActive
         }
         liveDictationSamples.append(samples)
+        liveAppendStartContinuation?.resume()
+        liveAppendStartContinuation = nil
+        liveAppendStartedCount += 1
+        if shouldBlockNextLiveAppend {
+            shouldBlockNextLiveAppend = false
+            await withCheckedContinuation { continuation in
+                liveAppendContinuation = continuation
+            }
+        }
+    }
+
+    func blockNextLiveAppend() {
+        shouldBlockNextLiveAppend = true
+    }
+
+    func waitForLiveAppendStart() async {
+        guard liveAppendStartedCount == 0 else { return }
+        await withCheckedContinuation { continuation in
+            liveAppendStartContinuation = continuation
+        }
+    }
+
+    func resumeLiveAppend() {
+        liveAppendContinuation?.resume()
+        liveAppendContinuation = nil
     }
 
     func finishLiveDictationTranscription(sessionID: UUID) async throws -> STTResult {
@@ -1616,7 +1752,31 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     func cancelLiveDictationTranscription(sessionID: UUID) async {
         guard liveDictationSessionID == sessionID else { return }
         liveCancelCallCount += 1
+        liveCancelStartContinuation?.resume()
+        liveCancelStartContinuation = nil
+        if shouldBlockNextLiveCancel {
+            shouldBlockNextLiveCancel = false
+            await withCheckedContinuation { continuation in
+                liveCancelContinuation = continuation
+            }
+        }
         liveDictationSessionID = nil
+    }
+
+    func blockNextLiveCancel() {
+        shouldBlockNextLiveCancel = true
+    }
+
+    func waitForLiveCancelStart() async {
+        guard liveCancelCallCount == 0 else { return }
+        await withCheckedContinuation { continuation in
+            liveCancelStartContinuation = continuation
+        }
+    }
+
+    func resumeLiveCancel() {
+        liveCancelContinuation?.resume()
+        liveCancelContinuation = nil
     }
 
     func blockNextLiveFinish() {

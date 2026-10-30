@@ -303,7 +303,7 @@ struct CalendarSettingsView: View {
     /// the notify default, matching `modeBinding`'s collapsing.
     private var modeDetail: String {
         viewModel.calendarAutoStartMode == .autoStart
-            ? "Shows a 5-second cancellable countdown, then starts recording. You can keep the recording past the meeting end."
+            ? "Shows a 5-second countdown you can cancel, then starts recording. You can keep recording after the meeting ends."
             : "Quietly notifies you before each meeting starts."
     }
 
@@ -364,7 +364,7 @@ struct CalendarSettingsView: View {
     private var includedCalendarsRow: some View {
         DisclosureGroup(isExpanded: $calendarsExpanded) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Uncheck calendars to ignore (personal calendars, holidays, etc.).")
+                Text("Uncheck calendars to ignore, such as personal calendars or holidays.")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.secondary)
 

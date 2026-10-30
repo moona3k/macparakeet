@@ -1,0 +1,20 @@
+<section class="mp-release-section">
+  <h2>Fixed in 0.8.9</h2>
+  <p>A small follow-up to 0.8.8 for clearer AI setup and saved-key handling.</p>
+  <ul>
+    <li>Turning AI off keeps saved API keys. Remove an unused key explicitly in AI Setup.</li>
+    <li>Use Apple Intelligence for Dictation &amp; cleanup with Default AI set to None. Summaries, chat, and Transforms require another provider because Apple's model has a small context window.</li>
+    <li>See each task's provider or Off. Prompt settings follow the provider assigned to that task.</li>
+  </ul>
+  <p><strong>Previously selected Apple Intelligence?</strong> Check Settings → AI Setup after updating. An old Apple default is cleared; an old Apple analysis override falls back to Default AI. Saved keys remain. Choose Apple Intelligence under Dictation &amp; cleanup to use it there.</p>
+
+  <h3>Also included from 0.8.8</h3>
+  <ul>
+    <li>Retry failed dictations from History, with more reliable Fn shortcuts and rapid restarts.</li>
+    <li>Edit transcripts and saved AI results, regenerate in place, and browse a faster Library.</li>
+    <li>Choose separate AI models for cleanup and analysis, and choose from more output languages.</li>
+    <li>Try the optional Orukeet speech-model preview and Nemotron automatic speaker detection. Additional model downloads may be needed.</li>
+  </ul>
+  <p>Requires Apple Silicon and macOS 14.2+. Apple Intelligence requires macOS 26+ and enabled system models.</p>
+  <p><a href="https://github.com/moona3k/macparakeet/releases/tag/v0.8.9">0.8.9 release notes and CLI compatibility</a> · <a href="https://github.com/moona3k/macparakeet/releases/tag/v0.8.8">Full 0.8.8 notes</a></p>
+</section>

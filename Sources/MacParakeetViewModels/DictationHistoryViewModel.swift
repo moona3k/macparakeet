@@ -168,14 +168,19 @@ public final class DictationHistoryViewModel {
     }
 
     private var dictationRepo: DictationRepositoryProtocol?
+    private var retryFailedDictation: (@Sendable (UUID) async throws -> Void)?
     private var audioPlayer: AVAudioPlayer?
     private var playbackDelegate: PlaybackDelegate?
     private var playbackTimerTask: Task<Void, Never>?
 
     public init() {}
 
-    public func configure(dictationRepo: DictationRepositoryProtocol) {
+    public func configure(
+        dictationRepo: DictationRepositoryProtocol,
+        retryFailedDictation: (@Sendable (UUID) async throws -> Void)? = nil
+    ) {
         self.dictationRepo = dictationRepo
+        self.retryFailedDictation = retryFailedDictation
         loadDictations()
     }
 
@@ -365,6 +370,40 @@ public final class DictationHistoryViewModel {
             try? await Task.sleep(for: .seconds(1.5))
             guard !Task.isCancelled else { return }
             self.copiedDictationId = nil
+        }
+    }
+
+    // MARK: - Failed transcription retry
+
+    /// Rows whose History retry is in flight. The row shows progress and its
+    /// Retry button is disabled until the attempt settles.
+    public private(set) var retryingDictationIDs: Set<UUID> = []
+
+    /// True for a failed take that still has its recording.
+    public func canRetryTranscription(for dictation: Dictation) -> Bool {
+        retryFailedDictation != nil && dictation.status == .error && dictation.audioPath != nil
+    }
+
+    public func retryTranscription(for dictation: Dictation) {
+        guard canRetryTranscription(for: dictation),
+            let retryFailedDictation,
+            !retryingDictationIDs.contains(dictation.id)
+        else { return }
+        if playingDictationId == dictation.id {
+            // A successful retry can remove the recording while it plays.
+            stopPlayback()
+        }
+        let id = dictation.id
+        retryingDictationIDs.insert(id)
+        Task {
+            do {
+                try await retryFailedDictation(id)
+            } catch {
+                // The service stores the new error on the row for display.
+                logger.error("Failed to retry dictation \(id): \(error.localizedDescription)")
+            }
+            retryingDictationIDs.remove(id)
+            loadDictations()
         }
     }
 

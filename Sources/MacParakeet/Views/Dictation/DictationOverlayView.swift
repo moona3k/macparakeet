@@ -242,6 +242,11 @@ enum DictationOverlayChrome {
 
 /// The dictation overlay — compact dark capsule during dictation, wider card for errors.
 struct DictationOverlayView: View {
+    /// Pill shape change between states. On a push-to-talk release the pill
+    /// starts collapsing when the stop tail begins, so this should cover the
+    /// tail and land about when the stop does.
+    static let stateTransitionSeconds: Double = 0.25
+
     @Bindable var viewModel: DictationOverlayViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -264,29 +269,23 @@ struct DictationOverlayView: View {
     }
 
     var body: some View {
+        // Stacked outward from the pill, so a top-anchored overlay mirrors
+        // the bottom layout: tooltip farthest from the pill, pill on the edge.
         VStack(spacing: 4) {
-            // Tooltip — changes per hovered element via NSTrackingArea
-            tooltipLabel
-                .frame(maxWidth: .infinity, alignment: tooltipAlignment)
-                .padding(.horizontal, 30)
-                .opacity(viewModel.isHovered && viewModel.hoverTooltip != nil ? 1 : 0)
-                .animation(.easeInOut(duration: 0.15), value: viewModel.isHovered)
-                .animation(.easeInOut(duration: 0.1), value: viewModel.hoverTooltip)
-                .frame(height: 36)
-
-            // Content with state-appropriate shape
-            if let caption = viewModel.processingLoadCaption {
-                LoadingCaptionView(caption: caption)
-                    .transition(LoadingCaptionView.transition(reduceMotion: reduceMotion))
-                    .padding(.bottom, 2)
+            if viewModel.anchorsToTop {
+                overlayContent
+                liveTranscriptPreviewPanel
+                loadingCaption
+                hoverTooltipRow
+            } else {
+                hoverTooltipRow
+                loadingCaption
+                liveTranscriptPreviewPanel
+                overlayContent
             }
-
-            liveTranscriptPreviewPanel
-
-            overlayContent
         }
-        .padding(.bottom, 8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .padding(viewModel.anchorsToTop ? .top : .bottom, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: viewModel.anchorsToTop ? .top : .bottom)
         .animation(.easeInOut(duration: 0.22), value: viewModel.processingLoadCaption)
         .onChange(of: viewModel.pillStateKey) { _, newKey in
             handlePillStateChange(to: newKey)
@@ -383,7 +382,7 @@ struct DictationOverlayView: View {
                         .overlay(NoSpeechLightDrift(active: isNoSpeechExpanded))
                         .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
                 )
-                .animation(.easeInOut(duration: 0.25), value: viewModel.pillStateKey)
+                .animation(.easeInOut(duration: Self.stateTransitionSeconds), value: viewModel.pillStateKey)
                 .animation(.easeOut(duration: 0.45), value: noSpeechExpanded)
         }
     }
@@ -432,7 +431,7 @@ struct DictationOverlayView: View {
                 EmptyView()
             }
         }
-        .animation(.easeInOut(duration: 0.25), value: viewModel.pillStateKey)
+        .animation(.easeInOut(duration: Self.stateTransitionSeconds), value: viewModel.pillStateKey)
     }
 
     // MARK: - Ready State
@@ -604,7 +603,11 @@ struct DictationOverlayView: View {
             // changes live in Settings) instead of snapping between heights.
             .animation(.easeInOut(duration: 0.18), value: viewportHeight)
             .animation(.easeInOut(duration: 0.2), value: viewModel.previewTextSize)
-            .transition(.move(edge: .bottom).combined(with: .opacity).animation(.easeInOut(duration: 0.16)))
+            .transition(
+                .move(edge: viewModel.anchorsToTop ? .top : .bottom)
+                    .combined(with: .opacity)
+                    .animation(.easeInOut(duration: 0.16))
+            )
         }
     }
 
@@ -929,6 +932,28 @@ struct DictationOverlayView: View {
         let title = "Something Went Wrong"
         let subtitle = message.count > 60 ? String(message.prefix(57)) + "..." : message
         return (title, subtitle)
+    }
+
+    /// Fixed-height hover tooltip slot, aligned over the hovered button.
+    private var hoverTooltipRow: some View {
+        tooltipLabel
+            .frame(maxWidth: .infinity, alignment: tooltipAlignment)
+            .padding(.horizontal, 30)
+            .opacity(viewModel.isHovered && viewModel.hoverTooltip != nil ? 1 : 0)
+            .animation(.easeInOut(duration: 0.15), value: viewModel.isHovered)
+            .animation(.easeInOut(duration: 0.1), value: viewModel.hoverTooltip)
+            .frame(height: 36)
+    }
+
+    @ViewBuilder
+    private var loadingCaption: some View {
+        if let caption = viewModel.processingLoadCaption {
+            LoadingCaptionView(caption: caption)
+                .transition(
+                    LoadingCaptionView.transition(reduceMotion: reduceMotion, anchorsToTop: viewModel.anchorsToTop)
+                )
+                .padding(viewModel.anchorsToTop ? .top : .bottom, 2)
+        }
     }
 
     /// Tooltip bubble with dark background — readable over any content

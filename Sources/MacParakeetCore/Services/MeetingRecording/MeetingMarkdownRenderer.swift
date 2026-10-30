@@ -278,6 +278,11 @@ public struct MeetingMarkdownRenderer: Sendable {
         }
 
         let cues = TranscriptCueBuilder.build(from: transcription)
+        if transcription.transcriptTextAlignment == .segment, cues.isEmpty {
+            let text = transcription.cleanTranscript?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return (text, false)
+        }
         let paragraphs = speakerParagraphs(from: cues, speakers: transcription.speakers)
         guard !paragraphs.isEmpty else {
             return (preferredTranscriptText(transcription), false)

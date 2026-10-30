@@ -142,7 +142,7 @@ struct MeetingSplitSheetView: View {
                     ForEach(Array(editing.partTitles.enumerated()), id: \.offset) { index, title in
                         partRow(index: index, title: title, editing: editing)
                         if index < editing.cutPointsMs.count {
-                            boundaryRow(cutIndex: index, editing: editing)
+                            boundaryRow(cutIndex: index)
                         }
                     }
                 }
@@ -159,6 +159,7 @@ struct MeetingSplitSheetView: View {
                         .font(DesignSystem.Typography.bodySmall)
                         .foregroundStyle(DesignSystem.Colors.errorRed)
                         .accessibilityLabel("Error: \(validationError)")
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 explanationText
@@ -197,7 +198,7 @@ struct MeetingSplitSheetView: View {
         }
     }
 
-    private func boundaryRow(cutIndex: Int, editing: MeetingSplitViewModel.EditingState) -> some View {
+    private func boundaryRow(cutIndex: Int) -> some View {
         HStack(spacing: DesignSystem.Spacing.sm) {
             Text("Split at")
                 .font(DesignSystem.Typography.bodySmall)
@@ -213,10 +214,17 @@ struct MeetingSplitSheetView: View {
             .accessibilityLabel("Start time for part \(cutIndex + 2)")
             Spacer()
             Button("Use current position") {
-                viewModel.updateCut(at: cutIndex, toMs: player.currentTimeMs)
+                viewModel.useCurrentPosition(at: cutIndex, toMs: player.currentTimeMs)
             }
-            .parakeetAction(.subtle)
-            .accessibilityHint("Sets this boundary to the current playback position")
+            .parakeetAction(.secondary)
+            .disabled(!viewModel.canUseCurrentPosition(at: cutIndex, toMs: player.currentTimeMs))
+            .help(
+                "Choose a different playback time inside the recording, keeping splits in order. Complete other split times first."
+            )
+            .accessibilityLabel("Use current position for split \(cutIndex + 1)")
+            .accessibilityHint(
+                "Choose a different playback time inside the recording, keeping splits in order. Complete other split times first."
+            )
         }
     }
 

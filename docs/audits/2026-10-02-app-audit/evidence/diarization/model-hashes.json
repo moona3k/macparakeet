@@ -1,0 +1,152 @@
+[
+  {
+    "path": "speaker-diarization/.fluidaudio-revision",
+    "bytes": 41,
+    "sha256": "1f6ae38637c86e0998be2d231a1431a5a3c37010e9337b682e635cd5c147ef7a"
+  },
+  {
+    "path": "speaker-diarization/Embedding.mlmodelc/analytics/coremldata.bin",
+    "bytes": 243,
+    "sha256": "8d6706436639b53830b4dbe8aaf9c9a843f7f582d63e16f3cb8bb7c6ccd58682"
+  },
+  {
+    "path": "speaker-diarization/Embedding.mlmodelc/coremldata.bin",
+    "bytes": 704,
+    "sha256": "4a705bac27d151d9642f37609296042a15602a42253039e0921dc9e75da7e004"
+  },
+  {
+    "path": "speaker-diarization/Embedding.mlmodelc/metadata.json",
+    "bytes": 2818,
+    "sha256": "1854371eb6b438fb8aeac96afb45c999af7902581c06afdfcd7ff3cb1ce66be5"
+  },
+  {
+    "path": "speaker-diarization/Embedding.mlmodelc/model.mil",
+    "bytes": 78432,
+    "sha256": "22fa958aef72a561c21f874a07cbdcd30fdf40ee961c0bc2fb67c119273b46d3"
+  },
+  {
+    "path": "speaker-diarization/Embedding.mlmodelc/weights/weight.bin",
+    "bytes": 13412288,
+    "sha256": "99356b2985b8d43880a657024d941d450b38820451ccff903f76ed4e52d1868b"
+  },
+  {
+    "path": "speaker-diarization/FBank.mlmodelc/analytics/coremldata.bin",
+    "bytes": 243,
+    "sha256": "0e8bd3a8b82ac123580989f490e4d9245127c535857630b543311268accc3f0a"
+  },
+  {
+    "path": "speaker-diarization/FBank.mlmodelc/coremldata.bin",
+    "bytes": 853,
+    "sha256": "57ac436bb0671cbb5527a339134d695f752eb77f7a18966b93c6835335595759"
+  },
+  {
+    "path": "speaker-diarization/FBank.mlmodelc/metadata.json",
+    "bytes": 3409,
+    "sha256": "2623785f5d186893b82d01e84aa33a7704ef763c3309e02055f22dc9d871ce9a"
+  },
+  {
+    "path": "speaker-diarization/FBank.mlmodelc/model.mil",
+    "bytes": 15667,
+    "sha256": "27aaeb21569e81bdbe2eef87789f50a37cfea800039bd134448a9417de2f30ed"
+  },
+  {
+    "path": "speaker-diarization/FBank.mlmodelc/weights/weight.bin",
+    "bytes": 1776896,
+    "sha256": "9e83fdd3ea78064b078069e4d9141603c61c47a27fd19e7e3142ff7476f8db36"
+  },
+  {
+    "path": "speaker-diarization/PldaRho.mlmodelc/analytics/coremldata.bin",
+    "bytes": 243,
+    "sha256": "8940ea6044dbcbefa22da8cc41e0b485e1fb5ed89aecaf37c6e0c483a97ddcd7"
+  },
+  {
+    "path": "speaker-diarization/PldaRho.mlmodelc/coremldata.bin",
+    "bytes": 763,
+    "sha256": "4d9741477f721c79b09fcdfe455110c4b7d4272e2de3496bf1729d966d3ee418"
+  },
+  {
+    "path": "speaker-diarization/PldaRho.mlmodelc/metadata.json",
+    "bytes": 2749,
+    "sha256": "b314cf25a93e46b4076883a6f5a2f8848b73c3851bd9d36074d067f35a1c7945"
+  },
+  {
+    "path": "speaker-diarization/PldaRho.mlmodelc/model.mil",
+    "bytes": 7613,
+    "sha256": "83aee2e5310d19b5f202aea97d07a0e12102556d1b32ef3ed08b36f7f9725041"
+  },
+  {
+    "path": "speaker-diarization/PldaRho.mlmodelc/weights/weight.bin",
+    "bytes": 200192,
+    "sha256": "80f7d229202636d372428c90596f11a91545f07da77259f07153aaf225914a36"
+  },
+  {
+    "path": "speaker-diarization/Segmentation.mlmodelc/analytics/coremldata.bin",
+    "bytes": 243,
+    "sha256": "64265f8e7ad41a5f68d630c15288c2499cca5892ad49e20096819cdeac004cdb"
+  },
+  {
+    "path": "speaker-diarization/Segmentation.mlmodelc/coremldata.bin",
+    "bytes": 812,
+    "sha256": "ea51481b8bd3e496ad3cf16f066ddaa37f20e8772eaac76b3393c28de20e06bc"
+  },
+  {
+    "path": "speaker-diarization/Segmentation.mlmodelc/metadata.json",
+    "bytes": 3410,
+    "sha256": "88dbf0b07208fe142e1729c2b4c974ad3599fcb2ae5d5f18fce782b225384124"
+  },
+  {
+    "path": "speaker-diarization/Segmentation.mlmodelc/model.mil",
+    "bytes": 43063,
+    "sha256": "d37e4ce30b406a6b34f765f769b9baed3178cc0c2b2e299c641daa43a052dd3f"
+  },
+  {
+    "path": "speaker-diarization/Segmentation.mlmodelc/weights/weight.bin",
+    "bytes": 5959360,
+    "sha256": "c3189a64946c75bc24fcb98afe89ad78c52bdbadfdf65e857fb1b81e2cc9fbb2"
+  },
+  {
+    "path": "speaker-diarization/config.json",
+    "bytes": 2,
+    "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+  },
+  {
+    "path": "speaker-diarization/plda-parameters.json",
+    "bytes": 89416,
+    "sha256": "38ee28d4269c076cef254ee760bbd811f0738a92e0f01f9699ad372828c5de8f"
+  },
+  {
+    "path": "speaker-diarization/provenance.json",
+    "bytes": 10048,
+    "sha256": "0353430db062715c411ba32e66cb435b9caee2662bccdb298f9e5d1bae760872"
+  },
+  {
+    "path": "speaker-diarization/xvector-transform.json",
+    "bytes": 177499,
+    "sha256": "f7cd5cc16e63e2d89db052a23018ecfc47a311998ed1e9e39838fbac65048688"
+  },
+  {
+    "path": "nemotron-diarization/1b0b133f6f8820292010afd776d8f9fbc9fca17e/fast128/Nemotron3Diarizer_fast128.mlmodelc/analytics/coremldata.bin",
+    "bytes": 243,
+    "sha256": "a71e06616a3ae7bddef06ce5dfc7fe523a286e489f63a8da2fc4f1e940d560a4"
+  },
+  {
+    "path": "nemotron-diarization/1b0b133f6f8820292010afd776d8f9fbc9fca17e/fast128/Nemotron3Diarizer_fast128.mlmodelc/coremldata.bin",
+    "bytes": 758,
+    "sha256": "ebcca7245d8d774305752b9f2b79433ad1858f8a06df3b326e0ae6305d981d25"
+  },
+  {
+    "path": "nemotron-diarization/1b0b133f6f8820292010afd776d8f9fbc9fca17e/fast128/Nemotron3Diarizer_fast128.mlmodelc/model.mil",
+    "bytes": 502794,
+    "sha256": "e7c029a46d9f327bec4c47fc34e5d32ee2cec9ce596950af0c403d05146b4ead"
+  },
+  {
+    "path": "nemotron-diarization/1b0b133f6f8820292010afd776d8f9fbc9fca17e/fast128/Nemotron3Diarizer_fast128.mlmodelc/weights/weight.bin",
+    "bytes": 198590592,
+    "sha256": "e8c90d2d0e16787a420de6805fd5b7a95c116fac0163208b5bc4d8a9ae459ca4"
+  },
+  {
+    "path": "nemotron-diarization/1b0b133f6f8820292010afd776d8f9fbc9fca17e/fast128/learnable_sil_emb.bin",
+    "bytes": 2048,
+    "sha256": "d4417b3c0eabdf7c47032fac2b5b5a7ee83d819a6ddda8fd8eaf74e2b5cc4ac7"
+  }
+]

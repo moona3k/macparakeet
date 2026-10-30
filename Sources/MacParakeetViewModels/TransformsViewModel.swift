@@ -43,6 +43,7 @@ public final class TransformsViewModel {
     public var pendingDeleteHistoryEntry: TransformHistoryEntry?
     public var copiedHistoryEntryID: UUID?
     public var copiedHistoryTarget: TransformHistoryCopyTarget?
+    public var hiddenMenuBarTransformIDs: Set<UUID> = []
 
     /// True when the user has at least one LLM provider configured. Drives
     /// the calm "Configure in Settings" hero state.
@@ -51,6 +52,7 @@ public final class TransformsViewModel {
     private var repo: PromptRepositoryProtocol?
     private var historyRepo: TransformHistoryRepositoryProtocol?
     private var clipboardService: ClipboardServiceProtocol?
+    private var defaults: UserDefaults = AppPaths.appDefaults()
     private var copiedResetTask: Task<Void, Never>?
     /// Invalidates passive transform loads that started before a
     /// save/delete/reset changed repository state.
@@ -70,12 +72,14 @@ public final class TransformsViewModel {
         repo: PromptRepositoryProtocol,
         historyRepo: TransformHistoryRepositoryProtocol? = nil,
         clipboardService: ClipboardServiceProtocol? = nil,
-        hasLLMProvider: Bool
+        hasLLMProvider: Bool,
+        defaults: UserDefaults = AppPaths.appDefaults()
     ) {
         self.repo = repo
         self.historyRepo = historyRepo
         self.clipboardService = clipboardService
         self.hasLLMProvider = hasLLMProvider
+        self.defaults = defaults
         Task { await load() }
     }
 
@@ -102,6 +106,9 @@ public final class TransformsViewModel {
             ) else { return false }
             allPrompts = loaded.all
             transforms = loaded.transforms
+            hiddenMenuBarTransformIDs = UserDefaultsAppRuntimePreferences.hiddenMenuBarTransformIDs(
+                defaults: defaults
+            )
             errorMessage = nil
             return true
         } catch {
@@ -115,6 +122,21 @@ public final class TransformsViewModel {
 
     public func setHasLLMProvider(_ value: Bool) {
         hasLLMProvider = value
+    }
+
+    public func isVisibleInMenuBar(_ id: UUID) -> Bool {
+        !hiddenMenuBarTransformIDs.contains(id)
+    }
+
+    public func setVisibleInMenuBar(_ id: UUID, visible: Bool) {
+        UserDefaultsAppRuntimePreferences.setTransformVisibleInMenuBar(
+            id,
+            visible: visible,
+            defaults: defaults
+        )
+        hiddenMenuBarTransformIDs = UserDefaultsAppRuntimePreferences.hiddenMenuBarTransformIDs(
+            defaults: defaults
+        )
     }
 
     // MARK: - Mutations

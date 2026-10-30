@@ -35,6 +35,9 @@ struct VocabProcessCommand: AsyncParsableCommand {
             text: text,
             customWords: words,
             snippets: snippets,
+            spokenPunctuationEnabled: UserDefaultsAppRuntimePreferences.spokenPunctuationEnabled(
+                defaults: macParakeetAppDefaults()
+            ),
             removeUmFiller: removeUmFiller
         )
 

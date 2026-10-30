@@ -72,6 +72,7 @@ struct MeetingRecordingTile: View {
 
     @Bindable var viewModel: MeetingRecordingPillViewModel
     var permissionState: PermissionState = .ready(sourceMode: .microphoneAndSystem)
+    var isCompact = false
     var onTap: () -> Void
     /// Optional pause/resume handler. When `nil` the tile renders no pause
     /// control — keeps existing call sites unchanged.
@@ -85,23 +86,25 @@ struct MeetingRecordingTile: View {
     }
 
     private var tileSurface: some View {
-        ZStack {
-            background
-            content
-                .padding(.horizontal, DesignSystem.Spacing.lg)
-                .padding(.vertical, DesignSystem.Spacing.md)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 96)
+        content
+            .padding(.horizontal, isCompact ? DesignSystem.Spacing.md : DesignSystem.Spacing.lg)
+            .padding(.vertical, isCompact ? DesignSystem.Spacing.sm : DesignSystem.Spacing.md)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: isCompact ? 80 : 96)
+            .background { background }
     }
 
     // MARK: - Background
 
+    private var tileCornerRadius: CGFloat {
+        isCompact ? DesignSystem.Layout.rowCornerRadius : DesignSystem.Layout.dropZoneCornerRadius
+    }
+
     private var background: some View {
-        RoundedRectangle(cornerRadius: DesignSystem.Layout.dropZoneCornerRadius)
+        RoundedRectangle(cornerRadius: tileCornerRadius)
             .fill(DesignSystem.Colors.surfaceElevated)
             .overlay(
-                RoundedRectangle(cornerRadius: DesignSystem.Layout.dropZoneCornerRadius)
+                RoundedRectangle(cornerRadius: tileCornerRadius)
                     .strokeBorder(borderColor, lineWidth: 0.6)
             )
             .cardShadow(DesignSystem.Shadows.cardRest)

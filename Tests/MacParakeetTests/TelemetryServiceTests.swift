@@ -1923,6 +1923,7 @@ final class TelemetryServiceTests: XCTestCase {
             (.meeting, .modifier, "meeting", "modifier"),
             (.fileTranscription, .keyCode, "file_transcription", "key_code"),
             (.youtubeTranscription, .chord, "youtube_transcription", "chord"),
+            (.dictationAIPolish, .modifier, "dictation_ai_polish", "modifier"),
         ]
 
         for (surface, kind, expectedSurface, expectedKind) in cases {
@@ -1943,7 +1944,7 @@ final class TelemetryServiceTests: XCTestCase {
 
     // MARK: - Session UUID
 
-    func testSessionIdIsPerInstance() async {
+    func testSessionIdMatchesSharedProcessIdentityAcrossInstances() async {
         let service1 = makeService()
         let service2 = makeService()
 
@@ -1954,7 +1955,9 @@ final class TelemetryServiceTests: XCTestCase {
 
         let payloads = TelemetryMockURLProtocol.recordedPayloads()
         let sessions = Set(payloads.flatMap(\.events).map(\.session))
-        XCTAssertGreaterThanOrEqual(sessions.count, 2)
+        XCTAssertGreaterThanOrEqual(payloads.flatMap(\.events).count, 2)
+        XCTAssertEqual(sessions, [Observability.processSessionID])
+        XCTAssertNotNil(UUID(uuidString: Observability.processSessionID))
     }
 
     // MARK: - Payload Encoding
@@ -2026,16 +2029,14 @@ final class TelemetryServiceTests: XCTestCase {
     // MARK: - AppPreferences
 
     func testTelemetryEnabledDefault() {
-        let suiteName = "test-telemetry-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("test-telemetry-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         XCTAssertTrue(AppPreferences.isTelemetryEnabled(defaults: defaults))
     }
 
     func testTelemetryEnabledRespectsUserChoice() {
-        let suiteName = "test-telemetry-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("test-telemetry-")
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         defaults.set(false, forKey: AppPreferences.telemetryEnabledKey)
         XCTAssertFalse(AppPreferences.isTelemetryEnabled(defaults: defaults))
     }

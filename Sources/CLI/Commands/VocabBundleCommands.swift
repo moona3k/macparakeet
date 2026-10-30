@@ -11,10 +11,10 @@ struct VocabExportCommand: AsyncParsableCommand {
         commandName: "export",
         abstract: "Write the current vocabulary as a JSON bundle to a file or stdout.",
         discussion: """
-        Output is a `macparakeet.vocabulary` v1 bundle. Run
-        `vocab schema` for the full format. Only manual custom
-        words are exported (learned words regenerate per-machine).
-        """
+            Output is a `macparakeet.vocabulary` v1 bundle. Run
+            `vocab schema` for the full format. Only manual custom
+            words are exported (learned words regenerate per-machine).
+            """
     )
 
     @Option(name: [.short, .long], help: "Output file path. Omit to write to stdout.")
@@ -42,7 +42,9 @@ struct VocabExportCommand: AsyncParsableCommand {
             )
             try export.data.write(to: url, options: .atomic)
             let bundle = export.bundle
-            printErr("Exported \(bundle.customWords.count) word(s) and \(bundle.textSnippets.count) snippet(s) to \(resolved)")
+            printErr(
+                "Exported \(bundle.customWords.count) word(s) and \(bundle.textSnippets.count) snippet(s) to \(resolved)"
+            )
         } else {
             FileHandle.standardOutput.write(export.data)
             FileHandle.standardOutput.write(Data("\n".utf8))
@@ -58,17 +60,23 @@ struct VocabImportCommand: AsyncParsableCommand {
         commandName: "import",
         abstract: "Read a JSON vocabulary bundle and apply it to the database.",
         discussion: """
-        Reads a `macparakeet.vocabulary` v1 bundle from the given file or
-        stdin. By default, duplicate entries (matched case-insensitively
-        on `word` / `trigger`) are SKIPPED — pass `--policy replace` to
-        overwrite. Pass `--dry-run` to see counts without writing.
-        """
+            Reads a `macparakeet.vocabulary` v1 bundle from the given file or
+            stdin. By default, duplicate entries (matched case-insensitively
+            on `word` / `trigger`) are SKIPPED — pass `--policy replace` to
+            overwrite matching entries, or `--policy replace-all` to remove
+            manual words and snippets that aren't in the file first. Learned
+            recognition terms that aren't in the file stay. Pass `--dry-run`
+            to see counts without writing.
+            """
     )
 
     @Option(name: [.short, .long], help: "Input file path. Omit to read from stdin.")
     var input: String?
 
-    @Option(name: .long, help: "Conflict policy when an entry already exists: skip (default) or replace.")
+    @Option(
+        name: .long,
+        help: "Conflict policy: skip (default), replace matching entries, or replace-all (reset then import)."
+    )
     var policy: PolicyOption = .skip
 
     @Flag(name: .long, help: "Decode + report counts without writing to the database.")
@@ -81,12 +89,15 @@ struct VocabImportCommand: AsyncParsableCommand {
     var database: String?
 
     enum PolicyOption: String, ExpressibleByArgument, CaseIterable {
-        case skip, replace
+        case skip
+        case replace
+        case replaceAll = "replace-all"
 
         var serviceValue: VocabularyImportExportService.ConflictPolicy {
             switch self {
             case .skip: return .skip
             case .replace: return .replace
+            case .replaceAll: return .replaceAll
             }
         }
     }
@@ -103,8 +114,12 @@ struct VocabImportCommand: AsyncParsableCommand {
 
             let data = try readInputData()
             let preview = try service.decodePreview(from: data)
+            if policy == .replaceAll, preview.wordsTotal == 0, preview.snippetsTotal == 0 {
+                throw VocabularyImportExportService.ImportError.emptyReplaceAll
+            }
 
             if dryRun {
+                let reportingRemovals = policy == .replaceAll
                 let dryReport = DryRunReport(
                     ok: true,
                     wordsTotal: preview.wordsTotal,
@@ -113,6 +128,9 @@ struct VocabImportCommand: AsyncParsableCommand {
                     snippetConflicts: preview.snippetConflicts,
                     duplicateWords: preview.duplicateWords,
                     duplicateSnippets: preview.duplicateSnippets,
+                    wordsRemoved: reportingRemovals ? preview.wordsRemoved : [],
+                    snippetsRemoved: reportingRemovals ? preview.snippetsRemoved : [],
+                    learnedWordsPreserved: reportingRemovals ? preview.learnedWordsPreserved : 0,
                     policy: policy.rawValue
                 )
                 if json {
@@ -132,6 +150,8 @@ struct VocabImportCommand: AsyncParsableCommand {
                 snippetsAdded: result.snippetsAdded,
                 snippetsReplaced: result.snippetsReplaced,
                 snippetsSkipped: result.snippetsSkipped,
+                wordsRemoved: result.wordsRemoved,
+                snippetsRemoved: result.snippetsRemoved,
                 policy: policy.rawValue
             )
 
@@ -162,43 +182,54 @@ struct VocabImportCommand: AsyncParsableCommand {
         }
         print("  Exported at:    \(preview.bundle.exportedAt)")
 
+        if policy == .replaceAll {
+            print("\nReplace-all would remove:")
+            if preview.wordsRemoved.isEmpty && preview.snippetsRemoved.isEmpty {
+                print("  (none)")
+            } else {
+                printSampledList(label: "Words", items: preview.wordsRemoved)
+                printSampledList(label: "Snippets", items: preview.snippetsRemoved)
+            }
+            if preview.learnedWordsPreserved > 0 {
+                print("  Learned terms kept: \(preview.learnedWordsPreserved)")
+            }
+        }
+
         if preview.hasConflicts {
-            print("\nConflicts (would be \(policy == .skip ? "SKIPPED" : "REPLACED")):")
-            if !preview.wordConflicts.isEmpty {
-                let sample = preview.wordConflicts.prefix(10).map { "\"\($0)\"" }.joined(separator: ", ")
-                let extra = preview.wordConflicts.count - min(10, preview.wordConflicts.count)
-                print("  Words (\(preview.wordConflicts.count)): \(sample)\(extra > 0 ? ", and \(extra) more" : "")")
+            let fate: String
+            switch policy {
+            case .skip: fate = "SKIPPED"
+            case .replace, .replaceAll: fate = "REPLACED"
             }
-            if !preview.snippetConflicts.isEmpty {
-                let sample = preview.snippetConflicts.prefix(10).map { "\"\($0)\"" }.joined(separator: ", ")
-                let extra = preview.snippetConflicts.count - min(10, preview.snippetConflicts.count)
-                print("  Snippets (\(preview.snippetConflicts.count)): \(sample)\(extra > 0 ? ", and \(extra) more" : "")")
-            }
-            if !preview.duplicateWords.isEmpty {
-                let sample = preview.duplicateWords.prefix(10).map { "\"\($0)\"" }.joined(separator: ", ")
-                let extra = preview.duplicateWords.count - min(10, preview.duplicateWords.count)
-                print("  Duplicate words in file (\(preview.duplicateWords.count)): \(sample)\(extra > 0 ? ", and \(extra) more" : "")")
-            }
-            if !preview.duplicateSnippets.isEmpty {
-                let sample = preview.duplicateSnippets.prefix(10).map { "\"\($0)\"" }.joined(separator: ", ")
-                let extra = preview.duplicateSnippets.count - min(10, preview.duplicateSnippets.count)
-                print("  Duplicate snippets in file (\(preview.duplicateSnippets.count)): \(sample)\(extra > 0 ? ", and \(extra) more" : "")")
-            }
+            print("\nConflicts (would be \(fate)):")
+            printSampledList(label: "Words", items: preview.wordConflicts)
+            printSampledList(label: "Snippets", items: preview.snippetConflicts)
+            printSampledList(label: "Duplicate words in file", items: preview.duplicateWords)
+            printSampledList(label: "Duplicate snippets in file", items: preview.duplicateSnippets)
         } else {
             print("\nNo conflicts. All entries are new.")
         }
         print("\n(dry-run — nothing was written)")
     }
 
+    private func printSampledList(label: String, items: [String]) {
+        guard !items.isEmpty else { return }
+        let sample = items.prefix(10).map { "\"\($0)\"" }.joined(separator: ", ")
+        let extra = items.count - min(10, items.count)
+        print("  \(label) (\(items.count)): \(sample)\(extra > 0 ? ", and \(extra) more" : "")")
+    }
+
     private func printApplyHuman(_ r: VocabularyImportExportService.ImportResult) {
         print("Custom words:")
         print("  Added:    \(r.wordsAdded)")
         if r.wordsReplaced > 0 { print("  Replaced: \(r.wordsReplaced)") }
-        if r.wordsSkipped > 0  { print("  Skipped:  \(r.wordsSkipped) (already existed)") }
+        if r.wordsSkipped > 0 { print("  Skipped:  \(r.wordsSkipped) (already existed)") }
+        if r.wordsRemoved > 0 { print("  Removed:  \(r.wordsRemoved)") }
         print("Text snippets:")
         print("  Added:    \(r.snippetsAdded)")
         if r.snippetsReplaced > 0 { print("  Replaced: \(r.snippetsReplaced)") }
-        if r.snippetsSkipped > 0  { print("  Skipped:  \(r.snippetsSkipped) (already existed)") }
+        if r.snippetsSkipped > 0 { print("  Skipped:  \(r.snippetsSkipped) (already existed)") }
+        if r.snippetsRemoved > 0 { print("  Removed:  \(r.snippetsRemoved)") }
     }
 
     struct DryRunReport: Encodable {
@@ -209,6 +240,9 @@ struct VocabImportCommand: AsyncParsableCommand {
         let snippetConflicts: [String]
         let duplicateWords: [String]
         let duplicateSnippets: [String]
+        let wordsRemoved: [String]
+        let snippetsRemoved: [String]
+        let learnedWordsPreserved: Int
         let policy: String
     }
 
@@ -220,6 +254,8 @@ struct VocabImportCommand: AsyncParsableCommand {
         let snippetsAdded: Int
         let snippetsReplaced: Int
         let snippetsSkipped: Int
+        let wordsRemoved: Int
+        let snippetsRemoved: Int
         let policy: String
     }
 }
@@ -232,10 +268,10 @@ struct VocabSchemaCommand: AsyncParsableCommand {
         commandName: "schema",
         abstract: "Print the vocabulary bundle JSON schema and an example.",
         discussion: """
-        Use this when asking a coding agent to produce a bundle. The
-        output is plain text + JSON example so an LLM can read it
-        directly. Pass `--json` to get a structured spec object instead.
-        """
+            Use this when asking a coding agent to produce a bundle. The
+            output is plain text + JSON example so an LLM can read it
+            directly. Pass `--json` to get a structured spec object instead.
+            """
     )
 
     @Flag(name: .long, help: "Emit a JSON spec object instead of human-readable text.")
@@ -271,44 +307,71 @@ struct VocabularyBundleSpec: Encodable {
             schema: VocabularyBundle.schemaIdentifier,
             version: VocabularyBundle.currentVersion,
             description: """
-            Portable backup of a MacParakeet user's vocabulary. Includes \
-            custom-word corrections (used by the Clean text-processing \
-            pipeline) and text snippets (trigger phrase → expansion text). \
-            UUIDs are intentionally omitted: they are generated at import \
-            time. The `.learned` source is intentionally omitted: it \
-            regenerates per-machine.
-            """,
+                Portable backup of a MacParakeet user's vocabulary. Includes \
+                custom-word corrections (used by the Clean text-processing \
+                pipeline) and text snippets (trigger phrase → expansion text). \
+                UUIDs are intentionally omitted: they are generated at import \
+                time. The `.learned` source is intentionally omitted: it \
+                regenerates per-machine.
+                """,
             fields: [
-                .init(path: "schema", type: "string", required: true,
-                      description: "Always \"\(VocabularyBundle.schemaIdentifier)\". Used to detect non-bundle JSON files."),
-                .init(path: "version", type: "integer", required: true,
-                      description: "Format version. Current: \(VocabularyBundle.currentVersion). Importer rejects newer versions."),
-                .init(path: "exportedAt", type: "ISO-8601 date-time", required: true,
-                      description: "When the bundle was generated. Shown in the import preview."),
-                .init(path: "appVersion", type: "string", required: false,
-                      description: "MacParakeet version that produced the bundle. Optional but recommended."),
-                .init(path: "customWords", type: "array of CustomWord", required: true,
-                      description: "Word-correction rules applied during the Clean pipeline. Match is case-insensitive."),
-                .init(path: "customWords[].word", type: "string", required: true,
-                      description: "The raw token Parakeet emits (often misspelled or wrong-cased). Leading/trailing whitespace is trimmed; empty values are rejected."),
-                .init(path: "customWords[].replacement", type: "string or null", required: false,
-                      description: "What to substitute. Blank strings are treated as null."),
-                .init(path: "customWords[].isEnabled", type: "boolean", required: true,
-                      description: "Whether the rule is active by default. Disabled entries import disabled."),
-                .init(path: "customWords[].createdAt", type: "ISO-8601 date-time or null", required: false,
-                      description: "Original creation time. Optional; defaults to import time when omitted."),
-                .init(path: "textSnippets", type: "array of TextSnippet", required: true,
-                      description: "Trigger → expansion shortcuts. The trigger is what you say; the expansion is what gets pasted."),
-                .init(path: "textSnippets[].trigger", type: "string", required: true,
-                      description: "Spoken trigger phrase (e.g. \"my address\"). Leading/trailing whitespace is trimmed; empty values are rejected."),
-                .init(path: "textSnippets[].expansion", type: "string", required: true,
-                      description: "Replacement text. Leading/trailing spaces are trimmed; empty values are rejected. Real newline characters in JSON (\\n) become line breaks."),
-                .init(path: "textSnippets[].isEnabled", type: "boolean", required: true,
-                      description: "Whether the snippet is active."),
-                .init(path: "textSnippets[].action", type: "string or null", required: false,
-                      description: "Optional keystroke to send after pasting. Currently only \"return\" is supported. null means no action."),
-                .init(path: "textSnippets[].createdAt", type: "ISO-8601 date-time or null", required: false,
-                      description: "Original creation time. Optional; defaults to import time when omitted."),
+                .init(
+                    path: "schema", type: "string", required: true,
+                    description:
+                        "Always \"\(VocabularyBundle.schemaIdentifier)\". Used to detect non-bundle JSON files."),
+                .init(
+                    path: "version", type: "integer", required: true,
+                    description:
+                        "Format version. Current: \(VocabularyBundle.currentVersion). Importer rejects newer versions."),
+                .init(
+                    path: "exportedAt", type: "ISO-8601 date-time", required: true,
+                    description: "When the bundle was generated. Shown in the import preview."),
+                .init(
+                    path: "appVersion", type: "string", required: false,
+                    description: "MacParakeet version that produced the bundle. Optional but recommended."),
+                .init(
+                    path: "customWords", type: "array of CustomWord", required: true,
+                    description: "Word-correction rules applied during the Clean pipeline. Match is case-insensitive."),
+                .init(
+                    path: "customWords[].word", type: "string", required: true,
+                    description:
+                        "The raw token Parakeet emits (often misspelled or wrong-cased). Leading/trailing whitespace is trimmed; empty values are rejected."
+                ),
+                .init(
+                    path: "customWords[].replacement", type: "string or null", required: false,
+                    description: "What to substitute. Blank strings are treated as null."),
+                .init(
+                    path: "customWords[].isEnabled", type: "boolean", required: true,
+                    description: "Whether the rule is active by default. Disabled entries import disabled."),
+                .init(
+                    path: "customWords[].createdAt", type: "ISO-8601 date-time or null", required: false,
+                    description: "Original creation time. Optional; defaults to import time when omitted."),
+                .init(
+                    path: "textSnippets", type: "array of TextSnippet", required: true,
+                    description:
+                        "Trigger → expansion shortcuts. The trigger is what you say; the expansion is what gets pasted."
+                ),
+                .init(
+                    path: "textSnippets[].trigger", type: "string", required: true,
+                    description:
+                        "Spoken trigger phrase (e.g. \"my address\"). Leading/trailing whitespace is trimmed; empty values are rejected."
+                ),
+                .init(
+                    path: "textSnippets[].expansion", type: "string", required: true,
+                    description:
+                        "Replacement text. Leading/trailing spaces are trimmed; empty values are rejected. Real newline characters in JSON (\\n) become line breaks."
+                ),
+                .init(
+                    path: "textSnippets[].isEnabled", type: "boolean", required: true,
+                    description: "Whether the snippet is active."),
+                .init(
+                    path: "textSnippets[].action", type: "string or null", required: false,
+                    description:
+                        "Optional keystroke to send after pasting. Currently only \"return\" is supported. null means no action."
+                ),
+                .init(
+                    path: "textSnippets[].createdAt", type: "ISO-8601 date-time or null", required: false,
+                    description: "Original creation time. Optional; defaults to import time when omitted."),
             ],
             example: exampleBundle()
         )
@@ -320,20 +383,25 @@ struct VocabularyBundleSpec: Encodable {
             exportedAt: now,
             appVersion: "0.6.0",
             customWords: [
-                .init(word: "kubernetes", replacement: "Kubernetes",
-                      isEnabled: true, createdAt: now),
-                .init(word: "MacParakeet", replacement: nil,
-                      isEnabled: true, createdAt: now),
-                .init(word: "centre", replacement: "centre",
-                      isEnabled: true, createdAt: now),
+                .init(
+                    word: "kubernetes", replacement: "Kubernetes",
+                    isEnabled: true, createdAt: now),
+                .init(
+                    word: "MacParakeet", replacement: nil,
+                    isEnabled: true, createdAt: now),
+                .init(
+                    word: "centre", replacement: "centre",
+                    isEnabled: true, createdAt: now),
             ],
             textSnippets: [
-                .init(trigger: "my address",
-                      expansion: "123 Main St\nSan Francisco, CA 94110",
-                      isEnabled: true, action: nil, createdAt: now),
-                .init(trigger: "send message",
-                      expansion: "thanks!", isEnabled: true,
-                      action: .returnKey, createdAt: now),
+                .init(
+                    trigger: "my address",
+                    expansion: "123 Main St\nSan Francisco, CA 94110",
+                    isEnabled: true, action: nil, createdAt: now),
+                .init(
+                    trigger: "send message",
+                    expansion: "thanks!", isEnabled: true,
+                    action: .returnKey, createdAt: now),
             ]
         )
     }
@@ -343,55 +411,56 @@ struct VocabularyBundleSpec: Encodable {
         let exampleJSON = String(data: exampleData, encoding: .utf8) ?? "{}"
 
         return """
-        MacParakeet Vocabulary Bundle — JSON Schema (v\(VocabularyBundle.currentVersion))
-        =====================================================================
+            MacParakeet Vocabulary Bundle — JSON Schema (v\(VocabularyBundle.currentVersion))
+            =====================================================================
 
-        File identity
-          schema:   "\(VocabularyBundle.schemaIdentifier)"   (must match)
-          version:  \(VocabularyBundle.currentVersion)               (importer rejects newer versions)
+            File identity
+              schema:   "\(VocabularyBundle.schemaIdentifier)"   (must match)
+              version:  \(VocabularyBundle.currentVersion)               (importer rejects newer versions)
 
-        Top-level fields
-          schema        string         required   format identifier
-          version       integer        required   bundle format version
-          exportedAt    ISO-8601       required   when this file was generated
-          appVersion    string         optional   MacParakeet version that wrote it
-          customWords   CustomWord[]   required   word correction rules
-          textSnippets  TextSnippet[]  required   trigger → expansion shortcuts
+            Top-level fields
+              schema        string         required   format identifier
+              version       integer        required   bundle format version
+              exportedAt    ISO-8601       required   when this file was generated
+              appVersion    string         optional   MacParakeet version that wrote it
+              customWords   CustomWord[]   required   word correction rules
+              textSnippets  TextSnippet[]  required   trigger → expansion shortcuts
 
-        CustomWord
-          word          string         required   what Parakeet emits; trimmed, non-empty
-          replacement   string|null    optional   trimmed substitute (blank = null)
-          isEnabled     boolean        required   active by default
-          createdAt     ISO-8601|null  optional   original creation time
+            CustomWord
+              word          string         required   what Parakeet emits; trimmed, non-empty
+              replacement   string|null    optional   trimmed substitute (blank = null)
+              isEnabled     boolean        required   active by default
+              createdAt     ISO-8601|null  optional   original creation time
 
-        TextSnippet
-          trigger       string         required   natural spoken phrase; trimmed, non-empty
-          expansion     string         required   pasted text; trimmed, non-empty; real \\n becomes a newline
-          isEnabled     boolean        required   active by default
-          action        "return"|null  optional   keystroke after paste (only "return" or null)
-          createdAt     ISO-8601|null  optional   original creation time
+            TextSnippet
+              trigger       string         required   natural spoken phrase; trimmed, non-empty
+              expansion     string         required   pasted text; trimmed, non-empty; real \\n becomes a newline
+              isEnabled     boolean        required   active by default
+              action        "return"|null  optional   keystroke after paste (only "return" or null)
+              createdAt     ISO-8601|null  optional   original creation time
 
-        Tips for generating bundles
-          • Match by `word` / `trigger` is case-insensitive — don't include
-            both "Daniel" and "daniel"; the importer will treat them as one.
-          • Triggers are heard as natural speech. Use phrases like "my email",
-            not "addr" or "sig".
-          • For multi-line expansions, use real \\n in the JSON string.
-          • Do not include blank words, triggers, or expansions; import rejects
-            those the same way manual entry does.
-          • UUIDs are NOT in this format — they're generated on import.
+            Tips for generating bundles
+              • Match by `word` / `trigger` is case-insensitive — don't include
+                both "Daniel" and "daniel"; the importer will treat them as one.
+              • Triggers are heard as natural speech. Use phrases like "my email",
+                not "addr" or "sig".
+              • For multi-line expansions, use real \\n in the JSON string.
+              • Do not include blank words, triggers, or expansions; import rejects
+                those the same way manual entry does.
+              • UUIDs are NOT in this format — they're generated on import.
 
-        Round-trip
-          # Generate template:
-          macparakeet-cli vocab export > template.json
-          # ...edit it...
-          macparakeet-cli vocab import --input template.json --dry-run
-          macparakeet-cli vocab import --input template.json
+            Round-trip
+              # Generate template:
+              macparakeet-cli vocab export > template.json
+              # ...edit it...
+              macparakeet-cli vocab import --input template.json --dry-run
+              macparakeet-cli vocab import --input template.json
+              macparakeet-cli vocab import --input template.json --policy replace-all
 
-        Example
-        -------
-        \(exampleJSON)
-        """
+            Example
+            -------
+            \(exampleJSON)
+            """
     }
 
     private static let prettyEncoder: JSONEncoder = {

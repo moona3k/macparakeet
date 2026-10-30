@@ -40,6 +40,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkeyCoordinator: AppHotkeyCoordinator?
     private var dictationFlowCoordinator: DictationFlowCoordinator?
     private var meetingRecordingFlowCoordinator: MeetingRecordingFlowCoordinator?
+    private lazy var meetingURLCommandRouter = MeetingURLCommandRouter(
+        scheme: Bundle.main.bundleIdentifier == AppPaths.developmentBundleIdentifier ? "macparakeet-dev" : "macparakeet",
+        isEnabled: { UserDefaultsAppRuntimePreferences.meetingURLControlEnabled() },
+        execute: { [weak self] command in
+            guard let self, !self.onboardingWindowController.isVisible,
+                  !self.isPresentingQuitAlert, self.meetingQuitTask == nil else { return }
+            self.meetingRecordingFlowCoordinator?.handleURLCommand(command)
+        }
+    )
     private var meetingAutoStartCoordinator: MeetingAutoStartCoordinator?
     private var meetingAutoStopCoordinator: MeetingAutoStopCoordinator?
     /// Productized Transforms coordinator (ADR-022). Owns the process-wide
@@ -59,7 +68,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var debugDictationPreviewQA: DebugDictationPreviewQA?
     #endif
     private var instantDictationPreferenceGeneration = 0
-    private var isHotkeyRecorderActive = false
+    private var activeHotkeyRecorderSessions = 0
+    private var isHotkeyRecorderActive: Bool { activeHotkeyRecorderSessions > 0 }
     // Let first paint and onboarding routing settle before starting CoreML cache work.
     private let preWarmDeferralMs: Int = 1500
 
@@ -74,6 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let feedbackViewModel = FeedbackViewModel()
     private let discoverViewModel = DiscoverViewModel()
     private let libraryViewModel = TranscriptionLibraryViewModel()
+    private let askWorkspaceViewModel = AskWorkspaceViewModel()
     /// One shared app-owned handle for native Split and transcribe: created
     /// eagerly (before `AppEnvironment` exists) and `configure`d once it does,
     /// so a single running batch survives the sheet closing and is reachable
@@ -121,6 +132,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         textSnippetsViewModel: textSnippetsViewModel,
         vocabularyBackupViewModel: vocabularyBackupViewModel,
         libraryViewModel: libraryViewModel,
+        askWorkspaceViewModel: askWorkspaceViewModel,
         meetingsWorkspaceViewModel: meetingsWorkspaceViewModel,
         llmSettingsViewModel: llmSettingsViewModel,
         chatViewModel: chatViewModel,
@@ -131,37 +143,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         meetingPillViewModel: meetingPillViewModel
     )
 
-    /// Drives the live, no-STT hotkey rehearsal on the onboarding "Learn the
-    /// Hotkey" step. Reads the user's configured triggers + shared mic at arm
-    /// time via providers, since the environment is set asynchronously after
-    /// launch.
-    private lazy var onboardingHotkeyPreviewController = OnboardingHotkeyPreviewController(
-        planProvider: { [weak self] in
-            guard let self else { return .init(specs: [], conflict: nil) }
-            return AppHotkeyCoordinator.dictationHotkeyPlan(
-                handsFree: self.settingsViewModel.hotkeyTrigger,
-                pushToTalk: self.settingsViewModel.pushToTalkHotkeyTrigger
-            )
-        },
-        micLevelingProvider: { [weak self] in
-            guard let stream = self?.appEnvironment?.sharedMicStream else { return nil }
-            return SharedMicLeveling(stream: stream)
-        },
-        suspendProductionHotkeys: { [weak self] in self?.hotkeyCoordinator?.suspend() },
-        resumeProductionHotkeys: { [weak self] in self?.hotkeyCoordinator?.resume() }
-    )
+    /// Drives the no-STT key rehearsal on the onboarding Try It card. Reads the
+    /// user's configured hands-free and push-to-talk triggers at arm time,
+    /// since the environment is set asynchronously after launch. The AI-polish
+    /// and clipboard extras are left out so they cannot light the wrong cap.
+    private lazy var onboardingHotkeyPreviewController: OnboardingHotkeyPreviewController = {
+        let controller = OnboardingHotkeyPreviewController(
+            planProvider: { [weak self] in
+                guard let self else { return .init(specs: [], conflict: nil) }
+                return AppHotkeyCoordinator.dictationHotkeyPlan(
+                    handsFree: self.settingsViewModel.hotkeyTrigger,
+                    pushToTalk: self.settingsViewModel.pushToTalkHotkeyTrigger
+                )
+            },
+            suspendProductionHotkeys: { [weak self] in self?.hotkeyCoordinator?.suspend() },
+            resumeProductionHotkeys: { [weak self] in self?.hotkeyCoordinator?.resume() }
+        )
+        controller.onKeyStateChanged = { [weak self] key in
+            self?.onboardingWindowController.currentViewModel?.hotkeyRehearsalChanged(key)
+        }
+        return controller
+    }()
 
     private lazy var onboardingCoordinator = OnboardingCoordinator(
         onboardingWindowController: onboardingWindowController,
+        settingsViewModel: settingsViewModel,
+        transformsViewModel: transformsViewModel,
         onRefreshHotkeys: { [weak self] in
             self?.hotkeyCoordinator?.refreshAllHotkeys()
             self?.menuBarCoordinator.refreshHotkeyTitle()
             self?.menuBarCoordinator.refreshMeetingHotkeyShortcut()
             self?.menuBarCoordinator.refreshTranscriptionHotkeyShortcuts()
             self?.transformsCoordinator?.reloadBindings()
-        },
-        onOpenMainWindow: { [weak self] in
-            self?.windowCoordinator.openMainWindow()
         },
         onOpenSettings: { [weak self] in
             self?.windowCoordinator.openMainWindowToSettings()
@@ -175,6 +188,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         },
         onHotkeyPreviewDisarm: { [weak self] in
             self?.onboardingHotkeyPreviewController.disarm()
+        },
+        onShortcutRecordingChanged: { [weak self] isRecording in
+            self?.setGlobalHotkeysSuspendedForRecorder(isRecording)
+        },
+        onShortcutBindingsChanged: { [weak self] in
+            self?.onboardingHotkeyPreviewController.refreshBindings()
+            self?.menuBarCoordinator.refreshHotkeyTitle()
         }
     )
 
@@ -220,6 +240,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         feedbackViewModel: feedbackViewModel,
         discoverViewModel: discoverViewModel,
         libraryViewModel: libraryViewModel,
+        askWorkspaceViewModel: askWorkspaceViewModel,
         meetingsWorkspaceViewModel: meetingsWorkspaceViewModel,
         meetingPillViewModel: meetingPillViewModel,
         meetingSplitViewModel: meetingSplitViewModel,
@@ -229,6 +250,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         onRecordMeeting: { [weak self] in
             self?.toggleMeetingRecording(originatesFromWindow: true)
         },
+        onOpenAskSource: { [weak self] id in
+            guard let self, let repository = self.appEnvironment?.transcriptionRepo else { return }
+            Task { @MainActor [weak self] in
+                let transcription = try? await Task.detached(priority: .userInitiated) {
+                    try repository.fetch(id: id)
+                }.value
+                guard let self, self.mainWindowState.selectedItem == .ask,
+                      let transcription else { return }
+                self.transcriptionViewModel.currentTranscription = transcription
+                self.mainWindowState.navigateToTranscription(from: .ask)
+            }
+        },
         onRecordMeetingFromWorkspace: { [weak self] in
             self?.startMeetingRecordingFromWorkspace()
         },
@@ -236,20 +269,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.meetingRecordingFlowCoordinator?.togglePause()
         },
         onHotkeyRecordingStateChanged: { [weak self] isRecording in
-            self?.isHotkeyRecorderActive = isRecording
-            // While Settings is recording a new hotkey, stand the global
-            // CGEvent taps down so they can't swallow the user's keyDown
-            // and silently fire their own actions (e.g. start a meeting
-            // recording from inside Settings).
-            if isRecording {
-                self?.hotkeyCoordinator?.suspend()
-                self?.transformsCoordinator?.suspendHotkeys()
-                self?.voiceControlCoordinator?.suspendHotkey()
-            } else {
-                self?.hotkeyCoordinator?.resume()
-                self?.transformsCoordinator?.resumeHotkeys()
-                self?.voiceControlCoordinator?.installHotkey()
-            }
+            self?.setGlobalHotkeysSuspendedForRecorder(isRecording)
         },
         onQuit: { [weak self] in
             self?.quitApp()
@@ -344,6 +364,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         onYouTubeTranscriptionHotkeyTriggerChanged: { [weak self] in
             self?.handleYouTubeTranscriptionHotkeyTriggerChange()
         },
+        onDictationAIPolishHotkeyTriggerChanged: { [weak self] in
+            self?.handleHotkeyTriggerChange()
+        },
         onAppearanceModeChanged: { [weak self] in
             self?.applyAppAppearance()
         },
@@ -376,6 +399,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - App Lifecycle
 
+    func application(_ application: NSApplication, open urls: [URL]) {
+        meetingURLCommandRouter.open(urls)
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Process boot marker for the audio diagnostics log. The dev app and
         // `swift test` write into the same on-disk file
@@ -401,6 +428,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupDiscoverContent()
         #if DEBUG
         showDebugDictationPreviewQAIfRequested()
+        DebugMainThreadStall.startIfRequested()
         #endif
     }
 
@@ -539,6 +567,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } catch is CancellationError {
                 return
             } catch {
+                meetingURLCommandRouter.discardPending()
                 presentEnvironmentSetupError(error)
             }
         }
@@ -637,13 +666,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 isHotkeyRecordingActive: { [weak self] in
                     self?.isHotkeyRecorderActive == true
                 },
-                isOnboardingVisible: { [weak self] in
-                    self?.onboardingWindowController.isVisible ?? false
+                isOnboardingBlockingDictation: { [weak self] in
+                    self?.onboardingWindowController.isBlockingDictation ?? false
                 }
             )
         )
 
         dictationFlowCoordinator = runtime.dictationFlowCoordinator
+        dictationFlowCoordinator?.isPracticeTarget = { [weak self] in
+            self?.onboardingWindowController.isVisible == true
+                && self?.onboardingWindowController.currentViewModel?.isPracticeListening == true
+        }
+        onboardingWindowController.onPracticeExit = { [weak self] in
+            self?.dictationFlowCoordinator?.dismissPracticeDictation()
+        }
+        // Onboarding's practice box is a real dictation target. It lights the
+        // key while recording and confirms the words that arrived.
+        dictationFlowCoordinator?.onFlowStateChanged = { [weak self] state in
+            self?.onboardingWindowController.handleDictationFlowState(state)
+        }
+        dictationFlowCoordinator?.onDictationDelivered = { [weak self] text in
+            self?.onboardingWindowController.handleDictationDelivered(text)
+        }
         meetingRecordingFlowCoordinator = runtime.meetingRecordingFlowCoordinator
         hotkeyCoordinator = runtime.hotkeyCoordinator
         meetingAutoStartCoordinator = runtime.meetingAutoStartCoordinator
@@ -657,7 +701,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let llmService = env.llmService
         let llmServiceProvider: () -> LLMServiceProtocol? = { [weak configStore, llmService] in
             guard let configStore else { return nil }
-            return (try? configStore.loadConfig()) != nil ? llmService : nil
+            return (try? configStore.loadConfigMetadata()) != nil ? llmService : nil
         }
 
         // Productized Transforms coordinator (ADR-022). Reads `.transform`
@@ -669,7 +713,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             promptRepository: env.promptRepo,
             historyRepository: env.transformHistoryRepo,
             activeModelNameProvider: { [weak configStore] in
-                try? configStore?.loadConfig()?.modelName
+                try? configStore?.loadConfigMetadata()?.modelName
             },
             reservedHotkeysProvider: { [weak self] in
                 self?.transformReservedHotkeysForTransforms() ?? []
@@ -680,6 +724,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         transforms.start()
         transformsCoordinator = transforms
+        menuBarCoordinator.onPrepareMenuBarTransforms = { [weak transforms] frontmost in
+            transforms?.prepareMenuBarCapture(frontmostApplication: frontmost)
+        }
+        menuBarCoordinator.onRunMenuBarTransform = { [weak transforms] id in
+            transforms?.runFromMenuBar(promptID: id)
+        }
+        menuBarCoordinator.menuBarTransformsProvider = { [weak transforms] in
+            transforms?.menuBarListings() ?? []
+        }
 
         if AppFeatures.isVoiceControlAvailable() {
             let control = VoiceControlCoordinator(
@@ -709,6 +762,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     guard let self else { return [] }
                     let transforms = (try? env.promptRepo.fetchVisible(category: .transform)) ?? []
                     return [self.settingsViewModel.hotkeyTrigger, self.settingsViewModel.pushToTalkHotkeyTrigger,
+                            self.settingsViewModel.alternateHandsFreeHotkeyTrigger,
+                            self.settingsViewModel.alternatePushToTalkHotkeyTrigger,
                             self.settingsViewModel.meetingHotkeyTrigger, self.settingsViewModel.fileTranscriptionHotkeyTrigger,
                             self.settingsViewModel.youtubeTranscriptionHotkeyTrigger]
                         + transforms.compactMap { $0.shortcut?.hotkeyTrigger }
@@ -725,6 +780,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBarCoordinator.refreshMeetingHotkeyShortcut()
         menuBarCoordinator.refreshTranscriptionHotkeyShortcuts()
         onboardingCoordinator.maybeShow(environment: env)
+        meetingURLCommandRouter.finishLaunching()
         scheduleDeferredSpeechPreWarm(environment: env)
         let recoveryTask = meetingRecoveryCoordinator.scheduleLaunchRecoveryScanIfReady(environment: env)
         meetingAudioRetentionSweepCoordinator.scheduleLaunchSweep(environment: env, after: recoveryTask)
@@ -909,9 +965,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 conflictMode: .bareModifierDictation
             ),
             TransformShortcutReservedHotkey(
+                name: "additional hands-free shortcut", trigger: settingsViewModel.alternateHandsFreeHotkeyTrigger,
+                conflictMode: .bareModifierDictation),
+            TransformShortcutReservedHotkey(
+                name: "additional push-to-talk shortcut", trigger: settingsViewModel.alternatePushToTalkHotkeyTrigger,
+                conflictMode: .bareModifierDictation),
+            TransformShortcutReservedHotkey(
                 name: "file transcription", trigger: settingsViewModel.fileTranscriptionHotkeyTrigger),
             TransformShortcutReservedHotkey(
                 name: "video URL transcription", trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger),
+            TransformShortcutReservedHotkey(
+                name: "AI-polished dictation",
+                trigger: settingsViewModel.dictationAIPolishHotkeyTrigger,
+                conflictMode: .bareModifierDictation
+            ),
         ]
         if AppFeatures.meetingRecordingEnabled {
             reserved.append(
@@ -963,12 +1030,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.instantDictationPreferenceGeneration == generation
             }
             guard shouldRefresh, !Task.isCancelled else { return }
-            if refreshWarmCapture {
-                if enabled {
-                    await env.audioProcessor.refreshInstantDictationWarmCapture()
-                } else {
-                    env.sharedMicStream.refreshIdlePrewarm()
-                }
+            // System route changes post the same notification as a Settings
+            // selection. They must not rebuild an idle preparation: acquiring
+            // the device while Core Audio is still switching routes can block
+            // for hours and keep coreaudiod busy (#1227). Settings rebuilds the
+            // preparation itself for an explicit selection change.
+            if refreshWarmCapture, enabled {
+                await env.audioProcessor.refreshInstantDictationWarmCapture()
             }
         }
     }
@@ -977,7 +1045,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyCoordinator?.hotkeyMenuTitle
             ?? AppHotkeyCoordinator.menuTitle(
                 handsFree: settingsViewModel.hotkeyTrigger,
-                pushToTalk: settingsViewModel.pushToTalkHotkeyTrigger
+                pushToTalk: settingsViewModel.pushToTalkHotkeyTrigger,
+                aiPolish: settingsViewModel.dictationAIPolishHotkeyTrigger,
+                alternateHandsFree: settingsViewModel.alternateHandsFreeHotkeyTrigger,
+                alternatePushToTalk: settingsViewModel.alternatePushToTalkHotkeyTrigger
             )
     }
 
@@ -988,6 +1059,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ///
     /// Uses `menuBarPreference` from the dictation flow (state-machine-aware) so
     /// `.processing` can render correctly and terminal states do not linger red.
+    /// While a shortcut recorder (Settings or onboarding) captures a new
+    /// hotkey, stand the global CGEvent taps down so they can't swallow the
+    /// user's keyDown and silently fire their own actions (e.g. start a
+    /// meeting recording from inside Settings).
+    private func setGlobalHotkeysSuspendedForRecorder(_ isRecording: Bool) {
+        if isRecording {
+            activeHotkeyRecorderSessions += 1
+            guard activeHotkeyRecorderSessions == 1 else { return }
+            // Every recorder, including Settings, pauses onboarding rehearsal
+            // before its local key monitor starts.
+            onboardingHotkeyPreviewController.setCapturePaused(true)
+            hotkeyCoordinator?.suspend()
+            transformsCoordinator?.suspendHotkeys()
+            voiceControlCoordinator?.suspendHotkey()
+        } else {
+            guard activeHotkeyRecorderSessions > 0 else { return }
+            activeHotkeyRecorderSessions -= 1
+            guard activeHotkeyRecorderSessions == 0 else { return }
+            hotkeyCoordinator?.resume()
+            transformsCoordinator?.resumeHotkeys()
+            voiceControlCoordinator?.installHotkey()
+            onboardingHotkeyPreviewController.setCapturePaused(false)
+        }
+    }
+
     private func resolveAndUpdateMenuBarIcon() {
         let state = Self.resolveMenuBarState(
             isMeetingRecordingActive: meetingRecordingFlowCoordinator?.isMeetingRecordingActive == true,

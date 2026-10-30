@@ -42,7 +42,7 @@ final class AutoSaveServiceTests: XCTestCase {
         super.setUp()
         tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try! FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        suiteName = "com.macparakeet.test.autosave.\(UUID().uuidString)"
+        suiteName = makeIsolatedDefaultsSuite("com.macparakeet.test.autosave.")
         defaults = UserDefaults(suiteName: suiteName)!
     }
 
@@ -52,7 +52,6 @@ final class AutoSaveServiceTests: XCTestCase {
         if let name = defaults.volatileDomainNames.first {
             defaults.removeVolatileDomain(forName: name)
         }
-        defaults.removePersistentDomain(forName: suiteName)
         suiteName = nil
         super.tearDown()
     }

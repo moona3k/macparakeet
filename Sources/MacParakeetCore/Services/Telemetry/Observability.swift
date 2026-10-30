@@ -62,6 +62,10 @@ public struct ObservabilityCaptureCorrelation: Sendable, Equatable {
 }
 
 public enum Observability {
+    /// Ephemeral identity of this process, shared by telemetry, local audio
+    /// diagnostics, and crash metadata. Never reuse the uploading process's ID
+    /// as the identity of a previously crashed process.
+    public static let processSessionID = UUID().uuidString.lowercased()
     @TaskLocal public static var currentOperationContext: ObservabilityOperationContext?
     // Keep at most one workflow per consumer, ordered by their distinct begin calls.
     // A short dictation can temporarily own attribution without losing an ongoing meeting.
@@ -123,12 +127,17 @@ public enum Observability {
             guard !active.contains(correlation) else { return }
             active.removeAll { $0.consumer == correlation.consumer }
             active.append(correlation)
+            publishCrashConsumers(active)
         }
     }
 
     public static func endCaptureCorrelation(workflowID: String) {
         captureCorrelations.withLock { active in
+            let previousCount = active.count
             active.removeAll { $0.workflowID == workflowID }
+            if active.count != previousCount {
+                publishCrashConsumers(active)
+            }
         }
     }
 
@@ -137,7 +146,21 @@ public enum Observability {
     }
 
     static func resetCaptureCorrelation() {
-        captureCorrelations.withLock { $0.removeAll() }
+        captureCorrelations.withLock {
+            $0.removeAll()
+            CrashAudioContext.setRegisteredConsumers(0)
+        }
+    }
+
+    private static func publishCrashConsumers(_ active: [ObservabilityCaptureCorrelation]) {
+        var mask: UInt8 = 0
+        for correlation in active {
+            switch correlation.consumer {
+            case .dictation: mask |= 1
+            case .meeting: mask |= 2
+            }
+        }
+        CrashAudioContext.setRegisteredConsumers(mask)
     }
 
     public static func sanitizedGitCommit(_ raw: String) -> String {

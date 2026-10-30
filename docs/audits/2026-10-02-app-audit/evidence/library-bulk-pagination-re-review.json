@@ -1,0 +1,26 @@
+{
+  "baseline": "d57cd8c6be13bb12a8771ce476a2cdb94b096a4b",
+  "finding": "P2: pending offset page can finish between asynchronous target deletions; skipped replacement permanently omits surviving row.",
+  "red": {
+    "cases": 2,
+    "assertionFailures": 4,
+    "logRelativeToFixWorktree": ".build/audit-evidence/library-bulk-pagination-red.log",
+    "sha256": "8a75e9eb155290fb5995857d9576c2eb5de5ebb451c5fd9844d1765c28bfba07"
+  },
+  "green": {
+    "cases": 82,
+    "failures": 0,
+    "logRelativeToFixWorktree": ".build/audit-evidence/library-bulk-pagination-green.log",
+    "sha256": "b1a130507d6c100488409dc837f8f9629db78bc207fd27154e37d24ad9d05ce6"
+  },
+  "format": {
+    "baselineDiagnostics": 35,
+    "changedLineDiagnostics": 0
+  },
+  "review": "Independent adversarial review found no blockers; original finding reviewer authored tests, root authored bounded production fix.",
+  "hostedCI": "See exact-head run on fix/library-bulk-pagination-rereview PR; no result inferred from local tests.",
+  "sourceHashes": {
+    "Sources/MacParakeetViewModels/TranscriptionLibraryViewModel.swift": "ba5a950bb3f25480101aedffd2930e193e298f8ee928c90de4e640cb933591d9",
+    "Tests/MacParakeetTests/ViewModels/TranscriptionLibraryViewModelTests.swift": "657905ef69187530f15a60eca5ad78d162b6dba9dc30e5558c4975ac587f6bfe"
+  }
+}

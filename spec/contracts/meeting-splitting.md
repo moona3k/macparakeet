@@ -355,6 +355,22 @@ or newer presentation state. Editable time text stays separate from validated
 millisecond boundaries, so incomplete input disables creation without being
 silently reformatted or discarded.
 
+“Use current position” is a bordered secondary action. It is enabled only
+for an editable draft when applying playback to that row changes its parsed
+time and leaves all cuts strictly ascending and inside the recording. Check
+current time text rather than stale parsed values from incomplete edits;
+replacing an incomplete target row is allowed when the resulting cuts are
+valid. Other malformed rows must be corrected first. Title errors do not
+prevent time correction. Recheck availability when the action runs; an
+invalid or unchanged application leaves the draft and its validation state
+untouched. Do not sort or move other cuts to make playback fit.
+
+Manual time entry remains editable when invalid. The native editor maps typed
+geometry failures to recovery guidance about recording bounds or unique,
+ascending split times, never an internal error domain/code. These presentation
+rules leave Core geometry rejection and CLI error behavior unchanged. See the
+[editor QA fix plan](../../docs/plans/2026-09-25-split-editor-validation.md).
+
 At app startup, split children use their operation lease, held across the
 atomic interruption-status update, rather than the capture-only recording
 lock. Deletion and clear callers use the combined file/database mutation

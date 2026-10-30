@@ -75,6 +75,22 @@ struct BulkTranscriptExportResult: Identifiable, Sendable {
     var isCompleteSuccess: Bool {
         requestedCount > 0 && failedCount == 0 && exportedCount == requestedCount
     }
+
+    /// Counts selected recordings that were deleted before the export
+    /// started as failures, so a partial export never reads as complete.
+    func includingUnavailable(_ unavailableCount: Int) -> BulkTranscriptExportResult {
+        guard unavailableCount > 0 else { return self }
+        let noun = unavailableCount == 1 ? "recording was" : "recordings were"
+        return BulkTranscriptExportResult(
+            directory: directory,
+            format: format,
+            requestedCount: requestedCount + unavailableCount,
+            exportedURLs: exportedURLs,
+            failedCount: failedCount + unavailableCount,
+            firstErrorDescription: firstErrorDescription
+                ?? "\(unavailableCount) selected \(noun) deleted before export."
+        )
+    }
 }
 
 @MainActor

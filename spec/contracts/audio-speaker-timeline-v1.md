@@ -15,7 +15,7 @@ Existing text, word timing, speaker corrections, and export contracts remain cur
 
 ## Producers and coverage
 
-Keep the current sequential ASR-then-diarization order, FluidAudio offline service, model readiness, inference gate, speaker-count policies, and saved workflow preferences.
+Keep the current sequential ASR-then-diarization order, shared FluidAudio diarization service factory, model readiness, inference gate, speaker-count policies, and saved workflow preferences.
 Remove the word-availability prerequisite for audio analysis in file/URL transcription; retain it for word-to-speaker merging.
 
 | Input path | Timeline source | Coverage and clock |
@@ -38,7 +38,7 @@ It has an independent roster because effective text corrections may rename, merg
 |---|---|
 | `schemaVersion` | Integer `1`. |
 | `analysisId` | Fresh UUID string for each successfully materialized analysis, including an empty result; retained unchanged on subsequent reads. Not a person identifier. |
-| `pipelineRevision` | The producing `DiarizationService.pipelineRevision`; no unsupported quality claim. |
+| `pipelineRevision` | The producing backend and model revision (Nemotron or Community-1), not a hard-coded Community-1 revision; no unsupported quality claim. |
 | `source` | One of the source values in the coverage table. |
 | `coverageStartMs`, `coverageEndMs` | Half-open analyzed source envelope on the recording's playback clock, derived from inspected audio duration and persisted alignment, not from words. This is analyzed coverage, not a claim of uninterrupted speech or healthy capture. |
 | `speakers` | Array of `{id, label}` for detected clusters referenced by valid turns, in first-occurrence order; automatic labels only in v1. |

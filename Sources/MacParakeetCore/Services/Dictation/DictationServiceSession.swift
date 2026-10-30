@@ -49,10 +49,15 @@ public final class DictationServiceSession {
 
     public func startRecording(
         sessionID: Int,
-        context: DictationTelemetryContext
+        context: DictationTelemetryContext,
+        aiFormatterEnabled: Bool? = nil
     ) async throws {
         try Task.checkCancellation()
-        try await service.startRecording(context: context, sessionID: sessionID)
+        try await service.startRecording(
+            context: context,
+            sessionID: sessionID,
+            aiFormatterEnabled: aiFormatterEnabled
+        )
     }
 
     public func stopRecording(sessionID: Int) async throws -> DictationResult {

@@ -78,3 +78,17 @@ Update this contract, `spec/01-data-model.md`, `spec/02-features.md`,
 `spec/04-ui-patterns.md`, `spec/05-audio-pipeline.md`, the CLI changelog and
 integration docs, the schema migration when persistence changes, and focused
 tests in the same PR.
+
+## App discovery admission and cancellation
+
+File/folder ingestion admits discovery before inspecting the filesystem;
+`transcribeFiles` returning `true` means accepted work, not that a supported
+file has already been found. Unsupported/empty results are reported afterward.
+Discovery runs outside the main actor with visible Finding recordings and
+Cancel controls. Cancellation retires the request before signalling its worker;
+late success or failure cannot publish or begin audio-track selection/STT.
+Traversal checks cancellation between filesystem operations; a single blocking
+OS operation is not forcibly interrupted. Partial discovery is never enqueued.
+Direct-file, URL, drop and retranscription requests cannot replace admitted
+work. Existing filtering, deduplication, natural ordering within the collected
+window, the 200-file cap and audio-track selection semantics remain unchanged.

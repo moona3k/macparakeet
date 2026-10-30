@@ -32,6 +32,8 @@ Before creation, show:
 - The existing transcription/automation settings and provider privacy behavior apply; splitting does not silently enable providers or change settings.
 - The original recording date remains the retention anchor; splitting does not renew audio lifetime.
 
+The [September 25 editor QA fix plan](2026-09-25-split-editor-validation.md) adds explicit current-position availability and friendly validation guidance. Enable the bordered secondary “Use current position” action only when applying playback changes the target time and produces valid cuts from the current text. Invalid or unchanged applications preserve the draft; typed invalid times remain editable and show actionable guidance. Preserve Core/CLI validation and all processing/recovery behavior.
+
 Use native accessible controls and `.parakeetAction(...)`. Show separate audio-preparation and per-part processing progress. After audio publication, cancellation means stop processing, not undo creation. Keep completed and unfinished parts visible with retry actions and links to the original/siblings where they still exist.
 
 ## Settled behavior

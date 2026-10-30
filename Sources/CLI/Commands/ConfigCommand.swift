@@ -30,6 +30,8 @@ struct ConfigCommand: ParsableCommand {
         Supported keys:
           telemetry                 on|off                         default: on
           processing-mode           raw|clean                       default: raw
+          spoken-punctuation        on|off                          default: on
+                                    (Clean dictation only; transcripts never convert)
           remove-um-filler          on|off                          default: on
                                     (Clean processing; off keeps
                                     Portuguese/German um)
@@ -48,8 +50,13 @@ struct ConfigCommand: ParsableCommand {
           meeting-speaker-detection on|off                          default: on
           custom-vocabulary-boosting on|off                         default: off
           auto-meeting-titles       on|off                          default: on
+          meeting-ai-output-language follow-transcript|            default: follow-transcript
+                                    <Whisper language code>
+                                    (language of AI results, not speech)
           voice-return-enabled      on|off                          default: off
           voice-return-triggers     phrase[|phrase...]              default: press return
+          play-dictation-capture-sounds
+                                    on|off                          default: off
           escape-cancels-dictation  on|off                          default: on
           preserve-discarded-dictations on|off                      default: off
           save-transcription-audio  on|off                          default: on
@@ -93,6 +100,12 @@ struct ConfigCommand: ParsableCommand {
             valueSyntax: "raw|clean",
             allowedValues: ["raw", "clean"],
             summary: "Default dictation text processing mode."
+        ),
+        CLIConfigKeySpec(
+            key: "spoken-punctuation",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Convert spoken question/exclamation marks in Clean dictation. File, URL, and meeting transcripts never convert."
         ),
         CLIConfigKeySpec(
             key: "remove-um-filler",
@@ -161,6 +174,12 @@ struct ConfigCommand: ParsableCommand {
             summary: "Enable or disable automatic meeting title generation."
         ),
         CLIConfigKeySpec(
+            key: "meeting-ai-output-language",
+            valueSyntax: "follow-transcript|<Whisper language code>",
+            allowedValues: nil,
+            summary: "Language for generated AI results; accepts follow-transcript, a Whisper language code, or an English language name."
+        ),
+        CLIConfigKeySpec(
             key: "voice-return-enabled",
             valueSyntax: "on|off",
             allowedValues: ["on", "off"],
@@ -171,6 +190,12 @@ struct ConfigCommand: ParsableCommand {
             valueSyntax: "phrase[|phrase...]",
             allowedValues: nil,
             summary: "Voice Return trigger phrases separated by |."
+        ),
+        CLIConfigKeySpec(
+            key: "play-dictation-capture-sounds",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Play short cues when dictation capture starts and stops."
         ),
         CLIConfigKeySpec(
             key: "escape-cancels-dictation",
@@ -351,6 +376,9 @@ struct ConfigCommand: ParsableCommand {
         case "processing-mode":
             let raw = store.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey)
             return (Dictation.ProcessingMode(rawValue: raw ?? Dictation.ProcessingMode.raw.rawValue) ?? .raw).rawValue
+        case "spoken-punctuation":
+            let on = UserDefaultsAppRuntimePreferences.spokenPunctuationEnabled(defaults: store)
+            return on ? "on" : "off"
         case "remove-um-filler":
             let on = UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: store)
             return on ? "on" : "off"
@@ -378,6 +406,8 @@ struct ConfigCommand: ParsableCommand {
         case "auto-meeting-titles":
             let on = store.object(forKey: UserDefaultsAppRuntimePreferences.autoGenerateMeetingTitlesKey) as? Bool ?? true
             return on ? "on" : "off"
+        case "meeting-ai-output-language":
+            return MeetingAIOutputLanguagePolicy.current(defaults: store).configurationValue
         case "voice-return-enabled":
             let on = store.object(forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey) as? Bool ?? false
             return on ? "on" : "off"
@@ -385,6 +415,8 @@ struct ConfigCommand: ParsableCommand {
             return displayVoiceReturnTriggers(
                 UserDefaultsAppRuntimePreferences.voiceReturnTriggerList(defaults: store)
             )
+        case "play-dictation-capture-sounds":
+            return UserDefaultsAppRuntimePreferences.playDictationCaptureSounds(defaults: store) ? "on" : "off"
         case "escape-cancels-dictation":
             return UserDefaultsAppRuntimePreferences.escapeCancelsDictation(defaults: store) ? "on" : "off"
         case "preserve-discarded-dictations":
@@ -440,6 +472,10 @@ struct ConfigCommand: ParsableCommand {
             let mode = try parseProcessingMode(value)
             store.set(mode.rawValue, forKey: UserDefaultsAppRuntimePreferences.processingModeKey)
             return mode.rawValue
+        case "spoken-punctuation":
+            let parsed = try parseBool(value, key: key)
+            store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.spokenPunctuationEnabledKey)
+            return parsed ? "on" : "off"
         case "remove-um-filler":
             let parsed = try parseBool(value, key: key)
             store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.removeUmFillerKey)
@@ -497,6 +533,10 @@ struct ConfigCommand: ParsableCommand {
             let parsed = try parseBool(value, key: key)
             store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.autoGenerateMeetingTitlesKey)
             return parsed ? "on" : "off"
+        case "meeting-ai-output-language":
+            let policy = try parseMeetingAIOutputLanguage(value)
+            MeetingAIOutputLanguagePolicy.save(policy, defaults: store)
+            return policy.configurationValue
         case "voice-return-enabled":
             let parsed = try parseBool(value, key: key)
             store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
@@ -506,6 +546,10 @@ struct ConfigCommand: ParsableCommand {
             store.set(triggers, forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggersKey)
             store.set(triggers.first, forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey)
             return displayVoiceReturnTriggers(triggers)
+        case "play-dictation-capture-sounds":
+            let parsed = try parseBool(value, key: key)
+            store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.playDictationCaptureSoundsKey)
+            return parsed ? "on" : "off"
         case "escape-cancels-dictation":
             let parsed = try parseBool(value, key: key)
             store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.escapeCancelsDictationKey)
@@ -719,6 +763,15 @@ struct ConfigCommand: ParsableCommand {
             throw ValidationError("Invalid value for meeting-audio-source: '\(value)'. Use microphone-and-system, microphone-only, or system-only.")
         }
         return mode
+    }
+
+    static func parseMeetingAIOutputLanguage(_ value: String) throws -> MeetingAIOutputLanguagePolicy {
+        guard let policy = MeetingAIOutputLanguagePolicy(configurationValue: value) else {
+            throw ValidationError(
+                "Invalid value for meeting-ai-output-language: '\(value)'. Use follow-transcript or a Whisper language code such as en, ko, or ja."
+            )
+        }
+        return policy
     }
 
     static func parseVoiceReturnTriggers(_ value: String) throws -> [String] {

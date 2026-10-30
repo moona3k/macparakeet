@@ -25,7 +25,7 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        defaultsSuiteName = "com.macparakeet.tests.coordinator.\(UUID().uuidString)"
+        defaultsSuiteName = makeIsolatedDefaultsSuite("com.macparakeet.tests.coordinator.")
         defaults = UserDefaults(suiteName: defaultsSuiteName)!
         // Tests seed defaults before constructing SettingsViewModel via
         // `seedSettings(...)` so VM init reads the right values without
@@ -55,7 +55,6 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
     }
 
     override func tearDown() {
-        defaults.removePersistentDomain(forName: defaultsSuiteName)
         defaultsSuiteName = nil
         defaults = nil
         settingsViewModel = nil

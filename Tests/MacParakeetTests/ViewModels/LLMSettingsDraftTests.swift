@@ -333,4 +333,19 @@ final class LLMSettingsDraftTests: XCTestCase {
         XCTAssertFalse(draft.usesInsecureLocalNetworkHTTP)
         XCTAssertEqual(draft.validationError, .invalidBaseURL)
     }
+
+    func testAppleIntelligenceDraftDoesNotRequireKeyModelOrEndpoint() throws {
+        let draft = LLMSettingsDraft.defaults(for: .appleIntelligence)
+
+        XCTAssertNil(draft.validationError)
+        XCTAssertTrue(draft.isValid)
+        XCTAssertTrue(draft.isLocalConfiguration)
+
+        let config = try draft.buildConfig(defaultBaseURL: LLMProviderID.appleIntelligence.defaultBaseURL)
+        XCTAssertEqual(config?.id, .appleIntelligence)
+        XCTAssertEqual(config?.baseURL.absoluteString, "appleintelligence://system")
+        XCTAssertEqual(config?.modelName, "apple-intelligence")
+        XCTAssertNil(config?.apiKey)
+        XCTAssertEqual(config?.isLocal, true)
+    }
 }

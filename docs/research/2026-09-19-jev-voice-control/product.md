@@ -47,7 +47,7 @@ Stop from typing is `command stop`, not a word buried in the payload.
 
 ## Speech, privacy, Stop
 
-Audio stays on the Mac. Jev is cloud text-only, explicit consent, BYO key in Keychain. The request is the goal plus bounded visible control labels — never audio, screenshots, field values, or selected text on the Jev wire.
+Audio stays on the Mac. Jev is cloud text-only, explicit consent, BYO key in Keychain. The request is the goal, bounded visible control labels, the window text summary, and the visible values of offered fields (so the model can tell a filled field from an empty one) — never audio, screenshots, or the dedicated selected-text property on the Jev wire. See the [contract](../../../spec/contracts/voice-control.md) for the exact serialization.
 
 Stop revokes in-flight authority. The user moving the mouse or switching apps pauses automation; Continue reobserves. Unknown effects do not retry.
 

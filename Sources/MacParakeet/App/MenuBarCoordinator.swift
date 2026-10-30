@@ -54,10 +54,16 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     private let onCreateTransform: () -> Void
     private let onQuit: () -> Void
     private let onShowAboutPanel: () -> Void
+    var onPrepareMenuBarTransforms: ((SelectionCaptureTarget?) -> Void)?
+    var onRunMenuBarTransform: ((UUID) -> Void)?
+    var menuBarTransformsProvider: (() -> [MenuBarTransformListing])?
     var onVoiceControl: (() -> Void)?
     var onInteractionBusy: (() -> Void)?
 
     private var statusItem: NSStatusItem?
+    private var statusItemMouseDownMonitor: Any?
+    private var stagedFrontmostApplication: SelectionCaptureTarget?
+    private var didStageFrontmostApplication = false
     private var statusItemState = MenuBarStatusItemState()
     private var newTranscriptionMenuItem: NSMenuItem?
     private var startDictationMenuItem: NSMenuItem?
@@ -66,6 +72,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     private var recentDictationsMenuItem: NSMenuItem?
     private var pasteLastTransformMenuItem: NSMenuItem?
     private var recentTransformsMenuItem: NSMenuItem?
+    private var runTransformsMenuItem: NSMenuItem?
     private var recordMeetingMenuItems: [NSMenuItem] = []
     private var openLiveMeetingPanelMenuItem: NSMenuItem?
     private var transcribeFileMenuItems: [NSMenuItem] = []
@@ -442,6 +449,15 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         recentDictationsMenuItem = recentItem
 
         if AppFeatures.transformsEnabled {
+            let runTransformsItem = NSMenuItem(
+                title: "Transforms",
+                action: nil,
+                keyEquivalent: ""
+            )
+            runTransformsItem.submenu = NSMenu()
+            menu.addItem(runTransformsItem)
+            runTransformsMenuItem = runTransformsItem
+
             let pasteTransformItem = NSMenuItem(
                 title: "Paste Last Transform",
                 action: #selector(pasteLastTransform),
@@ -562,11 +578,40 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         menu.addItem(quitItem)
 
         statusItem.menu = menu
+        // The menu can activate this app before menuWillOpen. Stage the app
+        // seen on the status-button click, and fail closed if no click was seen.
+        statusItemMouseDownMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown]
+        ) { [weak self] event in
+            guard let self,
+                let button = self.statusItem?.button,
+                let window = button.window,
+                event.window === window,
+                button.bounds.contains(button.convert(event.locationInWindow, from: nil))
+            else { return event }
+
+            let frontmost = NSWorkspace.shared.frontmostApplication
+            self.stagedFrontmostApplication = frontmost.flatMap { app in
+                guard let bundleIdentifier = app.bundleIdentifier else { return nil }
+                return SelectionCaptureTarget(
+                    processIdentifier: app.processIdentifier,
+                    bundleIdentifier: bundleIdentifier,
+                    localizedName: app.localizedName
+                )
+            }
+            self.didStageFrontmostApplication = true
+            return event
+        }
         return true
     }
 
     private func removeMenuBarIcon() {
         guard let statusItem else { return }
+        if let statusItemMouseDownMonitor {
+            NSEvent.removeMonitor(statusItemMouseDownMonitor)
+            self.statusItemMouseDownMonitor = nil
+        }
+        clearStagedFrontmostApplication()
 
         if let menu = statusItem.menu {
             transcribeFileMenuItems.removeAll { $0.menu === menu }
@@ -581,6 +626,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         recentDictationsMenuItem = nil
         pasteLastTransformMenuItem = nil
         recentTransformsMenuItem = nil
+        runTransformsMenuItem = nil
         openLiveMeetingPanelMenuItem = nil
         hotkeyMenuItem = nil
         cohereLanguageMenuItem = nil
@@ -823,6 +869,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
             recentDictationsMenuItem?.isHidden = true
             pasteLastTransformMenuItem?.isEnabled = false
             recentTransformsMenuItem?.isHidden = true
+            runTransformsMenuItem?.isHidden = true
             return
         }
 
@@ -834,7 +881,24 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         pasteLastTransformMenuItem?.isEnabled = !transforms.isEmpty
         pasteLastTransformMenuItem?.isHidden = transforms.isEmpty
         rebuildRecentTransformsSubmenu(with: transforms)
+        rebuildRunTransformsSubmenu()
+    }
 
+    func menuWillOpen(_ menu: NSMenu) {
+        guard menu === statusItem?.menu else { return }
+        let frontmost = didStageFrontmostApplication ? stagedFrontmostApplication : nil
+        clearStagedFrontmostApplication()
+        onPrepareMenuBarTransforms?(frontmost)
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        guard menu === statusItem?.menu else { return }
+        clearStagedFrontmostApplication()
+    }
+
+    private func clearStagedFrontmostApplication() {
+        stagedFrontmostApplication = nil
+        didStageFrontmostApplication = false
     }
 
     private func handleDroppedFiles(_ urls: [URL]) {
@@ -894,6 +958,54 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
             submenu.addItem(item)
         }
         recentItem.submenu = submenu
+    }
+
+    private func rebuildRunTransformsSubmenu() {
+        guard let runItem = runTransformsMenuItem else { return }
+        let listings = menuBarTransformsProvider?() ?? []
+        runItem.isHidden = false
+
+        let submenu = NSMenu()
+        if listings.isEmpty {
+            let empty = NSMenuItem(
+                title: "No Transforms",
+                action: nil,
+                keyEquivalent: ""
+            )
+            empty.isEnabled = false
+            submenu.addItem(empty)
+        } else {
+            for listing in listings {
+                let title: String
+                if let shortcut = listing.shortcut {
+                    title = "\(listing.name)  \(shortcut.displayString)"
+                } else {
+                    title = listing.name
+                }
+                let item = NSMenuItem(
+                    title: title,
+                    action: #selector(runTransformFromMenu(_:)),
+                    keyEquivalent: ""
+                )
+                item.target = self
+                item.representedObject = listing.id
+                submenu.addItem(item)
+            }
+        }
+        submenu.addItem(NSMenuItem.separator())
+        let manage = NSMenuItem(
+            title: "Manage Transforms…",
+            action: #selector(showTransforms),
+            keyEquivalent: ""
+        )
+        manage.target = self
+        submenu.addItem(manage)
+        runItem.submenu = submenu
+    }
+
+    @objc private func runTransformFromMenu(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? UUID else { return }
+        onRunMenuBarTransform?(id)
     }
 
     /// Apply a chord trigger's visual shortcut to a menu item. Non-chord or

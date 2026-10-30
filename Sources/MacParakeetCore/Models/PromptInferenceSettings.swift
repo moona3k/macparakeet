@@ -211,8 +211,9 @@ public struct PromptInferenceFieldCapability: Sendable, Equatable {
         case notApplicable
     }
 
-    /// A provider-documented range. Application validation bounds are never
-    /// represented here as a model limit.
+    /// The range the prompt editor should offer. Apple Intelligence max tokens
+    /// is the largest request that still leaves prompt input, not the raw
+    /// 4096-token model window.
     public struct KnownRange: Sendable, Equatable {
         public let minimum: Double
         public let maximum: Double
@@ -413,7 +414,7 @@ public enum PromptInferenceCapabilityResolver {
             return [.temperature, .maxTokens]
         case .localCLI:
             return []
-        case .inProcessLocal:
+        case .inProcessLocal, .appleIntelligence:
             return [.temperature, .maxTokens]
         }
     }
@@ -479,7 +480,18 @@ public enum PromptInferenceCapabilityResolver {
         let isGemini3Temperature =
             field == .temperature && config.id == .gemini && isGemini3(config.modelName)
         let knownRange: PromptInferenceFieldCapability.KnownRange?
-        if field == .temperature,
+        if field == .temperature, config.id == .appleIntelligence {
+            knownRange = .init(minimum: 0, maximum: 1)
+        } else if field == .maxTokens, config.id == .appleIntelligence {
+            knownRange = .init(
+                minimum: 1,
+                maximum: Double(
+                    LLMService.maximumOutputTokensLeavingInputRoom(
+                        in: LLMService.appleIntelligenceContextBudget
+                    )
+                )
+            )
+        } else if field == .temperature,
             config.id == .anthropic,
             AnthropicModelPolicy.acceptsSampling(model: config.modelName)
         {

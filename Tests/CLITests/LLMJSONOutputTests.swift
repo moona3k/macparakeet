@@ -38,6 +38,29 @@ final class LLMJSONOutputTests: XCTestCase {
     // and that the human-readable text mentions both flag names so a
     // future refactor can't accidentally drop the actionable hint.
 
+    func testInlineAppleAnalysisIsRejectedForPlainAndStreamingCommands() async throws {
+        let input = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".txt")
+        try "Synthetic transcript for provider eligibility.".write(to: input, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: input) }
+        for flags in [[], ["--stream"]] {
+            let summarize = try LLMSummarizeCommand.parse(["--provider", "appleIntelligence", input.path] + flags)
+            let chat = try LLMChatCommand.parse(
+                ["--provider", "appleIntelligence", "--question", "Why?", input.path] + flags)
+            let requests: [() async throws -> Void] = [
+                { try await summarize.run() },
+                { try await chat.run() },
+            ]
+            for request in requests {
+                do {
+                    try await request()
+                    XCTFail("Apple Intelligence must reject analysis before generation")
+                } catch {
+                    XCTAssertTrue(error.localizedDescription.contains("cleanup only"), "Unexpected error: \(error)")
+                }
+            }
+        }
+    }
+
     func testSummarizeRejectsJSONWithStream() {
         assertParseRejects(
             command: LLMSummarizeCommand.self,
@@ -172,10 +195,15 @@ final class LLMJSONOutputTests: XCTestCase {
         // silently break downstream agents that branch on these strings.
         XCTAssertEqual(CLIErrorType.key(for: LLMError.notConfigured), "config")
         XCTAssertEqual(CLIErrorType.key(for: LLMError.connectionFailed("nope")), "connection")
+        XCTAssertEqual(CLIErrorType.key(for: LLMError.requestTimedOut), "timeout")
         XCTAssertEqual(CLIErrorType.key(for: LLMError.authenticationFailed(nil)), "auth")
         XCTAssertEqual(CLIErrorType.key(for: LLMError.rateLimited), "rate_limit")
         XCTAssertEqual(CLIErrorType.key(for: LLMError.modelNotFound("gpt-9")), "model")
         XCTAssertEqual(CLIErrorType.key(for: LLMError.contextTooLong), "context")
+        XCTAssertEqual(
+            CLIErrorType.key(for: LLMError.contentFiltered("declined")),
+            "provider"
+        )
         XCTAssertEqual(CLIErrorType.key(for: LLMError.formatterTruncated), "truncated")
         XCTAssertEqual(CLIErrorType.key(for: LLMError.formatterEmptyResponse), "truncated")
         XCTAssertEqual(CLIErrorType.key(for: LLMError.providerError("oops")), "provider")

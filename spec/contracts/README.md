@@ -37,7 +37,10 @@ Each contract document should include:
 
 Planned contracts are listed separately below; they do not describe available payloads.
 
+- [Credential Access](credential-access.md) — noninteractive Keychain access and preservation of saved AI settings
+- [Meeting URL control v1](meeting-url-control-v1.md) — opt-in GUI recording commands and creation titles
 - [Voice Control](voice-control.md) — gated shared speech, consent, foreground ownership and revocable execution
+- [Dictation Shortcuts](dictation-shortcuts.md) — primary and additional push-to-talk/hands-free pairs, collision reservations, held-trigger ownership and Escape/Undo with multiple listeners
 - [Meeting Import v1](meeting-import-v1.md) — one-file app/CLI import, managed-media ownership, recovery, and durable results
 - [Split and Transcribe](meeting-splitting.md) — implemented shared Core, native app, and public CLI lifecycle
 - [Saved-Audio Auto-Prompt Completion](saved-audio-auto-prompt-completion.md)

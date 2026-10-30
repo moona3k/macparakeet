@@ -262,6 +262,7 @@ swift run macparakeet-cli config set whisper-language ko
 swift run macparakeet-cli config set speaker-detection off
 swift run macparakeet-cli config set meeting-speaker-detection off
 swift run macparakeet-cli config set auto-meeting-titles on
+swift run macparakeet-cli config set meeting-ai-output-language en
 swift run macparakeet-cli config set save-transcription-audio off
 swift run macparakeet-cli config set meeting-audio-retention keep-forever
 swift run macparakeet-cli config set meeting-audio-source microphone-and-system
@@ -272,14 +273,14 @@ swift run macparakeet-cli config set voice-return-enabled on
 swift run macparakeet-cli config set voice-return-triggers "hey parakeet|okay parakeet"
 ```
 
-Supported keys: `telemetry`, `processing-mode`, `remove-um-filler`, `speech-engine`,
+Supported keys: `telemetry`, `processing-mode`, `spoken-punctuation`, `remove-um-filler`, `speech-engine`,
 `parakeet-model`, `nemotron-model`, `nemotron-language`, `whisper-language`,
 `cohere-language`, `speaker-detection`, `meeting-speaker-detection`,
-`auto-meeting-titles`, `save-transcription-audio`, `meeting-audio-retention`,
+`auto-meeting-titles`, `meeting-ai-output-language`, `save-transcription-audio`, `meeting-audio-retention`,
 `meeting-audio-source`, `start-meetings-muted`, `save-meeting-audio`, `youtube-audio-quality`,
 `meeting-artifacts-folder`, `meeting-hook-enabled`, `meeting-hook-path`,
 `meeting-hook-timeout`, `voice-return-enabled`, `voice-return-triggers`,
-`escape-cancels-dictation`, `preserve-discarded-dictations`.
+`play-dictation-capture-sounds`, `escape-cancels-dictation`, `preserve-discarded-dictations`.
 Underscore aliases such as `youtube_audio_quality` are accepted on input; JSON
 output uses canonical hyphenated keys.
 
@@ -595,11 +596,11 @@ when its server-side authentication is enabled.
 
 | Provider | Default Model | API Key Required |
 |----------|--------------|-----------------|
-| `anthropic` | claude-sonnet-5 | Yes |
+| `anthropic` | claude-sonnet-5-5 | Yes |
 | `openai` | gpt-4.1 | Yes |
 | `openai-compatible` | user-selected endpoint/model | Optional |
 | `gemini` | gemini-2.5-flash | Yes |
-| `openrouter` | anthropic/claude-sonnet-5 | Yes |
+| `openrouter` | anthropic/claude-sonnet-5.5 | Yes |
 | `ollama` | qwen3.5:4b | No (local) |
 | `lmstudio` | user-selected in LM Studio | Optional (local) |
 | `cli` | N/A (tool decides) | No (tool manages auth) |

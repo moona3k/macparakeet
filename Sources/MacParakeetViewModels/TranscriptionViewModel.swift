@@ -206,10 +206,19 @@ public final class TranscriptionViewModel {
         setError(message: nil)
     }
     public private(set) var transcribingFileName: String = ""
+    public private(set) var isDiscoveringFiles = false
     public private(set) var isInspectingAudioTracks = false
+    private var canStartTranscription: Bool {
+        !isTranscribing && !isBatchActive && !isDiscoveringFiles && !isSettlingFileDiscovery
+            && !isInspectingAudioTracks && pendingAudioTrackSelection == nil
+    }
     public private(set) var pendingAudioTrackSelection: AudioTrackSelectionRequest?
     public var isDragging = false
     public var urlInput: String = ""
+    /// Speaker count for the next file drop, file pick, or media link only.
+    /// Starting that run resets it to `.automatic`, so a count chosen for one
+    /// recording never silently constrains a later one (#1225).
+    public var nextRunSpeakerSelection: SpeakerCountSelection = .automatic
     public var hasPromptResultTabs: Bool = false
 
     // LLM state
@@ -241,6 +250,7 @@ public final class TranscriptionViewModel {
     private var batchAudioTrackOrdinal: Int?
     private var batchMultiTrackFilePaths: Set<String> = []
     private var batchAudioTrackPreflightFailedPaths: Set<String> = []
+    private var batchSpeakerSelection: SpeakerCountSelection?
 
     /// One-line batch status for the global progress bar / batch card,
     /// e.g. "Transcribing 7 of 40" or "Transcribing 7 of 40 · 1 failed".
@@ -339,6 +349,11 @@ public final class TranscriptionViewModel {
     private var transcriptionTask: Task<Void, Never>?
     private var activeTranscriptionTaskID: UUID?
     private var audioTrackPreflightID: UUID?
+    private var isSettlingFileDiscovery = false
+    private var fileDiscoveryID: UUID?
+    private(set) var fileDiscoveryCompletion: Task<Void, Never>?
+    private var fileDiscoveryTask: Task<AudioFileEnumerator.Result, Error>?
+    private let discoverFiles: @Sendable ([URL]) async throws -> AudioFileEnumerator.Result
     private var pendingAudioTrackFiles: [URL] = []
     private var pendingAudioTrackSource: TelemetryTranscriptionSource = .file
     private var pendingAudioTrackExpansion: AudioFileEnumerator.Result?
@@ -377,9 +392,16 @@ public final class TranscriptionViewModel {
         meetingArtifactStore: MeetingArtifactStoring = MeetingArtifactStore(),
         isWhisperModelDownloaded: (() -> Bool)? = nil,
         isNemotronModelDownloaded: (() -> Bool)? = nil,
-        isCohereModelDownloaded: (() -> Bool)? = nil
+        isCohereModelDownloaded: (() -> Bool)? = nil,
+        discoverFiles: @escaping @Sendable ([URL]) async throws -> AudioFileEnumerator.Result = { urls in
+            try Task.checkCancellation()
+            let result = AudioFileEnumerator.expand(urls: urls, shouldCancel: { Task.isCancelled })
+            try Task.checkCancellation()
+            return result
+        }
     ) {
         self.defaults = defaults
+        self.discoverFiles = discoverFiles
         self.meetingArtifactStore = meetingArtifactStore
         self.isWhisperModelDownloaded =
             isWhisperModelDownloaded ?? {
@@ -454,6 +476,7 @@ public final class TranscriptionViewModel {
     }
 
     public func transcribeFile(url: URL, source: TelemetryTranscriptionSource = .file) {
+        guard canStartTranscription else { return }
         guard transcriptionService != nil else {
             reportMissingConfiguration("transcriptionService", action: "transcribeFile")
             return
@@ -465,14 +488,36 @@ public final class TranscriptionViewModel {
                 expansion: AudioFileEnumerator.Result(files: [url], droppedCount: 0)
             )
         } else {
-            startTranscribingFile(url: url, source: source, audioTrackOrdinal: nil)
+            startTranscribingFile(
+                url: url,
+                source: source,
+                audioTrackOrdinal: nil,
+                speakerSelection: consumeNextRunSpeakerSelection()
+            )
         }
+    }
+
+    /// Takes the one-run speaker count. `nil` means the saved speaker-detection
+    /// preference decides, which is also the answer whenever that preference is
+    /// off: the Transcribe view hides the control then, so a count chosen
+    /// earlier must not turn detection back on.
+    private func consumeNextRunSpeakerSelection() -> SpeakerCountSelection? {
+        let applies = nextRunSpeakerCountApplies
+        let selection = nextRunSpeakerSelection
+        nextRunSpeakerSelection = .automatic
+        return applies ? selection : nil
+    }
+
+    private var nextRunSpeakerCountApplies: Bool {
+        nextRunSpeakerSelection.exactCount != nil
+            && UserDefaultsAppRuntimePreferences.speakerDiarizationEnabled(defaults: defaults)
     }
 
     private func startTranscribingFile(
         url: URL,
         source: TelemetryTranscriptionSource,
-        audioTrackOrdinal: Int?
+        audioTrackOrdinal: Int?,
+        speakerSelection: SpeakerCountSelection?
     ) {
         guard let service = transcriptionService else {
             reportMissingConfiguration("transcriptionService", action: "startTranscribingFile")
@@ -489,7 +534,20 @@ public final class TranscriptionViewModel {
                     }
                 }
                 let result: Transcription
-                if let audioTrackOrdinal {
+                if let speakerSelection {
+                    guard let speakerService = service as? any SpeakerConfiguredTranscriptionService else {
+                        throw STTError.engineStartFailed(
+                            "Per-run speaker configuration cannot be honored by this transcription service."
+                        )
+                    }
+                    result = try await speakerService.transcribe(
+                        fileURL: url,
+                        source: source,
+                        audioTrackOrdinal: audioTrackOrdinal,
+                        speakerSelection: speakerSelection,
+                        onProgress: progressHandler
+                    )
+                } else if let audioTrackOrdinal {
                     guard let audioTrackService else {
                         throw AudioProcessorError.conversionFailed(
                             "Audio-track selection is unavailable for this transcription service."
@@ -517,41 +575,57 @@ public final class TranscriptionViewModel {
         }
     }
 
-    /// Entry point for one-or-many local files (drag-drop, Browse, menu-bar
-    /// open). Folders are expanded recursively; a single resolved file follows
-    /// the single-job path, while two or more start a sequential batch. Returns
-    /// `true` when at least one supported file was accepted (so the drop handler
-    /// knows whether to dismiss the drop UI).
+    /// Admit local-file discovery. `true` means the request was accepted;
+    /// unsupported/empty input is reported asynchronously after discovery.
     @discardableResult
     public func transcribeFiles(urls: [URL], source: TelemetryTranscriptionSource = .file) -> Bool {
         guard transcriptionService != nil else {
             reportMissingConfiguration("transcriptionService", action: "transcribeFiles")
             return false
         }
-        guard !isTranscribing,
-            !isBatchActive,
-            !isInspectingAudioTracks,
-            pendingAudioTrackSelection == nil
-        else { return false }
-        let expansion = AudioFileEnumerator.expand(urls: urls)
-        let files = expansion.files
-        guard !files.isEmpty else {
-            setError(message: unsupportedDropMessage)
-            return false
-        }
-
-        if audioTrackService != nil {
-            startAudioTrackPreflight(files: files, source: source, expansion: expansion)
-        } else {
-            startResolvedFiles(
-                files,
-                source: source,
-                audioTrackOrdinal: nil,
-                multiTrackFilePaths: [],
-                expansion: expansion
-            )
+        guard canStartTranscription, !urls.isEmpty else { return false }
+        let requestID = UUID()
+        fileDiscoveryID = requestID
+        isDiscoveringFiles = true
+        beginTranscription(source: .localFile)
+        progressHeadline = "Finding recordings…"
+        let discover = discoverFiles
+        let worker = Task.detached(priority: .userInitiated) { try await discover(urls) }
+        fileDiscoveryTask = worker
+        fileDiscoveryCompletion = Task { @MainActor [weak self] in
+            do {
+                let expansion = try await worker.value
+                guard let self, fileDiscoveryID == requestID else { return }
+                finishFileDiscovery()
+                guard !expansion.files.isEmpty else {
+                    setError(message: unsupportedDropMessage)
+                    return
+                }
+                if audioTrackService != nil {
+                    startAudioTrackPreflight(files: expansion.files, source: source, expansion: expansion)
+                } else {
+                    startResolvedFiles(
+                        expansion.files, source: source, audioTrackOrdinal: nil,
+                        multiTrackFilePaths: [], expansion: expansion)
+                }
+            } catch {
+                guard let self, fileDiscoveryID == requestID else { return }
+                finishFileDiscovery()
+                if !(error is CancellationError) { setError(message: error.localizedDescription) }
+            }
         }
         return true
+    }
+
+    private func finishFileDiscovery() {
+        // Completion callbacks may synchronously attempt another import.
+        isSettlingFileDiscovery = true
+        defer { isSettlingFileDiscovery = false }
+        fileDiscoveryID = nil
+        fileDiscoveryTask = nil
+        fileDiscoveryCompletion = nil
+        isDiscoveringFiles = false
+        endTranscription()
     }
 
     public func selectAudioTrack(ordinal: Int) {
@@ -692,12 +766,19 @@ public final class TranscriptionViewModel {
             multiTrackFilePaths.contains(first.standardizedFileURL.path)
             ? audioTrackOrdinal
             : nil
+        let speakerSelection = consumeNextRunSpeakerSelection()
 
         if files.count == 1 {
-            startTranscribingFile(url: first, source: source, audioTrackOrdinal: firstAudioTrackOrdinal)
+            startTranscribingFile(
+                url: first,
+                source: source,
+                audioTrackOrdinal: firstAudioTrackOrdinal,
+                speakerSelection: speakerSelection
+            )
         } else {
             batchSource = source
             batchAudioTrackOrdinal = audioTrackOrdinal
+            batchSpeakerSelection = speakerSelection
             batchMultiTrackFilePaths = multiTrackFilePaths
             batchAudioTrackPreflightFailedPaths = preflightFailedFilePaths
             batchTotalCount = files.count
@@ -729,7 +810,7 @@ public final class TranscriptionViewModel {
     }
 
     public func transcribeURL() {
-        guard !isInspectingAudioTracks, pendingAudioTrackSelection == nil else { return }
+        guard canStartTranscription else { return }
         guard let service = transcriptionService else {
             reportMissingConfiguration("transcriptionService", action: "transcribeURL")
             return
@@ -748,8 +829,11 @@ public final class TranscriptionViewModel {
             placeholderName = "Podcast episode"
         } else if YouTubeURLValidator.isYouTubeURL(url) {
             guard let videoID = YouTubeURLValidator.extractVideoID(url) else { return }
-            // Check for existing transcription of the same video
-            if let existing = try? transcriptionRepo?.fetchCompletedByVideoID(videoID) {
+            // Reuse a saved transcript of the same video, unless an exact
+            // speaker count asks for a fresh run.
+            if !nextRunSpeakerCountApplies,
+                let existing = try? transcriptionRepo?.fetchCompletedByVideoID(videoID)
+            {
                 currentTranscription = existing
                 urlInput = ""
                 return
@@ -772,14 +856,30 @@ public final class TranscriptionViewModel {
 
         let taskID = beginNewTranscription(source: source, fileName: placeholderName)
         urlInput = ""
+        let speakerSelection = consumeNextRunSpeakerSelection()
 
         transcriptionTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                let result = try await service.transcribeURL(urlString: url) { [weak self] progress in
+                let progressHandler: @Sendable (TranscriptionProgress) -> Void = { [weak self] progress in
                     Task { @MainActor [weak self] in
                         self?.updateProgress(with: progress, taskID: taskID)
                     }
+                }
+                let result: Transcription
+                if let speakerSelection {
+                    guard let speakerService = service as? any SpeakerConfiguredTranscriptionService else {
+                        throw STTError.engineStartFailed(
+                            "Per-run speaker configuration cannot be honored by this transcription service."
+                        )
+                    }
+                    result = try await speakerService.transcribeURL(
+                        urlString: url,
+                        speakerSelection: speakerSelection,
+                        onProgress: progressHandler
+                    )
+                } else {
+                    result = try await service.transcribeURL(urlString: url, onProgress: progressHandler)
                 }
                 completeSuccessfulTranscription(taskID: taskID, result: result)
             } catch is CancellationError {
@@ -794,7 +894,7 @@ public final class TranscriptionViewModel {
         providers: [NSItemProvider],
         onAccepted: (@MainActor @Sendable () -> Void)? = nil
     ) -> Bool {
-        guard !isTranscribing, !isBatchActive else { return false }
+        guard canStartTranscription else { return false }
         let fileProviders = providers.filter { $0.hasItemConformingToTypeIdentifier("public.file-url") }
         guard !fileProviders.isEmpty else { return false }
 
@@ -854,14 +954,9 @@ public final class TranscriptionViewModel {
         let primaryEngine: SpeechEngineSelection
         let primaryReflectsTranscriptEngine: Bool
         if original.sourceType == .meeting,
-            let archivedRecording = archivedMeetingRecording(
-                for: original,
-                mixedAudioURL: URL(fileURLWithPath: filePath),
-                logFailure: false
-            ),
-            archivedRecording.speechEngineWasCaptured
+            let archivedEngine = archivedMeetingSpeechEngine(for: original, filePath: filePath)
         {
-            primaryEngine = archivedRecording.speechEngine
+            primaryEngine = archivedEngine
             primaryReflectsTranscriptEngine = true
         } else if let recordedEngine = original.engine.flatMap(SpeechEnginePreference.init(rawValue:)) {
             primaryEngine = SpeechEngineSelection(engine: recordedEngine, language: original.language)
@@ -975,8 +1070,9 @@ public final class TranscriptionViewModel {
     public func retranscribe(
         _ original: Transcription,
         speechEngineOverride: SpeechEngineSelection? = nil,
-        speakerSelection: RetranscriptionSpeakerSelection? = nil
+        speakerSelection: SpeakerCountSelection? = nil
     ) {
+        guard canStartTranscription else { return }
         guard let service = transcriptionService else {
             reportMissingConfiguration("transcriptionService", action: "retranscribe")
             return
@@ -1052,39 +1148,11 @@ public final class TranscriptionViewModel {
                         )
                     }
                 }
-                var updatedResult = result
-                // Preserve row identity and user-owned metadata so retranscription updates
-                // the existing record instead of deleting and recreating it.
-                updatedResult.id = original.id
-                updatedResult.createdAt = original.createdAt
-                updatedResult.isFavorite = original.isFavorite
-                updatedResult.fileName = original.fileName
-                updatedResult.filePath = original.filePath
-                updatedResult.sourceURL = original.sourceURL
-                updatedResult.thumbnailURL = original.thumbnailURL
-                updatedResult.channelName = original.channelName
-                updatedResult.videoDescription = original.videoDescription
-                updatedResult.sourceType = original.sourceType
-                updatedResult.recoveredFromCrash = original.recoveredFromCrash
-                updatedResult.userNotes = original.userNotes
-                updatedResult.updatedAt = Date()
-                do {
-                    if let transcriptionRepo {
-                        updatedResult = try transcriptionRepo.savePreservingUserMetadata(
-                            updatedResult, originalFileName: original.fileName
-                        )
-                    }
-                    promptResultsViewModel?.generateKnowledgeCard(
-                        transcriptionId: updatedResult.id
-                    )
-                    // Skip auto-run prompts on retranscribe — they would duplicate the existing tabs.
-                    completeSuccessfulTranscription(taskID: taskID, result: updatedResult, runAutoPrompts: false)
-                } catch {
-                    logger.error(
-                        "Failed to save transcription result error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
-                    )
-                    completeFailedTranscription(taskID: taskID, error: error)
-                }
+                // Core already committed the row and merged current user metadata.
+                // Saving again here could overwrite edits made after that commit.
+                promptResultsViewModel?.generateKnowledgeCard(transcriptionId: result.id)
+                // Skip auto-run prompts on retranscribe — they would duplicate the existing tabs.
+                completeSuccessfulTranscription(taskID: taskID, result: result, runAutoPrompts: false)
             } catch is CancellationError {
                 completeCancelledTranscription(taskID: taskID)
             } catch {
@@ -1108,10 +1176,43 @@ public final class TranscriptionViewModel {
             ))?.sourceAlignment.system != nil
     }
 
+    private struct ArchivedSpeechEngineCacheKey: Equatable {
+        let transcriptionID: UUID
+        let filePath: String
+        let updatedAt: Date
+    }
+
+    // SwiftUI evaluates `retranscriptionEngineOption` from view bodies, so the
+    // archive metadata read is memoized per transcription revision (#1132).
+    @ObservationIgnored
+    private var archivedSpeechEngineCache:
+        (
+            key: ArchivedSpeechEngineCacheKey,
+            value: SpeechEngineSelection?
+        )?
+
+    private func archivedMeetingSpeechEngine(
+        for original: Transcription,
+        filePath: String
+    ) -> SpeechEngineSelection? {
+        let key = ArchivedSpeechEngineCacheKey(
+            transcriptionID: original.id,
+            filePath: filePath,
+            updatedAt: original.updatedAt
+        )
+        if let cache = archivedSpeechEngineCache, cache.key == key {
+            return cache.value
+        }
+        let value = MeetingRecordingOutput.archivedSpeechEngine(
+            mixedAudioURL: URL(fileURLWithPath: filePath)
+        )
+        archivedSpeechEngineCache = (key, value)
+        return value
+    }
+
     private func archivedMeetingRecording(
         for original: Transcription,
-        mixedAudioURL: URL,
-        logFailure: Bool = true
+        mixedAudioURL: URL
     ) -> MeetingRecordingOutput? {
         let durationSeconds = Double(original.durationMs ?? 0) / 1000.0
         do {
@@ -1121,16 +1222,23 @@ public final class TranscriptionViewModel {
                 durationSeconds: durationSeconds
             )
         } catch {
-            if logFailure {
-                logger.notice(
-                    "Meeting retranscribe falling back to mixed audio path file=\(original.fileName, privacy: .private) error=\(error.localizedDescription, privacy: .private)"
-                )
-            }
+            logger.notice(
+                "Meeting retranscribe falling back to mixed audio path file=\(original.fileName, privacy: .private) error=\(error.localizedDescription, privacy: .private)"
+            )
             return nil
         }
     }
 
     public func cancelTranscription() {
+        if isDiscoveringFiles {
+            // Retire ownership before signalling cancellation: a non-cooperative
+            // filesystem operation may return after another request starts.
+            fileDiscoveryID = nil
+            fileDiscoveryTask?.cancel()
+            fileDiscoveryCompletion?.cancel()
+            finishFileDiscovery()
+            return
+        }
         transcriptionTask?.cancel()
         if isInspectingAudioTracks {
             audioTrackPreflightID = nil
@@ -1173,7 +1281,8 @@ public final class TranscriptionViewModel {
                 source: batchSource,
                 audioTrackOrdinal: batchMultiTrackFilePaths.contains(next.standardizedFileURL.path)
                     ? batchAudioTrackOrdinal
-                    : nil
+                    : nil,
+                speakerSelection: batchSpeakerSelection
             )
             return
         }
@@ -1199,6 +1308,7 @@ public final class TranscriptionViewModel {
         batchAudioTrackOrdinal = nil
         batchMultiTrackFilePaths.removeAll()
         batchAudioTrackPreflightFailedPaths.removeAll()
+        batchSpeakerSelection = nil
     }
 
     private func emitCompletionSignal(_ content: TranscriptionCompletionNotifier.Content?) {
@@ -1458,12 +1568,18 @@ public final class TranscriptionViewModel {
         }
         guard runAutoPrompts else { return }
         let text = aiContextText(for: transcription)
+        let correctionRevision =
+            speakerAttributionTranscriptionID == transcription.id
+            ? speakerAttribution?.correctionRevision
+            : nil
         promptResultsViewModel?.autoGeneratePromptResults(
             transcript: text,
             transcriptionId: transcription.id,
             sourceType: transcription.sourceType,
             meetingTypeId: transcription.meetingTypeId,
-            runInBackground: !selectTranscription
+            runInBackground: !selectTranscription,
+            sourceCorrectionRevision: correctionRevision ?? 0,
+            sourceTranscriptHash: PromptResultFreshness.sourceTranscriptHash(for: transcription)
         )
     }
 
@@ -1908,66 +2024,54 @@ public final class TranscriptionViewModel {
         }
     }
 
-    @discardableResult
-    public func updateCurrentTranscriptText(to newText: String) -> Bool {
-        guard var transcription = currentTranscription else { return false }
-        guard !transcription.hasWordTimestamps || transcription.isTranscriptEdited else {
-            setError(message: "Edit timed transcripts one line at a time.")
-            return false
-        }
-        guard let repo = transcriptionRepo else {
-            reportMissingConfiguration("transcriptionRepo", action: "updateCurrentTranscriptText")
-            return false
-        }
-        let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
+    public private(set) var transcriptEditFailure: String?
 
-        let currentText = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
-        guard trimmed != currentText else { return false }
-
-        transcription.cleanTranscript = trimmed == transcription.rawTranscript ? nil : trimmed
-        transcription.isTranscriptEdited = transcription.cleanTranscript != nil
-        transcription.updatedAt = Date()
-
+    public func makeTranscriptEditSnapshot() -> TranscriptEditSnapshot? {
+        guard let current = currentTranscription, let repo = transcriptionRepo else { return nil }
         do {
-            try repo.save(transcription)
-            currentTranscription = transcription
-            if let index = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
-                transcriptions[index] = transcription
-            }
-            return true
+            let snapshot = try repo.transcriptEditSnapshot(for: current)
+            transcriptEditFailure = nil
+            return snapshot
         } catch {
-            logger.error(
-                "Failed to persist transcript edit error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
-            )
-            return false
+            transcriptEditFailure = error.localizedDescription
+            return nil
         }
     }
 
     @discardableResult
-    public func revertCurrentTranscriptToOriginal() -> Bool {
-        guard var transcription = currentTranscription,
-            transcription.cleanTranscript != nil
+    public func updateCurrentTranscriptText(to newText: String, expected: TranscriptEditSnapshot? = nil) -> Bool {
+        let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let snapshot = expected ?? makeTranscriptEditSnapshot() else { return false }
+        let currentText = snapshot.transcription.cleanTranscript ?? snapshot.transcription.rawTranscript ?? ""
+        guard trimmed != currentText else { return false }
+        return persistTranscriptText(trimmed, expected: snapshot)
+    }
+
+    @discardableResult
+    public func revertCurrentTranscriptToOriginal(expected: TranscriptEditSnapshot? = nil) -> Bool {
+        guard let snapshot = expected ?? makeTranscriptEditSnapshot(),
+            snapshot.transcription.cleanTranscript != nil
         else { return false }
-        guard let repo = transcriptionRepo else {
-            reportMissingConfiguration("transcriptionRepo", action: "revertCurrentTranscriptToOriginal")
+        return persistTranscriptText(nil, expected: snapshot)
+    }
+
+    private func persistTranscriptText(_ text: String?, expected: TranscriptEditSnapshot) -> Bool {
+        guard let repo = transcriptionRepo, currentTranscription?.id == expected.transcription.id else {
+            transcriptEditFailure = TranscriptEditError.changed.localizedDescription
             return false
         }
-
-        transcription.cleanTranscript = nil
-        transcription.isTranscriptEdited = false
-        transcription.updatedAt = Date()
-
         do {
-            try repo.save(transcription)
-            currentTranscription = transcription
-            if let index = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
-                transcriptions[index] = transcription
+            let persisted = try repo.updateTranscriptText(text, expected: expected)
+            currentTranscription = persisted
+            if let index = transcriptions.firstIndex(where: { $0.id == persisted.id }) {
+                transcriptions[index] = persisted
             }
+            transcriptEditFailure = nil
             return true
         } catch {
+            transcriptEditFailure = error.localizedDescription
             logger.error(
-                "Failed to persist transcript revert error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
+                "Failed to persist transcript edit error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
             )
             return false
         }

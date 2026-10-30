@@ -1,0 +1,92 @@
+{
+  "date": "2026-10-02",
+  "baseline": "f43f4bed2ba7d4afdb005369759afc3d6cc44d34",
+  "buildSeconds": 141.96,
+  "adapterRed": {
+    "tests": 50,
+    "failedCases": 5,
+    "failedAssertions": 5
+  },
+  "orchestrationRed": {
+    "tests": 12,
+    "failedCases": 10,
+    "failedAssertions": 90,
+    "passingUncancelledControls": 2
+  },
+  "focusedGreen": {
+    "tests": 155,
+    "failures": 0,
+    "testSeconds": 4.782,
+    "filter": "DiarizationServiceTests|NemotronDiarizationServiceTests|TranscriptionServiceTests"
+  },
+  "sources": [
+    {
+      "path": "Sources/MacParakeetCore/Services/Diarization/DiarizationService.swift",
+      "sha256": "68fc1abf119ea1ae3b3ff5f0638841a40231626e7ca0590bdd9d3febf413ff50"
+    },
+    {
+      "path": "Sources/MacParakeetCore/Services/Diarization/NemotronDiarizationService.swift",
+      "sha256": "23abef2b8647aab3c1665a2fe3493ead2a76943fca3f16fbfc7e209240e801aa"
+    },
+    {
+      "path": "Sources/MacParakeetCore/Services/TranscriptionService.swift",
+      "sha256": "5d7f69fe4889205bed09b3546e78f799494651cb8d5c21795ed670f4ada1d13e"
+    },
+    {
+      "path": "Tests/MacParakeetTests/Services/Diarization/DiarizationServiceTests.swift",
+      "sha256": "e45fdbda9016438145438e9efb9ebf275557a95f2000f4c9b03f3c49299c6c46"
+    },
+    {
+      "path": "Tests/MacParakeetTests/Services/Diarization/NemotronDiarizationServiceTests.swift",
+      "sha256": "516e25395ff94941d3c9d5962154b1c0f0ebabb6a402d5929a3b046b74d63a23"
+    },
+    {
+      "path": "Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift",
+      "sha256": "8bb9b21e9e36533caf6dd7164b4feef42fd900340d642aad561ae33f006a58fd"
+    }
+  ],
+  "logs": [
+    {
+      "path": ".build/audit-evidence/build-tests.log",
+      "sha256": "d0af60b99d637b6a28ec0ce2b26fa1f5774a6152f265f161a32bb72f0d9e6758"
+    },
+    {
+      "path": ".build/audit-evidence/adapter-cancellation-red.log",
+      "sha256": "4b804eb67c1bf155af6054d7981091f4fccfee3830941fda55783051ef33b1ae"
+    },
+    {
+      "path": ".build/audit-evidence/orchestration-cancellation-red.log",
+      "sha256": "faa215fba193935b69f928e38aacb53d83013b82e6c8c9d04a76abf41b69d73d"
+    },
+    {
+      "path": ".build/audit-evidence/cancellation-focused-green.log",
+      "sha256": "d1bd9ed270c3fb16e618a7aee579c8ad3545a20ce53a9ee4354b44a79cc6d5a0"
+    },
+    {
+      "path": ".build/audit-evidence/cancellation-focused-final.log",
+      "sha256": "6b9d7a5a341f5edd092354b1fb5e2d1ea889a80cf6fd593d795dd1292d2c83d4"
+    },
+    {
+      "path": ".build/audit-evidence/cancellation-format-final.log",
+      "sha256": "43f7b851c5f811e24ded5daa108d1adb2ecefc455c4f1a96a527914e6f0e7555"
+    }
+  ],
+  "limits": [
+    "Injected SDK/provider results; no model or physical audio run",
+    "No second full local suite in the parent audit task",
+    "Hosted exact-head CI and merge are separate gates"
+  ],
+  "finalFocusedGreen": {
+    "tests": 155,
+    "failures": 0,
+    "testSeconds": 4.74,
+    "rebuildSeconds": 20.24,
+    "reason": "Changed-line formatting; final source hashes above match this run."
+  },
+  "review": {
+    "adapter": "Independent orchestration owner: no blockers",
+    "orchestration": "Independent adapter owner: no blockers; cancellation-boundary doc wording clarified",
+    "root": "Reviewed all production diffs and failure fixtures",
+    "lint": "No warnings intersect changed lines; historical warnings retained"
+  }
+}

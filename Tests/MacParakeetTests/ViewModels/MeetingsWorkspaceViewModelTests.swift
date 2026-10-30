@@ -9,13 +9,12 @@ final class MeetingsWorkspaceViewModelTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        defaultsSuiteName = "MeetingsWorkspaceViewModelTests-\(UUID().uuidString)"
+        defaultsSuiteName = makeIsolatedDefaultsSuite("MeetingsWorkspaceViewModelTests-")
         defaults = UserDefaults(suiteName: defaultsSuiteName)
         defaults.removePersistentDomain(forName: defaultsSuiteName)
     }
 
     override func tearDown() {
-        defaults.removePersistentDomain(forName: defaultsSuiteName)
         defaults = nil
         defaultsSuiteName = nil
         super.tearDown()

@@ -171,9 +171,8 @@ final class SpeechEngineCapabilitiesTests: XCTestCase {
     }
 
     func testRuntimeRoutedCapabilitiesUseInjectedDefaults() async throws {
-        let suiteName = "test.routed-capabilities.\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("test.routed-capabilities.")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         SpeechEnginePreference.saveParakeetModelVariant(.unified, defaults: defaults)
         let runtime = STTRuntime(
             parakeetModelVariant: SpeechEnginePreference.parakeetModelVariant(defaults: defaults),

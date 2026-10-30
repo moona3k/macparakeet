@@ -252,10 +252,9 @@ final class CohereTranscribeEngineTests: XCTestCase {
     }
 
     func testComputePolicyDefaultsToANEWhenUnset() throws {
-        let suiteName = "cohere-compute-policy-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("cohere-compute-policy-")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defaults.removePersistentDomain(forName: suiteName)
-        defer { defaults.removePersistentDomain(forName: suiteName) }
 
         XCTAssertEqual(CohereTranscribeEngine.ComputePolicy.current(defaults: defaults), .ane)
 
@@ -383,9 +382,8 @@ final class CohereTranscribeEngineTests: XCTestCase {
     }
 
     func testCohereDefaultLanguageRoundTrips() throws {
-        let suiteName = "cohere-lang-test-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("cohere-lang-test-")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         XCTAssertNil(SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults))
         SpeechEnginePreference.saveCohereDefaultLanguage("ja", defaults: defaults)
         XCTAssertEqual(SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults), "ja")

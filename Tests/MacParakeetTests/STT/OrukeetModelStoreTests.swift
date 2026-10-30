@@ -222,7 +222,7 @@ final class OrukeetModelStoreTests: XCTestCase {
         try await OrukeetModelStore.download()
         var previous: [String: String] = [:]
         for round in 0..<2 {
-            let defaults = try XCTUnwrap(UserDefaults(suiteName: "OrukeetSmoke-\(UUID().uuidString)"))
+            let defaults = try XCTUnwrap(UserDefaults(suiteName: makeIsolatedDefaultsSuite("OrukeetSmoke-")))
             let client = STTClient(parakeetModelVariant: .orukeet, defaults: defaults)
             for name in ["en", "de", "fr", "silence"] {
                 for job: STTJobKind in [.fileTranscription, .dictation, .meetingLiveChunk] {

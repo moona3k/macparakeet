@@ -10,6 +10,7 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         case invalidBaseURL
         case localNetworkHTTPRequiresOptIn
         case missingCommandTemplate
+        case taskOverrideUnavailable
 
         public var errorDescription: String? {
             switch self {
@@ -25,6 +26,8 @@ public struct LLMSettingsDraft: Equatable, Sendable {
                 return "Turn on local-network HTTP or use https."
             case .missingCommandTemplate:
                 return "Enter a CLI command."
+            case .taskOverrideUnavailable:
+                return "Save that AI option as your default first so its key or endpoint is stored."
             }
         }
     }
@@ -123,6 +126,9 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         if providerID == .localCLI {
             return trimmedCommandTemplate.isEmpty ? .missingCommandTemplate : nil
         }
+        if providerID == .appleIntelligence {
+            return nil
+        }
         if requiresAPIKey && trimmedAPIKey.isEmpty {
             return .missingAPIKey
         }
@@ -131,7 +137,8 @@ public struct LLMSettingsDraft: Equatable, Sendable {
                 return .missingCustomModel
             }
         } else if !allowMissingModelName
-                    && suggestedModelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            && suggestedModelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
             return .missingModelSelection
         }
         if providerID.requiresCustomEndpoint && trimmedBaseURLOverride.isEmpty {
@@ -159,7 +166,8 @@ public struct LLMSettingsDraft: Equatable, Sendable {
     public var isLocalConfiguration: Bool {
         guard let providerID else { return false }
         if providerID == .openaiCompatible,
-           let url = URL(string: trimmedBaseURLOverride) {
+            let url = URL(string: trimmedBaseURLOverride)
+        {
             return Self.isOpenAICompatibleLocalConfiguration(
                 url,
                 allowInsecureLocalNetworkHTTP: allowInsecureLocalNetworkHTTP
@@ -170,8 +178,8 @@ public struct LLMSettingsDraft: Equatable, Sendable {
 
     public var usesInsecureLocalNetworkHTTP: Bool {
         guard providerID == .openaiCompatible,
-              allowInsecureLocalNetworkHTTP,
-              let url = URL(string: trimmedBaseURLOverride)
+            allowInsecureLocalNetworkHTTP,
+            let url = URL(string: trimmedBaseURLOverride)
         else {
             return false
         }
@@ -193,6 +201,10 @@ public struct LLMSettingsDraft: Equatable, Sendable {
 
         if providerID == .inProcessLocal {
             return .inProcessLocal(model: effectiveModelName)
+        }
+
+        if providerID == .appleIntelligence {
+            return .appleIntelligence()
         }
 
         let baseURL: URL
@@ -293,11 +305,15 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         allowInsecureLocalNetworkHTTP: Bool
     ) -> ValidationError? {
         guard let scheme = url.scheme?.lowercased(),
-              url.host != nil else {
+            url.host != nil
+        else {
             return .invalidBaseURL
         }
         if providerID == .inProcessLocal {
             return scheme == "inprocess" ? nil : .invalidBaseURL
+        }
+        if providerID == .appleIntelligence {
+            return scheme == "appleintelligence" ? nil : .invalidBaseURL
         }
         if scheme == "https" {
             return nil

@@ -84,6 +84,11 @@ final class DiarizationServiceTests: XCTestCase {
             FileManager.default.createFile(atPath: modelURL.path, contents: Data())
         }
 
+        XCTAssertFalse(DiarizationService.isModelCached(directory: tempDirectory), "Legacy unmarked caches need setup.")
+        let marker = repoDirectory.appendingPathComponent(".fluidaudio-revision")
+        try Data("stale-revision".utf8).write(to: marker)
+        XCTAssertFalse(DiarizationService.isModelCached(directory: tempDirectory))
+        try Data((Repo.diarizer.revision + "\n").utf8).write(to: marker)
         XCTAssertTrue(DiarizationService.isModelCached(directory: tempDirectory))
 
         DiarizationService.clearModelCache(directory: tempDirectory)
@@ -126,27 +131,27 @@ final class DiarizationServiceTests: XCTestCase {
         XCTAssertNil(config.clustering.maxSpeakers)
     }
 
-    func testRetranscriptionSpeakerSelectionAcceptsDocumentedBounds() throws {
+    func testSpeakerCountSelectionAcceptsDocumentedBounds() throws {
         XCTAssertEqual(
-            try RetranscriptionSpeakerSelection.exact(1).validated(),
+            try SpeakerCountSelection.exact(1).validated(),
             .exact(1)
         )
         XCTAssertEqual(
-            try RetranscriptionSpeakerSelection.exact(100).validated(),
+            try SpeakerCountSelection.exact(100).validated(),
             .exact(100)
         )
         XCTAssertEqual(
-            try RetranscriptionSpeakerSelection.automatic.validated(),
+            try SpeakerCountSelection.automatic.validated(),
             .automatic
         )
     }
 
-    func testRetranscriptionSpeakerSelectionRejectsValuesOutsideDocumentedBounds() {
-        XCTAssertThrowsError(try RetranscriptionSpeakerSelection.exact(0).validated()) { error in
-            XCTAssertEqual(error as? RetranscriptionSpeakerSelectionError, .unsupportedExactCount(0))
+    func testSpeakerCountSelectionRejectsValuesOutsideDocumentedBounds() {
+        XCTAssertThrowsError(try SpeakerCountSelection.exact(0).validated()) { error in
+            XCTAssertEqual(error as? SpeakerCountSelectionError, .unsupportedExactCount(0))
         }
-        XCTAssertThrowsError(try RetranscriptionSpeakerSelection.exact(101).validated()) { error in
-            XCTAssertEqual(error as? RetranscriptionSpeakerSelectionError, .unsupportedExactCount(101))
+        XCTAssertThrowsError(try SpeakerCountSelection.exact(101).validated()) { error in
+            XCTAssertEqual(error as? SpeakerCountSelectionError, .unsupportedExactCount(101))
         }
     }
 
@@ -175,6 +180,51 @@ final class DiarizationServiceTests: XCTestCase {
     }
 
     // MARK: - Shared model loading
+
+    func testCancellationAfterProcessingReturnsDoesNotReturnSpeakerResult() async throws {
+        try await assertCancelledProcessing(
+            .success(
+                DiarizationResult(segments: [
+                    TimedSpeakerSegment(
+                        speakerId: "S1", embedding: [], startTimeSeconds: 0,
+                        endTimeSeconds: 1, qualityScore: 1
+                    )
+                ])))
+    }
+
+    func testCancellationAfterNoSpeechErrorDoesNotReturnEmptySuccess() async throws {
+        try await assertCancelledProcessing(.failure(OfflineDiarizationError.noSpeechDetected))
+    }
+
+    func testCancellationAfterProcessingErrorTakesPrecedenceOverBackendFailure() async throws {
+        try await assertCancelledProcessing(.failure(URLError(.cannotDecodeContentData)))
+    }
+
+    func testUncancelledNoSpeechErrorStillReturnsEmptySuccess() async throws {
+        let manager = SuspendedOfflineDiarizerManager(entered: expectation(description: "processing entered"))
+        let service = makeSuspendedService(manager)
+        let task = Task { try await service.diarize(audioURL: URL(fileURLWithPath: "/unused.wav")) }
+        await fulfillment(of: [manager.entered], timeout: 2)
+        await manager.finish(with: .failure(OfflineDiarizationError.noSpeechDetected))
+        let result = try await task.value
+        XCTAssertEqual(result.speakerCount, 0)
+        XCTAssertTrue(result.segments.isEmpty)
+        XCTAssertTrue(result.speakers.isEmpty)
+    }
+
+    func testUncancelledProcessingErrorPreservesBackendFailure() async throws {
+        let manager = SuspendedOfflineDiarizerManager(entered: expectation(description: "processing entered"))
+        let service = makeSuspendedService(manager)
+        let task = Task { try await service.diarize(audioURL: URL(fileURLWithPath: "/unused.wav")) }
+        await fulfillment(of: [manager.entered], timeout: 2)
+        await manager.finish(with: .failure(URLError(.cannotDecodeContentData)))
+        do {
+            _ = try await task.value
+            XCTFail("Expected the backend failure")
+        } catch let error as URLError {
+            XCTAssertEqual(error.code, .cannotDecodeContentData)
+        }
+    }
 
     func testSuspendedDownloadDoesNotHoldInferenceGate() async throws {
         let loader = RecordingModelLoader()
@@ -328,7 +378,8 @@ final class DiarizationServiceTests: XCTestCase {
         let metadata = DiarizationService.modelCacheDirectory(directory: directory).appendingPathComponent("plda-parameters.json")
         let replacement = Data(#"{"tensors":{"psi":{"data_base64":"AACAPw=="}}}"#.utf8)
         try await DiarizationService.repairPLDAParameters(directory: directory, offlineMode: false) { url in
-            XCTAssertEqual(url, try ModelRegistry.resolveModel(Repo.diarizer.remotePath, "plda-parameters.json"))
+            XCTAssertEqual(url, try ModelRegistry.resolveModel(
+                Repo.diarizer.remotePath, "plda-parameters.json", revision: Repo.diarizer.revision))
             return replacement
         }
         XCTAssertEqual(try Data(contentsOf: metadata), replacement)
@@ -382,7 +433,37 @@ final class DiarizationServiceTests: XCTestCase {
             try Data("model sentinel".utf8).write(to: file)
         }
         try Data("malformed".utf8).write(to: repo.appendingPathComponent("plda-parameters.json"))
+        try Data(Repo.diarizer.revision.utf8).write(to: repo.appendingPathComponent(".fluidaudio-revision"))
         return directory
+    }
+
+    private func assertCancelledProcessing(
+        _ completion: Result<DiarizationResult, Error>,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        let manager = SuspendedOfflineDiarizerManager(entered: expectation(description: "processing entered"))
+        let service = makeSuspendedService(manager)
+        let task = Task { try await service.diarize(audioURL: URL(fileURLWithPath: "/unused.wav")) }
+        await fulfillment(of: [manager.entered], timeout: 2)
+        task.cancel()
+        await manager.finish(with: completion)
+        do {
+            _ = try await task.value
+            XCTFail("Cancellation must not become successful diarization", file: file, line: line)
+        } catch is CancellationError {
+        } catch {
+            XCTFail("Expected cancellation, received \(error)", file: file, line: line)
+        }
+    }
+
+    private func makeSuspendedService(_ manager: SuspendedOfflineDiarizerManager) -> DiarizationService {
+        DiarizationService(
+            loadManagerFactory: { _ in { _ in manager } },
+            modelsDirectory: FileManager.default.temporaryDirectory,
+            explicitConstraint: nil,
+            inferenceGate: ANEInferenceGate(serializationRequired: false)
+        )
     }
 
     private func makeService(
@@ -397,6 +478,34 @@ final class DiarizationServiceTests: XCTestCase {
             explicitConstraint: explicitConstraint,
             inferenceGate: gate
         )
+    }
+}
+
+/// Models an SDK call that finishes its work before observing cancellation.
+private actor SuspendedOfflineDiarizerManager: OfflineDiarizerManaging {
+    nonisolated let entered: XCTestExpectation
+    private var continuation: CheckedContinuation<DiarizationResult, Error>?
+    private var completion: Result<DiarizationResult, Error>?
+
+    init(entered: XCTestExpectation) {
+        self.entered = entered
+    }
+
+    func process(audioURL: URL) async throws -> DiarizationResult {
+        try await withCheckedThrowingContinuation { continuation in
+            self.continuation = continuation
+            entered.fulfill()
+            if let completion {
+                self.continuation = nil
+                continuation.resume(with: completion)
+            }
+        }
+    }
+
+    func finish(with completion: Result<DiarizationResult, Error>) {
+        self.completion = completion
+        continuation?.resume(with: completion)
+        continuation = nil
     }
 }
 

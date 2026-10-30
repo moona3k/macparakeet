@@ -219,7 +219,13 @@ public final class PromptsViewModel {
     }
     public var newCollectionID: UUID?
     public var newTargetLabelIDs: Set<UUID> = []
-    public var newPromptCategory: Prompt.Category = .result
+    public var newPromptCategory: Prompt.Category = .result {
+        didSet {
+            if newPromptCategory != oldValue, editingPrompt == nil {
+                refreshGenerationSettingsContext()
+            }
+        }
+    }
     public var newCollectionName = ""
     public var newInferenceSettings = InferenceSettingsDraft() {
         didSet {
@@ -267,7 +273,9 @@ public final class PromptsViewModel {
     /// Rebuild live Transform hotkeys after a successful manager mutation.
     public var onTransformsChanged: (() -> Void)?
     public var pendingDeletePrompt: Prompt?
-    public var editingPrompt: Prompt?
+    public var editingPrompt: Prompt? {
+        didSet { refreshGenerationSettingsContext() }
+    }
 
     private var repo: PromptRepositoryProtocol?
     private var versionRepo: PromptVersionRepositoryProtocol?
@@ -278,6 +286,7 @@ public final class PromptsViewModel {
     private var configStore: LLMConfigStoreProtocol?
     private var llmClient: LLMClientProtocol?
     private var generationConfig: LLMProviderConfig?
+    private var generationTaskGroup: LLMTaskGroup = .analysis
     private var generationConfigLoadTask: Task<Void, Never>?
     private var generationModelListTask: Task<Void, Never>?
     private var generationContextRevision = 0
@@ -338,6 +347,12 @@ public final class PromptsViewModel {
         generationModelListTask?.cancel()
         generationContextRevision += 1
         let revision = generationContextRevision
+        let category = editingPrompt?.category ?? newPromptCategory
+        let task: LLMTaskGroup = category == .transform ? .transform : .analysis
+        if generationTaskGroup != task {
+            generationTaskGroup = task
+            applyGenerationSettingsConfig(nil, revision: revision)
+        }
 
         guard let configStore else {
             applyGenerationSettingsConfig(nil, revision: revision)
@@ -346,12 +361,20 @@ public final class PromptsViewModel {
 
         let llmClient = self.llmClient
         generationConfigLoadTask = Task { [weak self, configStore] in
-            let config = await Task.detached(priority: .utility) {
-                try? configStore.loadConfig()
+            let (route, discoveryConfig) = await Task.detached(priority: .utility) {
+                let route = try? configStore.loadRouteMetadata(for: task)
+                // Discovery needs credentials, but provider and model display never do.
+                let discoveryConfig = route.flatMap { route in
+                    (try? configStore.loadConfig(for: task)).flatMap {
+                        LLMModelSelectionRoute(config: $0, isOverride: route.isOverride) == route ? $0 : nil
+                    }
+                }
+                return (route, discoveryConfig)
             }.value
             guard !Task.isCancelled else { return }
             self?.applyGenerationSettingsConfig(
-                config,
+                route?.config,
+                discoveryConfig: discoveryConfig,
                 llmClient: llmClient,
                 revision: revision
             )
@@ -360,6 +383,7 @@ public final class PromptsViewModel {
 
     private func applyGenerationSettingsConfig(
         _ config: LLMProviderConfig?,
+        discoveryConfig: LLMProviderConfig? = nil,
         llmClient: LLMClientProtocol? = nil,
         revision: Int
     ) {
@@ -377,10 +401,12 @@ public final class PromptsViewModel {
             for: config,
             discoveredModels: []
         )
+        guard let discoveryConfig else { return }
         generationModelListTask = LLMModelAvailability.refreshPickerModelsTask(
-            for: config,
+            for: discoveryConfig,
             llmClient: llmClient,
-            configStore: configStore
+            configStore: configStore,
+            task: generationTaskGroup
         ) { [weak self] models in
             guard self?.generationContextRevision == revision else { return }
             self?.generationAvailableModels = models
@@ -547,7 +573,6 @@ public final class PromptsViewModel {
     }
 
     public func beginEditing(_ prompt: Prompt) {
-        refreshGenerationSettingsContext()
         editingIncludeMeetingNotes = prompt.includeMeetingNotes
         editingInferenceSettings = InferenceSettingsDraft(settings: prompt.inferenceSettings)
         editingModelOverride = prompt.modelOverride ?? ""

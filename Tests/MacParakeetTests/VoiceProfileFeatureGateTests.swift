@@ -119,9 +119,8 @@ final class VoiceProfileFeatureGateTests: XCTestCase {
     }
 
     func testSavedOptInAndConsentCannotBypassReleaseGate() {
-        let suite = "VoiceProfileFeatureGateTests.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("VoiceProfileFeatureGateTests.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.rememberSpeakersKey)
         defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.meetingSpeakerDiarizationKey)
         defaults.set(Date(), forKey: UserDefaultsAppRuntimePreferences.voiceprintConsentAcknowledgedAtKey)

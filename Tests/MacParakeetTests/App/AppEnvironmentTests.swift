@@ -73,9 +73,49 @@ final class AppEnvironmentTests: XCTestCase {
         ))
     }
 
-    func testSyncAIFormatterAvailabilityWritesTrueWhenProviderExists() {
+    func testStandaloneCleanupAvailabilitySurvivesStartupSync() {
         let (suiteName, defaults) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = MockLLMConfigStore()
+        store.taskOverrides[.cleanup] = .appleIntelligence()
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey)
+
+        AppEnvironment.syncAIFormatterAvailabilityWithLLMConfiguration(defaults: defaults, configStore: store)
+
+        XCTAssertTrue(defaults.bool(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey))
+        XCTAssertTrue(defaults.bool(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey))
+        store.taskOverrides = [:]
+        AppEnvironment.syncAIFormatterAvailabilityWithLLMConfiguration(defaults: defaults, configStore: store)
+        XCTAssertFalse(defaults.bool(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey))
+    }
+
+    func testSyncAIFormatterAvailabilityUsesRouteMetadataWhenCredentialsAreBlocked() throws {
+        let (_, defaults) = makeDefaults()
+        let domain = makeIsolatedDefaultsSuite("AppEnvironmentTests-routes-")
+        let lockURL = FileManager.default.temporaryDirectory.appendingPathComponent(domain)
+            .appendingPathComponent("routes.lock")
+        addTeardownBlock { try? FileManager.default.removeItem(at: lockURL.deletingLastPathComponent()) }
+        let credentials = InMemoryKeyValueStore()
+        let store = LLMConfigStore(preferencesDomain: domain, lockURL: lockURL, keychain: credentials)
+        try store.saveTaskOverride(.openai(apiKey: "saved-key", model: "gpt-5.5"), for: .cleanup)
+        credentials.getError = KeyValueStoreError.unsupported
+        let readsBeforeSync = credentials.readCount
+
+        AppEnvironment.syncAIFormatterAvailabilityWithLLMConfiguration(defaults: defaults, configStore: store)
+
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey) as? Bool,
+            true
+        )
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey) as? Bool,
+            false
+        )
+        XCTAssertEqual(credentials.readCount, readsBeforeSync)
+    }
+
+    func testSyncAIFormatterAvailabilityWritesTrueWhenProviderExists() {
+        let (_, defaults) = makeDefaults()
         let configStore = MockLLMConfigStore()
         configStore.config = .openai(apiKey: "sk-test")
 
@@ -95,8 +135,7 @@ final class AppEnvironmentTests: XCTestCase {
     }
 
     func testSyncAIFormatterAvailabilityOverwritesLegacyExplicitFalseWhenProviderExists() {
-        let (suiteName, defaults) = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let (_, defaults) = makeDefaults()
         defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
         let configStore = MockLLMConfigStore()
         configStore.config = .openai(apiKey: "sk-test")
@@ -117,8 +156,7 @@ final class AppEnvironmentTests: XCTestCase {
     }
 
     func testSyncAIFormatterAvailabilityDoesNotMigrateLegacyExplicitFalseOnSecondRun() {
-        let (suiteName, defaults) = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let (_, defaults) = makeDefaults()
         defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
         let configStore = MockLLMConfigStore()
         configStore.config = .openai(apiKey: "sk-test")
@@ -143,8 +181,7 @@ final class AppEnvironmentTests: XCTestCase {
     }
 
     func testSyncAIFormatterAvailabilityDoesNotMigrateNewProviderOnSecondRun() {
-        let (suiteName, defaults) = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let (_, defaults) = makeDefaults()
         let configStore = MockLLMConfigStore()
         configStore.config = .openai(apiKey: "sk-test")
 
@@ -168,8 +205,7 @@ final class AppEnvironmentTests: XCTestCase {
     }
 
     func testSyncAIFormatterAvailabilityMigratesLegacyExplicitTrueToDictationPreference() {
-        let (suiteName, defaults) = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let (_, defaults) = makeDefaults()
         defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
         let configStore = MockLLMConfigStore()
         configStore.config = .openai(apiKey: "sk-test")
@@ -190,8 +226,7 @@ final class AppEnvironmentTests: XCTestCase {
     }
 
     func testSyncAIFormatterAvailabilityPreservesExistingDictationPreference() {
-        let (suiteName, defaults) = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let (_, defaults) = makeDefaults()
         defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
         defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey)
         let configStore = MockLLMConfigStore()
@@ -213,8 +248,7 @@ final class AppEnvironmentTests: XCTestCase {
     }
 
     func testSyncAIFormatterAvailabilityPreservesExistingTranscriptionPreference() {
-        let (suiteName, defaults) = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let (_, defaults) = makeDefaults()
         defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey)
         let configStore = MockLLMConfigStore()
         configStore.config = .openai(apiKey: "sk-test")
@@ -235,8 +269,7 @@ final class AppEnvironmentTests: XCTestCase {
     }
 
     func testSyncAIFormatterAvailabilityRemovesPreferenceWithoutProvider() {
-        let (suiteName, defaults) = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let (_, defaults) = makeDefaults()
         defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
         let configStore = MockLLMConfigStore()
 
@@ -253,7 +286,7 @@ final class AppEnvironmentTests: XCTestCase {
     }
 
     private func makeDefaults() -> (suiteName: String, defaults: UserDefaults) {
-        let suiteName = "AppEnvironmentTests-\(UUID().uuidString)"
+        let suiteName = makeIsolatedDefaultsSuite("AppEnvironmentTests-")
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
         return (suiteName, defaults)

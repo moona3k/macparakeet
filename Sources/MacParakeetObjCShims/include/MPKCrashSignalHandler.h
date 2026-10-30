@@ -1,6 +1,9 @@
 #ifndef MPKCrashSignalHandler_h
 #define MPKCrashSignalHandler_h
 
+#include <stddef.h>
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -15,7 +18,37 @@ typedef struct {
     const char *os_version;
     const char *mach_uuid;
     const char *aslr_slide;
+    const char *crash_id;
+    const char *crash_session;
+    const char *os_build;
+    const char *shared_cache_uuid;
+    const char *shared_cache_slide;
 } MPKCrashMetadata;
+
+/// Optional system identity, read once in NORMAL startup context only. Failure
+/// leaves the unavailable fields empty. Uses SDK-public Mach/sysctl interfaces.
+typedef struct {
+    char os_build[32];
+    char shared_cache_uuid[37];
+    char shared_cache_slide[24];
+} MPKCrashSystemMetadata;
+void MPKReadCrashSystemMetadata(MPKCrashSystemMetadata *metadata);
+
+/// Normal-time, content-free observation. No I/O, allocation, formatting or
+/// waiting. Records may be dropped under competing writers. The opaque payload
+/// is the versioned CrashAudioContext numeric schema, never a pointer/string.
+void MPKRecordCrashBreadcrumb(uint64_t value);
+/// A process-local attempt token, NOT an engine generation. Zero on exhaustion;
+/// tokens never repeat. Allocation uses a single atomic operation.
+uint32_t MPKNextCrashAttempt(void);
+/// Independent workflow registry snapshot (0 none, 1 dictation, 2 meeting,
+/// 3 both). This is not a statement of microphone hardware activity.
+void MPKSetCrashRegisteredConsumers(uint32_t consumers);
+/// Copies bounded metadata and up to 32 complete numeric breadcrumbs into the
+/// caller's buffer, returning bytes written (not NUL-terminated). No allocation,
+/// I/O, locks or retries; safe in the fatal handler. Also used in normal ObjC
+/// exception reporting. Never concurrently mutate the startup metadata.
+size_t MPKCopyCrashContext(char *buffer, size_t capacity);
 
 /// Installs `SA_SIGINFO` handlers for the fixed diagnostic signal set
 /// (`SIGSEGV`, `SIGABRT`, `SIGBUS`, `SIGILL`, `SIGTRAP`, `SIGFPE`) that write a

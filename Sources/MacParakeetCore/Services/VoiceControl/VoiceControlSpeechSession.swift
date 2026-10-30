@@ -6,6 +6,8 @@ public enum VoiceControlSpeechEvent: Sendable {
     case level(Float, UUID)
     case partial(String, UUID, UUID)
     case transcript(String, UUID, UUID)
+    /// Endpointer timing for one hands-free utterance; emitted before its transcript.
+    case measured(VoiceControlSpeechTurnMetrics, UUID)
     case stopped(UUID)
     case failed(String, UUID)
 }
@@ -15,6 +17,9 @@ public enum VoiceControlSpeechEvent: Sendable {
 /// speech recognition, and hold-to-talk remains available in noisy environments.
 public struct VoiceControlEndpointer: Sendable {
     public enum Signal: Sendable, Equatable { case none, began, ended, tooLong }
+    public static let speechRMS: Float = 0.012
+    /// 900 ms of silence ends an utterance.
+    public static let endSilenceSamples = 14_400
     private var speechSamples = 0
     private var silenceSamples = 0
     private var totalSamples = 0
@@ -24,7 +29,7 @@ public struct VoiceControlEndpointer: Sendable {
     public mutating func consume(_ samples: [Float]) -> Signal {
         guard !samples.isEmpty else { return .none }
         let rms = sqrt(samples.reduce(Float(0)) { $0 + $1 * $1 } / Float(samples.count))
-        if rms >= 0.012 {
+        if rms >= Self.speechRMS {
             speechSamples += samples.count
             silenceSamples = 0
         } else {
@@ -38,7 +43,7 @@ public struct VoiceControlEndpointer: Sendable {
             return .began
         }
         if began, totalSamples >= 480_000 { reset(); return .tooLong }
-        if began, silenceSamples >= 14_400 { reset(); return .ended }
+        if began, silenceSamples >= Self.endSilenceSamples { reset(); return .ended }
         return .none
     }
 }
@@ -46,6 +51,8 @@ public struct VoiceControlEndpointer: Sendable {
 /// Raw local command speech over the process-wide microphone and STT scheduler.
 /// Hands-free keeps capture alive while finalized segments are transcribed, so
 /// incoming speech can revoke execution before another command has been decoded.
+/// Speech that resumes before a segment's transcript is delivered continues that
+/// segment: the earlier audio is merged into the new utterance, not dropped.
 public actor VoiceControlSpeechSession {
     public nonisolated let events: AsyncStream<VoiceControlSpeechEvent>
     private let continuation: AsyncStream<VoiceControlSpeechEvent>.Continuation
@@ -61,7 +68,12 @@ public actor VoiceControlSpeechSession {
     private var sampleContinuation: AsyncStream<[Float]>.Continuation?
     private var endpointer = VoiceControlEndpointer()
     private var utterance: [Float] = []
+    /// Audio of an ended segment whose final has not been delivered yet.
+    private var pendingSegment: [Float]?
     private var hasSpeech = false
+    private var timer = VoiceControlSpeechTimer()
+    private var turnBeganAt: ContinuousClock.Instant?
+    private var previousDelivered: (words: Set<String>, at: ContinuousClock.Instant)?
     private var captureID = UUID()
     private var utteranceID = UUID()
     private var discardUntilSilence = false
@@ -99,7 +111,7 @@ public actor VoiceControlSpeechSession {
             engineLease = lease
         }
         if !handsFree { startPreview(token: token) }
-        endpointer.reset(); utterance = []; hasSpeech = false
+        endpointer.reset(); utterance = []; pendingSegment = nil; hasSpeech = false; timer.reset()
         let pair = AsyncStream<[Float]>.makeStream(bufferingPolicy: .bufferingNewest(128))
         sampleContinuation = pair.continuation
         sampleTask = Task { [weak self] in
@@ -192,7 +204,7 @@ public actor VoiceControlSpeechSession {
         limitTask?.cancel(); finalTask?.cancel()
         sampleContinuation?.finish(); sampleTask?.cancel()
         if let url = try? await audio.stopCapture() { try? FileManager.default.removeItem(at: url) }
-        utterance = []; hasSpeech = false
+        utterance = []; pendingSegment = nil; hasSpeech = false; timer.reset()
         await stopPreview()
         await finalTask?.value
         await releaseEngineLease()
@@ -205,7 +217,7 @@ public actor VoiceControlSpeechSession {
         revocation.revoke()
         utteranceID = UUID()
         finalTask?.cancel()
-        utterance = []; hasSpeech = false; endpointer.reset()
+        utterance = []; pendingSegment = nil; hasSpeech = false; endpointer.reset(); timer.reset()
         discardUntilSilence = true; discardSilenceSamples = 0
         await stopPreview()
     }
@@ -216,7 +228,7 @@ public actor VoiceControlSpeechSession {
         continuation.yield(.level(min(1, rms * 12), captureID))
         if revocation.needsSilenceRearm, !discardUntilSilence {
             discardUntilSilence = true; discardSilenceSamples = 0
-            utterance = []; hasSpeech = false; endpointer.reset()
+            utterance = []; pendingSegment = nil; hasSpeech = false; endpointer.reset(); timer.reset()
             finalTask?.cancel()
         }
         if discardUntilSilence {
@@ -231,10 +243,20 @@ public actor VoiceControlSpeechSession {
         guard handsFree else { return }
         utterance.append(contentsOf: samples)
         if isCommitting { return }
+        timer.consume(count: samples.count, voiced: rms >= VoiceControlEndpointer.speechRMS, inTurn: hasSpeech)
         switch endpointer.consume(samples) {
         case .began:
             hasSpeech = true
             finalTask?.cancel()
+            let continuing = pendingSegment.map { $0.count + utterance.count <= Self.maxMergedSamples } ?? false
+            if continuing, let pending = pendingSegment {
+                // A mid-command pause outlasted the endpointer. Keep the earlier
+                // words; the merged audio is transcribed once at the next end.
+                utterance = pending + utterance
+            }
+            timer.began(continuing: continuing)
+            if !continuing { turnBeganAt = .now }
+            pendingSegment = nil
             utteranceID = UUID()
             guard revocation.beginUtterance(utteranceID) else { return }
             continuation.yield(.speechBegan(captureID, utteranceID))
@@ -242,17 +264,20 @@ public actor VoiceControlSpeechSession {
         case .ended:
             let segment = utterance
             let utteranceToken = utteranceID
+            let now = ContinuousClock.now
+            let turn = TurnDraft(span: timer.ended(), beganAt: turnBeganAt ?? now, endedAt: now)
             utterance = []; hasSpeech = false
+            pendingSegment = segment
             finalTask?.cancel()
             finalTask = Task { [weak self] in
                 guard let self else { return }
                 do {
                     let url = try Self.writeSegment(segment)
-                    await self.transcribe(url: url, token: token, utteranceToken: utteranceToken)
+                    await self.transcribe(url: url, token: token, utteranceToken: utteranceToken, turn: turn)
                 } catch { await self.segmentFailed(token: token) }
             }
         case .tooLong:
-            utterance = []; hasSpeech = false
+            utterance = []; pendingSegment = nil; hasSpeech = false; timer.reset()
             continuation.yield(.failed("That utterance was too long. Try a shorter instruction.", captureID))
         case .none:
             // Retain at most 350 ms before actual speech, and bound active speech.
@@ -260,7 +285,7 @@ public actor VoiceControlSpeechSession {
         }
     }
 
-    private func transcribe(url: URL, token: Int, utteranceToken: UUID) async {
+    private func transcribe(url: URL, token: Int, utteranceToken: UUID, turn: TurnDraft? = nil) async {
         defer { try? FileManager.default.removeItem(at: url) }
         guard token == generation, utteranceToken == utteranceID, revocation.accepts(utteranceToken), !Task.isCancelled
         else { return }
@@ -273,14 +298,45 @@ public actor VoiceControlSpeechSession {
             guard token == generation, utteranceToken == utteranceID, revocation.accepts(utteranceToken),
                 !Task.isCancelled
             else { return }
+            pendingSegment = nil
             let text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let turn { report(turn, outcome: text.isEmpty ? .empty : .delivered, text: text) }
             if !text.isEmpty { continuation.yield(.transcript(text, captureID, utteranceToken)) }
         } catch is CancellationError { return } catch {
             guard token == generation, utteranceToken == utteranceID, revocation.accepts(utteranceToken),
                 !Task.isCancelled
             else { return }
+            pendingSegment = nil
+            if let turn { report(turn, outcome: .failed, text: "") }
             continuation.yield(.failed("Speech recognition failed. Please try again.", captureID))
         }
+    }
+
+    private struct TurnDraft: Sendable {
+        var span: VoiceControlSpeechTimer.Span
+        var beganAt: ContinuousClock.Instant
+        var endedAt: ContinuousClock.Instant
+    }
+
+    private func report(_ turn: TurnDraft, outcome: VoiceControlSpeechTurnMetrics.Outcome, text: String) {
+        let now = ContinuousClock.now
+        let words = VoiceControlSpeechTurnMetrics.words(text)
+        let metrics = VoiceControlSpeechTurnMetrics(
+            at: Date(), outcome: outcome,
+            speechMilliseconds: turn.span.speechSamples / 16,
+            pauseMilliseconds: turn.span.pauseSamples.map { $0 / 16 },
+            mergedSegments: max(0, turn.span.segments - 1),
+            endpointSilenceMilliseconds: VoiceControlEndpointer.endSilenceSamples / 16,
+            transcribeMilliseconds: Self.milliseconds(now - turn.endedAt),
+            sincePreviousMilliseconds: previousDelivered.map { max(0, Self.milliseconds(turn.beganAt - $0.at)) },
+            overlapWithPrevious: previousDelivered.map { VoiceControlSpeechTurnMetrics.overlap($0.words, words) })
+        continuation.yield(.measured(metrics, captureID))
+        if outcome == .delivered { previousDelivered = (words, now) }
+    }
+
+    private static func milliseconds(_ duration: Duration) -> Int {
+        let parts = duration.components
+        return Int(parts.seconds) * 1000 + Int(parts.attoseconds / 1_000_000_000_000_000)
     }
 
     private func segmentFailed(token: Int) {
@@ -356,6 +412,9 @@ public actor VoiceControlSpeechSession {
         await drain?.value
         await current?.stop()
     }
+    /// Merging stops once the continued utterance would exceed the 30-second bound.
+    static let maxMergedSamples = 480_000
+
     private static func writeSegment(_ samples: [Float]) throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("voice-command-\(UUID()).wav")
         guard let format = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1),

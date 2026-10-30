@@ -2,25 +2,36 @@ import SwiftUI
 import MacParakeetCore
 import MacParakeetViewModels
 
-/// Persistent floating pill shown when idle — always visible at bottom of screen.
+/// Persistent floating pill shown when idle, on the user's chosen screen edge.
 /// Expands on hover to show the available dictation entry points.
 struct IdlePillView: View {
     @Bindable var viewModel: IdlePillViewModel
 
     var body: some View {
+        // Tooltip sits on the screen-facing side of the pill.
         VStack(spacing: 6) {
-            // Tooltip — appears above pill on hover
-            tooltip
-                .opacity(viewModel.isHovered ? 1 : 0)
-                .scaleEffect(viewModel.isHovered ? 1 : 0.9)
-                .animation(.easeOut(duration: 0.2), value: viewModel.isHovered)
-
-            // Pill
-            pill
-                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.isHovered)
+            if viewModel.anchorsToTop {
+                animatedPill
+                animatedTooltip
+            } else {
+                animatedTooltip
+                animatedPill
+            }
         }
-        .padding(.bottom, 8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .padding(viewModel.anchorsToTop ? .top : .bottom, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: viewModel.anchorsToTop ? .top : .bottom)
+    }
+
+    private var animatedTooltip: some View {
+        tooltip
+            .opacity(viewModel.isHovered ? 1 : 0)
+            .scaleEffect(viewModel.isHovered ? 1 : 0.9)
+            .animation(.easeOut(duration: 0.2), value: viewModel.isHovered)
+    }
+
+    private var animatedPill: some View {
+        pill
+            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.isHovered)
     }
 
     // MARK: - Pill

@@ -10,6 +10,9 @@ final class SoundManager {
     private static let uiAudioEnabledKey = "com.apple.sound.uiaudio.enabled"
 
     private var players: [AppSound: AVAudioPlayer] = [:]
+    /// Private copies: `NSSound(named:)` returns one shared instance per name,
+    /// and some cues share a system sound, so volume must not be set on it.
+    private var fallbackSounds: [AppSound: NSSound] = [:]
     private let volume: Float = 0.3
 
     private init() {
@@ -24,9 +27,23 @@ final class SoundManager {
         if let player = players[sound] {
             player.currentTime = 0
             player.play()
-        } else if let systemName = sound.systemSoundFallback {
-            NSSound(named: systemName)?.play()
+        } else if let fallback = fallbackSound(for: sound) {
+            if fallback.isPlaying {
+                guard sound.restartsWhilePlaying else { return }
+                fallback.stop()
+            }
+            fallback.play()
         }
+    }
+
+    private func fallbackSound(for sound: AppSound) -> NSSound? {
+        if let cached = fallbackSounds[sound] { return cached }
+        guard let name = sound.systemSoundFallback,
+              let copy = NSSound(named: name)?.copy() as? NSSound
+        else { return nil }
+        copy.volume = sound.systemSoundFallbackVolume
+        fallbackSounds[sound] = copy
+        return copy
     }
 
     private static var isSystemSoundEffectsEnabled: Bool {
@@ -44,6 +61,7 @@ final class SoundManager {
         for sound in AppSound.allCases {
             guard let url = Bundle.main.url(forResource: sound.rawValue, withExtension: "aif")
                     ?? Bundle.main.url(forResource: sound.rawValue, withExtension: "wav") else {
+                _ = fallbackSound(for: sound)
                 continue
             }
             do {
@@ -75,6 +93,25 @@ enum AppSound: String, CaseIterable {
         case .transcriptionComplete: return "Glass"
         case .fileDropped: return "Pop"
         case .errorSoft: return "Basso"
+        }
+    }
+
+    /// Dictation cues play twice per take, so they sit below the
+    /// once-per-file completion chime (Tink peaks ~5 dB hotter than Glass).
+    var systemSoundFallbackVolume: Float {
+        isDictationCaptureCue ? 0.4 : 1.0
+    }
+
+    /// Each take owes its own cue (Pop's file runs ~1.6 s, longer than a
+    /// quick take). Other sounds keep NSSound's ignore-while-playing.
+    var restartsWhilePlaying: Bool {
+        isDictationCaptureCue
+    }
+
+    private var isDictationCaptureCue: Bool {
+        switch self {
+        case .recordStart, .recordStop: return true
+        case .transcriptionComplete, .fileDropped, .errorSoft: return false
         }
     }
 }

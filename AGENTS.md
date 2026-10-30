@@ -49,7 +49,10 @@ the `EquatableMacros` plugin, so Xcode builds must keep
 `-skipMacroValidation`; otherwise dependency resolution stops with
 `Macro “EquatableMacros” ... must be enabled before it can be used`. The dev
 script owns this flag. Do not install another Markdown renderer or edit the
-package checkout to work around the error. The script must confirm this worktree’s replaced dev executables have exited
+package checkout to work around the error. A `com.macparakeet.dev` bundle
+launched any other way (Finder, `open`, a relaunch) still keeps `AppPaths`
+storage (database, media, logs, models) under `MacParakeet-Dev`. Preferences
+and Keychain are still shared with the stable app. The script must confirm this worktree’s replaced dev executables have exited
 before it rebuilds or re-signs their bundle; preserve unrelated app instances.
 Re-signing a bundle in place while macOS is executing it can cause a delayed
 `SIGKILL (Code Signature Invalid)` when a menu or sheet loads another page.
@@ -61,7 +64,7 @@ tools directly. Do not use Orca computer-use in this repository.
 Iterate on focused tests ONLY (`swift test --filter <AreaTests>` for the
 areas the diff touches). Run the full `swift test` suite AT MOST ONCE per
 task, as the final gate before declaring code-change work complete — never
-per iteration. The suite is 4,300+ tests including CPU-heavy AEC/DSP
+per iteration. The suite contains thousands of tests, including CPU-heavy AEC/DSP
 simulations; full-suite-per-iteration turns a 10-minute review into an
 hour. Exception only when the user explicitly scopes verification
 differently.

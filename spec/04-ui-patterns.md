@@ -12,11 +12,12 @@ MacParakeet has these primary UI surfaces:
 5. **Meeting Recording Pill** -- Default-on, hideable floating pill during meeting recording (sacred geometry icon); shares state with the Transcribe tile
 6. **Meeting Recording Panel** -- Floating Notes / Transcript / Ask panel with audio levels and stop controls
 7. **Meetings Workspace** -- Dedicated route for upcoming, live, and saved meeting work
-8. **Transforms Tab** -- Productized selected-text rewrite management for `Polish`, `Distill`, `Decide`, and custom Transforms
-9. **Transform Progress Pill** -- Floating progress/cancel surface while a Transform is running
-10. **Menu Bar** -- Quick access and status
-11. **Calendar Countdown Toasts** -- Implemented and enabled (`AppFeatures.calendarEnabled = true`); surface only when a user opts into calendar auto-start. Phase 2b: toast ✕ persists an occurrence skip (#609).
-12. **Settings** -- Preferences, permissions, local speech models, and update controls; calendar controls appear once Calendar access is granted
+8. **Ask Workspace** -- Durable, source-scoped research conversations across selected Library transcripts
+9. **Transforms Tab** -- Productized selected-text rewrite management for `Polish`, `Distill`, `Decide`, and custom Transforms
+10. **Transform Progress Pill** -- Floating progress/cancel surface while a Transform is running
+11. **Menu Bar** -- Quick access and status
+12. **Calendar Countdown Toasts** -- Implemented and enabled (`AppFeatures.calendarEnabled = true`); surface only when a user opts into calendar auto-start. Phase 2b: toast ✕ persists an occurrence skip (#609).
+13. **Settings** -- Preferences, permissions, local speech models, and update controls; calendar controls appear once Calendar access is granted
 
 Design philosophy: **Simple, native, stays out of the way.** No chrome, no clutter. The app should feel like part of macOS, not a web app in a wrapper.
 
@@ -68,10 +69,10 @@ Minimum window width: 800pt.
 The sidebar uses NavigationSplitView with flat items (icon + label):
 
 - **Transcribe** (`waveform`) -- Capture hub: YouTube card + file drop card + Meeting Recording tile
-- **Library** (`square.grid.2x2`) -- All transcriptions; every filter offers the same persistent Grid/List switch
+- **Library** (`square.grid.2x2`) -- All transcriptions; every filter offers the same persistent Grid/List switch, and the header **Prompts** button opens transcript prompt management
+- **Ask** (`bubble.left.and.bubble.right`) -- Saved conversations over explicitly selected Library transcripts; a separate destination from transcript chat and live meeting Ask
 - **Dictations** (`clock.arrow.circlepath`) -- Flat history list with bottom bar player
 - **Meetings** (`person.2.wave.2`) -- Workflow space for upcoming, live, and saved meeting work; visible when `AppFeatures.meetingRecordingEnabled` is true
-- **Prompts** (`text.quote`) -- First-class prompt manager for versioned result prompts and Transforms
 - **Transforms** (`sparkles`) -- Saved selected-text rewrites backed by `.transform` prompt rows; visible when `AppFeatures.transformsEnabled` is true
 - **Vocabulary** (`book.fill`) -- Processing mode, pipeline guide, custom words & snippets management
 - **Feedback** (`bubble.left.and.text.bubble.right`) -- Bug reports, feature requests, community link
@@ -83,6 +84,18 @@ Meetings workspace; meeting **browse** lives both in the Meetings workspace and
 under Library's Meetings filter. Reason: Library remains the universal archive,
 while Meetings is the workflow surface for upcoming calendar context, the active
 recording state, recent meetings, recovery states, and intelligence readiness.
+
+The Meetings overview uses the available content width with 20pt side insets
+and 16pt section spacing. At 960pt content width it places a flexible meeting
+list beside a 300pt utility rail; narrower windows stack the sections. The
+recording tile uses compact insets and a content-driven minimum height so status
+messages can grow. Search, label filters, and Select Many share one toolbar. The
+search field absorbs leftover width when that row fits; when it does not, the
+search field moves above the filters and those controls stay in place. Bulk
+actions retain their own contextual bar. Calendar Off is explained once in the
+inline controls, including what connecting Calendar enables before access is
+granted. Loading, permission, error, and upcoming-event states remain visible
+when applicable.
 
 Upcoming calendar rows stay list-like: no persistent Skip button. A context
 menu offers **Don't auto-record this meeting**, and **Don't auto-record this
@@ -99,6 +112,40 @@ of events; per-calendar include stays the coarse filter. Collapse plus the
 Upcoming cap means not every fetched occurrence is reachable from this list.
 
 Column width: `min: 160, ideal: 180, max: 220`. Window minimum width: 800pt.
+
+### Ask Workspace (development)
+
+Ask is a top-level destination adjacent to Library. A new conversation starts
+with an empty source set; **Ask selected** in Library creates a conversation
+with the chosen records. The conversation menu provides New, recent
+conversations, Rename, and Delete. Deleting a conversation removes its own
+questions, answers, and draft; Library sources remain intact.
+
+The header shows the conversation title and selected-source count. A compact
+source strip names up to two sources and summarizes the remainder. The thread
+and composer stay at readable width; the footer shows the configured provider
+and model. Remote consent identifies the provider and explains that the
+question, relevant conversation context, and selected excerpts may be sent.
+Stopping a run preserves its question and records an explicit cancelled state.
+If the process exits before a terminal write, the durable assistant placeholder
+remains marked incomplete.
+
+**Choose sources** opens a searchable sheet, initially filtered to meetings.
+Users can switch to all source types and filter by title, date, type, or
+existing labels. Selection remains intact while filters change; up to 32
+completed Library transcripts can be selected. Apply replaces the active
+membership and starts a new context section; Cancel leaves the prior section
+unchanged. A changed context keeps earlier messages visible without reusing
+them in future model input.
+
+Selecting a citation opens the evidence inspector on the right in a wide window
+or as a sheet at narrower widths. It shows the current source title/date and
+revision-checked passage, including a timecode when one is available; the
+**Open in Library** action returns to that recording. Untimed legacy edits and
+text-only sources use a text passage label. Changed, missing, or invalid evidence
+shows an unavailable-state explanation instead of substituting new transcript
+text for old evidence. Inspection is independent of the current source set:
+removing a source from a conversation does not hide its valid historical citations.
 
 Content transitions between tabs use `DesignSystem.Animation.contentSwap` (0.2s easeInOut).
 
@@ -164,6 +211,23 @@ exactly one source, so the label is omitted rather than repeating the filter.
 While a source-filter query reloads, existing cards retain the attribution
 resolved for their displayed result set; the destination context applies only
 when its rows publish.
+
+While a Library refresh or Load More query is pending, a successful single-item
+favorite change, recording deletion, or meeting-audio deletion invalidates that
+query's older snapshot. After any successful bulk recording/audio deletion,
+refresh the current requested window even if a query finished while the bulk
+operation was suspended. A page can read after an early target is deleted but
+publish before later targets finish, so its completed loading state does not
+prove that its offsets remain valid. Preserve failed-item selection and the
+bulk failure summary if the replacement read also fails. Publish the successful
+mutation immediately and run
+the replacement database read off the main actor through the normal cancellable
+page loader. The refreshed result keeps the requested page window and current
+filters, so deleted rows/audio affordances cannot reappear and a deletion cannot
+shift pagination past an unseen recording. A subsequent filter or query change
+supersedes this replacement. If the mutation succeeds but the refresh fails,
+retain the updated rows, selection, pagination and displayed source attribution;
+report the refresh failure separately, without claiming the saved mutation failed.
 
 `Video` has narrowed the source to one family but not to one platform, so it
 shows the platform's own brand mark from `Resources/BrandGlyphs` without the
@@ -282,6 +346,20 @@ factual transcript pane. The tab always shows an editable plaintext
 existing 7,500-word soft-cap warning. The separate 8,000-word cap bounds notes
 sent to prompt assembly; it does not truncate stored notes.
 
+The Notes pane is an open writing surface, without nested cards or an editor
+border. A compact “Your notes” heading and Copy action sit above a flexible,
+full-height editor using the 15 pt reading-body size and 5 pt line spacing.
+The pane reuses the detail view’s outer inset with an additional 8 pt horizontal
+writing margin. It has no fixed minimum editor height, so shorter windows can
+keep the word count and save/retry controls visible. Copy remains in place but
+is disabled when the draft is blank or belongs to another meeting. An enabled,
+empty editor shows a non-interactive writing prompt. VoiceOver describes
+automatic saving only while the editor is enabled. A deleted meeting hears that
+its notes were not saved, and a mismatched meeting hears that notes cannot be
+edited right now. The Copied confirmation clears when the draft changes, the
+displayed meeting changes, or the pane disappears. Save status, word count, and
+warnings stay below the editor.
+
 Changes auto-save to SQLite after a 500 ms idle debounce. The status is hidden
 on entry, including for empty notes. Editing shows a small spinner; a successful
 save briefly shows a muted green check before the status disappears. These
@@ -311,12 +389,30 @@ saves for other meetings preserve the banner; unrelated diagnostics remain intac
 The expanded configuration area of every result-prompt card includes an
 **Include meeting notes as context** checkbox and this help text:
 
-> When this prompt runs on a meeting with notes, use those notes as additional
-> context. The transcript remains the source of truth.
+> Send your meeting notes to the selected AI provider as context, including
+> spelling corrections and reference URLs. Linked pages are not fetched.
+> Changes apply to new results; Regenerate keeps the original setting.
 
-The checkbox is present for built-in and custom result prompts, absent for
-Transforms, and off by default. Custom-prompt Create/Edit sheets expose the
-same choice; an enabled card may show a quiet `Meeting notes` context badge.
+The checkbox is present for built-in and custom result prompts and absent for
+Transforms. It is off by default except for the built-in **Summary** prompt in
+a newly created prompt library, where it is on; existing libraries keep their
+saved choice, including an explicit opt-out. Custom-prompt Create/Edit sheets
+expose the same choice (off by default); an enabled card may show a quiet
+`Meeting notes` context badge.
+
+On a meeting, the generation popover states whether the selected prompt will
+send notes. A saved meeting result shows its recorded notes snapshot when one
+exists. The result page stays quiet when the meeting's current notes are
+empty, including when notes were off, when notes were enabled but empty at
+generation time, and for imported or unlinked results with no notes receipt.
+When current notes are non-empty and this result did not use them, the result
+toolbar shows a quiet **Notes not included** control. Its popover explains the
+remedy: generate a new result after enabling **Include meeting notes as
+context** when the result's prompt had notes off (**Regenerate** keeps that
+original setting), or **Regenerate** when notes were enabled but none existed
+yet. Imported or unlinked results without a notes receipt stay quiet even when
+notes exist now, and do not claim a disabled setting or point at a prompt
+setting.
 The primary UI does not mention `{{userNotes}}`: that variable remains an
 advanced custom-template compatibility mechanism. Chat/Ask does not gain this
 checkbox and retains its existing automatic use of committed meeting notes.
@@ -423,13 +519,13 @@ Components:
 
 ## Idle Pill (v0.1)
 
-Persistent floating pill at the bottom-center of the screen, always visible when the app is running and not actively dictating. Provides a visual anchor so users always know MacParakeet is ready.
+Persistent floating pill centered on the bottom (default) or top edge of the screen, always visible when the app is running and not actively dictating. Provides a visual anchor so users always know MacParakeet is ready.
 
 ### Dimensions
 
 - **Collapsed:** 48×10pt dark grey capsule (subtle nub)
-- **Expanded (hover):** 148×30pt dark capsule with dots + tooltip above
-- **Position:** Bottom-center, 12pt above dock (same location as dictation overlay)
+- **Expanded (hover):** 148×30pt dark capsule with dots + tooltip on the screen-facing side (above at the bottom edge, below at the top)
+- **Position:** Settings → Dictation → Pill position: Bottom (default) or Top, horizontally centered, 12pt inside `visibleFrame` so the Dock and menu bar stay clear. Top also reserves menu-bar/notch height when the menu bar auto-hides or an app is full screen. Idle pill and live overlay share this placement and move immediately when it or the screen layout changes.
 - **Panel:** NSPanel, `.nonactivatingPanel`, `.borderless`, `.floating` level
 
 ### States
@@ -461,7 +557,7 @@ Persistent floating pill at the bottom-center of the screen, always visible when
 
 - 148×30pt expanded dark capsule (black 85%)
 - 12 small dots (3pt, white 25%) inside pill
-- Tooltip bubble above: "Click, tap fn or hold fn to dictate"
+- Tooltip bubble above (below when top-anchored): "Click, tap fn or hold fn to dictate"
   - Shortcut tokens in pink (0.85, 0.55, 0.75)
   - Dark capsule background (black 90%) with white 10% stroke
 ```
@@ -488,14 +584,14 @@ Persistent floating pill at the bottom-center of the screen, always visible when
 
 ## Dictation Overlay / Pill (v0.1)
 
-Compact dark pill overlay, always-on-top, bottom-center of screen. This is the primary recording UI and must be polished from day one.
+Compact dark pill overlay, always-on-top on the same screen edge as the idle pill (bottom by default). This is the primary recording UI and must be polished from day one.
 
 ### Dimensions
 
 - **Height:** 36px
 - **Corner radius:** 18px (fully rounded)
 - **Width:** Dynamic, fits content. Persistent dictation recording and cancelled/Undo use 7pt horizontal padding, matching the 7pt vertical inset, so cancel/stop and the countdown/Undo controls sit in the capsule hemispheres. Hold-to-talk recording keeps 16pt — it has no end circles and the compact dot+timer+waveform cluster already looked right at the wider inset. Command recording and processing-with-copy keep 16pt.
-- **Position:** Bottom-center of main screen, 48px from bottom edge
+- **Position:** Same edge as the idle pill, horizontally centered, 12pt inside the visible frame. When top-anchored, the stack mirrors: pill on the edge, then live preview, load caption, and hover tooltip below it.
 - **Background:** `#1C1C1E` (system dark) at 95% opacity
 - **Shadow:** 0 4px 12px rgba(0,0,0,0.3)
 
@@ -552,8 +648,8 @@ Compact dark pill overlay, always-on-top, bottom-center of screen. This is the p
 
 **First-load caption.** If `.processing` is entered while the speech engine is
 not ready, the coordinator arms a 600ms grace timer. If `.processing` is still
-active after the grace, a compact floating capsule appears above the pill in
-the same overlay panel; the pill remains bottom-anchored and its geometry does
+active after the grace, a compact floating capsule appears on the screen-facing side of the pill in
+the same overlay panel; the pill stays anchored to its edge and its geometry does
 not shift. The caption is separate from the inline `"Still transcribing..."`
 hint so passive engine state and user-triggered processing feedback can
 coexist.
@@ -942,6 +1038,12 @@ update keeping it alive. Rules that follow from it:
   long single-speaker turn cannot defeat laziness. DEBUG launches can flip
   layout and row selection with `MACPARAKEET_DEBUG_TRANSCRIPT_LAZY` and
   `MACPARAKEET_DEBUG_TRANSCRIPT_SELECTION` to bisect a recurrence.
+- Find navigation uses Return / Shift-Return, the chevrons, or Command-G /
+  Shift-Command-G. It jumps to the matched line without animation. In lazy
+  speaker-card layouts it first realizes the owning card, then reveals a
+  separate line anchor, including for the card's first segment. New navigation,
+  query/content changes, manual scrolling, closing Find, and leaving the pane
+  cancel a pending jump.
 - Do not put more AppKit platform views (representables, selectable text
   overlays) inside lazily measured rows than the row already has.
 - `Tests/MacParakeetTests/Views/TranscriptTimestampedLayoutSmokeTests.swift`
@@ -963,14 +1065,33 @@ and boundary actions:
   line's start through the last line's end.
 - `Split segment` is unavailable for a text-edited line. The user can undo the
   text edit, split at an automatic word boundary, and edit the new lines.
-- The header actions are the shared `Undo edit`, `Redo edit`, and `Reset edits`
-  history for both speaker and timed-text corrections.
+- A persistent editing bar above the transcript scroll area groups the shared
+  `Undo edit`, `Redo edit`, and `Reset edits` history with a prominent checkmark
+  `Done` button. Done exits editing and clears selection; corrections are
+  already saved by their existing actions. The scrolling header only offers
+  `Edit transcript` / `Edit speakers` when editing is inactive.
+- `Reset edits…` opens a confirmation alert before restoring the automatic
+  transcript's text, speaker names/assignments, and segment boundaries. Cancel
+  leaves edits intact; `Reset edits` confirms. Reset remains in correction
+  history and can itself be reversed with `Undo edit`. A confirmation belongs
+  to the transcript that opened it and is dismissed when switching transcripts.
+- At narrow pane widths, selection and speaker-assignment tools move to a
+  second row so history and Done remain visible without horizontal scrolling.
+  In still narrower video split panes, selection and history use an `Edit
+  actions` overflow menu below Done. This final layout stacks the controls so
+  the menu never competes with Done for horizontal space.
 - During playback, untouched text follows automatic word cues. A corrected or
   merged line highlights as one unit only while playback is inside its preserved
   time envelope; no word-level highlight is implied.
 - The Text view and Timed view render the same effective corrected words. The
   legacy whole-transcript editor remains available only from Text view for
   content without safe timing and explains that its replacement is untimed.
+- A completed timed transcript's Text view also has its own `Edit`, separate
+  from Timed view's per-line menu. It turns each editable passage into a
+  field: rewrite it or use its remove control to omit it. `Done` saves the
+  session as one `reviseText` correction (empty result is a no-op); `Cancel`
+  discards it. Outside that mode, Text view stays plain reading with normal
+  selection and copy.
 
 Retranscribing changes the automatic transcript fingerprint and resets manual
 transcript edits rather than replaying stale ranges. The complete storage and
@@ -1302,22 +1423,45 @@ Centered at the bottom of the settings form:
 
 Button to re-run onboarding flow: "Run Onboarding Again..."
 
+The first-run window follows [ADR-005](adr/005-onboarding-first-run.md): Welcome,
+Permissions, Try It, and Ready. Try It has a hotkey rehearsal phase and a real
+dictation phase. Loading and inactive practice boxes may use compact fixed
+heights; model-setup failures use their content's intrinsic height in either
+phase so the heading, explanation, recovery tips, and Retry / Open Settings
+buttons do not overlap adjacent content. The step body scrolls while navigation
+and Skip remain in the footer.
+
+Synthetic native hosting tests can validate these view states and geometry.
+They do not establish physical hotkey behavior, microphone or Accessibility
+permission prompts, real-model readiness, cross-app paste, or VoiceOver support.
+The [October audit](../docs/audits/2026-10-02-app-audit/gui-onboarding.md) records
+the verified states and outstanding end-to-end qualification.
+
 ---
 
 ## Prompts
 
-The sidebar **Prompts** destination is the management home for **Transcript
-prompts** and **Live Ask**. Transcript prompts generate outputs from completed
-meeting, file, podcast and video transcripts. Live Ask manages reusable questions
-for ongoing meetings using the existing QuickPrompt model and manager. These are
-clearly named sections, not an All prompts / Results / Transforms type picker.
+Prompts are set-up-once configuration, so they are managed where they run
+rather than from a sidebar destination of their own:
+
+- **Transcript prompts** generate outputs from completed meeting, file, podcast
+  and video transcripts. Their manager opens as a sheet from the **Library**
+  header **Prompts** button (the primary home, since Library lists every
+  transcript they run on), from **Manage Prompts** in a transcript's generation
+  popover, and from **After each meeting → Prompts** in Meetings.
+- **Live Ask** questions are reusable questions for ongoing meetings, using the
+  existing QuickPrompt model and manager. They are managed from the Meetings
+  **Meeting Prompts** section and from the live Ask pane.
+
+v0.8.0 through v0.8.7 exposed both managers from a sidebar **Prompts**
+destination; that destination was removed because neither kind of prompt
+applies to dictation and neither is a daily destination.
 
 **Transforms** remains its existing self-contained selected-text rewrite
-surface. This navigation change does not add another Transform manager or change
-its editor. Transcript management does not expose Transform rows, including
+surface. Transcript management does not expose Transform rows, including
 creation and Trash. Stored categories, versions, metadata and CLI commands remain
-compatible; advanced Transform controls formerly exposed through the mixed
-Prompts manager are outside this UI change.
+compatible. The AI Formatter's transcript and dictation prompts stay in
+Settings → AI beside the switches they configure.
 
 Transcript prompt lists retain search and optional collection filtering. **New
 prompt** creates a transcript prompt; **Manage collections** opens collection
@@ -1326,8 +1470,8 @@ without redundant Result/Transform category badges. No search matches is a filte
 empty state, not a claim that the user has no custom prompts.
 
 The Meetings **After each meeting → Prompts** entry reuses transcript management;
-Live Ask contextual management reuses the same question manager available from
-Prompts. Meetings remains the place to use live questions and choose automatic
+Live Ask management reuses the same question manager from the Meeting Prompts
+section and the live Ask pane. Meetings remains the place to use live questions and choose automatic
 post-meeting outputs. The **After each meeting** chips read and write
 `Prompt.autoRuns(for: .meeting)` via `PromptRepository.setAutoRun(id:source:.meeting)`,
 gated by current `prompt_label_policies` availability for an unlabeled recording.
@@ -1502,6 +1646,16 @@ subscribes afresh and receives the latest content; only the newest pending
 snapshot is retained while parsing. Closing or hiding a pane cancels its
 consumer, and a cancelled parse cannot publish over a replacement renderer.
 Returning to the pane must continue rendering new snapshots.
+
+Saved-result panes keep their actions above the scrolling content; actions wrap
+when the detail pane is narrow. In edit mode, the native text editor owns
+scrolling and expands with the available pane height. Do not place that editor
+inside another vertical scroll view.
+
+Saved Chat retains every streamed token but coalesces message-list publication
+at a 33 ms cadence. Successful completion publishes the entire response before
+clearing streaming state. Stop and failure discard partial responses; navigation
+keeps the existing detached-conversation persistence rules.
 
 Generated Markdown remains read-only and selectable. Task boxes communicate
 their checked state but are not controls. Headings and table cells preserve the
@@ -1765,3 +1919,30 @@ MacParakeet follows standard macOS patterns:
 ---
 
 *Last updated: 2026-06-21*
+
+
+## Ask investigation activity
+
+Ask uses one quiet activity disclosure above each assistant answer. During a run,
+its label follows host-owned source operations and planning, writing, and reference
+validation phases. The existing Markdown renderer displays the streamed answer;
+there is no artificial typing delay or percentage estimate. Text publication is
+coalesced to 33 ms with a trailing flush during provider pauses; terminal content
+comes from the saved service result.
+
+Expanding activity shows bounded search queries, selected-source titles, returned
+counts, continuation availability, and failed/cancelled steps. Empty searches are
+completed operations, not failures. Counts describe returned results, never full
+corpus coverage. The user's expanded state survives the transition to the saved
+answer within the current view. Saved activity is collapsed by default on reopen.
+Source citations remain the separate path to inspect supporting passages.
+
+Scrolling follows content growth while the reader stays at the bottom. Moving up
+suspends following; Jump to latest resumes it. Submitting a new question returns
+to the latest turn. Disclosure motion and explicit jumps respect Reduce Motion;
+streaming growth does not queue scrolling animations. Activity text and controls
+use native type, dynamic system colors, and the shared button styles.
+
+Activity is stored locally with the answer and exposed through the CLI contract.
+It contains no copied transcript passages, raw provider errors, or model reasoning.
+See [Ask contract](contracts/ask-workspace.md) for bounds and interruption semantics.

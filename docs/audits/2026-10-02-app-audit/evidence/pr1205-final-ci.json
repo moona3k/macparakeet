@@ -1,0 +1,48 @@
+{
+  "pr": 1205,
+  "testedHead": "317374b55a335a5a618f5bdb0e22db62960c0ffb",
+  "runId": 37060246088,
+  "url": "https://github.com/moona3k/macparakeet/actions/runs/37060246088",
+  "status": "completed",
+  "conclusion": "success",
+  "createdAt": "2026-10-02T20:23:17Z",
+  "updatedAt": "2026-10-02T20:52:23Z",
+  "jobs": [
+    {
+      "name": "Release and Bundle",
+      "conclusion": "success",
+      "startedAt": "2026-10-02T20:23:23Z",
+      "completedAt": "2026-10-02T20:47:15Z"
+    },
+    {
+      "name": "Tests and Swift 6",
+      "conclusion": "success",
+      "startedAt": "2026-10-02T20:23:28Z",
+      "completedAt": "2026-10-02T20:52:18Z"
+    },
+    {
+      "name": "Build Cache Invalidation",
+      "conclusion": "skipped",
+      "startedAt": "2026-10-02T20:47:16Z",
+      "completedAt": "2026-10-02T20:47:15Z"
+    },
+    {
+      "name": "swift-test",
+      "conclusion": "success",
+      "startedAt": "2026-10-02T20:52:20Z",
+      "completedAt": "2026-10-02T20:52:23Z"
+    }
+  ],
+  "xunitCases": 7929,
+  "xunitFailures": 0,
+  "xunitErrors": 0,
+  "swiftTestingCases": 30,
+  "caveats": [
+    "xUnit XML does not report skipped-case counts.",
+    "Telemetry allowlist step exits green but explicitly skipped receiver comparison; separate local paired-repo evidence is in the parent audit.",
+    "Build Cache Invalidation job skipped on this ordinary PR run; it is opt-in workflow_dispatch coverage."
+  ],
+  "mergeCommit": "9d63551d452c7f521f53fea186729525f2eb0a30",
+  "mergedAt": "2026-10-02T20:52:57Z",
+  "resolvedReviewThreadsAtMerge": 19
+}

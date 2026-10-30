@@ -290,6 +290,7 @@ final class DatabaseManagerTests: XCTestCase {
             ))
             XCTAssertTrue(tableSQL.contains("'editText'"))
             XCTAssertTrue(tableSQL.contains("'mergeSegments'"))
+            XCTAssertTrue(tableSQL.contains("'reviseText'"))
             XCTAssertTrue(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty)
         }
     }
@@ -687,6 +688,55 @@ final class DatabaseManagerTests: XCTestCase {
         XCTAssertNil(upgraded.meetingCaptureReport)
     }
 
+    func testPromptResultSourceTranscriptMigrationPreservesUnknownLegacySource() throws {
+        let dbPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("prompt_result_source_hash_upgrade_\(UUID().uuidString).db")
+            .path
+        defer { cleanupDatabaseFiles(atPath: dbPath) }
+
+        let originalManager = try DatabaseManager(path: dbPath)
+        let transcription = Transcription(
+            fileName: "Existing recording",
+            rawTranscript: "Canonical transcript text.",
+            cleanTranscript: "  Canonical transcript text.  ",
+            status: .completed,
+            sourceType: .meeting
+        )
+        let result = PromptResult(
+            transcriptionId: transcription.id,
+            promptName: "Summary",
+            promptContent: "Summarize.",
+            content: "Keep this saved result.",
+            sourceCorrectionRevision: 0
+        )
+        try TranscriptionRepository(dbQueue: originalManager.dbQueue).save(transcription)
+        try PromptResultRepository(dbQueue: originalManager.dbQueue).save(result)
+
+        try originalManager.dbQueue.write { db in
+            try db.execute(sql: "ALTER TABLE summaries DROP COLUMN sourceTranscriptHash")
+            try db.execute(
+                sql: "DELETE FROM grdb_migrations WHERE identifier = ?",
+                arguments: ["v0.48-prompt-result-source-transcript"]
+            )
+        }
+
+        let upgradedManager = try DatabaseManager(path: dbPath)
+        let upgraded = try XCTUnwrap(
+            PromptResultRepository(dbQueue: upgradedManager.dbQueue)
+                .fetchAll(transcriptionId: transcription.id)
+                .first
+        )
+        XCTAssertEqual(upgraded.content, result.content)
+        XCTAssertNil(upgraded.sourceTranscriptHash)
+        XCTAssertEqual(upgraded.sourceCorrectionRevision, 0)
+        XCTAssertTrue(PromptResultFreshness.summaryNeedsUpdate(
+            sourceCorrectionRevision: upgraded.sourceCorrectionRevision,
+            currentCorrectionRevision: 0,
+            sourceTranscriptHash: upgraded.sourceTranscriptHash,
+            currentTranscriptHash: PromptResultFreshness.sourceTranscriptHash(for: transcription)
+        ))
+    }
+
     func testPromptInferenceSettingsColumnsExist() throws {
         let manager = try DatabaseManager()
         try manager.dbQueue.read { db in
@@ -908,11 +958,28 @@ final class DatabaseManagerTests: XCTestCase {
             XCTAssertTrue(promptColumns.contains("includeMeetingNotes"))
             XCTAssertTrue(summaryColumns.contains("includeMeetingNotesSnapshot"))
 
-            let promptDefault = try Bool.fetchOne(
+            // The schema default stays off for generic/legacy rows; the
+            // built-in Summary's seeded preference is independently on.
+            let promptDefault = try String.fetchOne(
                 db,
-                sql: "SELECT includeMeetingNotes FROM prompts LIMIT 1"
+                sql: "SELECT dflt_value FROM pragma_table_info('prompts') WHERE name = 'includeMeetingNotes'"
             )
-            XCTAssertEqual(promptDefault, false)
+            XCTAssertEqual(promptDefault, "0")
+        }
+    }
+
+    func testPromptResultLanguageAndEditColumnsExistOnSummaries() throws {
+        let manager = try DatabaseManager()
+        try manager.dbQueue.read { db in
+            let columns = try db.columns(in: "summaries").map(\.name)
+            XCTAssertTrue(
+                columns.contains("outputLanguagePolicySnapshot"),
+                "summaries should have outputLanguagePolicySnapshot column (issue #975)"
+            )
+            XCTAssertTrue(
+                columns.contains("contentEditedAt"),
+                "summaries should have contentEditedAt column (issue #884)"
+            )
         }
     }
 

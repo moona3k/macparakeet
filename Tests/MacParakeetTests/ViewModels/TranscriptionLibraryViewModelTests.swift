@@ -1,5 +1,6 @@
 import XCTest
 import GRDB
+import Observation
 @testable import MacParakeetCore
 @testable import MacParakeetViewModels
 
@@ -19,6 +20,18 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
 
     private func load(_ viewModel: TranscriptionLibraryViewModel? = nil) async {
         await (viewModel ?? vm).loadTranscriptions().value
+    }
+
+    private func waitForPendingLoad(_ viewModel: TranscriptionLibraryViewModel) async {
+        guard viewModel.isLoading else { return }
+        let finished = expectation(description: "Pending Library query finished")
+        withObservationTracking {
+            _ = viewModel.isLoading
+        } onChange: {
+            finished.fulfill()
+        }
+        await fulfillment(of: [finished], timeout: 2)
+        XCTAssertFalse(viewModel.isLoading)
     }
 
     // MARK: - Load
@@ -73,6 +86,132 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         let loaded = try XCTUnwrap(vm.transcriptions.first)
         XCTAssertEqual(vm.effectiveTranscriptText(for: loaded), "Corrected preview.")
         XCTAssertEqual(loaded.cleanTranscript, "Wrong words.")
+    }
+
+    // MARK: - Summary rows and complete-row hand-offs
+
+    func testLoadedRowsOmitTimingDataThatOpeningLoads() async throws {
+        let stored = timedTranscription(fileName: "timed.m4a")
+        try repo.save(stored)
+
+        await load()
+        let loaded = try XCTUnwrap(vm.transcriptions.first)
+        XCTAssertNil(loaded.wordTimestamps)
+        XCTAssertEqual(loaded.cleanTranscript, "Hello world.")
+
+        let opened = await vm.loadForOpening(loaded)
+        XCTAssertEqual(opened?.wordTimestamps?.map(\.word), ["Hello", "world."])
+        XCTAssertEqual(opened?.transcriptSegments?.count, 1)
+    }
+
+    func testOpeningARowDeletedSinceLoadReportsItAndOpensNothing() async throws {
+        let stored = timedTranscription(fileName: "gone.m4a")
+        try repo.save(stored)
+        await load()
+        let loaded = try XCTUnwrap(vm.transcriptions.first)
+        XCTAssertTrue(try repo.delete(id: stored.id))
+
+        let opened = await vm.loadForOpening(loaded)
+
+        XCTAssertNil(opened)
+        XCTAssertNotNil(vm.errorMessage)
+    }
+
+    func testLaterOpenSupersedesAnEarlierOne() async throws {
+        let first = timedTranscription(fileName: "first.m4a")
+        let second = timedTranscription(fileName: "second.m4a")
+        // Hold the earlier open inside its fetch so the later open always
+        // starts while it is in flight. Two racing Tasks gave no such order.
+        let earlierFetchStarted = expectation(description: "Earlier open is fetching")
+        let releaseEarlierFetch = DispatchSemaphore(value: 0)
+        let gatedRepo = MockTranscriptionRepository()
+        gatedRepo.fetchHandler = { id in
+            if id == first.id {
+                earlierFetchStarted.fulfill()
+                releaseEarlierFetch.wait()
+            }
+            return [first, second].first { $0.id == id }
+        }
+        let gatedVM = TranscriptionLibraryViewModel()
+        gatedVM.configure(transcriptionRepo: gatedRepo)
+
+        let earlier = Task { await gatedVM.loadForOpening(first) }
+        await fulfillment(of: [earlierFetchStarted], timeout: 2)
+        let laterResult = await gatedVM.loadForOpening(second)
+        releaseEarlierFetch.signal()
+
+        let earlierResult = await earlier.value
+        XCTAssertNil(earlierResult)
+        XCTAssertEqual(laterResult?.id, second.id)
+    }
+
+    func testExportLoadsCompleteRowsInSelectionOrderSkippingDeletedRows() async throws {
+        let kept = timedTranscription(fileName: "kept.m4a")
+        let deleted = timedTranscription(fileName: "deleted.m4a")
+        let alsoKept = timedTranscription(fileName: "also-kept.m4a")
+        for transcription in [kept, deleted, alsoKept] {
+            try repo.save(transcription)
+        }
+        XCTAssertTrue(try repo.delete(id: deleted.id))
+
+        let exported = try await vm.loadForExport([alsoKept, deleted, kept])
+
+        XCTAssertEqual(exported.map(\.id), [alsoKept.id, kept.id])
+        XCTAssertTrue(exported.allSatisfy { $0.wordTimestamps?.count == 2 })
+    }
+
+    func testCancellingExportLoadStopsBeforeFetchingTheNextRecording() async throws {
+        let first = timedTranscription(fileName: "first.m4a")
+        let second = timedTranscription(fileName: "second.m4a")
+        let gate = StaleFetchGate()
+        let mockRepo = MockTranscriptionRepository()
+        mockRepo.fetchHandler = { id in
+            if gate.nextCallNumber() == 1 {
+                gate.blockFirstFetchUntilAllowed()
+            }
+            return id == first.id ? first : second
+        }
+        let viewModel = try XCTUnwrap(vm)
+        viewModel.configure(transcriptionRepo: mockRepo)
+        let loadTask = Task { try await viewModel.loadForExport([first, second]) }
+        defer { gate.allowFirstFetchToFinish() }
+        let firstFetchStarted = await Task.detached { gate.waitForFirstFetchStarted() }.value
+        XCTAssertTrue(firstFetchStarted)
+
+        loadTask.cancel()
+        gate.allowFirstFetchToFinish()
+
+        do {
+            _ = try await loadTask.value
+            XCTFail("Expected cancellation to stop loading selected recordings")
+        } catch is CancellationError {
+            // The in-progress synchronous read can finish; the next must not start.
+        }
+        XCTAssertEqual(gate.numberOfCalls, 1)
+    }
+
+    private func timedTranscription(fileName: String) -> Transcription {
+        Transcription(
+            fileName: fileName,
+            rawTranscript: "Hello world.",
+            cleanTranscript: "Hello world.",
+            wordTimestamps: [
+                WordTimestamp(word: "Hello", startMs: 0, endMs: 200, confidence: 1, speakerId: "S1"),
+                WordTimestamp(word: "world.", startMs: 220, endMs: 500, confidence: 1, speakerId: "S1"),
+            ],
+            speakers: [.init(id: "S1", label: "Speaker 1")],
+            transcriptSegments: [
+                TranscriptSegmentRecord(
+                    startMs: 0,
+                    endMs: 500,
+                    speakerId: "S1",
+                    speakerLabel: "Speaker 1",
+                    text: "Hello world.",
+                    wordRange: .init(startIndex: 0, endIndexExclusive: 2)
+                )
+            ],
+            status: .completed
+        )
     }
 
     func testRetryRefreshRetainsCurrentCorrectionOnFailureAndClearsItForNewFingerprint() async throws {
@@ -277,6 +416,63 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isLoading)
         XCTAssertEqual(Set(viewModel.filteredTranscriptions.map(\.id)), [podcast.id, local.id])
         XCTAssertEqual(viewModel.displayedSourceLabelStyle, .visible)
+    }
+
+    func testSupersededLoadCannotPublishWhileNewFilterIsPending() async {
+        await assertSupersededLoadCannotPublish(failing: false)
+    }
+
+    func testSupersededLoadFailureCannotClearRowsWhileNewFilterIsPending() async {
+        await assertSupersededLoadCannotPublish(failing: true)
+    }
+
+    private func assertSupersededLoadCannotPublish(failing: Bool) async {
+        let mockRepo = MockTranscriptionRepository()
+        let podcast = Transcription(fileName: "episode.mp3", status: .completed, sourceType: .podcast)
+        let local = Transcription(fileName: "recording.m4a", status: .completed, sourceType: .file)
+        mockRepo.transcriptions = [podcast, local]
+        let viewModel = TranscriptionLibraryViewModel()
+        viewModel.configure(transcriptionRepo: mockRepo)
+        await viewModel.loadTranscriptions().value
+
+        let oldGate = StaleFetchGate()
+        let newGate = StaleFetchGate()
+        defer {
+            oldGate.allowFirstFetchToFinish()
+            newGate.allowFirstFetchToFinish()
+        }
+        mockRepo.fetchAllHandler = { _ in
+            if oldGate.nextCallNumber() == 1 {
+                oldGate.blockFirstFetchUntilAllowed()
+                if failing { throw LibraryRenameTestError.reloadFailed }
+                // A distinct obsolete result makes an incorrect publish observable.
+                return [podcast]
+            }
+            newGate.blockFirstFetchUntilAllowed()
+            return [podcast, local]
+        }
+
+        let oldLoad = viewModel.loadTranscriptions()
+        let oldStarted = await Task.detached { oldGate.waitForFirstFetchStarted() }.value
+        XCTAssertTrue(oldStarted)
+        guard oldStarted else { return }
+        viewModel.filter = .local
+        let newStarted = await Task.detached { newGate.waitForFirstFetchStarted() }.value
+        XCTAssertTrue(newStarted)
+        guard newStarted else { return }
+
+        oldGate.allowFirstFetchToFinish()
+        await oldLoad.value
+        XCTAssertTrue(viewModel.isLoading, "An obsolete request must not finish the current request")
+        XCTAssertEqual(Set(viewModel.transcriptions.map(\.id)), [podcast.id, local.id])
+        XCTAssertEqual(viewModel.displayedSourceLabelStyle, .visible)
+        XCTAssertNil(viewModel.errorMessage)
+
+        newGate.allowFirstFetchToFinish()
+        await waitForPendingLoad(viewModel)
+        XCTAssertEqual(viewModel.transcriptions.map(\.id), [local.id])
+        XCTAssertEqual(viewModel.displayedSourceLabelStyle, .hidden)
+        XCTAssertNil(viewModel.errorMessage)
     }
 
     func testFilterLocal() async throws {
@@ -939,6 +1135,171 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
 
     // MARK: - Favorites
 
+    func testFavoriteMutationRejectsStaleRefreshSnapshot() async throws {
+        try await assertMutationRejectsStaleSnapshot(loadMore: false, mutation: .favorite)
+    }
+
+    func testFavoriteMutationPreservesRequestedPaginationWindow() async throws {
+        try await assertMutationRejectsStaleSnapshot(loadMore: true, mutation: .favorite)
+    }
+
+    func testDeleteMutationRejectsStaleRefreshSnapshot() async throws {
+        try await assertMutationRejectsStaleSnapshot(loadMore: false, mutation: .delete)
+    }
+
+    func testDeleteMutationPreservesRequestedPaginationWindow() async throws {
+        try await assertMutationRejectsStaleSnapshot(loadMore: true, mutation: .delete)
+    }
+
+    func testDeleteAudioMutationRejectsStaleRefreshSnapshot() async throws {
+        try await assertMutationRejectsStaleSnapshot(loadMore: false, mutation: .deleteAudio)
+    }
+
+    func testDeleteAudioMutationPreservesRequestedPaginationWindow() async throws {
+        try await assertMutationRejectsStaleSnapshot(loadMore: true, mutation: .deleteAudio)
+    }
+
+    func testBulkDeleteMutationRejectsStaleRefreshSnapshot() async throws {
+        try await assertMutationRejectsStaleSnapshot(loadMore: false, mutation: .bulkDelete)
+    }
+
+    func testBulkDeleteMutationPreservesRequestedPaginationWindow() async throws {
+        try await assertMutationRejectsStaleSnapshot(loadMore: true, mutation: .bulkDelete)
+    }
+
+    func testBulkDeleteAudioMutationRejectsStaleRefreshSnapshot() async throws {
+        try await assertMutationRejectsStaleSnapshot(loadMore: false, mutation: .bulkDeleteAudio)
+    }
+
+    func testBulkDeleteAudioMutationPreservesRequestedPaginationWindow() async throws {
+        try await assertMutationRejectsStaleSnapshot(loadMore: true, mutation: .bulkDeleteAudio)
+    }
+
+    func testMutationRefreshFailurePreservesSavedFavoriteAndVisibleRows() async throws {
+        let mockRepo = MockTranscriptionRepository()
+        let target = Transcription(createdAt: Date(timeIntervalSince1970: 3), fileName: "Latest", status: .completed)
+        let second = Transcription(createdAt: Date(timeIntervalSince1970: 2), fileName: "Second", status: .completed)
+        let third = Transcription(createdAt: Date(timeIntervalSince1970: 1), fileName: "Third", status: .completed)
+        mockRepo.transcriptions = [target, second, third]
+        let viewModel = TranscriptionLibraryViewModel()
+        viewModel.pageSize = 2
+        viewModel.configure(transcriptionRepo: mockRepo)
+        await viewModel.loadTranscriptions().value
+        viewModel.beginBulkSelection(startingWith: target)
+
+        let gate = StaleFetchGate()
+        defer { gate.allowFirstFetchToFinish() }
+        mockRepo.fetchAllHandler = { _ in
+            XCTAssertFalse(Thread.isMainThread)
+            if gate.nextCallNumber() == 1 {
+                gate.blockFirstFetchUntilAllowed()
+                return [target, second, third]
+            }
+            throw LibraryRenameTestError.reloadFailed
+        }
+        let staleLoad = viewModel.loadTranscriptions()
+        let started = await Task.detached { gate.waitForFirstFetchStarted() }.value
+        XCTAssertTrue(started)
+        guard started else { return }
+
+        viewModel.toggleFavorite(target)
+        XCTAssertTrue(try XCTUnwrap(viewModel.transcriptions.first).isFavorite)
+        XCTAssertTrue(try XCTUnwrap(mockRepo.fetch(id: target.id)).isFavorite)
+        XCTAssertNil(viewModel.errorMessage)
+        await waitForPendingLoad(viewModel)
+        gate.allowFirstFetchToFinish()
+        await staleLoad.value
+
+        XCTAssertEqual(viewModel.transcriptions.map(\.id), [target.id, second.id])
+        XCTAssertTrue(try XCTUnwrap(viewModel.transcriptions.first).isFavorite)
+        XCTAssertTrue(try XCTUnwrap(mockRepo.fetch(id: target.id)).isFavorite)
+        XCTAssertTrue(viewModel.hasMore)
+        XCTAssertEqual(viewModel.selectedTranscriptionIDs, [target.id])
+        XCTAssertEqual(viewModel.displayedSourceLabelStyle, .visible)
+        XCTAssertTrue(try XCTUnwrap(viewModel.errorMessage).hasPrefix("Updated Library, but failed to refresh:"))
+        XCTAssertFalse(viewModel.isLoading)
+    }
+
+    private enum SnapshotMutation {
+        case favorite, delete, deleteAudio, bulkDelete, bulkDeleteAudio
+    }
+
+    private func assertMutationRejectsStaleSnapshot(loadMore: Bool, mutation: SnapshotMutation) async throws {
+        let mockRepo = MockTranscriptionRepository()
+        let viewModel = TranscriptionLibraryViewModel()
+        viewModel.pageSize = loadMore ? 1 : 100
+        let folder = try makeTemporaryManagedMeetingFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let audio = folder.appendingPathComponent("meeting-playback.m4a")
+        XCTAssertTrue(FileManager.default.createFile(atPath: audio.path, contents: Data("synthetic audio".utf8)))
+        let target = Transcription(
+            createdAt: Date(timeIntervalSince1970: 3), fileName: "Latest meeting", filePath: audio.path,
+            status: .completed, sourceType: .meeting)
+        let second = Transcription(createdAt: Date(timeIntervalSince1970: 2), fileName: "Second", status: .completed)
+        let third = Transcription(createdAt: Date(timeIntervalSince1970: 1), fileName: "Third", status: .completed)
+        mockRepo.transcriptions = [target, second, third]
+        viewModel.configure(transcriptionRepo: mockRepo)
+        await viewModel.loadTranscriptions().value
+
+        let gate = StaleFetchGate()
+        mockRepo.fetchAllHandler = { [mockRepo, gate] limit in
+            let snapshot = mockRepo.transcriptions.sorted { $0.createdAt > $1.createdAt }
+            if gate.nextCallNumber() == 1 {
+                gate.blockFirstFetchUntilAllowed()
+            } else {
+                XCTAssertFalse(Thread.isMainThread, "The replacement query must not block the main thread")
+            }
+            return limit.map { Array(snapshot.prefix($0)) } ?? snapshot
+        }
+        let staleLoad =
+            loadMore
+            ? try XCTUnwrap(viewModel.loadMoreTranscriptions()) : viewModel.loadTranscriptions()
+        defer { gate.allowFirstFetchToFinish() }
+        let started = await Task.detached { gate.waitForFirstFetchStarted() }.value
+        XCTAssertTrue(started)
+        switch mutation {
+        case .favorite: viewModel.toggleFavorite(target)
+        case .delete: viewModel.deleteTranscription(target)
+        case .deleteAudio: viewModel.deleteMeetingAudio(target)
+        case .bulkDelete:
+            let result = await viewModel.confirmBulkOperation(.deleteItems([target]))
+            XCTAssertEqual(result, BulkOperationResult(succeeded: 1, failed: 0))
+        case .bulkDeleteAudio:
+            let result = await viewModel.confirmBulkOperation(.deleteAudioOnly(targets: [target], skipped: 0))
+            XCTAssertEqual(result, BulkOperationResult(succeeded: 1, failed: 0))
+        }
+        XCTAssertNil(viewModel.errorMessage)
+        switch mutation {
+        case .favorite:
+            XCTAssertTrue(try XCTUnwrap(viewModel.transcriptions.first { $0.id == target.id }).isFavorite)
+        case .delete, .bulkDelete:
+            XCTAssertFalse(viewModel.transcriptions.contains { $0.id == target.id })
+        case .deleteAudio, .bulkDeleteAudio:
+            XCTAssertNil(try XCTUnwrap(viewModel.transcriptions.first { $0.id == target.id }).filePath)
+        }
+        gate.allowFirstFetchToFinish()
+        await staleLoad.value
+        await waitForPendingLoad(viewModel)
+
+        switch mutation {
+        case .favorite:
+            XCTAssertTrue(try XCTUnwrap(viewModel.transcriptions.first { $0.id == target.id }).isFavorite)
+            XCTAssertTrue(try XCTUnwrap(mockRepo.fetch(id: target.id)).isFavorite)
+        case .delete, .bulkDelete:
+            XCTAssertFalse(viewModel.transcriptions.contains { $0.id == target.id })
+            XCTAssertNil(try mockRepo.fetch(id: target.id))
+        case .deleteAudio, .bulkDeleteAudio:
+            XCTAssertNil(try XCTUnwrap(viewModel.transcriptions.first { $0.id == target.id }).filePath)
+            XCTAssertNil(try XCTUnwrap(mockRepo.fetch(id: target.id)).filePath)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: audio.path))
+        }
+        if loadMore {
+            XCTAssertEqual(viewModel.transcriptions.count, 2, "The requested next page must survive the mutation")
+            XCTAssertEqual(Set(viewModel.transcriptions.map(\.id)).count, 2)
+            XCTAssertEqual(viewModel.hasMore, mutation != .delete && mutation != .bulkDelete)
+        }
+    }
+
     func testToggleFavorite() async throws {
         let t = Transcription(fileName: "test.mp3", status: .completed)
         try repo.save(t)
@@ -1421,6 +1782,132 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertNotNil(vm.errorMessage)
     }
 
+    func testBulkDeleteRepairsPagePublishedBetweenTargetDeletions() async throws {
+        try await assertBulkDeleteRepairsPagePublishedBeforeCompletion(partialFailure: false)
+    }
+
+    func testBulkDeletePartialFailureRepairsPagePublishedBetweenTargetDeletions() async throws {
+        try await assertBulkDeleteRepairsPagePublishedBeforeCompletion(partialFailure: true)
+    }
+
+    private func assertBulkDeleteRepairsPagePublishedBeforeCompletion(partialFailure: Bool) async throws {
+        let mockRepo = MockTranscriptionRepository()
+        let items = ["A", "B", "C", "D", "E"].enumerated().map { index, name in
+            Transcription(
+                createdAt: Date(timeIntervalSince1970: Double(5 - index)),
+                fileName: name, status: .completed, sourceType: .file
+            )
+        }
+        let first = items[0]
+        let second = items[1]
+        mockRepo.transcriptions = items
+        let viewModel = TranscriptionLibraryViewModel()
+        viewModel.pageSize = 2
+        viewModel.configure(transcriptionRepo: mockRepo)
+        await viewModel.loadTranscriptions().value
+        XCTAssertEqual(viewModel.transcriptions.map(\.id), [first.id, second.id])
+        viewModel.beginBulkSelection(startingWith: first)
+        viewModel.toggleSelection(for: second)
+        viewModel.requestDeleteSelectedItems()
+        let operation = try XCTUnwrap(viewModel.pendingBulkOperation)
+
+        let pageGate = StaleFetchGate()
+        let deleteGate = StaleFetchGate()
+        defer {
+            pageGate.allowFirstFetchToFinish()
+            deleteGate.allowFirstFetchToFinish()
+        }
+        mockRepo.fetchAllHandler = { _ in
+            if pageGate.nextCallNumber() == 1 {
+                // Read only after the first deletion shifts the old offset.
+                pageGate.blockFirstFetchUntilAllowed()
+            }
+            return mockRepo.transcriptions.sorted { $0.createdAt > $1.createdAt }
+        }
+        mockRepo.onDelete = { id in
+            if id == second.id {
+                // The first target is already gone. Hold bulk completion while
+                // the pending offset-2 page reads and publishes [D, E].
+                deleteGate.blockFirstFetchUntilAllowed()
+                mockRepo.deleteResult = !partialFailure
+            }
+        }
+
+        let pendingPage = try XCTUnwrap(viewModel.loadMoreTranscriptions())
+        let pageStarted = await Task.detached { pageGate.waitForFirstFetchStarted() }.value
+        XCTAssertTrue(pageStarted)
+        guard pageStarted else { return }
+        let bulkTask = Task { await viewModel.confirmBulkOperation(operation) }
+        let deletionStarted = await Task.detached { deleteGate.waitForFirstFetchStarted() }.value
+        XCTAssertTrue(deletionStarted)
+        guard deletionStarted else { return }
+        XCTAssertNil(try mockRepo.fetch(id: first.id))
+        XCTAssertNotNil(try mockRepo.fetch(id: second.id))
+
+        pageGate.allowFirstFetchToFinish()
+        await pendingPage.value
+        XCTAssertTrue(viewModel.isBulkOperationInProgress)
+        deleteGate.allowFirstFetchToFinish()
+        let result = await bulkTask.value
+        await waitForPendingLoad(viewModel)
+
+        let expected = partialFailure ? Array(items.dropFirst()) : Array(items.dropFirst(2))
+        XCTAssertEqual(viewModel.transcriptions.map(\.id), expected.map(\.id))
+        XCTAssertEqual(Set(viewModel.transcriptions.map(\.id)).count, expected.count)
+        XCTAssertFalse(viewModel.hasMore, "Every surviving row fits inside the requested four-row window")
+        XCTAssertNil(viewModel.loadMoreTranscriptions())
+        XCTAssertEqual(result, BulkOperationResult(succeeded: partialFailure ? 1 : 2, failed: partialFailure ? 1 : 0))
+        XCTAssertFalse(viewModel.isBulkOperationInProgress)
+        XCTAssertEqual(viewModel.isBulkSelectionModeEnabled, partialFailure)
+        XCTAssertEqual(viewModel.selectedTranscriptionIDs, partialFailure ? [second.id] : [])
+        if partialFailure {
+            XCTAssertEqual(viewModel.errorMessage, "Deleted 1 items. 1 could not be deleted.")
+        } else {
+            XCTAssertNil(viewModel.errorMessage)
+        }
+    }
+
+    func testBulkDeletePartialFailureSurvivesFailedReplacementQuery() async throws {
+        let good = Transcription(fileName: "good.mp3", status: .completed)
+        let failing = Transcription(fileName: "failing.mp3", status: .completed)
+        let mockRepo = MockTranscriptionRepository()
+        mockRepo.transcriptions = [good, failing]
+        mockRepo.onDelete = { id in mockRepo.deleteResult = id == good.id }
+        let viewModel = TranscriptionLibraryViewModel()
+        viewModel.configure(transcriptionRepo: mockRepo)
+        await viewModel.loadTranscriptions().value
+
+        let gate = StaleFetchGate()
+        defer { gate.allowFirstFetchToFinish() }
+        mockRepo.fetchAllHandler = { _ in
+            if gate.nextCallNumber() == 1 {
+                gate.blockFirstFetchUntilAllowed()
+                return [good, failing]
+            }
+            throw LibraryRenameTestError.reloadFailed
+        }
+        let staleLoad = viewModel.loadTranscriptions()
+        let started = await Task.detached { gate.waitForFirstFetchStarted() }.value
+        XCTAssertTrue(started)
+        guard started else { return }
+
+        let result = await viewModel.confirmBulkOperation(.deleteItems([good, failing]))
+        XCTAssertEqual(result, BulkOperationResult(succeeded: 1, failed: 1))
+        let deletionError = try XCTUnwrap(viewModel.errorMessage)
+        await waitForPendingLoad(viewModel)
+        gate.allowFirstFetchToFinish()
+        await staleLoad.value
+
+        XCTAssertNil(try mockRepo.fetch(id: good.id))
+        XCTAssertEqual(viewModel.transcriptions.map(\.id), [failing.id])
+        XCTAssertEqual(viewModel.selectedTranscriptionIDs, [failing.id])
+        XCTAssertTrue(viewModel.isBulkSelectionModeEnabled)
+        XCTAssertFalse(viewModel.isBulkOperationInProgress)
+        let combinedError = try XCTUnwrap(viewModel.errorMessage)
+        XCTAssertTrue(combinedError.contains(deletionError))
+        XCTAssertTrue(combinedError.contains("Updated Library, but failed to refresh:"))
+    }
+
     func testBulkDeleteKeepsSelectionModeAndIgnoresSelectionChangesWhileInProgress() async throws {
         let failing = Transcription(fileName: "failing.mp3", status: .completed, sourceType: .file)
         let newSelection = Transcription(fileName: "new.mp3", status: .completed, sourceType: .file)
@@ -1584,6 +2071,12 @@ private final class StaleFetchGate: @unchecked Sendable {
     private var callCount = 0
     private let firstFetchStarted = DispatchSemaphore(value: 0)
     private let allowFirstFetch = DispatchSemaphore(value: 0)
+
+    var numberOfCalls: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return callCount
+    }
 
     func nextCallNumber() -> Int {
         lock.lock()

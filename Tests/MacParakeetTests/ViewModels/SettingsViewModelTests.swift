@@ -1,4 +1,5 @@
 import XCTest
+import AVFoundation
 import CoreAudio
 @testable import MacParakeetCore
 @testable import MacParakeetViewModels
@@ -47,6 +48,15 @@ final class SettingsViewModelTests: XCTestCase {
     var youtubeDownloadsTestDir: URL!
     var meetingRecordingsTestDir: URL!
 
+    func testMeetingURLControlRequiresExplicitOptInAndPersists() {
+        XCTAssertFalse(viewModel.meetingURLControlEnabled)
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences.meetingURLControlEnabled(defaults: testDefaults))
+        viewModel.meetingURLControlEnabled = true
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences.meetingURLControlEnabled(defaults: testDefaults))
+        viewModel.meetingURLControlEnabled = false
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences.meetingURLControlEnabled(defaults: testDefaults))
+    }
+
     private func waitUntil(
         timeout: Duration = .seconds(1),
         pollInterval: Duration = .milliseconds(10),
@@ -78,7 +88,7 @@ final class SettingsViewModelTests: XCTestCase {
         try? FileManager.default.createDirectory(at: meetingRecordingsTestDir, withIntermediateDirectories: true)
 
         // Use a unique suite name for isolated UserDefaults per test
-        testDefaultsSuiteName = "com.macparakeet.tests.\(UUID().uuidString)"
+        testDefaultsSuiteName = makeIsolatedDefaultsSuite("com.macparakeet.tests.")
         testDefaults = UserDefaults(suiteName: testDefaultsSuiteName)!
 
         viewModel = SettingsViewModel(
@@ -101,10 +111,6 @@ final class SettingsViewModelTests: XCTestCase {
     override func tearDown() {
         Telemetry.configure(NoOpTelemetryService())
 
-        // Clean up the test UserDefaults suite
-        if let testDefaultsSuiteName {
-            testDefaults.removePersistentDomain(forName: testDefaultsSuiteName)
-        }
         if let youtubeDownloadsTestDir {
             try? FileManager.default.removeItem(at: youtubeDownloadsTestDir)
         }
@@ -216,6 +222,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.silenceAutoStop, "silenceAutoStop should default to false")
         XCTAssertEqual(viewModel.silenceDelay, 2.0, "silenceDelay should default to 2.0")
         XCTAssertFalse(viewModel.pauseMediaDuringDictation, "pauseMediaDuringDictation should default to false")
+        XCTAssertFalse(viewModel.playDictationCaptureSounds, "dictation capture sounds should default to false")
         XCTAssertTrue(viewModel.escapeCancelsDictation, "escapeCancelsDictation should default to true")
         XCTAssertFalse(viewModel.preserveDiscardedDictations, "preserve discarded dictations should default to false")
         XCTAssertFalse(viewModel.instantDictationEnabled, "instantDictationEnabled should default to false")
@@ -291,6 +298,7 @@ final class SettingsViewModelTests: XCTestCase {
         testDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.notifyOnMeetingEndKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.meetingAutoStopEnabledKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey)
+        testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.playDictationCaptureSoundsKey)
         testDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.escapeCancelsDictationKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.preserveDiscardedDictationsKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.instantDictationEnabledKey)
@@ -326,6 +334,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(vm.notifyOnMeetingEnd)
         XCTAssertTrue(vm.meetingAutoStopEnabled)
         XCTAssertTrue(vm.pauseMediaDuringDictation)
+        XCTAssertTrue(vm.playDictationCaptureSounds)
         XCTAssertFalse(vm.escapeCancelsDictation)
         XCTAssertTrue(vm.preserveDiscardedDictations)
         XCTAssertTrue(vm.instantDictationEnabled)
@@ -464,6 +473,25 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(settings, [.pauseMediaDuringDictation, .pauseMediaDuringDictation])
     }
 
+    func testPlayDictationCaptureSoundsPersistsAndEmitsTelemetry() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.playDictationCaptureSounds = true
+
+        XCTAssertTrue(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.playDictationCaptureSoundsKey))
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences.playDictationCaptureSounds(defaults: testDefaults))
+
+        viewModel.playDictationCaptureSounds = false
+
+        XCTAssertFalse(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.playDictationCaptureSoundsKey))
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting, _) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.playDictationCaptureSounds, .playDictationCaptureSounds])
+    }
+
     func testEscapeCancelsDictationPersistsAndEmitsTelemetry() {
         let telemetry = SettingsTelemetrySpy()
         Telemetry.configure(telemetry)
@@ -574,6 +602,35 @@ final class SettingsViewModelTests: XCTestCase {
             return setting
         }
         XCTAssertEqual(settings, [.liveDictationPreview])
+    }
+
+    func testDictationOverlayPlacementDefaultsToBottomPersistsAndEmitsTelemetry() {
+        XCTAssertEqual(viewModel.dictationOverlayPlacement, .bottom)
+
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.dictationOverlayPlacement = .top
+
+        XCTAssertEqual(
+            testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.dictationOverlayPlacementKey),
+            "top"
+        )
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting, value: let value) = event else { return nil }
+            XCTAssertEqual(value, "top")
+            return setting
+        }
+        XCTAssertEqual(settings, [.overlayPlacement])
+    }
+
+    func testDictationOverlayPlacementPostsNotificationOnChange() {
+        let expectation = expectation(
+            forNotification: Notification.Name("macparakeet.dictationOverlayPlacementDidChange"),
+            object: nil
+        )
+        viewModel.dictationOverlayPlacement = .top
+        wait(for: [expectation], timeout: 1.0)
     }
 
     func testDictationUndoCountdownDefaultsToFiveSecondsPersistsAndEmitsTelemetry() {
@@ -705,6 +762,53 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(settings, [.microphoneSelection, .microphoneSelection])
     }
 
+    // Issue #1227: Core Audio route notifications no longer rebuild the idle
+    // preparation, so an explicit selection must rebuild it here.
+    func testSelectedMicrophoneRebuildsIdlePreparation() async throws {
+        let platform = PrepareCountingMicrophonePlatform()
+        let stream = SharedMicrophoneStream(
+            platform: platform,
+            autoPrewarmWhenIdle: true,
+            prewarmRefreshDebounce: 0
+        )
+        viewModel.instantDictationEnabled = false
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            sharedMicStream: stream
+        )
+
+        viewModel.selectedMicrophoneDeviceUID = "usb-mic-uid"
+
+        try await waitUntil { platform.prepareCount == 1 }
+        XCTAssertEqual(platform.stopEngineCount, 1)
+    }
+
+    func testSelectedMicrophoneSkipsIdleRebuildWhenInstantDictationIsOn() async throws {
+        let platform = PrepareCountingMicrophonePlatform()
+        let stream = SharedMicrophoneStream(
+            platform: platform,
+            autoPrewarmWhenIdle: true,
+            prewarmRefreshDebounce: 0
+        )
+        viewModel.instantDictationEnabled = true
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            sharedMicStream: stream
+        )
+
+        viewModel.selectedMicrophoneDeviceUID = "usb-mic-uid"
+        try await Task.sleep(for: .milliseconds(100))
+
+        XCTAssertEqual(platform.prepareCount, 0)
+        XCTAssertEqual(platform.stopEngineCount, 0)
+    }
+
     func testRefreshMicrophoneDevicesUsesInjectedDevicesAndMarksDefaultFirst() {
         let vm = SettingsViewModel(
             defaults: testDefaults,
@@ -765,9 +869,8 @@ final class SettingsViewModelTests: XCTestCase {
         // To exercise the legacy upgrade path (transcription configured,
         // meeting empty) we need a separate suite that hasn't been
         // touched by ensureFolderConfigured yet.
-        let suite = "com.macparakeet.tests.legacy.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.legacy.")
         let fresh = UserDefaults(suiteName: suite)!
-        defer { fresh.removePersistentDomain(forName: suite) }
 
         fresh.set(true, forKey: AutoSaveService.enabledKey)
         fresh.set(AutoSaveFormat.json.rawValue, forKey: AutoSaveService.formatKey)
@@ -820,9 +923,8 @@ final class SettingsViewModelTests: XCTestCase {
         // setUp's `viewModel` already populated `testDefaults` via
         // ensureFolderConfigured, so use a separate suite to observe
         // the fresh-defaults case.
-        let suite = "com.macparakeet.tests.fresh.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.fresh.")
         let fresh = UserDefaults(suiteName: suite)!
-        defer { fresh.removePersistentDomain(forName: suite) }
 
         XCTAssertNil(fresh.data(forKey: AutoSaveService.folderBookmarkKey))
         XCTAssertNil(fresh.data(forKey: AutoSaveScope.meeting.folderBookmarkKey))
@@ -895,9 +997,8 @@ final class SettingsViewModelTests: XCTestCase {
     }
 
     func testInitPreservesEnabledMeetingAutoSaveWhenFolderIsUnavailable() throws {
-        let suite = "com.macparakeet.tests.unavailable-meeting-folder.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.unavailable-meeting-folder.")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("unavailable-meeting-folder-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -916,9 +1017,8 @@ final class SettingsViewModelTests: XCTestCase {
         // Running ensureFolderConfigured twice on fresh defaults must
         // produce the same path — the second call should see the first
         // call's bookmark and not re-create or move the folder.
-        let suite = "com.macparakeet.tests.idempotent.\(UUID().uuidString)"
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.idempotent.")
         let fresh = UserDefaults(suiteName: suite)!
-        defer { fresh.removePersistentDomain(forName: suite) }
 
         let first = AutoSaveService.ensureFolderConfigured(scope: .transcription, defaults: fresh)
         let second = AutoSaveService.ensureFolderConfigured(scope: .transcription, defaults: fresh)
@@ -1370,6 +1470,32 @@ final class SettingsViewModelTests: XCTestCase {
         wait(for: [expectation], timeout: 1.0)
     }
 
+    func testAdditionalDictationShortcutsRoundTripWithoutChangingPrimaryBindings() {
+        XCTAssertEqual(viewModel.alternateHandsFreeHotkeyTrigger, .disabled)
+        XCTAssertEqual(viewModel.alternatePushToTalkHotkeyTrigger, .disabled)
+        let primary = viewModel.hotkeyTrigger
+        let hold = viewModel.pushToTalkHotkeyTrigger
+        let key = HotkeyTrigger.fromKeyCode(117)
+        let handsFreeChanged = expectation(forNotification: .macParakeetHotkeyTriggerDidChange, object: nil)
+        let holdChanged = expectation(forNotification: .macParakeetPushToTalkHotkeyTriggerDidChange, object: nil)
+        viewModel.alternateHandsFreeHotkeyTrigger = key
+        viewModel.alternatePushToTalkHotkeyTrigger = key
+        wait(for: [handsFreeChanged, holdChanged], timeout: 1)
+        let reloaded = SettingsViewModel(defaults: testDefaults)
+        XCTAssertEqual(reloaded.alternateHandsFreeHotkeyTrigger, key)
+        XCTAssertEqual(reloaded.alternatePushToTalkHotkeyTrigger, key)
+        XCTAssertEqual(reloaded.hotkeyTrigger, primary)
+        XCTAssertEqual(reloaded.pushToTalkHotkeyTrigger, hold)
+        reloaded.alternateHandsFreeHotkeyTrigger = .disabled
+        XCTAssertEqual(SettingsViewModel(defaults: testDefaults).alternateHandsFreeHotkeyTrigger, .disabled)
+        XCTAssertEqual(SettingsViewModel(defaults: testDefaults).alternatePushToTalkHotkeyTrigger, key)
+    }
+
+    func testMalformedAdditionalShortcutFallsBackToDisabled() {
+        testDefaults.set("broken json", forKey: HotkeyTrigger.alternateHandsFreeDefaultsKey)
+        XCTAssertEqual(SettingsViewModel(defaults: testDefaults).alternateHandsFreeHotkeyTrigger, .disabled)
+    }
+
     func testPushToTalkHotkeyPostsNotificationOnChange() {
         let expectation = expectation(
             forNotification: Notification.Name("macparakeet.pushToTalkHotkeyTriggerDidChange"),
@@ -1384,6 +1510,21 @@ final class SettingsViewModelTests: XCTestCase {
     func testTranscriptionHotkeysDefaultToDisabled() {
         XCTAssertEqual(viewModel.fileTranscriptionHotkeyTrigger, .disabled)
         XCTAssertEqual(viewModel.youtubeTranscriptionHotkeyTrigger, .disabled)
+        XCTAssertEqual(viewModel.dictationAIPolishHotkeyTrigger, .disabled)
+    }
+
+    func testDictationAIPolishHotkeyPersistsToDedicatedDefaultsKey() {
+        let trigger = HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 35)
+        viewModel.dictationAIPolishHotkeyTrigger = trigger
+
+        XCTAssertEqual(
+            HotkeyTrigger.current(
+                defaults: testDefaults,
+                defaultsKey: HotkeyTrigger.dictationAIPolishDefaultsKey,
+                fallback: .disabled
+            ),
+            trigger
+        )
     }
 
     func testFileTranscriptionHotkeyPersistsToDedicatedDefaultsKey() {
@@ -1441,6 +1582,7 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.meetingHotkeyTrigger = .chord(modifiers: ["control", "option"], keyCode: 46)
         viewModel.fileTranscriptionHotkeyTrigger = .disabled
         viewModel.youtubeTranscriptionHotkeyTrigger = .fromKeyCode(16)
+        viewModel.dictationAIPolishHotkeyTrigger = .chord(modifiers: ["control", "option"], keyCode: 35)
 
         let events = telemetry.snapshot()
         let hotkeyEvents = events.compactMap { event -> String? in
@@ -1462,6 +1604,7 @@ final class SettingsViewModelTests: XCTestCase {
             "meeting:chord",
             "file_transcription:disabled",
             "youtube_transcription:key_code",
+            "dictation_ai_polish:chord",
         ])
         XCTAssertTrue(hotkeySettingEvents.isEmpty)
     }
@@ -1469,13 +1612,16 @@ final class SettingsViewModelTests: XCTestCase {
     func testTranscriptionHotkeysLoadFromUserDefaults() {
         let fileTrigger = HotkeyTrigger.chord(modifiers: ["control", "shift"], keyCode: 3)
         let youtubeTrigger = HotkeyTrigger.chord(modifiers: ["control", "shift"], keyCode: 16)
+        let aiPolishTrigger = HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 35)
         fileTrigger.save(to: testDefaults, defaultsKey: HotkeyTrigger.fileTranscriptionDefaultsKey)
         youtubeTrigger.save(to: testDefaults, defaultsKey: HotkeyTrigger.youtubeTranscriptionDefaultsKey)
+        aiPolishTrigger.save(to: testDefaults, defaultsKey: HotkeyTrigger.dictationAIPolishDefaultsKey)
 
         let vm = SettingsViewModel(defaults: testDefaults)
 
         XCTAssertEqual(vm.fileTranscriptionHotkeyTrigger, fileTrigger)
         XCTAssertEqual(vm.youtubeTranscriptionHotkeyTrigger, youtubeTrigger)
+        XCTAssertEqual(vm.dictationAIPolishHotkeyTrigger, aiPolishTrigger)
     }
 
     func testShowIdlePillDefaultsToTrue() {
@@ -1526,6 +1672,15 @@ final class SettingsViewModelTests: XCTestCase {
     func testInvalidProcessingModeFallsBackToRaw() {
         viewModel.processingMode = "invalid-mode"
         XCTAssertEqual(viewModel.processingMode, Dictation.ProcessingMode.raw.rawValue)
+    }
+
+    func testSpokenPunctuationDefaultsOnAndPersistsOff() {
+        XCTAssertTrue(viewModel.spokenPunctuationEnabled)
+        viewModel.spokenPunctuationEnabled = false
+        XCTAssertEqual(
+            testDefaults.object(forKey: UserDefaultsAppRuntimePreferences.spokenPunctuationEnabledKey) as? Bool,
+            false
+        )
     }
 
     // MARK: - Permissions
@@ -1697,6 +1852,39 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.microphoneGranted)
         XCTAssertTrue(viewModel.accessibilityGranted)
         XCTAssertTrue(viewModel.screenRecordingGranted)
+    }
+
+    func testRefusedScreenRecordingRequestOpensSystemSettings() {
+        // After a denial the system request returns false without a prompt,
+        // so Allow must lead to System Settings instead of doing nothing.
+        mockPermissions.screenRecordingPermission = false
+        mockPermissions.requestScreenRecordingResult = false
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
+
+        viewModel.requestScreenRecordingAccess()
+
+        XCTAssertEqual(mockPermissions.openScreenRecordingSettingsCallCount, 1)
+    }
+
+    func testGrantedScreenRecordingRequestStaysInApp() {
+        mockPermissions.screenRecordingPermission = false
+        mockPermissions.requestScreenRecordingResult = true
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
+
+        viewModel.requestScreenRecordingAccess()
+
+        XCTAssertTrue(mockPermissions.screenRecordingPermission, "Allow must make the system request")
+        XCTAssertEqual(mockPermissions.openScreenRecordingSettingsCallCount, 0)
     }
 
     func testRefreshPermissionsUpdatesNotGrantedState() async throws {
@@ -3805,5 +3993,35 @@ private actor MockSpeechEngineSwitcher: SpeechEngineSwitching {
         } else {
             releaseRequested = true
         }
+    }
+}
+
+private final class PrepareCountingMicrophonePlatform: MicrophoneEnginePlatform, @unchecked Sendable {
+    private let lock = NSLock()
+    private var prepares = 0
+    private var stops = 0
+
+    var prepareCount: Int { lock.withLock { prepares } }
+    var stopEngineCount: Int { lock.withLock { stops } }
+
+    var isEngineRunning: Bool { false }
+    var inputFormat: AVAudioFormat? { nil }
+
+    func configureAndStart(
+        vpioEnabled: Bool,
+        bufferSize: AVAudioFrameCount,
+        tapHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
+    ) throws {}
+
+    func stopEngine() {
+        lock.withLock { stops += 1 }
+    }
+
+    func prepare(
+        vpioEnabled: Bool,
+        bufferSize: AVAudioFrameCount,
+        tapHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
+    ) {
+        lock.withLock { prepares += 1 }
     }
 }

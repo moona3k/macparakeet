@@ -2,7 +2,7 @@
 
 > Status: **IMPLEMENTED** — describes the release candidate, including OpenCode Go session headers (#948). Candidate changes are not a claim about the published stable build; runtime validation is tracked separately.
 > Supersedes: Previous HISTORICAL version (local Qwen3-8B via mlx-swift-lm, removed 2026-02-23)
-> ADR: ADR-011 (Cloud API keys + optional local providers); ADR-032 (task-group routing — accepted direction, not implemented)
+> ADR: ADR-011 (Cloud API keys + optional local providers); ADR-032 (task-group routing)
 > Note: §1 (Transcript Summary) is superseded by [spec/12-processing-layer.md](12-processing-layer.md) — Prompt Library + multi-summary architecture. §3's old UserDefaults custom-transform design is superseded by ADR-022's productized `Prompt.Category.transform` Transforms. Provider protocol, formatter, chat, and CLI sections remain current.
 
 This spec defines how MacParakeet integrates LLM-powered features via user-selected providers,
@@ -24,7 +24,7 @@ model option.
 2. Bundled/default LLM processing in the dictation hot path. The AI formatter is opt-in, runs after deterministic cleanup, and falls back to the deterministic result if the provider fails.
 3. Building a hosted backend or proxy service.
 4. Automatic fallback between providers.
-5. Per-feature LLM model pickers. If model selection is split, it is by task (cleanup vs analysis, with Transforms inheriting the default route) per [ADR-032](adr/032-llm-task-group-routing.md): inherit the default, pick a general LLM route, or pick a specialist recipe on eligible tasks. That policy is not implemented; the current runtime still uses one saved default provider config, with existing prompt/Transform `modelOverride` and `--model` on stored-config CLI commands. Inline CLI commands that pass a full provider context remain independent configs. Specialists such as S1-mini (cleanup) or Hy-MT2 (translation, only if F31 ships) are recipes bound to a task, not names in the default model list. Analysis does not get a recipe.
+5. Per-feature LLM model pickers. Model selection is by task (cleanup vs analysis, with Transforms inheriting the default route) per [ADR-032](adr/032-llm-task-group-routing.md): inherit the default or pick a general LLM route. Prompt/Transform `modelOverride` and `--model` on stored-config CLI commands still overlay that route. Inline CLI commands that pass a full provider context remain independent configs. Specialists such as S1-mini (cleanup) or Hy-MT2 (translation, only if F31 ships) are not shipped.
 
 **Local MLX status (updated 2026-07-05):** The in-process provider, MLX runtime seam, verified model downloader, and one-click Settings card now exist as a developer-gated foundation. The public feature flag remains off, downloads are never automatic, and public one-click setup remains blocked by runtime capability gating, setup UX, release readiness, and Phase 0 quality evidence. The first plausible public scope is single-transcript cleanup/summarization/Q&A; cross-meeting or whole-library analysis remains future-gated. Cloud/frontier providers remain the recommended quality path per surface until local capability reaches parity there. See `plans/active/2026-06-27-on-device-local-llm.md`.
 
@@ -35,9 +35,10 @@ model option.
 ```text
 User triggers LLM action (Summary / Chat / Formatter / Transform)
     → LLMService (builds prompt with transcript context)
-    → LLMExecutionContextResolver (resolves provider config + CLI config; currently task-blind)
+    → LLMExecutionContextResolver (resolves provider config + CLI config per task group)
     → RoutingLLMClient
         → .inProcessLocal: InProcessLLMClient → LocalLLMRuntime (MLX only in gated app builds)
+        → .appleIntelligence: AppleIntelligenceLLMClient → FoundationModels (macOS 26+)
         → .localCLI: LocalCLILLMClient → LocalCLIExecutor (posix_spawn)
         → .other:    LLMClient (URLSession)
             → .anthropic: POST /v1/messages
@@ -46,21 +47,32 @@ User triggers LLM action (Summary / Chat / Formatter / Transform)
     → Response streamed back to UI
 ```
 
-### Per-task selection (accepted direction; not implemented)
+### Per-task selection
 
-Current code loads one saved default provider config, then may apply a
-prompt/Transform `modelOverride` or `--model` on a stored-config CLI
-command. Inline CLI commands that pass a full provider context do not
-use that saved route. If that grows, follow [ADR-032](adr/032-llm-task-group-routing.md): define a
-few tasks (`cleanup`, `analysis`, `transform`; `translate` only if F31
-ships), then a selector per task. Inherit the default, pick a general LLM
-route, or pick a specialist recipe on eligible tasks (`cleanup` now;
-`translate` only if F31). Do not add a Settings picker per feature, and do
-not put S1-mini or Hy-MT2 in the default model list. The first-party Local
-MLX model, if offered, remains one general model; built-in specialists are
-optional, task-bound recipes. Prompt/Transform `modelOverride` stays; the
-later split adds full-route task overrides, not a wipe of current
-model-name overrides.
+The default provider remains the route for every AI task until the user
+changes one of two Settings rows. Dictation and transcript formatting use
+`cleanup`; summaries, Ask, chat, and knowledge cards use `analysis`.
+Each row can inherit the default or select a full provider/model route.
+Transforms continue to inherit the default route. Prompt/Transform
+`modelOverride` and `--model` on stored-config CLI commands overlay the
+resolved route. Inline CLI commands with a full provider context stay
+independent. Specialist recipes are not shipped; see
+[ADR-032](adr/032-llm-task-group-routing.md).
+When a task row selects Apple Intelligence, Settings shows its availability
+and does not report AI setup as ready until the system model can generate.
+Saving the default and both task routes prepares credentials and encoded
+settings before publishing the routes; a failed credential write leaves the
+previous routes active.
+Route metadata is refreshed and read or written under a shared nonblocking
+cross-process lease. Mutations acquire it before changing credentials and keep
+it through metadata publication; competing operations fail busy without changes,
+including while another mutation is writing credentials. Effective-route resolution uses one metadata snapshot before loading the
+selected provider's credentials outside that lock. Model pickers compare their
+displayed route and inheritance identity as part of the same store operation
+that changes the model, so a simultaneous CLI route change cannot redirect a
+stale selection. Keychain and preferences do not share a durable transaction:
+a publication failure after mutation reports an unconfirmed save that may have
+changed state. This does not replace Settings' full-draft save behavior.
 
 ### Provider Protocol
 
@@ -71,6 +83,7 @@ The current implementation does not flatten every provider into one wire protoco
 - **OpenAI, Gemini, OpenRouter, Moonshot, DeepSeek, Qwen, Z.AI, MiniMax, and LM Studio** use the OpenAI-compatible chat completions API (`POST /chat/completions` off each provider's configured base URL).
 - **Local CLI** is not HTTP at all; prompts are passed to a subprocess via stdin/environment.
 - **Local MLX** is in-process through `InProcessLLMClient` and `LocalLLMRuntime`; the concrete MLX target is compiled only for gated app builds.
+- **Apple Intelligence** is on-device through `AppleIntelligenceLLMClient` and `FoundationModels` on macOS 26+. It is offered only for the Dictation & cleanup route (`LLMProviderID.canServe(_:)`), never as Default AI or for Meetings & library, and uses a dedicated ~12k-character budget for short answers (~6k when the reply is about as long as the input). The option is hidden on ineligible Macs and older OS versions.
 
 Streaming is provider-specific under the hood:
 
@@ -78,6 +91,7 @@ Streaming is provider-specific under the hood:
 - OpenAI-compatible providers stream SSE `data:` lines.
 - Ollama streams NDJSON chat chunks.
 - Local CLI yields stdout incrementally.
+- Apple Intelligence diffs cumulative `streamResponse` snapshots into deltas.
 
 The service boundary stays stable even though the transport is mixed.
 
@@ -99,6 +113,7 @@ The service boundary stays stable even though the transport is mixed.
 | MiniMax | Cloud | `https://api.minimax.io/v1` | `Authorization: Bearer` |
 | Local CLI | CLI | N/A (subprocess) | N/A (tool manages its own auth) |
 | Local MLX | In-process local, developer-gated | `inprocess://local` | N/A |
+| Apple Intelligence | On-device OS model, macOS 26+ | `appleintelligence://system` | N/A |
 
 **OpenAI-Compatible** is the path for aggregators such as Vercel AI Gateway.
 OpenAI-family model IDs (`gpt-5.x`, `o3`, and prefixed forms such as
@@ -119,6 +134,8 @@ Hunyuan remain custom OpenAI-Compatible endpoints because they use
 account-specific model IDs rather than a public catalog.
 
 **Local CLI:** Users with Claude Code or Codex subscriptions can use their CLI tools directly. The app runs the configured command as a subprocess via `posix_spawn`, delivering prompts via stdin and `MACPARAKEET_*` environment variables. No API key needed — the CLI tool manages its own authentication. Built-in presets for Claude Code (`claude -p --model haiku`) and Codex (`codex exec --model gpt-5.4-mini`), or any custom command. See PR #47.
+
+**Apple Intelligence:** On macOS 26 Tahoe or later, eligible Macs can use the on-device Foundation Models ~3B system model with no API key and no MacParakeet download. The user must enable Apple Intelligence in System Settings; MacParakeet does not auto-select this provider. The 4096-token window holds the input and the answer together, so it serves the cleanup route only: a summary, chat, or card over a meeting-length transcript would see only a fraction of it (timestamped, speaker-labeled transcripts measure about 2.8-3.2 characters per token). Settings offers it only in the Dictation & cleanup row; `llm routes set analysis` rejects it; and the app clears a saved Apple Intelligence default or analysis route at launch (saved API keys are kept). The AI Formatter (dictation cleanup and transcription AI formatting) uses an English-calibrated ~6k-character round-trip budget so the answer can be about as long as the source. It never truncates; an oversized request fails and falls back to deterministic cleanup instead (see [spec/07-text-processing.md](07-text-processing.md#optional-ai-formatting)). Inline CLI requests follow the same cleanup-only policy: summaries, chat, prompt results, knowledge cards, and Transforms reject Apple Intelligence before generation, including streaming requests. See issue #1062.
 
 ### OpenCode Go (custom endpoint)
 
@@ -191,6 +208,7 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     case lmstudio
     case localCLI    // CLI tools (claude -p, codex exec) — no HTTP, no API key
     case inProcessLocal // Developer-gated Local MLX option; no HTTP, no API key
+    case appleIntelligence // On-device Foundation Models; macOS 26+; no HTTP, no API key
 }
 ```
 
@@ -454,6 +472,7 @@ public protocol LLMServiceProtocol: Sendable {
 public enum LLMError: Error, LocalizedError, Sendable {
     case notConfigured             // No provider set up
     case connectionFailed(String)  // Network/localhost unreachable
+    case requestTimedOut           // Provider sent no bytes before the idle timeout
     case authenticationFailed      // Invalid API key
     case cliError(String)          // Local CLI subprocess failure
     case rateLimited               // Provider rate limit
@@ -485,24 +504,45 @@ concise summary that captures the key points, decisions, and action items.
 Use bullet points for clarity. Keep the summary under 500 words.
 ```
 
-**Context assembly:** Full transcript text. If transcript exceeds the context budget, truncate from the middle with an ellipsis marker, preserving the head and tail within the limit. Truncation snaps to word boundaries to avoid slicing multi-byte Unicode. The transcript budget accounts for the rendered summary system prompt so the combined request stays inside the provider budget; if a custom prompt has already rendered transcript text into the system prompt, that rendered prompt is bounded too. **Budget:** 500,000 characters for cloud providers, 80,000 characters for most local providers (`isLocal == true`), and 8,000 characters for LM Studio because its effective context depends on the model loaded in the desktop server.
+**Context assembly:** Full transcript text. If transcript exceeds the context budget, truncate from the middle with an ellipsis marker, preserving the head and tail within the limit. Truncation snaps to word boundaries to avoid slicing multi-byte Unicode. The transcript budget accounts for the rendered summary system prompt so the combined request stays inside the provider budget; if a custom prompt has already rendered transcript text into the system prompt, that rendered prompt is bounded too. **Budget:** 500,000 characters for cloud providers, 80,000 characters for most local providers (`isLocal == true`), and 8,000 characters for LM Studio because its effective context depends on the model loaded in the desktop server. Apple Intelligence is cleanup-only and is rejected for summary generation before context assembly.
+
+For prompt results, after reserving output tokens, a non-empty transcript
+reserves up to half the input budget (or its whole length, if shorter) before an
+oversized system prompt is bounded. Short system prompts stay unchanged and the
+transcript uses the remaining space. Empty transcripts reserve no space, so
+system-only requests can use the full input budget.
 
 **Meeting notes for result prompts:** Result
-prompts carry an `includeMeetingNotes` opt-in, false by default. At enqueue,
+prompts carry an `includeMeetingNotes` opt-in. It is false by default, except
+for the built-in Summary seeded when a prompt library is first created; existing
+libraries keep their saved value. At enqueue,
 the shared GUI/CLI assembly path captures that Boolean and the normalized notes
 value capped to 8,000 words. If notes are non-empty and the opt-in is enabled,
 the assembler appends one delimited, user-authored context block after the
 selected prompt and before per-run extra instructions. The block is source
-material, not instructions, and factual conflicts resolve in favor of the
-transcript.
+material, not instructions. It instructs the model to use explicit name/spelling
+corrections when the referent is clear, preserve relevant URLs exactly, and
+avoid inferring attendance, speaker identity, decisions, or commitments from a
+name or link alone. For other factual conflicts, it asks the model to prefer
+the transcript and state material uncertainty. These are prompt instructions,
+not guaranteed provider behavior. Linked pages are not fetched.
 
 Advanced custom templates retain case-sensitive `{{userNotes}}` substitution
 regardless of the checkbox. If the token is present, no automatic block is
 appended; if notes are empty, enabling the checkbox changes no prompt bytes.
-`PromptResult.userNotesSnapshot` stores the exact effective notes value used,
-while `includeMeetingNotesSnapshot` records the captured preference. Retry
+`PromptResult.userNotesSnapshot` stores the normalized, capped notes value used
+in prompt assembly, before any provider context trimming, while
+`includeMeetingNotesSnapshot` records the captured preference. Retry
 reuses the queued values; regenerate reuses the Boolean receipt with current
-committed notes. This path was implemented and locally verified on 2026-09-05.
+committed notes. Regeneration reuses the saved model only when its provider receipt
+matches the current analysis provider; after a provider change or when provider
+provenance is absent, it uses the current analysis model and provider inference
+defaults so historical provider-specific settings cannot invalidate the new route. Apple Intelligence and
+Local CLI always use their system or configured command model. The saved prompt and
+version remain regeneration inputs, with inference settings reused only for the
+same provider; the original result
+and receipt remain intact until successful replacement records the new execution.
+This path was implemented and locally verified on 2026-09-05.
 
 ### 2. Chat with Transcript
 
@@ -526,9 +566,47 @@ the transcript, say so. Be concise and specific, citing relevant parts when help
 </transcript>
 ```
 
-**Context assembly:** System prompt with full transcript + conversation history. Same context budget as summary (500K cloud / 80K local, 8K LM Studio). Notes and transcript are budgeted together inside the system prompt with a small recent-history reserve; if the remaining context exceeds the budget, drop oldest conversation turns first (keep system prompt + recent turns).
+**Context assembly:** System prompt with full transcript + conversation history. Same context budget as summary (500K cloud / 80K local, 12K Apple Intelligence, 8K LM Studio). Notes and transcript are budgeted together inside the system prompt with a small recent-history reserve; if the remaining context exceeds the budget, drop oldest conversation turns first (keep system prompt + recent turns).
 
 **User notes (meeting recordings, optional):** When the transcription has non-empty `userNotes`, the chat system prompt gains a `User's notes from the meeting:\n…` block before the transcript block. Empty / nil / whitespace-only notes are omitted entirely — chat behavior is byte-identical to a chat without notes. Threaded via `LLMService.chat / chatStream / chatDetailed`'s `userNotes: String?` parameter; the GUI calls `TranscriptChatViewModel.bindUserNotesProvider(_:)` with a closure that returns the latest notes at chat-send time (static for saved transcriptions, live for in-meeting Ask). Saved-note editing does not add a Chat checkbox or otherwise change this policy: the next send reads the latest committed value. See ADR-020's amendments for the distinction between Chat and opt-in result-prompt context.
+
+### Ask Workspace (ADR-034)
+
+The Ask workspace is a separate multi-source product surface from single-
+transcript chat and live meeting Ask. It freezes a maximum of 32 explicitly
+selected completed transcripts per context section. Every run reads the
+effective corrected transcript projection and its content revision. The only
+agent tools are source listing, lexical search over selected passages, bounded
+passage reads, and reads of current linked result-category summaries. Search
+is lexical and bounded; multi-source hits are interleaved round-robin, an
+optional source ID narrows search, and results expose `hasMore`. Search can
+miss wording; summaries are orientation only. A model answer must cite a
+validated passage handle to be marked complete.
+
+The private Node helper runs Pi agent-core's `runAgentLoop` from the pinned
+0.87.1 packages. Its model adapter is `AskModelBridge` in Swift: one decision
+per turn comes back as validated JSON, using the provider's JSON-schema response
+format only when supported. This is not provider-native function calling. The
+final answer uses the configured LLM client's real streaming API. The helper
+has no provider credentials and can call only the four app-owned source tools;
+the bundled runtime exposes no shell, filesystem, web, plugin, or arbitrary
+code tool.
+
+Ask freezes the configured direct model route for each run. In-process MLX,
+Apple Intelligence, and Ollama/LM Studio loopback are consent-free local
+routes. Other endpoints, including a generic OpenAI-compatible loopback
+endpoint, require explicit consent. Ask rejects Local CLI providers and never
+falls back to another route. On source-set changes, only completed user and
+assistant pairs from the current section with a matching source-revision map
+enter later model context; interrupted, failed, cancelled, and stale messages
+do not. Citation records store source UUID, revision and passage index plus
+optional display metadata, not a copied quote. Final persistence rechecks the
+source revisions and any summary receipts used inside the same database
+transaction; uncited responses remain incomplete, and invalid or invented
+citation handles fail validation. A durable incomplete assistant placeholder
+is saved before helper work so process interruption has an honest stored state.
+See the
+[Ask workspace contract](contracts/ask-workspace.md).
 
 ### 3. Transforms
 
@@ -551,7 +629,7 @@ the transcript, say so. Be concise and specific, citing relevant parts when help
 Respond with only the transformed text. Do not add explanations or preamble.
 ```
 
-**Context assembly:** Selected text is truncated after accounting for the transform system prompt, instruction wrapper, and custom prompt. Same provider budgets as summary/chat (500K cloud / 80K local, 8K LM Studio).
+**Context assembly:** Selected text is truncated after accounting for the transform system prompt, instruction wrapper, and custom prompt. Same provider budgets as summary/chat (500K cloud / 80K local, 8K LM Studio), except Apple Intelligence rewrite-shaped work (Transforms, dictation cleanup, and transcription AI formatting) uses 6,000 characters so the answer can be about as long as the source. Summary and Ask stay on the 12,000-character Apple Intelligence ceiling.
 
 ---
 
@@ -571,6 +649,9 @@ The setup header and settings card describe the saved provider: a failed test
 of an unsaved draft does not mark the working saved provider as disconnected.
 Test Connection never saves a draft; Save remains a separate action. A saved
 configuration is shown as ready without implying that connectivity was tested.
+Status rendering uses provider metadata rather than secret reads; blocked saved
+credentials show Open Keychain Access and Retry access actions. See
+[credential access](contracts/credential-access.md).
 Credential writes/deletes must succeed before replacing provider metadata.
 Local CLI settings are encoded before committing the provider switch, so an
 encoding failure leaves the previous provider and CLI settings intact.
@@ -578,9 +659,19 @@ Failed Save or Clear keeps the working configuration and reports an error
 without notifying consumers or resetting formatter preferences. Successful
 transitions update the view model's committed state before notifying consumers.
 
-Clear removes the saved provider, not every remembered provider setup. It deletes
+Clear (and Save with no default or task provider selected) removes the saved routes, not every
+remembered provider setup. Saved provider API keys stay in the Keychain, as they
+do when switching providers, so choosing a provider again does not ask for its
+key again. **Default AI = None** leaves tasks without an override disabled; explicit task
+routes can be saved independently. In particular, Apple Intelligence cleanup
+requires no other provider. Formatter availability follows the saved cleanup
+route, while summaries and Transforms follow analysis and transform respectively.
+**Remove saved key** under the key field deletes it once no saved
+route uses that provider. Clear deletes
 Local CLI command settings only when the saved provider can be identified as
-Local CLI, and preserves inactive providers' settings and credentials. If saved
+Local CLI, and preserves inactive providers' settings. A key typed but not yet
+saved survives switching to another provider and back within the same
+Settings session. If saved
 provider metadata is unreadable, Clear removes that metadata without guessing
 ownership of the remaining provider-specific settings. Selecting a remembered
 Local CLI draft afterward does not reactivate AI; the user must explicitly Save.
@@ -659,9 +750,9 @@ transcription formatting continues to use the transcript formatter prompt
 (all transcription finalization paths share `completeTranscription`, which
 invokes the formatter). Dictation uses the dictation formatter prompt as
 its fallback after profiles/smart defaults. The transcripts-side formatter
-has its own "Use for transcripts" toggle (default off) and an input-length
-cap that skips formatting for transcripts too long to rewrite inside
-realistic provider timeouts (#493).
+has its own "Use for transcripts" toggle (default off). A transcript longer
+than one provider response is cleaned in successive sections and joined,
+instead of being skipped (#493, #1253).
 
 Browser hostname/domain matching is intentionally deferred. In V1, Gmail in
 Chrome can match an exact Chrome profile or the coarse `browser` category, but

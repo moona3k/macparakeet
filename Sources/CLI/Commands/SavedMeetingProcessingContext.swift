@@ -54,7 +54,7 @@ struct SavedMeetingProcessingContext {
             shouldDiarize: { preferences.shouldDiarize },
             shouldDiarizeMeetings: { preferences.shouldDiarizeMeetings },
             fileSpeechEngineSelection: { SpeechEngineSelection.finalTranscription(defaults: defaults) },
-            diarizationService: DiarizationService(),
+            diarizationService: DiarizationServiceFactory.live.make(speakerConstraint: nil),
             meetingArtifactStore: artifactStore
         )
         completionService = SavedAudioAutoPromptCompletionService(
@@ -71,7 +71,8 @@ struct SavedMeetingProcessingContext {
                 cardRepository: cardRepository,
                 speakerAttributionReader: speakerAttributionReader,
                 completionProvider: llmService
-            )
+            ),
+            outputLanguagePolicyProvider: { preferences.meetingAIOutputLanguagePolicy }
         )
         recordingsRootURL = meetingRecordingsRootURL(defaults: defaults)
     }

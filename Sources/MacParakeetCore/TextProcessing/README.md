@@ -72,6 +72,13 @@ mode.
    expansion so the trigger phrase isn't mangled by step 4.
 4. **Text snippet expansion.** Plain text snippets (where
    `action == nil`) replace their trigger phrases with their bodies.
+   Built-in spoken punctuation (`question mark` → `?`) runs after user
+   snippets so a custom snippet of the same trigger still wins. A snippet
+   expansion that itself contains a command phrase is also converted.
+   Prefix `literal` keeps the words. Default on for Clean dictation (and
+   `vocab process`, which previews that pipeline on typed text). File, URL,
+   and meeting transcripts never run this step, because recorded speech that
+   mentions "a question mark" means the words.
 5. **Whitespace cleanup and insertion styling.** Collapse repeated
    spaces, fix punctuation spacing, normalize, then apply the selected
    dictation insertion style. Sentence style preserves the historic

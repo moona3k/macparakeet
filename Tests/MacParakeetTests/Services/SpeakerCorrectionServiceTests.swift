@@ -1,6 +1,7 @@
 import GRDB
 import XCTest
 @testable import MacParakeetCore
+@testable import MacParakeetViewModels
 
 final class SpeakerCorrectionServiceTests: XCTestCase {
     func testTextEditPublishesCorrectedSearchTextWithoutMutatingAutomaticEvidence() async throws {
@@ -43,6 +44,131 @@ final class SpeakerCorrectionServiceTests: XCTestCase {
             [fixture.transcription.id]
         )
         XCTAssertTrue(try fixture.transcriptions.search(query: "hello world", limit: nil).isEmpty)
+    }
+
+    func testSummaryLibraryPageResolvesCorrectedTextFromStoredTimingEvidence() async throws {
+        let fixture = try Fixture()
+        let target = SpeakerCorrectionTarget(
+            anchorTranscriptSegmentIDs: [try XCTUnwrap(fixture.transcription.transcriptSegments?.first?.id)],
+            wordRange: .init(startIndex: 0, endIndexExclusive: 2)
+        )
+        _ = try await fixture.service.apply(
+            transcriptionId: fixture.transcription.id,
+            command: .editText(target: target, text: "Corrected greeting."),
+            expectedFingerprint: fixture.fingerprint,
+            expectedRevision: 0
+        )
+
+        let browsed = try fixture.transcriptions.fetchLibraryPage(query: .init(limit: 10, payload: .summary))
+        XCTAssertEqual(browsed.effectiveTranscriptTextByID[fixture.transcription.id], "Corrected greeting.")
+        XCTAssertNil(browsed.items.first?.wordTimestamps)
+
+        let searched = try fixture.transcriptions.fetchLibraryPage(
+            query: .init(searchText: "corrected greeting", limit: 10, payload: .summary)
+        )
+        XCTAssertEqual(searched.items.map(\.id), [fixture.transcription.id])
+        XCTAssertEqual(searched.effectiveTranscriptTextByID[fixture.transcription.id], "Corrected greeting.")
+        XCTAssertTrue(
+            try fixture.transcriptions.fetchLibraryPage(
+                query: .init(searchText: "hello world", limit: 10, payload: .summary)
+            ).items.isEmpty
+        )
+    }
+
+    func testReviseTextOmitsAPassageFromSearchAndUndoRestoresIt() async throws {
+        let fixture = try Fixture()
+        let target = SpeakerCorrectionTarget(
+            anchorTranscriptSegmentIDs: [try XCTUnwrap(fixture.transcription.transcriptSegments?.first?.id)],
+            wordRange: .init(startIndex: 0, endIndexExclusive: 2)
+        )
+
+        let omitted = try await fixture.service.apply(
+            transcriptionId: fixture.transcription.id,
+            command: .reviseText(changes: [.omit(target: target)]),
+            expectedFingerprint: fixture.fingerprint,
+            expectedRevision: 0
+        )
+
+        XCTAssertTrue(omitted.attribution.editableSegments.isEmpty)
+        XCTAssertEqual(
+            try XCTUnwrap(fixture.transcriptions.fetch(id: fixture.transcription.id)).wordTimestamps?.map(\.word),
+            ["Hello", "world."]
+        )
+        XCTAssertTrue(
+            try fixture.transcriptions.fetchLibraryPage(
+                query: .init(searchText: "hello", limit: 10)
+            ).items.isEmpty
+        )
+
+        let undone = try await fixture.service.undo(
+            transcriptionId: fixture.transcription.id,
+            expectedFingerprint: fixture.fingerprint,
+            expectedRevision: omitted.revision
+        )
+        XCTAssertEqual(undone.attribution.editableSegments.map(\.text), ["Hello world."])
+        XCTAssertEqual(
+            try fixture.transcriptions.fetchLibraryPage(
+                query: .init(searchText: "hello", limit: 10)
+            ).items.map(\.id),
+            [fixture.transcription.id]
+        )
+    }
+
+    /// Find-and-replace saves through the reading editor's correction path:
+    /// one revision that changes the text, stays searchable, and undoes in
+    /// one step.
+    @MainActor
+    func testFindReplaceAllSavesOneUndoableTextCorrection() async throws {
+        let fixture = try Fixture()
+        let segments = SpeakerAttributionResolver.resolve(transcription: fixture.transcription).editableSegments
+        let find = TranscriptFindModel()
+        find.setBlocks(segments.map(\.text))
+        find.setQuery("WORLD")
+        let command = try XCTUnwrap(
+            TranscriptFindReplaceEdit.command(for: find.replacingAll(with: "there"), in: segments)
+        )
+
+        let replaced = try await fixture.service.apply(
+            transcriptionId: fixture.transcription.id,
+            command: command,
+            expectedFingerprint: fixture.fingerprint,
+            expectedRevision: 0
+        )
+
+        XCTAssertEqual(replaced.attribution.editableSegments.map(\.text), ["Hello there."])
+        XCTAssertEqual(
+            try fixture.transcriptions.fetchLibraryPage(
+                query: .init(searchText: "hello there", limit: 10)
+            ).items.map(\.id),
+            [fixture.transcription.id]
+        )
+
+        let undone = try await fixture.service.undo(
+            transcriptionId: fixture.transcription.id,
+            expectedFingerprint: fixture.fingerprint,
+            expectedRevision: replaced.revision
+        )
+        XCTAssertEqual(undone.attribution.editableSegments.map(\.text), ["Hello world."])
+    }
+
+    func testFindReplaceWithUnchangedTextProducesNoCommand() async throws {
+        let fixture = try Fixture()
+        let segments = SpeakerAttributionResolver.resolve(transcription: fixture.transcription).editableSegments
+        let replacements = await MainActor.run { () -> [TranscriptFindModel.Replacement] in
+            let find = TranscriptFindModel()
+            find.setBlocks(segments.map(\.text))
+            find.setQuery("world")
+            return find.replacingAll(with: "world")
+        }
+
+        XCTAssertNil(TranscriptFindReplaceEdit.command(for: replacements, in: segments))
+        XCTAssertNil(
+            TranscriptFindReplaceEdit.command(
+                for: [.init(blockIndex: 5, text: "x", count: 1)],
+                in: segments
+            ),
+            "a replacement outside the searched segments must not save"
+        )
     }
 
     func testLibraryProjectionOnlyResolvesActiveTimedTextHistory() async throws {

@@ -74,6 +74,41 @@ struct IdentifiedSpeakerTurn: Identifiable {
 /// a single-speaker recording cannot become one unbounded SwiftUI subtree.
 let maximumSpeakerTurnSegmentsPerCard = 24
 
+/// Find targets a line inside a card; playback and lazy realization target
+/// the card itself. Even the first line needs an identity distinct from it.
+struct TranscriptFindSegmentID<ID: Hashable>: Hashable {
+    let segmentID: ID
+}
+
+/// Centers a find match. A segment that is its own row scrolls directly. A
+/// segment inside a speaker card scrolls to its line anchor; in a lazy stack
+/// that anchor is unresolvable until the card is realized, so the jump lands
+/// on the card first and returns the pending, cancellable second hop.
+@MainActor
+func revealTranscriptFindSegment<ID: Hashable>(
+    _ segmentID: ID,
+    cardID: ID?,
+    usesLazyStack: Bool,
+    proxy: ScrollViewProxy
+) -> Task<Void, Never>? {
+    guard let cardID else {
+        proxy.scrollTo(segmentID, anchor: .center)
+        return nil
+    }
+    let lineID = TranscriptFindSegmentID(segmentID: segmentID)
+    guard usesLazyStack else {
+        proxy.scrollTo(lineID, anchor: .center)
+        return nil
+    }
+    proxy.scrollTo(cardID, anchor: .center)
+    return Task { @MainActor in
+        // Give the lazy card a layout pass before resolving its nested anchor.
+        try? await Task.sleep(for: .milliseconds(50))
+        guard !Task.isCancelled else { return }
+        proxy.scrollTo(lineID, anchor: .center)
+    }
+}
+
 func identifiedSpeakerTurnCards(_ turns: [SpeakerTurn]) -> [IdentifiedSpeakerTurn] {
     let cardTurns = turns.flatMap { turn -> [SpeakerTurn] in
         guard turn.segments.count > maximumSpeakerTurnSegmentsPerCard else {
@@ -161,6 +196,48 @@ func effectiveTranscriptScrollTarget(
         for: currentMs,
         in: identifiedEffectiveSpeakerTurnCards(attribution.turns)
     )
+}
+
+/// The scroll id of the transcript-stack row that renders each effective
+/// segment inside a speaker-turn card. Flat segments have no entry because
+/// their own identity already resolves the row. Mirrors the branch `body` takes.
+///
+/// Before a row is realized, a `LazyVStack` resolves `scrollTo` only for the
+/// ids of its direct children. An id nested inside a row, such as a later
+/// segment in a speaker card, stays unresolvable until that row is realized,
+/// so a jump to it from far away is silently dropped. Scroll to the row first,
+/// then to the segment.
+func effectiveTranscriptRowIDs(
+    for attribution: EffectiveSpeakerAttribution
+) -> [SpeakerEditableSegmentID: SpeakerEditableSegmentID] {
+    let cards =
+        attribution.speakers.isEmpty
+        ? [] : identifiedEffectiveSpeakerTurnCards(attribution.turns)
+    var rows: [SpeakerEditableSegmentID: SpeakerEditableSegmentID] = [:]
+    for card in cards {
+        for segment in card.segments where rows[segment.id] == nil {
+            rows[segment.id] = card.id
+        }
+    }
+    return rows
+}
+
+/// Legacy (pre-attribution) counterpart of `effectiveTranscriptRowIDs`,
+/// keyed and valued by segment `startMs`. Flat rows own their own id, so only
+/// speaker-card layouts need a mapping.
+func legacyTranscriptRowIDs(
+    hasSpeakers: Bool,
+    cards: [IdentifiedSpeakerTurn]
+) -> [Int: Int] {
+    guard hasSpeakers else { return [:] }
+    var rows: [Int: Int] = [:]
+    for card in cards {
+        guard let cardID = card.turn.segments.first?.startMs else { continue }
+        for segment in card.turn.segments where rows[segment.startMs] == nil {
+            rows[segment.startMs] = cardID
+        }
+    }
+    return rows
 }
 
 private func identifySpeakerTurns(_ turns: [SpeakerTurn]) -> [IdentifiedSpeakerTurn] {
@@ -338,8 +415,8 @@ struct TranscriptTimestampedContentView<SpeakerLabelContent: View, TurnBanner: V
                 textSelectionEnabled: textSelectionEnabled
             )
         }
-        // Preserve the existing first-segment/card scroll target while later
-        // rows expose their own anchors for mid-turn find results.
+        // The card id is the playback and lazy-realization target; each line
+        // carries its own find anchor.
         .id(turn.segments.first?.startMs ?? 0)
         .onAppear(perform: onRenderedChildAppear)
     }
@@ -347,22 +424,22 @@ struct TranscriptTimestampedContentView<SpeakerLabelContent: View, TurnBanner: V
     private func segmentRow(_ indexed: IndexedTranscriptSegment) -> some View {
         let index = indexed.index
         let segment = indexed.segment
-        return ZStack(alignment: .topLeading) {
-            timestampScrollAnchor(startMs: segment.startMs)
-            TranscriptSegmentRow(
-                startMs: segment.startMs,
-                text: segment.text,
-                timestampText: timestampLabel(segment.startMs),
-                isActive: isSegmentActive(index),
-                isSeekable: isTimestampSeekable,
-                bodyFont: bodyFont,
-                showRowBackground: true,
-                highlightRanges: highlightRangesByStartMs[segment.startMs] ?? [],
-                currentRange: currentHighlight?.id == segment.startMs ? currentHighlight?.range : nil,
-                onPlayFromHere: { onTimestampTap(segment.startMs) },
-                textSelectionEnabled: textSelectionEnabled
-            )
-        }
+        return TranscriptSegmentRow(
+            startMs: segment.startMs,
+            text: segment.text,
+            timestampText: timestampLabel(segment.startMs),
+            isActive: isSegmentActive(index),
+            isSeekable: isTimestampSeekable,
+            bodyFont: bodyFont,
+            showRowBackground: true,
+            highlightRanges: highlightRangesByStartMs[segment.startMs] ?? [],
+            currentRange: currentHighlight?.id == segment.startMs ? currentHighlight?.range : nil,
+            onPlayFromHere: { onTimestampTap(segment.startMs) },
+            textSelectionEnabled: textSelectionEnabled
+        )
+        // The row itself carries the scroll id: a lazy stack can only scroll
+        // to its direct children before they are realized.
+        .id(segment.startMs)
         .onAppear(perform: onRenderedChildAppear)
     }
 
@@ -444,10 +521,10 @@ struct TranscriptTimestampedContentView<SpeakerLabelContent: View, TurnBanner: V
 
 }
 
-private func timestampScrollAnchor(startMs: Int) -> some View {
+private func findSegmentScrollAnchor<ID: Hashable>(_ segmentID: ID) -> some View {
     Color.clear
         .frame(width: 1, height: 1)
-        .id(startMs)
+        .id(TranscriptFindSegmentID(segmentID: segmentID))
         .accessibilityHidden(true)
 }
 
@@ -553,10 +630,7 @@ private struct EditableTranscriptTurnCardView<SpeakerLabelContent: View>: View {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
                 ForEach(turn.segments) { segment in
                     ZStack(alignment: .topLeading) {
-                        // The card owns its first segment's scroll identity.
-                        if segment.id != turn.id {
-                            effectiveTimestampScrollAnchor(id: segment.id)
-                        }
+                        findSegmentScrollAnchor(segment.id)
                         TranscriptSegmentRow(
                             startMs: segment.startMs,
                             text: segment.text,
@@ -697,9 +771,8 @@ private struct TranscriptTurnCardView<SpeakerLabelContent: View>: View {
 
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
                 ForEach(indexedSegments(segments)) { indexed in
-                    let index = indexed.index
                     let segment = indexed.segment
-                    turnSegmentRow(index: index, segment: segment)
+                    turnSegmentRow(segment: segment)
                 }
             }
         }
@@ -720,7 +793,7 @@ private struct TranscriptTurnCardView<SpeakerLabelContent: View>: View {
     }
 
     @ViewBuilder
-    private func turnSegmentRow(index: Int, segment: TranscriptSegment) -> some View {
+    private func turnSegmentRow(segment: TranscriptSegment) -> some View {
         let row = TranscriptSegmentRow(
             startMs: segment.startMs,
             text: segment.text,
@@ -736,15 +809,9 @@ private struct TranscriptTurnCardView<SpeakerLabelContent: View>: View {
             onPlayFromHere: { onTimestampTap(segment.startMs) },
             textSelectionEnabled: textSelectionEnabled
         )
-        if index == 0 {
+        ZStack(alignment: .topLeading) {
+            findSegmentScrollAnchor(segment.startMs)
             row
-        } else {
-            // Non-first rows get their own anchors so find navigation can land
-            // inside a speaker turn without shifting the first-line/card target.
-            ZStack(alignment: .topLeading) {
-                timestampScrollAnchor(startMs: segment.startMs)
-                row
-            }
         }
     }
 
