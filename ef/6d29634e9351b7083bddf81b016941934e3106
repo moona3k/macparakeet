@@ -1,0 +1,23 @@
+docs/distribution.md
+  s_6f26576d2ce855::t_5803c7158fb925 48-50
+scripts/ci/test_cli_archive.py
+  s_6f26576d2ce855::t_b851b68f3fd648 62-63,94-98
+scripts/dist/build_cli_archive.sh
+  s_6f26576d2ce855::t_00f658347b7ebd 56-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ef6d29634e9351b7083bddf81b016941934e3106",
+  "prompts": {},
+  "sessions": {
+    "s_6f26576d2ce855": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e58-eaa6-7583-abd5-6aec9f43cba6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
