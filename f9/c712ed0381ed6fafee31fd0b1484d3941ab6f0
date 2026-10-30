@@ -1,0 +1,40 @@
+Tests/MacParakeetTests/Ask/AskWorkspaceViewModelTests.swift
+  s_6f26576d2ce855::t_6d51dd48d6a693 8-120,1043-1044,1056-1057,1064
+  s_6f26576d2ce855::t_278b923a5b1577 911-913,917-924,926-927,931,959,1060-1061,1063,1065
+  s_6f26576d2ce855::t_dc826bbb6154b6 915,925,1058,1066-1068
+  s_b0bea76041335f::t_2f0f587ccc5f90 916
+Tests/CLITests/StandardOutputCapture.swift
+  s_6f26576d2ce855::t_ff5158c374257e 5,7,14-16,20-21,23,30-69,71-76,79-80
+Tests/CLITests/StandardOutputCaptureTests.swift
+  s_6f26576d2ce855::t_ff5158c374257e 1-28,34-84
+  s_6f26576d2ce855::t_cb3142d601d755 30-32
+  s_6f26576d2ce855::t_16bf060aec4553 29,33
+Tests/MacParakeetTests/Views/AskActivityViewTests.swift
+  s_6f26576d2ce855::t_e7757beb087322 83-87,96-97
+  s_6f26576d2ce855::t_278b923a5b1577 64-69,81-82,88-89,94-95,98,102-104,111-117
+  s_6f26576d2ce855::t_081aefc791a6c8 118-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f9c712ed0381ed6fafee31fd0b1484d3941ab6f0",
+  "prompts": {},
+  "sessions": {
+    "s_6f26576d2ce855": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e58-eaa6-7583-abd5-6aec9f43cba6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_b0bea76041335f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e4d-82c1-7933-b5d2-8c919ed88cbc",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
