@@ -362,20 +362,23 @@ public final class ClipboardService: ClipboardServiceProtocol {
         restoresClipboard: Bool,
         requiredFrontmostBundleIdentifier: String?
     ) async throws -> Bool {
-        guard let action = postPasteAction else {
-            try await pasteText(text, restoresClipboard: restoresClipboard)
-            return false
-        }
-
+        // A caller can be cancelled while waiting to enter this MainActor
+        // service. Recheck before changing the clipboard or posting events.
+        try Task.checkCancellation()
         let requiredBundleIdentifier = AppPromptContext.normalizedBundleIdentifier(
             requiredFrontmostBundleIdentifier
         )
         if requiredFrontmostBundleIdentifier != nil {
             guard requiredBundleIdentifier != nil,
-                  isRequiredApplicationFrontmost(requiredBundleIdentifier)
+                isRequiredApplicationFrontmost(requiredBundleIdentifier)
             else {
                 throw ClipboardServiceError.requiredFrontmostApplicationUnavailable
             }
+        }
+
+        guard let action = postPasteAction else {
+            try await pasteText(text, restoresClipboard: restoresClipboard)
+            return false
         }
 
         // If text is empty (trigger was entire dictation), skip paste — just fire keystroke

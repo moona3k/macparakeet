@@ -9,42 +9,57 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         let codexContext = AppPromptContext(bundleIdentifier: "COM.OPENAI.CODEX")
         let otherContext = AppPromptContext(bundleIdentifier: "com.apple.TextEdit")
 
-        XCTAssertTrue(DictationFlowCoordinator.shouldAutoSubmitCodexDictation(
-            enabled: true,
-            transcriptHasText: true,
-            requestedAction: nil,
-            focusedContext: codexContext
-        ))
-        XCTAssertFalse(DictationFlowCoordinator.shouldAutoSubmitCodexDictation(
-            enabled: false,
-            transcriptHasText: true,
-            requestedAction: nil,
-            focusedContext: codexContext
-        ))
-        XCTAssertFalse(DictationFlowCoordinator.shouldAutoSubmitCodexDictation(
-            enabled: true,
-            transcriptHasText: false,
-            requestedAction: nil,
-            focusedContext: codexContext
-        ))
-        XCTAssertFalse(DictationFlowCoordinator.shouldAutoSubmitCodexDictation(
-            enabled: true,
-            transcriptHasText: true,
-            requestedAction: .returnKey,
-            focusedContext: codexContext
-        ))
-        XCTAssertFalse(DictationFlowCoordinator.shouldAutoSubmitCodexDictation(
-            enabled: true,
-            transcriptHasText: true,
-            requestedAction: nil,
-            focusedContext: otherContext
-        ))
-        XCTAssertFalse(DictationFlowCoordinator.shouldAutoSubmitCodexDictation(
-            enabled: true,
-            transcriptHasText: true,
-            requestedAction: nil,
-            focusedContext: nil
-        ))
+        XCTAssertTrue(
+            DictationFlowCoordinator.shouldAutoSubmitCodexDictation(
+                enabled: true,
+                transcriptHasText: true,
+                requestedAction: nil,
+                focusedContext: codexContext
+            ))
+        XCTAssertFalse(
+            DictationFlowCoordinator.shouldAutoSubmitCodexDictation(
+                enabled: false,
+                transcriptHasText: true,
+                requestedAction: nil,
+                focusedContext: codexContext
+            ))
+        XCTAssertFalse(
+            DictationFlowCoordinator.shouldAutoSubmitCodexDictation(
+                enabled: true,
+                transcriptHasText: false,
+                requestedAction: nil,
+                focusedContext: codexContext
+            ))
+        XCTAssertFalse(
+            DictationFlowCoordinator.shouldAutoSubmitCodexDictation(
+                enabled: true,
+                transcriptHasText: true,
+                requestedAction: .returnKey,
+                focusedContext: codexContext
+            ))
+        XCTAssertFalse(
+            DictationFlowCoordinator.shouldAutoSubmitCodexDictation(
+                enabled: true,
+                transcriptHasText: true,
+                requestedAction: nil,
+                focusedContext: otherContext
+            ))
+        XCTAssertFalse(
+            DictationFlowCoordinator.shouldAutoSubmitCodexDictation(
+                enabled: true,
+                transcriptHasText: true,
+                requestedAction: nil,
+                focusedContext: nil
+            ))
+        for bundleID in ["com.openai.codex.preview", "other.com.openai.codex", ""] {
+            XCTAssertFalse(
+                DictationFlowCoordinator.shouldAutoSubmitCodexDictation(
+                    enabled: true,
+                    transcriptHasText: true,
+                    requestedAction: nil,
+                    focusedContext: AppPromptContext(bundleIdentifier: bundleID)
+                ))
+        }
     }
 
     func testCompletedCodexDictationPastesWithoutTrailingSpaceAndRequestsGuardedReturn() async throws {
@@ -92,11 +107,12 @@ final class DictationFlowCoordinatorTests: XCTestCase {
 
         harness.coordinator.stopDictation()
         let reported = await waitUntil {
-            harness.coordinator.flowStateForTesting == .finishing(
-                outcome: .pasteFailedCopied(
-                    "Codex lost focus. Copied to clipboard. Return to Codex and press Cmd+V."
+            harness.coordinator.flowStateForTesting
+                == .finishing(
+                    outcome: .pasteFailedCopied(
+                        "Codex lost focus. Copied to clipboard. Return to Codex and press Cmd+V."
+                    )
                 )
-            )
         }
 
         XCTAssertTrue(reported)
@@ -122,11 +138,12 @@ final class DictationFlowCoordinatorTests: XCTestCase {
 
         harness.coordinator.stopDictation()
         let reported = await waitUntil {
-            harness.coordinator.flowStateForTesting == .finishing(
-                outcome: .postPasteActionSuppressed(
-                    "Dictation was pasted, but Return was not sent. Keep Codex frontmost and press Return."
+            harness.coordinator.flowStateForTesting
+                == .finishing(
+                    outcome: .postPasteActionSuppressed(
+                        "Dictation was pasted, but Return was not sent. Keep Codex frontmost and press Return."
+                    )
                 )
-            )
         }
 
         XCTAssertTrue(reported)
@@ -155,6 +172,28 @@ final class DictationFlowCoordinatorTests: XCTestCase {
             let snapshot = await harness.clipboard.snapshot()
             return snapshot.lastPastedText == "draft only "
         }
+        XCTAssertTrue(pasted)
+        let snapshot = await harness.clipboard.snapshot()
+        XCTAssertNil(snapshot.lastPostPasteAction)
+        XCTAssertNil(snapshot.lastRequiredFrontmostBundleIdentifier)
+    }
+
+    func testPracticeDictationNeverAutoSubmitsEvenIfCodexBecomesFrontmost() async throws {
+        let harness = try await makeRecordingHarness(
+            autoSubmitCodexDictation: true,
+            focusedContext: AppPromptContext(bundleIdentifier: "com.openai.codex", displayName: "Codex")
+        )
+        harness.coordinator.isPracticeTarget = { true }
+        await harness.stt.configure(result: STTResult(text: "practice words"))
+
+        harness.coordinator.startDictation(mode: .persistent)
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+        harness.coordinator.stopDictation()
+        let pasted = await waitUntilAsync {
+            await harness.clipboard.snapshot().lastPastedText == "practice words "
+        }
+
         XCTAssertTrue(pasted)
         let snapshot = await harness.clipboard.snapshot()
         XCTAssertNil(snapshot.lastPostPasteAction)

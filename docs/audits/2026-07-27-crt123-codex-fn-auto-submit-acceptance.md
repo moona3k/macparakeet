@@ -1,5 +1,9 @@
 # CRT-123 Codex Fn Auto-Submit Acceptance Record
 
+> Historical evidence for the July 27 source below. Passive Fn has since landed
+> on main independently. The current PR retains only opt-in guarded Codex
+> submission; this record does not qualify its current merged head.
+
 > **Status:** executable source accepted; upstream publication pending
 >
 > **Date:** 2026-07-27

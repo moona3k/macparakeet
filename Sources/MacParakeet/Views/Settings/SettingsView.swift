@@ -1318,7 +1318,8 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Auto-submit dictation in Codex",
-                    detail: "When Codex remains frontmost, pastes a completed dictation and presses Return to submit it. Keep the intended Codex composer focused until submission.",
+                    detail:
+                        "When Codex remains frontmost, pastes a completed dictation and presses Return to submit it. Keep the intended Codex composer focused until submission.",
                     isBeta: true,
                     isOn: $viewModel.autoSubmitCodexDictation
                 )

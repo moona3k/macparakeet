@@ -243,19 +243,84 @@ final class ClipboardServiceTests: XCTestCase {
             frontmostBundleIdentifierProvider: { "com.apple.Safari" }
         )
 
-        do {
-            _ = try await service.pasteTextWithAction(
-                "dictation",
-                postPasteAction: .returnKey,
-                restoresClipboard: true,
-                requiredFrontmostBundleIdentifier: "com.openai.codex"
-            )
-            XCTFail("Expected a frontmost-application failure")
-        } catch ClipboardServiceError.requiredFrontmostApplicationUnavailable {
-            XCTAssertFalse(pasteWasPosted)
-            XCTAssertTrue(keystrokes.isEmpty)
-            XCTAssertEqual(pasteboard.string(forType: .string), "original")
+        let actions: [KeyAction?] = [nil, .returnKey]
+        for action in actions {
+            do {
+                _ = try await service.pasteTextWithAction(
+                    "dictation",
+                    postPasteAction: action,
+                    restoresClipboard: true,
+                    requiredFrontmostBundleIdentifier: "com.openai.codex"
+                )
+                XCTFail("Expected a frontmost-application failure")
+            } catch ClipboardServiceError.requiredFrontmostApplicationUnavailable {
+                XCTAssertFalse(pasteWasPosted)
+                XCTAssertTrue(keystrokes.isEmpty)
+                XCTAssertEqual(pasteboard.string(forType: .string), "original")
+            }
         }
+    }
+
+    func testCancelledGuardedSubmissionDoesNotWriteClipboardOrPostEvents() async throws {
+        let pasteboard = makeScratchPasteboard()
+        defer { pasteboard.releaseGlobally() }
+        replacePasteboard(pasteboard, with: "original")
+
+        let service = ClipboardService(
+            pasteboard: pasteboard,
+            eventPosting: RecordingClipboardEventPosting(
+                onPaste: { XCTFail("Cancelled submission must not paste") },
+                onKeystroke: { _ in XCTFail("Cancelled submission must not press Return") }
+            ),
+            frontmostBundleIdentifierProvider: { "com.openai.codex" }
+        )
+
+        // The MainActor task cannot enter the service until this test yields.
+        let pending = Task { @MainActor in
+            try await service.pasteTextWithAction(
+                "cancelled dictation", postPasteAction: .returnKey,
+                restoresClipboard: true, requiredFrontmostBundleIdentifier: "com.openai.codex")
+        }
+        pending.cancel()
+        do {
+            _ = try await pending.value
+            XCTFail("Expected cancellation before insertion")
+        } catch is CancellationError {}
+
+        XCTAssertEqual(pasteboard.string(forType: .string), "original")
+    }
+
+    func testCancellationAfterGuardedPasteSuppressesReturnAndStillRestoresClipboard() async throws {
+        let pasteboard = makeScratchPasteboard()
+        defer { pasteboard.releaseGlobally() }
+        replacePasteboard(pasteboard, with: "original")
+
+        var pending: Task<Bool, Error>?
+        var pastedStrings: [String] = []
+        let service = ClipboardService(
+            pasteboard: pasteboard,
+            eventPosting: RecordingClipboardEventPosting(
+                onPaste: {
+                    pastedStrings.append(pasteboard.string(forType: .string) ?? "")
+                    pending?.cancel()
+                },
+                onKeystroke: { _ in XCTFail("Cancelled submission must not press Return") }
+            ),
+            clipboardRestoreDelay: Self.shortRestoreDelay,
+            frontmostBundleIdentifierProvider: { "com.openai.codex" }
+        )
+        let insertion = Task { @MainActor in
+            try await service.pasteTextWithAction(
+                "dictation", postPasteAction: .returnKey,
+                restoresClipboard: true, requiredFrontmostBundleIdentifier: "com.openai.codex")
+        }
+        pending = insertion
+
+        let fired = try await insertion.value
+
+        XCTAssertFalse(fired)
+        XCTAssertEqual(pastedStrings, ["dictation"])
+        try await waitForPasteboardString("original", on: pasteboard)
     }
 
     func testPasteTextWithActionSuppressesKeystrokeWhenRequiredApplicationLosesFocusAfterPaste() async throws {

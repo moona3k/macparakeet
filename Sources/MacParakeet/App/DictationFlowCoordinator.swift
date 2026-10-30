@@ -838,13 +838,14 @@ final class DictationFlowCoordinator {
             let transcriptHasText = !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             let focusedContext = focusedAppContextService.currentContext()
             let autoSubmitsToCodex = Self.shouldAutoSubmitCodexDictation(
-                enabled: runtimePreferences.shouldAutoSubmitCodexDictation,
+                enabled: runtimePreferences.shouldAutoSubmitCodexDictation && !sessionIsPractice,
                 transcriptHasText: transcriptHasText,
                 requestedAction: requestedAction,
                 focusedContext: focusedContext
             )
             let action = requestedAction ?? (autoSubmitsToCodex ? .returnKey : nil)
-            let requiredFrontmostBundleIdentifier = autoSubmitsToCodex
+            let requiredFrontmostBundleIdentifier =
+                autoSubmitsToCodex
                 ? Self.codexBundleIdentifier
                 : nil
             let appendsTrailingSpace = !(
@@ -934,13 +935,16 @@ final class DictationFlowCoordinator {
                     let cleanChars = dictation.cleanTranscript?.count ?? 0
                     let app = completedDictation.pastedToApp ?? "none"
                     if guardedSubmissionWasSuppressed {
-                        self.dictationLog.notice("dictation_completed gen=\(gen) outcome=submit_suppressed rawChars=\(rawChars) cleanChars=\(cleanChars) autoPasted=true pastedToApp=\(app, privacy: .public)")
+                        self.dictationLog.notice(
+                            "dictation_completed gen=\(gen) outcome=submit_suppressed rawChars=\(rawChars) cleanChars=\(cleanChars) autoPasted=true pastedToApp=\(app, privacy: .public)"
+                        )
                         guard self.stateMachine.generation == gen else { return }
                         self.dismissCaption(outcome: .failure)
                         self.sendEvent(
                             .postPasteActionSuppressed(
                                 generation: gen,
-                                message: "Dictation was pasted, but Return was not sent. Keep Codex frontmost and press Return."
+                                message:
+                                    "Dictation was pasted, but Return was not sent. Keep Codex frontmost and press Return."
                             )
                         )
                         return

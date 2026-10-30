@@ -9,6 +9,10 @@ records the September 2026 tightening of privacy and outcome semantics.
 - Preserve random per-launch sessions, event UUID idempotency, and optional
   telemetry. Audio, transcripts, prompts, filenames, device identities and
   persistent user identifiers are excluded.
+- Codex auto-submit adds only `setting_changed` with the closed setting name
+  `codex_auto_submit` and Boolean string value `true` or `false`. No Codex task,
+  composer, or dictated content is included, and a posted Return is not proof
+  that Codex accepted a message.
 - The proposed sharing surface adds no recipient telemetry. Share content,
   selection details, locators, complete URLs and fragments, owner or recovery
   credentials, ciphertext, recipient identifiers, and view activity are

@@ -274,10 +274,11 @@ Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migra
 
 **Codex auto-submit (opt-in Beta):**
 - Disabled by default.
-- When enabled, a non-empty dictation whose paste-time frontmost bundle is exactly `com.openai.codex` is pasted without a trailing space and followed by Return.
-- The clipboard service validates the Codex bundle before paste and again after the existing 200 ms paste-settling delay. If Codex is not frontmost before paste, the normal paste-failure recovery copies the transcript for manual use. If Return cannot be confirmed after paste because focus changed, the task was cancelled, or event delivery failed, the UI reports only that the text was pasted and Return was not sent.
+- When enabled, a non-empty dictation whose paste-time frontmost bundle identifier matches `com.openai.codex` (case-insensitive, no prefix or suffix matching) is pasted without a trailing space and followed by Return. Onboarding practice never adds an automatic Return.
+- The clipboard service validates the Codex bundle before paste and again after the existing 200 ms paste-settling delay. If Codex is not frontmost before paste, the normal paste-failure recovery copies the transcript for manual use. If Return cannot be confirmed after paste because focus changed or event delivery failed, the UI reports only that the text was pasted and Return was not sent. Cancellation before insertion prevents effects; cancellation after paste prevents Return and retains the flow's cancellation outcome.
 - An explicit Voice Return action takes precedence and preserves its existing cross-app behavior.
 - The guard identifies the frontmost Codex application, not a particular task or editor. The user must keep the intended Codex composer focused until submission.
+- See the [dictation insertion contract](contracts/dictation-insertion.md) for stored preference and cancellation semantics.
 
 **Text insertion:**
 

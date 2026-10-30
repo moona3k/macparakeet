@@ -427,7 +427,7 @@ public final class HotkeyManager {
                 ).subtracting([HotkeyTrigger.canonicalFnKeyCode])
             )
             let capsLockChanged =
-                changedKeyCode == Self.capsLockKeyCode
+                changedKeyCode == 57
                 && previousModifierFlags.contains(.maskAlphaShift) != flags.contains(.maskAlphaShift)
             guard !changedModifiers.isEmpty || capsLockChanged else { return [] }
 

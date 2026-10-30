@@ -770,6 +770,8 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertEqual(m.state, .finishing(outcome: .postPasteActionSuppressed(message)))
         XCTAssertTrue(effects.contains(.showError(message)))
         XCTAssertTrue(effects.contains(.startDisplayDismissTimer(seconds: 5)))
+        XCTAssertFalse(effects.contains(.pasteTranscript))
+        XCTAssertFalse(effects.contains(.startDisplayDismissTimer(seconds: 0.8)))
     }
 
     func testFinishingDisplayDismissExpired() {

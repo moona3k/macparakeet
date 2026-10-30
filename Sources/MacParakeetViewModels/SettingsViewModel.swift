@@ -276,10 +276,11 @@ public final class SettingsViewModel {
                 autoSubmitCodexDictation,
                 forKey: UserDefaultsAppRuntimePreferences.autoSubmitCodexDictationKey
             )
-            Telemetry.send(.settingChanged(
-                setting: .codexAutoSubmit,
-                value: Self.settingValue(autoSubmitCodexDictation)
-            ))
+            Telemetry.send(
+                .settingChanged(
+                    setting: .codexAutoSubmit,
+                    value: Self.settingValue(autoSubmitCodexDictation)
+                ))
         }
     }
     public var dictationStreamingCursorEnabled: Bool {
