@@ -24,6 +24,7 @@ actor BrowserMeetingURLCollector {
     typealias ProcessProvider = @MainActor @Sendable () -> [BrowserProcess]
     struct ProcessReadResult: Sendable {
         var observation = BrowserMeetingObservation()
+        var hasWindows = false
         var hasPopulatedWebArea = false
     }
 
@@ -91,9 +92,10 @@ actor BrowserMeetingURLCollector {
             observations = results.reduce(into: BrowserMeetingObservation()) { combined, result in
                 Self.merge(result.1.observation, into: &combined)
             }
-            for (process, result) in results where !result.hasPopulatedWebArea {
-                // Navigation can discard Chromium's tree. Re-enable on the next
-                // observation rather than repeatedly rebuilding a healthy tree.
+            for (process, result) in results where result.hasWindows && !result.hasPopulatedWebArea {
+                // Navigation or a new window can need a fresh Chromium tree.
+                // A process with no windows has nothing to hydrate; retain its
+                // activation state instead of repeating setup on every poll.
                 accessibilityActivatedProcesses.remove(process)
             }
         }
@@ -173,7 +175,9 @@ actor BrowserMeetingURLCollector {
         scan: @Sendable (Bool) async -> ProcessReadResult
     ) async -> ProcessReadResult {
         let first = await scan(activateAccessibility)
-        guard activateAccessibility, !first.hasPopulatedWebArea, !Task.isCancelled else { return first }
+        guard activateAccessibility, first.hasWindows, !first.hasPopulatedWebArea, !Task.isCancelled else {
+            return first
+        }
         // Chromium builds page Accessibility asynchronously. Yield instead of
         // blocking a worker or MainActor, then read fresh windows/nodes. No AX
         // references survive this wait, so navigation cannot leave stale nodes.
@@ -196,6 +200,7 @@ actor BrowserMeetingURLCollector {
         }
         var result = ProcessReadResult()
         let windows = children(of: application, attribute: kAXWindowsAttribute as CFString, limit: 24)
+        result.hasWindows = !windows.isEmpty
         var queue: [(AXUIElement, Int, URL?, Bool)] = windows.map { ($0, 0, nil, false) }
         var offset = 0
         // Breadth-first traversal reaches all windows before nested chrome.

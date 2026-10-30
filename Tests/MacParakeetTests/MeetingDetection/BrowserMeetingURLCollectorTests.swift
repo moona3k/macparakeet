@@ -182,7 +182,9 @@ final class BrowserMeetingURLCollectorTests: XCTestCase {
                     return .init()
                 }
                 laterStarted.fulfill()
-                return .init(observation: .init(urls: [process.bundleID: [room]]), hasPopulatedWebArea: true)
+                return .init(
+                    observation: .init(urls: [process.bundleID: [room]]), hasWindows: true,
+                    hasPopulatedWebArea: true)
             }
         )
         let pending = Task { await collector.snapshotDetailed() }
@@ -208,6 +210,36 @@ final class BrowserMeetingURLCollectorTests: XCTestCase {
         XCTAssertEqual(flags, [true, false, true])
     }
 
+    func testWindowlessChromiumKeepsActivationAndReactivatesWhenANewWindowNeedsATree() async {
+        let probe = BrowserProcessReadProbe(
+            readiness: [false, false, false, true, true],
+            windowPresence: [false, false, true, true, true]
+        )
+        let collector = BrowserMeetingURLCollector(
+            isTrusted: { true },
+            processes: { [.init(bundleID: "com.google.Chrome", pid: 2)] },
+            readProcess: { process, activate in await probe.read(process: process, activate: activate) }
+        )
+        for _ in 0..<5 { _ = await collector.snapshotDetailed() }
+        let flags = await probe.activationFlags
+        XCTAssertEqual(flags, [true, false, false, true, false])
+    }
+
+    func testClosingAllWindowsDoesNotRepeatActivationAndReopeningCanRehydrate() async {
+        let probe = BrowserProcessReadProbe(
+            readiness: [true, false, false, false, true],
+            windowPresence: [true, false, false, true, true]
+        )
+        let collector = BrowserMeetingURLCollector(
+            isTrusted: { true },
+            processes: { [.init(bundleID: "com.google.Chrome", pid: 2)] },
+            readProcess: { process, activate in await probe.read(process: process, activate: activate) }
+        )
+        for _ in 0..<5 { _ = await collector.snapshotDetailed() }
+        let flags = await probe.activationFlags
+        XCTAssertEqual(flags, [true, false, false, false, true])
+    }
+
     @MainActor
     func testRestartedChromiumProcessGetsAccessibilitySetupButSafariDoesNot() async {
         let probe = BrowserProcessReadProbe(readiness: [])
@@ -231,11 +263,13 @@ final class BrowserMeetingURLCollectorTests: XCTestCase {
         let oldRoom = try XCTUnwrap(URL(string: "https://meet.google.com/abc-defg-hij"))
         let newRoom = try XCTUnwrap(URL(string: "https://meet.google.com/xyz-abcd-efg"))
         let probe = BrowserHydrationReadProbe(results: [
-            .init(observation: .init(urls: ["com.google.Chrome": [oldRoom]]), hasPopulatedWebArea: false),
+            .init(
+                observation: .init(urls: ["com.google.Chrome": [oldRoom]]), hasWindows: true,
+                hasPopulatedWebArea: false),
             .init(
                 observation: .init(
                     urls: ["com.google.Chrome": [newRoom]], inCallURLs: ["com.google.Chrome": [newRoom]]),
-                hasPopulatedWebArea: true),
+                hasWindows: true, hasPopulatedWebArea: true),
         ])
         let result = await BrowserMeetingURLCollector.readWithHydration(
             activateAccessibility: true,
@@ -254,26 +288,43 @@ final class BrowserMeetingURLCollectorTests: XCTestCase {
             wait: { XCTFail("A populated page needs no hydration delay") },
             scan: { activate in
                 XCTAssertTrue(activate)
-                return .init(hasPopulatedWebArea: true)
+                return .init(hasWindows: true, hasPopulatedWebArea: true)
             }
         )
         XCTAssertTrue(result.hasPopulatedWebArea)
+    }
+
+    func testWindowlessProcessDoesNotWaitOrRescanForHydration() async {
+        let probe = BrowserHydrationReadProbe(results: [.init(hasWindows: false)])
+        let result = await BrowserMeetingURLCollector.readWithHydration(
+            activateAccessibility: true,
+            wait: { XCTFail("A windowless browser has nothing to hydrate") },
+            scan: { await probe.scan(activate: $0) }
+        )
+        XCTAssertFalse(result.hasWindows)
+        let flags = await probe.activationFlags
+        XCTAssertEqual(flags, [true])
     }
 
 }
 
 private actor BrowserProcessReadProbe {
     private var readiness: [Bool]
+    private var windowPresence: [Bool]
     private(set) var activationFlags: [Bool] = []
 
-    init(readiness: [Bool]) { self.readiness = readiness }
+    init(readiness: [Bool], windowPresence: [Bool] = []) {
+        self.readiness = readiness
+        self.windowPresence = windowPresence
+    }
 
     func read(process: BrowserMeetingURLCollector.BrowserProcess, activate: Bool)
         -> BrowserMeetingURLCollector.ProcessReadResult
     {
         activationFlags.append(activate)
         let populated = readiness.isEmpty ? true : readiness.removeFirst()
-        return .init(hasPopulatedWebArea: populated)
+        let hasWindows = windowPresence.isEmpty ? true : windowPresence.removeFirst()
+        return .init(hasWindows: hasWindows, hasPopulatedWebArea: populated)
     }
 }
 
