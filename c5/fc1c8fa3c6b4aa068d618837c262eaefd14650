@@ -1,0 +1,31 @@
+docs/audits/2026-10-30-knowledge-card-reliability.md
+  s_b0bea76041335f::t_bb1f8d7bdb3d64 71-75,85-86,108-111
+docs/dev/knowledge-card-reliability.html
+  s_b0bea76041335f::t_bb1f8d7bdb3d64 18
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_b0bea76041335f::t_bb1f8d7bdb3d64 501-508
+spec/contracts/saved-audio-auto-prompt-completion.md
+  s_b0bea76041335f::t_bb1f8d7bdb3d64 156-159
+Tests/MacParakeetTests/Database/CardRepositoryTests.swift
+  s_b0bea76041335f::t_bb1f8d7bdb3d64 73-93
+Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
+  s_b0bea76041335f::t_bb1f8d7bdb3d64 23,45
+Tests/MacParakeetTests/Services/LLM/KnowledgeCardRecoveryTests.swift
+  s_b0bea76041335f::t_bb1f8d7bdb3d64 42-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c5fc1c8fa3c6b4aa068d618837c262eaefd14650",
+  "prompts": {},
+  "sessions": {
+    "s_b0bea76041335f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e4d-82c1-7933-b5d2-8c919ed88cbc",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
