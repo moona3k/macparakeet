@@ -1,0 +1,25 @@
+docs/dictation-sounds.md
+  s_6f26576d2ce855::t_022160723f9468 16-19,44-48
+Sources/MacParakeet/Views/Components/DictationSoundController.swift
+  s_6f26576d2ce855::t_be611511c108bd 65,81,97,125,208-228
+Tests/MacParakeetTests/Audio/DictationSoundTests.swift
+  s_6f26576d2ce855::t_7c65d75154ca02 223-243,337-407,509-523,527-560,564-581,586-603,607-618,621-623,626-627
+  s_6f26576d2ce855::t_2d0efac88013bb 524-526,561-563,582-585,604-606,619-620,624-625
+  s_6f26576d2ce855::t_8a5519b98a0003 222,628
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d990f846463fae6bf841d4accd6ddb36f88a8215",
+  "prompts": {},
+  "sessions": {
+    "s_6f26576d2ce855": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e58-eaa6-7583-abd5-6aec9f43cba6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
