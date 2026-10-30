@@ -80,7 +80,9 @@ jobs:
 
       - name: CI Helper Tests
         timeout-minutes: 2
-        run: python3 -m unittest discover -s scripts/ci -p 'test_*.py'
+        run: |
+          python3 -m unittest discover -s scripts/ci -p 'test_*.py'
+          python3 -m unittest discover -s benchmarks/asr -p test_cohere_multilingual_speed.py
 
       # Consumer contract check for the SwiftPM toolchain itself, not this
       # project's cache: an owned temp package proves archive/restore keeps

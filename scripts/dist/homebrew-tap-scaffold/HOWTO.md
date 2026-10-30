@@ -63,8 +63,7 @@ tar -xzf "dist/macparakeet-cli-${VERSION}-darwin-arm64.tar.gz" \
 The package contains the executable and `libexec/macparakeet-cli/`, including
 the pinned Node runtime, Ask helper, and notices. The verified Cohere runtime
 and its notices are retained under `Frameworks/` and `Legal/`. Keep all of
-these directories together. The
-builder needs Node/npm; the installed CLI does not. Use a fresh staging
+these directories together. The builder needs Node/npm; the installed CLI does not. Use a fresh staging
 directory for each candidate.
 
 ### 3. Sign + notarize the executable and bundled runtime

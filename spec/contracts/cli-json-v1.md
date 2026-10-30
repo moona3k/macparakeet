@@ -69,6 +69,16 @@ still apply.
   ordered `segments` array. Segment objects contain `seq`, nullable timing and
   speaker fields, `text`, and `segmenterVersion`. Its Local-file `title` follows
   the same override-then-original-filename rule as search results.
+- Cohere engine/model selectors and JSON result shapes remain stable across
+  the transcribe.cpp backend migration. `config` and `spec --json` retain the
+  `cohere-language` key and its legacy accepted codes (including `hi` and `ru`).
+  Saved language values and explicit `transcribe`/`retranscribe --language`
+  inputs remain accepted and validated for compatibility, but do not affect
+  Cohere decoding. This engine runs without a caller language hint; language
+  metadata may be inferred locally from the returned transcript. It remains
+  batch-only and emits no word timestamps. See ADR-035 and the focused
+  `ConfigCommandTests`, `SpecCommandTests`, `TranscribeCommandTests`, and
+  `CohereTranscribeEngineTests` compatibility coverage.
 - `transcribe --format json` may include nullable `audioTrackOrdinal` on its
   `Transcription` object. It is zero-based and non-null only when a local-file
   audio stream was selected explicitly; this additive field does not change

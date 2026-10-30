@@ -16,14 +16,21 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
+import signal
 import subprocess
 import tempfile
 import time
 import wave
 from pathlib import Path
+from contextlib import contextmanager
+
+_ROOT = Path(__file__).resolve().parents[2]
+_METADATA_TIMEOUT = 60.0
+_VERIFY_TIMEOUT = 120.0
 
 _LANGUAGES = ("en", "de", "ja", "zh")
 _RSS_RE = re.compile(r"^\s*(\d+)\s+maximum resident set size", re.MULTILINE)
@@ -94,25 +101,141 @@ def load_release_manifest(path: Path) -> dict:
     return manifest
 
 
-def command_json(command: list[str], description: str) -> dict:
-    process = subprocess.run(
-        command,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+def positive_seconds(value: str) -> float:
+    seconds = float(value)
+    if not math.isfinite(seconds) or seconds <= 0:
+        raise argparse.ArgumentTypeError("timeout must be a finite positive number")
+    return seconds
+
+
+def run_process(
+    command: list[str],
+    description: str,
+    *,
+    timeout: float = _METADATA_TIMEOUT,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess:
+    """Bound the entire command group, including time's transcription child."""
+    try:
+        process = subprocess.Popen(
+            command, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            env=env, start_new_session=True,
+        )
+    except OSError as error:
+        raise SystemExit(f"{description} could not start: {error}") from error
+    try:
+        stdout, stderr = process.communicate(timeout=timeout)
+    except BaseException as error:
+        # Killing only /usr/bin/time would leave the model process running.
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        try:
+            process.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            # A descendant that detached itself may still hold these pipes.
+            process.stdout.close()
+            process.stderr.close()
+            process.wait(timeout=5)
+        if isinstance(error, subprocess.TimeoutExpired):
+            raise SystemExit(f"{description} timed out after {timeout:g} seconds") from error
+        raise
+    return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+
+
+def checked_output(command: list[str], description: str, **options) -> str:
+    process = run_process(command, description, **options)
     if process.returncode != 0:
         raise SystemExit(
             f"{description} failed with exit {process.returncode}:\n"
             f"{process.stderr[-2000:]}"
         )
+    return process.stdout.strip()
+
+
+def command_json(command: list[str], description: str) -> dict:
+    raw = checked_output(command, description)
     try:
-        payload = json.loads(process.stdout)
+        payload = json.loads(raw)
     except json.JSONDecodeError as error:
         raise SystemExit(f"{description} returned invalid JSON: {error}") from error
     if not isinstance(payload, dict):
         raise SystemExit(f"{description} returned an unexpected JSON value")
     return payload
+
+
+def native_environment(package: Path, artifact: Path) -> dict[str, str]:
+    # A developer's dyld override must not substitute another measured runtime.
+    environment = {key: value for key, value in os.environ.items()
+                   if not key.startswith("DYLD_")}
+    environment["MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH"] = str(package)
+    environment["MACPARAKEET_TRANSCRIBE_CPP_ARTIFACT_ZIP"] = str(artifact)
+    environment["MACPARAKEET_TELEMETRY"] = "0"
+    return environment
+
+
+def adapter_commit() -> str:
+    changes = checked_output(
+        ["git", "-C", str(_ROOT), "status", "--porcelain", "--untracked-files=all",
+         "--", "Package.swift", "Package.resolved", "Sources",
+         "scripts/dist/verify_transcribe_cpp_release.sh",
+         "scripts/dist/transcribe_cpp_release_pins.sh",
+         "benchmarks/asr/cohere_transcribe_cpp_release.json",
+         "benchmarks/asr/cohere_multilingual_speed.py"],
+        "adapter source verification",
+    )
+    if changes:
+        raise SystemExit("commit adapter source, package, and verifier changes before benchmarking")
+    return checked_output(
+        ["git", "-C", str(_ROOT), "rev-parse", "HEAD"], "adapter commit lookup",
+    )
+
+
+def verify_native_package(environment: dict[str, str]) -> None:
+    checked_output(
+        [str(_ROOT / "scripts/dist/verify_transcribe_cpp_release.sh")],
+        "native package/artifact verification", env=environment, timeout=_VERIFY_TIMEOUT,
+    )
+
+
+@contextmanager
+def build_verified_cli(package: Path, artifact: Path, build_timeout: float):
+    """Build in an empty scratch tree; never trust an independently supplied CLI."""
+    environment = native_environment(package, artifact)
+    commit = adapter_commit()
+    verify_native_package(environment)
+    with tempfile.TemporaryDirectory(prefix="cohere-verified-build-") as temporary:
+        scratch = Path(temporary).resolve()
+        build = ["swift", "build", "--package-path", str(_ROOT),
+                 "--scratch-path", str(scratch), "--configuration", "release",
+                 "--arch", "arm64", "--force-resolved-versions"]
+        checked_output(
+            [*build, "--product", "macparakeet-cli"], "verified CLI build",
+            env=environment, timeout=build_timeout,
+        )
+        binary_directory = checked_output(
+            [*build, "--show-bin-path"], "verified CLI build path", env=environment,
+        )
+        cli = (Path(binary_directory) / "macparakeet-cli").resolve()
+        if not cli.is_relative_to(scratch) or not cli.is_file() or not os.access(cli, os.X_OK):
+            raise SystemExit("build did not produce an executable CLI in its fresh scratch tree")
+        linkage = checked_output(["/usr/bin/otool", "-L", str(cli)], "Cohere CLI linkage")
+        if "@rpath/CTranscribe.framework/" not in linkage:
+            raise SystemExit("built CLI does not link the verified Cohere framework")
+        verify_native_package(environment)
+        if adapter_commit() != commit:
+            raise SystemExit("adapter source changed during the CLI build")
+        digest = sha256_file(cli)
+        yield cli, {
+            "method": "fresh_release_build_from_verified_package",
+            "adapter_commit": commit,
+            "cli_sha256": digest,
+            "architecture": "arm64",
+        }, environment
+        if sha256_file(cli) != digest or adapter_commit() != commit:
+            raise SystemExit("measured CLI or adapter source changed during benchmarking")
+        verify_native_package(environment)
 
 
 def validate_release_metadata(
@@ -275,12 +398,7 @@ def parse_fixture(value: str) -> tuple[str, Path]:
 
 
 def command_output(command: list[str]) -> str:
-    process = subprocess.run(
-        command,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+    process = run_process(command, "system metadata lookup")
     return process.stdout.strip() if process.returncode == 0 else "unknown"
 
 
@@ -305,12 +423,7 @@ def audio_seconds(path: Path) -> float:
         except (OSError, wave.Error, ZeroDivisionError):
             pass
 
-    afinfo = subprocess.run(
-        ["/usr/bin/afinfo", "-b", str(path)],
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+    afinfo = run_process(["/usr/bin/afinfo", "-b", str(path)], "audio duration lookup")
     if afinfo.returncode == 0:
         match = _AFINFO_DURATION_RE.search(afinfo.stdout)
         if match is not None:
@@ -327,7 +440,10 @@ def audio_seconds(path: Path) -> float:
         raise SystemExit(f"cannot read duration for {path}: {error}") from error
 
 
-def run_cli(cli: Path, source: Path, count: int) -> tuple[float, float, list[str]]:
+def run_cli(
+    cli: Path, source: Path, count: int, *, timeout: float,
+    environment: dict[str, str],
+) -> tuple[float, float, list[str]]:
     work = Path(tempfile.mkdtemp(prefix=f"cohere-{source.stem}-{count}-"))
     try:
         inputs: list[Path] = []
@@ -354,15 +470,9 @@ def run_cli(cli: Path, source: Path, count: int) -> tuple[float, float, list[str
             "--output-dir",
             str(output),
         ]
-        environment = dict(os.environ)
-        environment["MACPARAKEET_TELEMETRY"] = "0"
         started = time.monotonic()
-        process = subprocess.run(
-            command,
-            text=True,
-            capture_output=True,
-            env=environment,
-            check=False,
+        process = run_process(
+            command, "Cohere transcription", timeout=timeout, env=environment,
         )
         wall = time.monotonic() - started
         if process.returncode != 0:
@@ -391,14 +501,14 @@ def run_cli(cli: Path, source: Path, count: int) -> tuple[float, float, list[str
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cli", type=Path, required=True)
+    parser.add_argument(
+        "--package-path", type=Path, required=True,
+        help="Clean pinned transcribe.cpp bindings/swift checkout with verified XCFramework.",
+    )
+    parser.add_argument("--build-timeout", type=positive_seconds, default=1800.0)
+    parser.add_argument("--transcription-timeout", type=positive_seconds, default=900.0)
     parser.add_argument("--fixture", type=parse_fixture, action="append", required=True)
     parser.add_argument("--artifact-zip", type=Path, required=True)
-    parser.add_argument(
-        "--release-manifest",
-        type=Path,
-        default=_DEFAULT_RELEASE_MANIFEST,
-    )
     parser.add_argument(
         "--warm-repetitions",
         type=int,
@@ -408,7 +518,7 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args()
 
-    release_manifest_path = arguments.release_manifest.expanduser().resolve()
+    release_manifest_path = _DEFAULT_RELEASE_MANIFEST
     release_manifest = load_release_manifest(release_manifest_path)
     verified_artifact_sha256 = verify_release_provenance(
         release_manifest,
@@ -423,67 +533,76 @@ def main() -> int:
             f"provide exactly one fixture for each of {', '.join(_LANGUAGES)}"
         )
 
-    cli = arguments.cli.expanduser().resolve()
-    if not cli.is_file():
-        raise SystemExit(f"CLI does not exist: {cli}")
     if arguments.warm_repetitions < 2:
         raise SystemExit("--warm-repetitions must be at least 2")
 
-    records = []
-    for language in _LANGUAGES:
-        fixture = fixtures[language]
-        fixture_reference = validate_fixture(
-            release_manifest,
-            language,
-            fixture,
-        )
-        expected_transcript = fixture_reference["expected_transcript"]
-        duration = audio_seconds(fixture)
-        cold_wall, _, cold_transcripts = run_cli(cli, fixture, 1)
-        validate_transcripts(
-            language,
-            "cold",
-            cold_transcripts,
-            expected_transcript,
-        )
-        repeated_wall, peak_rss_mb, repeated_transcripts = run_cli(
-            cli,
-            fixture,
-            arguments.warm_repetitions,
-        )
-        validate_transcripts(
-            language,
-            "warm",
-            repeated_transcripts,
-            expected_transcript,
-        )
-        warm_wall = (repeated_wall - cold_wall) / (
-            arguments.warm_repetitions - 1
-        )
-        if warm_wall <= 0:
-            raise SystemExit(
-                f"invalid warm estimate for {language}: "
-                f"({repeated_wall} - {cold_wall}) / "
-                f"({arguments.warm_repetitions} - 1)"
+    # Reject incorrect fixtures before the comparatively expensive fresh build.
+    for language, fixture in fixtures.items():
+        validate_fixture(release_manifest, language, fixture)
+    with build_verified_cli(
+        arguments.package_path.expanduser().resolve(),
+        arguments.artifact_zip.expanduser().resolve(),
+        arguments.build_timeout,
+    ) as (cli, build_receipt, environment):
+        records = []
+        for language in _LANGUAGES:
+            fixture = fixtures[language]
+            fixture_reference = validate_fixture(
+                release_manifest,
+                language,
+                fixture,
             )
-        records.append(
-            {
-                "language": language,
-                "fixture_id": fixture_reference["id"],
-                "fixture_sha256": fixture_reference["sha256"],
-                "reference_transcript_sha256": sha256_text(expected_transcript),
-                "audio_seconds": duration,
-                "cold_first_transcript_seconds": cold_wall,
-                "warm_transcription_seconds": warm_wall,
-                "realtime_factor": warm_wall / duration,
-                "realtime_multiple": duration / warm_wall,
-                "peak_rss_mb": peak_rss_mb,
-                "cold_transcript": cold_transcripts[0],
-                "warm_transcripts": repeated_transcripts,
-            }
-        )
+            expected_transcript = fixture_reference["expected_transcript"]
+            duration = audio_seconds(fixture)
+            cold_wall, _, cold_transcripts = run_cli(
+                cli, fixture, 1, timeout=arguments.transcription_timeout, environment=environment,
+            )
+            validate_transcripts(
+                language,
+                "cold",
+                cold_transcripts,
+                expected_transcript,
+            )
+            repeated_wall, peak_rss_mb, repeated_transcripts = run_cli(
+                cli,
+                fixture,
+                arguments.warm_repetitions,
+                timeout=arguments.transcription_timeout, environment=environment,
+            )
+            validate_transcripts(
+                language,
+                "warm",
+                repeated_transcripts,
+                expected_transcript,
+            )
+            warm_wall = (repeated_wall - cold_wall) / (
+                arguments.warm_repetitions - 1
+            )
+            if warm_wall <= 0:
+                raise SystemExit(
+                    f"invalid warm estimate for {language}: "
+                    f"({repeated_wall} - {cold_wall}) / "
+                    f"({arguments.warm_repetitions} - 1)"
+                )
+            records.append(
+                {
+                    "language": language,
+                    "fixture_id": fixture_reference["id"],
+                    "fixture_sha256": fixture_reference["sha256"],
+                    "reference_transcript_sha256": sha256_text(expected_transcript),
+                    "audio_seconds": duration,
+                    "cold_first_transcript_seconds": cold_wall,
+                    "warm_transcription_seconds": warm_wall,
+                    "realtime_factor": warm_wall / duration,
+                    "realtime_multiple": duration / warm_wall,
+                    "peak_rss_mb": peak_rss_mb,
+                    "cold_transcript": cold_transcripts[0],
+                    "warm_transcripts": repeated_transcripts,
+                }
+            )
 
     payload = {
+        "build_receipt": build_receipt,
         "engine": "cohere",
         "backend": "transcribe.cpp",
         "runtime_commit": release_manifest["runtime"]["commit"],

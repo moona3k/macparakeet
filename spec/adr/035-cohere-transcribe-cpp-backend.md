@@ -168,7 +168,13 @@ separate `NOTICE` file.
 
 ## Release evidence
 
-The release prerequisite was satisfied on 2026-07-25:
+The contributor reported the following qualification on 2026-07-25. It is
+historical evidence, not a qualification of the current merged branch. The
+original benchmark verified an archive independently of its CLI executable;
+a fresh controlled-build run with a `build_receipt` is required before release.
+Full-corpus Q5_K_M accuracy and same-machine comparison remain outstanding.
+
+Original report:
 
 1. The authorized `DudeMeister23/transcribe.cpp` implementation is pinned at
    `51aa23592167cc32f8f3c5d2155d9f9937324c8d`. It retains the v0.1.3 baseline

@@ -42,8 +42,11 @@ class MacparakeetCli < Formula
     bin.install "macparakeet-cli"
     # Archives without the Ask runtime omit this directory.
     libexec.install "libexec/macparakeet-cli" if File.directory?("libexec/macparakeet-cli")
-    (libexec/"Frameworks").install "Frameworks/CTranscribe.framework"
-    (share/"macparakeet-cli").install "Legal"
+    # Historical releases predate the bundled Cohere framework.
+    if File.directory?("Frameworks/CTranscribe.framework")
+      (libexec/"Frameworks").install "Frameworks/CTranscribe.framework"
+    end
+    (share/"macparakeet-cli").install "Legal" if File.directory?("Legal")
   end
 
   def caveats

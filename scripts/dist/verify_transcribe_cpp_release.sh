@@ -31,12 +31,19 @@ fail() {
 [[ "$(basename "$ARTIFACT_ZIP")" == "$TRANSCRIBE_CPP_OWNED_ARTIFACT_FILENAME" ]] ||
   fail "transcribe.cpp artifact filename mismatch, expected $TRANSCRIBE_CPP_OWNED_ARTIFACT_FILENAME."
 
-PACKAGE_PATH="$(cd "$PACKAGE_PATH" && pwd)"
+PACKAGE_PATH="$(cd "$PACKAGE_PATH" && pwd -P)"
 PACKAGE_ROOT="$(git -C "$PACKAGE_PATH" rev-parse --show-toplevel 2>/dev/null)" ||
   fail "the transcribe.cpp package must live in a Git checkout."
 ACTUAL_COMMIT="$(git -C "$PACKAGE_ROOT" rev-parse HEAD)"
 [[ "$ACTUAL_COMMIT" == "$TRANSCRIBE_CPP_OWNED_FORK_COMMIT" ]] ||
   fail "transcribe.cpp checkout commit mismatch, expected $TRANSCRIBE_CPP_OWNED_FORK_COMMIT, got $ACTUAL_COMMIT."
+
+[[ "$PACKAGE_PATH" == "$PACKAGE_ROOT/bindings/swift" ]] ||
+  fail "the pinned Swift package must be at bindings/swift in the owned checkout."
+git -C "$PACKAGE_ROOT" diff --quiet HEAD -- ||
+  fail "the pinned transcribe.cpp checkout contains modified tracked files."
+[[ -z "$(git -C "$PACKAGE_PATH" ls-files --others -- Package.swift Package.resolved Sources)" ]] ||
+  fail "the pinned Swift package contains untracked build inputs."
 
 SWIFT_PINS="$ROOT_DIR/Sources/MacParakeetCore/STT/CohereTranscribeModel.swift"
 grep -Fq "static let ownedForkRepository = \"$TRANSCRIBE_CPP_OWNED_FORK_REPOSITORY\"" "$SWIFT_PINS" ||

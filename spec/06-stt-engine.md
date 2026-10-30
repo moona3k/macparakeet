@@ -300,7 +300,7 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
 
 public struct SpeechEngineSelection: Codable, Equatable, Sendable {
     let engine: SpeechEnginePreference
-    let language: String?  // Whisper/Nemotron hint, or Cohere's required language; nil means engine default/auto where supported
+    let language: String?  // Whisper/Nemotron hint; Cohere ignores legacy values; nil means default/auto
 }
 
 public struct SpeechEngineLease: Equatable, Sendable {

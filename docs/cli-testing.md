@@ -141,7 +141,8 @@ or `transcribe --parakeet-model orukeet`. It has no native streaming,
 tail-window preview, or recognition-time vocabulary boosting, and the default
 remains v3.
 Use `--engine app-default` when you want the CLI to follow the GUI's saved
-speech engine, Parakeet model, and Nemotron/Cohere/Whisper language defaults.
+speech engine, Parakeet model, and Nemotron/Whisper language defaults. Saved
+Cohere language values are compatibility-only and do not affect decoding.
 Nemotron is an opt-in Beta engine with two builds: the multilingual build
 for broader live-preview coverage with variable quality, and an English-only
 streaming build. Use `--nemotron-model

@@ -71,7 +71,7 @@ Cost basis: a new FluidAudio variant is ~200–500 LOC; a new runtime is
 1,500–3,000+ LOC across 12–20+ files plus sandbox/notarization review
 and a permanent maintenance seat.
 
-The one credible future third runtime is MLX (active `mlx-audio`
+The candidate for an additional general speech runtime is MLX (active `mlx-audio`
 ecosystem; Qwen3-ASR, Parakeet, speech-LLMs). Trigger conditions to
 revisit: a Swift-usable MLX speech path exists **and** a model we need
 (e.g. Voxtral Realtime) is available there but not in FluidAudio. Note
@@ -98,8 +98,12 @@ in priority order:
    Nemotron Beta build (`NemotronEngine`), alongside the English-only
    `NemotronEnglishEngine`. Native live dictation emits display-only partials;
    recorded-file transcription remains authoritative after stop.
-4. **Cohere Transcribe stays an opt-in accuracy engine** (16 GB+ gate, ~11 GB RSS)
-   per the ADR-001 amendment — accuracy leader, wrong default.
+4. **Cohere Transcribe stays an opt-in accuracy engine** (16 GB+ gate; historical FluidAudio/CoreML peak RSS ~11.6 GB)
+   per the ADR-001 amendment. The contributor-reported transcribe.cpp run is
+   about 1.8 GiB peak RSS on different hardware and predates enforced CLI/artifact
+   binding; see `benchmarks/asr/results/cohere-transcribe-cpp-migration.md`.
+   Keep the conservative gate pending a controlled-build rerun and accuracy
+   qualification of the replacement backend.
 
 Each adoption still gets a run through the `benchmarks/asr` harness
 before shipping; the harness, not vendor claims, decides copy like
@@ -158,6 +162,6 @@ families rather than a new runtime.
 - We accept a real dependency concentration risk on FluidAudio. Partial
   mitigations: models are open weights (CoreML conversion is repeatable),
   WhisperKit remains a second seat, and the MLX ecosystem is a monitored
-  exit path. If FluidAudio stalls, that triggers the "third runtime" ADR.
+  exit path. If FluidAudio stalls, that requires a new general-runtime ADR.
 - Whisper users see no regression; the engine simply stops accreting
   features until a retirement ADR is justified by data.

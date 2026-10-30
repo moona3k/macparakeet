@@ -298,8 +298,8 @@ or `transcribe --parakeet-model orukeet`. The default stays v3, and results
 from that build report `engineVariant` `orukeet`. It has no native streaming,
 tail-window preview, or recognition-time vocabulary boosting. Use Nemotron
 Beta when streaming preview matters, Whisper for broad-language
-files/media/retranscription, and Cohere only for local batch plain text with an
-explicit language.
+files/media/retranscription, and Cohere for local batch plain text with
+automatic language handling.
 
 Nemotron, Cohere, and Whisper require local model downloads before first use:
 
@@ -322,6 +322,7 @@ macparakeet-cli models select whisper-large-v3-v20240930-turbo-632MB --json
 
 ```bash
 macparakeet-cli transcribe /path/to/spanish.mp3 --engine nemotron --language auto --format json
+# Cohere accepts --language ja for compatibility; decoding remains automatic.
 macparakeet-cli transcribe /path/to/japanese.m4a --engine cohere --language ja --format json
 macparakeet-cli transcribe /path/to/korean.mp3 --engine whisper --language ko --format json
 ```

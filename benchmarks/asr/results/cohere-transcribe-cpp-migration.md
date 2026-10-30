@@ -1,7 +1,15 @@
 # Cohere transcribe.cpp Migration Benchmark Record
 
-> Status: IMMUTABLE OWNED RELEASE MEASURED
+> Status: CONTRIBUTOR-REPORTED HISTORICAL RUN; VERIFIED-BUILD RERUN PENDING
 > Date: 2026-07-25
+> Review update: 2026-10-30
+
+The measurements below are retained from the contributor's original run. That
+harness verified a release archive but accepted an independent CLI, so this
+record alone does not prove which native bytes the measured executable used.
+It has no build receipt and does not qualify the current merged branch. A new
+run with the controlled-build harness below is required; no timings or native
+qualification have been rerun as part of the October review.
 
 ## Required target run
 
@@ -14,8 +22,9 @@ time, realtime factor, and peak RSS with
 The `DudeMeister23/transcribe.cpp` fork has an arm64-only build lane
 and model-backed unhinted transcription tests. Cohere has no native
 language-identification head, so MacParakeet classifies the returned text
-locally. The framework was measured through the actual MacParakeet CLI, then
-published byte for byte as the immutable owned release artifact.
+locally. The original report describes measuring the framework through the
+MacParakeet CLI and publishing it as the immutable owned release artifact;
+the executable-to-artifact binding was not enforced by that harness.
 
 | Language | Fixture | Cold first transcript | Warm transcription | Realtime factor | Peak RSS |
 |----------|---------|----------------------:|-------------------:|----------------:|---------:|
@@ -61,7 +70,7 @@ as transcribe.cpp performance:
 
 ```bash
 python3 benchmarks/asr/cohere_multilingual_speed.py \
-  --cli /absolute/path/to/macparakeet-cli \
+  --package-path /absolute/path/to/transcribe.cpp/bindings/swift \
   --artifact-zip /absolute/path/to/TranscribeCpp-macOS-arm64-v0.1.3-macparakeet.1.xcframework.zip \
   --fixture en=/absolute/path/to/english.wav \
   --fixture de=/absolute/path/to/german.wav \
@@ -79,3 +88,22 @@ the immutable runtime, artifact, model, fixture, and transcript pins from
 `benchmarks/asr/cohere_transcribe_cpp_release.json`; hashes the local archive
 and fixtures; and uses `gh release view` plus `gh release verify` to confirm the
 immutable release and its Sigstore attestation.
+
+The harness now builds the measured release/arm64 CLI in a fresh temporary
+SwiftPM scratch directory from a clean committed adapter and the verified
+wrapper package. The package must be at its pinned Git commit, and its installed
+XCFramework must match the verified archive byte for byte. The CLI's linkage,
+SHA-256, and adapter commit are recorded in `build_receipt`; source and artifact
+verification run again after the build and after measurement. Dynamic-loader
+overrides are removed. The temporary build is deleted when the run finishes.
+Install the pinned model and budget enough disk for a fresh SwiftPM build before
+running. Resolve and commit `Package.resolved` with the native package enabled
+first; the measured build only uses those resolved dependency versions and may
+download their source into its fresh scratch directory.
+
+Metadata commands are limited to 60 seconds, native verification to 120 seconds,
+the build to 1,800 seconds, and each transcription process to 900 seconds. Use
+`--build-timeout` and `--transcription-timeout` to raise the latter limits when
+needed. A timeout terminates the whole process group and fails without writing
+a new result. The four short fixtures do not replace full-corpus accuracy or
+same-machine performance qualification.

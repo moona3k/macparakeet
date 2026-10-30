@@ -15,8 +15,9 @@ backend and target model with pinned transcribe.cpp plus Q5_K_M GGUF.
 
 > Cohere's committed accuracy and performance rows below are historical
 > FluidAudio/CoreML q8 evidence. They are retained as the comparison baseline,
-> not claimed as transcribe.cpp Q5_K_M results. The new four-language run uses
-> the exact checksum-pinned immutable owned arm64 release. See
+> not claimed as transcribe.cpp Q5_K_M results. The contributor-reported
+> four-language run predates enforced CLI/artifact binding and needs a new
+> controlled-build run before it qualifies the current branch. See
 > `results/cohere-transcribe-cpp-migration.md`.
 
 > Supersedes the LibriSpeech-`test-clean`-only `benchmarks/parakeet-unified/`
@@ -79,7 +80,7 @@ and a private MacParakeet fixture tier for product regressions.
   on clean English, Korean, and Chinese it ties the best alternative within 95%
   CIs. → **Keep Cohere as an opt-in accuracy / noisy-audio / Japanese engine for
   16 GB+ Macs, not the default. The representative four-language runtime pass
-  is complete, but full-corpus accuracy still needs revalidation on the pinned
+  needs a controlled-build rerun, and full-corpus accuracy needs revalidation on the pinned
   transcribe.cpp Q5_K_M path before replacing the historical claims.**
 - **Parakeet stays the right default** for fast dictation (best speed, ~120 MB
   RAM, English WER within noise of Cohere on clean speech). **Unified slightly
@@ -150,9 +151,9 @@ harness conventions.
 | `score_multi.py` | Multilingual scorer — WER (en/EU) or CER (ko/ja/zh) via `BasicTextNormalizer`; `--ci N`. |
 | `paired_delta.py` | Paired bootstrap CI on the WER/CER *difference* between two engines (the significance test). |
 | `speed_bench.py` | Speed/memory — steady RTFx, cold-start, peak RSS, one engine at a time. Uses `macparakeet-cli` for shipping engines, including Cohere; `cohere-fa-reference` is legacy-only. |
-| `cohere_multilingual_speed.py` | Required release comparison for English, German, Japanese, and Chinese without language hints. Verifies the immutable release, artifact, fixtures, and transcript references before recording cold first transcript, warm transcription, realtime factor, and peak RSS. |
+| `cohere_multilingual_speed.py` | Required release comparison for English, German, Japanese, and Chinese without language hints. Builds a fresh CLI from the verified immutable artifact/package, checks fixtures and transcript references, and bounds child processes before recording cold first transcript, warm transcription, realtime factor, and peak RSS. |
 | `cohere_transcribe_cpp_release.json` | Immutable Cohere benchmark provenance: owned runtime/release, artifact, compatible model, fixture digests, and exact transcript references. |
-| `test_cohere_multilingual_speed.py` | Repo-only tests for Cohere release-pin drift, immutable attestation metadata, fixture/transcript validation, and committed-result path redaction. |
+| `test_cohere_multilingual_speed.py` | Repo-only tests for Cohere release-pin drift, immutable attestation metadata, fixture/transcript validation, timeout cleanup, native byte mismatches, build receipts, and committed-result path redaction. |
 | `test_scorers.py` | Scorer correctness tests (run: `python3 test_scorers.py`). |
 | `manifest.json` | Benchmark contract — engines, datasets, metrics, tasks, product surfaces, and quality gates. |
 | `manifest_tool.py` / `test_manifest.py` | Repo-only contract validation and summary rendering. |

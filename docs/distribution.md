@@ -31,13 +31,21 @@ required owned artifact in production builds. A release build with
 `VERSION=X.Y.Z` first runs
 `scripts/dist/verify_transcribe_cpp_release.sh`. The verifier checks:
 
-- the local Swift package is at the exact owned-fork commit;
+- the local Swift package is at `bindings/swift` in a clean checkout of the
+  exact owned-fork commit (including no untracked wrapper build inputs);
 - the wrapper reports version 0.1.3;
 - the supplied XCFramework archive matches the committed SHA-256 pin;
 - the installed package XCFramework exactly matches that verified archive;
 - its macOS CTranscribe binary is arm64-only; and
 - the transcribe.cpp, ggml, and miniz MIT notices exactly match the retained
   source notices.
+
+The standalone CLI builder (`scripts/dist/build_cli_archive.sh`) enforces the
+same native gate for versioned distributions and retains both runtimes: Ask
+under `libexec/macparakeet-cli/`, Cohere under `Frameworks/`, and the Cohere
+notices under `Legal/`. Its `0.0.0` development and `ci` fixture archives can omit
+the native package. The Homebrew formula places Cohere under
+`libexec/Frameworks/`; the builder adds both archive and installed rpaths.
 
 Set both paths for a release:
 
