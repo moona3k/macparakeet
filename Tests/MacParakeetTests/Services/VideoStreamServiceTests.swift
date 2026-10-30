@@ -1,4 +1,5 @@
 import AVFoundation
+import Darwin
 import XCTest
 @testable import MacParakeetCore
 
@@ -160,6 +161,75 @@ final class VideoStreamServiceTests: XCTestCase {
             let calls = await stub.calls
             XCTAssertEqual(calls.count, stage == .downloading ? 1 : 2)
             XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: root.path), [])
+        }
+    }
+
+    func testRunningHelperStopsBeforeCancellationOrTimeoutRemovesItsDirectory() async throws {
+        for cancel in [true, false] {
+            let root = try temporaryDirectory()
+            defer { try? FileManager.default.removeItem(at: root) }
+            let ready = root.appendingPathComponent("ready")
+            let pidFile = root.appendingPathComponent("pid")
+            let exitState = root.appendingPathComponent("exit-state")
+            let script = """
+                trap 'if test -f "$1/source.mp4"; then printf present > "$2"; fi; exit 0' TERM
+                printf '%s' "$$" > "$3"
+                printf partial > "$1/source.mp4"
+                printf '%s\\n' "$1" > "$4"
+                deadline=$((SECONDS + 10))
+                while ((SECONDS < deadline)); do :; done
+                """
+            let service = VideoStreamService(
+                ytDlpPath: { "yt-dlp-fixture" }, ffmpegPath: { "ffmpeg-fixture" }, temporaryRoot: root
+            ) { _, arguments, _, directory in
+                if arguments.contains("--get-url") {
+                    return "https://example.invalid/video.mp4\nhttps://example.invalid/audio.m4a\n"
+                }
+                return try await VideoStreamService.runProcess(
+                    "/bin/bash",
+                    arguments: ["-c", script, "video-helper", directory.path, exitState.path, pidFile.path, ready.path],
+                    timeout: cancel ? 5 : 0.5,
+                    directory: directory
+                )
+            }
+            let source = sourceURL
+            let task = Task { try await service.playbackResource(for: source) }
+            defer { task.cancel() }
+            let deadline = ContinuousClock.now + .seconds(3)
+            var preparedDirectory: String?
+            while ContinuousClock.now < deadline {
+                if let value = try? String(contentsOf: ready, encoding: .utf8), value.hasSuffix("\n") {
+                    preparedDirectory = value.trimmingCharacters(in: .newlines)
+                    break
+                }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            guard let directory = preparedDirectory else {
+                task.cancel()
+                _ = try? await task.value
+                XCTFail("Helper did not start before the readiness deadline")
+                continue
+            }
+            let pid = try XCTUnwrap(pid_t(String(contentsOf: pidFile, encoding: .utf8)))
+            if cancel { task.cancel() }
+
+            do {
+                _ = try await task.value
+                XCTFail("Expected running helper to be interrupted")
+            } catch is CancellationError {
+                XCTAssertTrue(cancel)
+            } catch VideoStreamError.preparationFailed(let reason) {
+                XCTAssertFalse(cancel)
+                XCTAssertTrue(reason.contains("timed out"))
+            }
+
+            let processStatus = kill(pid, 0)
+            let processError = errno
+            XCTAssertEqual(processStatus, -1, "The helper must exit before preparation returns")
+            XCTAssertEqual(processError, ESRCH)
+            XCTAssertEqual(try String(contentsOf: exitState, encoding: .utf8), "present",
+                           "The helper must still own its partial file when it handles termination")
+            XCTAssertFalse(FileManager.default.fileExists(atPath: directory))
         }
     }
 

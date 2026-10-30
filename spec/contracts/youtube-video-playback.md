@@ -58,6 +58,8 @@ format change and no migration of existing user media.
 
 `VideoStreamServiceTests` covers combined and separate extraction, malformed output,
 failure/cancellation cleanup, ownership, and a real FFmpeg mux of synthetic media.
+A controlled running helper verifies cancellation and timeout stop the process before
+its preparation directory is removed.
 `MediaPlayerViewModelTests` covers resource release, stale completion, preparation
 stages, retained-audio preservation, and existing playback controls.
 
