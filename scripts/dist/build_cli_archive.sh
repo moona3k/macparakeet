@@ -53,6 +53,11 @@ if [[ -n "$PACKAGE_PATH" ]]; then
       install_name_tool -add_rpath "$RPATH" "$PACKAGE/macparakeet-cli"
     fi
   done
+  # install_name_tool invalidates the linker's arm64 ad-hoc signature. Keep
+  # the preliminary archive executable; release instructions replace this
+  # with the Developer ID signature before notarization and publication.
+  codesign --force --sign - "$PACKAGE/macparakeet-cli"
+  codesign --verify --strict "$PACKAGE/macparakeet-cli"
   cp "$ROOT_DIR/LICENSE" "$ROOT_DIR/THIRD_PARTY_LICENSES.md" \
     "$ROOT_DIR/LICENSES/Apache-2.0.txt" "$PACKAGE/Legal/"
   for NOTICE in LICENSE LICENSE.ggml LICENSE.miniz; do

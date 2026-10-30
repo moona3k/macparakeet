@@ -45,7 +45,9 @@ same native gate for versioned distributions and retains both runtimes: Ask
 under `libexec/macparakeet-cli/`, Cohere under `Frameworks/`, and the Cohere
 notices under `Legal/`. Its `0.0.0` development and `ci` fixture archives can omit
 the native package. The Homebrew formula places Cohere under
-`libexec/Frameworks/`; the builder adds both archive and installed rpaths.
+`libexec/Frameworks/`; the builder adds both archive and installed rpaths, then
+restores and verifies the CLI's ad-hoc signature. That preliminary signature
+must still be replaced with the Developer ID signature for a notarized release.
 
 Set both paths for a release:
 

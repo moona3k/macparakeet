@@ -59,7 +59,8 @@ class CLIArchiveTests(unittest.TestCase):
                     commands.mkdir()
                     script(commands / "otool",
                            'if [ "$1" = -L ]; then echo @rpath/CTranscribe.framework/Versions/A/CTranscribe; fi\n')
-                    script(commands / "install_name_tool", 'echo "$*" >> "$RPATH_RECEIPT"\n')
+                    script(commands / "install_name_tool", 'echo "rpath $*" >> "$RPATH_RECEIPT"\n')
+                    script(commands / "codesign", 'echo "codesign $*" >> "$RPATH_RECEIPT"\n')
                     # Portable byte copy; actual macOS ditto verification is covered
                     # by the native archive mismatch tests in benchmarks/asr.
                     script(commands / "ditto", 'cp -R "$1" "$2"\n')
@@ -90,6 +91,11 @@ class CLIArchiveTests(unittest.TestCase):
                     rpaths = (root / "rpaths").read_text()
                     self.assertIn("@executable_path/Frameworks", rpaths)
                     self.assertIn("@executable_path/../libexec/Frameworks", rpaths)
+                    operations = rpaths.splitlines()
+                    self.assertEqual(len(operations), 4)
+                    self.assertTrue(all(line.startswith("rpath -add_rpath") for line in operations[:2]))
+                    self.assertTrue(operations[2].startswith("codesign --force --sign - "))
+                    self.assertTrue(operations[3].startswith("codesign --verify --strict "))
                 else:
                     # A versioned release cannot silently ship a stub-only CLI.
                     environment["VERSION"] = "1.2.3"
