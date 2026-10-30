@@ -71,6 +71,10 @@ final class TranscriptDocumentLayoutTests: XCTestCase {
         let model = TranscriptionViewModel(defaults: defaults)
         model.currentTranscription = transcription
         let results = PromptResultsViewModel()
+        var initialResultsLoaded = false
+        results.onPromptResultsChanged = { id, _ in
+            if id == transcription.id { initialResultsLoaded = true }
+        }
         let result = PromptResult(
             transcriptionId: transcription.id, promptName: "Summary", promptContent: "Summarize",
             content: "A synthetic summary.")
@@ -87,15 +91,29 @@ final class TranscriptDocumentLayoutTests: XCTestCase {
         window.contentView = host
         window.orderFront(nil)
         defer { window.orderOut(nil) }
-        host.layoutSubtreeIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        // Initial onAppear loading clears results and editing state. Seed only
+        // after that production callback, regardless of the runner's scheduling.
+        let initialLoadFinished = waitForLayout(host) { initialResultsLoaded }
+        XCTAssertTrue(initialLoadFinished, "Initial prompt-result loading must finish before fixture setup")
+        guard initialLoadFinished else { return }
         results.promptResults = [result]
         results.beginEditingPromptResult(result)
         model.hasPromptResultTabs = true
         model.selectedTab = .result(id: result.id)
-        host.layoutSubtreeIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
-        let editor = try XCTUnwrap(descendants(host).compactMap { $0 as? NSTextView }.first(where: \.isEditable))
+        var readyEditor: NSTextView?
+        _ = waitForLayout(host) {
+            guard let candidate = descendants(host).compactMap({ $0 as? NSTextView }).first(where: \.isEditable),
+                let scroll = candidate.enclosingScrollView, scroll.contentView.bounds.height > 0
+            else { return false }
+            readyEditor = candidate
+            return true
+        }
+        let editor = try XCTUnwrap(
+            readyEditor,
+            "Editor not ready: selectedTab=\(model.selectedTab), hasTabs=\(model.hasPromptResultTabs), "
+                + "resultPresent=\(results.promptResults.contains { $0.id == result.id }), "
+                + "editingID=\(String(describing: results.editingPromptResultID))"
+        )
         let smallContent = window.contentRect(forFrameRect: window.frame)
         XCTAssertEqual(smallContent.width, 1_100, accuracy: 1)
         XCTAssertEqual(smallContent.height, 650, accuracy: 1)
@@ -313,6 +331,16 @@ final class TranscriptDocumentLayoutTests: XCTestCase {
             }
         }
         XCTFail("\(label) did not settle after scrolling")
+    }
+
+    private func waitForLayout(_ host: NSView, until condition: () -> Bool) -> Bool {
+        let deadline = ContinuousClock.now + .seconds(5)
+        repeat {
+            host.layoutSubtreeIfNeeded()
+            if condition() { return true }
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        } while ContinuousClock.now < deadline
+        return false
     }
 
     private func descendants(_ view: NSView) -> [NSView] {
