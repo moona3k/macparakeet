@@ -403,10 +403,6 @@ struct CustomWordsView: View {
             Text(viewModel.words.isEmpty ? "No custom words yet" : "No matches")
                 .font(DesignSystem.Typography.body)
                 .foregroundStyle(.secondary)
-            if viewModel.isSearching {
-                Button("Clear search") { viewModel.searchText = "" }
-                    .parakeetAction(.secondary)
-            }
             if viewModel.words.isEmpty && !viewModel.isSelecting {
                 Text("Add words to fix spelling or capitalization that the speech engine gets wrong.")
                     .font(DesignSystem.Typography.caption)

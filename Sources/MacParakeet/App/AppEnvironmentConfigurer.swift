@@ -171,8 +171,6 @@ final class AppEnvironmentConfigurer {
             entitlementsService: env.entitlementsService,
             launchAtLoginService: env.launchAtLoginService,
             checkoutURL: env.checkoutURL,
-            customWordRepo: env.customWordRepo,
-            snippetRepo: env.snippetRepo,
             sttClient: env.sttScheduler,
             speechEngineSwitcher: env.sttScheduler,
             speechEngineSwitchAvailabilityProvider: env.sttScheduler,

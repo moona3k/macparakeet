@@ -1209,7 +1209,7 @@ Managing saved vocabulary never changes the processing mode. The page explains
 that word corrections apply in Clean mode and to meeting transcripts; text
 snippets expand in Clean mode.
 
-Processing mode, Clean processing options, and Voice Return follow the saved
+Processing mode, Voice Return, and Clean processing options follow the saved
 vocabulary controls. The Clean processing guide describes the existing ordered
 steps without duplicating the management buttons. Raw/Clean processing semantics
 are unchanged.
@@ -1257,8 +1257,8 @@ recognition-support detail, and Done button. Search matches both words and
 replacements. The grouped list shows the word, replacement or exact-spelling
 hint, an enable switch, and an individual delete action. The Add Rule form
 follows the list. Each opening clears the previous search. Matching, counts,
-and selection use the same query with surrounding whitespace trimmed; a search
-with no matches offers Clear search.
+and selection use the same query with surrounding whitespace trimmed. The search
+field's clear control remains available when there are no matches.
 
 A load failure appears beside the list with Retry, never as “No custom words
 yet.” The last successfully loaded rows remain visible, with mutations disabled

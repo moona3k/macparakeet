@@ -28,10 +28,10 @@ struct VocabularyView: View {
                 managementSection
                 VocabularyBackupSection(viewModel: backupViewModel)
                 modeSelectionCard
+                voiceReturnCard
                 if selectedMode == .clean {
                     pipelineCard
                 }
-                voiceReturnCard
             }
             .padding(DesignSystem.Spacing.lg)
         }
