@@ -1217,8 +1217,10 @@ are unchanged.
 Export remains available without relying on cached word/snippet counts. The
 export service reads the actual records and reports a failure if they cannot be
 read; an empty export is valid. Backup actions wait for service initialization
-and any active import/export. Import policies and replace-all protections are
-unchanged.
+and any active import/export. An export stays active through the save panel and
+the file write, and ends as exported, cancelled, or failed; the view model
+ignores a second backup operation until then. Import policies and replace-all
+protections are unchanged.
 
 ### Transforms (ADR-022)
 

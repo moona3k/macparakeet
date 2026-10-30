@@ -45,47 +45,63 @@ public final class VocabularyBackupViewModel {
     public var isPresentingImportSheet: Bool { pendingImport != nil }
 
     public var canStartOperation: Bool {
-        service != nil && status != .exporting && status != .importing
+        service != nil && !isBusy
+    }
+
+    private var isBusy: Bool {
+        status == .exporting || status == .importing
     }
 
     public func suggestedFilename() -> String {
         service?.suggestedFilename() ?? "MacParakeet-Vocabulary.json"
     }
 
-    /// Builds export bytes. Caller wires the returned payload to NSSavePanel.
-    public func makeExportPayload() async -> ExportPayload? {
+    /// Runs one export end to end and stays busy until it finishes. `save`
+    /// presents the save panel and writes the payload, returning the saved file
+    /// name, or nil if the user cancels. The status settles to `.exported`,
+    /// `.idle` (cancelled), or `.failed`, so every path releases the busy state.
+    public func exportVocabulary(
+        save: @MainActor (ExportPayload) async throws -> String?
+    ) async {
+        guard !isBusy else { return }
         guard let service else {
             failMissingService()
-            return nil
+            return
         }
         status = .exporting
+        let payload: ExportPayload
         do {
             let export = try await Task.detached(priority: .userInitiated) {
                 try service.exportBundleData()
             }.value
-            status = .idle
-            return ExportPayload(
+            payload = ExportPayload(
                 data: export.data,
                 wordsCount: export.bundle.customWords.count,
                 snippetsCount: export.bundle.textSnippets.count
             )
         } catch {
             status = .failed("Couldn't create the backup: \(error.localizedDescription)")
-            return nil
+            return
         }
-    }
-
-    public func confirmExportSucceeded(filename: String, wordsCount: Int, snippetsCount: Int) {
-        status = .exported(
-            wordsCount: wordsCount,
-            snippetsCount: snippetsCount,
-            filename: filename
-        )
+        do {
+            if let filename = try await save(payload) {
+                status = .exported(
+                    wordsCount: payload.wordsCount,
+                    snippetsCount: payload.snippetsCount,
+                    filename: filename
+                )
+            } else {
+                status = .idle
+            }
+        } catch {
+            status = .failed("Couldn't write the file: \(error.localizedDescription)")
+        }
     }
 
     /// Loads + decodes a chosen file. On success, populates `pendingImport` so
     /// the UI shows the preview sheet. On failure, surfaces an error message.
     public func loadPreview(from url: URL) async {
+        guard !isBusy else { return }
         guard let service else {
             failMissingService()
             return
@@ -108,12 +124,12 @@ public final class VocabularyBackupViewModel {
 
     public func cancelImport() {
         pendingImport = nil
-        status = .idle
+        if !isBusy { status = .idle }
     }
 
     @discardableResult
     public func applyImport() async -> Bool {
-        guard status != .importing else { return false }
+        guard !isBusy else { return false }
         guard let service else {
             failMissingService()
             return false
@@ -144,7 +160,7 @@ public final class VocabularyBackupViewModel {
     }
 
     public func dismissStatus() {
-        status = .idle
+        if !isBusy { status = .idle }
     }
 
     private func failMissingService() {

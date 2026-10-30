@@ -175,31 +175,22 @@ struct VocabularyBackupSection: View {
 
     private func presentExportPanel() {
         Task { @MainActor in
-            guard let export = await viewModel.makeExportPayload() else { return }
-            let panel = NSSavePanel()
-            panel.title = "Export Vocabulary"
-            panel.message = "Save your custom words and text snippets to a JSON file."
-            panel.nameFieldStringValue = viewModel.suggestedFilename()
-            if let json = UTType(filenameExtension: "json") {
-                panel.allowedContentTypes = [json]
-            }
-            panel.canCreateDirectories = true
-            panel.isExtensionHidden = false
+            await viewModel.exportVocabulary { export in
+                let panel = NSSavePanel()
+                panel.title = "Export Vocabulary"
+                panel.message = "Save your custom words and text snippets to a JSON file."
+                panel.nameFieldStringValue = viewModel.suggestedFilename()
+                if let json = UTType(filenameExtension: "json") {
+                    panel.allowedContentTypes = [json]
+                }
+                panel.canCreateDirectories = true
+                panel.isExtensionHidden = false
 
-            let response = panel.runModal()
-            guard response == .OK, let url = panel.url else { return }
-            do {
+                guard panel.runModal() == .OK, let url = panel.url else { return nil }
                 try await Task.detached(priority: .userInitiated) {
                     try export.data.write(to: url, options: .atomic)
                 }.value
-                viewModel.confirmExportSucceeded(
-                    filename: url.lastPathComponent,
-                    wordsCount: export.wordsCount,
-                    snippetsCount: export.snippetsCount
-                )
-            } catch {
-                // Reuse failed status for write errors.
-                viewModel.status = .failed("Couldn't write the file: \(error.localizedDescription)")
+                return url.lastPathComponent
             }
         }
     }

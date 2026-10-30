@@ -203,7 +203,6 @@ final class AppEnvironmentConfigurer {
         vocabularyBackupViewModel.configure(service: vocabularyBackupService) { [weak self] in
             self?.customWordsViewModel.loadWords()
             self?.textSnippetsViewModel.loadSnippets()
-            self?.settingsViewModel.refreshStats()
         }
         promptsViewModel.configure(
             repo: env.promptRepo,
