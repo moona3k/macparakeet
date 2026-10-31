@@ -210,7 +210,8 @@ public struct TextProcessingPipeline: Sendable {
             .sorted { $0.trigger.count > $1.trigger.count }
 
         for snippet in sorted {
-            let pattern = "\\b\(NSRegularExpression.escapedPattern(for: snippet.trigger))\\b"
+            guard !snippet.trigger.isEmpty else { continue }
+            let pattern = LiteralTextPattern.wholeToken(snippet.trigger)
             guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
                 continue
             }

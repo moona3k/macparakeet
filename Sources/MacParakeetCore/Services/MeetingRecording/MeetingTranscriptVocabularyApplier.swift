@@ -52,7 +52,13 @@ struct MeetingTranscriptVocabularyApplier {
 
     private static func tokenVocabularyLookup(from customWords: [CustomWord]) -> Set<String>? {
         var keys: Set<String> = []
-        for customWord in customWords where customWord.isEnabled {
+        for customWord in customWords where customWord.isEnabled && !customWord.word.isEmpty {
+            // Compound/punctuation literals can match a substring that the token
+            // key splitter does not preserve (e.g. .NET.Core in .NET.Core/sdk).
+            // Keep the fast path only for plain word literals.
+            guard customWord.word.unicodeScalars.allSatisfy({ tokenWordCharacters.contains($0) }) else {
+                return nil
+            }
             guard let key = tokenLookupKey(for: customWord.word) else {
                 return nil
             }

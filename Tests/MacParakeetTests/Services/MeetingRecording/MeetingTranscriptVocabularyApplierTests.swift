@@ -35,6 +35,45 @@ final class MeetingTranscriptVocabularyApplierTests: XCTestCase {
         XCTAssertEqual(result.words.map(\.word), ["ACME Corp", "rocks"])
     }
 
+    func testPunctuationEdgedVocabularyCorrectsTextAndTokensWithoutPartialIdentifiers() {
+        let tokens = ["C++", "C++17", "C#", "C#2", ".NET", "x.NET"]
+        let words = tokens.enumerated().map { index, text in
+            word(text, index * 100, (index + 1) * 100, speaker: "system", confidence: 0.8)
+        }
+        let result = MeetingTranscriptVocabularyApplier.apply(
+            rawTranscript: tokens.joined(separator: " "),
+            words: words,
+            customWords: [
+                CustomWord(word: "C++", replacement: "CPP"),
+                CustomWord(word: "C#", replacement: "CS"),
+                CustomWord(word: ".NET", replacement: "dotnet"),
+            ]
+        )
+        XCTAssertEqual(result.rawTranscript, "CPP C++17 CS C#2 dotnet x.NET")
+        XCTAssertEqual(result.words.map(\.word), ["CPP", "C++17", "CS", "C#2", "dotnet", "x.NET"])
+        for (original, corrected) in zip(words, result.words) {
+            XCTAssertEqual(corrected.startMs, original.startMs)
+            XCTAssertEqual(corrected.endMs, original.endMs)
+            XCTAssertEqual(corrected.speakerId, original.speakerId)
+            XCTAssertEqual(corrected.confidence, original.confidence)
+        }
+    }
+
+    func testCompoundPunctuationLiteralIsNotSkippedByTokenPrefilter() {
+        let original = word(".NET.Core/sdk", 100, 500, speaker: "system", confidence: 0.8)
+        let result = MeetingTranscriptVocabularyApplier.apply(
+            rawTranscript: original.word,
+            words: [original],
+            customWords: [CustomWord(word: ".NET.Core", replacement: "dotnet")]
+        )
+        XCTAssertEqual(result.rawTranscript, "dotnet/sdk")
+        XCTAssertEqual(result.words.map(\.word), ["dotnet/sdk"])
+        XCTAssertEqual(result.words[0].startMs, original.startMs)
+        XCTAssertEqual(result.words[0].endMs, original.endMs)
+        XCTAssertEqual(result.words[0].speakerId, original.speakerId)
+        XCTAssertEqual(result.words[0].confidence, original.confidence)
+    }
+
     func testPreservesTimestampsConfidenceAndSpeaker() {
         let original = word("k8s", 1_200, 1_650, speaker: "microphone", confidence: 0.42)
         let result = MeetingTranscriptVocabularyApplier.apply(

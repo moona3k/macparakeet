@@ -61,17 +61,21 @@ mode.
    languages. The remaining list stays short: anything longer ("like",
    "you know", "kind of") changes meaning too often to delete.
 2. **Custom word replacement.** User-defined `CustomWord` entries.
-   Replaces matches whole-word, case-insensitive, in the order
-   provided. Nil or blank replacements restore the stored word's casing;
-   nonblank replacements substitute the configured correction. Disabled
-   entries skip silently.
+   Matches literals case-insensitively in the order provided, excluding
+   adjacent Unicode word characters (letters, marks, digits, connectors,
+   and joiners). This supports punctuation-bearing terms such as `C++`,
+   `C#`, and `.NET` without matching `C++17` or `x.NET`. Surrounding
+   punctuation remains a delimiter. Nil or blank replacements restore the
+   stored word's casing; nonblank replacements substitute the configured
+   correction. Disabled and empty entries skip silently.
 3. **Trailing action extraction.** If the user's text ends with an
    action-snippet trigger (snippet whose `action != nil`), strip the
    trigger from the text and surface the action through
    `postPasteAction` on the result. Done **before** snippet
    expansion so the trigger phrase isn't mangled by step 4.
 4. **Text snippet expansion.** Plain text snippets (where
-   `action == nil`) replace their trigger phrases with their bodies.
+   `action == nil`) replace their trigger phrases with their bodies, using
+   the same literal boundaries as custom words. Empty triggers are ignored.
    Built-in spoken punctuation (`question mark` → `?`) runs after user
    snippets so a custom snippet of the same trigger still wins. A snippet
    expansion that itself contains a command phrase is also converted.

@@ -35,8 +35,12 @@ Two categories:
 | Vocabulary anchors | Enforce correct casing | "kubernetes" → "Kubernetes" |
 | Corrections | Fix common STT errors | "aye pee eye" → "API" |
 
-- Matching is **case-insensitive** with **whole-word boundaries**
-- **Disabled** words are skipped (user can toggle without deleting)
+- Matching is **case-insensitive** with **literal token boundaries**. Adjacent
+  Unicode word characters (letters, marks, digits, connectors, and joiners)
+  prevent a match. `C++`, `C#`, and `.NET` match standalone, but not within
+  `C++17` or `x.NET`. Surrounding punctuation remains a delimiter; this is not
+  programming-language tokenization.
+- **Disabled** words and empty literals are skipped (user can toggle without deleting)
 - Applied in the order they appear in the database
 
 **Meetings (REQ-PIPE-003):** these custom-word corrections also run on
@@ -65,7 +69,9 @@ Trigger phrases are replaced with their full expansion text.
 
 - **Triggers are natural language phrases**, not abbreviations — because Parakeet STT outputs natural speech, users will say "my signature" not "sig". Triggers must match what the STT actually produces.
 - Snippets are **sorted by trigger length descending** (longest first) to prevent partial matches when one trigger is a prefix of another
-- Matching is **case-insensitive** with **whole-phrase boundaries**
+- Matching is **case-insensitive**, using the same literal token boundaries as
+  custom words. Empty triggers are skipped. Terminal action snippets retain
+  their separate whitespace/end-of-text matching rules.
 - Expanded snippet IDs are tracked so use counts can be updated after processing
 - Example: `"my signature"` → `"Best regards, David"`
 - After user snippets, Clean mode optionally converts spoken punctuation

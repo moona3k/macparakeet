@@ -9,10 +9,10 @@ import Foundation
 /// would be wasteful — this hoists compilation out of the hot loop, the same
 /// optimization `TextProcessingPipeline.fillerRegexes` already makes for fillers.
 ///
-/// Semantics match the original inline `TextProcessingPipeline.applyCustomWords`
-/// exactly, and `CustomWordReplacerTests` pins that parity:
-/// - only `isEnabled` words contribute a rule,
-/// - whole-word (`\b…\b`), case-insensitive matching,
+/// Shared with `TextProcessingPipeline.applyCustomWords`;
+/// `CustomWordReplacerTests` pins that parity:
+/// - only enabled, nonempty words contribute a rule,
+/// - literal matches exclude adjacent Unicode word characters, case-insensitively,
 /// - rules apply in array order, so a later rule can act on an earlier rule's
 ///   output,
 /// - `replacement == nil` or blank (a vocabulary anchor) substitutes the word
@@ -28,15 +28,16 @@ struct CustomWordReplacer: Sendable {
 
     init(words: [CustomWord]) {
         rules = words.compactMap { word in
-            guard word.isEnabled else { return nil }
+            guard word.isEnabled, !word.word.isEmpty else { return nil }
             let replacement = word.replacement?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            let template = if let replacement, !replacement.isEmpty {
-                replacement
-            } else {
-                word.word
-            }
-            let pattern = "\\b\(NSRegularExpression.escapedPattern(for: word.word))\\b"
+            let template =
+                if let replacement, !replacement.isEmpty {
+                    replacement
+                } else {
+                    word.word
+                }
+            let pattern = LiteralTextPattern.wholeToken(word.word)
             guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
                 return nil
             }
@@ -60,5 +61,14 @@ struct CustomWordReplacer: Sendable {
             )
         }
         return result
+    }
+}
+
+/// Keep Unicode word characters outside a literal, including when the literal
+/// itself starts or ends with punctuation (for example `.NET` or `C++`).
+/// Surrounding punctuation remains a delimiter, as it is for ordinary words.
+enum LiteralTextPattern {
+    static func wholeToken(_ literal: String) -> String {
+        "(?<!\\w)\(NSRegularExpression.escapedPattern(for: literal))(?!\\w)"
     }
 }

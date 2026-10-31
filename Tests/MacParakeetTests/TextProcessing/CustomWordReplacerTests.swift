@@ -33,6 +33,41 @@ final class CustomWordReplacerTests: XCTestCase {
         XCTAssertEqual(replacer.apply(to: "the cap on capacity"), "the CAP on capacity")
     }
 
+    func testPunctuationEdgedLiteralsMatchStandaloneAndRejectLargerIdentifiers() {
+        let cases = [
+            ("C++", "C++ (c++), XC++ C++17 C++_ C++é", "fixed (fixed), XC++ C++17 C++_ C++é"),
+            ("C#", "C# c# XC# C#2 C#_", "fixed fixed XC# C#2 C#_"),
+            (".NET", ".NET (.net), x.NET .NETwork .NET2 .NET_", "fixed (fixed), x.NET .NETwork .NET2 .NET_"),
+            ("a.b", "a.b A.B aXb a.bx xa.b", "fixed fixed aXb a.bx xa.b"),
+        ]
+        for (literal, input, expected) in cases {
+            let replacer = CustomWordReplacer(words: [CustomWord(word: literal, replacement: "fixed")])
+            XCTAssertEqual(replacer.apply(to: input), expected, literal)
+        }
+    }
+
+    func testUnicodeWordCharactersCannotAdjoinLiteralMatches() {
+        let cases = [
+            ("café", "CAFÉ caféteria xcafé café_", "fixed caféteria xcafé café_"),
+            ("e\u{301}", "e\u{301} e\u{301}x xe\u{301}", "fixed e\u{301}x xe\u{301}"),
+            ("東京", "東京 東京都 新東京", "fixed 東京都 新東京"),
+            (
+                "cap", "cap cap\u{301} cap\u{200D} cap\u{203F} cap\u{662}",
+                "fixed cap\u{301} cap\u{200D} cap\u{203F} cap\u{662}"
+            ),
+        ]
+        for (literal, input, expected) in cases {
+            let replacer = CustomWordReplacer(words: [CustomWord(word: literal, replacement: "fixed")])
+            XCTAssertEqual(replacer.apply(to: input), expected, literal)
+        }
+    }
+
+    func testEmptyRuleIsIgnored() {
+        let replacer = CustomWordReplacer(words: [CustomWord(word: "", replacement: "inserted")])
+        XCTAssertTrue(replacer.isEmpty)
+        XCTAssertEqual(replacer.apply(to: "words and punctuation!"), "words and punctuation!")
+    }
+
     func testDisabledWordSkipped() {
         let replacer = CustomWordReplacer(words: [
             CustomWord(word: "k8s", replacement: "Kubernetes", isEnabled: false)

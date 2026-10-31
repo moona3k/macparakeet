@@ -111,6 +111,13 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   remain available. Array shapes, fields, ordering, metadata, and exit codes
   are unchanged (patch fix).
 
+- `vocab process` now matches punctuation-bearing custom words and plain text
+  snippet triggers such as `C++`, `C#`, and `.NET` at standalone boundaries,
+  while rejecting partial identifiers such as `C++17` and `x.NET`. Matching
+  preserves Unicode word-character boundaries and ignores empty rules. The
+  shared correction also applies to meeting vocabulary. JSON schemas and
+  trailing action commands are unchanged.
+
 - Knowledge-card generation now makes one corrective retry for incomplete or
   malformed output, waits briefly for busy AI settings, and reserves provider
   context for the answer. Usage totals include both responses when both report

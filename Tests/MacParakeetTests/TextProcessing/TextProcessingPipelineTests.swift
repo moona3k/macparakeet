@@ -204,6 +204,33 @@ final class TextProcessingPipelineTests: XCTestCase {
         XCTAssertEqual(ids.count, 1)
     }
 
+    func testSnippetLiteralBoundariesAndLiteralExpansion() {
+        let cases = [
+            ("C++", "C++ (c++), XC++ C++17 C++_", "$1 ($1), XC++ C++17 C++_"),
+            ("C#", "C# c# XC# C#2", "$1 $1 XC# C#2"),
+            (".NET", ".NET .net x.NET .NETwork", "$1 $1 x.NET .NETwork"),
+            ("::sig", "::sig x::sig ::signal", "$1 x::sig ::signal"),
+            ("café", "CAFÉ caféteria xcafé", "$1 caféteria xcafé"),
+            (
+                "cap", "cap cap\u{301} cap\u{200D} cap\u{203F} cap\u{662}",
+                "$1 cap\u{301} cap\u{200D} cap\u{203F} cap\u{662}"
+            ),
+        ]
+        for (trigger, input, expected) in cases {
+            let snippet = TextSnippet(trigger: trigger, expansion: "$1")
+            let (result, ids) = pipeline.expandSnippets(in: input, snippets: [snippet])
+            XCTAssertEqual(result, expected, trigger)
+            XCTAssertEqual(ids, [snippet.id], trigger)
+        }
+    }
+
+    func testEmptySnippetTriggerIsIgnored() {
+        let snippet = TextSnippet(trigger: "", expansion: "inserted")
+        let (result, ids) = pipeline.expandSnippets(in: "words and punctuation!", snippets: [snippet])
+        XCTAssertEqual(result, "words and punctuation!")
+        XCTAssertTrue(ids.isEmpty)
+    }
+
     func testDisabledSnippetSkipped() {
         let snippets = [
             TextSnippet(trigger: "my sig", expansion: "Sincerely", isEnabled: false)
