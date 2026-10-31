@@ -94,6 +94,16 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- `diarization-eval <fixtures-dir> [--json] [--collar-ms N]
+  [--ignore-overlap|--skip-overlap]` evaluates local WAV fixtures with optional
+  RTTM references and timing-only `words.json` annotations. Its version-1 report
+  includes DER/coverage, complete speaker-count hints, and experimental
+  assignment counts, without paths, transcript text, or human speaker labels.
+  This command does not change production speaker assignment. The earlier
+  proposed `transcribe --diarization-report` flag is deferred.
+
 ### Fixed
 
 - Knowledge-card generation now makes one corrective retry for incomplete or

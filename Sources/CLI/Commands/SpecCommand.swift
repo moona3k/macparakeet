@@ -383,6 +383,26 @@ private extension CLISpecCommand {
                 "Single Transcription object for stdout mode; one transcript file per input in batch/output-dir mode."
         ),
         CLISpecCommand(
+            ["diarization-eval"],
+            summary: "Run local speaker diarization against private fixture folders.",
+            readOnly: false,
+            arguments: [
+                .argument(
+                    "fixtures-dir",
+                    summary: "Directory whose immediate subdirectories contain private diarization fixtures."
+                ),
+            ],
+            options: [
+                CLISpecParameter.flag("--json", summary: "Emit the DiarizationEvalReport JSON object."),
+                CLISpecParameter.option(
+                    "--collar-ms", valueName: "MS", summary: "Full-width DER scoring collar in milliseconds."),
+                CLISpecParameter.flag(
+                    "--ignore-overlap", summary: "Skip reference overlap regions when scoring DER and coverage."),
+                CLISpecParameter.flag("--skip-overlap", summary: "Alias for --ignore-overlap."),
+            ],
+            output: "DiarizationEvalReport object with scoringOptions and per-fixture run reports."
+        ),
+        CLISpecCommand(
             ["retranscribe"],
             summary:
                 "Retranscribe retained source audio for an existing saved dictation, transcription, or meeting in place.",
