@@ -1,0 +1,20 @@
+Tests/MacParakeetTests/Views/TranscriptDocumentLayoutTests.swift
+  s_a7db50ec1095f1::t_395fb64064c5c7 300-305,315-320
+  s_a7db50ec1095f1::t_7cbf620e315487 193-198,307-314
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "899fbc8537c16147d81ae1e505372a4652ee9023",
+  "prompts": {},
+  "sessions": {
+    "s_a7db50ec1095f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18ee2-1964-7e31-bb46-e22abcc88701",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
