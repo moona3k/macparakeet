@@ -1,0 +1,1016 @@
+{
+  "schema": "macparakeet-history-projection-repro/v1",
+  "timestamp_utc": "2026-10-31T22:25:44.443198+00:00",
+  "source_review_baseline": "79cf1ca928b53c3853a99f6832c197d664dcdd78",
+  "executable_sha256": "ef07692faca2364ac0a24345a96389dd97721f6683f7ccee285bb4b9231212f5",
+  "evidence_lane": "Installed CLI executable; no build from reviewed source",
+  "safety": {
+    "fresh_temporary_state_root": true,
+    "explicit_temporary_database_on_every_data_command": true,
+    "telemetry_disabled": true,
+    "fixtures_only": true,
+    "preferences_or_keychain_commands": false,
+    "capture_model_provider_or_network_commands": false,
+    "temporary_state_removed_after_run": true,
+    "limits": "Environment override isolates app paths, not UserDefaults or Keychain. These commands do not mutate preferences/keys; no preference values are captured."
+  },
+  "commands": [
+    {
+      "argv": [
+        "macparakeet-cli",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stderr_present": false,
+      "stdout": "5.1.0"
+    },
+    {
+      "argv": [
+        "macparakeet-cli",
+        "history",
+        "transcriptions",
+        "--help"
+      ],
+      "exit_code": 0,
+      "stderr_present": false,
+      "stdout": "OVERVIEW: List recent transcriptions.\n\nUSAGE: macparakeet-cli history transcriptions [--limit <limit>] [--json] [--database <database>]\n\nOPTIONS:\n  -l, --limit <limit>     Maximum number of results. (default: 20)\n  --json                  Emit JSON instead of human-readable output.\n  --database <database>   Path to SQLite database file (defaults to the app\n                          database).\n  --version               Show the version.\n  -h, --help              Show help information."
+    },
+    {
+      "argv": [
+        "macparakeet-cli",
+        "meetings",
+        "corrections",
+        "edit-line",
+        "--help"
+      ],
+      "exit_code": 0,
+      "stderr_present": false,
+      "stdout": "OVERVIEW: Replace one timed line while retaining its segment envelope.\n\nUSAGE: macparakeet-cli meetings corrections edit-line <meeting> --segment <segment> [--text <text>] [--stdin] --expected-revision <expected-revision> [--json] [--envelope] [--database <database>]\n\nARGUMENTS:\n  <meeting>               Meeting UUID, UUID prefix, or exact title.\n\nOPTIONS:\n  --segment <segment>     Segment UUID from meetings transcript --format json.\n  --text <text>           Replacement text.\n  --stdin                 Read replacement text from stdin.\n  --expected-revision <expected-revision>\n                          Expected speakerCorrectionRevision from the last read.\n  --json                  Emit the updated transcript object as JSON.\n  --envelope              Wrap JSON output in an ok/data/meta envelope.\n  --database <database>   Path to SQLite database file (defaults to the app\n                          database).\n  --version               Show the version.\n  -h, --help              Show help information."
+    },
+    {
+      "argv": [
+        "macparakeet-cli",
+        "meetings",
+        "corrections",
+        "rename",
+        "--help"
+      ],
+      "exit_code": 0,
+      "stderr_present": false,
+      "stdout": "OVERVIEW: Rename one speaker in the reversible correction journal.\n\nUSAGE: macparakeet-cli meetings corrections rename <meeting> --speaker <speaker> --label <label> --expected-revision <expected-revision> [--json] [--envelope] [--database <database>]\n\nARGUMENTS:\n  <meeting>               Meeting UUID, UUID prefix, or exact title.\n\nOPTIONS:\n  --speaker <speaker>     Speaker id from meetings transcript --format json.\n  --label <label>         New display label.\n  --expected-revision <expected-revision>\n                          Expected speakerCorrectionRevision from the last read.\n  --json                  Emit the updated transcript object as JSON.\n  --envelope              Wrap JSON output in an ok/data/meta envelope.\n  --database <database>   Path to SQLite database file (defaults to the app\n                          database).\n  --version               Show the version.\n  -h, --help              Show help information."
+    },
+    {
+      "argv": [
+        "macparakeet-cli",
+        "export",
+        "--help"
+      ],
+      "exit_code": 0,
+      "stderr_present": false,
+      "stdout": "OVERVIEW: Export a transcription to a file.\n\nSupported formats: txt, markdown, srt, vtt, dapt, json.\n\nUSAGE: macparakeet-cli export <id> [--format <format>] [--output <output>] [--stdout] [--database <database>]\n\nARGUMENTS:\n  <id>                    The UUID (or prefix) of the transcription to export.\n\nOPTIONS:\n  -f, --format <format>   Output format: txt, markdown, srt, vtt, dapt, json.\n                          (values: txt, markdown, srt, vtt, dapt, json;\n                          default: txt)\n  -o, --output <output>   Output file path (defaults to current directory with\n                          auto-generated name).\n  --stdout                Print to stdout instead of writing a file.\n  --database <database>   Path to SQLite database file (defaults to the app\n                          database).\n  --version               Show the version.\n  -h, --help              Show help information."
+    },
+    {
+      "argv": [
+        "macparakeet-cli",
+        "history",
+        "transcriptions",
+        "--json",
+        "--database",
+        "<temporary-state>/fixture.sqlite"
+      ],
+      "exit_code": 0,
+      "stderr_present": false,
+      "stdout": []
+    },
+    {
+      "argv": [
+        "macparakeet-cli",
+        "meetings",
+        "transcript",
+        "11111111-1111-4111-8111-111111111111",
+        "--format",
+        "json",
+        "--database",
+        "<temporary-state>/fixture.sqlite"
+      ],
+      "exit_code": 0,
+      "stderr_present": false,
+      "stdout": {
+        "cleanTranscript": "originaltoken two. three four.",
+        "id": "11111111-1111-4111-8111-111111111111",
+        "meetingLabels": [],
+        "rawTranscript": "originaltoken two. three four.",
+        "speakerCorrectionRevision": 0,
+        "speakerCorrectionsApplied": false,
+        "speakers": [
+          {
+            "id": "S1",
+            "label": "Alice"
+          }
+        ],
+        "textCorrectionsApplied": false,
+        "title": "Projection fixture",
+        "transcript": "originaltoken two. three four.",
+        "transcriptSegments": [
+          {
+            "endMs": 220,
+            "id": "22222222-2222-4222-8222-222222222222",
+            "speakerId": "S1",
+            "speakerLabel": "Alice",
+            "startMs": 0,
+            "text": "originaltoken two.",
+            "wordRange": {
+              "endIndexExclusive": 2,
+              "startIndex": 0
+            }
+          },
+          {
+            "endMs": 2220,
+            "id": "33333333-3333-4333-8333-333333333333",
+            "speakerId": "S1",
+            "speakerLabel": "Alice",
+            "startMs": 2000,
+            "text": "three four.",
+            "wordRange": {
+              "endIndexExclusive": 4,
+              "startIndex": 2
+            }
+          }
+        ],
+        "transcriptTextAlignment": "automatic",
+        "wordTimestamps": [
+          {
+            "confidence": 1,
+            "endMs": 100,
+            "speakerId": "S1",
+            "startMs": 0,
+            "word": "originaltoken"
+          },
+          {
+            "confidence": 1,
+            "endMs": 220,
+            "speakerId": "S1",
+            "startMs": 120,
+            "word": "two."
+          },
+          {
+            "confidence": 1,
+            "endMs": 2100,
+            "speakerId": "S1",
+            "startMs": 2000,
+            "word": "three"
+          },
+          {
+            "confidence": 1,
+            "endMs": 2220,
+            "speakerId": "S1",
+            "startMs": 2120,
+            "word": "four."
+          }
+        ]
+      }
+    },
+    {
+      "argv": [
+        "macparakeet-cli",
+        "meetings",
+        "corrections",
+        "edit-line",
+        "11111111-1111-4111-8111-111111111111",
+        "--segment",
+        "22222222-2222-4222-8222-222222222222",
+        "--text",
+        "correctedtoken first.",
+        "--expected-revision",
+        "0",
+        "--json",
+        "--database",
+        "<temporary-state>/fixture.sqlite"
+      ],
+      "exit_code": 0,
+      "stderr_present": false,
+      "stdout": {
+        "cleanTranscript": "correctedtoken first. three four.",
+        "id": "11111111-1111-4111-8111-111111111111",
+        "meetingLabels": [],
+        "rawTranscript": "originaltoken two. three four.",
+        "speakerCorrectionRevision": 1,
+        "speakerCorrectionsApplied": true,
+        "speakers": [
+          {
+            "id": "S1",
+            "label": "Alice"
+          }
+        ],
+        "textCorrectionsApplied": true,
+        "title": "Projection fixture",
+        "transcript": "correctedtoken first. three four.",
+        "transcriptSegments": [
+          {
+            "endMs": 220,
+            "id": "22222222-2222-4222-8222-222222222222",
+            "isTextEdited": true,
+            "speakerId": "S1",
+            "speakerLabel": "Alice",
+            "startMs": 0,
+            "text": "correctedtoken first.",
+            "wordRange": {
+              "endIndexExclusive": 2,
+              "startIndex": 0
+            }
+          },
+          {
+            "endMs": 2220,
+            "id": "33333333-3333-4333-8333-333333333333",
+            "speakerId": "S1",
+            "speakerLabel": "Alice",
+            "startMs": 2000,
+            "text": "three four.",
+            "wordRange": {
+              "endIndexExclusive": 4,
+              "startIndex": 2
+            }
+          }
+        ],
+        "transcriptTextAlignment": "segment",
+        "wordTimestamps": [
+          {
+            "confidence": 1,
+            "endMs": 100,
+            "speakerId": "S1",
+            "startMs": 0,
+            "word": "originaltoken"
+          },
+          {
+            "confidence": 1,
+            "endMs": 220,
+            "speakerId": "S1",
+            "startMs": 120,
+            "word": "two."
+          },
+          {
+            "confidence": 1,
+            "endMs": 2100,
+            "speakerId": "S1",
+            "startMs": 2000,
+            "word": "three"
+          },
+          {
+            "confidence": 1,
+            "endMs": 2220,
+            "speakerId": "S1",
+            "startMs": 2120,
+            "word": "four."
+          }
+        ]
+      }
+    },
+    {
+      "argv": [
+        "macparakeet-cli",
+        "meetings",
+        "corrections",
+        "rename",
+        "11111111-1111-4111-8111-111111111111",
+        "--speaker",
+        "S1",
+        "--label",
+        "Alicia",
+        "--expected-revision",
+        "1",
+        "--json",
+        "--database",
+        "<temporary-state>/fixture.sqlite"
+      ],
+      "exit_code": 0,
+      "stderr_present": false,
+      "stdout": {
+        "cleanTranscript": "correctedtoken first. three four.",
+        "id": "11111111-1111-4111-8111-111111111111",
+        "meetingLabels": [],
+        "rawTranscript": "originaltoken two. three four.",
+        "speakerCorrectionRevision": 2,
+        "speakerCorrectionsApplied": true,
+        "speakers": [
+          {
+            "id": "S1",
+            "label": "Alicia"
+          }
+        ],
+        "textCorrectionsApplied": true,
+        "title": "Projection fixture",
+        "transcript": "correctedtoken first. three four.",
+        "transcriptSegments": [
+          {
+            "endMs": 220,
+            "id": "22222222-2222-4222-8222-222222222222",
+            "isTextEdited": true,
+            "speakerId": "S1",
+            "speakerLabel": "Alicia",
+            "startMs": 0,
+            "text": "correctedtoken first.",
+            "wordRange": {
+              "endIndexExclusive": 2,
+              "startIndex": 0
+            }
+          },
+          {
+            "endMs": 2220,
+            "id": "33333333-3333-4333-8333-333333333333",
+            "speakerId": "S1",
+            "speakerLabel": "Alicia",
+            "startMs": 2000,
+            "text": "three four.",
+            "wordRange": {
+              "endIndexExclusive": 4,
+              "startIndex": 2
+            }
+          }
+        ],
+        "transcriptTextAlignment": "segment",
+        "wordTimestamps": [
+          {
+            "confidence": 1,
+            "endMs": 100,
+            "speakerId": "S1",
+            "startMs": 0,
+            "word": "originaltoken"
+          },
+          {
+            "confidence": 1,
+            "endMs": 220,
+            "speakerId": "S1",
+            "startMs": 120,
+            "word": "two."
+          },
+          {
+            "confidence": 1,
+            "endMs": 2100,
+            "speakerId": "S1",
+            "startMs": 2000,
+            "word": "three"
+          },
+          {
+            "confidence": 1,
+            "endMs": 2220,
+            "speakerId": "S1",
+            "startMs": 2120,
+            "word": "four."
+          }
+        ]
+      }
+    },
+    {
+      "argv": [
+        "macparakeet-cli",
+        "history",
+        "transcriptions",
+        "--json",
+        "--database",
+        "<temporary-state>/fixture.sqlite"
+      ],
+      "exit_code": 0,
+      "stderr_present": false,
+      "stdout": [
+        {
+          "cleanTranscript": "originaltoken two. three four.",
+          "createdAt": "2026-10-31T00:00:00Z",
+          "durationMs": 2220,
+          "fileName": "Projection fixture",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "isFavorite": true,
+          "isTranscriptEdited": false,
+          "language": "en",
+          "meetingArtifactFolderPath": "<temporary-state>/fixture-meeting",
+          "rawTranscript": "originaltoken two. three four.",
+          "recoveredFromCrash": false,
+          "sourceType": "meeting",
+          "speakerCount": 1,
+          "speakers": [
+            {
+              "id": "S1",
+              "label": "Alice"
+            }
+          ],
+          "status": "completed",
+          "transcriptSegments": [
+            {
+              "endMs": 220,
+              "id": "22222222-2222-4222-8222-222222222222",
+              "speakerId": "S1",
+              "speakerLabel": "Alice",
+              "startMs": 0,
+              "text": "originaltoken two.",
+              "wordRange": {
+                "endIndexExclusive": 2,
+                "startIndex": 0
+              }
+            },
+            {
+              "endMs": 2220,
+              "id": "33333333-3333-4333-8333-333333333333",
+              "speakerId": "S1",
+              "speakerLabel": "Alice",
+              "startMs": 2000,
+              "text": "three four.",
+              "wordRange": {
+                "endIndexExclusive": 4,
+                "startIndex": 2
+              }
+            }
+          ],
+          "updatedAt": "2026-10-31T00:00:00Z",
+          "wordTimestamps": [
+            {
+              "confidence": 1,
+              "endMs": 100,
+              "speakerId": "S1",
+              "startMs": 0,
+              "word": "originaltoken"
+            },
+            {
+              "confidence": 1,
+              "endMs": 220,
+              "speakerId": "S1",
+              "startMs": 120,
+              "word": "two."
+            },
+            {
+              "confidence": 1,
+              "endMs": 2100,
+              "speakerId": "S1",
+              "startMs": 2000,
+              "word": "three"
+            },
+            {
+              "confidence": 1,
+              "endMs": 2220,
+              "speakerId": "S1",
+              "startMs": 2120,
+              "word": "four."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "argv": [
+        "macparakeet-cli",
+        "history",
+        "favorites",
+        "--json",
+        "--database",
+        "<temporary-state>/fixture.sqlite"
+      ],
+      "exit_code": 0,
+      "stderr_present": false,
+      "stdout": [
+        {
+          "cleanTranscript": "originaltoken two. three four.",
+          "createdAt": "2026-10-31T00:00:00Z",
+          "durationMs": 2220,
+          "fileName": "Projection fixture",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "isFavorite": true,
+          "isTranscriptEdited": false,
+          "language": "en",
+          "meetingArtifactFolderPath": "<temporary-state>/fixture-meeting",
+          "rawTranscript": "originaltoken two. three four.",
+          "recoveredFromCrash": false,
+          "sourceType": "meeting",
+          "speakerCount": 1,
+          "speakers": [
+            {
+              "id": "S1",
+              "label": "Alice"
+            }
+          ],
+          "status": "completed",
+          "transcriptSegments": [
+            {
+              "endMs": 220,
+              "id": "22222222-2222-4222-8222-222222222222",
+              "speakerId": "S1",
+              "speakerLabel": "Alice",
+              "startMs": 0,
+              "text": "originaltoken two.",
+              "wordRange": {
+                "endIndexExclusive": 2,
+                "startIndex": 0
+              }
+            },
+            {
+              "endMs": 2220,
+              "id": "33333333-3333-4333-8333-333333333333",
+              "speakerId": "S1",
+              "speakerLabel": "Alice",
+              "startMs": 2000,
+              "text": "three four.",
+              "wordRange": {
+                "endIndexExclusive": 4,
+                "startIndex": 2
+              }
+            }
+          ],
+          "updatedAt": "2026-10-31T00:00:00Z",
+          "wordTimestamps": [
+            {
+              "confidence": 1,
+              "endMs": 100,
+              "speakerId": "S1",
+              "startMs": 0,
+              "word": "originaltoken"
+            },
+            {
+              "confidence": 1,
+              "endMs": 220,
+              "speakerId": "S1",
+              "startMs": 120,
+              "word": "two."
+            },
+            {
+              "confidence": 1,
+              "endMs": 2100,
+              "speakerId": "S1",
+              "startMs": 2000,
+              "word": "three"
+            },
+            {
+              "confidence": 1,
+              "endMs": 2220,
+              "speakerId": "S1",
+              "startMs": 2120,
+              "word": "four."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "argv": [
+        "macparakeet-cli",
+        "history",
+        "search-transcriptions",
+        "correctedtoken",
+        "--json",
+        "--database",
+        "<temporary-state>/fixture.sqlite"
+      ],
+      "exit_code": 0,
+      "stderr_present": false,
+      "stdout": [
+        {
+          "cleanTranscript": "originaltoken two. three four.",
+          "createdAt": "2026-10-31T00:00:00Z",
+          "durationMs": 2220,
+          "fileName": "Projection fixture",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "isFavorite": true,
+          "isTranscriptEdited": false,
+          "language": "en",
+          "meetingArtifactFolderPath": "<temporary-state>/fixture-meeting",
+          "rawTranscript": "originaltoken two. three four.",
+          "recoveredFromCrash": false,
+          "sourceType": "meeting",
+          "speakerCount": 1,
+          "speakers": [
+            {
+              "id": "S1",
+              "label": "Alice"
+            }
+          ],
+          "status": "completed",
+          "transcriptSegments": [
+            {
+              "endMs": 220,
+              "id": "22222222-2222-4222-8222-222222222222",
+              "speakerId": "S1",
+              "speakerLabel": "Alice",
+              "startMs": 0,
+              "text": "originaltoken two.",
+              "wordRange": {
+                "endIndexExclusive": 2,
+                "startIndex": 0
+              }
+            },
+            {
+              "endMs": 2220,
+              "id": "33333333-3333-4333-8333-333333333333",
+              "speakerId": "S1",
+              "speakerLabel": "Alice",
+              "startMs": 2000,
+              "text": "three four.",
+              "wordRange": {
+                "endIndexExclusive": 4,
+                "startIndex": 2
+              }
+            }
+          ],
+          "updatedAt": "2026-10-31T00:00:00Z",
+          "wordTimestamps": [
+            {
+              "confidence": 1,
+              "endMs": 100,
+              "speakerId": "S1",
+              "startMs": 0,
+              "word": "originaltoken"
+            },
+            {
+              "confidence": 1,
+              "endMs": 220,
+              "speakerId": "S1",
+              "startMs": 120,
+              "word": "two."
+            },
+            {
+              "confidence": 1,
+              "endMs": 2100,
+              "speakerId": "S1",
+              "startMs": 2000,
+              "word": "three"
+            },
+            {
+              "confidence": 1,
+              "endMs": 2220,
+              "speakerId": "S1",
+              "startMs": 2120,
+              "word": "four."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "argv": [
+        "macparakeet-cli",
+        "history",
+        "search-transcriptions",
+        "Projection fixture",
+        "--json",
+        "--database",
+        "<temporary-state>/fixture.sqlite"
+      ],
+      "exit_code": 0,
+      "stderr_present": false,
+      "stdout": [
+        {
+          "cleanTranscript": "originaltoken two. three four.",
+          "createdAt": "2026-10-31T00:00:00Z",
+          "durationMs": 2220,
+          "fileName": "Projection fixture",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "isFavorite": true,
+          "isTranscriptEdited": false,
+          "language": "en",
+          "meetingArtifactFolderPath": "<temporary-state>/fixture-meeting",
+          "rawTranscript": "originaltoken two. three four.",
+          "recoveredFromCrash": false,
+          "sourceType": "meeting",
+          "speakerCount": 1,
+          "speakers": [
+            {
+              "id": "S1",
+              "label": "Alice"
+            }
+          ],
+          "status": "completed",
+          "transcriptSegments": [
+            {
+              "endMs": 220,
+              "id": "22222222-2222-4222-8222-222222222222",
+              "speakerId": "S1",
+              "speakerLabel": "Alice",
+              "startMs": 0,
+              "text": "originaltoken two.",
+              "wordRange": {
+                "endIndexExclusive": 2,
+                "startIndex": 0
+              }
+            },
+            {
+              "endMs": 2220,
+              "id": "33333333-3333-4333-8333-333333333333",
+              "speakerId": "S1",
+              "speakerLabel": "Alice",
+              "startMs": 2000,
+              "text": "three four.",
+              "wordRange": {
+                "endIndexExclusive": 4,
+                "startIndex": 2
+              }
+            }
+          ],
+          "updatedAt": "2026-10-31T00:00:00Z",
+          "wordTimestamps": [
+            {
+              "confidence": 1,
+              "endMs": 100,
+              "speakerId": "S1",
+              "startMs": 0,
+              "word": "originaltoken"
+            },
+            {
+              "confidence": 1,
+              "endMs": 220,
+              "speakerId": "S1",
+              "startMs": 120,
+              "word": "two."
+            },
+            {
+              "confidence": 1,
+              "endMs": 2100,
+              "speakerId": "S1",
+              "startMs": 2000,
+              "word": "three"
+            },
+            {
+              "confidence": 1,
+              "endMs": 2220,
+              "speakerId": "S1",
+              "startMs": 2120,
+              "word": "four."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "argv": [
+        "macparakeet-cli",
+        "meetings",
+        "show",
+        "11111111-1111-4111-8111-111111111111",
+        "--json",
+        "--database",
+        "<temporary-state>/fixture.sqlite"
+      ],
+      "exit_code": 0,
+      "stderr_present": false,
+      "stdout": {
+        "artifactFolderPath": "<temporary-state>/fixture-meeting",
+        "artifactManifestPath": "<temporary-state>/fixture-meeting/manifest.json",
+        "artifactMarkdownPath": "<temporary-state>/fixture-meeting/meeting.md",
+        "cleanTranscript": "correctedtoken first. three four.",
+        "createdAt": "2026-10-31T00:00:00Z",
+        "diarizationSegments": [],
+        "durationMs": 2220,
+        "hasArtifactManifest": true,
+        "hasPromptResults": false,
+        "id": "11111111-1111-4111-8111-111111111111",
+        "isFavorite": true,
+        "isTranscriptEdited": false,
+        "meetingLabels": [],
+        "promptResultCount": 0,
+        "rawTranscript": "originaltoken two. three four.",
+        "recoveredFromCrash": false,
+        "shortID": "11111111",
+        "speakerCorrectionRevision": 2,
+        "speakerCorrectionsApplied": true,
+        "speakerCount": 1,
+        "speakers": [
+          {
+            "id": "S1",
+            "label": "Alicia"
+          }
+        ],
+        "status": "completed",
+        "textCorrectionsApplied": true,
+        "title": "Projection fixture",
+        "transcript": "correctedtoken first. three four.",
+        "transcriptSegments": [
+          {
+            "endMs": 220,
+            "id": "22222222-2222-4222-8222-222222222222",
+            "isTextEdited": true,
+            "speakerId": "S1",
+            "speakerLabel": "Alicia",
+            "startMs": 0,
+            "text": "correctedtoken first.",
+            "wordRange": {
+              "endIndexExclusive": 2,
+              "startIndex": 0
+            }
+          },
+          {
+            "endMs": 2220,
+            "id": "33333333-3333-4333-8333-333333333333",
+            "speakerId": "S1",
+            "speakerLabel": "Alicia",
+            "startMs": 2000,
+            "text": "three four.",
+            "wordRange": {
+              "endIndexExclusive": 4,
+              "startIndex": 2
+            }
+          }
+        ],
+        "transcriptTextAlignment": "segment",
+        "updatedAt": "2026-10-31T00:00:00Z",
+        "wordTimestamps": [
+          {
+            "confidence": 1,
+            "endMs": 100,
+            "speakerId": "S1",
+            "startMs": 0,
+            "word": "originaltoken"
+          },
+          {
+            "confidence": 1,
+            "endMs": 220,
+            "speakerId": "S1",
+            "startMs": 120,
+            "word": "two."
+          },
+          {
+            "confidence": 1,
+            "endMs": 2100,
+            "speakerId": "S1",
+            "startMs": 2000,
+            "word": "three"
+          },
+          {
+            "confidence": 1,
+            "endMs": 2220,
+            "speakerId": "S1",
+            "startMs": 2120,
+            "word": "four."
+          }
+        ]
+      }
+    },
+    {
+      "argv": [
+        "macparakeet-cli",
+        "export",
+        "11111111-1111-4111-8111-111111111111",
+        "--format",
+        "json",
+        "--stdout",
+        "--database",
+        "<temporary-state>/fixture.sqlite"
+      ],
+      "exit_code": 0,
+      "stderr_present": false,
+      "stdout": {
+        "cleanTranscript": "correctedtoken first. three four.",
+        "createdAt": "2026-10-31T00:00:00Z",
+        "diarizationSegments": [],
+        "durationMs": 2220,
+        "fileName": "Projection fixture",
+        "id": "11111111-1111-4111-8111-111111111111",
+        "isFavorite": true,
+        "isTranscriptEdited": false,
+        "language": "en",
+        "meetingArtifactFolderPath": "<temporary-state>/fixture-meeting",
+        "rawTranscript": "originaltoken two. three four.",
+        "recoveredFromCrash": false,
+        "sourceType": "meeting",
+        "speakerCorrectionRevision": 2,
+        "speakerCorrectionsApplied": true,
+        "speakerCount": 1,
+        "speakers": [
+          {
+            "id": "S1",
+            "label": "Alicia"
+          }
+        ],
+        "status": "completed",
+        "transcriptSegments": [
+          {
+            "endMs": 220,
+            "id": "22222222-2222-4222-8222-222222222222",
+            "isTextEdited": true,
+            "speakerId": "S1",
+            "speakerLabel": "Alicia",
+            "startMs": 0,
+            "text": "correctedtoken first.",
+            "wordRange": {
+              "endIndexExclusive": 2,
+              "startIndex": 0
+            }
+          },
+          {
+            "endMs": 2220,
+            "id": "33333333-3333-4333-8333-333333333333",
+            "speakerId": "S1",
+            "speakerLabel": "Alicia",
+            "startMs": 2000,
+            "text": "three four.",
+            "wordRange": {
+              "endIndexExclusive": 4,
+              "startIndex": 2
+            }
+          }
+        ],
+        "updatedAt": "2026-10-31T00:00:00Z",
+        "wordTimestamps": [
+          {
+            "confidence": 1,
+            "endMs": 100,
+            "speakerId": "S1",
+            "startMs": 0,
+            "word": "originaltoken"
+          },
+          {
+            "confidence": 1,
+            "endMs": 220,
+            "speakerId": "S1",
+            "startMs": 120,
+            "word": "two."
+          },
+          {
+            "confidence": 1,
+            "endMs": 2100,
+            "speakerId": "S1",
+            "startMs": 2000,
+            "word": "three"
+          },
+          {
+            "confidence": 1,
+            "endMs": 2220,
+            "speakerId": "S1",
+            "startMs": 2120,
+            "word": "four."
+          }
+        ]
+      }
+    },
+    {
+      "argv": [
+        "macparakeet-cli",
+        "export",
+        "11111111-1111-4111-8111-111111111111",
+        "--format",
+        "txt",
+        "--stdout",
+        "--database",
+        "<temporary-state>/fixture.sqlite"
+      ],
+      "exit_code": 0,
+      "stderr_present": false,
+      "stdout": "Projection fixture\nDuration: 0:02\n\nAlicia:\n[0:00] correctedtoken first.\n\n[0:02] three four."
+    }
+  ],
+  "fixture_basis": "Tests/CLITests/MeetingsCommandTests.swift timed edit and speaker rename fixtures; installed CLI initializes its own schema",
+  "installed_cli_version": "5.1.0",
+  "correction_journal": [
+    {
+      "operation": "editText",
+      "sequence": 1
+    },
+    {
+      "operation": "rename",
+      "sequence": 2
+    }
+  ],
+  "persisted_correction_revision": 2,
+  "comparisons": {
+    "history_transcriptions": {
+      "cleanTranscript": "originaltoken two. three four.",
+      "speaker_label": "Alice",
+      "first_segment_text": "originaltoken two.",
+      "returns_original_text": true,
+      "returns_original_speaker_label": true
+    },
+    "history_favorites": {
+      "cleanTranscript": "originaltoken two. three four.",
+      "speaker_label": "Alice",
+      "first_segment_text": "originaltoken two.",
+      "returns_original_text": true,
+      "returns_original_speaker_label": true
+    },
+    "history_search_corrected_token": {
+      "cleanTranscript": "originaltoken two. three four.",
+      "speaker_label": "Alice",
+      "first_segment_text": "originaltoken two.",
+      "returns_original_text": true,
+      "returns_original_speaker_label": true
+    },
+    "history_search_title": {
+      "cleanTranscript": "originaltoken two. three four.",
+      "speaker_label": "Alice",
+      "first_segment_text": "originaltoken two.",
+      "returns_original_text": true,
+      "returns_original_speaker_label": true
+    },
+    "meetings_show": {
+      "cleanTranscript": "correctedtoken first. three four.",
+      "speaker_label": "Alicia",
+      "first_segment_text": "correctedtoken first.",
+      "speakerCorrectionRevision": 2,
+      "returns_corrected_text": true,
+      "returns_corrected_speaker_label": true
+    },
+    "export_json": {
+      "cleanTranscript": "correctedtoken first. three four.",
+      "speaker_label": "Alicia",
+      "first_segment_text": "correctedtoken first.",
+      "speakerCorrectionRevision": 2,
+      "returns_corrected_text": true,
+      "returns_corrected_speaker_label": true
+    }
+  },
+  "text_export_contains_correction": true,
+  "reproduced": true,
+  "conclusion": "Installed CLI returns automatic text/speaker labels from history transcriptions, favorites and search, including a search matched by corrected text. meetings show and export return the committed effective corrections."
+}

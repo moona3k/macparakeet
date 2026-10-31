@@ -8,6 +8,13 @@ execution: code
 
 # Streaming cursor dictation insertion — #449
 
+> Current status (2026-10-31): **IMPLEMENTED ON MAIN**, merged via #1092
+> (`b46c2c217`). The default-off feature is present in reviewed main
+> `79cf1ca92`; this document preserves its original plan. #1293 later hardened
+> generated-event state and interrupted flush behavior. Read the
+> [System subsystem guide](../../Sources/MacParakeetCore/Services/System/README.md)
+> and current tests before using the historical algorithm below.
+
 Implementation plan for [issue #449](https://github.com/moona3k/macparakeet/issues/449). Research: [docs/research/2026-09-17-issue-449-streaming-cursor.md](../research/2026-09-17-issue-449-streaming-cursor.md).
 
 ## Goal Capsule

@@ -2,6 +2,19 @@
 
 > Status: ACTIVE - public automation contract for `macparakeet-cli`.
 
+## Published CLI 5.1.0 limitation (2026-10-31)
+
+The intended corrected-transcript consumer rule in ADR-031 is not fully
+implemented in the published CLI 5.1.0 binary by `history transcriptions`, `history search-transcriptions`, or
+`history favorites`: their JSON serializes stored rows without the effective
+correction projection. Use history to discover IDs, then `export <id> --format
+json --stdout` or `meetings show <id> --json` for corrected content. See the
+[parity map](../../integrations/capabilities.md#1-published-cli-history-json-can-return-superseded-text-and-speakers)
+for scope and regression requirements. This annotation records a defect; it
+does not redefine the intended contract. The source fix is tracked in
+[PR #1304](https://github.com/moona3k/macparakeet/pull/1304); installation of a
+release containing that fix remains a separate step.
+
 ## Purpose
 
 `macparakeet-cli` is the stable automation surface for local scripts, coding

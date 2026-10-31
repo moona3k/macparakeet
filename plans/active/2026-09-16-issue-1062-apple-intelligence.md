@@ -1,6 +1,12 @@
 # Apple Intelligence on-device LLM provider (#1062)
 
-> Status: **REVIEW**
+> Status: **IMPLEMENTED ON MAIN / SCOPE AMENDED**
+> Reconciled 2026-10-31: provider #1077 merged as `717177ae9`. Later #1190
+> (`866fc31de`) restricts Apple Intelligence to the cleanup route; summary,
+> chat, Ask, and Transforms in the original scope below are superseded.
+> Follow [ADR-011](../../spec/adr/011-llm-cloud-and-local-providers.md) and
+> [ADR-032](../../spec/adr/032-llm-task-group-routing.md). The original A/B
+> results remain historical evidence, not approval to restore those routes.
 > Date: 2026-09-16
 > Issue: [#1062](https://github.com/moona3k/macparakeet/issues/1062)
 > Branch: `feat/issue-1062-apple-intelligence`

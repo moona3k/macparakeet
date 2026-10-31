@@ -1,0 +1,14 @@
+{
+  "assets": [
+    {
+      "name": "MacParakeet.dmg",
+      "size": 181247157,
+      "digest": null,
+      "url": "https://github.com/moona3k/macparakeet/releases/download/v0.8.10/MacParakeet.dmg"
+    }
+  ],
+  "publishedAt": "2026-10-14T04:30:00Z",
+  "tagName": "v0.8.10",
+  "targetCommitish": "394e630b4af70c814f1176902337a95c99b84f0c",
+  "url": "https://github.com/moona3k/macparakeet/releases/tag/v0.8.10"
+}

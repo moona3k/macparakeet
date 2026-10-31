@@ -1,6 +1,8 @@
 # Per-event calendar skip (#609)
 
-> Status: **IMPLEMENTED** (2026-09-14; review-corrected then built)
+> Status: **IMPLEMENTED ON MAIN** (reconciled 2026-10-31)
+> Integration: `e9a02922e` is present in reviewed main `79cf1ca92`. The
+> original 2026-09-14 review/implementation record below is retained.
 > Issue: [#609](https://github.com/moona3k/macparakeet/issues/609)
 > Governs: [ADR-017](../../spec/adr/017-calendar-meeting-auto-start.md) amendment 2026-09-14, [F48](../../spec/02-features.md)
 > Priority: P2

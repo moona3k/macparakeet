@@ -32,6 +32,10 @@ replace the user's database. Ask before any repair or model download.
 - Use `cards list` to route across saved recordings, `search` for exact topics
   or phrases, and `transcript --around-seq` for cited context. Use `history
   search` separately for dictations.
+- Published CLI 5.1.0 history JSON returns stored transcript rows and can omit later
+  timed text/speaker corrections. Use it to discover IDs, then read corrected
+  content through `export <id> --format json --stdout` or, for meetings,
+  `meetings show <id> --json`. See the [parity map](../../capabilities.md).
 - Cite the recording ID/title and segment sequence, adding timestamps when
   available. Verify card decisions/actions against transcript segments; cards
   are derived hints, not authoritative facts.
@@ -54,8 +58,10 @@ replace the user's database. Ask before any repair or model download.
 - Do not delete, clear, retranscribe, reindex, change shared defaults, enable
   hooks, or regenerate artifacts without authorization for that operation.
 - Follow the guide's **Safe automation and isolation** section. `--database`
-  does not isolate referenced files or shared preferences, and the DEBUG state
-  root is ignored by release binaries. Do not run destructive smoke work on
+  does not isolate referenced files or shared preferences. An absolute
+  `MACPARAKEET_DEBUG_APP_STATE_DIR` redirects app-support/artifact and model
+  paths in both Debug and Release builds; it does not isolate UserDefaults,
+  Keychain, or paths already stored in copied records. Do not run destructive smoke work on
   user state, including copied rows that still reference original artifacts.
 - Keep keys in environment variables, not command-line literals. Use explicit
   per-run flags for reproducibility; `config set` changes shared app defaults.

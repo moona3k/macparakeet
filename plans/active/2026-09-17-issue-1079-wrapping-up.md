@@ -1,6 +1,10 @@
 # Fix issue 1079 — Transcribe tile stuck on Wrapping up
 
-**Status:** IMPLEMENTED — coordinator fallback + hidden-stop regression tests; audit in `docs/audits/2026-09-17-issue-1079-wrapping-up.md`.
+**Status:** IMPLEMENTED ON MAIN — reconciled 2026-10-31; #1082 merged as
+`fb186349e`, present in reviewed main `79cf1ca92`. Coordinator fallback and
+hidden-stop regressions remain implemented. The original audit and execution
+notes below are historical; later saved-capture finalization/recovery is tracked
+in [the #1291 plan](2026-10-30-1291-capture-finalization.md).
 **Issue:** [#1079](https://github.com/moona3k/macparakeet/issues/1079)
 **Audit:** [`docs/audits/2026-09-17-issue-1079-wrapping-up.md`](../../docs/audits/2026-09-17-issue-1079-wrapping-up.md)
 **Base:** `origin/main`

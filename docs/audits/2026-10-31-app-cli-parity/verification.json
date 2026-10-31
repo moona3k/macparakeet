@@ -1,0 +1,3221 @@
+{
+  "baseline": "79cf1ca928b53c3853a99f6832c197d664dcdd78",
+  "local_link_check": {
+    "count": 369,
+    "markdownDocuments": 30,
+    "missing": [],
+    "outsideRepository": [],
+    "scope": "All tracked changed and untracked Markdown at this snapshot. Local file/directory targets only; code fences, indented code, inline code, HTML comments, remote/schemed targets and anchor-only targets excluded. Fragment existence is not checked.",
+    "excludedTargets": {
+      "remote_or_other_scheme": 51,
+      "anchor_only_or_empty": 3
+    },
+    "documents": [
+      "README.md",
+      "Sources/CLI/README.md",
+      "Sources/MacParakeetCore/TextProcessing/README.md",
+      "docs/audits/2026-10-31-app-cli-parity/README.md",
+      "docs/audits/2026-10-31-app-cli-parity/capture-review.md",
+      "docs/audits/2026-10-31-app-cli-parity/data-agent-review.md",
+      "docs/audits/2026-10-31-app-cli-parity/ui-tooling-review.md",
+      "docs/cli-testing.md",
+      "docs/distribution.md",
+      "docs/plans/2026-09-17-issue-449-streaming-cursor.md",
+      "docs/releases/0.8.10/README.md",
+      "integrations/README.md",
+      "integrations/capabilities.md",
+      "integrations/skill/macparakeet-stt/SKILL.md",
+      "plans/README.md",
+      "plans/active/2026-07-03-speaker-voiceprints.md",
+      "plans/active/2026-09-13-timed-transcript-editing.md",
+      "plans/active/2026-09-14-issue-609-calendar-event-skip.md",
+      "plans/active/2026-09-16-issue-1062-apple-intelligence.md",
+      "plans/active/2026-09-17-issue-1079-wrapping-up.md",
+      "plans/active/2026-09-24-issue-1142-event-taps-off-main.md",
+      "plans/active/2026-10-30-1291-capture-finalization.md",
+      "spec/00-vision.md",
+      "spec/02-features.md",
+      "spec/04-ui-patterns.md",
+      "spec/README.md",
+      "spec/adr/002-local-only.md",
+      "spec/adr/027-product-north-star.md",
+      "spec/contracts/README.md",
+      "spec/contracts/cli-json-v1.md"
+    ],
+    "documentSha256": {
+      "README.md": "c4d808c7ff608fe926baa953e0dc612100276640ccca7808f994150355da8257",
+      "Sources/CLI/README.md": "fc876871eb0cc3794830af0e90acf7f3abc8996f27a42180a3fb75af1392fa32",
+      "Sources/MacParakeetCore/TextProcessing/README.md": "467a1eae167716ce1d43f3391b63daf7eba16acdc862b4dc41ab9d4e20b723d3",
+      "docs/audits/2026-10-31-app-cli-parity/README.md": "dade2faa91f6d27115fcb6710b8da0d074b97c833a60e12bc405b904aad52ee1",
+      "docs/audits/2026-10-31-app-cli-parity/capture-review.md": "20aee2207785b12c6fa7678864f974411900577ccfc3fa63fd5a853bbe5f18be",
+      "docs/audits/2026-10-31-app-cli-parity/data-agent-review.md": "4235352292877dff35a63557c2dd609f9845e35497fbe386679ef6c4faba6c67",
+      "docs/audits/2026-10-31-app-cli-parity/ui-tooling-review.md": "efe58974146ef16aa661cd8daad70f828dac88e2bcaf1b1a4c3245f8e6201504",
+      "docs/cli-testing.md": "966fa5f2b01facd84c2c415acd78cb2c4764558a178cdcbf293796de89ec92b2",
+      "docs/distribution.md": "54d3d5310a11b2cf9bccb3a40e7cd3af6be5d2883c6a489e9a9339045f76ba59",
+      "docs/plans/2026-09-17-issue-449-streaming-cursor.md": "5143137164842e34cfcfab146f06f5b2bc5b87b97b7cd50d81b42345dade82c2",
+      "docs/releases/0.8.10/README.md": "f4b9ed328da5b00ccf38b194d17d8613c40a840f308c1b57d8165eb14551ba8e",
+      "integrations/README.md": "301e95460534b5a1c7554ca06b3263ad34a59069ff54a8b883e6d6622d9a31f0",
+      "integrations/capabilities.md": "811049249bd55f4987f5adccb47aaad7f3cf7fc2632b30c36b20f6ac698099b0",
+      "integrations/skill/macparakeet-stt/SKILL.md": "2634ce08a4b759a4e338aa869300c789355652d19b53e63d6f36469c998b4e8c",
+      "plans/README.md": "42adb57987a366af14e87531e962d2c51b77f170162741cbd04cdc1c8457c102",
+      "plans/active/2026-07-03-speaker-voiceprints.md": "4a88e27bfae5b5ce116e1675f1e05fe946abaabf8fd3bf9d4e4d72c38089d5b2",
+      "plans/active/2026-09-13-timed-transcript-editing.md": "617f9616ca659120450b36c76e94092beaaab78addfccb01baa29fa15ef0aab9",
+      "plans/active/2026-09-14-issue-609-calendar-event-skip.md": "60e15c2501df27170679b8783dea80669d0997bf132150dabe08cceb9cb5a03e",
+      "plans/active/2026-09-16-issue-1062-apple-intelligence.md": "29f74d20235427ce3aee90a81afaa0f8b340b7437e926b353e43702a911979cc",
+      "plans/active/2026-09-17-issue-1079-wrapping-up.md": "0627a3a41c735699911a9183a914966ad055b5d94d183a3fe56c81886548d7f0",
+      "plans/active/2026-09-24-issue-1142-event-taps-off-main.md": "f7a32f26ea8ef1812a1a2deb18d6bdffbc80cc88c72b2adbd9b44a9ab8b01634",
+      "plans/active/2026-10-30-1291-capture-finalization.md": "8f43b4ad74c481b746c0eb9e0a218f4cc5dfb7b3ac69e93801e6bcb75dbd7f0b",
+      "spec/00-vision.md": "c824360c5cb7512bb689bca17c8bd3afaf04801ee495658d49cd860d5336743f",
+      "spec/02-features.md": "a8064c8d03eb0311f1f6306ea2a6e7b45e78e00aa6580b83480e2fc2158eb80b",
+      "spec/04-ui-patterns.md": "5c8903d2a89e5b97cf7de9a61a7e1dabd2bcfbfe31bc4d506952db15b6e6cba4",
+      "spec/README.md": "6fab2db86552f3f40b7816e32bfd1ff6585edc30a1035752ac73b59373bce9c2",
+      "spec/adr/002-local-only.md": "a30f450d27c5ae5a7b5d091db3c171c1056b08a7011d9e096071c594c2abfb7b",
+      "spec/adr/027-product-north-star.md": "fafe0eb5de668ede62336004e1e2cd21f5d004dbe2146470e81ea133acec935c",
+      "spec/contracts/README.md": "55338b17a90b8da3f9d99dd7e732b16416c974431347ddaf053982ae9ddfc954",
+      "spec/contracts/cli-json-v1.md": "38619ae3bc2ded13bace2cb673ef13dffe825c8a1d7851f3e3aba3e95614fded"
+    },
+    "targets": [
+      {
+        "document": "README.md",
+        "target": "docs/releases/0.8.10/github.md",
+        "resolved": "docs/releases/0.8.10/github.md"
+      },
+      {
+        "document": "README.md",
+        "target": "spec/README.md#release-channels-and-feature-flags",
+        "resolved": "spec/README.md"
+      },
+      {
+        "document": "README.md",
+        "target": "spec/README.md#release-channels-and-feature-flags",
+        "resolved": "spec/README.md"
+      },
+      {
+        "document": "README.md",
+        "target": "spec/README.md#release-channels-and-feature-flags",
+        "resolved": "spec/README.md"
+      },
+      {
+        "document": "README.md",
+        "target": "benchmarks/asr/",
+        "resolved": "benchmarks/asr"
+      },
+      {
+        "document": "README.md",
+        "target": "benchmarks/asr/",
+        "resolved": "benchmarks/asr"
+      },
+      {
+        "document": "README.md",
+        "target": "integrations/README.md",
+        "resolved": "integrations/README.md"
+      },
+      {
+        "document": "README.md",
+        "target": "Sources/CLI/CHANGELOG.md",
+        "resolved": "Sources/CLI/CHANGELOG.md"
+      },
+      {
+        "document": "README.md",
+        "target": "integrations/README.md",
+        "resolved": "integrations/README.md"
+      },
+      {
+        "document": "README.md",
+        "target": "Sources/MacParakeetCore/Services/Telemetry/TelemetryService.swift",
+        "resolved": "Sources/MacParakeetCore/Services/Telemetry/TelemetryService.swift"
+      },
+      {
+        "document": "README.md",
+        "target": "AGENTS.md",
+        "resolved": "AGENTS.md"
+      },
+      {
+        "document": "README.md",
+        "target": "LICENSE",
+        "resolved": "LICENSE"
+      },
+      {
+        "document": "Sources/CLI/README.md",
+        "target": "../../integrations/README.md",
+        "resolved": "integrations/README.md"
+      },
+      {
+        "document": "Sources/CLI/README.md",
+        "target": "./CHANGELOG.md",
+        "resolved": "Sources/CLI/CHANGELOG.md"
+      },
+      {
+        "document": "Sources/CLI/README.md",
+        "target": "../../spec/contracts/cli-json-v1.md",
+        "resolved": "spec/contracts/cli-json-v1.md"
+      },
+      {
+        "document": "Sources/CLI/README.md",
+        "target": "../../spec/contracts/ask-workspace.md",
+        "resolved": "spec/contracts/ask-workspace.md"
+      },
+      {
+        "document": "Sources/CLI/README.md",
+        "target": "./CHANGELOG.md",
+        "resolved": "Sources/CLI/CHANGELOG.md"
+      },
+      {
+        "document": "Sources/CLI/README.md",
+        "target": "../../spec/contracts/cli-json-v1.md",
+        "resolved": "spec/contracts/cli-json-v1.md"
+      },
+      {
+        "document": "Sources/CLI/README.md",
+        "target": "../../integrations/capabilities.md",
+        "resolved": "integrations/capabilities.md"
+      },
+      {
+        "document": "Sources/CLI/README.md",
+        "target": "../../docs/cli-testing.md",
+        "resolved": "docs/cli-testing.md"
+      },
+      {
+        "document": "Sources/MacParakeetCore/TextProcessing/README.md",
+        "target": "../../../spec/adr/032-llm-task-group-routing.md",
+        "resolved": "spec/adr/032-llm-task-group-routing.md"
+      },
+      {
+        "document": "docs/audits/2026-10-31-app-cli-parity/README.md",
+        "target": "../../../integrations/capabilities.md",
+        "resolved": "integrations/capabilities.md"
+      },
+      {
+        "document": "docs/audits/2026-10-31-app-cli-parity/README.md",
+        "target": "code-inventory.json",
+        "resolved": "docs/audits/2026-10-31-app-cli-parity/code-inventory.json"
+      },
+      {
+        "document": "docs/audits/2026-10-31-app-cli-parity/README.md",
+        "target": "ui-tooling-review.md",
+        "resolved": "docs/audits/2026-10-31-app-cli-parity/ui-tooling-review.md"
+      },
+      {
+        "document": "docs/audits/2026-10-31-app-cli-parity/README.md",
+        "target": "capture-review.md",
+        "resolved": "docs/audits/2026-10-31-app-cli-parity/capture-review.md"
+      },
+      {
+        "document": "docs/audits/2026-10-31-app-cli-parity/README.md",
+        "target": "data-agent-review.md",
+        "resolved": "docs/audits/2026-10-31-app-cli-parity/data-agent-review.md"
+      },
+      {
+        "document": "docs/audits/2026-10-31-app-cli-parity/README.md",
+        "target": "history-projection-repro.py",
+        "resolved": "docs/audits/2026-10-31-app-cli-parity/history-projection-repro.py"
+      },
+      {
+        "document": "docs/audits/2026-10-31-app-cli-parity/README.md",
+        "target": "history-projection-repro.json",
+        "resolved": "docs/audits/2026-10-31-app-cli-parity/history-projection-repro.json"
+      },
+      {
+        "document": "docs/audits/2026-10-31-app-cli-parity/README.md",
+        "target": "data-agent-review.md",
+        "resolved": "docs/audits/2026-10-31-app-cli-parity/data-agent-review.md"
+      },
+      {
+        "document": "docs/audits/2026-10-31-app-cli-parity/README.md",
+        "target": "data-agent-review.md",
+        "resolved": "docs/audits/2026-10-31-app-cli-parity/data-agent-review.md"
+      },
+      {
+        "document": "docs/audits/2026-10-31-app-cli-parity/README.md",
+        "target": "app-release.json",
+        "resolved": "docs/audits/2026-10-31-app-cli-parity/app-release.json"
+      },
+      {
+        "document": "docs/audits/2026-10-31-app-cli-parity/README.md",
+        "target": "installed-cli-version.txt",
+        "resolved": "docs/audits/2026-10-31-app-cli-parity/installed-cli-version.txt"
+      },
+      {
+        "document": "docs/audits/2026-10-31-app-cli-parity/README.md",
+        "target": "installed-cli-help.txt",
+        "resolved": "docs/audits/2026-10-31-app-cli-parity/installed-cli-help.txt"
+      },
+      {
+        "document": "docs/audits/2026-10-31-app-cli-parity/README.md",
+        "target": "installed-cli-spec.json",
+        "resolved": "docs/audits/2026-10-31-app-cli-parity/installed-cli-spec.json"
+      },
+      {
+        "document": "docs/audits/2026-10-31-app-cli-parity/README.md",
+        "target": "verification.json",
+        "resolved": "docs/audits/2026-10-31-app-cli-parity/verification.json"
+      },
+      {
+        "document": "docs/audits/2026-10-31-app-cli-parity/capture-review.md",
+        "target": "README.md",
+        "resolved": "docs/audits/2026-10-31-app-cli-parity/README.md"
+      },
+      {
+        "document": "docs/audits/2026-10-31-app-cli-parity/capture-review.md",
+        "target": "../../../Sources/CLI/Commands/RetranscribeCommand.swift",
+        "resolved": "Sources/CLI/Commands/RetranscribeCommand.swift"
+      },
+      {
+        "document": "docs/audits/2026-10-31-app-cli-parity/capture-review.md",
+        "target": "../../../Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift",
+        "resolved": "Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift"
+      },
+      {
+        "document": "docs/audits/2026-10-31-app-cli-parity/capture-review.md",
+        "target": "../../../Sources/MacParakeetCore/Services/MeetingRecording/MeetingAudioFile.swift",
+        "resolved": "Sources/MacParakeetCore/Services/MeetingRecording/MeetingAudioFile.swift"
+      },
+      {
+        "document": "docs/audits/2026-10-31-app-cli-parity/ui-tooling-review.md",
+        "target": "code-inventory.json",
+        "resolved": "docs/audits/2026-10-31-app-cli-parity/code-inventory.json"
+      },
+      {
+        "document": "docs/cli-testing.md",
+        "target": "../integrations/capabilities.md",
+        "resolved": "integrations/capabilities.md"
+      },
+      {
+        "document": "docs/cli-testing.md",
+        "target": "human-qa-guide.md#getting-a-testable-build",
+        "resolved": "docs/human-qa-guide.md"
+      },
+      {
+        "document": "docs/cli-testing.md",
+        "target": "../integrations/README.md",
+        "resolved": "integrations/README.md"
+      },
+      {
+        "document": "docs/cli-testing.md",
+        "target": "../spec/contracts/cli-json-v1.md",
+        "resolved": "spec/contracts/cli-json-v1.md"
+      },
+      {
+        "document": "docs/cli-testing.md",
+        "target": "../spec/contracts/cli-json-v1.md",
+        "resolved": "spec/contracts/cli-json-v1.md"
+      },
+      {
+        "document": "docs/distribution.md",
+        "target": "../THIRD_PARTY_LICENSES.md",
+        "resolved": "THIRD_PARTY_LICENSES.md"
+      },
+      {
+        "document": "docs/distribution.md",
+        "target": "../spec/README.md#release-channels-and-feature-flags",
+        "resolved": "spec/README.md"
+      },
+      {
+        "document": "docs/distribution.md",
+        "target": "../scripts/dist/homebrew-tap-scaffold/HOWTO.md",
+        "resolved": "scripts/dist/homebrew-tap-scaffold/HOWTO.md"
+      },
+      {
+        "document": "docs/distribution.md",
+        "target": "audits/2026-09-17-0.8.5-release-postmortem.md",
+        "resolved": "docs/audits/2026-09-17-0.8.5-release-postmortem.md"
+      },
+      {
+        "document": "docs/distribution.md",
+        "target": "../spec/contracts/meeting-url-control-v1.md",
+        "resolved": "spec/contracts/meeting-url-control-v1.md"
+      },
+      {
+        "document": "docs/plans/2026-09-17-issue-449-streaming-cursor.md",
+        "target": "../../Sources/MacParakeetCore/Services/System/README.md",
+        "resolved": "Sources/MacParakeetCore/Services/System/README.md"
+      },
+      {
+        "document": "docs/plans/2026-09-17-issue-449-streaming-cursor.md",
+        "target": "../research/2026-09-17-issue-449-streaming-cursor.md",
+        "resolved": "docs/research/2026-09-17-issue-449-streaming-cursor.md"
+      },
+      {
+        "document": "docs/plans/2026-09-17-issue-449-streaming-cursor.md",
+        "target": "../../spec/02-features.md",
+        "resolved": "spec/02-features.md"
+      },
+      {
+        "document": "docs/releases/0.8.10/README.md",
+        "target": "../../../spec/README.md#release-channels-and-feature-flags",
+        "resolved": "spec/README.md"
+      },
+      {
+        "document": "docs/releases/0.8.10/README.md",
+        "target": "../../audits/2026-10-31-app-cli-parity/README.md",
+        "resolved": "docs/audits/2026-10-31-app-cli-parity/README.md"
+      },
+      {
+        "document": "docs/releases/0.8.10/README.md",
+        "target": "github.md",
+        "resolved": "docs/releases/0.8.10/github.md"
+      },
+      {
+        "document": "docs/releases/0.8.10/README.md",
+        "target": "sparkle.html",
+        "resolved": "docs/releases/0.8.10/sparkle.html"
+      },
+      {
+        "document": "docs/releases/0.8.10/README.md",
+        "target": "../../distribution.md",
+        "resolved": "docs/distribution.md"
+      },
+      {
+        "document": "integrations/README.md",
+        "target": "../AGENTS.md",
+        "resolved": "AGENTS.md"
+      },
+      {
+        "document": "integrations/README.md",
+        "target": "../Sources/CLI/CHANGELOG.md",
+        "resolved": "Sources/CLI/CHANGELOG.md"
+      },
+      {
+        "document": "integrations/README.md",
+        "target": "../spec/README.md#release-channels-and-feature-flags",
+        "resolved": "spec/README.md"
+      },
+      {
+        "document": "integrations/README.md",
+        "target": "capabilities.md",
+        "resolved": "integrations/capabilities.md"
+      },
+      {
+        "document": "integrations/README.md",
+        "target": "../Sources/CLI/CHANGELOG.md",
+        "resolved": "Sources/CLI/CHANGELOG.md"
+      },
+      {
+        "document": "integrations/README.md",
+        "target": "../Sources/CLI/CHANGELOG.md",
+        "resolved": "Sources/CLI/CHANGELOG.md"
+      },
+      {
+        "document": "integrations/README.md",
+        "target": "../spec/contracts/ask-workspace.md",
+        "resolved": "spec/contracts/ask-workspace.md"
+      },
+      {
+        "document": "integrations/README.md",
+        "target": "../spec/contracts/meeting-artifacts-v1.md",
+        "resolved": "spec/contracts/meeting-artifacts-v1.md"
+      },
+      {
+        "document": "integrations/README.md",
+        "target": "skill/macparakeet-stt/SKILL.md",
+        "resolved": "integrations/skill/macparakeet-stt/SKILL.md"
+      },
+      {
+        "document": "integrations/README.md",
+        "target": "../docs/local-audio-diagnostics-query.md",
+        "resolved": "docs/local-audio-diagnostics-query.md"
+      },
+      {
+        "document": "integrations/README.md",
+        "target": "./openclaw/README.md",
+        "resolved": "integrations/openclaw/README.md"
+      },
+      {
+        "document": "integrations/README.md",
+        "target": "./hermes/README.md",
+        "resolved": "integrations/hermes/README.md"
+      },
+      {
+        "document": "integrations/README.md",
+        "target": "../AGENTS.md",
+        "resolved": "AGENTS.md"
+      },
+      {
+        "document": "integrations/README.md",
+        "target": "../spec/contracts/dictation-url-control-v1.md",
+        "resolved": "spec/contracts/dictation-url-control-v1.md"
+      },
+      {
+        "document": "integrations/README.md",
+        "target": "../spec/contracts/meeting-url-control-v1.md",
+        "resolved": "spec/contracts/meeting-url-control-v1.md"
+      },
+      {
+        "document": "integrations/capabilities.md",
+        "target": "../spec/README.md#release-channels-and-feature-flags",
+        "resolved": "spec/README.md"
+      },
+      {
+        "document": "integrations/capabilities.md",
+        "target": "../spec/adr/027-product-north-star.md",
+        "resolved": "spec/adr/027-product-north-star.md"
+      },
+      {
+        "document": "integrations/capabilities.md",
+        "target": "README.md#safe-automation-and-isolation",
+        "resolved": "integrations/README.md"
+      },
+      {
+        "document": "integrations/capabilities.md",
+        "target": "../docs/audits/2026-10-31-app-cli-parity/README.md",
+        "resolved": "docs/audits/2026-10-31-app-cli-parity/README.md"
+      },
+      {
+        "document": "integrations/capabilities.md",
+        "target": "../spec/contracts/dictation-url-control-v1.md",
+        "resolved": "spec/contracts/dictation-url-control-v1.md"
+      },
+      {
+        "document": "integrations/capabilities.md",
+        "target": "../spec/contracts/meeting-url-control-v1.md",
+        "resolved": "spec/contracts/meeting-url-control-v1.md"
+      },
+      {
+        "document": "integrations/capabilities.md",
+        "target": "../spec/contracts/whole-transcript-edits.md",
+        "resolved": "spec/contracts/whole-transcript-edits.md"
+      },
+      {
+        "document": "integrations/capabilities.md",
+        "target": "../Sources/CLI/Commands/",
+        "resolved": "Sources/CLI/Commands"
+      },
+      {
+        "document": "integrations/capabilities.md",
+        "target": "../Sources/MacParakeetCore/Services/",
+        "resolved": "Sources/MacParakeetCore/Services"
+      },
+      {
+        "document": "integrations/capabilities.md",
+        "target": "../Sources/MacParakeetViewModels/",
+        "resolved": "Sources/MacParakeetViewModels"
+      },
+      {
+        "document": "integrations/capabilities.md",
+        "target": "../spec/contracts/README.md",
+        "resolved": "spec/contracts/README.md"
+      },
+      {
+        "document": "integrations/capabilities.md",
+        "target": "../docs/audits/2026-10-31-app-cli-parity/README.md#runtime-findings",
+        "resolved": "docs/audits/2026-10-31-app-cli-parity/README.md"
+      },
+      {
+        "document": "integrations/skill/macparakeet-stt/SKILL.md",
+        "target": "../../README.md",
+        "resolved": "integrations/README.md"
+      },
+      {
+        "document": "integrations/skill/macparakeet-stt/SKILL.md",
+        "target": "../../../AGENTS.md",
+        "resolved": "AGENTS.md"
+      },
+      {
+        "document": "integrations/skill/macparakeet-stt/SKILL.md",
+        "target": "../../capabilities.md",
+        "resolved": "integrations/capabilities.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "../docs/plans/2026-09-14-2147-feat-audio-speaker-timeline-plan.md",
+        "resolved": "docs/plans/2026-09-14-2147-feat-audio-speaker-timeline-plan.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-10-02-diarization-outcomes.md",
+        "resolved": "plans/active/2026-10-02-diarization-outcomes.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-09-24-issue-1142-event-taps-off-main.md",
+        "resolved": "plans/active/2026-09-24-issue-1142-event-taps-off-main.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "../docs/plans/2026-09-17-issue-449-streaming-cursor.md",
+        "resolved": "docs/plans/2026-09-17-issue-449-streaming-cursor.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "../Sources/MacParakeetCore/Services/System/README.md",
+        "resolved": "Sources/MacParakeetCore/Services/System/README.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-09-17-issue-1079-wrapping-up.md",
+        "resolved": "plans/active/2026-09-17-issue-1079-wrapping-up.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-10-30-1291-capture-finalization.md",
+        "resolved": "plans/active/2026-10-30-1291-capture-finalization.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-09-16-issue-1062-apple-intelligence.md",
+        "resolved": "plans/active/2026-09-16-issue-1062-apple-intelligence.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "../spec/adr/011-llm-cloud-and-local-providers.md",
+        "resolved": "spec/adr/011-llm-cloud-and-local-providers.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "../spec/adr/032-llm-task-group-routing.md",
+        "resolved": "spec/adr/032-llm-task-group-routing.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-09-14-issue-609-calendar-event-skip.md",
+        "resolved": "plans/active/2026-09-14-issue-609-calendar-event-skip.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-09-13-timed-transcript-editing.md",
+        "resolved": "plans/active/2026-09-13-timed-transcript-editing.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "../docs/plans/2026-09-11-1942-feat-shareable-transcripts-plan.md",
+        "resolved": "docs/plans/2026-09-11-1942-feat-shareable-transcripts-plan.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "../docs/share-links-implementation.md",
+        "resolved": "docs/share-links-implementation.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "../docs/plans/2026-09-11-issue-895-meeting-split-plan.md",
+        "resolved": "docs/plans/2026-09-11-issue-895-meeting-split-plan.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-09-05-post-meeting-notes-and-prompt-context.md",
+        "resolved": "plans/active/2026-09-05-post-meeting-notes-and-prompt-context.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-09-03-per-prompt-inference-settings.md",
+        "resolved": "plans/active/2026-09-03-per-prompt-inference-settings.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-09-05-speaker-attribution-editing.md",
+        "resolved": "plans/active/2026-09-05-speaker-attribution-editing.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-07-20-dapt-export.md",
+        "resolved": "plans/active/2026-07-20-dapt-export.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-07-03-speaker-voiceprints.md",
+        "resolved": "plans/active/2026-07-03-speaker-voiceprints.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "../spec/contracts/speaker-voiceprints.md",
+        "resolved": "spec/contracts/speaker-voiceprints.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-07-03-parakeet-custom-vocabulary.md",
+        "resolved": "plans/active/2026-07-03-parakeet-custom-vocabulary.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-07-03-cjk-local-engines.md",
+        "resolved": "plans/active/2026-07-03-cjk-local-engines.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-07-03-apple-speechtranscriber-spike.md",
+        "resolved": "plans/active/2026-07-03-apple-speechtranscriber-spike.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-06-27-on-device-local-llm.md",
+        "resolved": "plans/active/2026-06-27-on-device-local-llm.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-06-27-on-device-local-llm-phase0-eval.md",
+        "resolved": "plans/active/2026-06-27-on-device-local-llm-phase0-eval.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-05-dictation-first-onboarding.md",
+        "resolved": "plans/active/2026-05-dictation-first-onboarding.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-06-12-telemetry-allowlist-ci-guard.md",
+        "resolved": "plans/active/2026-06-12-telemetry-allowlist-ci-guard.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-06-12-june-churn-regression-tests.md",
+        "resolved": "plans/active/2026-06-12-june-churn-regression-tests.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-06-19-meetings-workspace-productization.md",
+        "resolved": "plans/active/2026-06-19-meetings-workspace-productization.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-07-10-meeting-knowledge-layer.md",
+        "resolved": "plans/active/2026-07-10-meeting-knowledge-layer.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-06-18-meeting-auto-title-followups.md",
+        "resolved": "plans/active/2026-06-18-meeting-auto-title-followups.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-07-04-meeting-health-artifacts-speaker-rename.md",
+        "resolved": "plans/active/2026-07-04-meeting-health-artifacts-speaker-rename.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-07-04-context-engine-agent-tools.md",
+        "resolved": "plans/active/2026-07-04-context-engine-agent-tools.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-07-04-issue-647-local-transcription-title-rename.md",
+        "resolved": "plans/active/2026-07-04-issue-647-local-transcription-title-rename.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-06-14-meeting-auto-stop.md",
+        "resolved": "plans/active/2026-06-14-meeting-auto-stop.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-06-14-meeting-auto-stop-orchestration.md",
+        "resolved": "plans/active/2026-06-14-meeting-auto-stop-orchestration.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-06-14-meeting-mic-reliability.md",
+        "resolved": "plans/active/2026-06-14-meeting-mic-reliability.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-06-14-meeting-activity-detection.md",
+        "resolved": "plans/active/2026-06-14-meeting-activity-detection.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-07-04-long-meeting-aec-policy.md",
+        "resolved": "plans/active/2026-07-04-long-meeting-aec-policy.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-06-27-meeting-aec-measurement-harness.md",
+        "resolved": "plans/active/2026-06-27-meeting-aec-measurement-harness.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-06-28-meeting-aec-full-close.md",
+        "resolved": "plans/active/2026-06-28-meeting-aec-full-close.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-04-settings-ia-overhaul.md",
+        "resolved": "plans/active/2026-04-settings-ia-overhaul.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-05-ai-setup-ux.md",
+        "resolved": "plans/active/2026-05-ai-setup-ux.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-05-engine-switch-ux-revamp.md",
+        "resolved": "plans/active/2026-05-engine-switch-ux-revamp.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-05-engine-switch-stage-b-background-optimize.md",
+        "resolved": "plans/active/2026-05-engine-switch-stage-b-background-optimize.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-05-dictation-stall-integration-tests.md",
+        "resolved": "plans/active/2026-05-dictation-stall-integration-tests.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-06-13-live-dictation-streaming-parakeet-and-preview-ui.md",
+        "resolved": "plans/active/2026-06-13-live-dictation-streaming-parakeet-and-preview-ui.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-06-issue-474-instant-dictation-media-pause-bleed.md",
+        "resolved": "plans/active/2026-06-issue-474-instant-dictation-media-pause-bleed.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-09-16-telemetry-observability-followthrough.md",
+        "resolved": "plans/active/2026-09-16-telemetry-observability-followthrough.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-09-15-issue-1046-speaker-over-split.md",
+        "resolved": "plans/active/2026-09-15-issue-1046-speaker-over-split.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-05-speaker-diarization-quality.md",
+        "resolved": "plans/active/2026-05-speaker-diarization-quality.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-05-dictation-paste-targeting-ux.md",
+        "resolved": "plans/active/2026-05-dictation-paste-targeting-ux.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-05-voice-command-agent-mode.md",
+        "resolved": "plans/active/2026-05-voice-command-agent-mode.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-06-21-spoken-transforms.md",
+        "resolved": "plans/active/2026-06-21-spoken-transforms.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-06-21-spoken-transforms.md",
+        "resolved": "plans/active/2026-06-21-spoken-transforms.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-06-21-refinement-validator.md",
+        "resolved": "plans/active/2026-06-21-refinement-validator.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-06-28-transcript-detail-refresh.md",
+        "resolved": "plans/active/2026-06-28-transcript-detail-refresh.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/asr-benchmark-and-model-expansion.md",
+        "resolved": "plans/active/asr-benchmark-and-model-expansion.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-06-12-advisor-index.md",
+        "resolved": "plans/active/2026-06-12-advisor-index.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-06-15-advisor-index.md",
+        "resolved": "plans/active/2026-06-15-advisor-index.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "completed/2026-09-05-versioned-prompt-manager-meeting-classification.md",
+        "resolved": "plans/completed/2026-09-05-versioned-prompt-manager-meeting-classification.md"
+      },
+      {
+        "document": "plans/README.md",
+        "target": "active/2026-09-19-jev-voice-control.md",
+        "resolved": "plans/active/2026-09-19-jev-voice-control.md"
+      },
+      {
+        "document": "plans/active/2026-07-03-speaker-voiceprints.md",
+        "target": "../../docs/research/2026-07-03-speaker-voiceprints/",
+        "resolved": "docs/research/2026-07-03-speaker-voiceprints"
+      },
+      {
+        "document": "plans/active/2026-07-03-speaker-voiceprints.md",
+        "target": "../../docs/plans/2026-06-14-002-speaker-diarization-world-class-architecture.md",
+        "resolved": "docs/plans/2026-06-14-002-speaker-diarization-world-class-architecture.md"
+      },
+      {
+        "document": "plans/active/2026-07-03-speaker-voiceprints.md",
+        "target": "2026-05-speaker-diarization-quality.md",
+        "resolved": "plans/active/2026-05-speaker-diarization-quality.md"
+      },
+      {
+        "document": "plans/active/2026-07-03-speaker-voiceprints.md",
+        "target": "../../docs/audits/2026-09-15-voice-profile-review.md",
+        "resolved": "docs/audits/2026-09-15-voice-profile-review.md"
+      },
+      {
+        "document": "plans/active/2026-07-03-speaker-voiceprints.md",
+        "target": "../../spec/contracts/speaker-voiceprints.md",
+        "resolved": "spec/contracts/speaker-voiceprints.md"
+      },
+      {
+        "document": "plans/active/2026-09-13-timed-transcript-editing.md",
+        "target": "../../spec/adr/031-timed-transcript-corrections.md",
+        "resolved": "spec/adr/031-timed-transcript-corrections.md"
+      },
+      {
+        "document": "plans/active/2026-09-13-timed-transcript-editing.md",
+        "target": "../../spec/adr/031-timed-transcript-corrections.md",
+        "resolved": "spec/adr/031-timed-transcript-corrections.md"
+      },
+      {
+        "document": "plans/active/2026-09-14-issue-609-calendar-event-skip.md",
+        "target": "../../spec/adr/017-calendar-meeting-auto-start.md",
+        "resolved": "spec/adr/017-calendar-meeting-auto-start.md"
+      },
+      {
+        "document": "plans/active/2026-09-14-issue-609-calendar-event-skip.md",
+        "target": "../../spec/02-features.md",
+        "resolved": "spec/02-features.md"
+      },
+      {
+        "document": "plans/active/2026-09-14-issue-609-calendar-event-skip.md",
+        "target": "../../spec/contracts/cli-json-v1.md",
+        "resolved": "spec/contracts/cli-json-v1.md"
+      },
+      {
+        "document": "plans/active/2026-09-16-issue-1062-apple-intelligence.md",
+        "target": "../../spec/adr/011-llm-cloud-and-local-providers.md",
+        "resolved": "spec/adr/011-llm-cloud-and-local-providers.md"
+      },
+      {
+        "document": "plans/active/2026-09-16-issue-1062-apple-intelligence.md",
+        "target": "../../spec/adr/032-llm-task-group-routing.md",
+        "resolved": "spec/adr/032-llm-task-group-routing.md"
+      },
+      {
+        "document": "plans/active/2026-09-16-issue-1062-apple-intelligence.md",
+        "target": "../../docs/research/2026-09-16-apple-intelligence-quality-ab.md",
+        "resolved": "docs/research/2026-09-16-apple-intelligence-quality-ab.md"
+      },
+      {
+        "document": "plans/active/2026-09-17-issue-1079-wrapping-up.md",
+        "target": "2026-10-30-1291-capture-finalization.md",
+        "resolved": "plans/active/2026-10-30-1291-capture-finalization.md"
+      },
+      {
+        "document": "plans/active/2026-09-17-issue-1079-wrapping-up.md",
+        "target": "../../docs/audits/2026-09-17-issue-1079-wrapping-up.md",
+        "resolved": "docs/audits/2026-09-17-issue-1079-wrapping-up.md"
+      },
+      {
+        "document": "spec/00-vision.md",
+        "target": "adr/027-product-north-star.md",
+        "resolved": "spec/adr/027-product-north-star.md"
+      },
+      {
+        "document": "spec/00-vision.md",
+        "target": "adr/027-product-north-star.md",
+        "resolved": "spec/adr/027-product-north-star.md"
+      },
+      {
+        "document": "spec/00-vision.md",
+        "target": "../integrations/README.md",
+        "resolved": "integrations/README.md"
+      },
+      {
+        "document": "spec/00-vision.md",
+        "target": "adr/027-product-north-star.md",
+        "resolved": "spec/adr/027-product-north-star.md"
+      },
+      {
+        "document": "spec/00-vision.md",
+        "target": "adr/002-local-only.md",
+        "resolved": "spec/adr/002-local-only.md"
+      },
+      {
+        "document": "spec/00-vision.md",
+        "target": "../benchmarks/asr/",
+        "resolved": "benchmarks/asr"
+      },
+      {
+        "document": "spec/00-vision.md",
+        "target": "adr/002-local-only.md",
+        "resolved": "spec/adr/002-local-only.md"
+      },
+      {
+        "document": "spec/00-vision.md",
+        "target": "README.md#release-channels-and-feature-flags",
+        "resolved": "spec/README.md"
+      },
+      {
+        "document": "spec/00-vision.md",
+        "target": "adr/027-product-north-star.md",
+        "resolved": "spec/adr/027-product-north-star.md"
+      },
+      {
+        "document": "spec/00-vision.md",
+        "target": "adr/027-product-north-star.md",
+        "resolved": "spec/adr/027-product-north-star.md"
+      },
+      {
+        "document": "spec/00-vision.md",
+        "target": "adr/027-product-north-star.md",
+        "resolved": "spec/adr/027-product-north-star.md"
+      },
+      {
+        "document": "spec/00-vision.md",
+        "target": "adr/027-product-north-star.md",
+        "resolved": "spec/adr/027-product-north-star.md"
+      },
+      {
+        "document": "spec/00-vision.md",
+        "target": "adr/027-product-north-star.md",
+        "resolved": "spec/adr/027-product-north-star.md"
+      },
+      {
+        "document": "spec/00-vision.md",
+        "target": "README.md#release-channels-and-feature-flags",
+        "resolved": "spec/README.md"
+      },
+      {
+        "document": "spec/00-vision.md",
+        "target": "./02-features.md",
+        "resolved": "spec/02-features.md"
+      },
+      {
+        "document": "spec/00-vision.md",
+        "target": "./03-architecture.md",
+        "resolved": "spec/03-architecture.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "README.md#release-channels-and-feature-flags",
+        "resolved": "spec/README.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "./00-vision.md",
+        "resolved": "spec/00-vision.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "contracts/dictation-url-control-v1.md",
+        "resolved": "spec/contracts/dictation-url-control-v1.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "contracts/voice-control.md",
+        "resolved": "spec/contracts/voice-control.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "adr/033-explicit-voice-control.md",
+        "resolved": "spec/adr/033-explicit-voice-control.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "../docs/research/2026-09-19-jev-voice-control/release-scope.md",
+        "resolved": "docs/research/2026-09-19-jev-voice-control/release-scope.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "contracts/dictation-shortcuts.md",
+        "resolved": "spec/contracts/dictation-shortcuts.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "../docs/dictation-sounds.md",
+        "resolved": "docs/dictation-sounds.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "adr/032-llm-task-group-routing.md",
+        "resolved": "spec/adr/032-llm-task-group-routing.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "adr/032-llm-task-group-routing.md",
+        "resolved": "spec/adr/032-llm-task-group-routing.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "contracts/ask-workspace.md",
+        "resolved": "spec/contracts/ask-workspace.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "contracts/audio-speaker-timeline-v1.md",
+        "resolved": "spec/contracts/audio-speaker-timeline-v1.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "../docs/plans/2026-09-14-2147-feat-audio-speaker-timeline-plan.md",
+        "resolved": "docs/plans/2026-09-14-2147-feat-audio-speaker-timeline-plan.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "adr/031-timed-transcript-corrections.md",
+        "resolved": "spec/adr/031-timed-transcript-corrections.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "../plans/active/2026-07-03-speaker-voiceprints.md",
+        "resolved": "plans/active/2026-07-03-speaker-voiceprints.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "../docs/voice-profiles-privacy.md",
+        "resolved": "docs/voice-profiles-privacy.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "contracts/youtube-video-playback.md",
+        "resolved": "spec/contracts/youtube-video-playback.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "12-processing-layer.md",
+        "resolved": "spec/12-processing-layer.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "adr/013-prompt-library-multi-summary.md",
+        "resolved": "spec/adr/013-prompt-library-multi-summary.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "adr/030-external-meeting-import.md",
+        "resolved": "spec/adr/030-external-meeting-import.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "contracts/meeting-import-v1.md",
+        "resolved": "spec/contracts/meeting-import-v1.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "contracts/meeting-url-control-v1.md",
+        "resolved": "spec/contracts/meeting-url-control-v1.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "README.md#release-channels-and-feature-flags",
+        "resolved": "spec/README.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "../integrations/README.md",
+        "resolved": "integrations/README.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "contracts/cli-json-v1.md",
+        "resolved": "spec/contracts/cli-json-v1.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "../plans/active/2026-09-14-issue-609-calendar-event-skip.md",
+        "resolved": "plans/active/2026-09-14-issue-609-calendar-event-skip.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "adr/014-meeting-recording.md",
+        "resolved": "spec/adr/014-meeting-recording.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "README.md#release-channels-and-feature-flags",
+        "resolved": "spec/README.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "adr/020-live-meeting-notepad-and-memo-summaries.md",
+        "resolved": "spec/adr/020-live-meeting-notepad-and-memo-summaries.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "adr/031-timed-transcript-corrections.md",
+        "resolved": "spec/adr/031-timed-transcript-corrections.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "adr/010-speaker-diarization.md",
+        "resolved": "spec/adr/010-speaker-diarization.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "01-data-model.md",
+        "resolved": "spec/01-data-model.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "14-per-prompt-inference-settings.md",
+        "resolved": "spec/14-per-prompt-inference-settings.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "04-ui-patterns.md#llm-markdown-content",
+        "resolved": "spec/04-ui-patterns.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "../integrations/README.md",
+        "resolved": "integrations/README.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "contracts/custom-word-deletion.md",
+        "resolved": "spec/contracts/custom-word-deletion.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "contracts/dapt-export-v1.md",
+        "resolved": "spec/contracts/dapt-export-v1.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "contracts/meeting-splitting.md",
+        "resolved": "spec/contracts/meeting-splitting.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "adr/014-meeting-recording.md",
+        "resolved": "spec/adr/014-meeting-recording.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "04-ui-patterns.md#meeting-recording-panel-v06",
+        "resolved": "spec/04-ui-patterns.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "02-features.md#f49-start-meetings-muted",
+        "resolved": "spec/02-features.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "adr/014-meeting-recording.md",
+        "resolved": "spec/adr/014-meeting-recording.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "02-features.md#f1-system-wide-dictation",
+        "resolved": "spec/02-features.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "02-features.md#f1-system-wide-dictation",
+        "resolved": "spec/02-features.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "02-features.md#f4-dictation-history",
+        "resolved": "spec/02-features.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "../docs/dictation-sounds.md",
+        "resolved": "docs/dictation-sounds.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "02-features.md#f1-system-wide-dictation",
+        "resolved": "spec/02-features.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "adr/005-onboarding-first-run.md",
+        "resolved": "spec/adr/005-onboarding-first-run.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "02-features.md#f8-ai-formatter",
+        "resolved": "spec/02-features.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "02-features.md#f1-system-wide-dictation",
+        "resolved": "spec/02-features.md"
+      },
+      {
+        "document": "spec/02-features.md",
+        "target": "./03-architecture.md",
+        "resolved": "spec/03-architecture.md"
+      },
+      {
+        "document": "spec/04-ui-patterns.md",
+        "target": "../docs/design/2026-09-15-cover-geometry/philosophy.md",
+        "resolved": "docs/design/2026-09-15-cover-geometry/philosophy.md"
+      },
+      {
+        "document": "spec/04-ui-patterns.md",
+        "target": "adr/031-timed-transcript-corrections.md",
+        "resolved": "spec/adr/031-timed-transcript-corrections.md"
+      },
+      {
+        "document": "spec/04-ui-patterns.md",
+        "target": "contracts/custom-word-deletion.md",
+        "resolved": "spec/contracts/custom-word-deletion.md"
+      },
+      {
+        "document": "spec/04-ui-patterns.md",
+        "target": "../docs/plans/2026-09-07-issue-882-bulk-delete.md",
+        "resolved": "docs/plans/2026-09-07-issue-882-bulk-delete.md"
+      },
+      {
+        "document": "spec/04-ui-patterns.md",
+        "target": "adr/005-onboarding-first-run.md",
+        "resolved": "spec/adr/005-onboarding-first-run.md"
+      },
+      {
+        "document": "spec/04-ui-patterns.md",
+        "target": "../docs/audits/2026-10-02-app-audit/gui-onboarding.md",
+        "resolved": "docs/audits/2026-10-02-app-audit/gui-onboarding.md"
+      },
+      {
+        "document": "spec/04-ui-patterns.md",
+        "target": "contracts/ask-workspace.md",
+        "resolved": "spec/contracts/ask-workspace.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/002-local-only.md",
+        "resolved": "spec/adr/002-local-only.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "00-vision.md",
+        "resolved": "spec/00-vision.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "01-data-model.md",
+        "resolved": "spec/01-data-model.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "02-features.md",
+        "resolved": "spec/02-features.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "03-architecture.md",
+        "resolved": "spec/03-architecture.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "04-ui-patterns.md",
+        "resolved": "spec/04-ui-patterns.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "05-audio-pipeline.md",
+        "resolved": "spec/05-audio-pipeline.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "06-stt-engine.md",
+        "resolved": "spec/06-stt-engine.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "07-text-processing.md",
+        "resolved": "spec/07-text-processing.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "08-error-handling.md",
+        "resolved": "spec/08-error-handling.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "09-testing.md",
+        "resolved": "spec/09-testing.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "10-ai-coding-method.md",
+        "resolved": "spec/10-ai-coding-method.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "11-llm-integration.md",
+        "resolved": "spec/11-llm-integration.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "12-processing-layer.md",
+        "resolved": "spec/12-processing-layer.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "13-agent-workflows.md",
+        "resolved": "spec/13-agent-workflows.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "14-per-prompt-inference-settings.md",
+        "resolved": "spec/14-per-prompt-inference-settings.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "15-shareable-transcripts.md",
+        "resolved": "spec/15-shareable-transcripts.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "contracts/ask-workspace.md",
+        "resolved": "spec/contracts/ask-workspace.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/034-meeting-ask-workspace.md",
+        "resolved": "spec/adr/034-meeting-ask-workspace.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "contracts/",
+        "resolved": "spec/contracts"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "contracts/speaker-voiceprints.md",
+        "resolved": "spec/contracts/speaker-voiceprints.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "contracts/share-link-bundle-v1.md",
+        "resolved": "spec/contracts/share-link-bundle-v1.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "contracts/share-service-v1.md",
+        "resolved": "spec/contracts/share-service-v1.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "contracts/ask-workspace.md",
+        "resolved": "spec/contracts/ask-workspace.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "contracts/voice-control.md",
+        "resolved": "spec/contracts/voice-control.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "../docs/research/2026-09-19-jev-voice-control/release-scope.md",
+        "resolved": "docs/research/2026-09-19-jev-voice-control/release-scope.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "contracts/audio-speaker-timeline-v1.md",
+        "resolved": "spec/contracts/audio-speaker-timeline-v1.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "../docs/plans/2026-09-14-2147-feat-audio-speaker-timeline-plan.md",
+        "resolved": "docs/plans/2026-09-14-2147-feat-audio-speaker-timeline-plan.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "04-ui-patterns.md",
+        "resolved": "spec/04-ui-patterns.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "../docs/brand-identity.md",
+        "resolved": "docs/brand-identity.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "../brand-assets/README.md",
+        "resolved": "brand-assets/README.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "../docs/design-overhaul.md",
+        "resolved": "docs/design-overhaul.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "../Sources/CLI/CHANGELOG.md#unreleased",
+        "resolved": "Sources/CLI/CHANGELOG.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "../docs/releases/0.8.10/github.md",
+        "resolved": "docs/releases/0.8.10/github.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "../docs/releases/0.8.10/README.md",
+        "resolved": "docs/releases/0.8.10/README.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "../docs/audits/2026-10-31-app-cli-parity/README.md",
+        "resolved": "docs/audits/2026-10-31-app-cli-parity/README.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "../integrations/capabilities.md",
+        "resolved": "integrations/capabilities.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "contracts/ask-workspace.md",
+        "resolved": "spec/contracts/ask-workspace.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "contracts/voice-control.md",
+        "resolved": "spec/contracts/voice-control.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "../docs/share-links-implementation.md",
+        "resolved": "docs/share-links-implementation.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "contracts/speaker-voiceprints.md",
+        "resolved": "spec/contracts/speaker-voiceprints.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "../plans/active/2026-07-03-speaker-voiceprints.md#integration-and-release-gates-2026-09-10",
+        "resolved": "plans/active/2026-07-03-speaker-voiceprints.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "../docs/qa/2026-09-07-0.8.0/README.md",
+        "resolved": "docs/qa/2026-09-07-0.8.0/README.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/001-parakeet-stt.md",
+        "resolved": "spec/adr/001-parakeet-stt.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/002-local-only.md",
+        "resolved": "spec/adr/002-local-only.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/003-one-time-purchase.md",
+        "resolved": "spec/adr/003-one-time-purchase.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/004-deterministic-pipeline.md",
+        "resolved": "spec/adr/004-deterministic-pipeline.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/005-onboarding-first-run.md",
+        "resolved": "spec/adr/005-onboarding-first-run.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/006-trial-and-license-activation.md",
+        "resolved": "spec/adr/006-trial-and-license-activation.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/007-fluidaudio-coreml-migration.md",
+        "resolved": "spec/adr/007-fluidaudio-coreml-migration.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/008-local-llm-runtime-and-model.md",
+        "resolved": "spec/adr/008-local-llm-runtime-and-model.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/009-custom-hotkey.md",
+        "resolved": "spec/adr/009-custom-hotkey.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/010-speaker-diarization.md",
+        "resolved": "spec/adr/010-speaker-diarization.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/011-llm-cloud-and-local-providers.md",
+        "resolved": "spec/adr/011-llm-cloud-and-local-providers.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/012-telemetry-system.md",
+        "resolved": "spec/adr/012-telemetry-system.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/013-prompt-library-multi-summary.md",
+        "resolved": "spec/adr/013-prompt-library-multi-summary.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/014-meeting-recording.md",
+        "resolved": "spec/adr/014-meeting-recording.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/015-concurrent-dictation-meeting.md",
+        "resolved": "spec/adr/015-concurrent-dictation-meeting.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/016-centralized-stt-runtime-scheduler.md",
+        "resolved": "spec/adr/016-centralized-stt-runtime-scheduler.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/017-calendar-meeting-auto-start.md",
+        "resolved": "spec/adr/017-calendar-meeting-auto-start.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/018-live-meeting-insights-and-ask.md",
+        "resolved": "spec/adr/018-live-meeting-insights-and-ask.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/019-crash-resilient-meeting-recording.md",
+        "resolved": "spec/adr/019-crash-resilient-meeting-recording.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/020-live-meeting-notepad-and-memo-summaries.md",
+        "resolved": "spec/adr/020-live-meeting-notepad-and-memo-summaries.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/021-whisperkit-multilingual-stt.md",
+        "resolved": "spec/adr/021-whisperkit-multilingual-stt.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/022-transforms-system-wide-rewrite.md",
+        "resolved": "spec/adr/022-transforms-system-wide-rewrite.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/023-activity-based-meeting-auto-stop.md",
+        "resolved": "spec/adr/023-activity-based-meeting-auto-stop.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/024-activity-based-meeting-detection.md",
+        "resolved": "spec/adr/024-activity-based-meeting-detection.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/025-meeting-capture-reliability.md",
+        "resolved": "spec/adr/025-meeting-capture-reliability.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/026-asr-engine-strategy.md",
+        "resolved": "spec/adr/026-asr-engine-strategy.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/027-product-north-star.md",
+        "resolved": "spec/adr/027-product-north-star.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/028-meeting-echo-cancellation.md",
+        "resolved": "spec/adr/028-meeting-echo-cancellation.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/029-encrypted-shareable-transcript-snapshots.md",
+        "resolved": "spec/adr/029-encrypted-shareable-transcript-snapshots.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/030-external-meeting-import.md",
+        "resolved": "spec/adr/030-external-meeting-import.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/031-timed-transcript-corrections.md",
+        "resolved": "spec/adr/031-timed-transcript-corrections.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/032-llm-task-group-routing.md",
+        "resolved": "spec/adr/032-llm-task-group-routing.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/033-explicit-voice-control.md",
+        "resolved": "spec/adr/033-explicit-voice-control.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "adr/034-meeting-ask-workspace.md",
+        "resolved": "spec/adr/034-meeting-ask-workspace.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "contracts/meeting-import-v1.md",
+        "resolved": "spec/contracts/meeting-import-v1.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "contracts/cli-json-v1.md",
+        "resolved": "spec/contracts/cli-json-v1.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "../plans/active/2026-09-14-issue-609-calendar-event-skip.md",
+        "resolved": "plans/active/2026-09-14-issue-609-calendar-event-skip.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "02-features.md",
+        "resolved": "spec/02-features.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "../docs/audits/2026-09-07-documentation-alignment.md",
+        "resolved": "docs/audits/2026-09-07-documentation-alignment.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "../docs/research/2026-09-07-documentation-audit-followups.md",
+        "resolved": "docs/research/2026-09-07-documentation-audit-followups.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "../AGENTS.md",
+        "resolved": "AGENTS.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "../docs/historical/requirements-legacy.yaml",
+        "resolved": "docs/historical/requirements-legacy.yaml"
+      },
+      {
+        "document": "spec/adr/002-local-only.md",
+        "target": "033-explicit-voice-control.md",
+        "resolved": "spec/adr/033-explicit-voice-control.md"
+      },
+      {
+        "document": "spec/adr/002-local-only.md",
+        "target": "../contracts/voice-control.md",
+        "resolved": "spec/contracts/voice-control.md"
+      },
+      {
+        "document": "spec/adr/002-local-only.md",
+        "target": "029-encrypted-shareable-transcript-snapshots.md",
+        "resolved": "spec/adr/029-encrypted-shareable-transcript-snapshots.md"
+      },
+      {
+        "document": "spec/adr/027-product-north-star.md",
+        "target": "002-local-only.md",
+        "resolved": "spec/adr/002-local-only.md"
+      },
+      {
+        "document": "spec/adr/027-product-north-star.md",
+        "target": "014-meeting-recording.md",
+        "resolved": "spec/adr/014-meeting-recording.md"
+      },
+      {
+        "document": "spec/adr/027-product-north-star.md",
+        "target": "../00-vision.md",
+        "resolved": "spec/00-vision.md"
+      },
+      {
+        "document": "spec/adr/027-product-north-star.md",
+        "target": "../06-stt-engine.md",
+        "resolved": "spec/06-stt-engine.md"
+      },
+      {
+        "document": "spec/adr/027-product-north-star.md",
+        "target": "../../integrations/README.md#scope-of-the-cli",
+        "resolved": "integrations/README.md"
+      },
+      {
+        "document": "spec/adr/027-product-north-star.md",
+        "target": "../contracts/meeting-url-control-v1.md",
+        "resolved": "spec/contracts/meeting-url-control-v1.md"
+      },
+      {
+        "document": "spec/adr/027-product-north-star.md",
+        "target": "../../integrations/capabilities.md",
+        "resolved": "integrations/capabilities.md"
+      },
+      {
+        "document": "spec/adr/027-product-north-star.md",
+        "target": "../contracts/dictation-url-control-v1.md",
+        "resolved": "spec/contracts/dictation-url-control-v1.md"
+      },
+      {
+        "document": "spec/adr/027-product-north-star.md",
+        "target": "002-local-only.md",
+        "resolved": "spec/adr/002-local-only.md"
+      },
+      {
+        "document": "spec/adr/027-product-north-star.md",
+        "target": "../06-stt-engine.md",
+        "resolved": "spec/06-stt-engine.md"
+      },
+      {
+        "document": "spec/adr/027-product-north-star.md",
+        "target": "025-meeting-capture-reliability.md",
+        "resolved": "spec/adr/025-meeting-capture-reliability.md"
+      },
+      {
+        "document": "spec/adr/027-product-north-star.md",
+        "target": "../06-stt-engine.md",
+        "resolved": "spec/06-stt-engine.md"
+      },
+      {
+        "document": "spec/adr/027-product-north-star.md",
+        "target": "../00-vision.md",
+        "resolved": "spec/00-vision.md"
+      },
+      {
+        "document": "spec/adr/027-product-north-star.md",
+        "target": "033-explicit-voice-control.md",
+        "resolved": "spec/adr/033-explicit-voice-control.md"
+      },
+      {
+        "document": "spec/contracts/README.md",
+        "target": "credential-access.md",
+        "resolved": "spec/contracts/credential-access.md"
+      },
+      {
+        "document": "spec/contracts/README.md",
+        "target": "dictation-url-control-v1.md",
+        "resolved": "spec/contracts/dictation-url-control-v1.md"
+      },
+      {
+        "document": "spec/contracts/README.md",
+        "target": "meeting-url-control-v1.md",
+        "resolved": "spec/contracts/meeting-url-control-v1.md"
+      },
+      {
+        "document": "spec/contracts/README.md",
+        "target": "voice-control.md",
+        "resolved": "spec/contracts/voice-control.md"
+      },
+      {
+        "document": "spec/contracts/README.md",
+        "target": "dictation-shortcuts.md",
+        "resolved": "spec/contracts/dictation-shortcuts.md"
+      },
+      {
+        "document": "spec/contracts/README.md",
+        "target": "meeting-import-v1.md",
+        "resolved": "spec/contracts/meeting-import-v1.md"
+      },
+      {
+        "document": "spec/contracts/README.md",
+        "target": "meeting-splitting.md",
+        "resolved": "spec/contracts/meeting-splitting.md"
+      },
+      {
+        "document": "spec/contracts/README.md",
+        "target": "saved-audio-auto-prompt-completion.md",
+        "resolved": "spec/contracts/saved-audio-auto-prompt-completion.md"
+      },
+      {
+        "document": "spec/contracts/README.md",
+        "target": "meeting-artifacts-v1.md",
+        "resolved": "spec/contracts/meeting-artifacts-v1.md"
+      },
+      {
+        "document": "spec/contracts/README.md",
+        "target": "meeting-recovery-retention.md",
+        "resolved": "spec/contracts/meeting-recovery-retention.md"
+      },
+      {
+        "document": "spec/contracts/README.md",
+        "target": "cli-json-v1.md",
+        "resolved": "spec/contracts/cli-json-v1.md"
+      },
+      {
+        "document": "spec/contracts/README.md",
+        "target": "ask-workspace.md",
+        "resolved": "spec/contracts/ask-workspace.md"
+      },
+      {
+        "document": "spec/contracts/README.md",
+        "target": "speaker-voiceprints.md",
+        "resolved": "spec/contracts/speaker-voiceprints.md"
+      },
+      {
+        "document": "spec/contracts/README.md",
+        "target": "whole-transcript-edits.md",
+        "resolved": "spec/contracts/whole-transcript-edits.md"
+      },
+      {
+        "document": "spec/contracts/README.md",
+        "target": "dapt-export-v1.md",
+        "resolved": "spec/contracts/dapt-export-v1.md"
+      },
+      {
+        "document": "spec/contracts/README.md",
+        "target": "file-transcription-audio-tracks.md",
+        "resolved": "spec/contracts/file-transcription-audio-tracks.md"
+      },
+      {
+        "document": "spec/contracts/README.md",
+        "target": "youtube-video-playback.md",
+        "resolved": "spec/contracts/youtube-video-playback.md"
+      },
+      {
+        "document": "spec/contracts/README.md",
+        "target": "custom-word-deletion.md",
+        "resolved": "spec/contracts/custom-word-deletion.md"
+      },
+      {
+        "document": "spec/contracts/README.md",
+        "target": "speaker-correction-view-model.md",
+        "resolved": "spec/contracts/speaker-correction-view-model.md"
+      },
+      {
+        "document": "spec/contracts/README.md",
+        "target": "telemetry-v1.md",
+        "resolved": "spec/contracts/telemetry-v1.md"
+      },
+      {
+        "document": "spec/contracts/README.md",
+        "target": "share-link-bundle-v1.md",
+        "resolved": "spec/contracts/share-link-bundle-v1.md"
+      },
+      {
+        "document": "spec/contracts/README.md",
+        "target": "share-service-v1.md",
+        "resolved": "spec/contracts/share-service-v1.md"
+      },
+      {
+        "document": "spec/contracts/README.md",
+        "target": "audio-speaker-timeline-v1.md",
+        "resolved": "spec/contracts/audio-speaker-timeline-v1.md"
+      },
+      {
+        "document": "spec/contracts/cli-json-v1.md",
+        "target": "../../integrations/capabilities.md#1-published-cli-history-json-can-return-superseded-text-and-speakers",
+        "resolved": "integrations/capabilities.md"
+      },
+      {
+        "document": "spec/contracts/cli-json-v1.md",
+        "target": "meeting-splitting.md",
+        "resolved": "spec/contracts/meeting-splitting.md"
+      },
+      {
+        "document": "spec/contracts/cli-json-v1.md",
+        "target": "../../integrations/README.md#safe-automation-and-isolation",
+        "resolved": "integrations/README.md"
+      },
+      {
+        "document": "spec/contracts/cli-json-v1.md",
+        "target": "ask-workspace.md",
+        "resolved": "spec/contracts/ask-workspace.md"
+      }
+    ]
+  },
+  "feature_flags": {
+    "count": 16,
+    "mismatches": {}
+  },
+  "installed_cli_catalog_help": {
+    "binary": "/Applications/MacParakeet.app/Contents/MacOS/macparakeet-cli",
+    "version": "5.1.0",
+    "commands": 139,
+    "elapsedSeconds": 3.79,
+    "failures": [],
+    "results": [
+      {
+        "path": [
+          "ask",
+          "list"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "ask",
+          "new"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "ask",
+          "show"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "ask",
+          "rename"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "ask",
+          "delete"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "ask",
+          "sources"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "ask",
+          "select"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "ask",
+          "draft"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "ask",
+          "send"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "ask",
+          "evidence"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "spec"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "voice-control",
+          "replay"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "health"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "transcribe"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "retranscribe"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "search"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "search-reindex"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "transcript"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "cards",
+          "list"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "cards",
+          "generate"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "config",
+          "list"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "config",
+          "get"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "config",
+          "set"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "models",
+          "list"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "models",
+          "select"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "models",
+          "status"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "models",
+          "download"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "models",
+          "delete"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "models",
+          "warm-up"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "models",
+          "repair"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "models",
+          "clear"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "history",
+          "dictations"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "history",
+          "search"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "history",
+          "transcriptions"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "history",
+          "search-transcriptions"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "history",
+          "delete-dictation"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "history",
+          "delete-transcription"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "history",
+          "delete-meeting-audio"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "history",
+          "clear-meeting-audio"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "history",
+          "favorites"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "history",
+          "favorite"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "history",
+          "unfavorite"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "history",
+          "rename"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "prompts",
+          "list"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "prompts",
+          "show"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "prompts",
+          "collections",
+          "list"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "prompts",
+          "collections",
+          "add"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "prompts",
+          "collections",
+          "rename"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "prompts",
+          "collections",
+          "delete"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "prompts",
+          "collections",
+          "reorder"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "prompts",
+          "history"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "prompts",
+          "diff"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "prompts",
+          "restore"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "prompts",
+          "add"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "prompts",
+          "set"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "prompts",
+          "delete"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "prompts",
+          "restore-deleted"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "prompts",
+          "restore-defaults"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "prompts",
+          "run"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "llm",
+          "routes",
+          "list"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "llm",
+          "routes",
+          "set"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "llm",
+          "routes",
+          "reset"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "llm",
+          "test-connection"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "llm",
+          "summarize"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "llm",
+          "chat"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "llm",
+          "transform"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "quick-prompts",
+          "list"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "quick-prompts",
+          "show"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "quick-prompts",
+          "add"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "quick-prompts",
+          "set"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "quick-prompts",
+          "delete"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "quick-prompts",
+          "pin"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "quick-prompts",
+          "unpin"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "quick-prompts",
+          "restore-defaults"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "quick-prompts",
+          "export"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "quick-prompts",
+          "import"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "transforms",
+          "list"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "transforms",
+          "show"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "transforms",
+          "run"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "transforms",
+          "create"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "transforms",
+          "delete"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "transforms",
+          "restore-defaults"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "transforms",
+          "history",
+          "list"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "transforms",
+          "history",
+          "show"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "transforms",
+          "history",
+          "delete"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "transforms",
+          "history",
+          "clear"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "vocab",
+          "process"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "vocab",
+          "words",
+          "list"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "vocab",
+          "words",
+          "add"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "vocab",
+          "words",
+          "set"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "vocab",
+          "words",
+          "delete"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "vocab",
+          "snippets",
+          "list"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "vocab",
+          "snippets",
+          "add"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "vocab",
+          "snippets",
+          "edit"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "vocab",
+          "snippets",
+          "delete"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "vocab",
+          "export"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "vocab",
+          "import"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "vocab",
+          "schema"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "stats"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "export"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "calendar",
+          "upcoming"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "feedback"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "list"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "types",
+          "list"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "types",
+          "add"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "types",
+          "rename"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "types",
+          "archive"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "labels",
+          "list"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "labels",
+          "add"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "labels",
+          "rename"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "labels",
+          "set"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "labels",
+          "archive"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "classify"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "show"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "transcript"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "corrections",
+          "revise-text"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "corrections",
+          "edit-line"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "corrections",
+          "merge-lines"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "corrections",
+          "rename"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "corrections",
+          "assign"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "corrections",
+          "merge-speakers"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "corrections",
+          "undo"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "corrections",
+          "redo"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "corrections",
+          "reset"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "notes",
+          "get"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "notes",
+          "set"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "notes",
+          "append"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "notes",
+          "clear"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "results",
+          "list"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "results",
+          "add"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "results",
+          "edit"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "artifact"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "export"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "import"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "split",
+          "preview"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "split",
+          "create"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "split",
+          "status"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "split",
+          "resume"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      },
+      {
+        "path": [
+          "meetings",
+          "split",
+          "discard"
+        ],
+        "exit": 0,
+        "hasUsage": true
+      }
+    ]
+  },
+  "parse_error_probe": {
+    "exit": 2,
+    "stdoutEmpty": true,
+    "stderrPresent": true
+  },
+  "catalog_source_unchanged_since_release": true,
+  "checks": {
+    "source_readme_references": {
+      "command": [
+        "bash",
+        "scripts/check-readme-references.sh"
+      ],
+      "exit": 0,
+      "stdout": "All Sources/**/README.md backticked .swift references resolve.",
+      "stderr": ""
+    },
+    "diff_check": {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  "installed_app": {
+    "version": "0.8.10",
+    "build": "20261014033417"
+  },
+  "capturedAtUTC": "2026-10-31T22:14:01.103845+00:00",
+  "independent_docs_reviews": {
+    "agent_interface": "No blocking content findings; evidence receipt regenerated after review.",
+    "docs_adr": "No material release/gate/privacy/capability errors; evidence receipt regenerated after review."
+  },
+  "limits": [
+    "No Swift build or full application test suite; syntax parsing does not typecheck, link or establish runtime behavior",
+    "The 46 passing CI-helper tests are Python tooling tests, not the Swift application suite",
+    "No native UI, hardware, model or provider verification",
+    "No user database or shared-preference writes; installed reproduction used fresh synthetic temporary state",
+    "Installed CLI 5.1.0 evidence is distinct from the reviewed source baseline; no rebuilt-source executable was tested",
+    "Appcast HTTP 403 in original review; no Sparkle-upgrade proof",
+    "no-mistakes unavailable on PATH in original review",
+    "Runtime parity gaps remain unfixed; the history projection gap has both source and installed-executable evidence",
+    "Local file links checked at recorded document hashes; Markdown anchors and remote availability not checked"
+  ],
+  "artifactsSha256": {
+    "app-release.json": "c30ce88e3e2bc03ae802536295aa254e207eafb0bc460a7d747e2c19218f8e18",
+    "code-inventory.json": "9aeddc716968056918d02b53dc743863a486a3dfb57dbc62e6519295213381f8",
+    "history-projection-repro.json": "0687576150270e53e158c986ee2ed4eee4608a0d8dbf8a700f8feee26f366daf",
+    "history-projection-repro.py": "32717286a7caec27d93dec3fa8e0d9cec8cce5039b514b6ab07e62591d3291fb",
+    "installed-cli-help.txt": "201dacdf39ccaa6b1583b5dea30ea2daa1a0a79cd372d8e4af0c82d8a86004a4",
+    "installed-cli-spec.json": "01abdcae0fae3db9d0aa31787fea53383d0b8cf05437ca35be4be8ca25a633e1",
+    "installed-cli-version.txt": "c0eacacd7e27bbf341d21e7e0e2997a363840a210d8e358d4babaebd765b5bfd"
+  },
+  "initial_local_link_check": {
+    "count": 355,
+    "missing": [],
+    "scope": "Local file targets in all changed Markdown documents and the new capability map/audit; anchors and remote URLs excluded."
+  },
+  "followUp2026-10-31": {
+    "capturedAtUTC": "2026-10-31T22:28:12.228790+00:00",
+    "scope": "Final docs/audit receipt refresh; no builds or full application suite run.",
+    "sourceEvidence": {
+      "baseline": "79cf1ca928b53c3853a99f6832c197d664dcdd78",
+      "swiftSyntax": {
+        "attribution": "Parent-observed earlier; copied from code-inventory.json, not rerun by receipt finalizer",
+        "command": "xcrun swiftc -frontend -parse -swift-version 6 <all tracked Sources/**/*.swift>",
+        "files": 658,
+        "exit": 0,
+        "elapsedSeconds": 0.53,
+        "stderr": "",
+        "limit": "Syntax only; no imports resolved, types checked, linking or execution."
+      },
+      "javascriptSyntax": {
+        "attribution": "Parent-observed earlier; copied from code-inventory.json, not rerun by receipt finalizer",
+        "files": 8,
+        "failures": []
+      },
+      "ciHelperTests": {
+        "attribution": "Parent-observed earlier; copied from code-inventory.json, not rerun by receipt finalizer",
+        "command": "python3 -m unittest discover -s scripts/ci -p 'test_*.py'",
+        "tests": 46,
+        "result": "passed",
+        "elapsedSeconds": 15.342
+      }
+    },
+    "installedBinaryEvidence": {
+      "artifact": "history-projection-repro.json",
+      "script": "history-projection-repro.py",
+      "attribution": "Agent-interface reviewer executed against installed CLI; distinct from a build of the reviewed source",
+      "version": "5.1.0",
+      "executableSha256": "ef07692faca2364ac0a24345a96389dd97721f6683f7ccee285bb4b9231212f5",
+      "commands": 16,
+      "allExitZero": true,
+      "allStderrEmpty": true,
+      "historyProjectionMismatchReproduced": true,
+      "conclusion": "Installed CLI returns automatic text/speaker labels from history transcriptions, favorites and search, including a search matched by corrected text. meetings show and export return the committed effective corrections.",
+      "isolation": "New synthetic temporary database; explicit database option for every data command; temporary app state override; telemetry disabled; temporary state removed."
+    },
+    "jsonAuditValidation": {
+      "files": [
+        "app-release.json",
+        "code-inventory.json",
+        "history-projection-repro.json",
+        "installed-cli-spec.json",
+        "verification.json"
+      ],
+      "count": 5,
+      "parseFailures": []
+    },
+    "receiptPrivacyValidation": {
+      "scope": "Recursive JSON string values in every audit JSON receipt, including the updated receipt",
+      "personalHomeOrTemporaryPathViolations": [],
+      "limits": "A targeted path-disclosure check, not a general secret scanner."
+    },
+    "preservedInitialEvidence": {
+      "installedCliHelpCommands": 139,
+      "featureFlags": 16,
+      "rerun": false
+    }
+  },
+  "artifactHashScope": {
+    "count": 7,
+    "includes": "All immediate audit JSON, text and Python evidence artifacts",
+    "excludes": [
+      "verification.json (self hash)",
+      "narrative Markdown"
+    ]
+  }
+}
