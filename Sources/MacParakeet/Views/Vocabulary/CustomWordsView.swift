@@ -86,10 +86,11 @@ struct CustomWordsView: View {
                 viewModel.cancelDeletion()
             }
             .keyboardShortcut(.defaultAction)
+            // Native alerts style this role. Keep the action a direct Button;
+            // parakeetAction wraps it in conditional view content.
             Button("Delete", role: .destructive) {
                 Task { await viewModel.confirmDelete(request) }
             }
-            .parakeetAction(.destructive)
         } message: { request in
             if request.isBulk {
                 Text("The selected word rules will be permanently deleted. This cannot be undone.")
