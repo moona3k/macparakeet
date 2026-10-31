@@ -59,7 +59,7 @@ MacParakeet combines system-wide dictation, file/media transcription, and meetin
 
 ## Release status
 
-The [notarized DMG](https://github.com/moona3k/macparakeet/releases/download/v0.8.10/MacParakeet.dmg) is the stable release channel.
+The [notarized DMG](https://downloads.macparakeet.com/MacParakeet.dmg) is the stable release channel.
 
 | Channel | Status | Includes |
 |---------|--------|----------|
@@ -85,7 +85,7 @@ surfaces are called out in the [canonical status table](spec/README.md#release-c
 
 **Text cleanup** — Filler word removal, custom word replacements, text snippets with triggers. Deterministic pipeline, no LLM needed.
 
-**AI features** — Optional summaries, chat, AI formatter, and Transforms for rewriting selected text through your configured provider. Connect a cloud provider (OpenAI, Anthropic, Gemini, OpenRouter, Moonshot/Kimi, DeepSeek, Qwen, Z.AI, MiniMax), local runtime (Ollama, LM Studio), Apple Intelligence on macOS 26 when the Mac is eligible, an OpenAI-compatible endpoint, or a CLI tool (Claude Code, Codex). Entirely opt-in.
+**AI features** — Optional summaries, chat, AI formatter, and Transforms for rewriting selected text through your configured provider. Connect a cloud provider (OpenAI, Anthropic, Gemini, OpenRouter, Moonshot/Kimi, DeepSeek, Qwen, Z.AI, MiniMax), local runtime (Ollama, LM Studio), an OpenAI-compatible endpoint, or a CLI tool (Claude Code, Codex). Apple Intelligence on macOS 26 serves dictation cleanup only, on eligible Macs. Entirely opt-in.
 
 ### Limitations
 
@@ -133,7 +133,7 @@ Cohere is the most accurate on-device engine in this benchmark, but its statisti
 
 ## Get it
 
-**Download:** Grab the [notarized DMG](https://github.com/moona3k/macparakeet/releases/download/v0.8.10/MacParakeet.dmg) or visit [macparakeet.com](https://macparakeet.com). Drag to Applications, done.
+**Download:** Grab the [notarized DMG](https://downloads.macparakeet.com/MacParakeet.dmg) or visit [macparakeet.com](https://macparakeet.com). Drag to Applications, done.
 
 On the standard path, first launch downloads the default Parakeet CoreML build (~465 MB) plus speaker-detection assets (~130 MB) as needed. Locale-aware Korean/Japanese/Chinese/Cantonese setup downloads WhisperKit instead when no preferred English language is present. Parakeet v2 and v3 cache independently if you install both. Core dictation, local-file transcription, and meeting recording can work offline after required models are installed; media imports, updates, telemetry, and cloud/remote AI providers still require a network.
 

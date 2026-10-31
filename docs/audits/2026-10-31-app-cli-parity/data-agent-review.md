@@ -427,4 +427,3 @@ Total: **251 tracked files**. Filenames are relative to each directory heading.
 - `TranscriptFormatter.swift`
 - `TranscriptParagraphBuilder.swift`
 - `TranscriptReadingEdit.swift`
-

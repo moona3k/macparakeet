@@ -537,8 +537,8 @@ reuses the queued values; regenerate reuses the Boolean receipt with current
 committed notes. Regeneration reuses the saved model only when its provider receipt
 matches the current analysis provider; after a provider change or when provider
 provenance is absent, it uses the current analysis model and provider inference
-defaults so historical provider-specific settings cannot invalidate the new route. Apple Intelligence and
-Local CLI always use their system or configured command model. The saved prompt and
+defaults so historical provider-specific settings cannot invalidate the new route. Local CLI
+always uses its configured command model. The saved prompt and
 version remain regeneration inputs, with inference settings reused only for the
 same provider; the original result
 and receipt remain intact until successful replacement records the new execution.
@@ -566,7 +566,7 @@ the transcript, say so. Be concise and specific, citing relevant parts when help
 </transcript>
 ```
 
-**Context assembly:** System prompt with full transcript + conversation history. Same context budget as summary (500K cloud / 80K local, 12K Apple Intelligence, 8K LM Studio). Notes and transcript are budgeted together inside the system prompt with a small recent-history reserve; if the remaining context exceeds the budget, drop oldest conversation turns first (keep system prompt + recent turns).
+**Context assembly:** System prompt with full transcript + conversation history. Same context budget as summary (500K cloud / 80K local, 8K LM Studio). Apple Intelligence is cleanup-only and is rejected for chat. Notes and transcript are budgeted together inside the system prompt with a small recent-history reserve; if the remaining context exceeds the budget, drop oldest conversation turns first (keep system prompt + recent turns).
 
 **User notes (meeting recordings, optional):** When the transcription has non-empty `userNotes`, the chat system prompt gains a `User's notes from the meeting:\n…` block before the transcript block. Empty / nil / whitespace-only notes are omitted entirely — chat behavior is byte-identical to a chat without notes. Threaded via `LLMService.chat / chatStream / chatDetailed`'s `userNotes: String?` parameter; the GUI calls `TranscriptChatViewModel.bindUserNotesProvider(_:)` with a closure that returns the latest notes at chat-send time (static for saved transcriptions, live for in-meeting Ask). Saved-note editing does not add a Chat checkbox or otherwise change this policy: the next send reads the latest committed value. See ADR-020's amendments for the distinction between Chat and opt-in result-prompt context.
 
@@ -592,11 +592,11 @@ has no provider credentials and can call only the four app-owned source tools;
 the bundled runtime exposes no shell, filesystem, web, plugin, or arbitrary
 code tool.
 
-Ask freezes the configured direct model route for each run. In-process MLX,
-Apple Intelligence, and Ollama/LM Studio loopback are consent-free local
-routes. Other endpoints, including a generic OpenAI-compatible loopback
-endpoint, require explicit consent. Ask rejects Local CLI providers and never
-falls back to another route. On source-set changes, only completed user and
+Ask freezes the configured direct model route for each run. In-process MLX
+and Ollama/LM Studio loopback are consent-free local routes. Other endpoints,
+including a generic OpenAI-compatible loopback endpoint, require explicit
+consent. Ask rejects Local CLI and cleanup-only Apple Intelligence providers
+and never falls back to another route. On source-set changes, only completed user and
 assistant pairs from the current section with a matching source-revision map
 enter later model context; interrupted, failed, cancelled, and stale messages
 do not. Citation records store source UUID, revision and passage index plus
@@ -629,7 +629,7 @@ See the
 Respond with only the transformed text. Do not add explanations or preamble.
 ```
 
-**Context assembly:** Selected text is truncated after accounting for the transform system prompt, instruction wrapper, and custom prompt. Same provider budgets as summary/chat (500K cloud / 80K local, 8K LM Studio), except Apple Intelligence rewrite-shaped work (Transforms, dictation cleanup, and transcription AI formatting) uses 6,000 characters so the answer can be about as long as the source. Summary and Ask stay on the 12,000-character Apple Intelligence ceiling.
+**Context assembly:** Selected text is truncated after accounting for the transform system prompt, instruction wrapper, and custom prompt. Same provider budgets as summary/chat (500K cloud / 80K local, 8K LM Studio). Apple Intelligence is cleanup-only and is rejected for Transforms; its dictation cleanup and transcription AI formatting requests use 6,000 characters so the answer can be about as long as the source.
 
 ---
 
