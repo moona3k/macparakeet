@@ -8,7 +8,7 @@ final class TranscriptionMeetingFinalizationRetryTests: XCTestCase {
     private var repository: MockTranscriptionRepository!
     private var viewModel: TranscriptionViewModel!
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
         folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try Data([1, 2, 3]).write(to: folder.appendingPathComponent("microphone-raw.m4a"))
@@ -19,7 +19,7 @@ final class TranscriptionMeetingFinalizationRetryTests: XCTestCase {
         viewModel.configure(transcriptionService: MockTranscriptionService(), transcriptionRepo: repository)
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         viewModel.onRetryMeetingFinalization = nil
         try FileManager.default.removeItem(at: folder)
     }
