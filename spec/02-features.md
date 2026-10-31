@@ -1318,7 +1318,8 @@ Overlay shows selected text preview (truncated) so the user confirms the right t
 ### Ask Workspace (development; ADR-034)
 
 > Status: **Implemented in development; release qualification is separate.**
-> The stable app remains 0.8.7.
+> Whether a published app exposes it follows `askWorkspaceEnabled` in the
+> `spec/README.md` release/flag table.
 
 Ask is a top-level destination for saved conversations over up to 32 explicitly
 selected completed Library transcripts. Users can start from Library's **Ask
