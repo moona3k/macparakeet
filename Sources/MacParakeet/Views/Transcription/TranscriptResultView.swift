@@ -1034,6 +1034,7 @@ struct TranscriptResultView: View {
 
                 HStack {
                     Button {
+                        playerViewModel.cancelVideoPreparation()
                         withAnimation(DesignSystem.Animation.contentSwap) {
                             showVideoPanel = false
                         }

@@ -1118,28 +1118,21 @@ Important constraints:
 - Add, edit, delete, enable/disable custom words
 - Add, edit, delete text snippets
 - Use count tracking for snippets (helps users know which are active)
-- Accessible from Settings view ("Manage Custom Words...", "Manage Text Snippets...")
+- Accessible at the top of Vocabulary in both Raw and Clean modes. Word corrections opens Manage words; Text snippets opens Manage snippets.
 - Import/export the combined vocabulary backup (custom words + snippets) from
   the Vocabulary panel and CLI.
 
-**Settings integration (v0.2 additions):**
-
-```
-│ PROCESSING                                                       │
-│ ┌──────────────────────────────────────────────────────────────┐ │
-│ │ Default mode:  ( ) Raw  (•) Clean  ( ) Formal               │ │
-│ │                                                              │ │
-│ │ [Manage Custom Words...]        12 words                     │ │
-│ │ [Manage Text Snippets...]       5 snippets                   │ │
-│ └──────────────────────────────────────────────────────────────┘ │
-```
+**Vocabulary integration:** saved words and snippets lead the page, followed by
+Backup & Restore and processing settings. Opening a manager does not enable
+Clean mode. Word loading distinguishes unknown, failed, and successfully empty
+states; failed reads offer Retry and preserve the last loaded rows.
 
 **Acceptance criteria:**
 - [x] Can add/edit/delete/toggle custom words
 - [x] Can add/edit/delete text snippets
 - [x] Use count displayed and updated for snippets
 - [x] Changes take effect immediately for next dictation
-- [x] Settings link opens management views
+- [x] Vocabulary management remains accessible in Raw and Clean modes
 - [x] Default processing mode configurable
 - [x] Combined vocabulary import/export is available from the Vocabulary panel and CLI
 - [x] Import can replace the entire vocabulary in one transaction, with a preview of removals and rollback on failure
@@ -1825,15 +1818,19 @@ Embedded video/audio playback, split-pane detail view, synced transcript highlig
 
 > Status: **IMPLEMENTED**
 
-**What:** Embedded playback for YouTube videos (HLS streaming) and local audio/video files. Split-pane layout with video on the left and tabbed content on the right.
+**What:** Embedded playback for YouTube videos and local audio/video files. Split-pane layout with video on the left and tabbed content on the right.
 
 **Acceptance criteria:**
-- [x] YouTube videos play via HLS streaming (yt-dlp URL extraction + AVPlayer)
+- [x] YouTube videos use direct combined-stream playback when available (yt-dlp URL extraction + AVPlayer)
+- [x] Separate H.264 MP4 video and AAC M4A audio can be downloaded on demand and combined into a temporary playback file; preparation stages are shown while loading
 - [x] Local video files play via AVPlayer
 - [x] Audio-only files show a 44px horizontal scrubber bar instead of video
 - [x] Playback mode auto-detected (video/audio/none)
 - [x] MediaPlayerViewModel with play/pause, seek, 10Hz time sync
 - [x] Video panel collapsible (full → hidden)
+
+The [YouTube video playback contract](contracts/youtube-video-playback.md) defines
+format selection, temporary-file ownership, cancellation, and retained-audio safety.
 
 ### F25: Synced Transcript & Timestamps
 

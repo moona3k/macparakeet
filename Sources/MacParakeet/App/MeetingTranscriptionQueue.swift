@@ -5,7 +5,10 @@ import OSLog
 @MainActor
 final class MeetingTranscriptionQueue {
     struct Item: Equatable {
-        let recording: MeetingRecordingOutput
+        let input: MeetingFinalizationInput
+        var recording: MeetingRecordingOutput? { input.recording }
+        var sessionID: UUID { input.sessionID }
+        var folderURL: URL { input.folderURL }
         let transcriptionID: UUID
         /// Recording-flow generation that owns this completion's presentation.
         let recordingGeneration: Int
@@ -25,7 +28,25 @@ final class MeetingTranscriptionQueue {
             liveTranscriptLagged: Bool,
             finalizationOwnershipLease: MeetingFinalizationOwnershipLease? = nil
         ) {
-            self.recording = recording
+            self.init(
+                input: .prepared(recording), transcriptionID: transcriptionID,
+                recordingGeneration: recordingGeneration, operationContext: operationContext,
+                trigger: trigger, liveWordCount: liveWordCount, liveTranscriptLagged: liveTranscriptLagged,
+                finalizationOwnershipLease: finalizationOwnershipLease
+            )
+        }
+
+        init(
+            input: MeetingFinalizationInput,
+            transcriptionID: UUID,
+            recordingGeneration: Int,
+            operationContext: ObservabilityOperationContext,
+            trigger: TelemetryMeetingOperationTrigger?,
+            liveWordCount: Int,
+            liveTranscriptLagged: Bool,
+            finalizationOwnershipLease: MeetingFinalizationOwnershipLease? = nil
+        ) {
+            self.input = input
             self.transcriptionID = transcriptionID
             self.recordingGeneration = recordingGeneration
             self.operationContext = operationContext
@@ -37,7 +58,7 @@ final class MeetingTranscriptionQueue {
 
         func withTranscriptionID(_ transcriptionID: UUID) -> Item {
             Item(
-                recording: recording,
+                input: input,
                 transcriptionID: transcriptionID,
                 recordingGeneration: recordingGeneration,
                 operationContext: operationContext,
@@ -52,7 +73,7 @@ final class MeetingTranscriptionQueue {
             _ lease: MeetingFinalizationOwnershipLease
         ) -> Item {
             Item(
-                recording: recording,
+                input: input,
                 transcriptionID: transcriptionID,
                 recordingGeneration: recordingGeneration,
                 operationContext: operationContext,
@@ -60,6 +81,14 @@ final class MeetingTranscriptionQueue {
                 liveWordCount: liveWordCount,
                 liveTranscriptLagged: liveTranscriptLagged,
                 finalizationOwnershipLease: lease
+            )
+        }
+        func withRecording(_ recording: MeetingRecordingOutput) -> Item {
+            Item(
+                input: .prepared(recording), transcriptionID: transcriptionID,
+                recordingGeneration: recordingGeneration, operationContext: operationContext,
+                trigger: trigger, liveWordCount: liveWordCount, liveTranscriptLagged: liveTranscriptLagged,
+                finalizationOwnershipLease: finalizationOwnershipLease
             )
         }
     }
@@ -87,6 +116,7 @@ final class MeetingTranscriptionQueue {
     private let transcriptionService: TranscriptionServiceProtocol
     private let transcriptionRepo: TranscriptionRepositoryProtocol
     private let meetingRecordingSettlement: MeetingRecordingSettlement
+    private let preparePlayback: @Sendable (MeetingRecordingCapture) async throws -> MeetingRecordingOutput
     private let finalizationOwnershipClaimer: any MeetingFinalizationOwnershipClaiming
 
     private var pendingItems: [Item] = []
@@ -102,8 +132,12 @@ final class MeetingTranscriptionQueue {
         transcriptionRepo: TranscriptionRepositoryProtocol,
         meetingRecordingSettlement: MeetingRecordingSettlement,
         finalizationOwnershipClaimer: any MeetingFinalizationOwnershipClaiming =
-            MeetingRecordingLockFileStore()
+            MeetingRecordingLockFileStore(),
+        preparePlayback: @escaping @Sendable (MeetingRecordingCapture) async throws -> MeetingRecordingOutput = {
+            try await $0.preparePlayback()
+        }
     ) {
+        self.preparePlayback = preparePlayback
         self.transcriptionService = transcriptionService
         self.transcriptionRepo = transcriptionRepo
         self.meetingRecordingSettlement = meetingRecordingSettlement
@@ -141,7 +175,7 @@ final class MeetingTranscriptionQueue {
         let ownershipClaimer = finalizationOwnershipClaimer
         let lease = try await Task.detached(priority: .userInitiated) {
             try ownershipClaimer.claimFinalizationOwnership(
-                folderURL: item.recording.folderURL
+                folderURL: item.folderURL
             )
         }.value
         return await enqueue(item.withFinalizationOwnershipLease(lease))
@@ -169,7 +203,7 @@ final class MeetingTranscriptionQueue {
     private func process(_ originalItem: Item) async {
         let preparationStartedAt = Date()
         appendDiagnostic(originalItem, stage: "prepare_row", outcome: "started")
-        let item: Item
+        var item: Item
         do {
             switch try await ensureProcessingRow(for: originalItem) {
             case .admitted(let admittedItem):
@@ -207,10 +241,33 @@ final class MeetingTranscriptionQueue {
                 error: error
             )
             logger.error(
-                "queued_meeting_transcription_prepare_failed session=\(originalItem.recording.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
+                "queued_meeting_transcription_prepare_failed session=\(originalItem.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
             await restoreFinalizationOwnershipIfNeeded(for: originalItem)
             finishActiveItem(.failure(item: originalItem, error: error))
+            return
+        }
+
+        let recording: MeetingRecordingOutput
+        let playbackStartedAt = Date()
+        do {
+            switch item.input {
+            case .prepared(let output):
+                recording = output
+            case .capture(let capture):
+                appendDiagnostic(item, stage: "prepare_playback", outcome: "started")
+                recording = try await preparePlayback(capture)
+                item = item.withRecording(recording)
+                activeItem = item
+                notifyStateChanged()
+                appendDiagnostic(item, stage: "prepare_playback", outcome: "success", startedAt: playbackStartedAt)
+            }
+        } catch {
+            appendDiagnostic(
+                item, stage: "prepare_playback", outcome: "failure", startedAt: playbackStartedAt, error: error)
+            await markFailed(item, error: error)
+            await restoreFinalizationOwnershipIfNeeded(for: item)
+            finishActiveItem(.failure(item: item, error: error))
             return
         }
 
@@ -220,7 +277,7 @@ final class MeetingTranscriptionQueue {
         do {
             transcription = try await Observability.withOperationContext(item.operationContext) {
                 try await transcriptionService.finalizeMeetingTranscription(
-                    recording: item.recording,
+                    recording: recording,
                     updating: item.transcriptionID,
                     onProgress: nil
                 )
@@ -240,7 +297,7 @@ final class MeetingTranscriptionQueue {
                 error: error
             )
             logger.error(
-                "queued_meeting_transcription_failed session=\(item.recording.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
+                "queued_meeting_transcription_failed session=\(item.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
             await markFailed(item, error: error)
             await restoreFinalizationOwnershipIfNeeded(for: item)
@@ -252,9 +309,9 @@ final class MeetingTranscriptionQueue {
         appendDiagnostic(item, stage: "settle_artifacts", outcome: "started")
         do {
             try await meetingRecordingSettlement.settleCompletedTranscription(
-                folderURL: item.recording.folderURL,
+                folderURL: item.folderURL,
                 transcriptionID: transcription.id,
-                sessionID: item.recording.sessionID
+                sessionID: item.sessionID
             )
             appendDiagnostic(
                 item,
@@ -271,7 +328,7 @@ final class MeetingTranscriptionQueue {
                 error: error
             )
             logger.error(
-                "queued_meeting_settlement_failed_lock_retained_for_recovery session=\(item.recording.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
+                "queued_meeting_settlement_failed_lock_retained_for_recovery session=\(item.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
             await restoreFinalizationOwnershipIfNeeded(for: item)
         }
@@ -293,9 +350,15 @@ final class MeetingTranscriptionQueue {
             return .admitted(item)
         }
 
-        let prepared = try await transcriptionService.prepareMeetingTranscription(
-            recording: item.recording
-        )
+        let prepared: Transcription
+        switch item.input {
+        case .prepared(let output):
+            prepared = try await transcriptionService.prepareMeetingTranscription(recording: output)
+        case .capture(let capture):
+            prepared = capture.makeProcessingTranscription()
+            let repo = transcriptionRepo
+            try await Task.detached(priority: .utility) { try repo.save(prepared) }.value
+        }
         guard prepared.status != .completed else {
             return .alreadyCompleted(prepared)
         }
@@ -367,7 +430,7 @@ final class MeetingTranscriptionQueue {
         error: Error? = nil
     ) {
         var fields =
-            "meeting_transcription_queue_stage session=\(item.recording.sessionID.uuidString) transcription=\(item.transcriptionID.uuidString) stage=\(stage) outcome=\(outcome)"
+            "meeting_transcription_queue_stage session=\(item.sessionID.uuidString) transcription=\(item.transcriptionID.uuidString) stage=\(stage) outcome=\(outcome)"
         if let startedAt {
             fields += " duration_s=\(String(format: "%.3f", Date().timeIntervalSince(startedAt)))"
         }

@@ -12,6 +12,13 @@ public struct WordDeletionRequest: Sendable {
 @MainActor
 @Observable
 public final class CustomWordsViewModel {
+    public enum LoadState: Equatable {
+        case notLoaded
+        case loaded
+        case failed(String)
+    }
+
+    public private(set) var loadState: LoadState = .notLoaded
     public var words: [CustomWord] = []
     public var searchText: String = "" {
         didSet {
@@ -39,11 +46,27 @@ public final class CustomWordsViewModel {
         loadWords()
     }
 
+    public func prepareForPresentation() {
+        guard !isDeleting else { return }
+        cancelSelection()
+        searchText = ""
+        loadWords()
+    }
+
+    public var canEditWords: Bool { loadState == .loaded && !isDeleting }
+
+    public var isSearching: Bool { !searchQuery.isEmpty }
+
+    private var searchQuery: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     public var filteredWords: [CustomWord] {
-        guard !searchText.isEmpty else { return words }
+        let query = searchQuery
+        guard !query.isEmpty else { return words }
         return words.filter {
-            $0.word.localizedCaseInsensitiveContains(searchText)
-                || ($0.replacement?.localizedCaseInsensitiveContains(searchText) ?? false)
+            $0.word.localizedCaseInsensitiveContains(query)
+                || ($0.replacement?.localizedCaseInsensitiveContains(query) ?? false)
         }
     }
 
@@ -51,15 +74,16 @@ public final class CustomWordsViewModel {
         guard let repo else { return }
         do {
             words = try repo.fetchAll()
+            loadState = .loaded
             selectedWordIDs.formIntersection(filteredWords.map(\.id))
             errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            loadState = .failed(error.localizedDescription)
         }
     }
 
     public func addWord() {
-        guard let repo, !isDeleting else { return }
+        guard let repo, canEditWords else { return }
         let trimmedWord = newWord.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedWord.isEmpty else { return }
 
@@ -88,7 +112,7 @@ public final class CustomWordsViewModel {
     }
 
     public func toggleEnabled(_ word: CustomWord) {
-        guard let repo, !isDeleting else { return }
+        guard let repo, canEditWords else { return }
         var updated = word
         updated.isEnabled.toggle()
         updated.updatedAt = Date()
@@ -106,7 +130,7 @@ public final class CustomWordsViewModel {
     }
 
     public func startSelection() {
-        guard !isDeleting, !filteredWords.isEmpty else { return }
+        guard canEditWords, !filteredWords.isEmpty else { return }
         selectedWordIDs.removeAll()
         pendingDeletion = nil
         deletionErrorMessage = nil
@@ -122,14 +146,14 @@ public final class CustomWordsViewModel {
     }
 
     public func toggleSelection(for id: UUID) {
-        guard isSelecting, !isDeleting, filteredWords.contains(where: { $0.id == id }) else { return }
+        guard isSelecting, canEditWords, filteredWords.contains(where: { $0.id == id }) else { return }
         if !selectedWordIDs.insert(id).inserted {
             selectedWordIDs.remove(id)
         }
     }
 
     public func toggleSelectAll() {
-        guard isSelecting, !isDeleting else { return }
+        guard isSelecting, canEditWords else { return }
         if areAllFilteredWordsSelected {
             selectedWordIDs.removeAll()
         } else {
@@ -138,12 +162,12 @@ public final class CustomWordsViewModel {
     }
 
     public func requestDelete(_ word: CustomWord) {
-        guard !isDeleting, let current = words.first(where: { $0.id == word.id }) else { return }
+        guard canEditWords, let current = words.first(where: { $0.id == word.id }) else { return }
         pendingDeletion = WordDeletionRequest(words: [current], isBulk: false)
     }
 
     public func requestDeleteSelection() {
-        guard isSelecting, !isDeleting else { return }
+        guard isSelecting, canEditWords else { return }
         let selectedWords = filteredWords.filter { selectedWordIDs.contains($0.id) }
         guard !selectedWords.isEmpty else { return }
         pendingDeletion = WordDeletionRequest(words: selectedWords, isBulk: true)
@@ -154,7 +178,7 @@ public final class CustomWordsViewModel {
     }
 
     public func confirmDelete(_ request: WordDeletionRequest) async {
-        guard let repo, !isDeleting, !request.words.isEmpty else { return }
+        guard let repo, canEditWords, !request.words.isEmpty else { return }
         let ids = Set(request.words.map(\.id))
         isDeleting = true
         pendingDeletion = nil

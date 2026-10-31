@@ -875,8 +875,12 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         )
         try transcriptionRepo.save(stub)
 
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: mixedURL.path),
+            "The source-only handoff must not require a preexisting mix")
         let recovered = try await recoveryService.recover(fixture.lock)
 
+        XCTAssertTrue(MeetingRecordingOutput.isViablePlaybackFile(at: mixedURL))
         XCTAssertEqual(recovered.id, stub.id)
         XCTAssertTrue(recovered.recoveredFromCrash)
         XCTAssertEqual(transcriptionService.recordings.count, 0)
@@ -1205,6 +1209,78 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertEqual(rows.first?.id, stale.id)
         XCTAssertEqual(rows.first?.status, .completed)
         XCTAssertTrue(rows.first?.recoveredFromCrash == true)
+    }
+
+    func testRecoveryPreflightFailurePreservesCleanedArtifactsUntilRetryConsumesReadiness() async throws {
+        let fixture = try makeRecoverableSession(lockState: .awaitingTranscription)
+        let mixedURL = fixture.folderURL.appendingPathComponent("meeting-playback.m4a")
+        let cleanedURL = fixture.folderURL.appendingPathComponent("microphone-cleaned.m4a")
+        let candidateURL = fixture.folderURL.appendingPathComponent(
+            ".microphone-cleaned-\(fixture.lock.sessionId.uuidString).tmp.m4a"
+        )
+        try writeM4A(to: cleanedURL)
+        let cleanedBefore = try Data(contentsOf: cleanedURL)
+        let candidateBefore = Data("previous unconsumed candidate".utf8)
+        try candidateBefore.write(to: candidateURL)
+        let pending = Transcription(
+            fileName: fixture.lock.displayName,
+            filePath: mixedURL.path,
+            meetingArtifactFolderPath: fixture.folderURL.path,
+            durationMs: nil,
+            status: .processing,
+            sourceType: .meeting
+        )
+        try transcriptionRepo.save(pending)
+        let conditionerProbe = RecoveryMicConditionerFactoryProbe()
+        transcriptionService.sourceResolutionPolicy = .init(
+            floorSeconds: 10, durationMultiplier: 0, capSeconds: 10
+        )
+        // Match the service's preflight boundary: reject before the recording's
+        // deferred microphone source is consumed.
+        transcriptionService.errorToThrow = EntitlementsError.trialExpired
+        audioConverter.copyFirstInputAsMix = true
+        recoveryService = MeetingRecordingRecoveryService(
+            meetingsRoot: tempRoot,
+            lockFileStore: lockStore,
+            transcriptionService: transcriptionService,
+            transcriptionRepo: transcriptionRepo,
+            meetingArtifactStore: MeetingArtifactStore(),
+            promptResultRepo: promptResultRepo,
+            audioConverter: audioConverter,
+            micConditionerFactory: { @Sendable in conditionerProbe.make() }
+        )
+
+        do {
+            _ = try await recoveryService.recover(fixture.lock)
+            XCTFail("Expected recovery finalization preflight to fail")
+        } catch EntitlementsError.trialExpired {}
+
+        XCTAssertTrue(MeetingRecordingOutput.isViablePlaybackFile(at: mixedURL))
+        XCTAssertTrue(transcriptionService.sourceDecisions.isEmpty)
+        XCTAssertEqual(conditionerProbe.buildCount, 0)
+        XCTAssertEqual(try Data(contentsOf: cleanedURL), cleanedBefore)
+        XCTAssertEqual(try Data(contentsOf: candidateURL), candidateBefore)
+        XCTAssertNil(try MeetingRecordingMetadataStore.load(from: fixture.folderURL).echoSuppression)
+        XCTAssertNil(try transcriptionRepo.fetch(id: pending.id)?.durationMs)
+        XCTAssertNotNil(try lockStore.read(folderURL: fixture.folderURL))
+
+        transcriptionService.errorToThrow = nil
+        let completed = try await recoveryService.recover(fixture.lock)
+        let recording = try XCTUnwrap(transcriptionService.finalizedRecordings.first)
+        let repeatedDecision = try await recording.resolvedMicrophoneTranscriptionSource(
+            policy: .init(floorSeconds: 10, durationMultiplier: 0, capSeconds: 10)
+        )
+
+        XCTAssertEqual(completed.id, pending.id)
+        XCTAssertEqual(completed.status, .completed)
+        XCTAssertEqual(transcriptionService.finalizedTranscriptionIDs, [pending.id])
+        XCTAssertEqual(transcriptionService.sourceDecisions.first?.reason, .cleanedUsed)
+        XCTAssertEqual(repeatedDecision.reason, .cleanedUsed)
+        XCTAssertEqual(repeatedDecision.url, cleanedURL)
+        XCTAssertEqual(conditionerProbe.buildCount, 1)
+        XCTAssertTrue(MeetingRecordingOutput.isViablePlaybackFile(at: cleanedURL))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: candidateURL.path))
+        XCTAssertNil(try lockStore.read(folderURL: fixture.folderURL))
     }
 
     func testRecoverUsesEchoProbeWhenRecoveredAlignmentIsSynthetic() async throws {

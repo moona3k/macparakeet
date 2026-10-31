@@ -19,6 +19,108 @@ final class CustomWordsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.newWord, "")
         XCTAssertEqual(viewModel.newReplacement, "")
         XCTAssertNil(viewModel.errorMessage)
+        XCTAssertEqual(viewModel.loadState, .loaded)
+    }
+
+    func testUnconfiguredListIsNotAnEmptyLoadedDictionary() {
+        let unconfigured = CustomWordsViewModel()
+        XCTAssertEqual(unconfigured.loadState, .notLoaded)
+        XCTAssertFalse(unconfigured.canEditWords)
+        unconfigured.loadWords()
+        XCTAssertEqual(unconfigured.loadState, .notLoaded)
+    }
+
+    func testInitialReadFailureIsDistinctFromEmptyAndRetryPreservesRules() {
+        let rules = [
+            CustomWord(word: "café", replacement: "CAFÉ"),
+            CustomWord(word: "東京", replacement: "東京都", isEnabled: false),
+        ]
+        mockRepo.words = rules
+        let failure = NSError(domain: "VocabularyRead", code: 1)
+        mockRepo.fetchAllError = failure
+        let fresh = CustomWordsViewModel()
+        fresh.configure(repo: mockRepo)
+
+        XCTAssertEqual(fresh.loadState, .failed(failure.localizedDescription))
+        XCTAssertTrue(fresh.words.isEmpty)
+        XCTAssertFalse(fresh.canEditWords)
+        XCTAssertNil(fresh.errorMessage, "Read errors do not belong to the Add Rule form")
+        XCTAssertEqual(mockRepo.words, rules)
+
+        mockRepo.fetchAllError = nil
+        fresh.loadWords()
+        XCTAssertEqual(fresh.loadState, .loaded)
+        XCTAssertTrue(fresh.canEditWords)
+        XCTAssertEqual(Set(fresh.words.map(\.id)), Set(rules.map(\.id)))
+        XCTAssertEqual(mockRepo.words, rules)
+    }
+
+    func testFailedReloadKeepsLastGoodRowsAndBlocksMutationsUntilRetry() async throws {
+        let rules = loadSelectionFixture()
+        viewModel.requestDelete(rules[0])
+        let request = try XCTUnwrap(viewModel.pendingDeletion)
+        let failure = NSError(domain: "VocabularyRead", code: 2)
+        mockRepo.fetchAllError = failure
+        viewModel.loadWords()
+
+        XCTAssertEqual(viewModel.loadState, .failed(failure.localizedDescription))
+        XCTAssertEqual(viewModel.words, rules)
+        viewModel.newWord = "another word"
+        viewModel.addWord()
+        viewModel.toggleEnabled(rules[0])
+        viewModel.startSelection()
+        await viewModel.confirmDelete(request)
+        XCTAssertEqual(mockRepo.words, rules)
+        XCTAssertFalse(viewModel.isSelecting)
+
+        mockRepo.fetchAllError = nil
+        viewModel.loadWords()
+        XCTAssertTrue(viewModel.canEditWords)
+        viewModel.addWord()
+        XCTAssertEqual(mockRepo.words.count, rules.count + 1)
+    }
+
+    func testSuccessfulEmptyReadAfterFailureIsKnownEmpty() {
+        mockRepo.fetchAllError = NSError(domain: "VocabularyRead", code: 3)
+        viewModel.loadWords()
+        XCTAssertFalse(viewModel.canEditWords)
+        mockRepo.fetchAllError = nil
+        viewModel.loadWords()
+        XCTAssertEqual(viewModel.loadState, .loaded)
+        XCTAssertTrue(viewModel.words.isEmpty)
+        XCTAssertTrue(viewModel.canEditWords)
+    }
+
+    func testOpeningManagerClearsSearchAndSelectionWithoutChangingRules() {
+        let rules = loadSelectionFixture()
+        viewModel.searchText = "Claude"
+        viewModel.startSelection()
+        viewModel.toggleSelectAll()
+        viewModel.requestDeleteSelection()
+
+        viewModel.prepareForPresentation()
+
+        XCTAssertEqual(viewModel.searchText, "")
+        XCTAssertFalse(viewModel.isSearching)
+        XCTAssertFalse(viewModel.isSelecting)
+        XCTAssertTrue(viewModel.selectedWordIDs.isEmpty)
+        XCTAssertNil(viewModel.pendingDeletion)
+        XCTAssertEqual(viewModel.filteredWords, rules)
+        XCTAssertEqual(mockRepo.words, rules)
+    }
+
+    func testWhitespaceSearchUsesTheSameQueryForFilteringAndSelection() {
+        let rules = loadSelectionFixture()
+        viewModel.searchText = " \n "
+        XCTAssertFalse(viewModel.isSearching)
+        XCTAssertEqual(viewModel.filteredWords, rules)
+
+        viewModel.searchText = "  Claude\n"
+        XCTAssertTrue(viewModel.isSearching)
+        XCTAssertEqual(viewModel.filteredWords.map(\.id), [rules[1].id])
+        viewModel.startSelection()
+        viewModel.toggleSelectAll()
+        XCTAssertEqual(viewModel.selectedWordIDs, [rules[1].id])
     }
 
     func testAddWord() {
@@ -250,6 +352,7 @@ final class CustomWordsViewModelTests: XCTestCase {
         viewModel.cancelSelection()
         viewModel.toggleSelectAll()
         viewModel.toggleEnabled(words[1])
+        viewModel.prepareForPresentation()
         await viewModel.confirmDelete(request)
         XCTAssertEqual(viewModel.selectedWordIDs, [words[0].id])
         XCTAssertFalse(mockRepo.words[1].isEnabled)

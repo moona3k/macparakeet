@@ -80,8 +80,8 @@ public final class MeetingsWorkspaceViewModel {
     public var calendarLookAheadDays = 7
     public var upcomingEventLimit = 4
     /// User-selected type for the next or active meeting. The recording
-    /// coordinator snapshots this value onto the durable transcription stub
-    /// before enqueue so prompt routing stays deterministic.
+    /// coordinator persists the current selection into the active recording;
+    /// its capture snapshot carries that type into final transcription.
     public var recordingMeetingTypeID: UUID?
     public private(set) var promptPoliciesByPromptID: [UUID: [PromptMeetingPolicy]] = [:]
     public var meetingPolicyErrorMessage: String? {

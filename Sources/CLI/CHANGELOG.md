@@ -127,6 +127,10 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 - AI cleanup of a long transcript is sent in sections of at most 12,000
   characters and joined. Meetings are no longer skipped at 20,000 characters.
 
+- Processing meetings may appear before playback preparation completes, with
+  unknown duration and an expected playback path. Source audio is already saved;
+  completed meeting schemas and durations are unchanged (#1291).
+
 ## [5.1.0] — 2026-10-12 (bundled with MacParakeet 0.8.10)
 
 Omitting `--model` on inline Anthropic and OpenRouter commands now selects

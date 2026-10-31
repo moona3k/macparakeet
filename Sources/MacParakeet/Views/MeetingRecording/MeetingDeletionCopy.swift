@@ -112,6 +112,8 @@ enum MeetingDeletionCopy {
             assertionFailure(
                 "audioUnavailableHelp called for .saved state; callers should show positive help text instead.")
             return "Meeting audio is available"
+        case .sourcesSaved:
+            return "Source audio is saved; playback preparation is pending"
         case .removed:
             return "Meeting audio is unavailable"
         case .missing:
