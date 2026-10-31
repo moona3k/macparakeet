@@ -232,6 +232,7 @@ final class TranscriptDocumentLayoutTests: XCTestCase {
         XCTAssertTrue(text.contains("Meeting processing failed"), text)
         XCTAssertTrue(text.contains("Your audio is saved"), text)
         XCTAssertTrue(text.contains("Retry"), text)
+        XCTAssertTrue(text.contains("transcript-detail-edit"), text)
         XCTAssertFalse(text.contains("No transcript available"), text)
         assertResultWindowStaysAtOfferedSize(window)
 
@@ -244,7 +245,8 @@ final class TranscriptDocumentLayoutTests: XCTestCase {
         XCTAssertTrue(model.isRetryingMeetingFinalization(id: transcription.id))
         XCTAssertTrue(pendingText.contains("Processing meeting"), pendingText)
         XCTAssertFalse(pendingText.contains("Meeting processing failed"), pendingText)
-        XCTAssertFalse(pendingText.components(separatedBy: .newlines).contains("Edit"), pendingText)
+        XCTAssertFalse(pendingText.contains("transcript-detail-edit"), pendingText)
+        XCTAssertFalse(pendingText.contains("No transcript available"), pendingText)
     }
 
     private func renderMeetingResult(

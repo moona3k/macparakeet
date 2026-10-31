@@ -2826,6 +2826,7 @@ struct TranscriptResultView: View {
                         )
                     )
                     .help(transcriptEditHelp)
+                    .accessibilityIdentifier("transcript-detail-edit")
                 }
             }
         }
