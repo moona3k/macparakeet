@@ -46,7 +46,7 @@
       "spec/contracts/cli-json-v1.md"
     ],
     "documentSha256": {
-      "README.md": "fe492fb99151bf1311f041472b2ea288cb52899857c8a7dc88b303fc6c503509",
+      "README.md": "a6b6b47fbc7c98040ed380327f32bb093c3a4162b21b430e038d75bc82fc5fd2",
       "Sources/CLI/README.md": "fc876871eb0cc3794830af0e90acf7f3abc8996f27a42180a3fb75af1392fa32",
       "Sources/MacParakeetCore/TextProcessing/README.md": "467a1eae167716ce1d43f3391b63daf7eba16acdc862b4dc41ab9d4e20b723d3",
       "docs/audits/2026-10-31-app-cli-parity/README.md": "d9acc93dc3576972d728fe2762d50e0bdc9cfb74d5727b5d597dd6b4ae638e1f",
@@ -74,7 +74,7 @@
       "spec/04-ui-patterns.md": "5c8903d2a89e5b97cf7de9a61a7e1dabd2bcfbfe31bc4d506952db15b6e6cba4",
       "spec/11-llm-integration.md": "96eaa635c799c18a1fd09e1f1dfffcfd071ea421c430991ae785d5cef5abf59c",
       "spec/README.md": "6fab2db86552f3f40b7816e32bfd1ff6585edc30a1035752ac73b59373bce9c2",
-      "spec/adr/002-local-only.md": "a30f450d27c5ae5a7b5d091db3c171c1056b08a7011d9e096071c594c2abfb7b",
+      "spec/adr/002-local-only.md": "4339769d8d49de47804bdd819ce3ec6d1d545846edafaf3eac46f6e08dc075fd",
       "spec/adr/027-product-north-star.md": "fafe0eb5de668ede62336004e1e2cd21f5d004dbe2146470e81ea133acec935c",
       "spec/adr/034-meeting-ask-workspace.md": "9fc2fdf7239dad366f3ea38051cb075f20347e180bef94af8543032a703a12ec",
       "spec/contracts/README.md": "55338b17a90b8da3f9d99dd7e732b16416c974431347ddaf053982ae9ddfc954",
@@ -3601,6 +3601,19 @@
     "checks": {
       "documentHashes": true,
       "rawArtifactHashes": true
+    }
+  },
+  "followUpCleanupRouteSites": {
+    "capturedAtUTC": "2026-10-31T22:51:24.764677+00:00",
+    "scope": "Three remaining current-behavior phrases changed from dictation cleanup to the cleanup route (only where exclusive): README.md local provider row and the two Consequences bullets in spec/adr/002-local-only.md, consistent with ADR-032 lines64-75 and LLMExecutionContext.canServe. Dated historical text, links, source code and raw evidence unchanged. Derived hashes for README.md and spec/adr/002-local-only.md refreshed.",
+    "checks": {
+      "documentHashes": true,
+      "rawArtifactHashes": true,
+      "documentCount": 33,
+      "rawArtifactCount": 7,
+      "localLinkCount": 422,
+      "localLinkMissing": 0,
+      "baselineDiffCheckExit": 0
     }
   }
 }
