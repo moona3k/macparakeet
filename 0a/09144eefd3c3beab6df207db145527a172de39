@@ -1,0 +1,21 @@
+plans/active/2026-05-speaker-diarization-quality.md
+  s_6f26576d2ce855::t_eb9985ab8985ae 53-54
+  s_6f26576d2ce855::t_a7a7fb82a1166b 16,47,49-52,55-63,66,84-87
+  s_6f26576d2ce855::t_6dbcdd0f99b4b6 17-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0a09144eefd3c3beab6df207db145527a172de39",
+  "prompts": {},
+  "sessions": {
+    "s_6f26576d2ce855": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e58-eaa6-7583-abd5-6aec9f43cba6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
