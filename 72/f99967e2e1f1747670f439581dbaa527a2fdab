@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/ViewModels/TranscriptionMeetingFinalizationRetryTests.swift
+  s_a7db50ec1095f1::t_0b104e0af1209c 11,22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "72f99967e2e1f1747670f439581dbaa527a2fdab",
+  "prompts": {},
+  "sessions": {
+    "s_a7db50ec1095f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18ee2-1964-7e31-bb46-e22abcc88701",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
