@@ -2449,6 +2449,59 @@ public final class DatabaseManager: Sendable {
             )
         }
 
+        // Saved transcript translations (F31), one per transcript and
+        // language. Derived state: rows cascade with their transcript and can
+        // be regenerated at any time.
+        migrator.registerMigration("v0.50-transcript-translations") { db in
+            try db.create(table: "transcript_translations") { t in
+                t.column("id", .text).primaryKey()
+                t.column("transcriptionId", .text)
+                    .notNull()
+                    .references("transcriptions", onDelete: .cascade)
+                t.column("languageCode", .text).notNull()
+                t.column("segments", .text).notNull()
+                t.column("sourceHash", .text).notNull()
+                t.column("modelName", .text)
+                t.column("createdAt", .text).notNull()
+                t.column("updatedAt", .text).notNull()
+            }
+            try db.create(
+                index: "idx_transcript_translations_transcription_language",
+                on: "transcript_translations",
+                columns: ["transcriptionId", "languageCode"],
+                unique: true
+            )
+        }
+
+        // Local usage ledger for the Usage panel: one row per completed AI
+        // request or online-speech upload. Metadata only, no content.
+        migrator.registerMigration("v0.51-usage-events") { db in
+            try db.create(table: "usage_events") { t in
+                t.column("id", .text).primaryKey()
+                t.column("kind", .text).notNull()
+                t.column("provider", .text).notNull()
+                t.column("model", .text).notNull()
+                t.column("isLocal", .boolean).notNull().defaults(to: false)
+                t.column("promptTokens", .integer).notNull().defaults(to: 0)
+                t.column("completionTokens", .integer).notNull().defaults(to: 0)
+                t.column("tokensEstimated", .boolean).notNull().defaults(to: false)
+                t.column("audioMs", .integer).notNull().defaults(to: 0)
+                t.column("createdAt", .datetime).notNull()
+            }
+            try db.create(index: "idx_usage_events_created_at", on: "usage_events", columns: ["createdAt"])
+        }
+
+        // Dictation translation (fork): the translated text, its language,
+        // and what was typed. Transcript columns stay in the spoken language.
+        migrator.registerMigration("v0.52-dictation-translation") { db in
+            let columns = try db.columns(in: "dictations").map(\.name)
+            try db.alter(table: "dictations") { t in
+                if !columns.contains("translation") { t.add(column: "translation", .text) }
+                if !columns.contains("translationLanguage") { t.add(column: "translationLanguage", .text) }
+                if !columns.contains("translationOutput") { t.add(column: "translationOutput", .text) }
+            }
+        }
+
         return migrator
     }
 

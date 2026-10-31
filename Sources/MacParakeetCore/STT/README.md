@@ -79,6 +79,38 @@ meeting preview warm-up and inference without changing capture or final STT.
   Cohere and downloading its model through the shared capability-registry
   memory floor (`SpeechEngineCapabilityRegistry`, 16 GB); Core runtime and CLI
   entry points enforce the same gate before constructing or selecting Cohere.
+- `CloudTranscribeEngine.swift` — opt-in online engine (fork amendment to
+  ADR-026). Uploads 16 kHz mono WAV to a user-configured OpenAI-compatible
+  `audio/transcriptions` server; **sends recorded audio off the device**.
+  Holds no model: "ready" means a server address and model are saved and the
+  endpoint-bound credential can be read (`CloudSTTConfigStore`; API key in
+  the Keychain). Anonymous endpoints remain valid. This checks local
+  configuration, not remote authentication or service availability. Batch-only like
+  Cohere. File decoding is bounded and demand-driven: one upload window plus
+  one sample of lookahead, with a short quiet-point tail retained between
+  uploads. No next window is decoded until the current upload settles.
+  Audio longer than ten minutes is split at quiet points and word times are
+  clipped to each uploaded chunk's duration and re-offset from actual emitted
+  sample counts. Requests `verbose_json` word timings and retries as
+  plain `json` for models that reject it. Never selected by default and
+  never used as a fallback for a local engine.
+- `RealtimeTranscribeEngine.swift` — streaming half of the online engine.
+  Conforms to `NativeLiveDictating`: opens an OpenAI-compatible Realtime
+  transcription session (`wss://…/realtime?intent=transcription`), streams
+  the microphone as 24 kHz PCM16, and reports text deltas as live dictation
+  partials. Used only when the Online engine is selected **and** a realtime
+  model is saved; otherwise the live session is declined and dictation
+  transcribes after stop. The service does no turn detection for these
+  sessions, so the engine commits a phrase after ~0.6 s of silence. The
+  dictation's final text still comes from the recorded audio through
+  `CloudTranscribeEngine`, so a dropped connection only loses the preview.
+  Live-caption Clear creates a fresh socket with the resolved session settings,
+  revoking old sends and receives even when a commit acknowledgement has not
+  assigned its item ID yet. `LiveCaptionSession` discards already-admitted audio
+  and converter carry, then bounds newly admitted audio while reconnecting.
+  This is an actor admission cutoff, not an atomic flush of the capture stream.
+  Repeated Clear/Stop invalidates obsolete reconnects; failure or overflow stops
+  captions visibly.
 - `NativeLiveDictating.swift` — internal protocol the native streaming engines
   conform to so `STTRuntime` can route a live dictation session to the active
   Nemotron or Parakeet Unified build without knowing the concrete engine type.

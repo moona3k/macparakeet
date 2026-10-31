@@ -94,7 +94,24 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- `llm routes list` includes a `translate` entry for the transcript-translation
+  task (ADR-032, spec F31). It always inherits the default route; `llm routes
+  set|reset` still accept only `cleanup` and `analysis`. Existing entries and
+  their fields are unchanged.
+
+### Changed
+
+- `transcribe --engine app-default` follows the saved final/file engine when
+  it is local. A saved Online engine falls back to Parakeet, preserving the
+  CLI's local-only default. No CLI flag selects the online speech service.
+
 ### Fixed
+
+- Online speech status describes local configuration readiness rather than a
+  downloaded model. Its `speechModelCached` field is false; the existing
+  `speechRuntimeReady` field reflects readable configuration and credentials.
 
 - Knowledge-card generation now makes one corrective retry for incomplete or
   malformed output, waits briefly for busy AI settings, and reserves provider

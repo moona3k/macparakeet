@@ -122,7 +122,6 @@ not a claim that every proposed command is available.
 │  Future - "Platform"                                             │
 ├─────────────────────────────────────────────────────────────────┤
 │  • iOS companion                                                 │
-│  • Translation                                                     │
 │  • API / Shortcuts integration                                   │
 │  • Team vocabulary sharing                                       │
 │  • Vibe coding integrations (Cursor, VS Code)                   │
@@ -2351,7 +2350,66 @@ speaker identity remain future work.
 Share transcripts between Mac and iPhone. Capture in-person conversations on iPhone.
 
 ### F31: Translation
-Translate transcribed text to other languages. Implementation approach TBD (local model or API). If this product ships, it is an ADR-032 `translate` task with its own selector and recipes (for example Hy-MT2). It is not cleanup, analysis, or a default-list model ID, and it must not replace the canonical stored transcript.
+Translate a conversation into Persian, English, or German. Translation is the ADR-032 `translate` task: it runs on the default AI route through `LLMService` (general LLM; no specialist recipe and no dedicated Settings row yet). A local provider keeps the text on-device; a cloud provider receives the transcript text, the same as summaries and chat. Apple Intelligence cannot serve it. Translation never replaces the canonical stored transcript. Cancellation revokes the current job: a late response cannot save a cancelled translation, append progress to a replacement, or clear a newer job. Oversized source segments use bounded subrequests and reassemble one timed/speaker segment only after every part succeeds. Markdown translation retains trailing spaces and tabs, including hard line breaks. Saved model metadata stays unknown unless response provenance establishes it; translating a saved AI result does not inherit that result’s provider/model/inference settings.
+
+**Saved transcripts (meetings, files, URLs)**
+- The globe menu in the transcript tab bar translates the transcript and opens it in its own tab (one tab per language). The effective transcript (ADR-031 projection) is sent in numbered batches so long conversations are never truncated and every translated line maps to one source segment.
+- Translated lines keep their timestamps and speakers; clicking a timestamp seeks playback. Persian is laid out right-to-left.
+- Translations are saved with the transcript (`transcript_translations`) and can be copied, exported (`.txt`, and `.srt` when timed), re-translated, or deleted. If source text, timing, or speaker attribution changes afterwards, the translation is flagged as out of date.
+- A translation job keeps running and saves if the user opens another transcript before it finishes.
+
+**Summaries and other prompt results**
+- A result tab's Translate menu translates the existing result text line by line (Markdown structure, blank lines, and fenced code are preserved) and saves it as a new result named `<prompt name> · <language>`. The original result is kept. This differs from "Language of AI results", which controls the language a result is generated in.
+
+**Video subtitles**
+- The subtitle language menu on the video player switches the overlay between the original and any saved translation, generating the translation first when needed.
+- Only current, timed translations are used as subtitles. When source text, timing, or speakers change, the player returns to original subtitles and offers Re-translate; the outdated saved translation remains available in its tab. Failed subtitle translation offers Retry.
+- Optional setting (Settings → AI): translate subtitles automatically into a chosen language when a video transcript is opened.
+
+**Live meetings**
+- The Transcript tab of the live meeting panel has a Translate menu (Off / Persian / English / German). When on, each transcript line shows its translation beneath the original shortly after it is spoken.
+- Lines are translated once they settle (the newest line waits until its text stops changing). After three consecutive provider failures translation pauses until the user retries.
+- The same menu sets what is shown — the original with its translation underneath, or the translation only (a line shows its original text until its translation arrives) — and the speed: Balanced waits 1.5 s for the newest line to settle; Faster waits 0.4 s and sends more AI requests because a growing line is translated again. Both choices are remembered.
+- Floating captions: the Captions button in the Transcript tab opens an always-on-top window that does not take keyboard focus, showing the last lines in two columns (original, translation), with adjustable text size and its own language menu. Persian is laid out right-to-left. Whether it was open is remembered for the next meeting. It always shows both columns; the display-mode setting applies only to the meeting panel.
+- Live translations are in-memory only and are not saved; translate the saved meeting transcript for a durable copy. The chosen live language is remembered.
+
+### F51: Online Speech Engine (fork, opt-in)
+An optional "Online" speech engine transcribes through any OpenAI-compatible `audio/transcriptions` server (OpenAI, Groq, self-hosted). This is the batch upload path; realtime dictation and Live Captions also upload audio. These fork paths require an upstream scope decision under ADR-002 and ADR-026; the fork amendment does not establish an accepted upstream exception.
+
+- The Online Speech Service card offers model dropdowns filled from the server's `/models` list (speech models only, sorted by name into file and realtime), with a built-in fallback list and free-text entry. Changing the server clears the old catalog; stale lookup completions cannot attach it to a new server.
+- Settings → Speech → Online Speech Service holds the server address, model, and API key (Keychain). A blank key field reuses a saved key only for the same normalized endpoint. Keys are bound to that endpoint in Keychain; mismatched or failed partial saves cannot send a key to another server. The Online tile cannot be selected until a server and model are saved, and switching to it asks for confirmation.
+- It can be the engine for everything, or only for recordings and files through the existing Final Transcription override.
+- Batch only: dictation records first and transcribes after stop. Meeting live preview is disabled for arbitrary online models because this engine-wide capability cannot guarantee word timings. Final responses preserve valid supplied timings, clipped to each uploaded chunk's actual duration; text-only results stay plain text.
+- Optional realtime model (for example `gpt-realtime-whisper`): when one is saved, dictation streams the microphone over a Realtime transcription session and shows text while the user speaks. The final dictation text still comes from the recorded audio through the file model, so both are billed. Meeting live preview remains disabled.
+- Long audio is decoded incrementally into uploads of at most ten minutes at quiet points. Decoding waits for each upload to settle, so audio buffers stay bounded independently of recording length; the source recording remains intact.
+- Transcripts record `engine = cloud` and the model name as the variant, shown as "Online · <model>".
+
+### F52: Dictation Translation (fork)
+Settings → AI → Dictation translation: choose a language (Off by default) and what is typed into the target app.
+
+- Typed text is selectable: the translation, the original (translation shown only), or both (original, then translation on the next line).
+- While dictating, the floating overlay shows a live translation under the live transcript. It needs an engine that produces live text, translates only the recent tail after the text becomes quiet, and is best-effort. Enabling, changing, or disabling the translation language refreshes the overlay even while the spoken text is stable. Cancel, discard, and dismissal revoke pending work.
+- When dictation ends, the finished text is translated once and typed according to the setting. Translation waits at most five seconds; errors or the deadline return the original text without waiting for a noncooperative provider. Cancellation still follows the dictation discard/retention policy, and late output cannot update history.
+- Transcript columns always stay in the spoken language. The translation, its language, and the typed-output choice are stored on the dictation (`translation`, `translationLanguage`, `translationOutput`, migration v0.52) and history shows the translation under the original.
+- Uses the `translate` task route (default AI). A cloud provider receives the dictated text.
+
+### F53: Live Captions (fork)
+Menu bar → Live Captions… opens a floating, always-on-top window that shows speech as text in real time with its translation beside it, without recording a meeting.
+
+- Requires the online speech service with a realtime model; it streams audio to that service (ADR-026 fork amendment) and does nothing until the user presses Start. Stop revokes pending connection/capture startup. Upload buffering is bounded per source; a slow or rejected connection stops visibly. Clear removes session history and reconnects each source using the current session’s endpoint, credential, and model. It discards audio already admitted to the caption session and converter carry; later admitted buffers wait within the normal bound while reconnection finishes. The capture stream has no atomic flush, so this is not a sample-exact wall-clock cutoff. Reconnect failure or queue overflow stops visibly. Copy preserves microphone/computer-audio source labels.
+- Source: computer audio (default), microphone, or both. Each source gets its own realtime session so the two are not mixed. Lines follow that source's provider-reported audio order when available, with arrival order as the fallback; the arrival slots between sources are preserved.
+- Two columns (original, translation), adjustable text size, translation language and speed, Copy and Clear. Phrases still being spoken are shown dimmed.
+- Nothing is saved: no audio file, transcript row, or meeting. Stop and window close cancel caption and translation work while retaining visible completed lines; changing translation settings cannot restart requests until a new session starts. Usage & Cost counts audio after successful local socket sends, including late completion attributed to the original session; it is not a provider billing receipt.
+- Realtime sessions write bounded connection diagnostics to the audio diagnostics log; arbitrary provider error text, close reasons, and unknown event names are omitted.
+
+### F54: Usage & Cost (fork)
+Settings → AI → Usage & Cost totals, for the last 7 days, 30 days, or all time:
+
+- AI models: requests and input/output tokens per provider, model, and locality, for every AI feature. Token counts the provider did not report are estimated and marked.
+- Online speech service: uploads and audio minutes per model, including realtime dictation sessions.
+- Local speech engines: completed recordings and audio minutes, shown as free. Failed and in-progress dictations are excluded.
+
+Cost is an estimate from a built-in price list for exact known provider/model pairs, including explicitly listed snapshots. Unknown variants do not inherit a model family's price. Custom prices are scoped by usage kind, provider, model, and locality; local and remote usage never merge. Legacy model-only prices remain stored but require explicit provider confirmation before use. Invalid or incomplete prices cannot be saved. Models with no known price are listed as not included rather than guessed. Arithmetic overflow shows “Amount too large” separately from missing prices. Counting starts when this version first runs. History can be cleared; only counts are stored (`usage_events`).
 
 ### F32: API / Shortcuts Integration
 Expose transcription as a macOS Shortcut action. Enable automation: "When I receive a voice memo, transcribe it."

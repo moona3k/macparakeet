@@ -127,7 +127,12 @@ final class AppEnvironmentConfigurer {
             // Same gate as the scoring path: with the feature unavailable the
             // view model holds no voiceprint service and offers nothing.
             speakerVoiceprints: AppFeatures.isVoiceProfilesAvailable()
-                ? env.speakerVoiceprintService : nil
+                ? env.speakerVoiceprintService : nil,
+            translator: Self.translator(in: env),
+            translationRepo: env.transcriptTranslationRepo,
+            translationModelNameProvider: { [llmConfigStore = env.llmConfigStore] in
+                (try? llmConfigStore.loadRouteMetadata(for: .translate))?.config.modelName
+            }
         )
         let dictationService = env.dictationService
         historyViewModel.configure(
@@ -299,6 +304,11 @@ final class AppEnvironmentConfigurer {
             self?.transcriptionViewModel.hasPromptResultTabs = hasPromptResults
         }
 
+        promptResultsViewModel.updateResultTranslator(Self.translator(in: env))
+        promptResultsViewModel.onPromptResultTranslated = { [weak self] transcriptionID, promptResultID in
+            guard self?.transcriptionViewModel.currentTranscription?.id == transcriptionID else { return }
+            self?.transcriptionViewModel.selectedTab = .result(id: promptResultID)
+        }
         promptResultsViewModel.onGenerationCompleted = { [weak self] generationID, promptResultID in
             self?.transcriptionViewModel.handleGenerationCompleted(generationID, promptResultID: promptResultID)
         }
@@ -444,6 +454,7 @@ final class AppEnvironmentConfigurer {
         )
         coordinatorRefs.meeting = meetingCoordinator
         liveMeetingCoordinator = meetingCoordinator
+        meetingCoordinator.updateTranslator(Self.translator(in: env))
         let retryMeetingFinalization: (Transcription) async throws -> Void = {
             [weak meetingCoordinator] transcription in
             guard let meetingCoordinator else {
@@ -628,10 +639,23 @@ final class AppEnvironmentConfigurer {
         }
     }
 
+    /// Translation runs on the `translate` task route (ADR-032), which
+    /// inherits the default AI route. `nil` when that route is unconfigured.
+    private static func translator(in env: AppEnvironment) -> TranscriptTranslating? {
+        guard let config = try? env.llmConfigStore.loadConfig(for: .translate),
+            config.id.canServe(.translate)
+        else { return nil }
+        return TranscriptTranslationService(llmService: env.llmService)
+    }
+
     func refreshLLMAvailability(in env: AppEnvironment) {
         let hasConfig = (try? env.llmConfigStore.loadRouteMetadata(for: .analysis)) != nil
         let service: LLMService? = hasConfig ? env.llmService : nil
         transcriptionViewModel.updateLLMAvailability(hasConfig, llmService: service)
+        let translator = Self.translator(in: env)
+        transcriptionViewModel.translationViewModel.updateTranslator(translator)
+        promptResultsViewModel.updateResultTranslator(translator)
+        liveMeetingCoordinator?.updateTranslator(translator)
         chatViewModel.updateLLMService(service)
         promptResultsViewModel.updateLLMService(
             service,

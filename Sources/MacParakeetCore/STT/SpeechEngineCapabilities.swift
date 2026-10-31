@@ -5,12 +5,13 @@ public enum SpeechEngineVariantKey: Hashable, Sendable, CustomStringConvertible 
     case nemotron(NemotronModelVariant)
     case whisper(WhisperModelVariant)
     case cohere
+    case cloud
 
     public static var allCases: [SpeechEngineVariantKey] {
         ParakeetModelVariant.allCases.map(SpeechEngineVariantKey.parakeet)
             + NemotronModelVariant.allCases.map(SpeechEngineVariantKey.nemotron)
             + WhisperModelVariant.allCases.map(SpeechEngineVariantKey.whisper)
-            + [.cohere]
+            + [.cohere, .cloud]
     }
 
     public var engine: SpeechEnginePreference {
@@ -23,6 +24,8 @@ public enum SpeechEngineVariantKey: Hashable, Sendable, CustomStringConvertible 
             .whisper
         case .cohere:
             .cohere
+        case .cloud:
+            .cloud
         }
     }
 
@@ -34,7 +37,7 @@ public enum SpeechEngineVariantKey: Hashable, Sendable, CustomStringConvertible 
             variant.rawValue
         case .whisper(let variant):
             variant.rawValue
-        case .cohere:
+        case .cohere, .cloud:
             nil
         }
     }
@@ -167,7 +170,7 @@ public enum SpeechEngineCapabilityRegistry {
     public static let cohereMinimumMemoryBytes: UInt64 = 16 * 1024 * 1024 * 1024
 
     public static let all: [SpeechEngineCapabilities] =
-        makeParakeetRows() + makeNemotronRows() + makeWhisperRows() + [cohereRow()]
+        makeParakeetRows() + makeNemotronRows() + makeWhisperRows() + [cohereRow(), cloudRow()]
 
     private static let table = Dictionary(uniqueKeysWithValues: all.map { ($0.key, $0) })
 
@@ -217,6 +220,8 @@ public enum SpeechEngineCapabilityRegistry {
             WhisperModelVariant.normalize(whisperModelVariant).map(SpeechEngineVariantKey.whisper)
         case .cohere:
             .cohere
+        case .cloud:
+            .cloud
         }
     }
 
@@ -348,6 +353,36 @@ public enum SpeechEngineCapabilityRegistry {
                 )
             )
         }
+    }
+
+    /// Online engine (OpenAI-compatible API). Final text always comes from a
+    /// batch request. Live dictation partials are available when the user has
+    /// saved a realtime model (`RealtimeTranscribeEngine`); without one the
+    /// live session is declined and dictation transcribes after stop. This
+    /// registry key covers arbitrary configured providers/models, so it cannot
+    /// promise word timings or enable meeting preview. Final results still
+    /// preserve valid timings when the response supplies them.
+    private static func cloudRow() -> SpeechEngineCapabilities {
+        SpeechEngineCapabilities(
+            key: .cloud,
+            supportsNativeLiveDictation: true,
+            supportsTailPreview: false,
+            providesWordTimestamps: false,
+            supportedLanguages: .automatic(),
+            supportsCustomVocabulary: false,
+            modelLifecycle: SpeechEngineModelLifecycle(
+                modelName: "Online speech service",
+                variantID: nil,
+                selectableVariantIDs: [],
+                approximateDownloadSize: nil,
+                isUserDeletable: false,
+                minimumMemoryBytes: nil
+            ),
+            telemetryIdentity: SpeechEngineTelemetryIdentity(
+                modelKind: .cloudSTT,
+                engineVariant: .none
+            )
+        )
     }
 
     private static func cohereRow() -> SpeechEngineCapabilities {

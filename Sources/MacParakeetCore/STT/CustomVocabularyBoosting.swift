@@ -85,6 +85,8 @@ public enum CustomVocabularyBoostingPresentation {
             "Whisper \(variant.displayName)"
         case .cohere:
             "Cohere"
+        case .cloud:
+            "Online speech service"
         }
     }
 }

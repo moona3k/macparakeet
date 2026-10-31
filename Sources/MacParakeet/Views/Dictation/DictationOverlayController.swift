@@ -104,7 +104,9 @@ final class DictationOverlayController: DictationOverlayControlling {
 
         // Start with generous size — SwiftUI content sizes itself, panel background is clear
         let panelWidth: CGFloat = 300
-        let panelHeight: CGFloat = 160
+        // Large transcript (98pt), translation (44pt), tooltip (36pt), pill
+        // (46pt), spacing and shadows must all fit without compressing cards.
+        let panelHeight: CGFloat = 280
         hosting.frame = NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight)
 
         let panel = ClickablePanel(
@@ -246,6 +248,9 @@ final class DictationOverlayViewModel {
     var busyProcessingMessage: String?
     var processingLoadCaption: ProcessingLoadCaption?
     var liveTranscript: String = ""
+    /// Translation of the live transcript, when dictation translation is on.
+    var liveTranslation: String = ""
+    var liveTranslationIsRightToLeft: Bool = false
     var previewTextSize: DictationPreviewTextSize = .medium
     var anchorsToTop: Bool = false
     var commandPromptText: String = "Speak your command..."

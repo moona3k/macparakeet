@@ -420,6 +420,14 @@ public enum SettingsSearchIndex {
 
         // MARK: Engine
         SettingsSearchEntry(
+            id: "engine.cloudService",
+            tab: .engine,
+            title: "Online Speech Service",
+            subtitle: "Server, API key, and speech models for opt-in online transcription.",
+            keywords: ["cloud", "online", "speech server", "realtime model", "api key"],
+            cardAnchor: "engine.cloudService"
+        ),
+        SettingsSearchEntry(
             id: "engine.selector",
             tab: .engine,
             title: "Speech Engine",
@@ -511,6 +519,14 @@ public enum SettingsSearchIndex {
 
         // MARK: AI
         SettingsSearchEntry(
+            id: "ai.usage",
+            tab: .ai,
+            title: "Usage & Cost",
+            subtitle: "Local request totals and estimated AI and speech service costs.",
+            keywords: ["usage", "cost", "price", "tokens", "spending", "ledger"],
+            cardAnchor: "ai.usage"
+        ),
+        SettingsSearchEntry(
             id: "ai.provider",
             tab: .ai,
             title: "AI Setup",
@@ -548,6 +564,22 @@ public enum SettingsSearchIndex {
                 "summaries in", "chapters language", "action items language",
             ],
             cardAnchor: "ai.meetingLanguage"
+        ),
+        SettingsSearchEntry(
+            id: "ai.dictationTranslation",
+            tab: .ai,
+            title: "Dictation translation",
+            subtitle: "Translate dictation and its live preview into another language.",
+            keywords: ["dictation translation", "translate dictation", "translation", "translate"],
+            cardAnchor: "ai.dictationTranslation"
+        ),
+        SettingsSearchEntry(
+            id: "ai.subtitleTranslation",
+            tab: .ai,
+            title: "Subtitle translation",
+            subtitle: "Automatically translate video subtitles with your default AI.",
+            keywords: ["subtitle translation", "translate subtitles", "subtitles", "translation"],
+            cardAnchor: "ai.subtitleTranslation"
         ),
         SettingsSearchEntry(
             id: "ai.meetingTitles",

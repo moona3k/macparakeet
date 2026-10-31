@@ -4,6 +4,29 @@ import XCTest
 @testable import MacParakeetCore
 
 final class TranscribeCommandTests: XCTestCase {
+    func testAppDefaultNeverUploadsAudioForASavedCloudEngine() {
+        let suite = "TranscribeLocalDefault.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(SpeechEnginePreference.cloud.rawValue, forKey: SpeechEnginePreference.defaultsKey)
+        for finalOverride in [nil, SpeechEnginePreference.cloud.rawValue] as [String?] {
+            defaults.set(finalOverride, forKey: SpeechEnginePreference.transcriptionDefaultsKey)
+            let selected = TranscribeCommand.resolveSpeechEngine(.appDefault, defaults: defaults, explicitLanguage: nil)
+            XCTAssertEqual(selected.engine, .parakeet)
+        }
+    }
+
+
+    func testAppDefaultFileTranscriptionUsesFinalEngineInsteadOfLiveCloudEngine() {
+        let suite = "TranscribeFinalEngine.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(SpeechEnginePreference.cloud.rawValue, forKey: SpeechEnginePreference.defaultsKey)
+        defaults.set(SpeechEnginePreference.parakeet.rawValue, forKey: SpeechEnginePreference.transcriptionDefaultsKey)
+        let selected = TranscribeCommand.resolveSpeechEngine(.appDefault, defaults: defaults, explicitLanguage: nil)
+        XCTAssertEqual(selected.engine, .parakeet)
+    }
+
     private enum OutputTeardownError: Error, Equatable {
         case run
         case restore

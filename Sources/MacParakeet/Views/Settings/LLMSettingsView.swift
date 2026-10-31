@@ -12,6 +12,14 @@ private struct AIFormatterInstalledApp: Identifiable, Sendable {
 }
 
 struct LLMSettingsView: View {
+    @AppStorage(UserDefaultsAppRuntimePreferences.autoTranslateTranscriptsKey)
+    private var autoTranslateSubtitles = false
+    @AppStorage(UserDefaultsAppRuntimePreferences.transcriptTranslationLanguageKey)
+    private var subtitleTranslationLanguageCode = TranslationLanguage.persian.rawValue
+    @AppStorage(UserDefaultsAppRuntimePreferences.dictationTranslationLanguageKey)
+    private var dictationTranslationLanguageCode = ""
+    @AppStorage(UserDefaultsAppRuntimePreferences.dictationTranslationOutputKey)
+    private var dictationTranslationOutput = DictationTranslationSettings.Output.translation.rawValue
     @Bindable var viewModel: LLMSettingsViewModel
 
     @State private var showAdvanced = false
@@ -235,6 +243,14 @@ struct LLMSettingsView: View {
             Divider()
 
             meetingAIOutputLanguageSection
+
+            Divider()
+
+            subtitleTranslationSection
+
+            Divider()
+
+            dictationTranslationSection
 
             Divider()
 
@@ -906,6 +922,73 @@ struct LLMSettingsView: View {
         .id("ai.meetingLanguage")
     }
 
+    private var dictationTranslationSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Dictation translation")
+                    .font(DesignSystem.Typography.body.weight(.semibold))
+                Text(
+                    """
+                    Translate what you dictate. The floating window shows the translation while you speak \
+                    (with engines that give live text), and dictation history keeps the original with its \
+                    translation. It uses your default AI, adds a short wait before the text is typed, and \
+                    a cloud provider receives the dictated text.
+                    """
+                )
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            Picker("Translate dictation into", selection: dictationTranslationLanguageSelection) {
+                Text("Off").tag("")
+                ForEach(TranslationLanguage.allCases) { language in
+                    Text(language.displayName + " · " + language.nativeName).tag(language.rawValue)
+                }
+            }
+            .frame(maxWidth: 360)
+            Picker("Type into the app", selection: $dictationTranslationOutput) {
+                ForEach(DictationTranslationSettings.Output.allCases) { output in
+                    Text(output.title).tag(output.rawValue)
+                }
+            }
+            .frame(maxWidth: 360)
+            .disabled(TranslationLanguage.resolve(dictationTranslationLanguageCode) == nil)
+        }
+        .id("ai.dictationTranslation")
+    }
+
+    private var subtitleTranslationSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            Toggle(isOn: $autoTranslateSubtitles) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Translate video subtitles automatically")
+                        .font(DesignSystem.Typography.body.weight(.semibold))
+                    Text(
+                        """
+                        When you open a video transcript, its subtitles are translated with your default AI \
+                        and saved with the transcript. A cloud provider receives the transcript text. You can \
+                        also translate any transcript on demand from the globe menu in its tab bar.
+                        """
+                    )
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Picker("Subtitle language", selection: subtitleTranslationLanguageSelection) {
+                if TranslationLanguage.resolve(subtitleTranslationLanguageCode) == nil {
+                    Text("Choose a language").tag("")
+                }
+                ForEach(TranslationLanguage.allCases) { language in
+                    Text("\(language.displayName) · \(language.nativeName)").tag(language.rawValue)
+                }
+            }
+            .frame(maxWidth: 320)
+            .disabled(!autoTranslateSubtitles)
+        }
+        .id("ai.subtitleTranslation")
+    }
+
     private var aiResultLanguageSelection: Binding<String> {
         Binding(
             get: { viewModel.meetingAIOutputLanguagePolicy.configurationValue },
@@ -913,6 +996,22 @@ struct LLMSettingsView: View {
                 guard let policy = MeetingAIOutputLanguagePolicy(configurationValue: value) else { return }
                 viewModel.meetingAIOutputLanguagePolicy = policy
             }
+        )
+    }
+
+    private var dictationTranslationLanguageSelection: Binding<String> {
+        Binding(
+            get: { TranslationLanguage.resolve(dictationTranslationLanguageCode)?.rawValue ?? "" },
+            set: { dictationTranslationLanguageCode = $0 }
+        )
+    }
+
+    private var subtitleTranslationLanguageSelection: Binding<String> {
+        Binding(
+            get: {
+                TranslationLanguage.resolve(subtitleTranslationLanguageCode)?.rawValue ?? ""
+            },
+            set: { subtitleTranslationLanguageCode = $0 }
         )
     }
 

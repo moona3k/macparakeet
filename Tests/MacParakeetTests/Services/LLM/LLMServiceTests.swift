@@ -16,6 +16,7 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
     var chatCompletionStreamCallCount = 0
     var responseReasoningContent: String?
     var responseFinishReason: String?
+    var cancelBeforeReturningCompletion = false
     var responseFinishReasons: [String?] = []
     var responseUsages: [TokenUsage?] = []
     var responseModel = "mock-model"
@@ -42,6 +43,9 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
         capturedOptionBatches.append(options)
         if let chatCompletionError { throw chatCompletionError }
         let content = responseContents.isEmpty ? responseContent : responseContents.removeFirst()
+        if cancelBeforeReturningCompletion {
+            withUnsafeCurrentTask { $0?.cancel() }
+        }
         onChatCompletion?()
         return ChatCompletionResponse(
             content: content,
@@ -395,6 +399,87 @@ final class LLMServiceTests: XCTestCase {
 
         _ = try await service.transformDetailed(text: "hello", prompt: "Uppercase")
         XCTAssertEqual(mockClient.capturedContext?.providerConfig.id, .openai)
+
+        // Translation is its own task and inherits the default route; it
+        // must not ride the analysis or cleanup overrides (ADR-032).
+        _ = try await service.translateDetailed(text: "[1] hello", instructions: "Translate into German.")
+        XCTAssertEqual(mockClient.capturedContext?.providerConfig.id, .openai)
+    }
+
+    func testTranslateSendsInstructionsAndTextUnmodified() async throws {
+        _ = try await service.translateDetailed(text: "[1] hello\n[2] world", instructions: "Translate into German.")
+
+        XCTAssertEqual(mockClient.capturedMessages.map(\.role), [.system, .user])
+        XCTAssertEqual(mockClient.capturedMessages.first?.content, "Translate into German.")
+        XCTAssertEqual(mockClient.capturedMessages.last?.content, "[1] hello\n[2] world")
+    }
+
+    func testTranslateRejectsRequestsThatWouldBeTruncated() async {
+        mockConfigStore.config = .lmstudio(model: "local")
+        let oversized = String(repeating: "a", count: LLMService.lmStudioContextBudget + 1)
+
+        do {
+            _ = try await service.translateDetailed(text: oversized, instructions: "Translate.")
+            XCTFail("Expected contextTooLong")
+        } catch let error as LLMError {
+            guard case .contextTooLong = error else { return XCTFail("Expected contextTooLong, got \(error)") }
+            XCTAssertTrue(mockClient.capturedMessages.isEmpty, "An over-budget batch must not be sent truncated")
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testTranslateRejectsTruncatedOutputEvenWhenEveryMarkerIsPresent() async throws {
+        mockClient.responseContent = "[1] A partial final sentence"
+        for reason in ["length", "max_tokens", "MAX_TOKENS"] {
+            mockClient.responseFinishReason = reason
+            do {
+                _ = try await service.translateDetailed(text: "[1] Complete sentence.", instructions: "Translate.")
+                XCTFail("Expected incomplete translation for \(reason)")
+            } catch TranscriptTranslationError.incompleteResponse {
+                // A numbered line can still end halfway through its content.
+            }
+        }
+        mockClient.responseFinishReason = "stop"
+        let result = try await service.translateDetailed(text: "[1] Complete sentence.", instructions: "Translate.")
+        XCTAssertEqual(result.output, mockClient.responseContent)
+    }
+
+    func testTranslateReservesOutputSpaceBeforeSendingLocalRequest() async throws {
+        mockConfigStore.config = .lmstudio(model: "local")
+        let instructions = "Translate."
+        let fittingCount = (LLMService.lmStudioContextBudget - instructions.count) / 2
+        _ = try await service.translateDetailed(
+            text: String(repeating: "a", count: fittingCount), instructions: instructions)
+        let sentText = mockClient.capturedMessages.last?.content
+        do {
+            _ = try await service.translateDetailed(
+                text: String(repeating: "b", count: fittingCount + 1), instructions: instructions)
+            XCTFail("Input plus expected translation must fit the context")
+        } catch let error as LLMError {
+            guard case .contextTooLong = error else { return XCTFail("Unexpected error: \(error)") }
+            XCTAssertEqual(mockClient.capturedMessages.last?.content, sentText, "Rejected input was not sent")
+        }
+    }
+
+    func testTranslateRejectsResponseWhenProviderReturnsAfterCancellation() async {
+        mockClient.responseContent = "[1] Completed text from a cancelled request"
+        mockClient.cancelBeforeReturningCompletion = true
+        let service = self.service!
+        let task = Task {
+            try await service.translateDetailed(text: "[1] Hello", instructions: "Translate.")
+        }
+        do {
+            _ = try await task.value
+            XCTFail("A provider returning success must not suppress cancellation")
+        } catch {
+            XCTAssertTrue(error is CancellationError)
+        }
+    }
+
+    func testTranslateRouteIsNotOverridable() {
+        XCTAssertFalse(LLMTaskGroup.translate.allowsOverride)
+        XCTAssertFalse(LLMProviderID.appleIntelligence.canServe(.translate))
     }
 
     // MARK: - Not Configured

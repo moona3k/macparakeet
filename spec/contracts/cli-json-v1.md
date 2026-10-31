@@ -263,7 +263,7 @@ still apply.
   is no default. Apple Intelligence is accepted for `cleanup` only by
   `llm routes set`; analysis selection fails validation before persistence.
 - `llm routes list --json` returns `{ok:true,routes:[...]}`. Each entry has
-  `task` (`default`, `cleanup`, `analysis`, `transform`), `inherited` and
+  `task` (`default`, `cleanup`, `analysis`, `transform`, `translate`), `inherited` and
   `configured`; configured entries also include `provider`, `model`, `isLocal`
   and a redacted `endpoint` origin. Credentials, URL userinfo, path, query and
   fragment are never emitted. `llm routes set|reset <cleanup|analysis> --json`
@@ -567,6 +567,23 @@ conversations expose optional `messages[].activities`, preserving compatibility
 with older messages. Limits, count semantics, and fields are defined in
 [the Ask workspace contract](ask-workspace.md). Consumers should ignore unknown
 event types and optional fields.
+
+### Translation and file engine routing
+
+`transcribe --engine app-default` follows the saved final/file transcription engine
+when it is local, including inheritance when no final override is stored. A saved
+Cloud engine falls back to Parakeet; the CLI does not expose a cloud speech flag
+or upload audio because Online was selected in the app. A live Cloud engine does
+not override an explicitly selected local final engine. The
+`translate` LLM route is listed as inherited from the default route and cannot be
+configured as an independent override.
+
+When status/health reports `speechEngine: "cloud"`, `speechModelCached` is false
+because online speech has no local model artifact. `speechRuntimeReady` reports
+whether the saved endpoint, model, and endpoint-bound credential can be loaded
+locally (anonymous endpoints are allowed). It does not verify remote credentials,
+service availability, or audio upload support through the CLI. Human status text
+describes configuration readiness instead of a downloaded model.
 
 ### Meetings awaiting playback preparation
 

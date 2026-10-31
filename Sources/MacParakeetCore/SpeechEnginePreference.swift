@@ -8,6 +8,10 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     /// Core ML. A batch, dictation-oriented engine (no live partials, no word
     /// timestamps); see ``CohereTranscribeEngine``.
     case cohere
+    /// Online engine: uploads audio to an OpenAI-compatible transcription
+    /// API. The only engine that sends speech off the device; opt-in only
+    /// (see ``CloudTranscribeEngine``).
+    case cloud
 
     public static let defaultsKey = "speechRecognitionEngine"
     /// Optional final engine for file/media transcription and newly started
@@ -54,6 +58,8 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
             "Whisper"
         case .cohere:
             "Cohere"
+        case .cloud:
+            "Online"
         }
     }
 
@@ -66,6 +72,8 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
         case .whisper:
             .parakeet
         case .cohere:
+            .parakeet
+        case .cloud:
             .parakeet
         }
     }
@@ -633,6 +641,9 @@ public struct SpeechEngineSelection: Codable, Equatable, Sendable {
             // Cohere uses simple language subtags ("en", "fr", …); the engine
             // maps the primary subtag to a supported language (English default).
             SpeechEnginePreference.normalizeCohereLanguage(language)
+        case .cloud:
+            // Optional ISO language hint; `nil` lets the service detect it.
+            SpeechEnginePreference.normalizeLanguage(language)
         }
     }
 
@@ -670,6 +681,8 @@ public struct SpeechEngineSelection: Codable, Equatable, Sendable {
             SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults)
         case .cohere:
             SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults)
+        case .cloud:
+            nil
         }
         return SpeechEngineSelection(engine: engine, language: language)
     }

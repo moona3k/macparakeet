@@ -38,6 +38,8 @@ enum SettingsStatusRules {
         case .nemotron: activeStatus = nemotron
         case .whisper: activeStatus = whisper
         case .cohere: activeStatus = cohereStatus
+        // The online service has no local model to download or prepare.
+        case .cloud: activeStatus = .ready
         }
 
         if activeStatus == .notDownloaded {

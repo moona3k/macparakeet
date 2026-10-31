@@ -200,6 +200,7 @@ privacy behavior.
 │  transcriptions  │◄──FK──│   chat_conversations    │  v0.5 — Multi-conversation chat
 │                  │◄──FK──│      summaries          │  v0.7 — Prompt results per transcript
 │                  │◄──FK──│        cards            │  v0.28 — Derived knowledge cards
+│                  │◄──FK──│ transcript_translations │  v0.50 — Saved transcript translations
 │                  │◄──FK──│ speaker_corrections     │  v0.32 — Speaker correction log
 │                  │◄──FK──│speaker_correction_states│  v0.32 — Undo/Redo cursor
 └──────────────────┘       └─────────────────────────┘
@@ -236,8 +237,8 @@ privacy behavior.
 ```
 
 Tables are self-contained domains except for derived or child records:
-`chat_conversations`, `summaries`, and `cards` have foreign keys to
-`transcriptions` with cascading delete, while `llm_runs` has nullable
+`chat_conversations`, `summaries`, `cards`, and `transcript_translations` have
+foreign keys to `transcriptions` with cascading delete, while `llm_runs` has nullable
 foreign-key columns back to the feature-owned source rows that triggered each
 LLM call. At least one `llm_runs` source link is required. The Swift model for
 `summaries` is `PromptResult`; the table name is retained for migration
@@ -819,6 +820,64 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
   rather than consulting an edited prompt; provider/model configuration is
   resolved again when execution begins.
 - Migration from existing data: legacy `transcriptions.summary` values migrate into `summaries` with classic "Summary" prompt metadata, then the legacy column is dropped by `v0.7.6-drop-legacy-transcription-summary`.
+
+---
+
+### `transcript_translations` (v0.50, Swift model: `TranscriptTranslation`)
+
+Stores one LLM-generated translation per transcript and target language (F31). Derived state: a row can always be regenerated from its transcript, and it never replaces the canonical transcript.
+
+```sql
+CREATE TABLE transcript_translations (
+    id                TEXT PRIMARY KEY,                    -- UUID string
+    transcriptionId   TEXT NOT NULL                        -- FK to transcriptions
+        REFERENCES transcriptions(id) ON DELETE CASCADE,
+    languageCode      TEXT NOT NULL,                       -- Target language: "fa", "en", "de"
+    segments          TEXT NOT NULL,                       -- JSON [TranslatedSegment]
+    sourceHash        TEXT NOT NULL,                       -- SHA-256 of text, timing, speaker IDs, and segment boundaries
+    modelName         TEXT,                                -- Actual response model when known; otherwise NULL
+    createdAt         TEXT NOT NULL,                       -- ISO 8601 timestamp
+    updatedAt         TEXT NOT NULL                        -- ISO 8601 timestamp
+);
+
+CREATE UNIQUE INDEX idx_transcript_translations_transcription_language
+    ON transcript_translations(transcriptionId, languageCode);
+```
+
+**Notes:**
+- `segments` is a JSON array of `{startMs?, endMs?, speakerId?, text}`. Source segments come from the effective transcript projection (ADR-031): corrected segment text when timed text was edited, sentence-level segments from word timings otherwise, and untimed paragraphs for whole-transcript edits and engines without word timestamps. Timing and speaker are copied through, so translated lines stay seekable and can be shown as video subtitles or exported as SRT.
+- One row per `(transcriptionId, languageCode)`; saving a new translation for a language replaces the previous one.
+- `sourceHash` fingerprints the ordered source text, timing, speaker IDs, and segment boundaries the translation was made from. When it no longer matches (correction, edit, or retranscription), the UI marks the translation as out of date and offers Re-translate; the row is not deleted automatically.
+- `transcriptionId` has a cascading delete — deleting a transcription removes its translations.
+- Live meeting translation is in-memory only and never writes to this table.
+
+---
+
+### `usage_events` (v0.51, Swift model: `UsageEvent`)
+
+Local ledger behind the Usage & Cost panel (F54). Aggregations and row identities distinguish usage kind, provider, model, and locality. Provider-scoped prices are stored in `usagePriceOverridesByProviderV1`; legacy `usagePriceOverrides` remains intact and requires explicit provider confirmation before pricing a row. One row per completed AI request or online-speech upload. Metadata only: no prompt, transcript, or audio content. No foreign keys, so usage totals survive deletion of the recordings they came from.
+
+```sql
+CREATE TABLE usage_events (
+    id               TEXT PRIMARY KEY,                 -- UUID string
+    kind             TEXT NOT NULL,                    -- "llm" | "cloud_speech"
+    provider         TEXT NOT NULL,                    -- LLM provider id, or speech service host
+    model            TEXT NOT NULL,
+    isLocal          BOOLEAN NOT NULL DEFAULT 0,       -- local providers are free
+    promptTokens     INTEGER NOT NULL DEFAULT 0,
+    completionTokens INTEGER NOT NULL DEFAULT 0,
+    tokensEstimated  BOOLEAN NOT NULL DEFAULT 0,       -- provider reported no counts (~4 chars/token)
+    audioMs          INTEGER NOT NULL DEFAULT 0,       -- uploaded audio, cloud_speech only
+    createdAt        DATETIME NOT NULL
+);
+
+CREATE INDEX idx_usage_events_created_at ON usage_events(createdAt);
+```
+
+**Notes:**
+- Written by `UsageRecordingLLMClient` (wraps the app's AI client, so every feature is counted) and by the online speech engines, through `UsageLedger`. Failed and cancelled requests are not recorded. The CLI does not record.
+- Cost is never stored. It is computed at display time from `UsagePriceBook` (built-in list prices plus user overrides in preferences), so correcting a price re-prices history.
+- Local speech-engine totals are not in this table; they are derived from `transcriptions` and `dictations`.
 
 ---
 
@@ -1885,6 +1944,9 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `dictations.wordCount` | v0.5 | Cached word count for voice stats |
 | `chat_conversations` | v0.5 | Multi-conversation chat per transcription (FK → transcriptions) |
 | `ask_conversations` | v0.49-ask-conversations | Independent Ask conversations; bounded Codable payload, revision and run lease; no source foreign key |
+| `dictations.translation`, `translationLanguage`, `translationOutput` | v0.52-dictation-translation | Dictation translation (F52): translated text, target language code, and what was typed (`translation` / `original` / `both`). Transcript columns stay in the spoken language |
+| `usage_events` | v0.51-usage-events | Local usage ledger: one row per completed AI request or online-speech upload (provider, model, tokens, audio ms); metadata only |
+| `transcript_translations` | v0.50-transcript-translations | Saved transcript translation per transcript and language (FK → transcriptions, cascade) |
 | `transcriptions.thumbnailURL` | v0.5 | YouTube video thumbnail URL |
 | `transcriptions.channelName` | v0.5 | YouTube channel name |
 | `transcriptions.videoDescription` | v0.5 | YouTube video description |
@@ -2004,3 +2066,16 @@ let processing = try dbQueue.read { db in
 ---
 
 *Last updated: 2026-05-16*
+
+### Online speech credentials (fork feature under review)
+
+New Online Speech Service credentials are stored as an `endpoint-v1:` Keychain
+value containing the normalized API endpoint and key together. URL credentials,
+query strings, and fragments are rejected; scheme/host/default port/trailing
+slash normalization does not collapse distinct API paths. Reads fail closed if
+saved endpoint preferences do not match the credential envelope. Legacy raw
+keys remain associated with their existing saved endpoint and are upgraded on
+the next successful save. Keychain writes complete before endpoint preferences
+change; failure leaves the previous configuration intact. A blank key field can
+reuse a stored credential only for the same endpoint. Changing providers
+requires an explicit replacement key or explicitly clearing the old key.

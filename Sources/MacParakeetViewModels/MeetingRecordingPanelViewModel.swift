@@ -68,12 +68,17 @@ public final class MeetingRecordingPanelViewModel {
     public let chatViewModel: TranscriptChatViewModel = TranscriptChatViewModel()
     public let notesViewModel: MeetingNotesViewModel = MeetingNotesViewModel()
     public let quickPromptsViewModel: QuickPromptsViewModel = QuickPromptsViewModel()
+    public let liveTranslation: LiveTranslationViewModel = LiveTranslationViewModel()
     public private(set) var meetingTypes: [MeetingType] = []
     public private(set) var activeMeetingTypeID: UUID?
     public var onStop: (() -> Void)?
     public var onPauseToggle: (() -> Void)?
     public var onMicrophoneMuteToggle: (() -> Void)?
     public var onClose: (() -> Void)?
+    /// Whether the floating caption window is showing. Owned by the flow
+    /// coordinator, which opens and closes the window.
+    public var captionsVisible: Bool = false
+    public var onToggleCaptions: (() -> Void)?
     private var onMeetingTypeChange: ((UUID?) -> Void)?
 
     private var copiedResetTask: Task<Void, Never>?
@@ -151,6 +156,7 @@ public final class MeetingRecordingPanelViewModel {
             wordCount += addedWordCounts.reduce(0, +) - removedWordCount
             previewLineWordCounts = Array(previewLineWordCounts.prefix(firstChangedIndex)) + addedWordCounts
             previewLines = lines
+            liveTranslation.update(lines: lines.map { .init(id: $0.id, text: $0.text) })
             if !lines.isEmpty {
                 liveTranscriptStatus = .live
             }
@@ -161,6 +167,24 @@ public final class MeetingRecordingPanelViewModel {
 
     public func refreshChatTranscriptContext() {
         chatViewModel.updateTranscriptText(chatTranscript)
+    }
+
+    /// Transcript lines for display: the live lines, each carrying its
+    /// translation when live translation is on.
+    public var displayLines: [MeetingRecordingPreviewLine] {
+        guard liveTranslation.isActive else { return previewLines }
+        return previewLines.map { line in
+            guard let translation = liveTranslation.translation(forLineID: line.id) else { return line }
+            let translationOnly = liveTranslation.displayMode == .translationOnly
+            return MeetingRecordingPreviewLine(
+                id: line.id,
+                timestamp: line.timestamp,
+                speakerLabel: line.speakerLabel,
+                text: translationOnly ? translation : line.text,
+                source: line.source,
+                translation: translationOnly ? nil : translation
+            )
+        }
     }
 
     public var transcriptText: String {
@@ -196,6 +220,7 @@ public final class MeetingRecordingPanelViewModel {
         isMicrophoneMuted = false
         canToggleMicrophoneMute = false
         previewLines = []
+        liveTranslation.reset()
         previewLineWordCounts = []
         wordCount = 0
         isTranscriptionLagging = false

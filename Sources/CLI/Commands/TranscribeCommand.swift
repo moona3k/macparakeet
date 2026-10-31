@@ -226,6 +226,23 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
 
     static func resolveSpeechEngine(
         _ engine: TranscribeSpeechEngine,
+        defaults: UserDefaults,
+        explicitLanguage: String?,
+        physicalMemoryBytes: UInt64 = ProcessInfo.processInfo.physicalMemory
+    ) -> SpeechEngineSelection {
+        resolveSpeechEngine(
+            engine,
+            storedEngine: SpeechEnginePreference.transcription(defaults: defaults).rawValue,
+            storedLanguage: SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults),
+            storedNemotronLanguage: SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults),
+            storedCohereLanguage: SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults),
+            explicitLanguage: explicitLanguage,
+            physicalMemoryBytes: physicalMemoryBytes
+        )
+    }
+
+    static func resolveSpeechEngine(
+        _ engine: TranscribeSpeechEngine,
         storedEngine: String?,
         storedLanguage: String?,
         storedNemotronLanguage: String? = nil,
@@ -237,7 +254,10 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         let language: String?
         switch engine {
         case .appDefault:
-            let storedPreference = SpeechEnginePreference(rawValue: storedEngine ?? "") ?? .parakeet
+            let savedPreference = SpeechEnginePreference(rawValue: storedEngine ?? "") ?? .parakeet
+            // Existing scripts must keep their local-only default. Selecting
+            // Online in the app does not authorize CLI audio uploads.
+            let storedPreference = savedPreference == .cloud ? .parakeet : savedPreference
             preference = shouldFallbackCohereAppDefaultToParakeet(
                 requestedEngine: engine,
                 storedEngine: storedEngine,
@@ -252,6 +272,8 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 explicitLanguage ?? storedLanguage
             case .cohere:
                 explicitLanguage ?? storedCohereLanguage
+            case .cloud:
+                explicitLanguage
             }
         case .parakeet:
             preference = .parakeet
@@ -532,14 +554,11 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
             let snippetRepo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
             let promptResultRepo = PromptResultRepository(dbQueue: dbManager.dbQueue)
             let defaults = macParakeetAppDefaults()
-            let storedSpeechEngine = defaults.string(forKey: SpeechEnginePreference.defaultsKey)
+            let storedSpeechEngine = SpeechEnginePreference.transcription(defaults: defaults).rawValue
             let physicalMemoryBytes = ProcessInfo.processInfo.physicalMemory
             let speechEngine = Self.resolveSpeechEngine(
                 self.engine,
-                storedEngine: storedSpeechEngine,
-                storedLanguage: SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults),
-                storedNemotronLanguage: SpeechEnginePreference.nemotronDefaultLanguage(defaults: defaults),
-                storedCohereLanguage: SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults),
+                defaults: defaults,
                 explicitLanguage: self.language,
                 physicalMemoryBytes: physicalMemoryBytes
             )
@@ -630,6 +649,10 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 )
                 cohereEngine = createdCohereEngine
                 sttTranscriber = createdCohereEngine
+            case .cloud:
+                // The resolver keeps app-default local and exposes no cloud flag.
+                // Fail closed if a future route bypasses that boundary.
+                throw ValidationError("Online speech is not available through the CLI. Select a local speech engine.")
             }
             let audioProcessor = AudioProcessor()
             let youtubeDownloader = YouTubeDownloader(audioQuality: {

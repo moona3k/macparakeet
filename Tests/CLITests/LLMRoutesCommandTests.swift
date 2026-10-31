@@ -23,6 +23,18 @@ final class LLMRoutesCommandTests: XCTestCase {
         return (defaults, name, lockURL)
     }
 
+    func testTranslationRouteIsListedAndCannotBeOverridden() throws {
+        let (store, cliStore) = fixture()
+        try store.saveConfig(.openai(apiKey: "test-key", model: "translation-default"))
+        let routes = try listLLMRoutes(store: store)
+        let translation = try XCTUnwrap(routes.first { $0.task == "translate" })
+        XCTAssertTrue(translation.inherited)
+        XCTAssertEqual(translation.model, "translation-default")
+        let options = try LLMInlineOptions.parse(["--provider", "ollama", "--model", "test"])
+        XCTAssertThrowsError(
+            try setLLMRoute("translate", options: options, store: store, cliStore: cliStore, environment: [:]))
+    }
+
     func testCommandsAreRegistered() throws {
         XCTAssertTrue(try LLMCommand.parseAsRoot(["routes", "list", "--json"]) is LLMRoutesListCommand)
         XCTAssertTrue(

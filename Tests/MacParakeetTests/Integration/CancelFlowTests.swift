@@ -59,8 +59,70 @@ final class CancelFlowTests: XCTestCase {
         try await assertProcessingCancellation(at: .formatterCancellation)
     }
 
+    func testCancelledTranslationNeverCompletesHistoryAndPreservesReplacement() async throws {
+        try await assertProcessingCancellation(at: .translation)
+        try await assertProcessingCancellation(at: .translationCancellation)
+    }
+
+    func testDictationTranslationTimeoutReturnsOriginalBeforeProviderFinishes() async throws {
+        try await assertTranslationReturnsBeforeProvider(cancel: false)
+    }
+
+    func testDictationTranslationCancellationReturnsBeforeProviderFinishes() async throws {
+        try await assertTranslationReturnsBeforeProvider(cancel: true)
+    }
+
+    private func assertTranslationReturnsBeforeProvider(cancel: Bool) async throws {
+        let audioURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".wav")
+        try Data([0, 1, 2]).write(to: audioURL)
+        defer { try? FileManager.default.removeItem(at: audioURL) }
+        await mockAudio.configure(captureResult: audioURL)
+        await mockSTT.configure(result: STTResult(text: "Original words"))
+        let entered = expectation(description: "Provider entered")
+        let released = expectation(description: "Provider released")
+        let returned = expectation(description: "Dictation returned without waiting for provider")
+        let gate = ProcessingCancellationGate()
+        let llm = MockLLMService()
+        llm.summarizeResult = "[1] Late translated words"
+        llm.translationHook = {
+            entered.fulfill()
+            await gate.wait()  // Deliberately ignores cancellation.
+            released.fulfill()
+        }
+        let service = DictationService(
+            audioProcessor: mockAudio, sttTranscriber: mockSTT, dictationRepo: dictationRepo,
+            shouldPreserveDiscardedDictations: { false }, llmService: llm,
+            dictationTranslationSettings: { DictationTranslationSettings(language: .german, output: .translation) },
+            dictationTranslationTimeout: cancel ? .seconds(60) : .milliseconds(30)
+        )
+        await service.setSuccessDisplayWaiterForTesting({})
+        try await service.startRecording()
+        let stop = Task {
+            defer { returned.fulfill() }
+            return try await service.stopRecording()
+        }
+        await fulfillment(of: [entered], timeout: 2)
+        if cancel { stop.cancel() }
+        await fulfillment(of: [returned], timeout: 1)
+        // Always release the fake provider even when the bounded-return assertion fails.
+        await gate.open()
+        await fulfillment(of: [released], timeout: 2)
+        do {
+            let result = try await stop.value
+            XCTAssertFalse(cancel, "Cancellation must not return a deliverable dictation")
+            XCTAssertNil(result.dictation.translation)
+            XCTAssertEqual(result.dictation.insertionText, result.dictation.cleanTranscript ?? "Original words")
+        } catch is CancellationError {
+            XCTAssertTrue(cancel)
+        }
+        let rows = try dictationRepo.fetchAll(limit: nil)
+        XCTAssertEqual(rows.count, cancel ? 0 : 1)
+        XCTAssertTrue(rows.allSatisfy { $0.translation == nil }, "Late provider completion must never mutate history")
+    }
+
     private enum CancellationStage: Sendable {
-        case transcription, formatting, formatterCancellation, successDisplay, formatterRun
+        case transcription, formatting, formatterCancellation, translation, translationCancellation, successDisplay,
+            formatterRun
 
         var isCommitted: Bool { self == .successDisplay || self == .formatterRun }
     }
@@ -89,6 +151,14 @@ final class CancelFlowTests: XCTestCase {
                         }
                         if stage == .formatterCancellation { llm.errorToThrow = CancellationError() }
                     }
+                    if stage == .translation || stage == .translationCancellation {
+                        llm.summarizeResult = "[1] Translated take"
+                        llm.translationHook = {
+                            suspended.fulfill()
+                            await release.wait()
+                        }
+                        if stage == .translationCancellation { llm.translationError = CancellationError() }
+                    }
                     let runs = LLMRunRepository(dbQueue: db.dbQueue)
                     let service = DictationService(
                         audioProcessor: audio,
@@ -97,6 +167,10 @@ final class CancelFlowTests: XCTestCase {
                         shouldSaveDictationHistory: { saveHistory },
                         shouldPreserveDiscardedDictations: { preserve },
                         llmService: llm,
+                        dictationTranslationSettings: {
+                            stage == .translation || stage == .translationCancellation
+                                ? DictationTranslationSettings(language: .german, output: .translation) : nil
+                        },
                         llmRunRepo: stage == .formatterRun
                             ? SuspendedDictationRunRepository(
                                 base: runs, gate: release, entered: { suspended.fulfill() })
@@ -140,6 +214,10 @@ final class CancelFlowTests: XCTestCase {
                     let committed = stage.isCommitted
                     XCTAssertEqual(rows.count, committed || (preserve && saveHistory) ? 1 : 0, context)
                     XCTAssertTrue(rows.allSatisfy { $0.status == (committed ? .completed : .cancelled) }, context)
+                    if stage == .translation || stage == .translationCancellation {
+                        XCTAssertTrue(
+                            rows.allSatisfy { $0.translation == nil && $0.translationLanguage == nil }, context)
+                    }
                     XCTAssertEqual(try repo.fetchCompleted(limit: 10).count, committed && saveHistory ? 1 : 0, context)
                     XCTAssertEqual(try repo.stats().totalCount, committed ? 1 : 0, context)
                     XCTAssertEqual(try runs.count(), committed && saveHistory ? 1 : 0, context)

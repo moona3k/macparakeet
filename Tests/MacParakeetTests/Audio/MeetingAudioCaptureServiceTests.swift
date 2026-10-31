@@ -56,7 +56,7 @@ private extension MeetingAudioCaptureService {
         }
     }
 
-    private func waitForSystemStartupForTesting() async throws {
+    func waitForSystemStartupForTesting() async throws {
         let deadline = ContinuousClock.now.advanced(by: .seconds(8))
         while isSystemAudioStartPending {
             guard ContinuousClock.now < deadline else {
@@ -1559,7 +1559,9 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
     }
 
     func testStopDuringSystemRecoveryPreventsLateReplacementRevival() async throws {
+        let microphoneStarted = expectation(description: "microphone native start settles")
         let recoveryStarted = expectation(description: "system recovery starts")
+        let replacementStopped = expectation(description: "Stop retires the replacement")
         let sourceRecovered = expectation(description: "stopped source does not recover")
         sourceRecovered.isInverted = true
         let terminalInterruption = expectation(description: "stopped source is not terminally interrupted")
@@ -1567,7 +1569,7 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
 
         let microphone = MockMeetingMicrophoneCapture()
         let stalledCapture = MockMeetingSystemAudioCapture()
-        let blockingReplacement = BlockingMeetingSystemAudioCapture()
+        let blockingReplacement = BlockingMeetingSystemAudioCapture(onStop: { replacementStopped.fulfill() })
         let nextSessionCapture = MockMeetingSystemAudioCapture()
         let captures = SystemAudioCaptureFactorySequence([
             stalledCapture,
@@ -1581,8 +1583,10 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         )
         defer { blockingReplacement.releaseStart() }
 
-        _ = try await service.startForTesting { event in
+        _ = try await service.start { event in
             switch event {
+            case .microphoneStarted:
+                microphoneStarted.fulfill()
             case .sourceRecoveryStarted(source: .system, error: _):
                 recoveryStarted.fulfill()
             case .sourceRecovered(source: .system):
@@ -1593,6 +1597,11 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
                 break
             }
         }
+        // Frame readiness can precede native microphone startup settlement.
+        // This system-recovery test needs the settled-microphone case; a late
+        // successful microphone start legitimately requires another cleanup.
+        await fulfillment(of: [microphoneStarted], timeout: 1.0)
+        try await service.waitForSystemStartupForTesting()
 
         stalledCapture.emitStall(.systemAudioStalled(.bufferGap(seconds: 6)))
         await fulfillment(of: [recoveryStarted], timeout: 1.0)
@@ -1603,12 +1612,13 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
             await service.stop()
             completion.markCompleted()
         }
-        try await Task.sleep(for: .milliseconds(20))
+        await fulfillment(of: [replacementStopped], timeout: 1.0)
         XCTAssertFalse(completion.isCompleted)
 
         blockingReplacement.releaseStart()
         await stopTask.value
         XCTAssertTrue(completion.isCompleted)
+        try await service.waitForMicrophoneLeaseReleaseForTesting()
         await fulfillment(of: [sourceRecovered, terminalInterruption], timeout: 0.02)
 
         XCTAssertEqual(stalledCapture.stopCallCount, 1)
@@ -2175,12 +2185,17 @@ private final class BlockingMeetingMicrophoneCapture: MeetingMicrophoneCapturing
 
 private final class BlockingMeetingSystemAudioCapture: MeetingSystemAudioCapturing, @unchecked Sendable {
     private let lock = NSLock()
+    private let onStop: (@Sendable () -> Void)?
     private var startContinuations: [CheckedContinuation<Void, Never>] = []
     private var startReleased = false
     private var startCallCountStorage = 0
     private var stopCallCountStorage = 0
     private var startWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
     private var stopWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+
+    init(onStop: (@Sendable () -> Void)? = nil) {
+        self.onStop = onStop
+    }
 
     var stopCallCount: Int { lock.withLock { stopCallCountStorage } }
 
@@ -2221,6 +2236,7 @@ private final class BlockingMeetingSystemAudioCapture: MeetingSystemAudioCapturi
             return satisfied
         }
         waiters.forEach { $0.resume() }
+        onStop?()
     }
 
     func waitForStartCall(count: Int = 1) async {

@@ -1658,6 +1658,8 @@ public final class EngineSettingsViewModel {
             "Optimizing Whisper for this Mac..."
         case .cohere:
             "Loading Cohere with Core ML..."
+        case .cloud:
+            "Checking the online speech service settings..."
         }
     }
 

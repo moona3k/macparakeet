@@ -3,6 +3,32 @@ import XCTest
 @testable import MacParakeetViewModels
 
 final class SettingsSearchIndexTests: XCTestCase {
+    func testTranslationQueriesFindTheirOwnSettingsCards() {
+        for (query, anchor) in [
+            ("dictation translation", "ai.dictationTranslation"),
+            ("translate dictation", "ai.dictationTranslation"),
+            ("subtitle translation", "ai.subtitleTranslation"),
+            ("translate subtitles", "ai.subtitleTranslation"),
+        ] {
+            let entry = SettingsSearchIndex.matches(query).first { $0.id == anchor }
+            XCTAssertEqual(entry?.tab, .ai)
+            XCTAssertEqual(entry?.cardAnchor, anchor)
+        }
+    }
+
+    func testOnlineServiceAndUsageQueriesFindTheirCards() {
+        for query in ["online", "speech server", "realtime model"] {
+            let entry = SettingsSearchIndex.matches(query).first { $0.id == "engine.cloudService" }
+            XCTAssertEqual(entry?.tab, .engine)
+            XCTAssertEqual(entry?.cardAnchor, "engine.cloudService")
+        }
+        for query in ["cost", "spending", "tokens"] {
+            let entry = SettingsSearchIndex.matches(query).first { $0.id == "ai.usage" }
+            XCTAssertEqual(entry?.tab, .ai)
+            XCTAssertEqual(entry?.cardAnchor, "ai.usage")
+        }
+    }
+
     func testEmptyQueryReturnsNoResults() {
         XCTAssertTrue(SettingsSearchIndex.matches("").isEmpty)
     }

@@ -988,6 +988,9 @@ final class MockTextSnippetRepository: TextSnippetRepositoryProtocol, @unchecked
 
 final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var summarizeResult = "Mock summary"
+    /// When set, computes the prompt result from the request instead of
+    /// returning `summarizeResult`.
+    var promptResultHandler: ((_ transcript: String, _ systemPrompt: String?) throws -> String)?
     var chatResult = "Mock chat response"
     var formatTranscriptResult = "Mock formatted transcript"
     var formatTranscriptProvider = "mock"
@@ -1006,6 +1009,8 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var chatCallCount = 0
     var formatTranscriptCallCount = 0
     var formatTranscriptHook: (@Sendable () async -> Void)?
+    var translationHook: (@Sendable () async -> Void)?
+    var translationError: Error?
     var lastChatQuestion: String?
     var lastSummaryTranscript: String?
     var lastChatTranscript: String?
@@ -1024,11 +1029,18 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     /// when empty so existing single-outcome tests are unaffected.
     var detailedResultsQueue: [Result<LLMResult, Error>] = []
 
+    func translateDetailed(text: String, instructions: String) async throws -> LLMResult {
+        await translationHook?()
+        if let translationError { throw translationError }
+        return try await generatePromptResultDetailed(transcript: text, systemPrompt: instructions)
+    }
+
     func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String {
         summarizeCallCount += 1
         lastSummaryTranscript = transcript
         lastSummarySystemPrompt = systemPrompt
         if let error = errorToThrow { throw error }
+        if let promptResultHandler { return try promptResultHandler(transcript, systemPrompt) }
         return summarizeResult
     }
 
