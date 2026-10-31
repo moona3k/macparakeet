@@ -686,6 +686,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 },
                 isOnboardingBlockingDictation: { [weak self] in
                     self?.onboardingWindowController.isBlockingDictation ?? false
+                },
+                isOnboardingVisible: { [weak self] in
+                    self?.onboardingWindowController.isVisible == true
                 }
             )
         )

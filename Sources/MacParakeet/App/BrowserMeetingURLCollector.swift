@@ -113,6 +113,9 @@ actor BrowserMeetingURLCollector {
                 MeetingPromptCandidateResolver.normalizedMeetingRoomID(for: $0).map(confirmed.contains) ?? false
             }
             if !inCall.isEmpty { result.inCallURLs[bundleID] = inCall }
+            // Microphone ownership is browser-wide. Another document without a
+            // visible Join button is not positive call evidence, so a duplicate
+            // Zoom/Teams room remains vetoed until its pre-join evidence clears.
             let preJoin = Set(
                 (observations.preJoinURLs[bundleID] ?? [])
                     .compactMap { MeetingPromptCandidateResolver.normalizedMeetingRoomID(for: $0) })

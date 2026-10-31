@@ -126,6 +126,30 @@ final class BrowserMeetingURLCollectorTests: XCTestCase {
         XCTAssertTrue(result.preJoinURLs.isEmpty)
     }
 
+    func testDuplicateZoomAndTeamsRoomURLsRetainPreJoinVetoWithoutPositiveCallEvidence() async throws {
+        for address in [
+            "https://us02web.zoom.us/j/12345678901",
+            "https://teams.microsoft.com/meet/12345678",
+        ] {
+            let room = try XCTUnwrap(URL(string: address))
+            let duplicate = room.appending(queryItems: [.init(name: "source", value: "another-tab")])
+            let collector = BrowserMeetingURLCollector(
+                isTrusted: { true },
+                processes: { [.init(bundleID: "com.google.Chrome", pid: 1)] },
+                readSnapshot: { _ in
+                    BrowserMeetingObservation(
+                        urls: ["com.google.Chrome": [room, duplicate]],
+                        preJoinURLs: ["com.google.Chrome": [room]]
+                    )
+                }
+            )
+            let result = await collector.snapshotDetailed()
+            XCTAssertEqual(result.urls, ["com.google.Chrome": [room, duplicate]])
+            XCTAssertEqual(result.preJoinURLs, ["com.google.Chrome": [room, duplicate]])
+            XCTAssertTrue(result.inCallURLs.isEmpty)
+        }
+    }
+
     func testLinkAndControlNodesNeverRequestDocumentOrDestinationAttributes() {
         for role in ["AXLink", "AXButton", "AXStaticText", "AXTextField"] {
             var requested: [String] = []

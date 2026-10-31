@@ -33,6 +33,7 @@ final class MeetingActivityDetectionCoordinator {
     private let isMeetingFlowBusy: @MainActor () -> Bool
     private let runningNativeProcessIDsProvider: @MainActor () -> [String: Int32]
     private let isDictationActive: @MainActor () -> Bool
+    private let isOnboardingVisible: @MainActor () -> Bool
     private let onRecordingConfirmed: @MainActor () -> Int?
     private let showPrompt: PromptPresenter
     private let closePrompt: @MainActor () -> Void
@@ -71,6 +72,7 @@ final class MeetingActivityDetectionCoordinator {
             }
         },
         isDictationActive: @escaping @MainActor () -> Bool = { false },
+        isOnboardingVisible: @escaping @MainActor () -> Bool = { false },
         onRecordingConfirmed: @escaping @MainActor () -> Int?,
         showPrompt: PromptPresenter? = nil,
         closePrompt: (@MainActor () -> Void)? = nil,
@@ -92,6 +94,7 @@ final class MeetingActivityDetectionCoordinator {
         self.isMeetingFlowBusy = isMeetingFlowBusy ?? isRecordingActive
         self.runningNativeProcessIDsProvider = runningNativeProcessIDsProvider
         self.isDictationActive = isDictationActive
+        self.isOnboardingVisible = isOnboardingVisible
         self.onRecordingConfirmed = onRecordingConfirmed
         let controller = MeetingActivityPromptController()
         self.showPrompt =
@@ -250,7 +253,7 @@ final class MeetingActivityDetectionCoordinator {
             excludedPreJoinURLsByBundleID: browserObservation.preJoinURLs
         )
         let meetingBusy = isMeetingFlowBusy()
-        let busy = meetingBusy || isDictationActive()
+        let busy = meetingBusy || isDictationActive() || isOnboardingVisible()
         if !meetingBusy { requestedRecordingCandidateID = nil }
         let offer =
             policy.update(
@@ -303,6 +306,7 @@ final class MeetingActivityDetectionCoordinator {
         guard collecting, settingsViewModel.meetingActivityDetectionMode != .off,
             presentationToken == token, presentedID == candidateID
         else { return }
+        guard !isOnboardingVisible() else { dismissPanel(); return }
         switch outcome {
         case .declined:
             dismissPanel()
@@ -314,7 +318,8 @@ final class MeetingActivityDetectionCoordinator {
             }
             dismissPanel()
             // Revalidate against current audio/URL metadata before starting. A
-            // busy recorder or dictation leaves the click pending for this call.
+            // busy recorder, dictation or onboarding leaves an accepted click
+            // pending for this call.
             pendingRecordID = candidateID
             scheduleEvaluation()
         }

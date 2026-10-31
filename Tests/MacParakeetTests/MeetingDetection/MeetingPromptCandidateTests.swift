@@ -53,6 +53,26 @@ final class MeetingPromptCandidateTests: XCTestCase {
         XCTAssertEqual(resolve(excluded: [meet], confirmed: [meet]).count, 1)
     }
 
+    func testDuplicatePreJoinRoomsDoNotBorrowBrowserMicrophoneFromAnotherTab() throws {
+        let otherRoom = try XCTUnwrap(URL(string: "https://meet.google.com/xyz-defg-hij"))
+        let audio = ProcessAudioSnapshot(processes: [process(chrome, input: true, output: true)])
+        for address in [
+            "https://us02web.zoom.us/j/12345678901",
+            "https://teams.microsoft.com/meet/12345678",
+        ] {
+            let room = try XCTUnwrap(URL(string: address))
+            let duplicate = room.appending(queryItems: [.init(name: "source", value: "another-tab")])
+            let candidates = MeetingPromptCandidateResolver.resolve(
+                audio: audio, meetingURLsByBundleID: [chrome: [room, duplicate, otherRoom]],
+                excludedPreJoinURLsByBundleID: [chrome: [room]]
+            )
+            XCTAssertEqual(candidates.count, 1)
+            XCTAssertEqual(
+                candidates.first?.id,
+                MeetingPromptCandidateResolver.browserCandidate(bundleID: chrome, meetingURL: otherRoom)?.id)
+        }
+    }
+
     func testMutedMeetRequiresPositiveInCallEvidenceForTheSameRoomAndBrowser() {
         let meet = URL(string: "https://meet.google.com/abc-defg-hij")!
         let otherRoom = URL(string: "https://meet.google.com/xyz-defg-hij")!

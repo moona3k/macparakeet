@@ -1518,7 +1518,7 @@ struct SettingsView: View {
                 settingsToggleRow(
                     title: "Remind me to record meetings",
                     detail:
-                        "Offers to record when a call starts in a meeting app or browser. Browser detection uses Accessibility access. Recording starts only when you choose Record.",
+                        "Offers to record calls in supported meeting apps and Google Meet, Zoom, or Teams browser tabs. Browser detection uses Accessibility access. Recording starts only when you choose Record.",
                     isBeta: true,
                     isOn: Binding(
                         get: { viewModel.meetingActivityDetectionMode != .off },

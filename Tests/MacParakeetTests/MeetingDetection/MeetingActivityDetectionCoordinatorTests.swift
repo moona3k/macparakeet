@@ -17,6 +17,7 @@ final class MeetingActivityDetectionCoordinatorTests: XCTestCase {
     private var nativePIDs: [String: Int32] = ["us.zoom.xos": 7]
     private var recordingAvailable = true
     private var dictation = false
+    private var onboarding = false
     private var rejectStart = false
     private var rejectionIsBusy = true
     private var beginCaptureSynchronously = false
@@ -54,6 +55,7 @@ final class MeetingActivityDetectionCoordinatorTests: XCTestCase {
             isMeetingFlowBusy: { [unowned self] in meetingBusy || recording },
             runningNativeProcessIDsProvider: { [unowned self] in nativePIDs },
             isDictationActive: { [unowned self] in dictation },
+            isOnboardingVisible: { [unowned self] in onboarding },
             onRecordingConfirmed: { [unowned self] in
                 starts += 1
                 if rejectStart {
@@ -568,6 +570,68 @@ final class MeetingActivityDetectionCoordinatorTests: XCTestCase {
         await tick(42, coordinator)
         XCTAssertEqual(starts, 0)
         XCTAssertNotNil(coordinator.testHook_presentedID)
+    }
+
+    func testOnboardingDefersAnUnshownOffer() async {
+        audio.setZoom()
+        onboarding = true
+        let coordinator = makeCoordinator()
+        await tick(4, coordinator)
+        XCTAssertTrue(shown.isEmpty)
+        XCTAssertEqual(starts, 0)
+        onboarding = false
+        await tick(5, coordinator)
+        XCTAssertEqual(shown.count, 1)
+    }
+
+    func testOnboardingDismissesVisiblePromptAndInvalidatesItsCallback() async throws {
+        audio.setZoom()
+        let coordinator = makeCoordinator()
+        await tick(4, coordinator)
+        let callback = try XCTUnwrap(callbacks.first)
+        onboarding = true
+        await tick(5, coordinator)
+        XCTAssertNil(coordinator.testHook_presentedID)
+        XCTAssertEqual(closeCount, 1)
+        callback(.accepted)
+        onboarding = false
+        await tick(6, coordinator)
+        XCTAssertEqual(starts, 0)
+        XCTAssertNil(coordinator.testHook_pendingRecordID)
+        XCTAssertEqual(shown.count, 2)
+    }
+
+    func testClickWhileOnboardingIsVisibleCannotQueueAStartBeforeNextPoll() async throws {
+        audio.setZoom()
+        let coordinator = makeCoordinator()
+        await tick(4, coordinator)
+        onboarding = true
+        (try XCTUnwrap(callbacks.first))(.accepted)
+        XCTAssertNil(coordinator.testHook_presentedID)
+        XCTAssertNil(coordinator.testHook_pendingRecordID)
+        onboarding = false
+        await tick(5, coordinator)
+        XCTAssertEqual(starts, 0)
+        XCTAssertEqual(shown.count, 2)
+    }
+
+    func testAcceptedStartRechecksOnboardingAfterMetadataReadAndWaitsForItToClose() async throws {
+        audio.setZoom()
+        let gate = BlockingBrowserObservation(BrowserMeetingObservation())
+        let coordinator = makeCoordinator(meetingURLProvider: { await gate.snapshot() })
+        await tick(4, coordinator)
+        await gate.blockNextRead()
+        (try XCTUnwrap(callbacks.first))(.accepted)
+        await gate.waitUntilBlocked()
+        onboarding = true
+        await gate.releaseRead()
+        await coordinator.testHook_waitForScheduledEvaluation()
+        XCTAssertEqual(starts, 0)
+        XCTAssertNotNil(coordinator.testHook_pendingRecordID)
+        onboarding = false
+        await tick(5, coordinator)
+        XCTAssertEqual(starts, 1)
+        XCTAssertNil(coordinator.testHook_pendingRecordID)
     }
 
     func testBusyDictationDefersAnUnshownOffer() async throws {
