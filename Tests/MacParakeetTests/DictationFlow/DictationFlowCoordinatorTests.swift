@@ -875,14 +875,14 @@ final class DictationFlowCoordinatorTests: XCTestCase {
     func testStreamingPartialInsertMessageReportsClipboardWhenCopied() {
         XCTAssertEqual(
             DictationFlowCoordinator.streamingPartialInsertMessage(copiedToClipboard: true),
-            "Some text was inserted. The full transcript is on the clipboard."
+            "Dictation did not finish. The full transcript is on the clipboard."
         )
     }
 
     func testStreamingPartialInsertMessageReportsClipboardFailureWhenNotCopied() {
         XCTAssertEqual(
             DictationFlowCoordinator.streamingPartialInsertMessage(copiedToClipboard: false),
-            "Some text was inserted, but the clipboard could not be updated."
+            "Dictation did not finish, and the clipboard could not be updated."
         )
     }
 

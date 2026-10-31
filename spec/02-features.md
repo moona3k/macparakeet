@@ -190,11 +190,20 @@ Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migra
 - The built-in bare-`Fn` gesture uses a listen-only `CGEvent` tap: Fn and every
   observed cancellation event pass through unchanged. Other configurable
   hotkeys retain their established active-tap behavior.
-- Built-in Fn is admitted only when a combined-session snapshot shows no
-  pre-held non-Fn modifier or ordinary physical key. A key the tap has seen
+- Built-in Fn is admitted only when the incoming event's flags show no non-Fn
+  modifier and an HID-state snapshot shows no pre-held ordinary physical key.
+  Tap recovery and synchronization read combined-session modifier flags.
+  A key the tap has seen
   released since it last saw that key go down no longer counts, because an app
   that posts a keyDown without its keyUp can leave the snapshot reporting the
-  key held indefinitely. Tap-disable recovery trusts the snapshot again.
+  key held indefinitely when posted upstream at the HID entry point.
+  Tap-disable recovery trusts the HID snapshot again. Our paste, post-paste
+  actions, copy/replacement, and Unicode insertion are marked and posted at
+  the session entry point, downstream of HID state; they cannot masquerade
+  as physical input or create a release exception. Stale session-only keys
+  do not veto Fn, including after relaunch. Pre-existing/upstream HID
+  contamination still needs an observed unmarked release; the app never
+  fabricates a key-up or expires a physically held key.
   Rejections are logged with the held key codes (`dictation_hotkey_fn_rejected`). A latched Caps Lock state
   alone is allowed because it does not prove the physical key remains held;
   an observed Caps Lock transition still cancels. While Fn is held, every
@@ -295,7 +304,7 @@ if restoresClipboard {
 ```
 
 Optional **Streaming cursor** (Settings → Dictation, default off) types the finished
-transcript into the focused app with a duration-capped Unicode HID stream.
+transcript into the focused app with a duration-capped Unicode session-event stream.
 Reduce Motion, non-ASCII-capable IMEs, and text containing newline/tab still
 paste. A user key or click flushes remainder before the user event is
 delivered. ⌘Z may undo in pieces. See issue #449.

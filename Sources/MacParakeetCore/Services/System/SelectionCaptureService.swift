@@ -497,21 +497,19 @@ struct SystemSelectionCaptureBackend: SelectionCaptureBackend, @unchecked Sendab
         guard AXIsProcessTrusted() else {
             throw SelectionCaptureError.accessibilityNotAuthorized
         }
-        guard let source = CGEventSource(stateID: .hidSystemState) else {
+        guard let source = AppGeneratedKeyboardEvents.makeSource() else {
             throw SelectionCaptureError.eventSourceUnavailable
         }
         let cKeyCode = shortcutKeyResolver.virtualKeyCode(
             for: "c",
             modifierKeyState: UInt32(cmdKey >> 8)
         )
-        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: cKeyCode, keyDown: true),
-              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: cKeyCode, keyDown: false) else {
+        guard let keyDown = AppGeneratedKeyboardEvents.makeEvent(source: source, keyCode: cKeyCode, keyDown: true, flags: .maskCommand),
+              let keyUp = AppGeneratedKeyboardEvents.makeEvent(source: source, keyCode: cKeyCode, keyDown: false, flags: .maskCommand) else {
             throw SelectionCaptureError.eventPostingFailed
         }
-        keyDown.flags = .maskCommand
-        keyUp.flags = .maskCommand
-        keyDown.post(tap: .cghidEventTap)
-        keyUp.post(tap: .cghidEventTap)
+        keyDown.post(tap: AppGeneratedKeyboardEvents.postingLocation)
+        keyUp.post(tap: AppGeneratedKeyboardEvents.postingLocation)
     }
 
     @MainActor

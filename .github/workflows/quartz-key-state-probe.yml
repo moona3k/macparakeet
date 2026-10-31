@@ -1,0 +1,76 @@
+name: Quartz key-state probe
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/quartz-key-state-probe.yml'
+      - 'scripts/ci/quartz-key-state-probe.c'
+      - 'scripts/ci/quartz-paste-probe.m'
+      - 'Sources/MacParakeetCore/Services/System/AppGeneratedKeyboardEvents.swift'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Disposable macOS input-state experiment
+    runs-on: macos-15
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build standalone probe
+        run: clang -Wall -Wextra -Werror -framework ApplicationServices -framework CoreGraphics scripts/ci/quartz-key-state-probe.c -o "$RUNNER_TEMP/quartz-key-state-probe"
+      - name: Observe synthetic key state
+        run: |
+          set -o pipefail
+          sw_vers
+          "$RUNNER_TEMP/quartz-key-state-probe" | tee quartz-key-state.jsonl
+      - name: Qualify native text-field paste
+        run: |
+          set -o pipefail
+          probe_app="$RUNNER_TEMP/QuartzPasteProbe.app"
+          mkdir -p "$probe_app/Contents/MacOS"
+          cat > "$probe_app/Contents/Info.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+          <key>CFBundleExecutable</key><string>QuartzPasteProbe</string>
+          <key>CFBundleIdentifier</key><string>com.macparakeet.ci.QuartzPasteProbe</string>
+          <key>CFBundleName</key><string>QuartzPasteProbe</string>
+          <key>CFBundlePackageType</key><string>APPL</string>
+          </dict></plist>
+          PLIST
+          clang -Wall -Wextra -Werror -fobjc-arc -framework Cocoa -framework ApplicationServices scripts/ci/quartz-paste-probe.m -o "$probe_app/Contents/MacOS/QuartzPasteProbe"
+          open -n "$probe_app" --stdout "$PWD/quartz-paste.jsonl" --stderr "$PWD/quartz-paste.stderr" --env GITHUB_ACTIONS=true --env RUNNER_ENVIRONMENT=github-hosted
+          python3 - "$probe_app/Contents/MacOS/QuartzPasteProbe" <<'PY'
+          import json, pathlib, subprocess, sys, time
+          output = pathlib.Path("quartz-paste.jsonl")
+          deadline = time.monotonic() + 20
+          posted = False
+          while time.monotonic() < deadline:
+              text = output.read_text() if output.exists() else ""
+              # The receiver can be between writes; consume complete records only.
+              lines = text.split("\n")[:-1]
+              results = [json.loads(line).get("result") for line in lines if line]
+              if "receiver_ready" in results and not posted:
+                  subprocess.run([sys.argv[1], "--post"], check=True)
+                  posted = True
+              if "native_paste_observed" in results:
+                  print(output.read_text())
+                  break
+              if "unavailable" in results or "paste_delivery_timeout" in results:
+                  raise SystemExit(output.read_text())
+              time.sleep(0.1)
+          else:
+              raise SystemExit("Native receiver did not complete")
+          PY
+          cat quartz-paste.stderr
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: quartz-key-state
+          path: |
+            quartz-key-state.jsonl
+            quartz-paste.jsonl
+            quartz-paste.stderr

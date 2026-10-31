@@ -398,21 +398,19 @@ struct SystemSelectionReplacementBackend: SelectionReplacementBackend, @unchecke
         guard AXIsProcessTrusted() else {
             throw SelectionReplacementError.accessibilityNotAuthorized
         }
-        guard let source = CGEventSource(stateID: .hidSystemState) else {
+        guard let source = AppGeneratedKeyboardEvents.makeSource() else {
             throw SelectionReplacementError.eventSourceUnavailable
         }
         let vKeyCode = shortcutKeyResolver.virtualKeyCode(
             for: "v",
             modifierKeyState: UInt32(cmdKey >> 8)
         )
-        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true),
-              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false) else {
+        guard let keyDown = AppGeneratedKeyboardEvents.makeEvent(source: source, keyCode: vKeyCode, keyDown: true, flags: .maskCommand),
+              let keyUp = AppGeneratedKeyboardEvents.makeEvent(source: source, keyCode: vKeyCode, keyDown: false, flags: .maskCommand) else {
             throw SelectionReplacementError.eventPostingFailed
         }
-        keyDown.flags = .maskCommand
-        keyUp.flags = .maskCommand
-        keyDown.post(tap: .cghidEventTap)
-        keyUp.post(tap: .cghidEventTap)
+        keyDown.post(tap: AppGeneratedKeyboardEvents.postingLocation)
+        keyUp.post(tap: AppGeneratedKeyboardEvents.postingLocation)
     }
 
     @MainActor

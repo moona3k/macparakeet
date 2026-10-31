@@ -35,6 +35,31 @@ private final class ImmediateStreamingClock: StreamingCursorClock, @unchecked Se
     }
 }
 
+private final class TransientFailureStreamingPoster: StreamingCursorEventPosting, @unchecked Sendable {
+    private let lock = NSLock()
+    private let failedAttempt: Int
+    private var attempts = 0
+    private var posted: [String] = []
+
+    init(failedAttempt: Int) {
+        self.failedAttempt = failedAttempt
+    }
+
+    func typeUnicode(_ text: String) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        attempts += 1
+        if attempts == failedAttempt { throw StreamingCursorError.eventCreationFailed }
+        posted.append(text)
+    }
+
+    func snapshot() -> (attempts: Int, posted: [String]) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (attempts, posted)
+    }
+}
+
 private actor HoldUntilCancelledClock: StreamingCursorClock {
     private var sleepStarted = false
     private var waiters: [CheckedContinuation<Void, Never>] = []
@@ -100,18 +125,44 @@ private final class InterruptOnFirstPost: StreamingCursorEventPosting, @unchecke
     }
 }
 
+private final class InterruptBeforePostFailure: StreamingCursorEventPosting, @unchecked Sendable {
+    private let lock = NSLock()
+    private let interrupt: ManualInterrupt
+    private var attempts = 0
+
+    init(interrupt: ManualInterrupt) {
+        self.interrupt = interrupt
+    }
+
+    func typeUnicode(_ text: String) throws {
+        let first = lock.withLock {
+            attempts += 1
+            return attempts == 1
+        }
+        if first { interrupt.fire() }
+        throw StreamingCursorError.eventSourceUnavailable
+    }
+
+    var attemptCount: Int { lock.withLock { attempts } }
+}
+
 private final class ManualInterrupt: StreamingCursorInterruptListening, StreamingCursorInterruptToken,
     @unchecked Sendable
 {
     private var handler: (@Sendable () -> Void)?
+    var interruptOnStart = false
+    var interruptOnInvalidate = false
 
     func start(onInterrupt: @escaping @Sendable () -> Void) -> any StreamingCursorInterruptToken {
         handler = onInterrupt
+        if interruptOnStart { onInterrupt() }
         return self
     }
 
     func invalidate() {
+        let pending = handler
         handler = nil
+        if interruptOnInvalidate { pending?() }
     }
 
     func fire() {
@@ -179,6 +230,106 @@ final class StreamingCursorInserterTests: XCTestCase {
         }
         XCTAssertFalse(poster.snapshot().isEmpty)
         XCTAssertNotEqual(poster.snapshot().joined(), "Hello world!")
+    }
+
+    func testFailedInterruptDrainDoesNotRetryAfterUserInput() async {
+        let poster = TransientFailureStreamingPoster(failedAttempt: 2)
+        let interrupts = ManualInterrupt()
+        let inserter = StreamingCursorInserter(
+            posting: poster,
+            clock: InterruptOnSleepClock(interrupt: interrupts),
+            interrupts: interrupts
+        )
+
+        do {
+            try await inserter.insert("Hello world!")
+            XCTFail("expected stopped insertion")
+        } catch let error as StreamingCursorError {
+            XCTAssertEqual(error, .partialInsert)
+        } catch {
+            XCTFail("unexpected \(error)")
+        }
+        let result = poster.snapshot()
+        XCTAssertEqual(result.attempts, 2)
+        XCTAssertEqual(result.posted.count, 1)
+        XCTAssertNotEqual(result.posted.joined(), "Hello world!")
+    }
+
+    func testFailedInterruptBeforeFirstCommitPreventsPasteFallback() async {
+        let poster = TransientFailureStreamingPoster(failedAttempt: 1)
+        let interrupts = ManualInterrupt()
+        interrupts.interruptOnStart = true
+        let inserter = StreamingCursorInserter(
+            posting: poster, clock: ImmediateStreamingClock(), interrupts: interrupts)
+
+        do {
+            try await inserter.insert("Hello world!")
+            XCTFail("expected stopped insertion")
+        } catch let error as StreamingCursorError {
+            // This error must bypass the caller's availability-error paste fallback,
+            // even though nothing landed before the user's key/click resumed.
+            XCTAssertEqual(error, .partialInsert)
+        } catch {
+            XCTFail("unexpected \(error)")
+        }
+        XCTAssertEqual(poster.snapshot().attempts, 1)
+        XCTAssertTrue(poster.snapshot().posted.isEmpty)
+    }
+
+    func testCancellationAfterFailedInterruptDoesNotRetryRemainder() async throws {
+        let poster = TransientFailureStreamingPoster(failedAttempt: 2)
+        let interrupts = ManualInterrupt()
+        let clock = HoldUntilCancelledClock()
+        let inserter = StreamingCursorInserter(
+            posting: poster, clock: clock, interrupts: interrupts
+        )
+
+        let task = Task { try await inserter.insert("Hello world!") }
+        await clock.waitUntilSleepStarted()
+        interrupts.fire()
+        task.cancel()
+        // Quiet cancellation is intentional: the caller checks Task.isCancelled
+        // before actions or success reporting. It must not retry the failed flush.
+        try await task.value
+
+        XCTAssertEqual(poster.snapshot().attempts, 2)
+        XCTAssertEqual(poster.snapshot().posted.count, 1)
+    }
+
+    func testInterruptDuringInitialPostFailurePreventsPasteFallback() async {
+        let interrupts = ManualInterrupt()
+        let poster = InterruptBeforePostFailure(interrupt: interrupts)
+        let inserter = StreamingCursorInserter(
+            posting: poster, clock: ImmediateStreamingClock(), interrupts: interrupts)
+
+        do {
+            try await inserter.insert("Hello world!")
+            XCTFail("expected stopped insertion")
+        } catch let error as StreamingCursorError {
+            XCTAssertEqual(error, .partialInsert)
+        } catch {
+            XCTFail("unexpected \(error)")
+        }
+        XCTAssertEqual(poster.attemptCount, 2)
+    }
+
+    func testInterruptDuringTapTeardownPreventsPasteFallback() async {
+        let poster = TransientFailureStreamingPoster(failedAttempt: 1)
+        let interrupts = ManualInterrupt()
+        interrupts.interruptOnInvalidate = true
+        let inserter = StreamingCursorInserter(
+            posting: poster, clock: ImmediateStreamingClock(), interrupts: interrupts)
+
+        do {
+            try await inserter.insert("Hello world!")
+            XCTFail("expected stopped insertion")
+        } catch let error as StreamingCursorError {
+            XCTAssertEqual(error, .partialInsert)
+        } catch {
+            XCTFail("unexpected \(error)")
+        }
+        XCTAssertEqual(poster.snapshot().attempts, 1)
+        XCTAssertTrue(poster.snapshot().posted.isEmpty)
     }
 
     func testCancellationFlushesRemainderWithoutThrowing() async throws {
