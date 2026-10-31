@@ -1,0 +1,44 @@
+plans/active/2026-10-30-1286-synthetic-paste-state.md
+  s_7788d1c08e1bb0::t_c3a2bd1958578d 11-13,29-31
+Tests/MacParakeetTests/Services/System/StreamingCursorInserterTests.swift
+  s_7788d1c08e1bb0::t_a317d5030b7c08 291-292
+docs/research/2026-10-30-1286-quartz-state/fresh-eye-review.md
+  s_7788d1c08e1bb0::t_a317d5030b7c08 96-114
+  s_7788d1c08e1bb0::t_d6d88d449299f7 116-125
+  s_6f26576d2ce855::t_4faa2287904f40 115
+docs/research/2026-10-30-1286-quartz-state/quartz-paste-556ce1dea.jsonl
+  s_7788d1c08e1bb0::t_35114144aac648 1-2
+spec/contracts/dictation-shortcuts.md
+  s_7788d1c08e1bb0::t_a317d5030b7c08 167-170
+docs/research/2026-10-30-1286-quartz-state/README.md
+  s_7788d1c08e1bb0::t_9c9fb9a6ba6d8c 40-64,111-117
+  s_7788d1c08e1bb0::t_6064b50b42f515 118
+docs/research/2026-10-30-1286-quartz-state/quartz-key-state-556ce1dea.jsonl
+  s_7788d1c08e1bb0::t_35114144aac648 1-88
+Sources/MacParakeetCore/Services/System/README.md
+  s_7788d1c08e1bb0::t_a317d5030b7c08 78-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "821e0ab99dd9dbf329002ba7e20d882db6a8bc0e",
+  "prompts": {},
+  "sessions": {
+    "s_6f26576d2ce855": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e58-eaa6-7583-abd5-6aec9f43cba6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_7788d1c08e1bb0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e2a-e6db-73e2-812b-c7e92b308260",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
