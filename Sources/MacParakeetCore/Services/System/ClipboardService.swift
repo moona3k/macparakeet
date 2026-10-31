@@ -48,7 +48,23 @@ protocol ClipboardEventPosting {
     @MainActor
     func simulatePaste(using pasteShortcutKeyResolver: PasteShortcutKeyResolver) throws
     @MainActor
+    func simulatePaste(
+        using pasteShortcutKeyResolver: PasteShortcutKeyResolver,
+        validateBeforePosting: @MainActor () throws -> Void
+    ) throws
+    @MainActor
     func simulateKeystroke(_ keyCode: UInt16) throws
+}
+
+extension ClipboardEventPosting {
+    @MainActor
+    func simulatePaste(
+        using pasteShortcutKeyResolver: PasteShortcutKeyResolver,
+        validateBeforePosting: @MainActor () throws -> Void
+    ) throws {
+        try validateBeforePosting()
+        try simulatePaste(using: pasteShortcutKeyResolver)
+    }
 }
 
 struct CGClipboardEventPosting: ClipboardEventPosting {
@@ -57,6 +73,14 @@ struct CGClipboardEventPosting: ClipboardEventPosting {
 
     @MainActor
     func simulatePaste(using pasteShortcutKeyResolver: PasteShortcutKeyResolver) throws {
+        try simulatePaste(using: pasteShortcutKeyResolver, validateBeforePosting: {})
+    }
+
+    @MainActor
+    func simulatePaste(
+        using pasteShortcutKeyResolver: PasteShortcutKeyResolver,
+        validateBeforePosting: @MainActor () throws -> Void
+    ) throws {
         guard isAccessibilityTrusted() else {
             throw ClipboardServiceError.accessibilityPermissionRequired
         }
@@ -73,6 +97,9 @@ struct CGClipboardEventPosting: ClipboardEventPosting {
             throw ClipboardServiceError.eventCreationFailed
         }
 
+        // Resolve layout and allocate the complete pair before the final
+        // admission check. Once admitted, always complete the down/up pair.
+        try validateBeforePosting()
         postEvent(keyDown, AppGeneratedKeyboardEvents.postingLocation)
         postEvent(keyUp, AppGeneratedKeyboardEvents.postingLocation)
     }
@@ -277,6 +304,14 @@ public final class ClipboardService: ClipboardServiceProtocol {
     }
 
     public func pasteText(_ text: String, restoresClipboard: Bool) async throws {
+        try pasteText(text, restoresClipboard: restoresClipboard, requiredFrontmostBundleIdentifier: nil)
+    }
+
+    private func pasteText(
+        _ text: String,
+        restoresClipboard: Bool,
+        requiredFrontmostBundleIdentifier: String?
+    ) throws {
         let restoreDelay = clipboardRestoreDelay
 
         // 1. Save current clipboard contents
@@ -312,7 +347,13 @@ public final class ClipboardService: ClipboardServiceProtocol {
         }
 
         // 3. Simulate Cmd+V
-        try eventPosting.simulatePaste(using: pasteShortcutKeyResolver)
+        try eventPosting.simulatePaste(using: pasteShortcutKeyResolver) {
+            guard requiredFrontmostBundleIdentifier != nil else { return }
+            try Task.checkCancellation()
+            guard isRequiredApplicationFrontmost(requiredFrontmostBundleIdentifier) else {
+                throw ClipboardServiceError.requiredFrontmostApplicationUnavailable
+            }
+        }
     }
 
     /// Copy text to clipboard without paste simulation
@@ -374,7 +415,9 @@ public final class ClipboardService: ClipboardServiceProtocol {
         }
 
         guard let action = postPasteAction else {
-            try await pasteText(text, restoresClipboard: restoresClipboard)
+            try pasteText(
+                text, restoresClipboard: restoresClipboard,
+                requiredFrontmostBundleIdentifier: requiredBundleIdentifier)
             return false
         }
 
@@ -385,7 +428,9 @@ public final class ClipboardService: ClipboardServiceProtocol {
         }
 
         // Paste text (no trailing space — action replaces the role of the space)
-        try await pasteText(text, restoresClipboard: restoresClipboard)
+        try pasteText(
+            text, restoresClipboard: restoresClipboard,
+            requiredFrontmostBundleIdentifier: requiredBundleIdentifier)
 
         // After paste succeeds, the keystroke phase is entirely non-fatal.
         // Task.sleep can throw CancellationError — catch it alongside keystroke errors

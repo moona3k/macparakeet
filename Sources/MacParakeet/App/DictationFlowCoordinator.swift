@@ -996,7 +996,10 @@ final class DictationFlowCoordinator {
 
             let task = Task { @MainActor in await work() }
             insertionTask = (generation: gen, task: task)
-            if shouldStream { actionTask = task }
+            // Guarded submission remains revocable through the finishing
+            // state's Escape/dismiss/restart effects until Return is posted.
+            // Ordinary paste keeps its existing back-to-back delivery behavior.
+            if shouldStream || autoSubmitsToCodex { actionTask = task }
 
         // MARK: History
 

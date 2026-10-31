@@ -261,6 +261,162 @@ final class ClipboardServiceTests: XCTestCase {
         }
     }
 
+    func testLateFocusRejectionPostsNothingAndRespectsRestorePreference() async throws {
+        for restoresClipboard in [true, false] {
+            for action: KeyAction? in [nil, .returnKey] {
+                let pasteboard = makeScratchPasteboard()
+                defer { pasteboard.releaseGlobally() }
+                replacePasteboard(pasteboard, with: "original")
+                var app = "com.openai.codex"
+                let service = ClipboardService(
+                    pasteboard: pasteboard,
+                    eventPosting: RecordingClipboardEventPosting(
+                        onPaste: { XCTFail("Late focus rejection must not post Cmd+V") },
+                        onKeystroke: { _ in XCTFail("Late focus rejection must not post Return") }),
+                    clipboardRestoreDelay: Self.shortRestoreDelay,
+                    pasteboardStringWriter: { board, text in
+                        let wrote = board.setString(text, forType: .string)
+                        app = "com.apple.TextEdit"
+                        return wrote
+                    },
+                    frontmostBundleIdentifierProvider: { app }
+                )
+                do {
+                    _ = try await service.pasteTextWithAction(
+                        "dictation", postPasteAction: action, restoresClipboard: restoresClipboard,
+                        requiredFrontmostBundleIdentifier: "com.openai.codex")
+                    XCTFail("No posted paste must be reported as failure, not suppressed Return")
+                } catch ClipboardServiceError.requiredFrontmostApplicationUnavailable {}
+                if restoresClipboard {
+                    try await waitForPasteboardString("original", on: pasteboard)
+                } else {
+                    try await Task.sleep(for: .milliseconds(80))
+                    XCTAssertEqual(pasteboard.string(forType: .string), "dictation")
+                }
+            }
+        }
+    }
+
+    func testLateFocusRejectionDoesNotRestoreOverNewUserClipboard() async throws {
+        for restoresClipboard in [true, false] {
+            let pasteboard = makeScratchPasteboard()
+            defer { pasteboard.releaseGlobally() }
+            replacePasteboard(pasteboard, with: "original")
+            var focusChecks = 0
+            let service = ClipboardService(
+                pasteboard: pasteboard,
+                eventPosting: RecordingClipboardEventPosting(
+                    onPaste: { XCTFail("Late focus rejection must not paste") }),
+                clipboardRestoreDelay: Self.shortRestoreDelay,
+                frontmostBundleIdentifierProvider: {
+                    focusChecks += 1
+                    guard focusChecks > 1 else { return "com.openai.codex" }
+                    pasteboard.clearContents()
+                    pasteboard.setString("new user copy", forType: .string)
+                    return "com.apple.TextEdit"
+                }
+            )
+            do {
+                _ = try await service.pasteTextWithAction(
+                    "dictation", postPasteAction: .returnKey, restoresClipboard: restoresClipboard,
+                    requiredFrontmostBundleIdentifier: "com.openai.codex")
+                XCTFail("Expected pre-post rejection")
+            } catch ClipboardServiceError.requiredFrontmostApplicationUnavailable {}
+            try await Task.sleep(for: .milliseconds(80))
+            XCTAssertEqual(pasteboard.string(forType: .string), "new user copy")
+        }
+    }
+
+    func testManualRecoveryCopyAfterLateFocusRejectionCancelsPendingRestore() async throws {
+        for restoresClipboard in [true, false] {
+            let pasteboard = makeScratchPasteboard()
+            defer { pasteboard.releaseGlobally() }
+            replacePasteboard(pasteboard, with: "original")
+            var app = "com.openai.codex"
+            let service = ClipboardService(
+                pasteboard: pasteboard,
+                eventPosting: RecordingClipboardEventPosting(
+                    onPaste: { XCTFail("Rejected paste must not post") }),
+                clipboardRestoreDelay: Self.shortRestoreDelay,
+                pasteboardStringWriter: { board, text in
+                    app = "com.apple.TextEdit"
+                    return board.setString(text, forType: .string)
+                },
+                frontmostBundleIdentifierProvider: { app }
+            )
+            do {
+                _ = try await service.pasteTextWithAction(
+                    "dictation", postPasteAction: .returnKey, restoresClipboard: restoresClipboard,
+                    requiredFrontmostBundleIdentifier: "com.openai.codex")
+                XCTFail("Expected rejection for ordinary copy recovery")
+            } catch ClipboardServiceError.requiredFrontmostApplicationUnavailable {}
+            let copied = await service.copyToClipboard("dictation")
+            XCTAssertTrue(copied)
+            try await Task.sleep(for: .milliseconds(80))
+            XCTAssertEqual(pasteboard.string(forType: .string), "dictation")
+        }
+    }
+
+    func testProductionPasteChecksFocusAfterLayoutResolutionBeforeEitherEvent() async throws {
+        let pasteboard = makeScratchPasteboard()
+        defer { pasteboard.releaseGlobally() }
+        replacePasteboard(pasteboard, with: "original")
+        var app = "com.openai.codex"
+        let resolver = PasteShortcutKeyResolver(
+            keyboardLayoutProvider: { .data(Data([0]) as CFData) },
+            translatedCharacterProvider: { _, code, _, _ in
+                app = "com.apple.TextEdit"
+                return code == 17 ? 118 : nil
+            }
+        )
+        var events: [CGEvent] = []
+        let service = ClipboardService(
+            pasteboard: pasteboard, pasteShortcutKeyResolver: resolver,
+            eventPosting: CGClipboardEventPosting(
+                isAccessibilityTrusted: { true }, postEvent: { event, _ in events.append(event) }),
+            clipboardRestoreDelay: Self.shortRestoreDelay,
+            frontmostBundleIdentifierProvider: { app }
+        )
+        do {
+            _ = try await service.pasteTextWithAction(
+                "dictation", postPasteAction: .returnKey, restoresClipboard: true,
+                requiredFrontmostBundleIdentifier: "com.openai.codex")
+            XCTFail("Expected pre-post rejection after layout resolution")
+        } catch ClipboardServiceError.requiredFrontmostApplicationUnavailable {}
+        XCTAssertTrue(events.isEmpty)
+        try await waitForPasteboardString("original", on: pasteboard)
+    }
+
+    func testProductionPasteCompletesPairAfterCancellationAndSkipsReturn() async throws {
+        let pasteboard = makeScratchPasteboard()
+        defer { pasteboard.releaseGlobally() }
+        replacePasteboard(pasteboard, with: "original")
+        var pending: Task<Bool, Error>?
+        var events: [CGEvent] = []
+        let service = ClipboardService(
+            pasteboard: pasteboard,
+            eventPosting: CGClipboardEventPosting(
+                isAccessibilityTrusted: { true },
+                postEvent: { event, _ in
+                    events.append(event)
+                    pending?.cancel()
+                }),
+            clipboardRestoreDelay: Self.shortRestoreDelay,
+            frontmostBundleIdentifierProvider: { "com.openai.codex" }
+        )
+        let insertion = Task { @MainActor in
+            try await service.pasteTextWithAction(
+                "dictation", postPasteAction: .returnKey, restoresClipboard: true,
+                requiredFrontmostBundleIdentifier: "com.openai.codex")
+        }
+        pending = insertion
+        let fired = try await insertion.value
+        XCTAssertFalse(fired)
+        XCTAssertEqual(events.map(\.type), [.keyDown, .keyUp])
+        XCTAssertTrue(events.allSatisfy { $0.flags == .maskCommand && AppGeneratedEventMarker.isMarked($0) })
+        try await waitForPasteboardString("original", on: pasteboard)
+    }
+
     func testCancelledGuardedSubmissionDoesNotWriteClipboardOrPostEvents() async throws {
         let pasteboard = makeScratchPasteboard()
         defer { pasteboard.releaseGlobally() }

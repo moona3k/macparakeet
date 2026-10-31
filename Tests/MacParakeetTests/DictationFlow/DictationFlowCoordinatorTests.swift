@@ -154,6 +154,58 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(snapshot.lastRequiredFrontmostBundleIdentifier, "com.openai.codex")
     }
 
+    func testEscapeCancelsPendingCodexReturnThroughCoordinator() async throws {
+        try await assertGuardedCodexInsertionCancelled(restart: false)
+    }
+
+    func testRestartCancelsPendingCodexReturnThroughCoordinator() async throws {
+        try await assertGuardedCodexInsertionCancelled(restart: true)
+    }
+
+    private func assertGuardedCodexInsertionCancelled(restart: Bool) async throws {
+        let clipboard = SuspendedCodexClipboardService()
+        defer { clipboard.releaseAction() }
+        let harness = try await makeRecordingHarness(
+            autoSubmitCodexDictation: true,
+            focusedContext: AppPromptContext(bundleIdentifier: "com.openai.codex"),
+            clipboardOverride: clipboard
+        )
+        var delivered: [String] = []
+        harness.coordinator.onDictationDelivered = { delivered.append($0) }
+        await harness.stt.configure(result: STTResult(text: "cancel this submission"))
+        harness.coordinator.startDictation(mode: .holdToTalk, trigger: .hotkey)
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+        harness.coordinator.stopDictation()
+        let pasted = await waitUntil { clipboard.didPaste }
+        XCTAssertTrue(pasted)
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .finishing(outcome: .success))
+        let ownedTask = try XCTUnwrap(harness.coordinator.processingTaskForTesting)
+
+        if restart {
+            XCTAssertTrue(harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey))
+        } else {
+            harness.coordinator.cancelDictation(reason: .escape)
+        }
+        XCTAssertTrue(ownedTask.isCancelled)
+        clipboard.releaseAction()
+        await ownedTask.value
+        let finished = await waitUntil { clipboard.finished }
+        XCTAssertTrue(finished)
+        XCTAssertTrue(clipboard.wasCancelled)
+        XCTAssertEqual(clipboard.returnCount, 0)
+        XCTAssertEqual(clipboard.pastedTexts, ["cancel this submission"])
+        XCTAssertTrue(clipboard.copiedTexts.isEmpty)
+        XCTAssertTrue(delivered.isEmpty, "An abandoned insertion must not publish delivery or recovery")
+        if restart {
+            let restarted = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+            XCTAssertTrue(restarted, "The old insertion must not replace the next flow's state")
+            harness.coordinator.discardProvisionalRecording(showReadyPill: false)
+        } else {
+            XCTAssertEqual(harness.coordinator.flowStateForTesting, .idle)
+        }
+    }
+
     func testDisabledCodexAutoSubmitUsesOrdinaryPasteWithoutReturn() async throws {
         let harness = try await makeRecordingHarness(
             autoSubmitCodexDictation: false,
@@ -1149,6 +1201,7 @@ final class DictationFlowCoordinatorTests: XCTestCase {
     private func makeRecordingHarness(
         autoSubmitCodexDictation: Bool = false,
         focusedContext: AppPromptContext? = nil,
+        clipboardOverride: (any ClipboardServiceProtocol)? = nil,
         mutationArbiter: GUIMutationArbiter? = nil,
         captureSoundsEnabled: Bool = false,
         preserveDiscarded: Bool = false
@@ -1190,7 +1243,7 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         let coordinator = DictationFlowCoordinator(
             dictationService: service,
             mutationArbiter: mutationArbiter,
-            clipboardService: clipboard,
+            clipboardService: clipboardOverride ?? clipboard,
             entitlementsService: entitlements,
             dictationRepo: repo,
             settingsViewModel: settings,
@@ -1308,4 +1361,58 @@ private final class MicPermissionSpyDictationOverlayController: DictationOverlay
     func hide() {}
 
     func resignKeyWindow() {}
+}
+
+@MainActor
+private final class SuspendedCodexClipboardService: ClipboardServiceProtocol {
+    private let release = AsyncStream<Void>.makeStream()
+    private(set) var pastedTexts: [String] = []
+    private(set) var copiedTexts: [String] = []
+    private(set) var didPaste = false
+    private(set) var finished = false
+    private(set) var wasCancelled = false
+    private(set) var returnCount = 0
+
+    func releaseAction() { release.continuation.finish() }
+
+    func pasteText(_ text: String) async throws {
+        try await pasteText(text, restoresClipboard: true)
+    }
+
+    func pasteText(_ text: String, restoresClipboard: Bool) async throws {
+        pastedTexts.append(text)
+    }
+
+    func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?) async throws -> Bool {
+        try await pasteTextWithAction(text, postPasteAction: postPasteAction, restoresClipboard: true)
+    }
+
+    func pasteTextWithAction(
+        _ text: String, postPasteAction: KeyAction?, restoresClipboard: Bool
+    ) async throws -> Bool {
+        try await pasteTextWithAction(
+            text, postPasteAction: postPasteAction, restoresClipboard: restoresClipboard,
+            requiredFrontmostBundleIdentifier: nil)
+    }
+
+    func pasteTextWithAction(
+        _ text: String, postPasteAction: KeyAction?, restoresClipboard: Bool,
+        requiredFrontmostBundleIdentifier: String?
+    ) async throws -> Bool {
+        XCTAssertEqual(requiredFrontmostBundleIdentifier, "com.openai.codex")
+        pastedTexts.append(text)
+        didPaste = true
+        defer { finished = true }
+        var iterator = release.stream.makeAsyncIterator()
+        _ = await iterator.next()
+        wasCancelled = Task.isCancelled
+        guard !wasCancelled else { return false }
+        if postPasteAction != nil { returnCount += 1 }
+        return postPasteAction != nil
+    }
+
+    func copyToClipboard(_ text: String) async -> Bool {
+        copiedTexts.append(text)
+        return true
+    }
 }

@@ -35,6 +35,19 @@ unguarded behavior unless they explicitly supply a required application.
   the required application during the settling delay suppresses Return. The
   preexisting clipboard restore task still follows its ownership/change-count
   checks and the user's Keep dictation on clipboard preference.
+- Escape, dismissal, and starting another dictation cancel the pending guarded
+  insertion through the coordinator's existing task cancellation path. After
+  cancellation it cannot send Return, publish delivery or recovery, or replace
+  the next dictation's state. Ordinary paste retains its established behavior
+  across a back-to-back dictation start.
+- The guarded paste checks the required application again after clipboard,
+  keyboard-layout, and event-pair preparation, immediately before dispatching
+  the pair. Rejection at this point throws a paste failure: neither Cmd+V nor
+  Return was posted. The temporary clipboard may already contain the transcript;
+  restoration remains conditional on ownership/change count and the Keep
+  clipboard preference. A newer user clipboard value is not restored over.
+  The coordinator then uses its existing copy-for-manual-paste recovery, which
+  writes the transcript and cancels pending restoration if that copy succeeds.
 - The service returns true only when the requested keystroke was posted. False
   after paste does not mean the text needs to be pasted again. Neither result
   proves that a remote application accepted or submitted a message.
@@ -43,7 +56,11 @@ unguarded behavior unless they explicitly supply a required application.
   pre-paste focus check follows ordinary copy-for-manual-paste recovery. A
   cancelled insertion retains the coordinator's cancellation outcome.
 - The application-wide guard cannot prove which Codex composer is focused.
-  Users must keep the intended composer focused until submission.
+  Focus may also change after any check and before macOS delivers the event;
+  these checks do not atomically bind delivery to an application. Once a key
+  pair is admitted, both down and up are posted, even if cancellation or focus
+  changes between them. Users must keep the intended composer focused until
+  submission.
 
 ## Non-stable details and compatibility
 
