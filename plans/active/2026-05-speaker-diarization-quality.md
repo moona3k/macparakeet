@@ -13,9 +13,9 @@
 > Date: 2026-05-27 (refreshed 2026-06-14 against FluidAudio 0.15.2)
 > Review: revised after two ChatGPT Pro reviews and local fresh-eye review to
 > reduce overengineering and avoid brittle heuristics. The 2026-06-14 refresh
-> re-grounds "Verified Current State" against the now-pinned FluidAudio 0.15.2
-> (was 0.14.5), promotes the evaluation harness to the first implemented slice
-> (measure before changing behavior), and folds the newly-exposed per-segment
+> re-grounded the June snapshot against the then-pinned FluidAudio 0.15.2
+> (was 0.14.5), promoted the evaluation harness to the first implemented slice
+> (measure before changing behavior), and folded the newly-exposed per-segment
 > `qualityScore` and speaker embeddings into Phases 2 and 5.
 > Scope: speaker diarization accuracy, speaker-to-word attribution, local
 > diagnostics, and minimal speaker-label provenance. This is separate from the
@@ -44,12 +44,26 @@ MacParakeet use the best available local-first diarization path by adding
 constraints, conservative reconciliation, and honest diagnostics around the
 current FluidAudio offline pipeline.
 
-## Verified Current State
+## Current Evaluation Slice (verified 2026-10-30)
 
-- `Package.resolved` now pins FluidAudio `0.15.2`
+- `Package.swift` pins FluidAudio exactly to `0.17.7`; `Package.resolved`
+  records revision `503b4bd1bbf7220882de39fe8ae6716aae4132da`.
+- `DiarizationService.diarize` preserves FluidAudio's segment `qualityScore`
+  as a `Double` in `SpeakerSegment`, alongside `speakerId`, `startMs`, and
+  `endMs`. The optional evaluation assignment experiment uses that value for
+  its fallback gate; this does not establish an accuracy improvement.
+- These facts were checked against the current manifest, lockfile, and
+  first-party mapping code. The June capability analysis below has not been
+  revalidated against FluidAudio `0.17.7`; it remains historical context.
+
+## Historical Verified State (2026-06-14)
+
+This snapshot describes the June code and dependency, not the current PR.
+
+- At that time, `Package.resolved` pinned FluidAudio `0.15.2`
   (`7f963cdc43ba89c5993654f1e138047d517a818d`), via
   `.upToNextMinor(from: "0.15.2")`. This plan was originally written against
-  `0.14.5`; the bullets below are re-verified against the 0.15.2 source checked
+  `0.14.5`; the bullets below were verified against the 0.15.2 source checked
   out under `.build/checkouts/FluidAudio`.
 - `DiarizationService` exposes `diarize(audioURL:)` (no per-call options). It is
   constructed either with `config: .default` or, for the CLI file/URL path, with
@@ -67,9 +81,10 @@ current FluidAudio offline pipeline.
   `speakerDatabase: [String: [Float]]?` (per-file centroids) and, behind the
   `exposeChunkEmbeddings` config flag, `chunkEmbeddings: [ChunkEmbedding]?`
   (256-dim WeSpeaker + 128-dim PLDA `rho128`). `OfflineDiarizerManager.process`
-  also gained a `progressCallback`. `DiarizationService.diarize` currently
-  DISCARDS all of this — our `SpeakerSegment` carries only
-  `{ speakerId, startMs, endMs }`.
+  also gained a `progressCallback`. At this June snapshot,
+  `DiarizationService.diarize` discarded these fields and `SpeakerSegment`
+  carried only `{ speakerId, startMs, endMs }`. The current evaluation slice
+  preserves `qualityScore`, as noted above.
 - `TranscriptionService.transcribeMeetingAudio` diarizes only the system WAV
   and maps results into source-prefixed IDs such as `system:S1`.
 - `MeetingTranscriptFinalizer` keeps microphone words as `microphone` / `Me`
