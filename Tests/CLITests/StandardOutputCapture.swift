@@ -32,11 +32,13 @@ func captureStandardOutput(_ body: () async throws -> Void) async throws -> Stri
     return output
 }
 
-private final class StandardOutputCapture {
+final class StandardOutputCapture {
     private let file: FileHandle
     private var originalStdout: Int32?
+    private let flushStdout: () -> Int32
 
-    init() throws {
+    init(flushStdout: @escaping () -> Int32 = { fflush(stdout) }) throws {
+        self.flushStdout = flushStdout
         let path = FileManager.default.temporaryDirectory
             .appendingPathComponent("macparakeet-test-stdout-\(UUID().uuidString)").path
         let descriptor = open(path, O_CREAT | O_EXCL | O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR)
@@ -51,7 +53,10 @@ private final class StandardOutputCapture {
         var installed = false
         defer { if !installed { close(saved) } }
         guard fcntl(saved, F_SETFD, FD_CLOEXEC) >= 0 else { throw Self.posixError() }
-        fflush(stdout)
+        if let error = flushError() {
+            clearerr(stdout)
+            throw error
+        }
         guard dup2(descriptor, STDOUT_FILENO) >= 0 else { throw Self.posixError() }
         originalStdout = saved
         installed = true
@@ -70,13 +75,28 @@ private final class StandardOutputCapture {
 
     private func restore() throws {
         guard let saved = originalStdout else { return }
-        fflush(stdout)
-        guard dup2(saved, STDOUT_FILENO) >= 0 else { throw Self.posixError() }
+        let captureError = flushError()
+        // Failed captured bytes must never be retried into the restored stdout.
+        if captureError != nil { _ = fpurge(stdout) }
+        let restored = dup2(saved, STDOUT_FILENO)
+        let restoreErrno = errno
+        clearerr(stdout)
+        guard restored >= 0 else { throw Self.posixError(restoreErrno) }
         close(saved)
         originalStdout = nil
+        if let captureError { throw captureError }
     }
 
-    private static func posixError() -> NSError {
-        NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+    private func flushError() -> NSError? {
+        let result = flushStdout()
+        let flushErrno = errno
+        guard result != 0 || ferror(stdout) != 0 else { return nil }
+        // A sticky error may predate this flush. In that case errno can belong
+        // to an unrelated operation, so use EIO rather than invent its cause.
+        return Self.posixError(result != 0 && flushErrno != 0 ? flushErrno : EIO)
+    }
+
+    private static func posixError(_ code: Int32 = errno) -> NSError {
+        NSError(domain: NSPOSIXErrorDomain, code: Int(code))
     }
 }

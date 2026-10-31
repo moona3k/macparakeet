@@ -68,6 +68,68 @@ final class StandardOutputCaptureTests: XCTestCase {
         XCTAssertEqual(try captureStandardOutput { print("restored") }, "restored\n")
     }
 
+    func testInitialFlushFailurePreservesStdoutAndErrno() throws {
+        let original = try stdoutIdentity()
+        XCTAssertThrowsError(
+            try StandardOutputCapture(flushStdout: {
+                errno = ENOSPC
+                return EOF
+            })
+        ) { error in
+            XCTAssertEqual((error as NSError).domain, NSPOSIXErrorDomain)
+            XCTAssertEqual((error as NSError).code, Int(ENOSPC))
+        }
+        try assertStdoutRestored(original)
+    }
+
+    func testFinalFlushFailureRestoresStdoutBeforeThrowing() throws {
+        let original = try stdoutIdentity()
+        var calls = 0
+        let capture = try StandardOutputCapture(flushStdout: {
+            calls += 1
+            if calls == 1 { return fflush(stdout) }
+            errno = ENOSPC
+            return EOF
+        })
+        fputs("capture bytes that must not escape", stdout)
+        XCTAssertThrowsError(try capture.finish()) { error in
+            XCTAssertEqual((error as NSError).domain, NSPOSIXErrorDomain)
+            XCTAssertEqual((error as NSError).code, Int(ENOSPC))
+        }
+        XCTAssertEqual(calls, 2)
+        try assertStdoutRestored(original)
+    }
+
+    func testStickyWriteErrorIsReportedAndClearedForNextCapture() throws {
+        let original = try stdoutIdentity()
+        let capture = try StandardOutputCapture()
+        let target = dup(STDOUT_FILENO)
+        guard target >= 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+        defer { close(target) }
+        let readOnly = open("/dev/null", O_RDONLY)
+        guard readOnly >= 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+        defer { close(readOnly) }
+        XCTAssertGreaterThanOrEqual(dup2(readOnly, STDOUT_FILENO), 0)
+        fputs("failed write", stdout)
+        _ = fflush(stdout)
+        XCTAssertNotEqual(ferror(stdout), 0, "The test must create a real stdio write error")
+        XCTAssertGreaterThanOrEqual(dup2(target, STDOUT_FILENO), 0)
+        errno = EACCES  // A successful flush must not reuse an unrelated errno.
+        XCTAssertThrowsError(try capture.finish()) { error in
+            XCTAssertEqual((error as NSError).domain, NSPOSIXErrorDomain)
+            XCTAssertEqual((error as NSError).code, Int(EIO))
+        }
+        try assertStdoutRestored(original)
+    }
+
+    private func assertStdoutRestored(_ original: (device: dev_t, inode: ino_t)) throws {
+        let restored = try stdoutIdentity()
+        XCTAssertEqual(restored.device, original.device)
+        XCTAssertEqual(restored.inode, original.inode)
+        XCTAssertEqual(ferror(stdout), 0, "Capture failures must not poison the stdout stream")
+        XCTAssertEqual(try captureStandardOutput { print("next capture") }, "next capture\n")
+    }
+
     private func stdoutIdentity() throws -> (device: dev_t, inode: ino_t) {
         var info = stat()
         guard fstat(STDOUT_FILENO, &info) == 0 else {
