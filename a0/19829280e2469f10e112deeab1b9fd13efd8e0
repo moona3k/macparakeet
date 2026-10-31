@@ -1,0 +1,27 @@
+spec/contracts/meeting-recovery-retention.md
+  s_a7db50ec1095f1::t_eaa3ad438394e0 499-500
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_a7db50ec1095f1::t_eaa3ad438394e0 5374
+Tests/MacParakeetTests/ViewModels/TranscriptionMeetingFinalizationRetryTests.swift
+  s_a7db50ec1095f1::t_eaa3ad438394e0 188-203,209-212
+  s_a7db50ec1095f1::t_f61448060b43f4 204-208
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_a7db50ec1095f1::t_eaa3ad438394e0 3004,3020-3022
+  s_a7db50ec1095f1::t_b5c37482c9206a 3023
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a019829280e2469f10e112deeab1b9fd13efd8e0",
+  "prompts": {},
+  "sessions": {
+    "s_a7db50ec1095f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18ee2-1964-7e31-bb46-e22abcc88701",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
