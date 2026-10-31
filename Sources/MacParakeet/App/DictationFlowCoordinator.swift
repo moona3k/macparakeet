@@ -39,6 +39,20 @@ private enum ProcessingLoadCaptionOutcome {
 
 @MainActor
 final class DictationFlowCoordinator {
+    static let codexBundleIdentifier = "com.openai.codex"
+
+    static func shouldAutoSubmitCodexDictation(
+        enabled: Bool,
+        transcriptHasText: Bool,
+        requestedAction: KeyAction?,
+        focusedContext: AppPromptContext?
+    ) -> Bool {
+        enabled
+            && transcriptHasText
+            && requestedAction == nil
+            && focusedContext?.bundleIdentifier == codexBundleIdentifier
+    }
+
     private static let silenceAutoStopThreshold: Float = 0.03
     private static let microphoneAccessRequiredMessage = "Microphone access required"
 
@@ -122,11 +136,17 @@ final class DictationFlowCoordinator {
             if case .accessibilityPermissionRequired? = clipboardError {
                 return "Accessibility permission is required for auto-paste. Copied to clipboard. Press Cmd+V."
             }
+            if case .requiredFrontmostApplicationUnavailable? = clipboardError {
+                return "Codex lost focus. Copied to clipboard. Return to Codex and press Cmd+V."
+            }
             return "Copied to clipboard. Press Cmd+V."
         }
 
         if case .accessibilityPermissionRequired? = clipboardError {
             return "Accessibility permission is required for auto-paste, but the clipboard could not be updated."
+        }
+        if case .requiredFrontmostApplicationUnavailable? = clipboardError {
+            return "Codex lost focus, and the clipboard could not be updated."
         }
 
         return "Paste failed and the clipboard could not be updated."
@@ -548,7 +568,7 @@ final class DictationFlowCoordinator {
         switch stateMachine.state {
         case .finishing(let outcome):
             switch outcome {
-            case .error, .noSpeech, .pasteFailedCopied:
+            case .error, .noSpeech, .pasteFailedCopied, .postPasteActionSuppressed:
                 sendEvent(.dismissRequested)
             case .success:
                 break
@@ -813,9 +833,21 @@ final class DictationFlowCoordinator {
             }
             let transcript = dictation.cleanTranscript ?? dictation.rawTranscript
             let insertionStyle = currentDictationInsertionStyle
-            let action = pendingPostPasteAction
+            let requestedAction = pendingPostPasteAction
             pendingPostPasteAction = nil
             let transcriptHasText = !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let focusedContext = focusedAppContextService.currentContext()
+            let autoSubmitsToCodex = Self.shouldAutoSubmitCodexDictation(
+                enabled: runtimePreferences.shouldAutoSubmitCodexDictation && !sessionIsPractice,
+                transcriptHasText: transcriptHasText,
+                requestedAction: requestedAction,
+                focusedContext: focusedContext
+            )
+            let action = requestedAction ?? (autoSubmitsToCodex ? .returnKey : nil)
+            let requiredFrontmostBundleIdentifier =
+                autoSubmitsToCodex
+                ? Self.codexBundleIdentifier
+                : nil
             let appendsTrailingSpace = !(
                 dictation.processingMode.usesDeterministicPipeline
                 && insertionStyle == .inline
@@ -824,8 +856,10 @@ final class DictationFlowCoordinator {
             let insertText = action == nil ? normalPasteText : transcript
             // IME/Reduce Motion are sampled once at dispatch. A layout switch
             // during the short stream is accepted risk; paste remains the fallback
-            // when capability is unknown.
+            // when capability is unknown. Codex auto-submit stays on the guarded
+            // paste path: paste, then Return only while Codex is still frontmost.
             let shouldStream = !sessionIsPractice
+                && !autoSubmitsToCodex
                 && self.runtimePreferences.dictationStreamingCursorEnabled
                 && !self.shouldReduceMotion()
                 && self.inputSourceAllowsStreaming()
@@ -849,6 +883,7 @@ final class DictationFlowCoordinator {
                 var completedDictation = dictation
                 let pastedToAppAtDispatch = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
                 let keepDictationOnClipboard = self.runtimePreferences.shouldKeepDictationOnClipboard
+                var guardedSubmissionWasSuppressed = false
                 guard !Task.isCancelled else { return }
 
                 do {
@@ -862,14 +897,18 @@ final class DictationFlowCoordinator {
                     }
 
                     let pasteStartedAt = Date()
-                    try await self.performDictationInsert(
+                    let keystrokeFired = try await self.performDictationInsert(
                         insertText: insertText,
                         transcript: transcript,
                         action: action,
                         keepDictationOnClipboard: keepDictationOnClipboard,
-                        shouldStream: shouldStream
+                        shouldStream: shouldStream,
+                        requiredFrontmostBundleIdentifier: requiredFrontmostBundleIdentifier
                     )
                     guard !Task.isCancelled else { return }
+                    if !keystrokeFired, requiredFrontmostBundleIdentifier != nil {
+                        guardedSubmissionWasSuppressed = true
+                    }
 
                     // Cmd+V-posted breadcrumb. Action-only Voice Return (empty text +
                     // Return keystroke) is not a paste and must not enter e2e_ms.
@@ -895,6 +934,21 @@ final class DictationFlowCoordinator {
                     let rawChars = dictation.rawTranscript.count
                     let cleanChars = dictation.cleanTranscript?.count ?? 0
                     let app = completedDictation.pastedToApp ?? "none"
+                    if guardedSubmissionWasSuppressed {
+                        self.dictationLog.notice(
+                            "dictation_completed gen=\(gen) outcome=submit_suppressed rawChars=\(rawChars) cleanChars=\(cleanChars) autoPasted=true pastedToApp=\(app, privacy: .public)"
+                        )
+                        guard self.stateMachine.generation == gen else { return }
+                        self.dismissCaption(outcome: .failure)
+                        self.sendEvent(
+                            .postPasteActionSuppressed(
+                                generation: gen,
+                                message:
+                                    "Dictation was pasted, but Return was not sent. Keep Codex frontmost and press Return."
+                            )
+                        )
+                        return
+                    }
                     self.dictationLog.notice("dictation_completed gen=\(gen) outcome=success rawChars=\(rawChars) cleanChars=\(cleanChars) autoPasted=true pastedToApp=\(app, privacy: .public)")
 
                     guard self.stateMachine.generation == gen else { return }
@@ -942,7 +996,10 @@ final class DictationFlowCoordinator {
 
             let task = Task { @MainActor in await work() }
             insertionTask = (generation: gen, task: task)
-            if shouldStream { actionTask = task }
+            // Guarded submission remains revocable through the finishing
+            // state's Escape/dismiss/restart effects until Return is posted.
+            // Ordinary paste keeps its existing back-to-back delivery behavior.
+            if shouldStream || autoSubmitsToCodex { actionTask = task }
 
         // MARK: History
 
@@ -1492,34 +1549,37 @@ final class DictationFlowCoordinator {
         transcript: String,
         action: KeyAction?,
         keepDictationOnClipboard: Bool,
-        shouldStream: Bool
-    ) async throws {
+        shouldStream: Bool,
+        requiredFrontmostBundleIdentifier: String? = nil
+    ) async throws -> Bool {
         if shouldStream {
             do {
                 try await streamingInserter.insert(insertText)
-                if Task.isCancelled { return }
+                if Task.isCancelled { return false }
                 if keepDictationOnClipboard {
                     _ = await clipboardService.copyToClipboard(insertText)
                 }
                 if let action {
                     try? await Task.sleep(for: .milliseconds(200))
-                    if Task.isCancelled { return }
+                    if Task.isCancelled { return false }
                     do {
                         let keystrokeFired = try await clipboardService.pasteTextWithAction(
                             "",
                             postPasteAction: action,
-                            restoresClipboard: true
+                            restoresClipboard: true,
+                            requiredFrontmostBundleIdentifier: requiredFrontmostBundleIdentifier
                         )
                         if keystrokeFired {
                             Telemetry.send(.keystrokeSnippetFired(action: action.rawValue))
                         }
+                        return keystrokeFired
                     } catch {
                         // Text already landed via Unicode events. Do not fall through
                         // to Cmd+V of the full transcript.
                         throw StreamingCursorError.partialInsert
                     }
                 }
-                return
+                return false
             } catch let error as StreamingCursorError
                 where error == .eventSourceUnavailable || error == .eventCreationFailed
             {
@@ -1531,16 +1591,19 @@ final class DictationFlowCoordinator {
             let keystrokeFired = try await clipboardService.pasteTextWithAction(
                 transcript,
                 postPasteAction: action,
-                restoresClipboard: !keepDictationOnClipboard
+                restoresClipboard: !keepDictationOnClipboard,
+                requiredFrontmostBundleIdentifier: requiredFrontmostBundleIdentifier
             )
             if keystrokeFired {
                 Telemetry.send(.keystrokeSnippetFired(action: action.rawValue))
             }
+            return keystrokeFired
         } else {
             try await clipboardService.pasteText(
                 insertText,
                 restoresClipboard: !keepDictationOnClipboard
             )
+            return false
         }
     }
 
@@ -1621,6 +1684,7 @@ final class DictationFlowCoordinator {
             case .eventSourceUnavailable: return "paste_event_source_unavailable"
             case .eventCreationFailed: return "paste_event_creation_failed"
             case .pasteboardWriteFailed: return "pasteboard_write_failed"
+            case .requiredFrontmostApplicationUnavailable: return "paste_frontmost_application_changed"
             }
         }
         if let streamingError = error as? StreamingCursorError {
@@ -1647,6 +1711,7 @@ final class DictationFlowCoordinator {
             switch outcome {
             case .success: return "finishing.success"
             case .pasteFailedCopied: return "finishing.pasteFailed"
+            case .postPasteActionSuppressed: return "finishing.postPasteActionSuppressed"
             case .noSpeech: return "finishing.noSpeech"
             case .error: return "finishing.error"
             }

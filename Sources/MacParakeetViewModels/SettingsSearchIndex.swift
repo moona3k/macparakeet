@@ -181,6 +181,16 @@ public enum SettingsSearchIndex {
             cardAnchor: "dictation"
         ),
         SettingsSearchEntry(
+            id: "dictation.codex.auto.submit",
+            tab: .capture,
+            title: "Auto-submit dictation in Codex",
+            subtitle: "in Dictation",
+            keywords: [
+                "codex", "composer", "submit", "send", "return", "enter", "fn", "push to talk",
+            ],
+            cardAnchor: "dictation"
+        ),
+        SettingsSearchEntry(
             id: "dictation.capture.sounds",
             tab: .capture,
             title: "Play sounds when dictation starts and stops",

@@ -40,6 +40,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var dictationPreviewTextSize: DictationPreviewTextSize { get }
     var dictationUndoCountdown: DictationUndoCountdown { get }
     var shouldKeepDictationOnClipboard: Bool { get }
+    var shouldAutoSubmitCodexDictation: Bool { get }
     var dictationStreamingCursorEnabled: Bool { get }
     var hasCompletedFirstDictation: Bool { get }
     /// Flip the one-shot "first dictation completed" flag. Returns `true` only
@@ -586,6 +587,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let dictationPreviewTextSizeKey = "dictationPreviewTextSize"
     public static let dictationUndoCountdownKey = "dictationUndoCountdown"
     public static let keepDictationOnClipboardKey = "keepDictationOnClipboard"
+    public static let autoSubmitCodexDictationKey = "autoSubmitCodexDictation"
     public static let dictationStreamingCursorEnabledKey = "dictationStreamingCursorEnabled"
     public static let hasCompletedFirstDictationKey = "hasCompletedFirstDictation"
     /// Play a chime (and, when backgrounded, post a banner) when a file/URL
@@ -913,6 +915,10 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public var shouldKeepDictationOnClipboard: Bool {
         defaults.bool(forKey: Self.keepDictationOnClipboardKey)
+    }
+
+    public var shouldAutoSubmitCodexDictation: Bool {
+        defaults.bool(forKey: Self.autoSubmitCodexDictationKey)
     }
 
     public var dictationStreamingCursorEnabled: Bool {

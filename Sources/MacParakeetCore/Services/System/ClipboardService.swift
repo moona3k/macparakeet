@@ -10,6 +10,13 @@ public protocol ClipboardServiceProtocol: Sendable {
     func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?) async throws -> Bool
     /// Paste text then simulate a keystroke. Returns `true` if the keystroke was actually fired.
     func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?, restoresClipboard: Bool) async throws -> Bool
+    /// Paste text then simulate a keystroke only while the required application remains frontmost.
+    func pasteTextWithAction(
+        _ text: String,
+        postPasteAction: KeyAction?,
+        restoresClipboard: Bool,
+        requiredFrontmostBundleIdentifier: String?
+    ) async throws -> Bool
     @discardableResult
     func copyToClipboard(_ text: String) async -> Bool
 }
@@ -19,6 +26,7 @@ public enum ClipboardServiceError: LocalizedError {
     case eventSourceUnavailable
     case eventCreationFailed
     case pasteboardWriteFailed
+    case requiredFrontmostApplicationUnavailable
 
     public var errorDescription: String? {
         switch self {
@@ -30,6 +38,8 @@ public enum ClipboardServiceError: LocalizedError {
             return "Paste automation unavailable (could not create keyboard events)."
         case .pasteboardWriteFailed:
             return "Paste automation unavailable (could not write transcript to the clipboard)."
+        case .requiredFrontmostApplicationUnavailable:
+            return "Dictation was not submitted because the required application is no longer frontmost."
         }
     }
 }
@@ -38,7 +48,23 @@ protocol ClipboardEventPosting {
     @MainActor
     func simulatePaste(using pasteShortcutKeyResolver: PasteShortcutKeyResolver) throws
     @MainActor
+    func simulatePaste(
+        using pasteShortcutKeyResolver: PasteShortcutKeyResolver,
+        validateBeforePosting: @MainActor () throws -> Void
+    ) throws
+    @MainActor
     func simulateKeystroke(_ keyCode: UInt16) throws
+}
+
+extension ClipboardEventPosting {
+    @MainActor
+    func simulatePaste(
+        using pasteShortcutKeyResolver: PasteShortcutKeyResolver,
+        validateBeforePosting: @MainActor () throws -> Void
+    ) throws {
+        try validateBeforePosting()
+        try simulatePaste(using: pasteShortcutKeyResolver)
+    }
 }
 
 struct CGClipboardEventPosting: ClipboardEventPosting {
@@ -47,6 +73,14 @@ struct CGClipboardEventPosting: ClipboardEventPosting {
 
     @MainActor
     func simulatePaste(using pasteShortcutKeyResolver: PasteShortcutKeyResolver) throws {
+        try simulatePaste(using: pasteShortcutKeyResolver, validateBeforePosting: {})
+    }
+
+    @MainActor
+    func simulatePaste(
+        using pasteShortcutKeyResolver: PasteShortcutKeyResolver,
+        validateBeforePosting: @MainActor () throws -> Void
+    ) throws {
         guard isAccessibilityTrusted() else {
             throw ClipboardServiceError.accessibilityPermissionRequired
         }
@@ -63,6 +97,9 @@ struct CGClipboardEventPosting: ClipboardEventPosting {
             throw ClipboardServiceError.eventCreationFailed
         }
 
+        // Resolve layout and allocate the complete pair before the final
+        // admission check. Once admitted, always complete the down/up pair.
+        try validateBeforePosting()
         postEvent(keyDown, AppGeneratedKeyboardEvents.postingLocation)
         postEvent(keyUp, AppGeneratedKeyboardEvents.postingLocation)
     }
@@ -196,6 +233,7 @@ public final class ClipboardService: ClipboardServiceProtocol {
     private let clipboardRestoreDelay: TimeInterval
     private let restoreCoordinator: ClipboardRestoreCoordinator
     private let pasteboardStringWriter: @MainActor (NSPasteboard, String) -> Bool
+    private let frontmostBundleIdentifierProvider: @MainActor () -> String?
 
     public convenience init() {
         self.init(
@@ -206,6 +244,9 @@ public final class ClipboardService: ClipboardServiceProtocol {
             restoreCoordinator: Self.sharedRestoreCoordinator,
             pasteboardStringWriter: { pasteboard, text in
                 pasteboard.setString(text, forType: .string)
+            },
+            frontmostBundleIdentifierProvider: {
+                NSWorkspace.shared.frontmostApplication?.bundleIdentifier
             }
         )
     }
@@ -218,6 +259,9 @@ public final class ClipboardService: ClipboardServiceProtocol {
         restoreAttemptObserver: (@MainActor () -> Void)? = nil,
         pasteboardStringWriter: @escaping @MainActor (NSPasteboard, String) -> Bool = { pasteboard, text in
             pasteboard.setString(text, forType: .string)
+        },
+        frontmostBundleIdentifierProvider: @escaping @MainActor () -> String? = {
+            NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         }
     ) {
         self.init(
@@ -226,7 +270,8 @@ public final class ClipboardService: ClipboardServiceProtocol {
             eventPosting: eventPosting,
             clipboardRestoreDelay: clipboardRestoreDelay,
             restoreCoordinator: ClipboardRestoreCoordinator(restoreAttemptObserver: restoreAttemptObserver),
-            pasteboardStringWriter: pasteboardStringWriter
+            pasteboardStringWriter: pasteboardStringWriter,
+            frontmostBundleIdentifierProvider: frontmostBundleIdentifierProvider
         )
     }
 
@@ -236,7 +281,8 @@ public final class ClipboardService: ClipboardServiceProtocol {
         eventPosting: ClipboardEventPosting,
         clipboardRestoreDelay: TimeInterval,
         restoreCoordinator: ClipboardRestoreCoordinator,
-        pasteboardStringWriter: @escaping @MainActor (NSPasteboard, String) -> Bool
+        pasteboardStringWriter: @escaping @MainActor (NSPasteboard, String) -> Bool,
+        frontmostBundleIdentifierProvider: @escaping @MainActor () -> String?
     ) {
         self.pasteboard = pasteboard
         self.pasteShortcutKeyResolver = pasteShortcutKeyResolver
@@ -244,6 +290,7 @@ public final class ClipboardService: ClipboardServiceProtocol {
         self.clipboardRestoreDelay = clipboardRestoreDelay
         self.restoreCoordinator = restoreCoordinator
         self.pasteboardStringWriter = pasteboardStringWriter
+        self.frontmostBundleIdentifierProvider = frontmostBundleIdentifierProvider
     }
 
     /// Paste text into the active app by:
@@ -257,6 +304,14 @@ public final class ClipboardService: ClipboardServiceProtocol {
     }
 
     public func pasteText(_ text: String, restoresClipboard: Bool) async throws {
+        try pasteText(text, restoresClipboard: restoresClipboard, requiredFrontmostBundleIdentifier: nil)
+    }
+
+    private func pasteText(
+        _ text: String,
+        restoresClipboard: Bool,
+        requiredFrontmostBundleIdentifier: String?
+    ) throws {
         let restoreDelay = clipboardRestoreDelay
 
         // 1. Save current clipboard contents
@@ -292,7 +347,13 @@ public final class ClipboardService: ClipboardServiceProtocol {
         }
 
         // 3. Simulate Cmd+V
-        try eventPosting.simulatePaste(using: pasteShortcutKeyResolver)
+        try eventPosting.simulatePaste(using: pasteShortcutKeyResolver) {
+            guard requiredFrontmostBundleIdentifier != nil else { return }
+            try Task.checkCancellation()
+            guard isRequiredApplicationFrontmost(requiredFrontmostBundleIdentifier) else {
+                throw ClipboardServiceError.requiredFrontmostApplicationUnavailable
+            }
+        }
     }
 
     /// Copy text to clipboard without paste simulation
@@ -324,8 +385,39 @@ public final class ClipboardService: ClipboardServiceProtocol {
 
     @discardableResult
     public func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?, restoresClipboard: Bool) async throws -> Bool {
+        try await pasteTextWithAction(
+            text,
+            postPasteAction: postPasteAction,
+            restoresClipboard: restoresClipboard,
+            requiredFrontmostBundleIdentifier: nil
+        )
+    }
+
+    @discardableResult
+    public func pasteTextWithAction(
+        _ text: String,
+        postPasteAction: KeyAction?,
+        restoresClipboard: Bool,
+        requiredFrontmostBundleIdentifier: String?
+    ) async throws -> Bool {
+        // A caller can be cancelled while waiting to enter this MainActor
+        // service. Recheck before changing the clipboard or posting events.
+        try Task.checkCancellation()
+        let requiredBundleIdentifier = AppPromptContext.normalizedBundleIdentifier(
+            requiredFrontmostBundleIdentifier
+        )
+        if requiredFrontmostBundleIdentifier != nil {
+            guard requiredBundleIdentifier != nil,
+                isRequiredApplicationFrontmost(requiredBundleIdentifier)
+            else {
+                throw ClipboardServiceError.requiredFrontmostApplicationUnavailable
+            }
+        }
+
         guard let action = postPasteAction else {
-            try await pasteText(text, restoresClipboard: restoresClipboard)
+            try pasteText(
+                text, restoresClipboard: restoresClipboard,
+                requiredFrontmostBundleIdentifier: requiredBundleIdentifier)
             return false
         }
 
@@ -336,22 +428,36 @@ public final class ClipboardService: ClipboardServiceProtocol {
         }
 
         // Paste text (no trailing space — action replaces the role of the space)
-        try await pasteText(text, restoresClipboard: restoresClipboard)
+        try pasteText(
+            text, restoresClipboard: restoresClipboard,
+            requiredFrontmostBundleIdentifier: requiredBundleIdentifier)
 
         // After paste succeeds, the keystroke phase is entirely non-fatal.
         // Task.sleep can throw CancellationError — catch it alongside keystroke errors
         // so cancellation during the 200ms delay doesn't surface as a paste failure.
         do {
             try await Task.sleep(for: .milliseconds(200))
+            guard isRequiredApplicationFrontmost(requiredBundleIdentifier) else {
+                logger.notice("Post-paste keystroke skipped (required application lost focus)")
+                return false
+            }
             try eventPosting.simulateKeystroke(action.keyCode)
             return true
         } catch is CancellationError {
             logger.notice("Post-paste keystroke skipped (task cancelled after paste succeeded)")
             return false
         } catch {
-            logger.error("Post-paste keystroke failed (text was pasted successfully): \(error.localizedDescription, privacy: .public)")
+            logger.error(
+                "Post-paste keystroke failed (text was pasted successfully): \(error.localizedDescription, privacy: .public)"
+            )
             return false
         }
+    }
+
+    private func isRequiredApplicationFrontmost(_ requiredBundleIdentifier: String?) -> Bool {
+        guard let requiredBundleIdentifier else { return true }
+        return AppPromptContext.normalizedBundleIdentifier(frontmostBundleIdentifierProvider())
+            == requiredBundleIdentifier
     }
 
     // MARK: - Private

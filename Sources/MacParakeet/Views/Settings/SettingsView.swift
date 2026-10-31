@@ -1317,6 +1317,16 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
+                    title: "Auto-submit dictation in Codex",
+                    detail:
+                        "When Codex remains frontmost, pastes a completed dictation and presses Return to submit it. Keep the intended Codex composer focused until submission.",
+                    isBeta: true,
+                    isOn: $viewModel.autoSubmitCodexDictation
+                )
+
+                Divider()
+
+                settingsToggleRow(
                     title: "Streaming cursor",
                     detail: "Types the finished transcript into the app instead of pasting it all at once. Multi-line results still paste, and so does everything when Reduce Motion is on. Undo (⌘Z) may remove typed text in several steps.",
                     isOn: $viewModel.dictationStreamingCursorEnabled
