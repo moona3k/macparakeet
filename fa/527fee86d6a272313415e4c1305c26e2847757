@@ -1,0 +1,31 @@
+spec/04-ui-patterns.md
+  s_46b66fa7ad2e95::t_bfc6f4a0de14f9 1163-1164
+Tests/MacParakeetTests/Views/CustomWordsAlertTests.swift
+  s_46b66fa7ad2e95::t_25bbba7e1b6a6c 1-110
+Sources/MacParakeet/Views/Vocabulary/CustomWordsView.swift
+  s_46b66fa7ad2e95::t_6d2544cdbca721 89-90
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_46b66fa7ad2e95::t_bfc6f4a0de14f9 4419,4427
+  s_46b66fa7ad2e95::t_ff98497315145c 762-765,4354-4399
+  s_46b66fa7ad2e95::t_add0aaf3fc6dca 239,4400-4418,4420-4426,4428-4429
+Tests/MacParakeetTests/Views/SettingsCaptureLayoutTests.swift
+  s_46b66fa7ad2e95::t_8a1ae2a14af1e8 11-12,16-17,64-67
+  s_46b66fa7ad2e95::t_add0aaf3fc6dca 2,22-49
+  s_46b66fa7ad2e95::t_ff98497315145c 1,3-10,13-15,18-21,50-63,68-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fa527fee86d6a272313415e4c1305c26e2847757",
+  "prompts": {},
+  "sessions": {
+    "s_46b66fa7ad2e95": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a193c9-6984-7ff3-9ae9-3aabff7c60ea",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
