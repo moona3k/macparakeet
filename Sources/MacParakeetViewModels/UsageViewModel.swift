@@ -132,7 +132,7 @@ public final class UsageViewModel {
 
     /// Sum of every row with a known price.
     public var estimatedTotal: Double {
-        (aiRows + onlineSpeechRows).compactMap(estimatedCost(for:)).reduce(0, +)
+        (aiRows + onlineSpeechRows).compactMap { estimatedCost(for: $0) }.reduce(0, +)
     }
 
     /// Keep arithmetic overflow distinct from models whose prices are unknown.
