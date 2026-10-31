@@ -107,11 +107,11 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
     private var generation = 0
     private var failure: RealtimeSTTFailure?
     private var onFailure: (@Sendable (String) -> Void)?
-    private var clearedItems: Set<String> = []
     private var receiveTask: Task<Void, Never>?
     private var onPartial: (@Sendable (String) -> Void)?
     private var model = ""
     private var provider = "online"
+    private var sessionConfig: CloudSTTConfig?
 
     /// Arrival is the fallback when a compatible provider supplies no chain.
     private var itemOrder: [String] = []
@@ -174,13 +174,21 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
         onPartial: @escaping @Sendable (String) -> Void
     ) async throws {
         teardown()
-        let current = generation
         try Task.checkCancellation()
         let config = try configStore.load()
         guard configStore.isConfigured, config.hasRealtimeModel, let url = config.realtimeURL else {
             throw STTLiveDictationTranscriptionError.unsupportedEngine(.cloud)
         }
 
+        try await startSession(config: config, url: url, onPartial: onPartial)
+    }
+
+    private func startSession(
+        config: CloudSTTConfig, url: URL, onPartial: @escaping @Sendable (String) -> Void
+    ) async throws {
+        let current = generation
+        try Task.checkCancellation()
+        sessionConfig = config
         model = config.realtimeModel.trimmingCharacters(in: .whitespacesAndNewlines)
         provider = url.host ?? "online"
         usage = SessionUsage(provider: provider, model: model)
@@ -233,14 +241,21 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
         if let failure { throw failure }
     }
 
-    func clearCaptionHistory() {
-        clearedItems.formUnion(itemOrder)
-        itemOrder = []
-        itemPredecessors = [:]
-        itemTexts = [:]
-        finalItems = []
-        lineRevision += 1
-        onLines?([], lineRevision)
+    /// A fresh socket is the history boundary: pending commit acknowledgements
+    /// have no client request identity, and sends may still be suspended. Keep
+    /// the current connection settings; clearing never selects another provider.
+    func clearCaptionHistory() async throws {
+        guard let config = sessionConfig, let url = config.realtimeURL else { throw CancellationError() }
+        let partial = onPartial ?? { _ in }
+        let lines = onLines
+        let failureObserver = onFailure
+        teardown()
+        // Another Clear can arrive during connect. Keep the callbacks visible
+        // before that await so the replacement inherits the same observers.
+        onLines = lines
+        onFailure = failureObserver
+        try await startSession(config: config, url: url, onPartial: partial)
+        lines?([], lineRevision)
     }
 
     func processLiveDictationSamples(_ samples: [Float]) async throws {
@@ -347,7 +362,7 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
         onLines = nil
         onFailure = nil
         failure = nil
-        clearedItems = []
+        sessionConfig = nil
         finalItems = []
         loggedEventTypes = []
         hasLoggedFirstText = false
@@ -382,9 +397,8 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
         guard let event = Self.parseEvent(message) else { return }
         switch event {
         case .committed(let itemID, let previousItemID):
-            guard !clearedItems.contains(itemID) else { return }
             noteItem(itemID)
-            if let previousItemID, !clearedItems.contains(previousItemID) { noteItem(previousItemID) }
+            if let previousItemID { noteItem(previousItemID) }
             // Ignore malformed cycles instead of hanging or inventing a new
             // order from an invalid predecessor chain.
             var predecessor = previousItemID
@@ -396,12 +410,10 @@ actor RealtimeTranscribeEngine: NativeLiveDictating {
             itemPredecessors[itemID] = previousItemID
             publish()
         case .delta(let itemID, let text):
-            guard !clearedItems.contains(itemID) else { return }
             noteItem(itemID)
             itemTexts[itemID, default: ""] += text
             publish()
         case .completed(let itemID, let transcript):
-            guard !clearedItems.contains(itemID) else { return }
             noteItem(itemID)
             itemTexts[itemID] = transcript
             finalItems.insert(itemID)

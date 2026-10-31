@@ -652,6 +652,9 @@ struct SpeechStackStatus: Sendable, Equatable {
     let cohereModelDownloaded: Bool
 
     var summary: String {
+        if speechEngine == .cloud {
+            return speechRuntimeReady ? "Online speech configured" : "Online speech configuration unavailable"
+        }
         if speechRuntimeReady && speakerModelsPrepared {
             return "Ready"
         }
@@ -738,8 +741,9 @@ func loadSpeechStackStatus(
         case .cohere:
             cohereDownloaded
         case .cloud:
-            // Nothing to download; the saved credential must also be readable.
-            CloudSTTConfigStore(defaults: defaults).isReady
+            // Online speech has no local model. Runtime readiness separately
+            // loads and validates the local endpoint/credential configuration.
+            false
         }
 
     async let speechRuntimeReady = sttClient.isReady()
@@ -764,11 +768,16 @@ func loadSpeechStackStatus(
 
 func printSpeechStackStatus(_ status: SpeechStackStatus, includeHeader: Bool = true) {
     if includeHeader {
-        print("Local speech stack:")
+        print(status.speechEngine == .cloud ? "Speech stack:" : "Local speech stack:")
     }
     print("  Active speech engine: \(status.speechEngine.displayName)")
-    print("  Active speech model cached: \(status.speechModelCached ? "Yes" : "No")")
-    print("  Speech runtime loaded: \(status.speechRuntimeReady ? "Yes" : "No")")
+    if status.speechEngine == .cloud {
+        print("  Active speech model cached: Not applicable (online service)")
+        print("  Online speech configuration ready: \(status.speechRuntimeReady ? "Yes" : "No")")
+    } else {
+        print("  Active speech model cached: \(status.speechModelCached ? "Yes" : "No")")
+        print("  Speech runtime loaded: \(status.speechRuntimeReady ? "Yes" : "No")")
+    }
     print("  Speaker models cached: \(status.speakerModelsCached ? "Yes" : "No")")
     print("  Speaker models prepared: \(status.speakerModelsPrepared ? "Yes" : "No")")
     print("  Parakeet model variant: \(status.parakeetModelVariant.rawValue)")

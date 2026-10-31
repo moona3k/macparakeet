@@ -9,9 +9,14 @@ private final class FakeRealtimeSocket: RealtimeSTTSocket, @unchecked Sendable {
     private var incoming: AsyncStream<String>.Continuation!
     private var iterator: AsyncStream<String>.Iterator
     private let beforeSendReturns: @Sendable (String) async throws -> Void
+    private let beforeReceiveReturns: @Sendable (String) async -> Void
 
-    init(beforeSendReturns: @escaping @Sendable (String) async throws -> Void = { _ in }) {
+    init(
+        beforeReceiveReturns: @escaping @Sendable (String) async -> Void = { _ in },
+        beforeSendReturns: @escaping @Sendable (String) async throws -> Void = { _ in }
+    ) {
         self.beforeSendReturns = beforeSendReturns
+        self.beforeReceiveReturns = beforeReceiveReturns
         var continuation: AsyncStream<String>.Continuation!
         let stream = AsyncStream<String> { continuation = $0 }
         iterator = stream.makeAsyncIterator()
@@ -30,6 +35,7 @@ private final class FakeRealtimeSocket: RealtimeSTTSocket, @unchecked Sendable {
 
     func receive() async throws -> String {
         guard let message = await iterator.next() else { throw CancellationError() }
+        await beforeReceiveReturns(message)
         return message
     }
 
@@ -100,6 +106,26 @@ private actor RealtimeAppendGate {
         continuation?.resume()
         continuation = nil
     }
+}
+
+private actor RealtimeClearGate {
+    private var opened = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    func wait() async {
+        if !opened { await withCheckedContinuation { waiters.append($0) } }
+    }
+    func open() {
+        opened = true
+        for waiter in waiters { waiter.resume() }
+        waiters = []
+    }
+}
+
+private final class RealtimeClearSockets: @unchecked Sendable {
+    private let lock = NSLock()
+    private var sockets: [FakeRealtimeSocket]
+    init(_ sockets: [FakeRealtimeSocket]) { self.sockets = sockets }
+    func take() -> FakeRealtimeSocket { lock.withLock { sockets.removeFirst() } }
 }
 
 final class RealtimeTranscribeEngineTests: XCTestCase {
@@ -264,9 +290,9 @@ final class RealtimeTranscribeEngineTests: XCTestCase {
         try store.save(CloudSTTConfig(baseURL: "https://example.com/v1", model: "m", realtimeModel: "rt"))
         for direct24k in [false, true] {
             let usage = RealtimeUsageRecorder()
-            let socket = FakeRealtimeSocket { text in
+            let socket = FakeRealtimeSocket(beforeSendReturns: { text in
                 if text.contains("input_audio_buffer.append") { throw URLError(.networkConnectionLost) }
-            }
+            })
             let engine = RealtimeTranscribeEngine(configStore: store, recordUsage: usage.record) { _, _ in socket }
             try await engine.beginLiveDictation(language: nil, onPartial: { _ in })
             do {
@@ -318,7 +344,7 @@ final class RealtimeTranscribeEngineTests: XCTestCase {
             let pending = expectation(description: "Old append is suspended")
             let completed = expectation(description: "Old append settled")
             let gate = RealtimeAppendGate(fails: fails) { pending.fulfill() }
-            let oldSocket = FakeRealtimeSocket { try await gate.intercept($0) }
+            let oldSocket = FakeRealtimeSocket(beforeSendReturns: { try await gate.intercept($0) })
             let newSocket = FakeRealtimeSocket()
             let engine = RealtimeTranscribeEngine(configStore: store, recordUsage: usage.record) { url, _ in
                 url.host == "old.example" ? oldSocket : newSocket
@@ -394,6 +420,97 @@ final class RealtimeTranscribeEngineTests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    func testClearRejectsDelayedCommitAndKeepsOriginalConnectionSettings() async throws {
+        try store.save(
+            CloudSTTConfig(
+                baseURL: "https://original.example/v1", model: "file", apiKey: "original-key",
+                realtimeModel: "original-rt"))
+        let received = expectation(description: "Old committed event is waiting to return")
+        let returned = expectation(description: "Old committed event returned after Clear")
+        let gate = RealtimeClearGate()
+        let old = FakeRealtimeSocket(beforeReceiveReturns: { _ in
+            received.fulfill()
+            await gate.wait()
+            returned.fulfill()
+        })
+        let new = FakeRealtimeSocket()
+        let sockets = RealtimeClearSockets([old, new])
+        let connections = PartialRecorder()
+        let partials = PartialRecorder()
+        let engine = RealtimeTranscribeEngine(configStore: store) { url, key in
+            connections.add("\(url.host ?? "")|\(key ?? "")")
+            return sockets.take()
+        }
+        defer {
+            Task {
+                await gate.open(); await engine.cancelLiveDictation()
+            }
+        }
+        try await engine.beginLiveDictation(language: nil, onPartial: partials.add)
+        try await engine.processSamples24k([Float](repeating: 0.2, count: 2_400))
+        try await engine.processSamples24k([Float](repeating: 0, count: 14_400))
+        XCTAssertTrue(old.sent.contains { $0.contains("input_audio_buffer.commit") })
+        old.push(#"{"type":"input_audio_buffer.committed","item_id":"unknown-old","previous_item_id":null}"#)
+        await fulfillment(of: [received], timeout: 2)
+        try store.save(
+            CloudSTTConfig(
+                baseURL: "https://different.example/v1", model: "other", apiKey: "different-key",
+                realtimeModel: "different-rt"))
+        try await engine.clearCaptionHistory()
+        XCTAssertTrue(old.isClosed)
+        XCTAssertEqual(connections.values, ["original.example|original-key", "original.example|original-key"])
+        XCTAssertTrue(new.sent.first?.contains("original-rt") == true)
+        new.push(
+            #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"new","transcript":"New"}"#)
+        await waitUntil { partials.values.last == "New" }
+        await gate.open()
+        await fulfillment(of: [returned], timeout: 2)
+        old.push(#"{"type":"conversation.item.input_audio_transcription.delta","item_id":"unknown-old","delta":"Old"}"#)
+        old.push(
+            #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"unknown-old","transcript":"Old final"}"#
+        )
+        new.push(
+            #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"after","transcript":"After"}"#)
+        await waitUntil { partials.values.last == "New After" }
+        XCTAssertFalse(partials.values.contains { $0.contains("Old") })
+        await engine.cancelLiveDictation()
+    }
+
+    func testClearRevokesSuspendedAppendAndCommitState() async throws {
+        for suspendCommit in [false, true] {
+            try store.save(CloudSTTConfig(baseURL: "https://example.com/v1", model: "file", realtimeModel: "rt"))
+            let started = expectation(description: "Old send suspended")
+            let gate = RealtimeClearGate()
+            let old = FakeRealtimeSocket(beforeSendReturns: { text in
+                let event = suspendCommit ? "input_audio_buffer.commit" : "input_audio_buffer.append"
+                if text.contains(event) { started.fulfill(); await gate.wait() }
+            })
+            let new = FakeRealtimeSocket()
+            let sockets = RealtimeClearSockets([old, new])
+            let engine = RealtimeTranscribeEngine(configStore: store) { _, _ in sockets.take() }
+            try await engine.beginLiveDictation(language: nil, onPartial: { _ in })
+            let sending = Task {
+                try await engine.processSamples24k([Float](repeating: 0.2, count: 2_400))
+                if suspendCommit { try await engine.processSamples24k([Float](repeating: 0, count: 14_400)) }
+            }
+            defer {
+                Task {
+                    await gate.open(); await engine.cancelLiveDictation()
+                }
+            }
+            await fulfillment(of: [started], timeout: 2)
+            try await engine.clearCaptionHistory()
+            await gate.open()
+            do { try await sending.value; XCTFail("The old send must be revoked") } catch {
+                XCTAssertTrue(error is CancellationError)
+            }
+            // Old speech/commit state must not turn new silence into a phrase.
+            try await engine.processSamples24k([Float](repeating: 0, count: 14_400))
+            XCTAssertFalse(new.sent.contains { $0.contains("input_audio_buffer.commit") })
+            await engine.cancelLiveDictation()
+        }
+    }
 
     func testParseEventIgnoresUnknownTypesAndReadsErrors() {
         XCTAssertNil(RealtimeTranscribeEngine.parseEvent(#"{"type":"session.updated"}"#))

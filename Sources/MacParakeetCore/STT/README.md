@@ -104,6 +104,13 @@ meeting preview warm-up and inference without changing capture or final STT.
   sessions, so the engine commits a phrase after ~0.6 s of silence. The
   dictation's final text still comes from the recorded audio through
   `CloudTranscribeEngine`, so a dropped connection only loses the preview.
+  Live-caption Clear creates a fresh socket with the resolved session settings,
+  revoking old sends and receives even when a commit acknowledgement has not
+  assigned its item ID yet. `LiveCaptionSession` discards already-admitted audio
+  and converter carry, then bounds newly admitted audio while reconnecting.
+  This is an actor admission cutoff, not an atomic flush of the capture stream.
+  Repeated Clear/Stop invalidates obsolete reconnects; failure or overflow stops
+  captions visibly.
 - `NativeLiveDictating.swift` — internal protocol the native streaming engines
   conform to so `STTRuntime` can route a live dictation session to the active
   Nemotron or Parakeet Unified build without knowing the concrete engine type.

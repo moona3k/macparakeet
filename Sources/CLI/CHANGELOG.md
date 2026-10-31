@@ -109,6 +109,10 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Fixed
 
+- Online speech status describes local configuration readiness rather than a
+  downloaded model. Its `speechModelCached` field is false; the existing
+  `speechRuntimeReady` field reflects readable configuration and credentials.
+
 - Knowledge-card generation now makes one corrective retry for incomplete or
   malformed output, waits briefly for busy AI settings, and reserves provider
   context for the answer. Usage totals include both responses when both report

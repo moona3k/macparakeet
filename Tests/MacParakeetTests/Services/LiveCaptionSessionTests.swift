@@ -81,8 +81,8 @@ private final class SocketPool: @unchecked Sendable {
     private let lock = NSLock()
     private var _sockets: [CaptionSocket] = []
     var sockets: [CaptionSocket] { lock.withLock { _sockets } }
-    func make() -> CaptionSocket {
-        let socket = CaptionSocket()
+    func make(beforeSendReturns: @escaping @Sendable (String) async -> Void = { _ in }) -> CaptionSocket {
+        let socket = CaptionSocket(beforeSendReturns: beforeSendReturns)
         lock.withLock { _sockets.append(socket) }
         return socket
     }
@@ -308,10 +308,12 @@ final class LiveCaptionSessionTests: XCTestCase {
         XCTAssertEqual(box.lines.map(\.text), ["First", "Microphone", "Second"])
         XCTAssertEqual(box.lines.map(\.source), [.system, .microphone, .system])
         _ = await session.clearHistory()
-        system.push(#"{"type":"input_audio_buffer.committed","item_id":"c","previous_item_id":"b"}"#)
+        let replacement = try XCTUnwrap(pool.sockets.last)
+        XCTAssertTrue(mic.isClosed && system.isClosed)
+        replacement.push(#"{"type":"input_audio_buffer.committed","item_id":"c","previous_item_id":null}"#)
         system.push(
             #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"b","transcript":"Old"}"#)
-        system.push(
+        replacement.push(
             #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"c","transcript":"New"}"#)
         await waitUntil { box.lines.map(\.id) == ["sys:c"] }
         XCTAssertEqual(box.lines.map(\.text), ["New"])
@@ -479,10 +481,11 @@ final class LiveCaptionSessionTests: XCTestCase {
     func testClearedSessionHistoryDoesNotReturnWithLaterProviderUpdates() async throws {
         try configureRealtime()
         let capture = FakeCaptionCapture()
-        let socket = CaptionSocket()
+        let pool = SocketPool()
         let box = LineBox()
-        let session = LiveCaptionSession(capture: capture, configStore: store) { _, _ in socket }
+        let session = LiveCaptionSession(capture: capture, configStore: store) { _, _ in pool.make() }
         try await session.start(sourceMode: .systemOnly, onUpdate: { box.set($0) }, onFailure: { _ in })
+        let socket = try XCTUnwrap(pool.sockets.first)
         socket.push(#"{"type":"conversation.item.input_audio_transcription.delta","item_id":"old","delta":"Old"}"#)
         await waitUntil { box.lines.map(\.text) == ["Old"] }
         let cleared = await session.clearHistory()
@@ -490,23 +493,229 @@ final class LiveCaptionSessionTests: XCTestCase {
         socket.push(
             #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"old","transcript":"Old final"}"#
         )
-        socket.push(#"{"type":"conversation.item.input_audio_transcription.delta","item_id":"new","delta":"New"}"#)
+        let replacement = try XCTUnwrap(pool.sockets.last)
+        replacement.push(#"{"type":"conversation.item.input_audio_transcription.delta","item_id":"new","delta":"New"}"#)
         await waitUntil { box.lines.map(\.text) == ["New"] }
         XCTAssertEqual(box.lines.map(\.id), ["sys:new"])
         await session.stop()
+    }
+
+    func testClearDropsOldQueueAndPreservesAudioAdmittedDuringReconnect() async throws {
+        try configureRealtime()
+        let capture = FakeCaptionCapture()
+        let oldSend = CaptionGate()
+        let reconnect = CaptionGate()
+        let pool = SocketPool()
+        let appendStarted = expectation(description: "Old append suspended")
+        let reconnectStarted = expectation(description: "Replacement connection suspended")
+        let converter = ScriptedCaptionConverter([
+            .success([Float](repeating: 0.1, count: 240)),
+            .success([Float](repeating: 0.2, count: 240)),
+            .success([Float](repeating: 0.3, count: 240)),
+        ])
+        let box = LineBox()
+        let session = LiveCaptionSession(
+            capture: capture, configStore: store, makeConverter: { _ in converter },
+            connect: { _, _ in
+                let index = pool.sockets.count
+                let socket = pool.make(beforeSendReturns: { text in
+                    if index == 0, text.contains("input_audio_buffer.append") {
+                        appendStarted.fulfill()
+                        await oldSend.wait()
+                    }
+                })
+                if index == 1 { reconnectStarted.fulfill(); await reconnect.wait() }
+                return socket
+            })
+        defer {
+            Task {
+                await oldSend.open(); await reconnect.open(); await session.stop()
+            }
+        }
+        try await session.start(sourceMode: .systemOnly, onUpdate: box.set, onFailure: { XCTFail($0) })
+        await capture.emit(.systemBuffer(buffer(), AVAudioTime(hostTime: 0)))
+        await fulfillment(of: [appendStarted], timeout: 2)
+        await capture.emit(.systemBuffer(buffer(), AVAudioTime(hostTime: 0)))
+        await waitUntil { converter.calls == 2 }
+        let clearing = Task { await session.clearHistory() }
+        await fulfillment(of: [reconnectStarted], timeout: 2)
+        await capture.emit(.systemBuffer(buffer(), AVAudioTime(hostTime: 0)))
+        await waitUntil { converter.calls == 3 }
+        XCTAssertTrue(pool.sockets[0].isClosed)
+        XCTAssertTrue(pool.sockets[1].sent.isEmpty, "New audio must wait for session setup")
+        await oldSend.open()
+        await reconnect.open()
+        _ = await clearing.value
+        await waitUntil { pool.sockets[1].sent.contains { $0.contains("input_audio_buffer.append") } }
+        let appends = pool.sockets[1].sent.filter { $0.contains("input_audio_buffer.append") }
+        XCTAssertEqual(appends.count, 1, "The old queued buffer must be discarded")
+        XCTAssertEqual(
+            appends.first, RealtimeTranscribeEngine.appendEvent(samples: [Float](repeating: 0.3, count: 240)))
+        pool.sockets[0].push(
+            #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"old","transcript":"Old"}"#)
+        pool.sockets[1].push(
+            #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"new","transcript":"New"}"#)
+        await waitUntil { box.lines.map(\.text) == ["New"] }
+        let starts = await capture.startedModes
+        XCTAssertEqual(starts, [.systemOnly], "Clear keeps capture running")
+        await session.stop()
+    }
+
+    func testRepeatedClearAndStopRevokeOlderReconnectFailure() async throws {
+        try configureRealtime()
+        let capture = FakeCaptionCapture()
+        let firstReconnect = CaptionGate()
+        let secondReconnect = CaptionGate()
+        let firstStarted = expectation(description: "First reconnect pending")
+        let secondStarted = expectation(description: "Second reconnect pending")
+        let pool = SocketPool()
+        let box = LineBox()
+        let session = LiveCaptionSession(capture: capture, configStore: store) { _, _ in
+            let socket = pool.make()
+            switch pool.sockets.count {
+            case 2: firstStarted.fulfill(); await firstReconnect.wait(); throw URLError(.cannotConnectToHost)
+            case 3: secondStarted.fulfill(); await secondReconnect.wait()
+            default: break
+            }
+            return socket
+        }
+        defer {
+            Task {
+                await firstReconnect.open(); await secondReconnect.open(); await session.stop()
+            }
+        }
+        try await session.start(sourceMode: .systemOnly, onUpdate: box.set, onFailure: { XCTFail($0) })
+        let first = Task { await session.clearHistory() }
+        await fulfillment(of: [firstStarted], timeout: 2)
+        let second = Task { await session.clearHistory() }
+        await fulfillment(of: [secondStarted], timeout: 2)
+        await session.stop()
+        try await session.start(sourceMode: .systemOnly, onUpdate: box.set, onFailure: { XCTFail($0) })
+        let active = try XCTUnwrap(pool.sockets.last)
+        await firstReconnect.open()
+        await secondReconnect.open()
+        _ = await first.value
+        _ = await second.value
+        XCTAssertFalse(active.isClosed)
+        XCTAssertTrue(pool.sockets[2].isClosed)
+        active.push(
+            #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"new","transcript":"New"}"#)
+        await waitUntil { box.lines.map(\.text) == ["New"] }
+        let stops = await capture.stopCount
+        XCTAssertEqual(stops, 1, "Obsolete Clear cannot stop the restarted capture")
+        await session.stop()
+    }
+
+    func testRepeatedClearRetainsFailureObserverWithoutMoreAudio() async throws {
+        try configureRealtime()
+        let capture = FakeCaptionCapture()
+        let gate = CaptionGate()
+        let pending = expectation(description: "First reconnect pending")
+        let failed = expectation(description: "Replacement still reports server failures")
+        let pool = SocketPool()
+        let session = LiveCaptionSession(capture: capture, configStore: store) { _, _ in
+            let socket = pool.make()
+            if pool.sockets.count == 2 { pending.fulfill(); await gate.wait() }
+            return socket
+        }
+        defer {
+            Task {
+                await gate.open(); await session.stop()
+            }
+        }
+        try await session.start(sourceMode: .systemOnly, onUpdate: { _ in }, onFailure: { _ in failed.fulfill() })
+        let first = Task { await session.clearHistory() }
+        await fulfillment(of: [pending], timeout: 2)
+        _ = await session.clearHistory()
+        await gate.open()
+        _ = await first.value
+        let active = try XCTUnwrap(pool.sockets.last)
+        XCTAssertFalse(active.isClosed)
+        active.push(#"{"type":"error","error":{"code":"invalid_model"}}"#)
+        await fulfillment(of: [failed], timeout: 2)
+        await session.stop()
+        XCTAssertTrue(active.isClosed)
+        let stops = await capture.stopCount
+        XCTAssertEqual(stops, 1)
+    }
+
+    func testAudioWaitingForReconnectStillUsesTheBufferBound() async throws {
+        try configureRealtime()
+        let capture = FakeCaptionCapture()
+        let gate = CaptionGate()
+        let pool = SocketPool()
+        let reconnecting = expectation(description: "Reconnect pending")
+        let failed = expectation(description: "Bound exceeded during reconnect")
+        let converter = ScriptedCaptionConverter([
+            .success([Float](repeating: 0.2, count: 240)),
+            .success([Float](repeating: 0.2, count: 240)),
+        ])
+        let session = LiveCaptionSession(
+            capture: capture, configStore: store, uploadBufferSampleLimit: 300,
+            makeConverter: { _ in converter },
+            connect: { _, _ in
+                let socket = pool.make()
+                if pool.sockets.count == 2 { reconnecting.fulfill(); await gate.wait() }
+                return socket
+            })
+        defer {
+            Task {
+                await gate.open(); await session.stop()
+            }
+        }
+        try await session.start(
+            sourceMode: .systemOnly, onUpdate: { _ in },
+            onFailure: { message in
+                XCTAssertTrue(message.contains("too slow"))
+                failed.fulfill()
+            })
+        let clearing = Task { await session.clearHistory() }
+        await fulfillment(of: [reconnecting], timeout: 2)
+        for _ in 0..<2 { await capture.emit(.systemBuffer(buffer(), AVAudioTime(hostTime: 0))) }
+        await fulfillment(of: [failed], timeout: 2)
+        await session.stop()
+        await gate.open()
+        _ = await clearing.value
+        XCTAssertTrue(pool.sockets[1].isClosed)
+        XCTAssertTrue(pool.sockets[1].sent.isEmpty)
+        let stops = await capture.stopCount
+        XCTAssertEqual(stops, 1)
+    }
+
+    func testReconnectFailureStopsCaptureVisibly() async throws {
+        try configureRealtime()
+        let capture = FakeCaptionCapture()
+        let pool = SocketPool()
+        let failed = expectation(description: "Reconnect failure surfaced")
+        let session = LiveCaptionSession(capture: capture, configStore: store) { _, _ in
+            if !pool.sockets.isEmpty { throw URLError(.cannotConnectToHost) }
+            return pool.make()
+        }
+        try await session.start(
+            sourceMode: .systemOnly, onUpdate: { _ in },
+            onFailure: { message in
+                XCTAssertTrue(message.contains("after Clear"))
+                failed.fulfill()
+            })
+        _ = await session.clearHistory()
+        await fulfillment(of: [failed], timeout: 2)
+        let stops = await capture.stopCount
+        XCTAssertEqual(stops, 1)
+        XCTAssertTrue(pool.sockets[0].isClosed)
     }
 
     @MainActor
     func testViewModelClearsSessionHistoryAndStopsOnServerFailure() async throws {
         try configureRealtime()
         let capture = FakeCaptionCapture()
-        let socket = CaptionSocket()
-        let session = LiveCaptionSession(capture: capture, configStore: store) { _, _ in socket }
+        let pool = SocketPool()
+        let session = LiveCaptionSession(capture: capture, configStore: store) { _, _ in pool.make() }
         let viewModel = LiveCaptionsViewModel(
             sessionFactory: { session },
             liveTranslation: LiveTranslationViewModel(defaults: defaults), defaults: defaults)
         viewModel.start()
         await waitUntil { viewModel.state == .running }
+        let socket = try XCTUnwrap(pool.sockets.first)
         socket.push(#"{"type":"conversation.item.input_audio_transcription.delta","item_id":"old","delta":"Old"}"#)
         await waitUntil { viewModel.lines.map(\.text) == ["Old"] }
         viewModel.clear()
@@ -514,21 +723,25 @@ final class LiveCaptionSessionTests: XCTestCase {
         // A visible new line proves the clear operation has resumed updates.
         await waitUntil {
             if viewModel.lines.map(\.text) == ["New"] { return true }
-            socket.push(
-                #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"new","transcript":"New"}"#)
+            if pool.sockets.count > 1 {
+                pool.sockets.last?.push(
+                    #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"new","transcript":"New"}"#
+                )
+            }
             return false
         }
         socket.push(
             #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"old","transcript":"Old final"}"#
         )
-        socket.push(
+        let replacement = try XCTUnwrap(pool.sockets.last)
+        replacement.push(
             #"{"type":"conversation.item.input_audio_transcription.completed","item_id":"after","transcript":"After"}"#)
         await waitUntil { viewModel.lines.contains { $0.text == "After" } }
         XCTAssertFalse(viewModel.lines.contains { $0.text.contains("Old") })
-        socket.push(#"{"type":"error","error":{"code":"invalid_model","message":"provider detail"}}"#)
+        replacement.push(#"{"type":"error","error":{"code":"invalid_model","message":"provider detail"}}"#)
         await waitUntil { if case .failed = viewModel.state { return true } else { return false } }
         XCTAssertFalse(viewModel.isRunning)
-        XCTAssertTrue(socket.isClosed)
+        XCTAssertTrue(replacement.isClosed)
         XCTAssertFalse(viewModel.notice?.contains("provider detail") ?? true)
         await session.stop()
         let stops = await capture.stopCount

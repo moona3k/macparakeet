@@ -54,6 +54,7 @@ public actor LiveCaptionSession {
     private var sourceSlots: [AudioSource] = []
     private var eventTask: Task<Void, Never>?
     private var uploadTasks: [AudioSource: Task<Void, Never>] = [:]
+    private var uploadReadySources: Set<AudioSource> = []
     private var queuedAudio: [AudioSource: [[Float]]] = [:]
     /// Includes the chunk currently waiting on the network.
     private var bufferedSamples: [AudioSource: Int] = [:]
@@ -121,6 +122,7 @@ public actor LiveCaptionSession {
                     Task { await self?.fail(message, generation: current) }
                 }
                 try requireCurrent(current)
+                uploadReadySources.insert(source)
             }
 
             let events = await capture.events
@@ -155,6 +157,7 @@ public actor LiveCaptionSession {
         eventTask = nil
         for task in uploadTasks.values { task.cancel() }
         uploadTasks = [:]
+        uploadReadySources = []
         queuedAudio = [:]
         bufferedSamples = [:]
         let retiringEngines = Array(engines.values)
@@ -180,19 +183,40 @@ public actor LiveCaptionSession {
         return cleanup
     }
 
+    /// Clear linearizes at this actor's audio admission boundary. Previously
+    /// admitted audio and converter carry are discarded; capture continues and
+    /// newly admitted buffers wait within the normal bound during reconnection.
     public func clearHistory() async -> [LiveCaptionLine] {
+        guard captureRequested else { return [] }
         let current = generation
         historyGeneration += 1
         let history = historyGeneration
+        for task in uploadTasks.values { task.cancel() }
+        uploadTasks = [:]
+        uploadReadySources = []
+        queuedAudio = [:]
+        bufferedSamples = [:]
+        converters = [:]
         linesBySource = [:]
         lineRevisions = [:]
         seenLineIDs = []
         sourceSlots = []
+        onUpdate?([])
         let activeEngines = engines
-        for (source, engine) in activeEngines {
-            await engine.clearCaptionHistory()
+        do {
+            for source in [AudioSource.microphone, .system] {
+                guard let engine = activeEngines[source] else { continue }
+                try await engine.clearCaptionHistory()
+                guard current == generation, history == historyGeneration else { return [] }
+                await installLineObserver(engine, source: source, generation: current, history: history)
+                guard current == generation, history == historyGeneration else { return [] }
+                uploadReadySources.insert(source)
+                startUploadsIfReady(source: source, engine: engine, generation: current, history: history)
+            }
+        } catch {
             guard current == generation, history == historyGeneration else { return [] }
-            await installLineObserver(engine, source: source, generation: current, history: history)
+            await fail("The speech service could not restart after Clear. Live captions stopped.", generation: current)
+            return []
         }
         return currentLines()
     }
@@ -270,15 +294,24 @@ public actor LiveCaptionSession {
         }
         bufferedSamples[source] = buffered + samples.count
         queuedAudio[source, default: []].append(samples)
-        if uploadTasks[source] == nil {
-            uploadTasks[source] = Task { [weak self] in
-                await self?.drainUploads(source: source, engine: engine, generation: generation)
-            }
+        startUploadsIfReady(source: source, engine: engine, generation: generation, history: historyGeneration)
+    }
+
+    private func startUploadsIfReady(
+        source: AudioSource, engine: RealtimeTranscribeEngine, generation: Int, history: Int
+    ) {
+        guard uploadReadySources.contains(source), uploadTasks[source] == nil,
+            queuedAudio[source]?.isEmpty == false
+        else { return }
+        uploadTasks[source] = Task { [weak self] in
+            await self?.drainUploads(source: source, engine: engine, generation: generation, history: history)
         }
     }
 
-    private func drainUploads(source: AudioSource, engine: RealtimeTranscribeEngine, generation: Int) async {
-        while self.generation == generation, !Task.isCancelled {
+    private func drainUploads(
+        source: AudioSource, engine: RealtimeTranscribeEngine, generation: Int, history: Int
+    ) async {
+        while self.generation == generation, historyGeneration == history, !Task.isCancelled {
             guard var queue = queuedAudio[source], !queue.isEmpty else {
                 uploadTasks[source] = nil
                 return
@@ -287,10 +320,10 @@ public actor LiveCaptionSession {
             queuedAudio[source] = queue
             do {
                 try await engine.processSamples24k(samples)
-                guard self.generation == generation, !Task.isCancelled else { return }
+                guard self.generation == generation, historyGeneration == history, !Task.isCancelled else { return }
                 bufferedSamples[source, default: 0] -= samples.count
             } catch {
-                guard self.generation == generation, !Task.isCancelled else { return }
+                guard self.generation == generation, historyGeneration == history, !Task.isCancelled else { return }
                 await fail(
                     "The connection to the speech service was lost. Live captions stopped.", generation: generation)
                 return

@@ -951,6 +951,34 @@ final class ModelLifecycleCommandTests: XCTestCase {
         XCTAssertEqual(status.summary, "Speech model present, speaker models missing")
     }
 
+    func testOnlineStatusSeparatesConfigurationReadinessFromLocalModelCaching() async throws {
+        let suite = makeIsolatedDefaultsSuite("com.macparakeet.tests.cli.online-status.")
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defaults.set(SpeechEnginePreference.cloud.rawValue, forKey: SpeechEnginePreference.defaultsKey)
+        let stt = StubSTTClient()
+        let diarization = StubDiarizationService()
+        for ready in [false, true] {
+            await stt.setReady(ready)
+            let status = await loadSpeechStackStatus(
+                sttClient: stt, diarizationService: diarization, defaults: defaults,
+                isParakeetModelCached: { _ in false }, isNemotronModelDownloaded: { _ in false },
+                isWhisperModelDownloaded: { _ in false }, isCohereModelDownloaded: { false })
+            XCTAssertFalse(status.speechModelCached)
+            XCTAssertEqual(status.speechRuntimeReady, ready)
+            XCTAssertEqual(status.summary, ready ? "Online speech configured" : "Online speech configuration unavailable")
+            let output = try captureStandardOutput { printSpeechStackStatus(status) }
+            XCTAssertTrue(output.hasPrefix("Speech stack:\n"))
+            XCTAssertTrue(output.contains("Active speech model cached: Not applicable (online service)"))
+            XCTAssertTrue(output.contains("Online speech configuration ready: \(ready ? "Yes" : "No")"))
+            XCTAssertFalse(output.contains("Speech runtime loaded:"))
+            let json = try XCTUnwrap(
+                JSONSerialization.jsonObject(with: JSONEncoder().encode(SpeechStackPayload(status: status)))
+                    as? [String: Any])
+            XCTAssertEqual(json["speechModelCached"] as? Bool, false)
+            XCTAssertEqual(json["speechRuntimeReady"] as? Bool, ready)
+        }
+    }
+
     func testAudioInputDiagnosticsShowsSelectedDefaultAndFallbackOrder() {
         let selected = inputDevice(
             id: 10,
