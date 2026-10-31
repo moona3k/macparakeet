@@ -1,0 +1,29 @@
+Tests/CLITests/HistoryCommandTests.swift
+  s_1d3c3aeecdd983::t_ee755a77e6c914 71,101
+  s_1d3c3aeecdd983::t_627b0be3974a1c 116,159
+  s_1d3c3aeecdd983::t_e69074f5d96aa0 32-70,72-100,102-115,117-158,160-187
+Sources/CLI/Commands/HistoryCommand.swift
+  s_1d3c3aeecdd983::t_4d93bbc0818fda 114,231,507,717-725
+  s_1d3c3aeecdd983::t_c7c8c935020279 726
+Sources/CLI/CHANGELOG.md
+  s_1d3c3aeecdd983::t_d438fb43d56ce2 99-100
+  s_1d3c3aeecdd983::t_ee755a77e6c914 101-105
+spec/contracts/cli-json-v1.md
+  s_1d3c3aeecdd983::t_ee755a77e6c914 68-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c53b8ee587153372bd77c6783b0535ed0e9415e3",
+  "prompts": {},
+  "sessions": {
+    "s_1d3c3aeecdd983": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a193d9-1279-75c1-a0aa-2e17aa9d4af4",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
