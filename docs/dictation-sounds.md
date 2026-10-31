@@ -1,8 +1,8 @@
 # Dictation sounds
 
 In **Settings → Capture → Dictation**, enable **Play sounds when dictation starts
-and stops**. Choose each cue independently: macOS default, Handy Pop, Handy
-Marimba, None, or a custom file. Each cue has a volume slider, preview button,
+and stops**. Choose each cue independently: macOS default, Pebble, Bloom, Gong,
+None, or a custom file. Each cue has a volume slider, preview button,
 and Reset button. Reset restores Tink/Pop at 40% and removes that cue's imported
 copy. The master toggle remains off by default.
 
@@ -26,10 +26,27 @@ Preferences use `AppPaths.appDefaults()`. Development builds share those
 preferences with stable but keep imported files in separate storage. A custom
 file selected in one build may need importing again in the other.
 
-The bundled Handy sounds are from revision
-`93c9ee05efe294cf2a56bd534b77ea1079f21b77` of
-[cjpais/Handy](https://github.com/cjpais/Handy). Their MIT license is included
-in `Resources/Legal/HandySounds.txt` and the packaged app's Legal directory.
+## Original sound pairs
+
+MacParakeet bundles three original, synthesized pairs:
+
+- **Pebble:** a compact, soft everyday cue.
+- **Bloom:** a brighter, lightly melodic cue.
+- **Gong:** a brief, warm metallic resonance.
+
+These assets contain no Handy samples. Each pair has distinct start and stop
+sounds. A start cue accompanies microphone readiness; a stop cue marks the end
+of capture, not successful transcription or insertion. Choose either cue
+independently and use Preview to compare at your normal listening volume.
+The [sound design and provenance](dictation-sound-design.md) note describes
+the offline generator and verification. No synthesis or extra dependency runs
+during playback.
+
+Saved Handy Pop selections now use Pebble; saved Handy Marimba selections use
+Bloom. Their saved volumes, retained custom-file references, and the master
+sound toggle are preserved. macOS default, None, and custom selections remain
+unchanged. New preferences save the original preset names. Reset still restores
+the macOS cue at 40%.
 
 ## Testing
 
@@ -38,7 +55,7 @@ swift test -Xswiftc -warn-concurrency \
   --filter 'DictationSound|SettingsSearchIndexTests|DictationFlowCoordinatorTests'
 ```
 
-Manually check both presets and a custom file, independent volumes, None,
+Manually check all three pairs and a custom file, independent volumes, None,
 reset, import cancellation/errors, and relaunch persistence. Check hold-to-talk,
 hands-free dictation, rapid start/stop, and the macOS sound-effects setting.
 
@@ -46,3 +63,7 @@ Controller regressions cover failed selected/system playback, successful
 restoration in a fresh controller, and a delayed successful or failed restore
 finishing after a replacement import or reset. The restore races use a held
 read result rather than timing sleeps.
+
+Configuration tests cover legacy preset migration and canonical preference roundtrips.
+Controller tests decode all six bundled assets and verify that every preset uses
+its own prepared capture player and a separate preview player without a system fallback.

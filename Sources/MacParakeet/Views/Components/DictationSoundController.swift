@@ -101,7 +101,7 @@ final class DictationSoundController {
         for cue in DictationSoundCue.allCases {
             configurations[cue] = DictationSoundConfiguration.load(for: cue, defaults: defaults)
             systemPlayers[cue] = makeSystemPlayer(cue)
-            for style in [DictationSoundStyle.handyPop, .handyMarimba] {
+            for style in DictationSoundStyle.allCases {
                 guard let name = style.resourceName(for: cue), let data = resourceData(name),
                     let player = try? makePlayer(data)
                 else { continue }
