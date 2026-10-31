@@ -1317,6 +1317,11 @@ struct SettingsView: View {
 
                 Divider()
 
+                if viewModel.playDictationCaptureSounds {
+                    DictationSoundSettingsSection(controller: SoundManager.shared.dictationSounds)
+                    Divider()
+                }
+
                 settingsToggleRow(
                     title: "Allow dictation control from links",
                     detail: "Let links start, stop, or toggle dictation. Any app or website can send these links while enabled. Only enable this for automations you trust.",
