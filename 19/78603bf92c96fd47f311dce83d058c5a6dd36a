@@ -1,0 +1,27 @@
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_38caae34335b3e::t_da2322b33d6b50 239,762-765,4365-4440
+Tests/MacParakeetTests/Views/CustomWordsAlertTests.swift
+  s_38caae34335b3e::t_da2322b33d6b50 1-110
+spec/04-ui-patterns.md
+  s_38caae34335b3e::t_da2322b33d6b50 1163-1164
+Tests/MacParakeetTests/Views/SettingsCaptureLayoutTests.swift
+  s_38caae34335b3e::t_da2322b33d6b50 1-200
+Sources/MacParakeet/Views/Vocabulary/CustomWordsView.swift
+  s_38caae34335b3e::t_da2322b33d6b50 89-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1978603bf92c96fd47f311dce83d058c5a6dd36a",
+  "prompts": {},
+  "sessions": {
+    "s_38caae34335b3e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a193d7-0696-7830-99db-06b3d94f97b0",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
