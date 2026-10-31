@@ -1,0 +1,21 @@
+Tests/CLITests/StandardOutputCapture.swift
+  s_6f26576d2ce855::t_f4f591da1bf6e4 35,38,40-41,56-59,78-84,87,90-100
+Tests/CLITests/StandardOutputCaptureTests.swift
+  s_6f26576d2ce855::t_f4f591da1bf6e4 71-132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cf1b92a8cc934d805341509f302f48b296e3df62",
+  "prompts": {},
+  "sessions": {
+    "s_6f26576d2ce855": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e58-eaa6-7583-abd5-6aec9f43cba6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
