@@ -1,0 +1,214 @@
+scripts/ci/quartz-key-state-probe.c
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1-218
+Sources/MacParakeetCore/Services/VideoStreamService.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 4-38,40-41,48-54,56-59,61-67,69-80,82-86,88-89,92-100,102-114,117-153,158,161-173,175-183,185-199,201-207,209-212,217-218,220-224,226,229-236,239-242,244,250,257-258,260
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 7-159,3713,3722,3768,3779,3904-3906,3908,6153-6178
+Tests/MacParakeetTests/Services/System/AppGeneratedKeyboardEventsTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1-106
+Sources/MacParakeet/App/MeetingTranscriptionQueue.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 8-11,31-49,61,76,86-93,119,135-138,140,178,206,244,251-273,280,300,312,314,331,353-361,433
+Sources/MacParakeetCore/Services/LLM/CardGenerationService.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 234,241,248
+spec/contracts/telemetry-v1.md
+  s_6f26576d2ce855::t_4d32e8d5f0a155 340-367
+Sources/MacParakeet/Views/Vocabulary/CustomWordsView.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 22,42,106,111,118,122-125,129-131,146-171,177,179,201,229,435-439,441
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingCleanedMicrophoneReadiness.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 58-60,93,100-101,108-121,152-154,240-269,808
+Sources/MacParakeet/Views/MeetingRecording/MeetingRowCard.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 201-203,221,326,336,375-376,396-397,413,426,437
+Sources/MacParakeet/Views/Meetings/MeetingsView.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 717-718
+Sources/MacParakeetCore/Services/System/SelectionCaptureService.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 500,507-508,511-512
+Tests/MacParakeetTests/Services/LLM/KnowledgeCardRecoveryTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1-265
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 547-561,1957-2060
+  s_6f26576d2ce855::t_0f0f98dbb82a8b 2061
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingPlaybackArtifactBuilder.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 12,102-103
+Tests/MacParakeetTests/Services/VideoStreamServiceTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1-2,7-379
+docs/research/2026-10-30-1286-quartz-state/README.md
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1-160
+Sources/MacParakeetCore/Services/System/README.md
+  s_6f26576d2ce855::t_4d32e8d5f0a155 20-21,65-89
+  s_6f26576d2ce855::t_5d97a4efbedaba 90
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingTranscriptionQueueTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 7-103,129-130,162,206,208,219,223,252,254,348-350,365,391,493,495,498,500,522-524,532,537
+Tests/MacParakeetTests/ViewModels/MediaPlayerViewModelTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 166-313,578-592,600-650
+  s_6f26576d2ce855::t_15c1628e0a65c0 651
+Sources/MacParakeet/Views/MeetingRecording/MeetingAudioStateChip.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 13-17,61,70,79
+Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 52-166
+Sources/MacParakeet/Hotkey/TransformsHotkeyRegistry.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 174
+Sources/MacParakeetViewModels/CustomWordsViewModel.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 15-21,49-63,65-66,68-69,77,81,86,115,133,149,156,165,170,181
+.github/workflows/quartz-key-state-probe.yml
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1-76
+spec/05-audio-pipeline.md
+  s_6f26576d2ce855::t_4d32e8d5f0a155 240,242-243,281-286,410-412,424-428
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 323-325,332-335,363,365,367-370,735,737-741,811,956-958,989,1008,1015,1017,1032-1034,1036,1038-1050,1053,1061,1066-1086,1091,1100-1103,1110,1116,1118,1137,1850-1871,1896-1906,1908
+Sources/MacParakeet/Hotkey/HotkeyManager.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 90-92,95-101,136,574-584,588-597,1071,1301,1528,1557-1560,1606
+docs/dev/knowledge-card-reliability.html
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1-27
+Sources/MacParakeetViewModels/VocabularyBackupViewModel.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 47-54,59-66,69,72,77,84-97,104,127,132,163
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingLockFileStoreTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 22-65,85-86
+Sources/MacParakeetCore/Services/VoiceControl/NativeVoiceControlAdapter.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 668,673,681-682,688-689
+Tests/MacParakeetTests/Audio/MeetingAudioFileTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 6-50
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingCapture.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1-270
+scripts/ci/quartz-paste-probe.m
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1-88
+Sources/MacParakeetCore/Services/System/AppGeneratedKeyboardEvents.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1-41
+docs/research/2026-10-30-1286-quartz-state/fresh-eye-review.md
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1-134
+spec/contracts/README.md
+  s_6f26576d2ce855::t_4d32e8d5f0a155 54
+Sources/CLI/CHANGELOG.md
+  s_6f26576d2ce855::t_4d32e8d5f0a155 99-103,113-115
+  s_6f26576d2ce855::t_3e61a88b208bdd 116
+docs/research/2026-10-30-1286-quartz-state/quartz-paste.jsonl
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1-2
+Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 12,19-20,23,42,45,49,51,1552,1558,1561-1564
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingOutputTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 9-91,1104-1109
+  s_6f26576d2ce855::t_c9263833f7339f 1110
+spec/adr/009-custom-hotkey.md
+  s_6f26576d2ce855::t_4d32e8d5f0a155 151-172
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1021
+plans/active/2026-10-30-1291-capture-finalization.md
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1-127
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 157,159
+Sources/MacParakeet/Hotkey/GlobalShortcutManager.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 74,81
+Tests/MacParakeetTests/Hotkey/SyntheticPasteHotkeyTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1-198
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 237,424,427-439,443,474-475,499-511,514,516,518-520,522-536,539-566,577-578,584-596,601,619-620,630-656,675-681
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingLockFileStore.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 133,421-440
+  s_6f26576d2ce855::t_13d0321e398b81 441-442
+Sources/MacParakeetCore/Services/System/SelectionReplacementService.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 401,408-409,412-413
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1,544,548-631,768-836,1225-1291,2180-2189,2200-2204,2220-2224,2264-2272,2469-2495
+  s_6f26576d2ce855::t_47d3eb3bd34e06 2496
+spec/contracts/custom-word-deletion.md
+  s_6f26576d2ce855::t_4d32e8d5f0a155 41-45
+docs/research/2026-10-30-1286-quartz-state/quartz-paste-556ce1dea.jsonl
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1-2
+docs/audits/2026-10-30-knowledge-card-reliability.md
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1-139
+scripts/dev/voice-control/run_ax_flights_probe.py
+  s_6f26576d2ce855::t_4d32e8d5f0a155 29,34
+Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 478-480
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorLoadCaptionTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 557
+Tests/MacParakeetTests/Database/CardRepositoryTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 73-93
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingOutput.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 172-175
+Sources/MacParakeet/Views/Vocabulary/VocabularyView.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 28-29,32,44,51,61,69-138,143,179,195,203,215,223-232,610
+Sources/MacParakeetCore/Services/System/StreamingCursorInserter.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 30,42-53,58,65-66,73-74,138-140,200-204,231,237,257-265,276,294-297,306-309
+docs/research/2026-10-30-1286-quartz-state/quartz-key-state-556ce1dea.jsonl
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1-88
+spec/adr/019-crash-resilient-meeting-recording.md
+  s_6f26576d2ce855::t_4d32e8d5f0a155 139-144,148
+Sources/MacParakeet/Views/Vocabulary/VocabularyBackupSection.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 7,19-20,22-27,29,178-187,189,193
+spec/contracts/dictation-shortcuts.md
+  s_6f26576d2ce855::t_4d32e8d5f0a155 138-171
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingAudioFile.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 18-19,110-115,119-141
+  s_6f26576d2ce855::t_dc552eba3e2604 142
+spec/contracts/meeting-artifacts-v1.md
+  s_6f26576d2ce855::t_4d32e8d5f0a155 303-313
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingRecoveryService.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 368,475-477,487,491-504,506-508,510-511
+spec/contracts/meeting-recovery-retention.md
+  s_6f26576d2ce855::t_4d32e8d5f0a155 60-62,74-77,471-497
+spec/contracts/youtube-video-playback.md
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1-68
+Sources/MacParakeetViewModels/MediaPlayerViewModel.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 58,84-85,92,109-113,257-258,270,284-287,293-303,358,362,389-392,394,396-400,427-431,444,446,452,461-462,468
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1019,1026
+Tests/MacParakeetTests/Services/LLM/CardGenerationServiceTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 215-256,645,854
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 878-880,883,1214-1283
+  s_6f26576d2ce855::t_c3c28ff5d90a76 1284-1285
+Sources/MacParakeetCore/Services/System/ClipboardService.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 55-57,60,64,71-72,76-77,82,86,90-91,95-96
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 54,78,81,108-121,910-919,1099,1132,1190-1194,1196-1198,1202,1211,1235-1244,1246,1289
+spec/contracts/cli-json-v1.md
+  s_6f26576d2ce855::t_4d32e8d5f0a155 412-414,570-580
+spec/04-ui-patterns.md
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1204-1227,1261,1265-1275
+Sources/MacParakeetViewModels/MeetingsWorkspaceViewModel.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 83-84
+Sources/MacParakeetCore/STT/README.md
+  s_6f26576d2ce855::t_4d32e8d5f0a155 150-152
+spec/contracts/saved-audio-auto-prompt-completion.md
+  s_6f26576d2ce855::t_4d32e8d5f0a155 143-174
+Tests/MacParakeetTests/Services/System/StreamingCursorInserterTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 38-62,128-148,153-154,158,163,165,235-333
+  s_6f26576d2ce855::t_43c86a9b699f21 334
+Tests/MacParakeetTests/ViewModels/CustomWordsViewModelTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 22-123,355
+docs/research/2026-10-30-1286-quartz-state/quartz-key-state.jsonl
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1-72
+plans/active/2026-10-30-1286-synthetic-paste-state.md
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1-40
+Sources/MacParakeet/Views/MeetingRecording/MeetingDeletionCopy.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 115-116
+Sources/MacParakeet/Views/Transcription/TranscriptionVideoPanel.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 96-103,114-116
+spec/02-features.md
+  s_6f26576d2ce855::t_4d32e8d5f0a155 194-197,200-207,317,1140,1144-1147,1154,1840,1843-1844,1851-1852
+  s_6f26576d2ce855::t_8f887391c2df13 1853
+Tests/MacParakeetTests/ViewModels/VocabularyBackupViewModelTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 1-194
+scripts/dev/voice-control/run_ax_browser_probe.py
+  s_6f26576d2ce855::t_4d32e8d5f0a155 29,34
+Tests/CLITests/MeetingsCommandTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 8-72,349-359,963-965,978-981,1008-1011,1186-1206
+Tests/MacParakeetTests/Services/LLM/LLMConfigStoreTests.swift
+  s_6f26576d2ce855::t_4d32e8d5f0a155 26-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "daf0d8fa5019199dfb3efdd99f67c752ada253fb",
+  "prompts": {},
+  "sessions": {
+    "s_6f26576d2ce855": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e58-eaa6-7583-abd5-6aec9f43cba6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
